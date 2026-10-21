@@ -1,0 +1,29 @@
+{
+  "files": [
+    {
+      "path": "driver-after.py",
+      "bytes": 18717,
+      "sha256": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884"
+    },
+    {
+      "path": "driver-before.py",
+      "bytes": 18297,
+      "sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756"
+    },
+    {
+      "path": "rename-receipt.json",
+      "bytes": 483,
+      "sha256": "8685c9e0f72cf5af772e4b668a858bb9046a87a20768253dbf982c3326a458b2"
+    },
+    {
+      "path": "root-validation.json",
+      "bytes": 685,
+      "sha256": "3a1d83e91a92e70a3d236c40fa83b98b98b37e2277d5a70138d0d48252e05d7f"
+    },
+    {
+      "path": "source-freeze.json",
+      "bytes": 2533,
+      "sha256": "3cb9a49dc9387961364af9e0ebc85a0108e2c1d0a9d66419f31500124a18dccc"
+    }
+  ]
+}

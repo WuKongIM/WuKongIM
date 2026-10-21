@@ -1,0 +1,1 @@
+{"apt":true,"audit_release_id":null,"channel":"stable","control_sha":null,"operation":"add_release","reason":"offline_candidate","rpm":true,"schema":"wukongim.native_package_repository_status/v3","snapshot_sha256":"14b3727f31836dfb7f91b85c7d58883b550277f44b791d3174a0e799d5b8a588","target_version":"3.0.1","test_only":true}

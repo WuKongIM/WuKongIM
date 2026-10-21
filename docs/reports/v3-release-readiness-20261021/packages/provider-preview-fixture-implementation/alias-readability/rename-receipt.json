@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-21T19:17:12.315128+00:00",
+  "before_sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756",
+  "after_sha256": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884",
+  "changed_files": [
+    "tests/native_object_delivery_fixture_drill.py"
+  ],
+  "ast_identical_after_reverse_alias_normalization": true,
+  "unchanged_other_source_files": 6,
+  "behavior_tests_changed": false,
+  "native_rerun": false,
+  "github_ci_pending": true
+}

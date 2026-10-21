@@ -1,0 +1,1 @@
+{"active_versions":["3.1.0-rc.1"],"audit_release_id":10,"base_audit_release_id":null,"control_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","new_versions":["3.1.0-rc.1"],"not_before":null,"operation":"add_release","removed_versions":[],"retained_versions":[],"schema":"wukongim.native_package_publication_plan/v1","target_version":"3.1.0-rc.1"}

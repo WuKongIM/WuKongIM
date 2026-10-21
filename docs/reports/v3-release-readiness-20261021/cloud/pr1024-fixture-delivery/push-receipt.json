@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-21T19:11:09.307262+00:00",
+  "head": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "remote_matches": true,
+  "push_stdout": "",
+  "push_stderr": "To https://github.com/WuKongIM/WuKongIM.git\n   c91e37b4e..2cc562fa3  HEAD -> codex/v3-rc-terminal-evidence\n",
+  "body_sha256": "144a368e4807c8c1b2347cc115ba2fba50581a974043acc775313f2d15992a8d",
+  "is_draft": true,
+  "ci": "new head natural PR triggers, no rerun or manual dispatch"
+}

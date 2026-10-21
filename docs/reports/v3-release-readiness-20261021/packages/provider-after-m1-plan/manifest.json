@@ -1,0 +1,22 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 9130,
+      "sha256": "3ecb56b5adc41aefd259662bac671de0311345796be237180353bf444247af9e"
+    },
+    {
+      "path": "failure-matrix.md",
+      "bytes": 2762,
+      "sha256": "47fa70c0077e2106ff0c9467f61b1d75bae0bc309173a034d5e43c4f9392ebea"
+    },
+    {
+      "path": "sourcebinding.json",
+      "bytes": 4499,
+      "sha256": "e12fb8e9ddffeed30ea5b8734a28a72a78f981e9e4adb5816c9c3b5c3bfbe346"
+    }
+  ],
+  "file_count": 3,
+  "total_bytes": 16391,
+  "bounded_public_only": true
+}

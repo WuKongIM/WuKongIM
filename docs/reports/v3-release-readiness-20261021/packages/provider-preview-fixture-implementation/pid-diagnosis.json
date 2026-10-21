@@ -1,0 +1,33 @@
+{
+  "exit_code": 2,
+  "failure_stderr": "gpg: keybox '/tmp/wk-site-rpm-gpg-57g3hheg/gnupg/pubring.kbx' created\ngpg: /tmp/wk-site-rpm-gpg-57g3hheg/gnupg/trustdb.gpg: trustdb created\ngpg: key 18F54375ED90CA8C: public key \"WuKongIM STABLE-CANDIDATE-RPM TEST ONLY <2@test.invalid>\" imported\ngpg: error running '/usr/bin/gpg-agent': exit status 2\ngpg: failed to start gpg-agent '/usr/bin/gpg-agent': General error\ngpg: can't connect to the gpg-agent: General error\ngpg: Total number processed: 1\ngpg:               imported: 1\n",
+  "stderr_sha256": "b0ffdb550e99d86316956fd45b288cac716872871de83260da06b509c9858e2a",
+  "certificate": {
+    "path": "/output/fixtures/B/control/keys/rpm-stable.asc",
+    "size": 4824,
+    "sha256": "f124ead3006ef4d768842b8df169c3eda7120e9eb452e2589e214c4c96f1f4b1"
+  },
+  "gpg_agent_live": 0,
+  "gpg_agent_zombies": 124,
+  "public_gpg_home_count": 1,
+  "cgroup": {
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+    "memory.current": "103223296\n",
+    "memory.max": "536870912\n",
+    "pids.current": "126\n",
+    "pids.max": "128\n",
+    "pids.events": "max 4\n"
+  },
+  "observation_count": 76,
+  "all_failed_agent_processes_have_ppid_1": true,
+  "pid1": [
+    {
+      "pid": 1,
+      "ppid": 0,
+      "state": "S",
+      "comm": "python3"
+    }
+  ],
+  "public_certificate_matches_exported_anchor": true,
+  "observational_run_not_positive_acceptance": true
+}

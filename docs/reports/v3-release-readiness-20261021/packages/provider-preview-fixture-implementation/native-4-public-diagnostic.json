@@ -1,0 +1,9 @@
+{
+  "diagnostic": "package audit receipt operation failed: archive must contain the exact audit evidence closure and the site tree\n",
+  "exact_stderr_hash_match": true,
+  "facts": {
+    "size": 112,
+    "sha256": "adf2cfd317f1f8002e1561a8c7e5d87ca128ad3271feec97f49d1f760c61b5fb"
+  },
+  "reason": "Preview composer leaves external plan/family receipts to archive assembly; add those original bytes to the public archive."
+}

@@ -1,0 +1,42 @@
+{
+  "source": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+  "observed_at": "2026-10-21T19:01:45.747615+00:00",
+  "source_files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "scripts/chat-lifecycle/collect-terminal-evidence.sh": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe",
+    "scripts/chat-lifecycle/terminal-evidence.py": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a",
+    "scripts/chat_lifecycle_terminal_evidence_integration_test.go": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py": "5eb949fd72c6fd44ffc99c837aab15b881641d0a3ed29bf18e80fa76a78af2af"
+  },
+  "source_hashes_unchanged": true,
+  "git_status_porcelain": "",
+  "diff_check_exit": 0,
+  "owned_fixture_processes": [],
+  "collector_invocations": {
+    "baseline": 6,
+    "static_host_shell": 6,
+    "precomputed_first_failed": 1,
+    "precomputed_corrected": 5,
+    "total": 18
+  },
+  "equivalence": {
+    "compared": 5,
+    "passed": 5,
+    "scope": "existing full case manifest/calls/retained-file receipt; only explicit normalization",
+    "all_79_equivalence_tested": false
+  },
+  "existing_matrix": {
+    "cases": 79,
+    "ssh_calls": 1767,
+    "legacy_static_ssh_calls": 1185,
+    "ssh_call_distribution": {
+      "15": 21,
+      "25": 57,
+      "27": 1
+    }
+  },
+  "repository_mutated": false,
+  "cloud_called": false,
+  "fullsuite_rerun": false,
+  "ci_rerun": false
+}

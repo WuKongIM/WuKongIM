@@ -1,0 +1,233 @@
+{
+  "scope": "Direct temporary shell SSH adapter only; no collector cases, product, network, CI or full suite.",
+  "count": 15,
+  "failed": 0,
+  "results": [
+    {
+      "case": "boundary-actual-valid",
+      "actual_command": "bash -o pipefail -c 'curl --get --fail --silent --show-error --max-time 10 --data-urlencode '\"'\"'query={__name__=~\"wukongim_runtime_.*\"}'\"'\"' --data-urlencode start=1792601510.121 --data-urlencode end=1792602410.121 --data-urlencode step=15 http://127.0.0.1:9090/api/v1/query_range | head -c 512'",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "stdout_bytes": 154,
+      "stdout_sha256": "8a67150737ffd7eeb8bf35222d53f2efb26afc562d1f08f351869cb0ac064824",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "range-runtime",
+        "query": "{__name__=~\"wukongim_runtime_.*\"}",
+        "start": "1792601510.121",
+        "end": "1792602410.121",
+        "step": "15"
+      },
+      "pass": true
+    },
+    {
+      "case": "boundary-wrong-start",
+      "actual_command": "bash -o pipefail -c 'curl --get --fail --silent --show-error --max-time 10 --data-urlencode '\"'\"'query={__name__=~\"wukongim_runtime_.*\"}'\"'\"' --data-urlencode start=1792601510.122 --data-urlencode end=1792602410.121 --data-urlencode step=15 http://127.0.0.1:9090/api/v1/query_range | head -c 512'",
+      "exit_code": 99,
+      "expected_exit_code": 99,
+      "stdout_bytes": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "range-runtime",
+        "query": "{__name__=~\"wukongim_runtime_.*\"}",
+        "start": "1792601510.122",
+        "end": "1792602410.121",
+        "step": "15"
+      },
+      "pass": true
+    },
+    {
+      "case": "boundary-wrong-end",
+      "actual_command": "bash -o pipefail -c 'curl --get --fail --silent --show-error --max-time 10 --data-urlencode '\"'\"'query={__name__=~\"wukongim_runtime_.*\"}'\"'\"' --data-urlencode start=1792601510.121 --data-urlencode end=1792602410.122 --data-urlencode step=15 http://127.0.0.1:9090/api/v1/query_range | head -c 512'",
+      "exit_code": 99,
+      "expected_exit_code": 99,
+      "stdout_bytes": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "range-runtime",
+        "query": "{__name__=~\"wukongim_runtime_.*\"}",
+        "start": "1792601510.121",
+        "end": "1792602410.122",
+        "step": "15"
+      },
+      "pass": true
+    },
+    {
+      "case": "boundary-wrong-step",
+      "actual_command": "bash -o pipefail -c 'curl --get --fail --silent --show-error --max-time 10 --data-urlencode '\"'\"'query={__name__=~\"wukongim_runtime_.*\"}'\"'\"' --data-urlencode start=1792601510.121 --data-urlencode end=1792602410.121 --data-urlencode step=30 http://127.0.0.1:9090/api/v1/query_range | head -c 512'",
+      "exit_code": 99,
+      "expected_exit_code": 99,
+      "stdout_bytes": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "range-runtime",
+        "query": "{__name__=~\"wukongim_runtime_.*\"}",
+        "start": "1792601510.121",
+        "end": "1792602410.121",
+        "step": "30"
+      },
+      "pass": true
+    },
+    {
+      "case": "boundary-actual-clip",
+      "actual_command": "bash -o pipefail -c 'curl --get --fail --silent --show-error --max-time 10 --data-urlencode '\"'\"'query={__name__=~\"wukongim_runtime_.*\"}'\"'\"' --data-urlencode start=1792601510.121 --data-urlencode end=1792602410.121 --data-urlencode step=15 http://127.0.0.1:9090/api/v1/query_range | head -c 7'",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "stdout_bytes": 7,
+      "stdout_sha256": "992601f57f54c8c647be635e04bd64828e40d82c3babeb014db6ea23e79b69a6",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "range-runtime",
+        "query": "{__name__=~\"wukongim_runtime_.*\"}",
+        "start": "1792601510.121",
+        "end": "1792602410.121",
+        "step": "15"
+      },
+      "pass": true
+    },
+    {
+      "case": "dispatch-up",
+      "actual_command": "bash -o pipefail -c 'curl --get --fail --silent --show-error --max-time 10 --data-urlencode query=up --data-urlencode start=1792601510.121 --data-urlencode end=1792602410.121 --data-urlencode step=15 http://127.0.0.1:9090/api/v1/query_range | head -c 512'",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "stdout_bytes": 130,
+      "stdout_sha256": "3393428cc6947943a2cd3251df847c8a87da5a078302a470f4d866562c73c789",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "range-up",
+        "query": "up",
+        "start": "1792601510.121",
+        "end": "1792602410.121",
+        "step": "15"
+      },
+      "pass": true
+    },
+    {
+      "case": "dispatch-go",
+      "actual_command": "bash -o pipefail -c 'curl --get --fail --silent --show-error --max-time 10 --data-urlencode '\"'\"'query={__name__=~\"wukongim_go_.*\"}'\"'\"' --data-urlencode start=1792601510.121 --data-urlencode end=1792602410.121 --data-urlencode step=15 http://127.0.0.1:9090/api/v1/query_range | head -c 512'",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "stdout_bytes": 144,
+      "stdout_sha256": "0d795d25cd6bc1954e04d2bc46b708321cd311e028feafb8441bc6c40f7ec28b",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "range-go",
+        "query": "{__name__=~\"wukongim_go_.*\"}",
+        "start": "1792601510.121",
+        "end": "1792602410.121",
+        "step": "15"
+      },
+      "pass": true
+    },
+    {
+      "case": "document-partial",
+      "actual_command": "cat /reports/rehearsal/worker-evidence.json | head -c 13",
+      "exit_code": 255,
+      "expected_exit_code": 255,
+      "stdout_bytes": 13,
+      "stdout_sha256": "6309236372544bf0524796072774c27efa2b14dc8eec5ed6bfecca5583b43106",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "rehearsal/worker-evidence.json"
+      },
+      "pass": true
+    },
+    {
+      "case": "document-unavailable",
+      "actual_command": "cat /reports/rehearsal/diagnostic-status.json | head -c 13",
+      "exit_code": 255,
+      "expected_exit_code": 255,
+      "stdout_bytes": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_canary": true,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "rehearsal/diagnostic-status.json"
+      },
+      "pass": true
+    },
+    {
+      "case": "document-missing",
+      "actual_command": "cat /reports/formal/worker-evidence.json | head -c 13",
+      "exit_code": 3,
+      "expected_exit_code": 3,
+      "stdout_bytes": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "formal/worker-evidence.json"
+      },
+      "pass": true
+    },
+    {
+      "case": "document-timeout",
+      "actual_command": "cat /reports/formal/diagnostic-status.json | head -c 13",
+      "exit_code": 124,
+      "expected_exit_code": 124,
+      "stdout_bytes": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "formal/diagnostic-status.json"
+      },
+      "pass": true
+    },
+    {
+      "case": "document-normal",
+      "actual_command": "cat /reports/capacity/worker-evidence.json | head -c 13",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "stdout_bytes": 13,
+      "stdout_sha256": "2a6efb1b48b45a44682c1b37ef4b49344dfdee689bde8a528f52a2604218a3dd",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "capacity/worker-evidence.json"
+      },
+      "pass": true
+    },
+    {
+      "case": "document-malformed",
+      "actual_command": "cat /reports/capacity/diagnostic-status.json | head -c 13",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "stdout_bytes": 13,
+      "stdout_sha256": "a99ec410da70e1dd1e35a18867a72a95322685a007b25a89f0fc7a424d8fc3aa",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": {
+        "kind": "capacity/diagnostic-status.json"
+      },
+      "pass": true
+    },
+    {
+      "case": "unknown-query",
+      "actual_command": "bash -o pipefail -c 'curl --get --fail --silent --show-error --max-time 10 --data-urlencode query=not_a_metric --data-urlencode start=1792601510.121 --data-urlencode end=1792602410.121 --data-urlencode step=15 http://127.0.0.1:9090/api/v1/query_range | head -c 512'",
+      "exit_code": 99,
+      "expected_exit_code": 99,
+      "stdout_bytes": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_canary": false,
+      "actual_command_recorded": true,
+      "last_parsed_call": null,
+      "pass": true
+    },
+    {
+      "case": "actual-unknown-query-record-rejected",
+      "pass": true
+    }
+  ]
+}

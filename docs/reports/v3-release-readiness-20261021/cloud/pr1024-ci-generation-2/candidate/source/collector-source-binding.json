@@ -1,0 +1,14 @@
+[
+  {
+    "path": "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+    "archive_path": "source/scripts/chat_lifecycle_terminal_evidence_integration_test.go.source",
+    "bytes": 4854,
+    "sha256": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2"
+  },
+  {
+    "path": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+    "archive_path": "source/scripts/testdata/chat_lifecycle_terminal_evidence_test.py.source",
+    "bytes": 30494,
+    "sha256": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1"
+  }
+]

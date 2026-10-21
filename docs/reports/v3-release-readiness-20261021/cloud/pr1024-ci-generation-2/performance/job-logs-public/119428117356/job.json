@@ -1,0 +1,68 @@
+{
+  "id": 119428117356,
+  "run_id": 39659391116,
+  "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1024 attempt 1",
+  "head_branch": "codex/v3-rc-terminal-evidence",
+  "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39659391116",
+  "run_attempt": 1,
+  "node_id": "CR_kwDOJgfwyc8AAAAbznhzbA",
+  "head_sha": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119428117356",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39659391116/job/119428117356",
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-10-21T19:11:10Z",
+  "started_at": "2026-10-21T19:11:12Z",
+  "completed_at": "2026-10-21T19:11:27Z",
+  "name": "PR performance baseline evidence",
+  "steps": [
+    {
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 1,
+      "started_at": "2026-10-21T19:11:13Z",
+      "completed_at": "2026-10-21T19:11:13Z"
+    },
+    {
+      "name": "Checkout exact candidate without credentials",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 2,
+      "started_at": "2026-10-21T19:11:13Z",
+      "completed_at": "2026-10-21T19:11:24Z"
+    },
+    {
+      "name": "Check identical-input successful main baseline",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 3,
+      "started_at": "2026-10-21T19:11:24Z",
+      "completed_at": "2026-10-21T19:11:25Z"
+    },
+    {
+      "name": "Post Checkout exact candidate without credentials",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 6,
+      "started_at": "2026-10-21T19:11:25Z",
+      "completed_at": "2026-10-21T19:11:25Z"
+    },
+    {
+      "name": "Complete job",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 7,
+      "started_at": "2026-10-21T19:11:25Z",
+      "completed_at": "2026-10-21T19:11:25Z"
+    }
+  ],
+  "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119428117356",
+  "labels": [
+    "ubuntu-24.04"
+  ],
+  "runner_id": 1000024503,
+  "runner_name": "GitHub Actions 1000024503",
+  "runner_group_id": 0,
+  "runner_group_name": "GitHub Actions"
+}

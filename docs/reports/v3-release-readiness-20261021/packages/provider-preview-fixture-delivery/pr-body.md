@@ -1,0 +1,11 @@
+Composite delivery preparation previously used a structural preview fixture, leaving its preview signatures and native archive outside the exercised chain. This adds a real TEST ONLY preview export alongside the two existing stable generations, then runs the unchanged native verifiers, canonical archive/audit checks, composite planner and materializer.
+
+The new data-only export reuses the existing signing and candidate construction helpers. The original product/client export still requires real binaries and the fixed source identity. Test signing secrets are removed before independent verification; synthetic provenance remains explicitly TEST ONLY and is rejected by the production fresh-input verifier.
+
+A new isolated step in the existing native safety workflow runs all 29 cases and retains public JSON receipts. Removing the two added steps restores the old workflow byte-for-byte, including its 31-case candidate and 49-case client checks. Production producers, channel/key controls, planner and materializer are unchanged.
+
+Validation: the process cases and workflow contracts were written and failed before implementation. The local default run passed 566 of 567 tests with one existing RPM-tool environment skip; 59 related checks and all five new workflow contracts passed. The complete pinned Linux container run passed 29/29 cases in 114.184 seconds under 1 CPU, 512 MiB and 128 PIDs, with cleanup successful. Independent Standards and Spec review found no blocking issues; the optional module-name readability finding was addressed with an independently checked alias-only change. Exact-head GitHub CI remains pending.
+
+The first run under CI resource limits failed at GPG import after 124 unreaped child processes exhausted the PID limit. Its evidence is retained. Enabling init only for the new container resolved that failure on the first uninstrumented run with the same limits and assertions; the memory limit was not raised.
+
+This is native fixture preparation. The packages contain test data, so this new step does not claim installed CLI, production provenance, SDK integration, live CDN routing or public-client acceptance. Those remain separate work, and stable stays disabled.

@@ -1,0 +1,57 @@
+{
+  "at": "2026-10-21T19:19:36.553586+00:00",
+  "head": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "tree": "8275ccb92c310f488d911b5aa077a962e1faad5c",
+  "base": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "source_files": [
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "bytes": 17610,
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+      "untracked": false
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 3802,
+      "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d",
+      "untracked": false
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "bytes": 16905,
+      "sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6",
+      "untracked": false
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "bytes": 53365,
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e",
+      "untracked": false
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "bytes": 70217,
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+      "untracked": false
+    },
+    {
+      "path": "tests/native_object_delivery_fixture_drill.py",
+      "bytes": 18717,
+      "sha256": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884",
+      "untracked": true
+    },
+    {
+      "path": "tests/test_native_object_delivery_fixture_workflow.py",
+      "bytes": 4180,
+      "sha256": "6e4f713a6f32179cab44bb3cb697dea2a5a4d176033272fa4e37fcfeac5b4066",
+      "untracked": true
+    }
+  ],
+  "freeze_sha256": "3cb9a49dc9387961364af9e0ebc85a0108e2c1d0a9d66419f31500124a18dccc",
+  "standards_alias_closure_sha256": "9b3deb1887e0eec2ae5b25370607c76e3dd8fc2f669ef261da7f67e9cb941974",
+  "spec_alias_binding_sha256": "cdc21c5b5efaf61fee2e8c7932707a6e2b9ddb548c4806d8993fb24f5f95f6d0",
+  "staged_patch_sha256": "fa0513f056f866e1934d0b72eca051cccc58e42dfee199ceae063e6beb08be46",
+  "clean": true,
+  "commit_stdout": "[codex/native-preview-fixture 19ce29f] test: verify native preview in composite delivery\n 7 files changed, 628 insertions(+), 11 deletions(-)\n create mode 100644 tests/native_object_delivery_fixture_drill.py\n create mode 100644 tests/test_native_object_delivery_fixture_workflow.py\n",
+  "ci_status": "not yet triggered"
+}

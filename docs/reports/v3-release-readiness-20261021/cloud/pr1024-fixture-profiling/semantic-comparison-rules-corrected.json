@@ -1,0 +1,40 @@
+{
+  "baseline_source": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/focused-corrected-results.json",
+  "baseline_sha256": "963e69ea7998670b2e587985f35db8ba36d939e9433781b4abcf11d338277411",
+  "case_mapping": {
+    "normal-1": "rehearsal",
+    "normal-2": "rehearsal",
+    "large": "large-split",
+    "missing-worker": "worker-missing",
+    "invalid-anchor": "anchor-missing-end",
+    "formal-capacity": "capacity",
+    "normal-corrected": "rehearsal"
+  },
+  "normalization": [
+    {
+      "path": "manifest.observed_at",
+      "rule": "Replace actual collection wall-clock timestamp with fixed 2000-01-01T00:00:00Z on both sides, after validating timestamp shape; preserve both original values in receipt."
+    },
+    {
+      "path": "files[path=manifest.json].sha256",
+      "rule": "Do not discard raw SHA. Reconstruct exact original manifest bytes and verify their archived SHA first; compare canonicalized bytes after only observed_at replacement, retain both raw and normalized SHA in receipt. File byte count still exact."
+    },
+    {
+      "path": "case",
+      "rule": "Scenario display label is compared through the explicit case_mapping, then removed from both case receipts. It does not change fixture inputs or any calls/manifest/files field."
+    }
+  ],
+  "not_normalized": [
+    "exit_code",
+    "captures.*.state",
+    "captures.*.bytes",
+    "captures.*.sha256",
+    "query",
+    "window",
+    "metrics_budget",
+    "calls (including order)",
+    "all other retained file SHA/bytes/path"
+  ],
+  "process_case_bound_amended_to": 18,
+  "reason": "Parent explicitly authorized six extra scratch runs for complete semantic comparison; first 12 phase traces remain unchanged."
+}

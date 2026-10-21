@@ -1,0 +1,47 @@
+{
+  "schema": "wukongim/d3-m1-author-handoff/v1",
+  "base": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "scope_count": 7,
+  "source_freeze_sha256": "50515387f78397c37570dcb3fe6f5b0fc254851df3817105d2fa633ce6892155",
+  "patch_sha256": "7c1aadc1e94c5de01ccfbc4e818b159ffdfbf4a75dcdfcc822485ce2fd2b8929",
+  "native_acceptance": {
+    "path": "ci-init-native-1/result.json",
+    "cases": 29,
+    "passed": 29,
+    "skipped": 0,
+    "exit_code": 0,
+    "cleanup_exit_code": 0,
+    "instrumented": false,
+    "local_not_github_ci": true
+  },
+  "default_suite": {
+    "run": 567,
+    "passed": 566,
+    "skipped": 1,
+    "before_new_workflow_contract": true
+  },
+  "workflow_contracts": {
+    "run": 9,
+    "passed": 9,
+    "final_init_delta_run": 5,
+    "final_init_delta_passed": 5
+  },
+  "related_native_contracts": 59,
+  "existing_shell_contract_passed": true,
+  "legacy_native_31_and_clients_49_pr_ci_pending": true,
+  "verification": {
+    "activation_authorized": false,
+    "cloud_verified": false,
+    "data_only_packages": true,
+    "fresh_production_auth_verified": false,
+    "github_provenance_verified": false,
+    "installed_cli_verified": false,
+    "native_preview_verified": true,
+    "native_stable_verified": true,
+    "public_clients_verified": false,
+    "sdk_integration_verified": false
+  },
+  "all_processes_terminal": true,
+  "source_frozen": true,
+  "no_commit_push_pr_or_cloud": true
+}

@@ -1,0 +1,13 @@
+{
+  "source": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+  "scope": "read-only bounded fixture profiling; no fullsuite/CI/cloud/credential access; scratch tools only",
+  "observed_at": "2026-10-21T18:51:03.121677+00:00",
+  "files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "scripts/chat-lifecycle/collect-terminal-evidence.sh": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe",
+    "scripts/chat-lifecycle/terminal-evidence.py": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a",
+    "scripts/chat_lifecycle_terminal_evidence_integration_test.go": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py": "5eb949fd72c6fd44ffc99c837aab15b881641d0a3ed29bf18e80fa76a78af2af"
+  },
+  "applicable_flow": "none for scripts/chat-lifecycle, scripts root or scripts/testdata; scripts/cloud-deployment/FLOW.md is unrelated"
+}

@@ -1,0 +1,5 @@
+{
+  "exit_code": 1,
+  "reason": "Reviewer checker incorrectly required case execution order to match declared inventory. Spec requires exact set/no omissions; implementation declares set comparison. No source failure inferred.",
+  "failed_assertion": "len(cases)==29 and actual_sequence==declared_sequence"
+}

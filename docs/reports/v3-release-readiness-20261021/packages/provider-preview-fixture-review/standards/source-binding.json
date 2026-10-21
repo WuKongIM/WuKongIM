@@ -1,0 +1,246 @@
+{
+  "schema": "standards-review-source-binding/v1",
+  "reviewed_at": "2026-10-21T19:15:07.703751+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture",
+  "base": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "head": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "base_tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "branch_commits": [],
+  "scope_commands": [
+    [
+      "git",
+      "diff",
+      "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc"
+    ],
+    [
+      "git",
+      "ls-files",
+      "--others",
+      "--exclude-standard"
+    ]
+  ],
+  "git_status_porcelain": " M .github/workflows/native-package-repository-drill.yml\n M CHANGELOG.md\n M docs/object-storage-delivery.md\n M tests/native_stable_candidate_drill.py\n M tests/native_stable_clients_drill.py\n?? tests/native_object_delivery_fixture_drill.py\n?? tests/test_native_object_delivery_fixture_workflow.py\n",
+  "tracked_paths": [
+    ".github/workflows/native-package-repository-drill.yml",
+    "CHANGELOG.md",
+    "docs/object-storage-delivery.md",
+    "tests/native_stable_candidate_drill.py",
+    "tests/native_stable_clients_drill.py"
+  ],
+  "untracked_paths": [
+    "tests/native_object_delivery_fixture_drill.py",
+    "tests/test_native_object_delivery_fixture_workflow.py"
+  ],
+  "source_freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/source-freeze.json",
+    "sha256": "50515387f78397c37570dcb3fe6f5b0fc254851df3817105d2fa633ce6892155"
+  },
+  "patch": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/implementation.patch",
+    "sha256": "7c1aadc1e94c5de01ccfbc4e818b159ffdfbf4a75dcdfcc822485ce2fd2b8929",
+    "all_seven_files_reconstructed_in_memory_against_fixed_base": true
+  },
+  "files": [
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "before": {
+        "exists": true,
+        "sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+        "bytes": 15073
+      },
+      "after": {
+        "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+        "bytes": 17610
+      },
+      "frozen_copy": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/final-source/.github/workflows/native-package-repository-drill.yml"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "before": {
+        "exists": true,
+        "sha256": "a4632a63c52de68e820678a85f1d1e85d2bf765981ded512fd80e4a299288478",
+        "bytes": 3561
+      },
+      "after": {
+        "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d",
+        "bytes": 3802
+      },
+      "frozen_copy": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/final-source/CHANGELOG.md"
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "before": {
+        "exists": true,
+        "sha256": "75dd8d88bcc9adc0681116ac907fa671bdeb91a7d5306efb6e5e469be3e52a60",
+        "bytes": 14213
+      },
+      "after": {
+        "sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6",
+        "bytes": 16905
+      },
+      "frozen_copy": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/final-source/docs/object-storage-delivery.md"
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "before": {
+        "exists": true,
+        "sha256": "7c1b3c474327f906b3cd5dd58005b21a1bac4e5d0632de5fc2f696340c62db58",
+        "bytes": 42889
+      },
+      "after": {
+        "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e",
+        "bytes": 53365
+      },
+      "frozen_copy": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/final-source/tests/native_stable_candidate_drill.py"
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "before": {
+        "exists": true,
+        "sha256": "8d7a8a003e6ff0df51f75834a89ea2e9d19c76237102360f9cca35acc2bff314",
+        "bytes": 70172
+      },
+      "after": {
+        "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+        "bytes": 70217
+      },
+      "frozen_copy": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/final-source/tests/native_stable_clients_drill.py"
+    },
+    {
+      "path": "tests/native_object_delivery_fixture_drill.py",
+      "before": {
+        "exists": false,
+        "sha256": null,
+        "bytes": 0
+      },
+      "after": {
+        "sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756",
+        "bytes": 18297
+      },
+      "frozen_copy": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/final-source/tests/native_object_delivery_fixture_drill.py"
+    },
+    {
+      "path": "tests/test_native_object_delivery_fixture_workflow.py",
+      "before": {
+        "exists": false,
+        "sha256": null,
+        "bytes": 0
+      },
+      "after": {
+        "sha256": "6e4f713a6f32179cab44bb3cb697dea2a5a4d176033272fa4e37fcfeac5b4066",
+        "bytes": 4180
+      },
+      "frozen_copy": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/final-source/tests/test_native_object_delivery_fixture_workflow.py"
+    }
+  ],
+  "standards_sources": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.github/workflows/README.md": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/README.md": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/docs/release-contract.md": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/docs/object-storage-delivery.md": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/.github/CODEOWNERS": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/contract.sh": "9db355d7dd66cd6a584cf5b6835da4837f9e52d132dd7752a03e02d907ba7b44",
+    "/Users/tt/.agents/skills/code-review/SKILL.md": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143"
+  },
+  "applicable_package_AGENTS": [],
+  "applicable_package_FLOW": [],
+  "discovery": "git ls-files *AGENTS.md *FLOW.md returned none; explicit root/tests/docs/.github/.github/workflows/parent checks found none; caller root AGENTS applies",
+  "unchanged_producers_and_controls": {
+    "scripts/archive-package-snapshot.py": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6",
+    "scripts/build-repository-bootstrap-packages.py": "4be7b0d5542446b097565f613ecf45bc7c9307409ea122b38495c5fa001d9a8c",
+    "scripts/compose-package-site.py": "cfe6190bff223b5e1b9eb6fa7df994cbbb33e54f626802df8ed26e73bc3a9da7",
+    "scripts/package-audit-receipt.py": "3f6f95ba26dc11df701e4dc13e2dadc55b140599c1eec6a43f2f994c43953475",
+    "scripts/plan-package-publication.py": "c98e38028c920edfb0a9b2b6397b07e2423ae1e79b1966a32a1e29abf008dfff",
+    "scripts/prepare-package-site.py": "bdb84c3870df278a3b02943ba14e056aeec692592cbb96d221520ecfa2a747fd",
+    "scripts/sign-package-family.py": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0",
+    "scripts/validate-control.py": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+    "scripts/validate-signing-material.py": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+    "scripts/verify-production-package-site.py": "71f1d4f4ae9f83fafa20fe690593b618e9e36a65dcecd3be7cc94e7bd304424f",
+    "scripts/verify-source-attestations.py": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0",
+    "scripts/verify-source-package-metadata.py": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a",
+    "manifests/channels.json": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+    "manifests/preview-signing.json": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+    "manifests/stable-public-keys.json": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+    "manifests/bootstrap-packages.json": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+    "manifests/signing-toolchain.json": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+    "manifests/trusted-toolchain.json": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+    "keys/apt-preview.asc": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+    "keys/rpm-preview.asc": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+    "keys/apt-stable.asc": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949",
+    "keys/rpm-stable.asc": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e"
+  },
+  "original_workflow_byte_equal_after_removing_two_new_steps": true,
+  "test_first": {
+    "driver_first_red_sha256": "18c18914d99428cadbfbf1637023e20f77fee531cb71551065af84634bce6932",
+    "post_red_driver_delta": "Only added evidence keyword for command facts; cases/assertions unchanged",
+    "export_missing_first_red": true,
+    "workflow_first_red": true,
+    "init_first_red": true
+  },
+  "evidence_sha256": {
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/pre-implementation-binding.json": "c189bf35f9099961402850d2c04433eb51486cc5e009893d05cec61baf938941",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/failure-matrix.md": "5577e1e44994e9512a6202e6340404607ec02658a39bbb9206da3ed441adbc6c",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-scope-addendum.md": "e04443bc33d66e5f98742313fcab938051e90c879643a8ea420f2303c1eccd86",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/first-red-tests.py": "18c18914d99428cadbfbf1637023e20f77fee531cb71551065af84634bce6932",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/red-1-command.json": "85515dcf08e1a2c705f1ad8a55b074fe677e34f120e1b39a205d6bbf06371598",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/red-1/result.json": "14bdba7c95df664d7cd29a948ba87312518b5bc2dce0d70508ad8eadbf980eaa",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-first-red-tests.py": "91e9685885ea727c22297ef5d2941a677688f2303b5285c6d1d1371963badfc7",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-red-1.json": "e8b1eb54bddfa919c3b6e752fe376e693ac98ac0ee802f7d3b00478e027d15b2",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-red-2.json": "607cc7d32d4696b64e8aa9e4f81bd6a12efe45bf8976eccd2980f2fe839ddf81",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/init-red.json": "d52897705e268cb2933a205e40156950c9a8810b1978ff50b3f361ff8e0c75b7",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/init-green.json": "c8c255a71be444adb10f5a9858caaa0de7c3c177166e5198581f57258c2414d0",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/native-5-command.json": "1473faeb666581047c25d78424eb4561d6d99c9cf0cc424f3e8f3407314a6d22",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/native-5/result.json": "ab798ae8d28d2e33b5571b8dcb37e164f13ca18ee4e31f383ef948f03be3f00f",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-native-1-command.json": "c0cded623777b1c0e15a4163ffbdbdc35d173526f52de3f6bde54f335f065c74",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-native-1/result.json": "0571ea968708d7b0a55053136be040abbf038f04cf452997bcc4d8b6485e75d5",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/pid-diagnosis.json": "5ca0f7227330411941ee84e270de15ab3065de82494da9462a709d4c927b631e",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/init-live-snapshot.json": "e3cacd82ea6a4602fe96267e9ad37d84574d126e542b617836aea97cafef00e5",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-init-native-1-command.json": "2d226813121a59c03ea9c1b55a1f97f7a391cf99e029ec17a5598f2cd05d5946",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-init-native-1/result.json": "77b5c913d1ca86c618269d98b6038ef5eb945fd434bb170144a16fcb898893ea",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-init-native-1/fixture-export.json": "5b2c8ae22abb95ed041a87f7656e89771aaca38376b539927b4e74cc995ea0d2",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/final-receipt-check.json": "71f0308fb94593eda7cd78e573f3785607005cfd1dc9e03ca1d0963c174097df",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/default-1.json": "acd49e7b233a14bb0f5066e0a304c1af4d39ec950379b02e4d306aa800579163",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/default-1.stderr.txt": "3a60af94ded642eef20a0b5bcd0e470f71741739f87d76dea97c7d363a0eee93",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/related-1.json": "1e5c9d0d75466359ee461c92a21fb7e24395616072f73de0eaa6fb927fa98f18",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/related-1.stderr.txt": "4f69bb613adc5e0703e23dc3f96dbc4d00335c595a1b30706601589e8c191724",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/final-contracts.json": "b4c9d66ba32c8f88495848780b7265a3273d7c009356e3884258afd823a5f181",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/workflow-legacy-preservation-final.json": "9bd84fbbf8218a9e841474d030ce082a2099889c3328cb53d356cfb136e9814b",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/protected-source-preservation.json": "4b4a7d77e905706026e13c2cc1dd216acbf260d39b865c633acb3b7d69f41a83"
+  },
+  "validation_limits": {
+    "reviewer_test_runs": 0,
+    "reviewer_source_edits": 0,
+    "CI_invoked": false,
+    "production_secrets_read": false,
+    "legacy_native31_and_client49_not_rerun": true,
+    "GitHub_CI_success_not_claimed": true
+  },
+  "findings": [
+    {
+      "priority": 3,
+      "kind": "heuristic_judgment",
+      "smell": "Mysterious Name",
+      "path": "tests/native_object_delivery_fixture_drill.py",
+      "start_line": 25,
+      "end_line": 26,
+      "hard_violation": false,
+      "blocking": false
+    }
+  ],
+  "smell_baseline_assessed": [
+    "Mysterious Name",
+    "Duplicated Code",
+    "Feature Envy",
+    "Data Clumps",
+    "Primitive Obsession",
+    "Repeated Switches",
+    "Shotgun Surgery",
+    "Divergent Change",
+    "Speculative Generality",
+    "Message Chains",
+    "Middle Man",
+    "Refused Bequest"
+  ],
+  "report_sha256": "c9c366cf63437187917b3786a3ebc528ecb1070c909f584dab450e592ebd230d"
+}

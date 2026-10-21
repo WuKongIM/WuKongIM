@@ -1,0 +1,46 @@
+[
+  {
+    "command": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_*workflow.py"
+    ],
+    "exit_code": 0,
+    "deadline_seconds": 90,
+    "started_at_unix": 1792609264.604636,
+    "finished_at_unix": 1792609264.638786
+  },
+  {
+    "command": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_native_stable*.py"
+    ],
+    "exit_code": 0,
+    "deadline_seconds": 90,
+    "started_at_unix": 1792609264.6388092,
+    "finished_at_unix": 1792609265.969196
+  },
+  {
+    "command": [
+      "bash",
+      "tests/contract.sh"
+    ],
+    "exit_code": 0,
+    "deadline_seconds": 90,
+    "started_at_unix": 1792609265.969207,
+    "finished_at_unix": 1792609267.264079
+  }
+]

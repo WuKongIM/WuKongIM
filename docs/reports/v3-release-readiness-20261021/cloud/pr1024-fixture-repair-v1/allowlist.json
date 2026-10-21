@@ -1,0 +1,75 @@
+{
+  "schema": "fixture-repair-public-evidence/v1",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 3384,
+      "sha256": "67fb231963ee37cb9724480460d2c31109e0478adaaf6232195a0efebaf2fdef"
+    },
+    {
+      "path": "before-freeze.json",
+      "bytes": 3891,
+      "sha256": "c96d9efb4422173eb78c948deb45b1c0f76fb0314352dd4e3fd6c95d0f2f258b"
+    },
+    {
+      "path": "compare_artifacts.py",
+      "bytes": 2716,
+      "sha256": "9c55b21b05c03185c3e2e605c8a15b97c3f197fb1262faa45be109de0dcef53d"
+    },
+    {
+      "path": "delivery-receipt.json",
+      "bytes": 536,
+      "sha256": "9ecabbe77503cc5a34dab41fd9bd1f4b3b62aa5c65d9626c0ace4e185b1cca66"
+    },
+    {
+      "path": "fixture-before.py",
+      "bytes": 28540,
+      "sha256": "5eb949fd72c6fd44ffc99c837aab15b881641d0a3ed29bf18e80fa76a78af2af"
+    },
+    {
+      "path": "focused-first-results.json",
+      "bytes": 1268612,
+      "sha256": "0d1900a9ba731a066f37398e17901970b69147d14b409e475f3473fc00cdfe79"
+    },
+    {
+      "path": "focused-first.jsonl",
+      "bytes": 3969,
+      "sha256": "b57e7916de433406ccaeeb70534beb8ddbbf04d16a251698342d299cccd85264"
+    },
+    {
+      "path": "implementation-first-freeze.json",
+      "bytes": 264,
+      "sha256": "b0f4b67b9f45aa7fb59484f776eb7ebfc5c70b35ad0811ab27fc757e769193d9"
+    },
+    {
+      "path": "implementation-first.py",
+      "bytes": 30494,
+      "sha256": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1"
+    },
+    {
+      "path": "new-adapter.txt",
+      "bytes": 5984,
+      "sha256": "dac768fff1c27f571318a8e1b53887bb8d181160f2c89f1360cf9afda90a57d3"
+    },
+    {
+      "path": "plan-and-failure-matrix.md",
+      "bytes": 4615,
+      "sha256": "dcd73f97e9c4b1d0c8e626158e2f98a07574d498b3d143b93527cb4e0449ec3d"
+    },
+    {
+      "path": "review-source-freeze.json",
+      "bytes": 3767,
+      "sha256": "5d6532c831cc0596fd77931a98674835f69b06229f2444965b4269179dec46b2"
+    },
+    {
+      "path": "semantic-comparison-first.json",
+      "bytes": 58798,
+      "sha256": "46ecff3c627befffa0e9c8005505a18ff8d0c5c286f9f600c2cb255508d91e78"
+    },
+    {
+      "path": "semantic-comparison-first.log",
+      "bytes": 1009,
+      "sha256": "2c9fe29d73affaef9ae05d145dbecf804ba66c193c96d3f2eaf4baa559e7adb3"
+    }
+  ]
+}

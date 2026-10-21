@@ -1,0 +1,6 @@
+{
+  "exit_code": 1,
+  "tests_sha256": "8b29a2346d8d5e1527f560c2520f7a9d416591a5403c0cd9d6b6425d05f007de",
+  "reason": "Before workflow implementation: secret_tree_removed belongs to fixture-export.json, not the command transcript subobject. Correct the planned receipt predicate location.",
+  "finished_at_unix": 1792609173.313897
+}

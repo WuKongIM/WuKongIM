@@ -1,0 +1,20 @@
+{
+  "schema": "fixture-equivalence/v1",
+  "baseline": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/focused-corrected-results.json",
+    "sha256": "963e69ea7998670b2e587985f35db8ba36d939e9433781b4abcf11d338277411",
+    "source_sha": "cee5d51f325fb84033060f546337d326110adae5"
+  },
+  "candidate": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-fixture-repair-v1/focused-first-results.json",
+    "sha256": "0d1900a9ba731a066f37398e17901970b69147d14b409e475f3473fc00cdfe79",
+    "source_sha": "c91e37b4e35e1009c9c5cb55ff351a38b870014f"
+  },
+  "normalization_allowlist": [
+    "cases[].manifest.observed_at",
+    "cases[].files[path=manifest.json].sha256 derived only from observed_at normalization; originals verified"
+  ],
+  "provenance_note": "source_sha headers are separately recorded provenance, not normalized or compared as runtime behavior; case receipts otherwise compare entire objects",
+  "cases_compared": 79,
+  "cases_equal": 79
+}

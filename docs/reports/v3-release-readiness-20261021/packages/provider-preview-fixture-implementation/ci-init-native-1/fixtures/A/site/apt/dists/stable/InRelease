@@ -1,0 +1,37 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256
+
+Acquire-By-Hash: yes
+Architectures: amd64
+Codename: stable
+Components: main
+Date: Wed, 21 Oct 2026 19:06:44 +0000
+Label: WuKongIM
+Origin: WuKongIM
+Suite: stable
+MD5Sum:
+ 914cfffbc80fe1e5efd8d7e23976765d              994 main/binary-amd64/Packages
+ 9d8cbb07383fc46ba714fa146c5d0a35              588 main/binary-amd64/Packages.gz
+SHA1:
+ a7ae1bb96ef766761719cd62335c73888660b290              994 main/binary-amd64/Packages
+ 637bf4b2d02b930fd4d5dab7dab38d8e3b282638              588 main/binary-amd64/Packages.gz
+SHA256:
+ 9cc7d35b94e8b985ce351a253cb841662d83f54fc383426e5c5d0598678211bd              994 main/binary-amd64/Packages
+ ec4d57d37b01e137a8b021a8be7f42aa20509ad450e6dec496087303833f4010              588 main/binary-amd64/Packages.gz
+SHA512:
+ 1400ffabbea1a6099e1520048009709f1b35ddeed8d31ab0119e3a038f13b4ae475b32b6e5a57f3c5fe2beab256744f2f5a501350030df07c1b137298a853267              994 main/binary-amd64/Packages
+ 512a29269c8d8133e982d1366c2ebc0971f9531d5fe07c7355ed98d115f87c964ec9fe62ed17684e7ef4ba580ec9a8470dd5bba3c6fdc9d5e087d48578479bb3              588 main/binary-amd64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iQGzBAEBCAAdFiEEn5BjJ1ndByl3kyjRVDUi9/efwwsFAmrZDUYACgkQVDUi9/ef
+wwuASgv+IL0JaEXVSeaTogQ++URpG24uMcfKHCdxZZUXa4AY5Y7frQ0JuZt6OOO8
+BaRlHrHm/I+/pY5VcIy5yYBz3KRAcpAde/aqNR/1M6+lpiWSxoj1//9cSJ6+UNaJ
+HzdDOg8D84YLJf3Lyh8NilqXlhC8AJNUu11clNVRy/U2KqokWmJyfEu+NOjLQXA5
+UBXd3CRLHFI6yL+KoKICCH3XhcneRRNRlyaKYWKSp9vIz/O8CAwCUtwIg88o+DgV
+5c1UYv8+6qghuHixYg4xFjy+tkA+kLW0UdkN6dh5KcdmVTkenuCS6Ww0HiYgF+AO
+34y4hvp1KoC6NhxeI10cJaCLiYsE3x9+4aHAi8GXOp8o3G6uYK+RieUywcTU/rp4
+VxFZlgwXvX9oAzUT5aSxJZ1DmAgZ+z9dtqE75NDlUbjjHrWnGelYhj3fyPHr/Brn
+SU5yHCXQOgQGUMR0sNEyg/oGi+JFZqke7HWkJ54AKR84CD0UvpDAN6kj9kqKKIw5
+FJcEJMHo
+=vpsc
+-----END PGP SIGNATURE-----

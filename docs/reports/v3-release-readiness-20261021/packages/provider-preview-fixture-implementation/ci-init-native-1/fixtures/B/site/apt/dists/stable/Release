@@ -1,0 +1,20 @@
+Acquire-By-Hash: yes
+Architectures: amd64
+Codename: stable
+Components: main
+Date: Wed, 21 Oct 2026 19:06:54 +0000
+Label: WuKongIM
+Origin: WuKongIM
+Suite: stable
+MD5Sum:
+ d6b1c7b451c5c54ecf334f3a92dd6ba0              994 main/binary-amd64/Packages
+ 80af28d255ac1cca352abf875169b7a0              588 main/binary-amd64/Packages.gz
+SHA1:
+ b4fa975c352b220f37e5432680861ff716ef882d              994 main/binary-amd64/Packages
+ adf1b77b5781a16acabbb8382bedd5968999115b              588 main/binary-amd64/Packages.gz
+SHA256:
+ 1b38484268d129c38a5e1722ad4a7664b612a1d36d052085105cd77f20c97e3f              994 main/binary-amd64/Packages
+ e103a42482e02e2b16f2b4483fca6c00e30b06204ab9bdbc1f9e362c96fc29f1              588 main/binary-amd64/Packages.gz
+SHA512:
+ 8b2b65fbc12f28afec4f06f03a16a7f34793e034acd924c4e33004ddbfbd3f2761e2878a3f47b5479b466a8ebcd3595c09e41716c31620d38e186d07f1b026be              994 main/binary-amd64/Packages
+ 65caa6619b99ac504f3ae7cf59e94887eca02c37bc3adaedb39934f7a8e10da5cecdd9334a8176d28407ade4d876a9c0ecc70e6951767333ff2f45a9ecd46a1c              588 main/binary-amd64/Packages.gz

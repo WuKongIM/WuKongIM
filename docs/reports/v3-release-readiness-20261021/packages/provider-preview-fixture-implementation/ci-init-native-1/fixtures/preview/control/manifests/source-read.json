@@ -1,0 +1,15 @@
+{
+  "schema": "wukongim.native_package_source_read/v1",
+  "enabled": true,
+  "environment": "native-package-source-read",
+  "app_client_id_secret": "WK_SOURCE_READ_APP_CLIENT_ID",
+  "app_private_key_secret": "WK_SOURCE_READ_APP_PRIVATE_KEY",
+  "owner": "WuKongIM",
+  "repositories": [
+    "WuKongIM"
+  ],
+  "permissions": {
+    "contents": "read",
+    "attestations": "read"
+  }
+}

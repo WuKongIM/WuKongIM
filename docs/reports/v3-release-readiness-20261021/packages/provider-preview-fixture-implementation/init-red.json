@@ -1,0 +1,18 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_native_object_delivery_fixture_workflow.py"
+  ],
+  "deadline_seconds": 30,
+  "exit_code": 1,
+  "tests_sha256": "6e4f713a6f32179cab44bb3cb697dea2a5a4d176033272fa4e37fcfeac5b4066",
+  "workflow_sha256": "e59b458d3f480415b8b42a9cc801bb6328ab42874698685454411f7efd8b2cfe",
+  "finished_at_unix": 1792609554.932789
+}

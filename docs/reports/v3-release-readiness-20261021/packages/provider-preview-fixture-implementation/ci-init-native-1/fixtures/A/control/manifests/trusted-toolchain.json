@@ -1,0 +1,13 @@
+{
+  "schema": "wukongim.native_package_toolchain/v1",
+  "repository": "WuKongIM/WuKongIM",
+  "commit": "ed7e67d8f781b4f92872e42116c11b304fe03b5c",
+  "files": {
+    "scripts/build-native-package-repositories.sh": "09d87b6b8191ba0c80cf9be64150f16be19b2fdd5c5fc8f1ade66e784695e7d2",
+    "scripts/generate-native-package-test-keyring.sh": "9578ceb1cfe342547a9d7cf16054e1b98f308ef3001101f947abf384ac8618fe",
+    "scripts/sign-native-package-repositories.sh": "1ab5eaf87974128d3ee755187d17b50071bab455a1b7c5cbb37f9258929b9e7e",
+    "scripts/validate-native-package-repositories-container.sh": "a04bf029429c71a2a390408ac7cc00107a46c393d80c4b20159aa6b257cf0af4",
+    "scripts/verify-native-package-metadata.py": "b232d9ceacf2179e9b74ef3757c02a5c3a9d3f1ee0a7a532f402318d8cb8ca34",
+    "scripts/verify-native-package-repositories.sh": "7370ff43cf826dc9faee72df4b731e76515210171dafe68b72b7665862015622"
+  }
+}

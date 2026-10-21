@@ -1,0 +1,240 @@
+{
+  "after": {
+    ".github/workflows/native-package-repository-drill.yml": {
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+      "size": 17610
+    },
+    "CHANGELOG.md": {
+      "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d",
+      "size": 3802
+    },
+    "docs/object-storage-delivery.md": {
+      "sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6",
+      "size": 16905
+    },
+    "tests/native_object_delivery_fixture_drill.py": {
+      "sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756",
+      "size": 18297
+    },
+    "tests/native_stable_candidate_drill.py": {
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e",
+      "size": 53365
+    },
+    "tests/native_stable_clients_drill.py": {
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+      "size": 70217
+    },
+    "tests/test_native_object_delivery_fixture_workflow.py": {
+      "sha256": "6e4f713a6f32179cab44bb3cb697dea2a5a4d176033272fa4e37fcfeac5b4066",
+      "size": 4180
+    }
+  },
+  "applicable_rules": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.github/workflows/README.md": {
+      "sha256": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+      "size": 77878
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": {
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "size": 13284
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/CONTEXT.md": {
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "size": 12160
+    }
+  },
+  "base": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "before": {
+    ".github/workflows/native-package-repository-drill.yml": {
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+      "size": 17610
+    },
+    "CHANGELOG.md": {
+      "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d",
+      "size": 3802
+    },
+    "docs/object-storage-delivery.md": {
+      "sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6",
+      "size": 16905
+    },
+    "tests/native_object_delivery_fixture_drill.py": {
+      "sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756",
+      "size": 18297
+    },
+    "tests/native_stable_candidate_drill.py": {
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e",
+      "size": 53365
+    },
+    "tests/native_stable_clients_drill.py": {
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+      "size": 70217
+    },
+    "tests/test_native_object_delivery_fixture_workflow.py": {
+      "sha256": "6e4f713a6f32179cab44bb3cb697dea2a5a4d176033272fa4e37fcfeac5b4066",
+      "size": 4180
+    }
+  },
+  "commit_list": [],
+  "diff_commands": [
+    "git diff be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+    "git ls-files --others --exclude-standard"
+  ],
+  "final_status": " M .github/workflows/native-package-repository-drill.yml\n M CHANGELOG.md\n M docs/object-storage-delivery.md\n M tests/native_stable_candidate_drill.py\n M tests/native_stable_clients_drill.py\n?? tests/native_object_delivery_fixture_drill.py\n?? tests/test_native_object_delivery_fixture_workflow.py\n",
+  "head": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "implementation_patch": {
+    "sha256": "7c1aadc1e94c5de01ccfbc4e818b159ffdfbf4a75dcdfcc822485ce2fd2b8929",
+    "size": 48424
+  },
+  "legacy_workflow_exact_after_removing_two_new_steps": true,
+  "packages_AGENTS_FLOW_CONTEXT": [],
+  "review_completed_utc": "2026-10-21T19:16:16.934206+00:00",
+  "source_freeze": {
+    "sha256": "50515387f78397c37570dcb3fe6f5b0fc254851df3817105d2fa633ce6892155",
+    "size": 2486
+  },
+  "specs": {
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-after-d2-plan-review/report.md": {
+      "sha256": "5f0a7e53d102b4b0a9f64a94b1a076124cde82b437af205830e9b0ca86d3bd20",
+      "size": 1843
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-after-d2-plan/README.md": {
+      "sha256": "2008eba29bb0c62cd05635bcce93bcc94d8c90d1411bb741dd0bffae95e1c7f4",
+      "size": 7722
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-scope-addendum.md": {
+      "sha256": "e04443bc33d66e5f98742313fcab938051e90c879643a8ea420f2303c1eccd86",
+      "size": 1405
+    },
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/failure-matrix.md": {
+      "sha256": "5577e1e44994e9512a6202e6340404607ec02658a39bbb9206da3ed441adbc6c",
+      "size": 3047
+    }
+  },
+  "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "unchanged_tracked_count": 119,
+  "unchanged_tracked_paths": [
+    ".github/CODEOWNERS",
+    ".github/workflows/native-package-audit-bind.yml",
+    ".github/workflows/native-package-audit-draft.yml",
+    ".github/workflows/native-package-cli-acceptance.yml",
+    ".github/workflows/native-package-immutable-public-reverify.yml",
+    ".github/workflows/native-package-publish.yml",
+    ".github/workflows/native-package-signing-preflight.yml",
+    ".github/workflows/native-package-signing-toolchain.yml",
+    ".github/workflows/object-storage-provider-contract.yml",
+    ".github/workflows/pages.yml",
+    ".github/workflows/source-release-preflight.yml",
+    ".gitignore",
+    "LICENSE",
+    "README.md",
+    "SECURITY.md",
+    "docs/object-storage-planning.md",
+    "docs/release-contract.md",
+    "docs/stable-audit-transport.md",
+    "keys/README.md",
+    "keys/apt-preview.asc",
+    "keys/apt-stable.asc",
+    "keys/rpm-preview.asc",
+    "keys/rpm-stable.asc",
+    "manifests/audit-access.json",
+    "manifests/bootstrap-packages.json",
+    "manifests/channels.json",
+    "manifests/preview-signing.json",
+    "manifests/signing-toolchain.json",
+    "manifests/source-read.json",
+    "manifests/stable-public-keys.json",
+    "manifests/trusted-toolchain.json",
+    "requirements-object-storage-provider.lock",
+    "scripts/aliyun-object-storage-provider.py",
+    "scripts/archive-package-snapshot.py",
+    "scripts/bind-audit-release.py",
+    "scripts/build-repository-bootstrap-packages.py",
+    "scripts/compose-package-site.py",
+    "scripts/derive-rpm-allowlists.py",
+    "scripts/package-audit-receipt.py",
+    "scripts/plan-object-storage-publication.py",
+    "scripts/plan-package-publication.py",
+    "scripts/prepare-object-storage-delivery.py",
+    "scripts/prepare-package-site.py",
+    "scripts/resolve-audit-release.py",
+    "scripts/resolve-source-release.py",
+    "scripts/seal-audit-release.py",
+    "scripts/sign-package-family.py",
+    "scripts/validate-control.py",
+    "scripts/validate-installed-wkcli.py",
+    "scripts/validate-production-package-clients.py",
+    "scripts/validate-signing-material.py",
+    "scripts/verify-object-storage-delivery-inputs.py",
+    "scripts/verify-production-package-site.py",
+    "scripts/verify-source-attestations.py",
+    "scripts/verify-source-package-metadata.py",
+    "scripts/verify-stable-seal-inputs.py",
+    "site/index.html",
+    "site/status.json",
+    "tests/contract.sh",
+    "tests/fixtures/source-release/wukongim_3.1.0-rc.1_checksums.txt",
+    "tests/fixtures/source-release/wukongim_3.1.0-rc.1_darwin_amd64.tar.gz",
+    "tests/fixtures/source-release/wukongim_3.1.0-rc.1_darwin_arm64.tar.gz",
+    "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_amd64.deb",
+    "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_amd64.rpm",
+    "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_amd64.tar.gz",
+    "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_arm64.tar.gz",
+    "tests/fixtures/wkcli-acceptance/README.md",
+    "tests/fixtures/wkcli-acceptance/native-v3-unregistered.tar.gz",
+    "tests/fixtures/wkcli-acceptance/native-v3.tar.gz",
+    "tests/fixtures/wkcli-acceptance/original-v2-empty.tar.gz",
+    "tests/fixtures/wkcli-acceptance/scenario.yaml",
+    "tests/fixtures/wkcli-acceptance/sha256.json",
+    "tests/fixtures/wkcli-acceptance/target.yaml",
+    "tests/fixtures/wkcli-acceptance/workers.yaml",
+    "tests/native_bootstrap_preparation_drill.py",
+    "tests/native_local_signing_drill.py",
+    "tests/native_source_metadata_drill.py",
+    "tests/native_stable_seal_transport_drill.py",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "tests/stable_audit_fixture.py",
+    "tests/test_archive_package_snapshot.py",
+    "tests/test_bind_audit_release.py",
+    "tests/test_build_repository_bootstrap_packages.py",
+    "tests/test_compose_package_site.py",
+    "tests/test_composite_storage_plan.py",
+    "tests/test_derive_rpm_allowlists.py",
+    "tests/test_installed_cli_acceptance.py",
+    "tests/test_native_bootstrap_preparation_drill.py",
+    "tests/test_native_local_signing_drill.py",
+    "tests/test_native_stable_candidate_drill.py",
+    "tests/test_native_stable_clients_drill.py",
+    "tests/test_object_storage_delivery.py",
+    "tests/test_object_storage_delivery_inputs.py",
+    "tests/test_package_audit_receipt.py",
+    "tests/test_plan_object_storage_publication.py",
+    "tests/test_plan_package_publication.py",
+    "tests/test_prepare_package_site.py",
+    "tests/test_resolve_audit_release.py",
+    "tests/test_resolve_source_release.py",
+    "tests/test_seal_audit_release.py",
+    "tests/test_sign_package_family.py",
+    "tests/test_source_channel_classification.py",
+    "tests/test_source_preflight_workflow.py",
+    "tests/test_stable_audit_transport.py",
+    "tests/test_stable_bootstrap_preparation.py",
+    "tests/test_stable_candidate_audit.py",
+    "tests/test_stable_candidate_closure.py",
+    "tests/test_stable_candidate_prepare.py",
+    "tests/test_stable_candidate_verifier.py",
+    "tests/test_stable_offline_candidate.py",
+    "tests/test_stable_public_keys.py",
+    "tests/test_stable_seal_inputs.py",
+    "tests/test_validate_control.py",
+    "tests/test_validate_production_package_clients.py",
+    "tests/test_validate_signing_material.py",
+    "tests/test_verify_production_package_site.py",
+    "tests/test_verify_source_attestations.py",
+    "tests/test_verify_source_package_metadata.py",
+    "toolchain/native-package-signing/Dockerfile"
+  ],
+  "untracked": [
+    "tests/native_object_delivery_fixture_drill.py",
+    "tests/test_native_object_delivery_fixture_workflow.py"
+  ]
+}

@@ -1,0 +1,357 @@
+{
+  "case_inventory": [
+    "export-native-public-fixtures",
+    "client-rejects-missing-binaries",
+    "client-rejects-malformed-binaries",
+    "client-rejects-wrong-source",
+    "verify-native-preview",
+    "reject-structural-preview",
+    "repeat-canonical-archive",
+    "reject-preview-deb",
+    "reject-preview-rpm",
+    "reject-preview-apt-index",
+    "reject-preview-rpm-metadata",
+    "reject-preview-signature-crypto",
+    "plan-native-composite-A",
+    "plan-native-composite-B",
+    "repeat-composite-plan",
+    "reject-preview-archive",
+    "reject-preview-receipt",
+    "reject-preview-control",
+    "reject-preview-audit-id",
+    "reject-preview-control-sha",
+    "reject-missing-preview",
+    "reject-missing-retained-archive",
+    "reject-test-without-optin",
+    "reject-fresh-production-auth",
+    "reject-plan-digest",
+    "reject-route-limit",
+    "materialize-exact-A",
+    "materialize-exact-B",
+    "export-public-only"
+  ],
+  "cleanup_exit_code": 0,
+  "command": {
+    "sha256": "2d226813121a59c03ea9c1b55a1f97f7a391cf99e029ec17a5598f2cd05d5946",
+    "size": 2325
+  },
+  "drill_commands": [
+    {
+      "exit_code": 0,
+      "full_output_hash_independently_verified": true,
+      "output_tail": null,
+      "stage": "verify-native-preview"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "production package-site verification failed: gpg rejected the reviewed public certificate packets\n",
+      "stage": "reject-structural-preview"
+    },
+    {
+      "exit_code": 0,
+      "full_output_hash_independently_verified": false,
+      "output_tail": null,
+      "stage": "repeat-canonical-archive"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "production package-site verification failed: APT payload digest differs from snapshot for 3.1.0-rc.1\n",
+      "stage": "reject-preview-deb"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "production package-site verification failed: RPM payload digest differs from snapshot for 3.1.0-rc.1\n",
+      "stage": "reject-preview-rpm"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "production package-site verification failed: APT Packages.gz differs from Packages\n",
+      "stage": "reject-preview-apt-index"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "production package-site verification failed: OpenPGP signature is bad, revoked, or untrusted\n",
+      "stage": "reject-preview-rpm-metadata"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "production package-site verification failed: OpenPGP signature must expose exactly one full issuer fingerprint\n",
+      "stage": "reject-preview-signature-crypto"
+    },
+    {
+      "exit_code": 0,
+      "full_output_hash_independently_verified": true,
+      "output_tail": null,
+      "stage": "A-bind-audit-release.py"
+    },
+    {
+      "exit_code": 0,
+      "full_output_hash_independently_verified": true,
+      "output_tail": null,
+      "stage": "A-seal-audit-release.py"
+    },
+    {
+      "exit_code": 0,
+      "full_output_hash_independently_verified": true,
+      "output_tail": null,
+      "stage": "A-resolve-audit-release.py"
+    },
+    {
+      "exit_code": 0,
+      "full_output_hash_independently_verified": true,
+      "output_tail": null,
+      "stage": "B-bind-audit-release.py"
+    },
+    {
+      "exit_code": 0,
+      "full_output_hash_independently_verified": true,
+      "output_tail": null,
+      "stage": "B-seal-audit-release.py"
+    },
+    {
+      "exit_code": 0,
+      "full_output_hash_independently_verified": true,
+      "output_tail": null,
+      "stage": "B-resolve-audit-release.py"
+    },
+    {
+      "exit_code": 0,
+      "full_output_hash_independently_verified": true,
+      "output_tail": null,
+      "stage": "repeat-composite-plan"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "object-storage planning failed: archive SHA-256 differs from independent anchor\n",
+      "stage": "reject-preview-archive"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "object-storage planning failed: receipt SHA-256 differs from independent anchor\n",
+      "stage": "reject-preview-receipt"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "object-storage planning failed: control identity differs from independent anchor\n",
+      "stage": "reject-preview-control-sha"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "object-storage planning failed: audit identity differs from independent anchor\n",
+      "stage": "reject-preview-audit-id"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "object-storage planning failed: control file SHA-256 differs from independent anchor: manifests/channels.json\n",
+      "stage": "reject-preview-control"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "object-storage planning failed: current composite channels fields must be exactly ['preview', 'stable']\n",
+      "stage": "reject-missing-preview"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "object-storage planning failed: [Errno 2] No such file or directory: '/tmp/wk-d3-ag1scuqx/missing.tar'\n",
+      "stage": "reject-missing-retained-archive"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "object-storage planning failed: TEST ONLY input requires matching explicit test_only mode\n",
+      "stage": "reject-test-without-optin"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "offline object delivery failed: recomputed plan digest differs\n",
+      "stage": "reject-plan-digest"
+    },
+    {
+      "exit_code": 1,
+      "full_output_hash_independently_verified": true,
+      "output_tail": "offline object delivery failed: route table exceeds declared route limit\n",
+      "stage": "reject-route-limit"
+    },
+    {
+      "exit_code": 0,
+      "full_output_hash_independently_verified": true,
+      "output_tail": null,
+      "stage": "materialize-exact-A"
+    },
+    {
+      "exit_code": 0,
+      "full_output_hash_independently_verified": true,
+      "output_tail": null,
+      "stage": "materialize-exact-B"
+    }
+  ],
+  "export_commands": [
+    {
+      "exit_code": 0,
+      "stage": "plan",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "prepare",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "sign-apt",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "sign-rpm",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "compose",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "plan",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "prepare",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "sign-apt",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "sign-rpm",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "compose",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "preview-plan",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "preview-prepare",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "sign-apt",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "sign-rpm",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "preview-compose",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "verify-after-secret-removal",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "archive-create",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "audit-create",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "audit-verify",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "verify-after-secret-removal",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "archive-create",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "audit-create",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "audit-verify",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "preview-verify-after-secret-removal",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "preview-archive",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "preview-audit-create",
+      "timed_out": false
+    },
+    {
+      "exit_code": 0,
+      "stage": "preview-audit-verify",
+      "timed_out": false
+    }
+  ],
+  "local_equivalence_only": true,
+  "native_suite_not_rerun": true,
+  "source": {
+    "sha256": "77b5c913d1ca86c618269d98b6038ef5eb945fd434bb170144a16fcb898893ea",
+    "size": 48314
+  },
+  "verification": {
+    "activation_authorized": false,
+    "cloud_verified": false,
+    "data_only_packages": true,
+    "fresh_production_auth_verified": false,
+    "github_provenance_verified": false,
+    "installed_cli_verified": false,
+    "native_preview_verified": true,
+    "native_stable_verified": true,
+    "public_clients_verified": false,
+    "sdk_integration_verified": false
+  }
+}

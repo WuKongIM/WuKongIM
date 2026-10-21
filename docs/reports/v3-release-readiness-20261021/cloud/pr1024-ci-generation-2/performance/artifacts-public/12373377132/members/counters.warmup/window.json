@@ -1,0 +1,15 @@
+{
+  "counter_scope": "sustained warmup only; includes boundary snapshots; excludes measured traffic",
+  "counter_window_seconds": 60.019690998,
+  "ended_at": "2026-10-21T19:13:42.776857721Z",
+  "go_version": "go1.25.11",
+  "goarch": "amd64",
+  "gomaxprocs": 4,
+  "goos": "linux",
+  "handlers_completed": true,
+  "offered_qps": 500,
+  "operations": 30000,
+  "profile_enabled": false,
+  "schema": "mixed-send-warmup-counters/v1",
+  "started_at": "2026-10-21T19:12:42.757166723Z"
+}

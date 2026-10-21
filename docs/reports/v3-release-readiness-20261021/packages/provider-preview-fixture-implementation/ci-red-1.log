@@ -1,0 +1,49 @@
+F.FFF
+======================================================================
+FAIL: test_execution_is_bounded_and_has_no_external_authority (test_native_object_delivery_fixture_workflow.NativeDeliveryFixtureWorkflowTests.test_execution_is_bounded_and_has_no_external_authority)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_object_delivery_fixture_workflow.py", line 43, in test_execution_is_bounded_and_has_no_external_authority
+    step = self.step(RUN)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_object_delivery_fixture_workflow.py", line 17, in step
+    self.assertIsNotNone(match, 'missing required native fixture workflow step: ' + name)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : missing required native fixture workflow step: Verify native TEST ONLY preview and stable delivery fixtures
+
+======================================================================
+FAIL: test_public_receipts_are_preserved_on_failure (test_native_object_delivery_fixture_workflow.NativeDeliveryFixtureWorkflowTests.test_public_receipts_are_preserved_on_failure)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_object_delivery_fixture_workflow.py", line 55, in test_public_receipts_are_preserved_on_failure
+    step = self.step(UPLOAD)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_object_delivery_fixture_workflow.py", line 17, in step
+    self.assertIsNotNone(match, 'missing required native fixture workflow step: ' + name)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : missing required native fixture workflow step: Preserve public native delivery fixture evidence
+
+======================================================================
+FAIL: test_real_driver_is_executed_with_exact_checkout_and_trusted_tools (test_native_object_delivery_fixture_workflow.NativeDeliveryFixtureWorkflowTests.test_real_driver_is_executed_with_exact_checkout_and_trusted_tools)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_object_delivery_fixture_workflow.py", line 21, in test_real_driver_is_executed_with_exact_checkout_and_trusted_tools
+    step = self.step(RUN)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_object_delivery_fixture_workflow.py", line 17, in step
+    self.assertIsNotNone(match, 'missing required native fixture workflow step: ' + name)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : missing required native fixture workflow step: Verify native TEST ONLY preview and stable delivery fixtures
+
+======================================================================
+FAIL: test_zero_omitted_cases_and_cleanup_are_required (test_native_object_delivery_fixture_workflow.NativeDeliveryFixtureWorkflowTests.test_zero_omitted_cases_and_cleanup_are_required)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_object_delivery_fixture_workflow.py", line 31, in test_zero_omitted_cases_and_cleanup_are_required
+    step = self.step(RUN)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_object_delivery_fixture_workflow.py", line 17, in step
+    self.assertIsNotNone(match, 'missing required native fixture workflow step: ' + name)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : missing required native fixture workflow step: Verify native TEST ONLY preview and stable delivery fixtures
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.001s
+
+FAILED (failures=4)

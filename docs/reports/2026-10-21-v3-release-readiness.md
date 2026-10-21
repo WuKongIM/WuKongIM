@@ -1,12 +1,12 @@
 # v3 正式版发布复核（2026-10-21）
 
-证据截至 **2026-10-21 18:52Z（北京时间10月22日02:52）**；后续状态须绑定新的提交和收据。
+证据截至 **2026-10-21 19:27Z（北京时间10月22日03:27）**；后续状态须绑定新的提交和收据。
 
 结论：**NO-GO，当前仍不能发布正式 v3。** 新云RC实际运行61.212秒后报告 `product_failure/message_loss`：1,339采样/1,338送达/1过期，122,002 SEND与ACK相等。2小时预演未通过，正式72小时阶段未启动。现已完成Stop/Release，17:43:09Z（北京时间01:43:09）精确租约12类资源均为零库存。产品根因仍未确认；实际采样关联期限是10秒，不能把整段61.212秒解释为60秒超时。
 
 产品 #1016/#1017/#1019–#1022及packages #67–#76已合并。#75最终候选的557项默认测试、完整签名演练和49/49客户端验收通过，普通rebase合并为1829c381，同验收tree。D2适配draft #76的首次Linux567项默认测试、22项SDK合同和原签名仓库演练通过；四客户端首次因Alma安装命令600秒超时失败，完整证据已封存。同源码、镜像、阈值的唯一一次失败job重跑于18:12:17Z通过，49/49场景和清理已独立核验；18:17:48Z普通rebase合并为be32eb37，同验收tree e319ee72，合并后默认/SDK检查也首次通过且部署跳过。两项实现P2已独审关闭，历史tests-first过程P2如实保留。生产stable公网交付仍未完成，没有正式tag或正式发布。
 
-两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，修复已完成：79进程场景、完整Mac补充回归及双轴复审通过，原毫秒边界和容量判断P2均关闭；已提交#1024/c91e37b4，首次Linux候选检查因原600秒外层时限失败；默认/E2E及三节点性能通过，collector的79内嵌进程场景在该Linux运行未完成。零断言FAIL不等于全套通过，耗时原因仍待量测。独立队列探针证明早到但延迟处理的RECV也可能产生同样loss计数，仅为机制复现；47条presence超时日志仍不能与云端那条过期样本建立因果关系。
+两次现场分析均未连通MCP，不能提供有效现场Diagnosis Result；分析授权已关闭。现存归档还缺少压测程序已设计生成的具体失败样本文件，metrics/range又因超过4MiB而未保留。离线已确认采集路径存在遗漏，修复已完成：79进程场景、完整Mac补充回归及双轴复审通过，原毫秒边界和容量判断P2均关闭；已提交#1024：c91e37b4首次Linux因原600秒外层时限失败。量测后仅优化测试夹具，2cc562fa新候选在575.954秒内完成scripts，collector两入口均通过，默认/E2E及三节点性能通过；但pprof中断回归发现helper退出后仍有活跃请求，scripts正常exit1，原因正在诊断。两代原失败均保留，#1024仍未合并。独立队列探针证明早到但延迟处理的RECV也可能产生同样loss计数，仅为机制复现；47条presence超时日志仍不能与云端那条过期样本建立因果关系。
 
 本地 helper 的实际测量为1,753.104秒，终态是 `operator_stop`，不能写成完整1,800秒测量或正式长稳通过。保留2次retry、102个超过400ms的热延迟样本、未解释的presence及停机警告。原100 SEND/s失败、Mac两次scripts超时、Linux首轮和JSON诊断失败均作为历史证据保留；后续修复与通过结果不覆盖原失败。
 
@@ -299,6 +299,18 @@ scripts原命名检查仍是9分钟测试时限/parallel2、600秒外层/8MiB，
 [首次三节点性能与正确性](v3-release-readiness-20261021/cloud/pr1024-ci-generation-1/performance/README.md)同head/checkout，七个job通过，两个条件job明确skip，baseline未复用。三个seam各三窗累计90,000 starts/completions，零errors/drops，均通过400ms；这不是单请求最大延迟或长稳证据。90秒smoke测得45,501 SEND/ACK、采样833/833、零loss，终态仍是有界operator_stop；不替代云失败或2h/72h验收。小ZIP全SHA/CRC，大正确性ZIP仅选定成员range/CRC，整包SHA只为API声明。
 
 [产品源码等价](v3-release-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-delivery/product-source-equality.json)逐项Git对象确认cmd/internal/pkg及go.mod/go.sum与cee5完全相同；构建Git元数据仍可能改变二进制。此次是采集修复，不是已证实修复历史message_loss。上述首失败永久保留，不用性能或E2E通过抵消脚本门禁失败。
+
+## 19:27Z 第二代 Linux 与真实包夹具
+
+[夹具量测](v3-release-readiness-20261021/cloud/pr1024-fixture-profiling/README.md)发现原79场景共启动1,767次fake SSH，其中固定host捕获1,185次。修复仅将固定响应预生成，并保留实际SSH命令解析、裁剪及锚点匹配；20个测试方法和79场景不变，逐项语义对照通过，仅归一化观测时间及其派生manifest哈希。[本地首次修复验证](v3-release-readiness-20261021/cloud/pr1024-fixture-repair-v1/README.md)Retention从96.03秒降至60.60秒，两Go入口通过；[双轴复核](v3-release-readiness-20261021/cloud/pr1024-fixture-delivery/combined-review.md)均无开放发现。提交2cc562fa仅变更一个测试fixture，不改生产采集代码、门禁、并发或时限。
+
+[第二代候选CI](v3-release-readiness-20261021/cloud/pr1024-ci-generation-2/candidate/README.md)实际checkout884f88e7/tree85f578ba，与head2cc相同。默认219包及五迁移拓扑55次历史、跨节点、自聊E2E均通过。scripts首次在575.954秒正常完成、包耗时463.478秒，641根PASS/6SKIP/1FAIL；collector Retention14.79秒、缺锚0.37秒通过。内嵌79场景随固定入口完成，但Linux未上传逐场景JSON，不能伪称存在独立79条Linux收据。唯一失败为`TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata`：helper退出后server2仍有一个活跃请求，正在有界诊断，未重跑或合并。六个owned SID最终清理均verified且零遗留。
+
+[第二代三节点性能](v3-release-readiness-20261021/cloud/pr1024-ci-generation-2/performance/README.md)首次七job通过/两条件skip，九窗270,000真实完成、零错误与丢弃。90秒smoke45,995 SEND/ACK、839/839采样送达、零loss；保留qualification至final之间的1次retry/1次transport rejection，未误写为预热前事件。smoke不替代云长稳，session/queue清理不能当作OS全进程零库存。三个小ZIP全SHA/CRC，大ZIP仅选定成员校验，整包SHA未重新计算。
+
+packages [#77](https://github.com/WuKongIM/packages/pull/77)已创建为draft，head19ce29fb/tree8275ccb9。[M1实现与首次结果](v3-release-readiness-20261021/packages/provider-preview-fixture-implementation/README.md)通过真实签名preview及stable A/B公开导出走原planner/materializer，每代153对象/178路由；29场景通过。首个CI等额资源本地容器曾25/29后失败，证据确认124个孤儿gpg-agent僵尸耗尽128 PID上限；仅新增容器`--init`后同1CPU/512MiB/128PID/512MiBtmp/15分钟约束29/29通过，原失败保留。双轴复核无开放发现；末次仅重命名两个夹具别名，独立字节归一化与AST核验一致。新head首次Linux已见29/29、572默认测试+4合同、SDK22+10、原签名演练通过，49客户端仍待终态，尚未合并。全部是TEST ONLY数据包，未声称installed CLI、生产来源或公网激活通过。
+
+[M2只读接缝计划](v3-release-readiness-20261021/packages/provider-after-m1-plan/README.md)记录真实178路由超过当前逐条映射及阿里云每域50条改写上限。下一步先从公开夹具重建实际路由明细，再评估有限精确分组；目前未实现、未操作云或启用stable。
 
 用户随后明确授权本任务后续PR在完成复核及相关验收后由代理自行合并，不再逐PR询问；该授权不把失败检查视为通过，也不扩展到新增付费启动或正式发布。
 

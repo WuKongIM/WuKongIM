@@ -1,0 +1,7 @@
+# Authorized CI wiring addendum
+
+The five-file native milestone reached 29/29 in `native-5` and is preserved byte-for-byte in `first-green-five-files/`. Existing `native-package-repository-drill.yml` triggers on `tests/**` and `docs/**`, retaining native candidate 31 and stable client 49. It does not execute the new driver, so local success is not PR CI acceptance.
+
+Root explicitly authorized two additional files on this turn: the existing read-only native safety workflow and a dedicated tests-first wiring contract. The minimal extension is one bounded container step plus a public receipt artifact step in the existing `drill` job, after old candidate evidence. Reuse its already-verified trusted checkout and pinned image. Keep every original step, command, deadline, permission and trigger unchanged. No new manual dispatch, credentials, provider API, channel/producer or production authority.
+
+First-red contracts must reject: omitted/nonexecuted driver; missing exact 29-case/zero-omission success and cleanup predicates; unbounded/nonisolated or credential-bearing invocation; missing always-preserved public receipt. They also retain old candidate31 and clients49 invocations. Write and run contracts RED before workflow edits. Then execute the equivalent exact new container constraints locally; this remains local equivalence, not GitHub CI success. Final review scope becomes seven files.

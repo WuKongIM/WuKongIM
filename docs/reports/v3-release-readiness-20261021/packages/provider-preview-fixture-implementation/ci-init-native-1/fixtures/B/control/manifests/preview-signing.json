@@ -1,0 +1,31 @@
+{
+  "schema": "wukongim.native_package_signing/v3",
+  "enabled": true,
+  "minimum_valid_days": 30,
+  "rotation_begin_days": 45,
+  "maximum_subkey_lifetime_days": 180,
+  "apt": {
+    "environment": "native-package-preview-apt-signing",
+    "public_key": "keys/apt-preview.asc",
+    "primary_fingerprint": "D4D5F12AD0FDCAE4D85B577E318ABB2BD40B6BB1",
+    "signing_subkeys": {
+      "current": "1A4D90C85D398C2A27DFEB21F88A82679D9B5284",
+      "next": "BB10665FA963B85DBC22AC5A322AA32C980A761D",
+      "historical": []
+    },
+    "secret_subkey_env": "WK_APT_PREVIEW_SECRET_SUBKEY_B64",
+    "passphrase_env": "WK_APT_PREVIEW_PASSPHRASE"
+  },
+  "rpm": {
+    "environment": "native-package-preview-rpm-signing",
+    "public_key": "keys/rpm-preview.asc",
+    "primary_fingerprint": "A8FB9F660EC3B4F40B853C4A0FB64C9DD0801459",
+    "signing_subkeys": {
+      "current": "C2ED4800DA17788D0DF150F50AD7BE4E6B5A0853",
+      "next": "DA062F3CCD52F4CA72FF4B4B881C44C01E3EBCF7",
+      "historical": []
+    },
+    "secret_subkey_env": "WK_RPM_PREVIEW_SECRET_SUBKEY_B64",
+    "passphrase_env": "WK_RPM_PREVIEW_PASSPHRASE"
+  }
+}

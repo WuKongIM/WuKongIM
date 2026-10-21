@@ -1,0 +1,2866 @@
+[
+  {
+    "case": "normal-corrected",
+    "baseline_case": "rehearsal",
+    "fixture_seconds": 1.1186878330190666,
+    "collector_seconds": 1.112002708017826,
+    "collector_exit": 0,
+    "complete": true,
+    "tools": {
+      "ssh": {
+        "count": 25,
+        "inclusive_seconds": 0.39663000000000004
+      },
+      "timeout": {
+        "count": 15,
+        "inclusive_seconds": 0.547778
+      },
+      "python3": {
+        "count": 1,
+        "inclusive_seconds": 0.135466
+      },
+      "jq": {
+        "count": 19,
+        "inclusive_seconds": 0.05055
+      },
+      "wc": {
+        "count": 15,
+        "inclusive_seconds": 0.034857
+      },
+      "tr": {
+        "count": 15,
+        "inclusive_seconds": 0.037947
+      },
+      "install": {
+        "count": 16,
+        "inclusive_seconds": 0.033816
+      },
+      "rm": {
+        "count": 31,
+        "inclusive_seconds": 0.058828
+      },
+      "mktemp": {
+        "count": 2,
+        "inclusive_seconds": 0.006117
+      },
+      "date": {
+        "count": 1,
+        "inclusive_seconds": 0.001794
+      },
+      "head": {
+        "count": 10,
+        "inclusive_seconds": 0.018847
+      }
+    },
+    "strict_semantic_equivalent": true,
+    "normalization": [
+      {
+        "side": "before",
+        "observed_at": "2026-10-21T18:23:22Z",
+        "raw_manifest_sha256": "ddc3a60f0099ca79716a15823087cd4c70565ec167fabf83542f3a5925e76e3a",
+        "canonical_manifest_sha256": "fc55e42891cc1ed6f6bdba401b045ee826135d670b673249f731c8ff5fcccdcc"
+      },
+      {
+        "side": "after",
+        "observed_at": "2026-10-21T18:59:04Z",
+        "raw_manifest_sha256": "ef481982c877f18f7ff78eb4b7d65b1ce07ce8f53143fbcd3c4d167ce61980fe",
+        "canonical_manifest_sha256": "fc55e42891cc1ed6f6bdba401b045ee826135d670b673249f731c8ff5fcccdcc"
+      }
+    ],
+    "actual": {
+      "case": "normal-corrected",
+      "exit_code": 0,
+      "manifest": {
+        "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+        "stage": "rehearsal",
+        "observed_at": "2026-10-21T18:59:04Z",
+        "max_file_bytes": 4194304,
+        "capture_failures": 0,
+        "complete": true,
+        "captures": [
+          {
+            "class": "logs",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "metrics",
+            "name": "targets",
+            "state": "collected",
+            "bytes": 48
+          },
+          {
+            "class": "workload",
+            "name": "rehearsal-worker-evidence",
+            "state": "collected",
+            "bytes": 1066,
+            "max_bytes": 1048576,
+            "path": "workload/rehearsal/worker-evidence.json",
+            "sha256": "a66fee7bbc36e961ed3c795bd1368caa3a92c57d6b34437676c5d311a5d80361"
+          },
+          {
+            "class": "workload",
+            "name": "rehearsal-diagnostic-status",
+            "state": "collected",
+            "bytes": 2994,
+            "max_bytes": 65536,
+            "path": "workload/rehearsal/diagnostic-status.json",
+            "sha256": "ee7177e866486de790c24c6da5c91bba64844e68fa54663a7bbf49ee5d32aa65"
+          },
+          {
+            "class": "metrics",
+            "name": "range-presence",
+            "state": "collected",
+            "bytes": 167,
+            "query": "{__name__=~\"wukongim_presence_endpoint_lookup_(total|items_total|groups_total|duration_seconds_(bucket|sum|count))\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-presence.json",
+            "sha256": "fd71390725d4b4ab0731cfcdfc668060d2f3c02075998576a5b085b6d105d0fb"
+          },
+          {
+            "class": "metrics",
+            "name": "range-delivery",
+            "state": "collected",
+            "bytes": 176,
+            "query": "{__name__=~\"wukongim_delivery_(recipient_worker_(queue_depth|queue_capacity|inflight|capacity|admission_total|admission_wait_seconds_(bucket|sum|count)|process_total|process_duration_seconds_(bucket|sum|count)|process_recipients_(bucket|sum|count))|recipient_authority_resolve_(total|items_total|targets_total|duration_seconds_(bucket|sum|count))|push_rpc_(total|routes_total|duration_seconds_(bucket|sum|count)))\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-delivery.json",
+            "sha256": "8d8ec2d672d92ce982d4c36a7b9328ae4b51b6d0286e06ff619d5bb3205890d9"
+          },
+          {
+            "class": "metrics",
+            "name": "range-up",
+            "state": "collected",
+            "bytes": 130,
+            "query": "up",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-up.json",
+            "sha256": "3393428cc6947943a2cd3251df847c8a87da5a078302a470f4d866562c73c789"
+          },
+          {
+            "class": "metrics",
+            "name": "range-runtime",
+            "state": "collected",
+            "bytes": 150,
+            "query": "{__name__=~\"wukongim_runtime_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-runtime.json",
+            "sha256": "d394aee797c8daa9867a5b5dfee46642fef226fc9bb4022cafdcf345c515ce32"
+          },
+          {
+            "class": "metrics",
+            "name": "range-channel_worker",
+            "state": "collected",
+            "bytes": 156,
+            "query": "{__name__=~\"wukongim_channel_worker_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-channel_worker.json",
+            "sha256": "3e550d81a50188b2dbe679afe0dfc1d96b3356437904401cac8ae2f8ed541396"
+          },
+          {
+            "class": "metrics",
+            "name": "range-process",
+            "state": "collected",
+            "bytes": 148,
+            "query": "{__name__=~\"wukongim_process_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-process.json",
+            "sha256": "416ab3f5101646309eb022e0cd1e1b8e19f085924822ad7fa704d984f6576ebe"
+          },
+          {
+            "class": "metrics",
+            "name": "range-counters",
+            "state": "collected",
+            "bytes": 158,
+            "query": "{__name__=~\"wukongim_(metadata_create_total|activation_rejected_total)\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-counters.json",
+            "sha256": "d044e7af75f2986278651494c33a3bc62adead587938e8ec6018f1a31ed3dbed"
+          },
+          {
+            "class": "metrics",
+            "name": "range-go",
+            "state": "collected",
+            "bytes": 144,
+            "query": "{__name__=~\"wukongim_go_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-go.json",
+            "sha256": "0d795d25cd6bc1954e04d2bc46b708321cd311e028feafb8441bc6c40f7ec28b"
+          }
+        ],
+        "metrics_budget": {
+          "max_requests": 8,
+          "requests": 8,
+          "max_total_bytes": 25165824,
+          "observed_bytes": 1229,
+          "retained_bytes": 1229,
+          "deadline_seconds": 60
+        },
+        "diagnosis_references": {
+          "window": "../diagnosis-window.json",
+          "result": "../diagnosis-result.json",
+          "optional": true
+        }
+      },
+      "calls": [
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "targets"
+        },
+        {
+          "kind": "rehearsal/worker-evidence.json"
+        },
+        {
+          "kind": "rehearsal/diagnostic-status.json"
+        },
+        {
+          "kind": "range-presence",
+          "query": "{__name__=~\"wukongim_presence_endpoint_lookup_(total|items_total|groups_total|duration_seconds_(bucket|sum|count))\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-delivery",
+          "query": "{__name__=~\"wukongim_delivery_(recipient_worker_(queue_depth|queue_capacity|inflight|capacity|admission_total|admission_wait_seconds_(bucket|sum|count)|process_total|process_duration_seconds_(bucket|sum|count)|process_recipients_(bucket|sum|count))|recipient_authority_resolve_(total|items_total|targets_total|duration_seconds_(bucket|sum|count))|push_rpc_(total|routes_total|duration_seconds_(bucket|sum|count)))\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-up",
+          "query": "up",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-runtime",
+          "query": "{__name__=~\"wukongim_runtime_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-channel_worker",
+          "query": "{__name__=~\"wukongim_channel_worker_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-process",
+          "query": "{__name__=~\"wukongim_process_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-counters",
+          "query": "{__name__=~\"wukongim_(metadata_create_total|activation_rejected_total)\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-go",
+          "query": "{__name__=~\"wukongim_go_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        }
+      ],
+      "files": [
+        {
+          "path": "logs/load.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-1.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-2.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-3.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "manifest.json",
+          "bytes": 9875,
+          "sha256": "ef481982c877f18f7ff78eb4b7d65b1ce07ce8f53143fbcd3c4d167ce61980fe"
+        },
+        {
+          "path": "metrics/prometheus-targets.json",
+          "bytes": 48,
+          "sha256": "0237506397e8babf05d37582cd7abc9d8aca1637e0d840a101378c3bbee8392f"
+        },
+        {
+          "path": "metrics/range-channel_worker.json",
+          "bytes": 156,
+          "sha256": "3e550d81a50188b2dbe679afe0dfc1d96b3356437904401cac8ae2f8ed541396"
+        },
+        {
+          "path": "metrics/range-counters.json",
+          "bytes": 158,
+          "sha256": "d044e7af75f2986278651494c33a3bc62adead587938e8ec6018f1a31ed3dbed"
+        },
+        {
+          "path": "metrics/range-delivery.json",
+          "bytes": 176,
+          "sha256": "8d8ec2d672d92ce982d4c36a7b9328ae4b51b6d0286e06ff619d5bb3205890d9"
+        },
+        {
+          "path": "metrics/range-go.json",
+          "bytes": 144,
+          "sha256": "0d795d25cd6bc1954e04d2bc46b708321cd311e028feafb8441bc6c40f7ec28b"
+        },
+        {
+          "path": "metrics/range-presence.json",
+          "bytes": 167,
+          "sha256": "fd71390725d4b4ab0731cfcdfc668060d2f3c02075998576a5b085b6d105d0fb"
+        },
+        {
+          "path": "metrics/range-process.json",
+          "bytes": 148,
+          "sha256": "416ab3f5101646309eb022e0cd1e1b8e19f085924822ad7fa704d984f6576ebe"
+        },
+        {
+          "path": "metrics/range-runtime.json",
+          "bytes": 150,
+          "sha256": "d394aee797c8daa9867a5b5dfee46642fef226fc9bb4022cafdcf345c515ce32"
+        },
+        {
+          "path": "metrics/range-up.json",
+          "bytes": 130,
+          "sha256": "3393428cc6947943a2cd3251df847c8a87da5a078302a470f4d866562c73c789"
+        },
+        {
+          "path": "profiles/service-1-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-1-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/load.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-1.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-2.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-3.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "workload/rehearsal/diagnostic-status.json",
+          "bytes": 2994,
+          "sha256": "ee7177e866486de790c24c6da5c91bba64844e68fa54663a7bbf49ee5d32aa65"
+        },
+        {
+          "path": "workload/rehearsal/worker-evidence.json",
+          "bytes": 1066,
+          "sha256": "a66fee7bbc36e961ed3c795bd1368caa3a92c57d6b34437676c5d311a5d80361"
+        }
+      ]
+    }
+  },
+  {
+    "case": "large",
+    "baseline_case": "large-split",
+    "fixture_seconds": 0.8924912079819478,
+    "collector_seconds": 0.866421916987747,
+    "collector_exit": 0,
+    "complete": true,
+    "tools": {
+      "ssh": {
+        "count": 25,
+        "inclusive_seconds": 0.216442
+      },
+      "timeout": {
+        "count": 15,
+        "inclusive_seconds": 0.309766
+      },
+      "python3": {
+        "count": 1,
+        "inclusive_seconds": 0.149743
+      },
+      "jq": {
+        "count": 19,
+        "inclusive_seconds": 0.049926
+      },
+      "wc": {
+        "count": 15,
+        "inclusive_seconds": 0.033612
+      },
+      "tr": {
+        "count": 15,
+        "inclusive_seconds": 0.036417
+      },
+      "install": {
+        "count": 16,
+        "inclusive_seconds": 0.033006
+      },
+      "rm": {
+        "count": 31,
+        "inclusive_seconds": 0.057206
+      },
+      "mktemp": {
+        "count": 2,
+        "inclusive_seconds": 0.005377
+      },
+      "date": {
+        "count": 1,
+        "inclusive_seconds": 0.00185
+      },
+      "head": {
+        "count": 10,
+        "inclusive_seconds": 0.020739
+      }
+    },
+    "strict_semantic_equivalent": true,
+    "normalization": [
+      {
+        "side": "before",
+        "observed_at": "2026-10-21T18:23:09Z",
+        "raw_manifest_sha256": "3712955d2400519e5aa2f213e841d17d964936c37814cb4e4b805ec18664f0af",
+        "canonical_manifest_sha256": "2e34df7aefbcfc22d3426ae3d5f8adb6ac9d1059eb523f32ec56175e070b1f63"
+      },
+      {
+        "side": "after",
+        "observed_at": "2026-10-21T18:59:05Z",
+        "raw_manifest_sha256": "bb1eb9b35412d5c53943d8dbc26959d2c65cf717c5cefd84d3aec05c6156a0bb",
+        "canonical_manifest_sha256": "2e34df7aefbcfc22d3426ae3d5f8adb6ac9d1059eb523f32ec56175e070b1f63"
+      }
+    ],
+    "actual": {
+      "case": "large",
+      "exit_code": 0,
+      "manifest": {
+        "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+        "stage": "rehearsal",
+        "observed_at": "2026-10-21T18:59:05Z",
+        "max_file_bytes": 4194304,
+        "capture_failures": 0,
+        "complete": true,
+        "captures": [
+          {
+            "class": "logs",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "metrics",
+            "name": "targets",
+            "state": "collected",
+            "bytes": 48
+          },
+          {
+            "class": "workload",
+            "name": "rehearsal-worker-evidence",
+            "state": "collected",
+            "bytes": 1066,
+            "max_bytes": 1048576,
+            "path": "workload/rehearsal/worker-evidence.json",
+            "sha256": "a66fee7bbc36e961ed3c795bd1368caa3a92c57d6b34437676c5d311a5d80361"
+          },
+          {
+            "class": "workload",
+            "name": "rehearsal-diagnostic-status",
+            "state": "collected",
+            "bytes": 2994,
+            "max_bytes": 65536,
+            "path": "workload/rehearsal/diagnostic-status.json",
+            "sha256": "ee7177e866486de790c24c6da5c91bba64844e68fa54663a7bbf49ee5d32aa65"
+          },
+          {
+            "class": "metrics",
+            "name": "range-presence",
+            "state": "collected",
+            "bytes": 900190,
+            "query": "{__name__=~\"wukongim_presence_endpoint_lookup_(total|items_total|groups_total|duration_seconds_(bucket|sum|count))\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-presence.json",
+            "sha256": "70e96c547a2e62020f3546d835b24576120f1c5b44928e73fd7704a3ad5dd5c4"
+          },
+          {
+            "class": "metrics",
+            "name": "range-delivery",
+            "state": "collected",
+            "bytes": 900199,
+            "query": "{__name__=~\"wukongim_delivery_(recipient_worker_(queue_depth|queue_capacity|inflight|capacity|admission_total|admission_wait_seconds_(bucket|sum|count)|process_total|process_duration_seconds_(bucket|sum|count)|process_recipients_(bucket|sum|count))|recipient_authority_resolve_(total|items_total|targets_total|duration_seconds_(bucket|sum|count))|push_rpc_(total|routes_total|duration_seconds_(bucket|sum|count)))\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-delivery.json",
+            "sha256": "1e8a698e20423156bfaf97371a014d0e8956882a9e5f09f6cb8ea2af4fd92306"
+          },
+          {
+            "class": "metrics",
+            "name": "range-up",
+            "state": "collected",
+            "bytes": 900153,
+            "query": "up",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-up.json",
+            "sha256": "dddb80c6a856ce432c2c2157baa256f476b814a86820a4e894d87d5176d384ab"
+          },
+          {
+            "class": "metrics",
+            "name": "range-runtime",
+            "state": "collected",
+            "bytes": 900173,
+            "query": "{__name__=~\"wukongim_runtime_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-runtime.json",
+            "sha256": "c1b2efd4554d1a667605740d7e30501a89858e05232ef6abe308f7e13de3e4a3"
+          },
+          {
+            "class": "metrics",
+            "name": "range-channel_worker",
+            "state": "collected",
+            "bytes": 900179,
+            "query": "{__name__=~\"wukongim_channel_worker_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-channel_worker.json",
+            "sha256": "f8cd6ee719fe69a7b2c8fb85342dcaea24e64581149beb608d0b18638327925d"
+          },
+          {
+            "class": "metrics",
+            "name": "range-process",
+            "state": "collected",
+            "bytes": 900171,
+            "query": "{__name__=~\"wukongim_process_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-process.json",
+            "sha256": "fb480f9932f69ebde87f718dddb168a3b834e0d05e1f1bc1f87c7b812d997b34"
+          },
+          {
+            "class": "metrics",
+            "name": "range-counters",
+            "state": "collected",
+            "bytes": 900181,
+            "query": "{__name__=~\"wukongim_(metadata_create_total|activation_rejected_total)\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-counters.json",
+            "sha256": "55bbb89bc9be46d587f3cb9c6e0f80d0acca93cf85ac39742f36a5fcafcc7b52"
+          },
+          {
+            "class": "metrics",
+            "name": "range-go",
+            "state": "collected",
+            "bytes": 900167,
+            "query": "{__name__=~\"wukongim_go_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-go.json",
+            "sha256": "e914a22fa7e010f0021507e510b2028718147c17ada8f746573d5ab7ddcfe110"
+          }
+        ],
+        "metrics_budget": {
+          "max_requests": 8,
+          "requests": 8,
+          "max_total_bytes": 25165824,
+          "observed_bytes": 7201413,
+          "retained_bytes": 7201413,
+          "deadline_seconds": 60
+        },
+        "diagnosis_references": {
+          "window": "../diagnosis-window.json",
+          "result": "../diagnosis-result.json",
+          "optional": true
+        }
+      },
+      "calls": [
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "targets"
+        },
+        {
+          "kind": "rehearsal/worker-evidence.json"
+        },
+        {
+          "kind": "rehearsal/diagnostic-status.json"
+        },
+        {
+          "kind": "range-presence",
+          "query": "{__name__=~\"wukongim_presence_endpoint_lookup_(total|items_total|groups_total|duration_seconds_(bucket|sum|count))\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-delivery",
+          "query": "{__name__=~\"wukongim_delivery_(recipient_worker_(queue_depth|queue_capacity|inflight|capacity|admission_total|admission_wait_seconds_(bucket|sum|count)|process_total|process_duration_seconds_(bucket|sum|count)|process_recipients_(bucket|sum|count))|recipient_authority_resolve_(total|items_total|targets_total|duration_seconds_(bucket|sum|count))|push_rpc_(total|routes_total|duration_seconds_(bucket|sum|count)))\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-up",
+          "query": "up",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-runtime",
+          "query": "{__name__=~\"wukongim_runtime_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-channel_worker",
+          "query": "{__name__=~\"wukongim_channel_worker_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-process",
+          "query": "{__name__=~\"wukongim_process_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-counters",
+          "query": "{__name__=~\"wukongim_(metadata_create_total|activation_rejected_total)\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-go",
+          "query": "{__name__=~\"wukongim_go_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        }
+      ],
+      "files": [
+        {
+          "path": "logs/load.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-1.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-2.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-3.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "manifest.json",
+          "bytes": 9905,
+          "sha256": "bb1eb9b35412d5c53943d8dbc26959d2c65cf717c5cefd84d3aec05c6156a0bb"
+        },
+        {
+          "path": "metrics/prometheus-targets.json",
+          "bytes": 48,
+          "sha256": "0237506397e8babf05d37582cd7abc9d8aca1637e0d840a101378c3bbee8392f"
+        },
+        {
+          "path": "metrics/range-channel_worker.json",
+          "bytes": 900179,
+          "sha256": "f8cd6ee719fe69a7b2c8fb85342dcaea24e64581149beb608d0b18638327925d"
+        },
+        {
+          "path": "metrics/range-counters.json",
+          "bytes": 900181,
+          "sha256": "55bbb89bc9be46d587f3cb9c6e0f80d0acca93cf85ac39742f36a5fcafcc7b52"
+        },
+        {
+          "path": "metrics/range-delivery.json",
+          "bytes": 900199,
+          "sha256": "1e8a698e20423156bfaf97371a014d0e8956882a9e5f09f6cb8ea2af4fd92306"
+        },
+        {
+          "path": "metrics/range-go.json",
+          "bytes": 900167,
+          "sha256": "e914a22fa7e010f0021507e510b2028718147c17ada8f746573d5ab7ddcfe110"
+        },
+        {
+          "path": "metrics/range-presence.json",
+          "bytes": 900190,
+          "sha256": "70e96c547a2e62020f3546d835b24576120f1c5b44928e73fd7704a3ad5dd5c4"
+        },
+        {
+          "path": "metrics/range-process.json",
+          "bytes": 900171,
+          "sha256": "fb480f9932f69ebde87f718dddb168a3b834e0d05e1f1bc1f87c7b812d997b34"
+        },
+        {
+          "path": "metrics/range-runtime.json",
+          "bytes": 900173,
+          "sha256": "c1b2efd4554d1a667605740d7e30501a89858e05232ef6abe308f7e13de3e4a3"
+        },
+        {
+          "path": "metrics/range-up.json",
+          "bytes": 900153,
+          "sha256": "dddb80c6a856ce432c2c2157baa256f476b814a86820a4e894d87d5176d384ab"
+        },
+        {
+          "path": "profiles/service-1-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-1-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/load.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-1.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-2.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-3.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "workload/rehearsal/diagnostic-status.json",
+          "bytes": 2994,
+          "sha256": "ee7177e866486de790c24c6da5c91bba64844e68fa54663a7bbf49ee5d32aa65"
+        },
+        {
+          "path": "workload/rehearsal/worker-evidence.json",
+          "bytes": 1066,
+          "sha256": "a66fee7bbc36e961ed3c795bd1368caa3a92c57d6b34437676c5d311a5d80361"
+        }
+      ]
+    }
+  },
+  {
+    "case": "missing-worker",
+    "baseline_case": "worker-missing",
+    "fixture_seconds": 1.093371124996338,
+    "collector_seconds": 1.0870847910409793,
+    "collector_exit": 1,
+    "complete": false,
+    "tools": {
+      "ssh": {
+        "count": 25,
+        "inclusive_seconds": 0.40377599999999997
+      },
+      "timeout": {
+        "count": 15,
+        "inclusive_seconds": 0.528393
+      },
+      "python3": {
+        "count": 1,
+        "inclusive_seconds": 0.133931
+      },
+      "jq": {
+        "count": 19,
+        "inclusive_seconds": 0.052097000000000004
+      },
+      "wc": {
+        "count": 15,
+        "inclusive_seconds": 0.034812
+      },
+      "tr": {
+        "count": 15,
+        "inclusive_seconds": 0.038133
+      },
+      "install": {
+        "count": 16,
+        "inclusive_seconds": 0.034201
+      },
+      "rm": {
+        "count": 31,
+        "inclusive_seconds": 0.057665
+      },
+      "mktemp": {
+        "count": 2,
+        "inclusive_seconds": 0.005943
+      },
+      "date": {
+        "count": 1,
+        "inclusive_seconds": 0.001814
+      },
+      "head": {
+        "count": 9,
+        "inclusive_seconds": 0.017284
+      }
+    },
+    "strict_semantic_equivalent": true,
+    "normalization": [
+      {
+        "side": "before",
+        "observed_at": "2026-10-21T18:22:48Z",
+        "raw_manifest_sha256": "c6415e58e2d9a44eae0d314d356371147732aef02498f038ad9f571b95ebbb8d",
+        "canonical_manifest_sha256": "42c6963fe73e1f249284db59d01ed295cfe03b3d9ab8956b76e7a8b2a07af237"
+      },
+      {
+        "side": "after",
+        "observed_at": "2026-10-21T18:59:06Z",
+        "raw_manifest_sha256": "216cc19d117dfdd849e8dc57d840f5fe66e113cb350634aea1ca0f8379779760",
+        "canonical_manifest_sha256": "42c6963fe73e1f249284db59d01ed295cfe03b3d9ab8956b76e7a8b2a07af237"
+      }
+    ],
+    "actual": {
+      "case": "missing-worker",
+      "exit_code": 1,
+      "manifest": {
+        "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+        "stage": "rehearsal",
+        "observed_at": "2026-10-21T18:59:06Z",
+        "max_file_bytes": 4194304,
+        "capture_failures": 1,
+        "complete": false,
+        "captures": [
+          {
+            "class": "logs",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "metrics",
+            "name": "targets",
+            "state": "collected",
+            "bytes": 48
+          },
+          {
+            "class": "workload",
+            "name": "rehearsal-worker-evidence",
+            "state": "missing",
+            "bytes": 0,
+            "max_bytes": 1048576
+          },
+          {
+            "class": "workload",
+            "name": "rehearsal-diagnostic-status",
+            "state": "collected",
+            "bytes": 2994,
+            "max_bytes": 65536,
+            "path": "workload/rehearsal/diagnostic-status.json",
+            "sha256": "ee7177e866486de790c24c6da5c91bba64844e68fa54663a7bbf49ee5d32aa65"
+          },
+          {
+            "class": "metrics",
+            "name": "range-presence",
+            "state": "collected",
+            "bytes": 167,
+            "query": "{__name__=~\"wukongim_presence_endpoint_lookup_(total|items_total|groups_total|duration_seconds_(bucket|sum|count))\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-presence.json",
+            "sha256": "fd71390725d4b4ab0731cfcdfc668060d2f3c02075998576a5b085b6d105d0fb"
+          },
+          {
+            "class": "metrics",
+            "name": "range-delivery",
+            "state": "collected",
+            "bytes": 176,
+            "query": "{__name__=~\"wukongim_delivery_(recipient_worker_(queue_depth|queue_capacity|inflight|capacity|admission_total|admission_wait_seconds_(bucket|sum|count)|process_total|process_duration_seconds_(bucket|sum|count)|process_recipients_(bucket|sum|count))|recipient_authority_resolve_(total|items_total|targets_total|duration_seconds_(bucket|sum|count))|push_rpc_(total|routes_total|duration_seconds_(bucket|sum|count)))\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-delivery.json",
+            "sha256": "8d8ec2d672d92ce982d4c36a7b9328ae4b51b6d0286e06ff619d5bb3205890d9"
+          },
+          {
+            "class": "metrics",
+            "name": "range-up",
+            "state": "collected",
+            "bytes": 130,
+            "query": "up",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-up.json",
+            "sha256": "3393428cc6947943a2cd3251df847c8a87da5a078302a470f4d866562c73c789"
+          },
+          {
+            "class": "metrics",
+            "name": "range-runtime",
+            "state": "collected",
+            "bytes": 150,
+            "query": "{__name__=~\"wukongim_runtime_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-runtime.json",
+            "sha256": "d394aee797c8daa9867a5b5dfee46642fef226fc9bb4022cafdcf345c515ce32"
+          },
+          {
+            "class": "metrics",
+            "name": "range-channel_worker",
+            "state": "collected",
+            "bytes": 156,
+            "query": "{__name__=~\"wukongim_channel_worker_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-channel_worker.json",
+            "sha256": "3e550d81a50188b2dbe679afe0dfc1d96b3356437904401cac8ae2f8ed541396"
+          },
+          {
+            "class": "metrics",
+            "name": "range-process",
+            "state": "collected",
+            "bytes": 148,
+            "query": "{__name__=~\"wukongim_process_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-process.json",
+            "sha256": "416ab3f5101646309eb022e0cd1e1b8e19f085924822ad7fa704d984f6576ebe"
+          },
+          {
+            "class": "metrics",
+            "name": "range-counters",
+            "state": "collected",
+            "bytes": 158,
+            "query": "{__name__=~\"wukongim_(metadata_create_total|activation_rejected_total)\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-counters.json",
+            "sha256": "d044e7af75f2986278651494c33a3bc62adead587938e8ec6018f1a31ed3dbed"
+          },
+          {
+            "class": "metrics",
+            "name": "range-go",
+            "state": "collected",
+            "bytes": 144,
+            "query": "{__name__=~\"wukongim_go_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "rehearsal/final.json",
+              "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-go.json",
+            "sha256": "0d795d25cd6bc1954e04d2bc46b708321cd311e028feafb8441bc6c40f7ec28b"
+          }
+        ],
+        "metrics_budget": {
+          "max_requests": 8,
+          "requests": 8,
+          "max_total_bytes": 25165824,
+          "observed_bytes": 1229,
+          "retained_bytes": 1229,
+          "deadline_seconds": 60
+        },
+        "diagnosis_references": {
+          "window": "../diagnosis-window.json",
+          "result": "../diagnosis-result.json",
+          "optional": true
+        }
+      },
+      "calls": [
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "targets"
+        },
+        {
+          "kind": "rehearsal/worker-evidence.json"
+        },
+        {
+          "kind": "rehearsal/diagnostic-status.json"
+        },
+        {
+          "kind": "range-presence",
+          "query": "{__name__=~\"wukongim_presence_endpoint_lookup_(total|items_total|groups_total|duration_seconds_(bucket|sum|count))\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-delivery",
+          "query": "{__name__=~\"wukongim_delivery_(recipient_worker_(queue_depth|queue_capacity|inflight|capacity|admission_total|admission_wait_seconds_(bucket|sum|count)|process_total|process_duration_seconds_(bucket|sum|count)|process_recipients_(bucket|sum|count))|recipient_authority_resolve_(total|items_total|targets_total|duration_seconds_(bucket|sum|count))|push_rpc_(total|routes_total|duration_seconds_(bucket|sum|count)))\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-up",
+          "query": "up",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-runtime",
+          "query": "{__name__=~\"wukongim_runtime_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-channel_worker",
+          "query": "{__name__=~\"wukongim_channel_worker_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-process",
+          "query": "{__name__=~\"wukongim_process_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-counters",
+          "query": "{__name__=~\"wukongim_(metadata_create_total|activation_rejected_total)\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-go",
+          "query": "{__name__=~\"wukongim_go_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        }
+      ],
+      "files": [
+        {
+          "path": "logs/load.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-1.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-2.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-3.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "manifest.json",
+          "bytes": 9730,
+          "sha256": "216cc19d117dfdd849e8dc57d840f5fe66e113cb350634aea1ca0f8379779760"
+        },
+        {
+          "path": "metrics/prometheus-targets.json",
+          "bytes": 48,
+          "sha256": "0237506397e8babf05d37582cd7abc9d8aca1637e0d840a101378c3bbee8392f"
+        },
+        {
+          "path": "metrics/range-channel_worker.json",
+          "bytes": 156,
+          "sha256": "3e550d81a50188b2dbe679afe0dfc1d96b3356437904401cac8ae2f8ed541396"
+        },
+        {
+          "path": "metrics/range-counters.json",
+          "bytes": 158,
+          "sha256": "d044e7af75f2986278651494c33a3bc62adead587938e8ec6018f1a31ed3dbed"
+        },
+        {
+          "path": "metrics/range-delivery.json",
+          "bytes": 176,
+          "sha256": "8d8ec2d672d92ce982d4c36a7b9328ae4b51b6d0286e06ff619d5bb3205890d9"
+        },
+        {
+          "path": "metrics/range-go.json",
+          "bytes": 144,
+          "sha256": "0d795d25cd6bc1954e04d2bc46b708321cd311e028feafb8441bc6c40f7ec28b"
+        },
+        {
+          "path": "metrics/range-presence.json",
+          "bytes": 167,
+          "sha256": "fd71390725d4b4ab0731cfcdfc668060d2f3c02075998576a5b085b6d105d0fb"
+        },
+        {
+          "path": "metrics/range-process.json",
+          "bytes": 148,
+          "sha256": "416ab3f5101646309eb022e0cd1e1b8e19f085924822ad7fa704d984f6576ebe"
+        },
+        {
+          "path": "metrics/range-runtime.json",
+          "bytes": 150,
+          "sha256": "d394aee797c8daa9867a5b5dfee46642fef226fc9bb4022cafdcf345c515ce32"
+        },
+        {
+          "path": "metrics/range-up.json",
+          "bytes": 130,
+          "sha256": "3393428cc6947943a2cd3251df847c8a87da5a078302a470f4d866562c73c789"
+        },
+        {
+          "path": "profiles/service-1-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-1-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/load.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-1.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-2.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-3.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "workload/rehearsal/diagnostic-status.json",
+          "bytes": 2994,
+          "sha256": "ee7177e866486de790c24c6da5c91bba64844e68fa54663a7bbf49ee5d32aa65"
+        }
+      ]
+    }
+  },
+  {
+    "case": "invalid-anchor",
+    "baseline_case": "anchor-missing-end",
+    "fixture_seconds": 0.7963766669854522,
+    "collector_seconds": 0.7919601250323467,
+    "collector_exit": 1,
+    "complete": false,
+    "tools": {
+      "ssh": {
+        "count": 15,
+        "inclusive_seconds": 0.141099
+      },
+      "timeout": {
+        "count": 15,
+        "inclusive_seconds": 0.34105
+      },
+      "python3": {
+        "count": 1,
+        "inclusive_seconds": 0.028162
+      },
+      "jq": {
+        "count": 19,
+        "inclusive_seconds": 0.053586
+      },
+      "wc": {
+        "count": 15,
+        "inclusive_seconds": 0.033983
+      },
+      "tr": {
+        "count": 15,
+        "inclusive_seconds": 0.037195
+      },
+      "install": {
+        "count": 16,
+        "inclusive_seconds": 0.034061
+      },
+      "rm": {
+        "count": 31,
+        "inclusive_seconds": 0.059533
+      },
+      "mktemp": {
+        "count": 2,
+        "inclusive_seconds": 0.005809
+      },
+      "date": {
+        "count": 1,
+        "inclusive_seconds": 0.00189
+      },
+      "head": {
+        "count": 0,
+        "inclusive_seconds": 0
+      }
+    },
+    "strict_semantic_equivalent": true,
+    "normalization": [
+      {
+        "side": "before",
+        "observed_at": "2026-10-21T18:22:10Z",
+        "raw_manifest_sha256": "68ad158274c0c048a929db7ea81c0451974473e90e0032abb57c61ee1fdc3787",
+        "canonical_manifest_sha256": "03a2d4001cb664b821b180a0aea9b602c1d121887d99c75c1eb572a6db56222e"
+      },
+      {
+        "side": "after",
+        "observed_at": "2026-10-21T18:59:07Z",
+        "raw_manifest_sha256": "3550d8a268e2b5455da6f6f4d61d3a8efa68c52de221028b1f7ca92e991fe5b0",
+        "canonical_manifest_sha256": "03a2d4001cb664b821b180a0aea9b602c1d121887d99c75c1eb572a6db56222e"
+      }
+    ],
+    "actual": {
+      "case": "invalid-anchor",
+      "exit_code": 1,
+      "manifest": {
+        "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+        "stage": "rehearsal",
+        "observed_at": "2026-10-21T18:59:07Z",
+        "max_file_bytes": 4194304,
+        "capture_failures": 1,
+        "complete": false,
+        "captures": [
+          {
+            "class": "logs",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "metrics",
+            "name": "targets",
+            "state": "collected",
+            "bytes": 48
+          },
+          {
+            "class": "workload",
+            "name": "terminal-anchor",
+            "state": "invalid",
+            "bytes": 0
+          }
+        ],
+        "metrics_budget": {
+          "max_requests": 8,
+          "requests": 0,
+          "max_total_bytes": 25165824,
+          "observed_bytes": 0,
+          "retained_bytes": 0,
+          "deadline_seconds": 60
+        },
+        "diagnosis_references": {
+          "window": "../diagnosis-window.json",
+          "result": "../diagnosis-result.json",
+          "optional": true
+        }
+      },
+      "calls": [
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "targets"
+        }
+      ],
+      "files": [
+        {
+          "path": "logs/load.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-1.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-2.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-3.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "manifest.json",
+          "bytes": 2359,
+          "sha256": "3550d8a268e2b5455da6f6f4d61d3a8efa68c52de221028b1f7ca92e991fe5b0"
+        },
+        {
+          "path": "metrics/prometheus-targets.json",
+          "bytes": 48,
+          "sha256": "0237506397e8babf05d37582cd7abc9d8aca1637e0d840a101378c3bbee8392f"
+        },
+        {
+          "path": "profiles/service-1-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-1-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/load.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-1.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-2.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-3.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        }
+      ]
+    }
+  },
+  {
+    "case": "formal-capacity",
+    "baseline_case": "capacity",
+    "fixture_seconds": 1.1171657919767313,
+    "collector_seconds": 1.1097785840393044,
+    "collector_exit": 0,
+    "complete": true,
+    "tools": {
+      "ssh": {
+        "count": 27,
+        "inclusive_seconds": 0.410503
+      },
+      "timeout": {
+        "count": 15,
+        "inclusive_seconds": 0.51839
+      },
+      "python3": {
+        "count": 1,
+        "inclusive_seconds": 0.157952
+      },
+      "jq": {
+        "count": 19,
+        "inclusive_seconds": 0.051842
+      },
+      "wc": {
+        "count": 15,
+        "inclusive_seconds": 0.036419
+      },
+      "tr": {
+        "count": 15,
+        "inclusive_seconds": 0.039696999999999996
+      },
+      "install": {
+        "count": 16,
+        "inclusive_seconds": 0.035818
+      },
+      "rm": {
+        "count": 31,
+        "inclusive_seconds": 0.06008
+      },
+      "mktemp": {
+        "count": 2,
+        "inclusive_seconds": 0.005652
+      },
+      "date": {
+        "count": 1,
+        "inclusive_seconds": 0.001855
+      },
+      "head": {
+        "count": 12,
+        "inclusive_seconds": 0.022324
+      }
+    },
+    "strict_semantic_equivalent": true,
+    "normalization": [
+      {
+        "side": "before",
+        "observed_at": "2026-10-21T18:22:22Z",
+        "raw_manifest_sha256": "0fe11ebe3fd29b9fcafd7ae7bc30b617150e2938fed5aaed1fa80404f86f96ff",
+        "canonical_manifest_sha256": "9154127e81afc0e714751ac162c7e3e41db25df2c186c7e2d0ad947e72170741"
+      },
+      {
+        "side": "after",
+        "observed_at": "2026-10-21T18:59:08Z",
+        "raw_manifest_sha256": "7aeea1bf8bd7ec31fb51dc7b376adba00dbe5dd04fc373cf4c20face754d81c2",
+        "canonical_manifest_sha256": "9154127e81afc0e714751ac162c7e3e41db25df2c186c7e2d0ad947e72170741"
+      }
+    ],
+    "actual": {
+      "case": "formal-capacity",
+      "exit_code": 0,
+      "manifest": {
+        "schema": "wukongim.chat_lifecycle.terminal_evidence/v1",
+        "stage": "formal",
+        "observed_at": "2026-10-21T18:59:08Z",
+        "max_file_bytes": 4194304,
+        "capture_failures": 0,
+        "complete": true,
+        "captures": [
+          {
+            "class": "logs",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-1",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-1-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-2",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-2-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "service-3",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-heap",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "profiles",
+            "name": "service-3-goroutine",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "logs",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "system",
+            "name": "load",
+            "state": "collected",
+            "bytes": 25
+          },
+          {
+            "class": "metrics",
+            "name": "targets",
+            "state": "collected",
+            "bytes": 48
+          },
+          {
+            "class": "workload",
+            "name": "formal-worker-evidence",
+            "state": "collected",
+            "bytes": 1066,
+            "max_bytes": 1048576,
+            "path": "workload/formal/worker-evidence.json",
+            "sha256": "a66fee7bbc36e961ed3c795bd1368caa3a92c57d6b34437676c5d311a5d80361"
+          },
+          {
+            "class": "workload",
+            "name": "formal-diagnostic-status",
+            "state": "collected",
+            "bytes": 2994,
+            "max_bytes": 65536,
+            "path": "workload/formal/diagnostic-status.json",
+            "sha256": "ee7177e866486de790c24c6da5c91bba64844e68fa54663a7bbf49ee5d32aa65"
+          },
+          {
+            "class": "workload",
+            "name": "capacity-worker-evidence",
+            "state": "collected",
+            "bytes": 1066,
+            "max_bytes": 1048576,
+            "path": "workload/capacity/worker-evidence.json",
+            "sha256": "a66fee7bbc36e961ed3c795bd1368caa3a92c57d6b34437676c5d311a5d80361"
+          },
+          {
+            "class": "workload",
+            "name": "capacity-diagnostic-status",
+            "state": "collected",
+            "bytes": 2994,
+            "max_bytes": 65536,
+            "path": "workload/capacity/diagnostic-status.json",
+            "sha256": "ee7177e866486de790c24c6da5c91bba64844e68fa54663a7bbf49ee5d32aa65"
+          },
+          {
+            "class": "metrics",
+            "name": "range-presence",
+            "state": "collected",
+            "bytes": 167,
+            "query": "{__name__=~\"wukongim_presence_endpoint_lookup_(total|items_total|groups_total|duration_seconds_(bucket|sum|count))\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "capacity/final.json",
+              "report_sha256": "d8cb45ebb448abc5ad011487a090129fcc8f38f3e9982d794044eb48fa075ea2",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-presence.json",
+            "sha256": "fd71390725d4b4ab0731cfcdfc668060d2f3c02075998576a5b085b6d105d0fb"
+          },
+          {
+            "class": "metrics",
+            "name": "range-delivery",
+            "state": "collected",
+            "bytes": 176,
+            "query": "{__name__=~\"wukongim_delivery_(recipient_worker_(queue_depth|queue_capacity|inflight|capacity|admission_total|admission_wait_seconds_(bucket|sum|count)|process_total|process_duration_seconds_(bucket|sum|count)|process_recipients_(bucket|sum|count))|recipient_authority_resolve_(total|items_total|targets_total|duration_seconds_(bucket|sum|count))|push_rpc_(total|routes_total|duration_seconds_(bucket|sum|count)))\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "capacity/final.json",
+              "report_sha256": "d8cb45ebb448abc5ad011487a090129fcc8f38f3e9982d794044eb48fa075ea2",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-delivery.json",
+            "sha256": "8d8ec2d672d92ce982d4c36a7b9328ae4b51b6d0286e06ff619d5bb3205890d9"
+          },
+          {
+            "class": "metrics",
+            "name": "range-up",
+            "state": "collected",
+            "bytes": 130,
+            "query": "up",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "capacity/final.json",
+              "report_sha256": "d8cb45ebb448abc5ad011487a090129fcc8f38f3e9982d794044eb48fa075ea2",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-up.json",
+            "sha256": "3393428cc6947943a2cd3251df847c8a87da5a078302a470f4d866562c73c789"
+          },
+          {
+            "class": "metrics",
+            "name": "range-runtime",
+            "state": "collected",
+            "bytes": 150,
+            "query": "{__name__=~\"wukongim_runtime_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "capacity/final.json",
+              "report_sha256": "d8cb45ebb448abc5ad011487a090129fcc8f38f3e9982d794044eb48fa075ea2",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-runtime.json",
+            "sha256": "d394aee797c8daa9867a5b5dfee46642fef226fc9bb4022cafdcf345c515ce32"
+          },
+          {
+            "class": "metrics",
+            "name": "range-channel_worker",
+            "state": "collected",
+            "bytes": 156,
+            "query": "{__name__=~\"wukongim_channel_worker_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "capacity/final.json",
+              "report_sha256": "d8cb45ebb448abc5ad011487a090129fcc8f38f3e9982d794044eb48fa075ea2",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-channel_worker.json",
+            "sha256": "3e550d81a50188b2dbe679afe0dfc1d96b3356437904401cac8ae2f8ed541396"
+          },
+          {
+            "class": "metrics",
+            "name": "range-process",
+            "state": "collected",
+            "bytes": 148,
+            "query": "{__name__=~\"wukongim_process_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "capacity/final.json",
+              "report_sha256": "d8cb45ebb448abc5ad011487a090129fcc8f38f3e9982d794044eb48fa075ea2",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-process.json",
+            "sha256": "416ab3f5101646309eb022e0cd1e1b8e19f085924822ad7fa704d984f6576ebe"
+          },
+          {
+            "class": "metrics",
+            "name": "range-counters",
+            "state": "collected",
+            "bytes": 158,
+            "query": "{__name__=~\"wukongim_(metadata_create_total|activation_rejected_total)\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "capacity/final.json",
+              "report_sha256": "d8cb45ebb448abc5ad011487a090129fcc8f38f3e9982d794044eb48fa075ea2",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-counters.json",
+            "sha256": "d044e7af75f2986278651494c33a3bc62adead587938e8ec6018f1a31ed3dbed"
+          },
+          {
+            "class": "metrics",
+            "name": "range-go",
+            "state": "collected",
+            "bytes": 144,
+            "query": "{__name__=~\"wukongim_go_.*\"}",
+            "window": {
+              "end": "2026-10-21T17:06:50.121277292Z",
+              "epoch_end": "1792602410.121",
+              "epoch_start": "1792601510.121",
+              "query_precision": "nearest_millisecond",
+              "source": "capacity/final.json",
+              "report_sha256": "d8cb45ebb448abc5ad011487a090129fcc8f38f3e9982d794044eb48fa075ea2",
+              "step_seconds": 15
+            },
+            "max_bytes": 4194304,
+            "series_count": 1,
+            "sample_count": 1,
+            "observed_start": "1792602410",
+            "observed_end": "1792602410",
+            "path": "metrics/range-go.json",
+            "sha256": "0d795d25cd6bc1954e04d2bc46b708321cd311e028feafb8441bc6c40f7ec28b"
+          }
+        ],
+        "metrics_budget": {
+          "max_requests": 8,
+          "requests": 8,
+          "max_total_bytes": 25165824,
+          "observed_bytes": 1229,
+          "retained_bytes": 1229,
+          "deadline_seconds": 60
+        },
+        "diagnosis_references": {
+          "window": "../diagnosis-window.json",
+          "result": "../diagnosis-result.json",
+          "optional": true
+        }
+      },
+      "calls": [
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "other"
+        },
+        {
+          "kind": "targets"
+        },
+        {
+          "kind": "formal/worker-evidence.json"
+        },
+        {
+          "kind": "formal/diagnostic-status.json"
+        },
+        {
+          "kind": "capacity/worker-evidence.json"
+        },
+        {
+          "kind": "capacity/diagnostic-status.json"
+        },
+        {
+          "kind": "range-presence",
+          "query": "{__name__=~\"wukongim_presence_endpoint_lookup_(total|items_total|groups_total|duration_seconds_(bucket|sum|count))\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-delivery",
+          "query": "{__name__=~\"wukongim_delivery_(recipient_worker_(queue_depth|queue_capacity|inflight|capacity|admission_total|admission_wait_seconds_(bucket|sum|count)|process_total|process_duration_seconds_(bucket|sum|count)|process_recipients_(bucket|sum|count))|recipient_authority_resolve_(total|items_total|targets_total|duration_seconds_(bucket|sum|count))|push_rpc_(total|routes_total|duration_seconds_(bucket|sum|count)))\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-up",
+          "query": "up",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-runtime",
+          "query": "{__name__=~\"wukongim_runtime_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-channel_worker",
+          "query": "{__name__=~\"wukongim_channel_worker_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-process",
+          "query": "{__name__=~\"wukongim_process_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-counters",
+          "query": "{__name__=~\"wukongim_(metadata_create_total|activation_rejected_total)\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        },
+        {
+          "kind": "range-go",
+          "query": "{__name__=~\"wukongim_go_.*\"}",
+          "start": "1792601510.121",
+          "end": "1792602410.121",
+          "step": "15"
+        }
+      ],
+      "files": [
+        {
+          "path": "logs/load.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-1.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-2.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "logs/service-3.log",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "manifest.json",
+          "bytes": 10450,
+          "sha256": "7aeea1bf8bd7ec31fb51dc7b376adba00dbe5dd04fc373cf4c20face754d81c2"
+        },
+        {
+          "path": "metrics/prometheus-targets.json",
+          "bytes": 48,
+          "sha256": "0237506397e8babf05d37582cd7abc9d8aca1637e0d840a101378c3bbee8392f"
+        },
+        {
+          "path": "metrics/range-channel_worker.json",
+          "bytes": 156,
+          "sha256": "3e550d81a50188b2dbe679afe0dfc1d96b3356437904401cac8ae2f8ed541396"
+        },
+        {
+          "path": "metrics/range-counters.json",
+          "bytes": 158,
+          "sha256": "d044e7af75f2986278651494c33a3bc62adead587938e8ec6018f1a31ed3dbed"
+        },
+        {
+          "path": "metrics/range-delivery.json",
+          "bytes": 176,
+          "sha256": "8d8ec2d672d92ce982d4c36a7b9328ae4b51b6d0286e06ff619d5bb3205890d9"
+        },
+        {
+          "path": "metrics/range-go.json",
+          "bytes": 144,
+          "sha256": "0d795d25cd6bc1954e04d2bc46b708321cd311e028feafb8441bc6c40f7ec28b"
+        },
+        {
+          "path": "metrics/range-presence.json",
+          "bytes": 167,
+          "sha256": "fd71390725d4b4ab0731cfcdfc668060d2f3c02075998576a5b085b6d105d0fb"
+        },
+        {
+          "path": "metrics/range-process.json",
+          "bytes": 148,
+          "sha256": "416ab3f5101646309eb022e0cd1e1b8e19f085924822ad7fa704d984f6576ebe"
+        },
+        {
+          "path": "metrics/range-runtime.json",
+          "bytes": 150,
+          "sha256": "d394aee797c8daa9867a5b5dfee46642fef226fc9bb4022cafdcf345c515ce32"
+        },
+        {
+          "path": "metrics/range-up.json",
+          "bytes": 130,
+          "sha256": "3393428cc6947943a2cd3251df847c8a87da5a078302a470f4d866562c73c789"
+        },
+        {
+          "path": "profiles/service-1-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-1-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-2-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-goroutine.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "profiles/service-3-heap.pprof",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/load.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-1.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-2.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "system/service-3.txt",
+          "bytes": 25,
+          "sha256": "3b558bab60c7feab0e47234c5d6a2e1bcaf3498d55651a5943caaa2788ba713d"
+        },
+        {
+          "path": "workload/capacity/diagnostic-status.json",
+          "bytes": 2994,
+          "sha256": "ee7177e866486de790c24c6da5c91bba64844e68fa54663a7bbf49ee5d32aa65"
+        },
+        {
+          "path": "workload/capacity/worker-evidence.json",
+          "bytes": 1066,
+          "sha256": "a66fee7bbc36e961ed3c795bd1368caa3a92c57d6b34437676c5d311a5d80361"
+        },
+        {
+          "path": "workload/formal/diagnostic-status.json",
+          "bytes": 2994,
+          "sha256": "ee7177e866486de790c24c6da5c91bba64844e68fa54663a7bbf49ee5d32aa65"
+        },
+        {
+          "path": "workload/formal/worker-evidence.json",
+          "bytes": 1066,
+          "sha256": "a66fee7bbc36e961ed3c795bd1368caa3a92c57d6b34437676c5d311a5d80361"
+        }
+      ]
+    }
+  }
+]

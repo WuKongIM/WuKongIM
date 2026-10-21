@@ -1,0 +1,7 @@
+{
+  "head": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+  "file": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+  "sha256": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1",
+  "test_methods_unchanged": true,
+  "method_count": 20
+}

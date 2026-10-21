@@ -1,0 +1,31 @@
+{
+  "base": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d",
+      "size": 3802
+    },
+    "docs/object-storage-delivery.md": {
+      "sha256": "5fa4a5010017b17509eb5de395cd47d3afe54a86d44cbd27530986d52006de3c",
+      "size": 16596
+    },
+    "tests/native_stable_candidate_drill.py": {
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e",
+      "size": 53365
+    },
+    "tests/native_stable_clients_drill.py": {
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+      "size": 70217
+    },
+    "tests/native_object_delivery_fixture_drill.py": {
+      "sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756",
+      "size": 18297
+    }
+  },
+  "patch_sha256": "f275f868a7f609b2f016d7ecadaf11e5f37eb76c34887cbcd6b325de291e0eee",
+  "native_run": "native-5",
+  "native_cases": 29,
+  "frozen_at_unix": 1792609121.591105,
+  "ci_wiring_pending": true
+}

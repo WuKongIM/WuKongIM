@@ -1,0 +1,28 @@
+Package: wukongim
+Version: 3.0.0
+Architecture: amd64
+Maintainer: TEST ONLY <test-only@invalid>
+Filename: pool/main/w/wukongim/wukongim_3.0.0_linux_amd64.deb
+Size: 592
+MD5sum: b515a4b8fe764a3e77c5f70b89708eb8
+SHA1: 5ca81c723c448ec6fe6f00db7a9f4a768ccc0d76
+SHA256: 9b74d28a3eeb7c64cb2d9a47009d32800f43b2f22067bdcf34750e6b72194fc6
+Description: TEST ONLY metadata fixture
+
+Package: wukongim-archive-keyring-stable
+Version: 1.1.1
+Architecture: all
+Maintainer: WuKongIM Team <support@wukongim.com>
+Installed-Size: 5
+Filename: pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.1_all.deb
+Size: 4448
+MD5sum: db6fe1d1d0d1eae48322d18ccb0dc391
+SHA1: 7e8e91b71a63b15637eecc861cd55537d0774045
+SHA256: 005bb2044f36dad3fa73850d1a59eef9d347cadf15b1a49d1a39e2f6e905396a
+Section: misc
+Priority: optional
+Homepage: https://github.com/WuKongIM/WuKongIM
+Description: WuKongIM stable repository signing keyring
+ Installs the dedicated OpenPGP keyring used to authenticate the
+ WuKongIM stable APT repository.
+

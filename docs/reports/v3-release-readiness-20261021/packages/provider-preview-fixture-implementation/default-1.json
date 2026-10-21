@@ -1,0 +1,18 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_*.py"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture",
+  "deadline_seconds": 600,
+  "started_at_unix": 1792608898.8073611,
+  "exit_code": 0,
+  "finished_at_unix": 1792609035.714227
+}

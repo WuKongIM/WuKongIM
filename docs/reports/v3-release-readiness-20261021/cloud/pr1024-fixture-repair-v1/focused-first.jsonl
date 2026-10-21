@@ -1,0 +1,20 @@
+{"Time":"2026-10-22T03:04:30.51265+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/scripts"}
+{"Time":"2026-10-22T03:04:31.047933+08:00","Action":"run","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceRetention"}
+{"Time":"2026-10-22T03:04:31.047985+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceRetention","Output":"=== RUN   TestChatLifecycleTerminalEvidenceRetention\n"}
+{"Time":"2026-10-22T03:04:31.04801+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceRetention","Output":"=== PAUSE TestChatLifecycleTerminalEvidenceRetention\n"}
+{"Time":"2026-10-22T03:04:31.048014+08:00","Action":"pause","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceRetention"}
+{"Time":"2026-10-22T03:04:31.048018+08:00","Action":"run","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor"}
+{"Time":"2026-10-22T03:04:31.048026+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor","Output":"=== RUN   TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor\n"}
+{"Time":"2026-10-22T03:04:31.048031+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor","Output":"=== PAUSE TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor\n"}
+{"Time":"2026-10-22T03:04:31.048033+08:00","Action":"pause","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor"}
+{"Time":"2026-10-22T03:04:31.048037+08:00","Action":"cont","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceRetention"}
+{"Time":"2026-10-22T03:04:31.048042+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceRetention","Output":"=== CONT  TestChatLifecycleTerminalEvidenceRetention\n"}
+{"Time":"2026-10-22T03:04:31.048119+08:00","Action":"cont","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor"}
+{"Time":"2026-10-22T03:04:31.048123+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor","Output":"=== CONT  TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor\n"}
+{"Time":"2026-10-22T03:04:32.251642+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor","Output":"--- PASS: TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor (1.20s)\n"}
+{"Time":"2026-10-22T03:05:31.652295+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor","Elapsed":1.2}
+{"Time":"2026-10-22T03:05:31.652344+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceRetention","Output":"--- PASS: TestChatLifecycleTerminalEvidenceRetention (60.60s)\n"}
+{"Time":"2026-10-22T03:05:31.652354+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts","Test":"TestChatLifecycleTerminalEvidenceRetention","Elapsed":60.6}
+{"Time":"2026-10-22T03:05:31.652361+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Output":"PASS\n"}
+{"Time":"2026-10-22T03:05:31.653644+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/scripts","Output":"ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t61.141s\n"}
+{"Time":"2026-10-22T03:05:31.653663+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/scripts","Elapsed":61.141}

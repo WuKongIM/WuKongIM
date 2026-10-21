@@ -1,0 +1,16 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_native_object_delivery_fixture_workflow.py"
+  ],
+  "deadline_seconds": 30,
+  "exit_code": 0,
+  "finished_at_unix": 1792609173.413773
+}

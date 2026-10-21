@@ -1,0 +1,1604 @@
+{
+  "schema": "wukongim/finite-public-evidence/v1",
+  "root": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation",
+  "generated_at_utc": "2026-10-21T19:12:07.159024+00:00",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 8369,
+      "sha256": "2ef59f3dbbf422fbad92079961e2a68501f5b6217731804dd37a3c1a1f81a35e"
+    },
+    {
+      "path": "ci-first-red-tests.py",
+      "bytes": 4177,
+      "sha256": "91e9685885ea727c22297ef5d2941a677688f2303b5285c6d1d1371963badfc7"
+    },
+    {
+      "path": "ci-green-1.json",
+      "bytes": 262,
+      "sha256": "272f7fdac9aabb02ee7a4dfb3c15bae867ff0eafcc8501050e27e322a5c690ef"
+    },
+    {
+      "path": "ci-green-1.log",
+      "bytes": 103,
+      "sha256": "6273232de4d3ef7acd4ecafa5c86beeeb974f56586b21089a2990b3f72facbe6"
+    },
+    {
+      "path": "ci-init-native-1/fixture-export.json",
+      "bytes": 2550,
+      "sha256": "5b2c8ae22abb95ed041a87f7656e89771aaca38376b539927b4e74cc995ea0d2"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/apt-receipt.json",
+      "bytes": 1055,
+      "sha256": "20f77166ccf6281c04ccdf80c11c97f2149bad25e52f6e3f45eacf8726293f69"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/keys/README.md",
+      "bytes": 5439,
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/keys/apt-preview.asc",
+      "bytes": 6210,
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "2a62b36296a9f4ad9fc42e2780419da6f3d73d5b5bcd591f6cf95d273ebb29db"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/keys/rpm-preview.asc",
+      "bytes": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/manifests/audit-access.json",
+      "bytes": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/manifests/bootstrap-packages.json",
+      "bytes": 83,
+      "sha256": "05911ad7a14e8efa4c08b1070e5f5aaeacce0f99832be672465824ce662b3a1c"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/manifests/channels.json",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/manifests/preview-signing.json",
+      "bytes": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/manifests/source-read.json",
+      "bytes": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/manifests/stable-public-keys.json",
+      "bytes": 538,
+      "sha256": "743cc4becc7865094f0b321e0ea94e5ab8b49008a59b44494cdec9995a05afbb"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/control/manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/plan.json",
+      "bytes": 3757,
+      "sha256": "0483a01f2cd4ac66aa9070ddf5d193d2f48dda4025e17540771b6291c14d50ea"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/rpm-receipt.json",
+      "bytes": 2268,
+      "sha256": "9a4c2b3f76b6626f4c7c3b3b2ef1fed5214e7c71ce6855c8415efad5bc99b64a"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/apt/dists/stable/InRelease",
+      "bytes": 1807,
+      "sha256": "bd1af47e6e8f8d942434203258db00c1f5b8c099aca3cef25dea32c8df5d8f15"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/apt/dists/stable/Release",
+      "bytes": 1099,
+      "sha256": "35aedc1e91fec80ecea6fbc636da5e59936bea9d2c7e6f0db1c19a0a4f863d87"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/apt/dists/stable/Release.gpg",
+      "bytes": 659,
+      "sha256": "0f5281ea207d69c5ae5afb7c11299c42b3ec601c16696fb021c12ceb08459a66"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/apt/dists/stable/main/binary-amd64/Packages",
+      "bytes": 994,
+      "sha256": "9cc7d35b94e8b985ce351a253cb841662d83f54fc383426e5c5d0598678211bd"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/apt/dists/stable/main/binary-amd64/Packages.gz",
+      "bytes": 588,
+      "sha256": "ec4d57d37b01e137a8b021a8be7f42aa20509ad450e6dec496087303833f4010"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/9cc7d35b94e8b985ce351a253cb841662d83f54fc383426e5c5d0598678211bd",
+      "bytes": 994,
+      "sha256": "9cc7d35b94e8b985ce351a253cb841662d83f54fc383426e5c5d0598678211bd"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/ec4d57d37b01e137a8b021a8be7f42aa20509ad450e6dec496087303833f4010",
+      "bytes": 588,
+      "sha256": "ec4d57d37b01e137a8b021a8be7f42aa20509ad450e6dec496087303833f4010"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.1_all.deb",
+      "bytes": 4448,
+      "sha256": "005bb2044f36dad3fa73850d1a59eef9d347cadf15b1a49d1a39e2f6e905396a"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/apt/pool/main/w/wukongim/wukongim_3.0.0_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "9b74d28a3eeb7c64cb2d9a47009d32800f43b2f22067bdcf34750e6b72194fc6"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/bootstrap/manifest.json",
+      "bytes": 1152,
+      "sha256": "991069fbeffc73d8b6f1b410c7058a92589b5cf43626c53270385190c1a5d898"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/bootstrap/wukongim-archive-keyring-stable_1.1.1_all.deb",
+      "bytes": 4448,
+      "sha256": "005bb2044f36dad3fa73850d1a59eef9d347cadf15b1a49d1a39e2f6e905396a"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "6d33e9f1c4842670d8ae75a203a06ae80528928ea3cb94a38e9a9b16215d86d2"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/index.html",
+      "bytes": 199,
+      "sha256": "2ddf9f298245c1ad3e34993533eac883e6990e53615b45d6c5409e13b94a1f49"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "2a62b36296a9f4ad9fc42e2780419da6f3d73d5b5bcd591f6cf95d273ebb29db"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/repo",
+      "bytes": 3900,
+      "sha256": "1ad4b92f49a2b46eed228eb20e6d611c7494ee1462d1631facaef446c4663fb0"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.1-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "6d33e9f1c4842670d8ae75a203a06ae80528928ea3cb94a38e9a9b16215d86d2"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "f0b20704bd6fa9200bec8080cac9c729904049c79ea63f7122f5cb59de06c3db"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "bytes": 389,
+      "sha256": "b3ac37c88b63ea169f3055ed8ee17044ea3135c22be1a030440eadac511212c6"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/other.xml.gz",
+      "bytes": 305,
+      "sha256": "d2fc4f1d1bd678b51d6d2c921fe8525b57521b4fe7740be2971a39a605263ba9"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "bytes": 950,
+      "sha256": "1686cf8911ea9ceac933a200671fca532efdf447ccdf9378841d02050a3dba54"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "bytes": 1351,
+      "sha256": "ecfabce9014909a6d0deb88914f87ed507c31fd0b72c7146e85284cee259323c"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "bytes": 659,
+      "sha256": "e775c503f66c974f33946dc8f1bfbc3c508cc5fa8d3646b863ead6da3c81ec25"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/signing-manifest.txt",
+      "bytes": 514,
+      "sha256": "3ce03f9ad1bc9241363d0710d292fe1794891b3f8e6bd14c9c45816eb31cf926"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/site/status.json",
+      "bytes": 324,
+      "sha256": "aa4dd06c6a999f84ce5e77bb7f4d4d3c8bacd078a649d450c6382a9df59ff84f"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/source/assets/wukongim_3.0.0_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "9b74d28a3eeb7c64cb2d9a47009d32800f43b2f22067bdcf34750e6b72194fc6"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/source/assets/wukongim_3.0.0_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "1458dd57d3a1b41c56c257f06d08d7d5e9ed257e5446857f93c3d5e8b62e37d6"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/source/resolution.json",
+      "bytes": 389,
+      "sha256": "83376d0b9c10004e447d6b625ad4f09f411b25770afe26cfc39f083cccc095b1"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/wukongim-stable-3.0.0-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b-candidate-receipt.json",
+      "bytes": 2624,
+      "sha256": "8f11ce33d949b81668f25bb13af156333eeef152726c49b3fcfb98e96991b5f2"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/A/wukongim-stable-3.0.0-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b-candidate-site.tar",
+      "bytes": 151552,
+      "sha256": "725a50c97949fb967113c6463a227b9f510027b3509784d92cdef70dc14d2102"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/apt-receipt.json",
+      "bytes": 1055,
+      "sha256": "ac29b6aa61d5043abec52a7d7d669b62ab5ca093df73a26962ab324e92ae5d99"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/keys/README.md",
+      "bytes": 5439,
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/keys/apt-preview.asc",
+      "bytes": 6210,
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "2a62b36296a9f4ad9fc42e2780419da6f3d73d5b5bcd591f6cf95d273ebb29db"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/keys/rpm-preview.asc",
+      "bytes": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/manifests/audit-access.json",
+      "bytes": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/manifests/bootstrap-packages.json",
+      "bytes": 83,
+      "sha256": "64cc3bcaecfcd967d1b5a58fea834ec49609740d5704810c3cb736ac4069829c"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/manifests/channels.json",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/manifests/preview-signing.json",
+      "bytes": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/manifests/source-read.json",
+      "bytes": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/manifests/stable-public-keys.json",
+      "bytes": 538,
+      "sha256": "743cc4becc7865094f0b321e0ea94e5ab8b49008a59b44494cdec9995a05afbb"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/control/manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/plan.json",
+      "bytes": 3757,
+      "sha256": "bb02400fe5c2b3b380dc49839c1c8f5ea15995be7b591f71c2ba1996892cc29a"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/rpm-receipt.json",
+      "bytes": 2268,
+      "sha256": "027aa52579ade52a450b5b0a4f3ba38b39bfc1d51f00c28ae4bac475e2a23428"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/apt/dists/stable/InRelease",
+      "bytes": 1807,
+      "sha256": "73fb7570d7cd52cc9fde87291d5f3aa2f2950862271d4efcce5e0ef250bf4a47"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/apt/dists/stable/Release",
+      "bytes": 1099,
+      "sha256": "f40dbd37bb58bb1a60ea94801f8737f156e1e7d5d58bc27583d87e385ade8b40"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/apt/dists/stable/Release.gpg",
+      "bytes": 659,
+      "sha256": "3d3584cbe84da3279e9abfe060fd42267782bf567500098df2429a9fd2952a2a"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/apt/dists/stable/main/binary-amd64/Packages",
+      "bytes": 994,
+      "sha256": "1b38484268d129c38a5e1722ad4a7664b612a1d36d052085105cd77f20c97e3f"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/apt/dists/stable/main/binary-amd64/Packages.gz",
+      "bytes": 588,
+      "sha256": "e103a42482e02e2b16f2b4483fca6c00e30b06204ab9bdbc1f9e362c96fc29f1"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/1b38484268d129c38a5e1722ad4a7664b612a1d36d052085105cd77f20c97e3f",
+      "bytes": 994,
+      "sha256": "1b38484268d129c38a5e1722ad4a7664b612a1d36d052085105cd77f20c97e3f"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/e103a42482e02e2b16f2b4483fca6c00e30b06204ab9bdbc1f9e362c96fc29f1",
+      "bytes": 588,
+      "sha256": "e103a42482e02e2b16f2b4483fca6c00e30b06204ab9bdbc1f9e362c96fc29f1"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.2_all.deb",
+      "bytes": 4450,
+      "sha256": "d6608099fcaf9bcef2189751cbfb71765bc0322b58cc9059bcd0fc7b0603ca9f"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/apt/pool/main/w/wukongim/wukongim_3.0.1_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "f5df53105b222e949f535a0d45eeb94dda970160bd0d955ed3d263ed935360fa"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/bootstrap/manifest.json",
+      "bytes": 1152,
+      "sha256": "176d47ebd8cdca7990a3e20cfce8f5cf2dd2d8a1f43f7dddfce9f9d9d87ac76b"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/bootstrap/wukongim-archive-keyring-stable_1.1.2_all.deb",
+      "bytes": 4450,
+      "sha256": "d6608099fcaf9bcef2189751cbfb71765bc0322b58cc9059bcd0fc7b0603ca9f"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/bootstrap/wukongim-release-stable-1.1.2-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "f691f76859d3f4747a90d47263178378eab82d2bdbcfdcf73aa334e6b80eb2b0"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/index.html",
+      "bytes": 199,
+      "sha256": "2ddf9f298245c1ad3e34993533eac883e6990e53615b45d6c5409e13b94a1f49"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "2a62b36296a9f4ad9fc42e2780419da6f3d73d5b5bcd591f6cf95d273ebb29db"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/repo",
+      "bytes": 3900,
+      "sha256": "f1467418811bdb5854ec32605bb0eca239a13404001c4e95b81c198b34084691"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.2-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "f691f76859d3f4747a90d47263178378eab82d2bdbcfdcf73aa334e6b80eb2b0"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "c929628919a768d5a9ad111e3e48ab3d2f0b556bb3a8b05a5ea8b513a1d4043c"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "bytes": 389,
+      "sha256": "d761d66ab6aafd2a2d04bd9bbf5fb2e0c3ca4dcde639e37dc587395605845d9f"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/other.xml.gz",
+      "bytes": 303,
+      "sha256": "136f2773757740cf436947f0815003a0123a34a01c605d3b3c252ce648e67cc1"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "bytes": 949,
+      "sha256": "fd404d40ceae78feb66dcf017de32b957bcf4bedc813262b9a1bf7dda9370877"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "bytes": 1351,
+      "sha256": "27e48466c2e9febdab7af1a38e832f8c4102290d54700e98c0c69eaabc908348"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "bytes": 659,
+      "sha256": "08b61bbe18a47dddf7f8fc4ead667e560f48c22260d027090f1f272263027b07"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/signing-manifest.txt",
+      "bytes": 514,
+      "sha256": "3ce03f9ad1bc9241363d0710d292fe1794891b3f8e6bd14c9c45816eb31cf926"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/site/status.json",
+      "bytes": 324,
+      "sha256": "be05556f7d25f69e518067ce005ce92d04def0bd860927014f637cd34ca6dbf6"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/source/assets/wukongim_3.0.1_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "f5df53105b222e949f535a0d45eeb94dda970160bd0d955ed3d263ed935360fa"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/source/assets/wukongim_3.0.1_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "959279de9512ba2810622b522b2286a4187eaf2ffbb0035c8bcd16c3545cf2ec"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/source/resolution.json",
+      "bytes": 389,
+      "sha256": "aadf253a36132224313c40d795143a5f4e5ba3854205901de03d6bbbe3f1fc5a"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/wukongim-stable-3.0.1-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5-candidate-receipt.json",
+      "bytes": 2624,
+      "sha256": "1c931ac30dbf0366fa108afc40fbc22c10e707e0f959bb265a04b2d792800eb1"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/B/wukongim-stable-3.0.1-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5-candidate-site.tar",
+      "bytes": 151552,
+      "sha256": "46d30e880e22d2103960b1371a06cddc0f42989b6b234d66272dd10c608b6623"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/apt-receipt.json",
+      "bytes": 1058,
+      "sha256": "0d840a47024b8a16996b18e00daa49645eca3e7ab196a2d64d709939d01e58e2"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/keys/README.md",
+      "bytes": 5439,
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/keys/apt-preview.asc",
+      "bytes": 4824,
+      "sha256": "2a62b36296a9f4ad9fc42e2780419da6f3d73d5b5bcd591f6cf95d273ebb29db"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "2a62b36296a9f4ad9fc42e2780419da6f3d73d5b5bcd591f6cf95d273ebb29db"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/keys/rpm-preview.asc",
+      "bytes": 4824,
+      "sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/manifests/audit-access.json",
+      "bytes": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/manifests/bootstrap-packages.json",
+      "bytes": 96,
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/manifests/channels.json",
+      "bytes": 856,
+      "sha256": "713095cb6aea11903b058d72eb3390c9527f4c389f95e611859f0783a117fcca"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/manifests/preview-signing.json",
+      "bytes": 945,
+      "sha256": "492e68bae031cdbf1fb50cdf6d5c210ee9743115415a942a14571a67358807c9"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/manifests/source-read.json",
+      "bytes": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/manifests/stable-public-keys.json",
+      "bytes": 538,
+      "sha256": "743cc4becc7865094f0b321e0ea94e5ab8b49008a59b44494cdec9995a05afbb"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/control/manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/plan.json",
+      "bytes": 347,
+      "sha256": "b84e43a40c14c0915c91b0b07d923e9035e96a34a60aea1527510713a4e8451a"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/rpm-receipt.json",
+      "bytes": 2263,
+      "sha256": "88e6924c9e766799b0886810649f84c970554c52e734cd67e644a8d0390911a6"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_checksums.txt",
+      "bytes": 626,
+      "sha256": "71718b427892a52c07b63d8af67e7f84f7da7fa4e3bfdc77cb8551498f8d52db"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_darwin_amd64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_darwin_arm64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_amd64.deb",
+      "bytes": 590,
+      "sha256": "9aebb99d3a8ebfb54d4503b0781ee8f73978c1f6598bc2e6a64d32332c3c16d4"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_amd64.rpm",
+      "bytes": 6271,
+      "sha256": "cf99dc8b90810ca8916e18e6328b1eb012972403d846bb0699d160bf2ec9887b"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_amd64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_arm64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/source/source.json",
+      "bytes": 2915,
+      "sha256": "8f3f9f694f36c28f50bdf9f551fd83aa81320c9ada032f7f11ea83707248ed54"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/wukongim-preview-r10-receipt.json",
+      "bytes": 3674,
+      "sha256": "1a5e56a3e9528b42c04d149deb60d5693d027fee08b2a0c1d333c792ae1c9c6f"
+    },
+    {
+      "path": "ci-init-native-1/fixtures/preview/wukongim-preview-r10-site.tar",
+      "bytes": 116736,
+      "sha256": "d2515af566ce00ac98977a11e4648df48caebda783f24b7d5adb69804e0effa1"
+    },
+    {
+      "path": "ci-init-native-1/result.json",
+      "bytes": 48314,
+      "sha256": "77b5c913d1ca86c618269d98b6038ef5eb945fd434bb170144a16fcb898893ea"
+    },
+    {
+      "path": "ci-init-native-1-command.json",
+      "bytes": 2325,
+      "sha256": "2d226813121a59c03ea9c1b55a1f97f7a391cf99e029ec17a5598f2cd05d5946"
+    },
+    {
+      "path": "ci-native-1/fixture-export.json",
+      "bytes": 2550,
+      "sha256": "4839f857fca8d8c6d62ffeb28567064185c1c74919bd7f3b31a4340006e174a4"
+    },
+    {
+      "path": "ci-native-1/result.json",
+      "bytes": 45286,
+      "sha256": "0571ea968708d7b0a55053136be040abbf038f04cf452997bcc4d8b6485e75d5"
+    },
+    {
+      "path": "ci-native-1-command.json",
+      "bytes": 2050,
+      "sha256": "c0cded623777b1c0e15a4163ffbdbdc35d173526f52de3f6bde54f335f065c74"
+    },
+    {
+      "path": "ci-pid-observed/fixture-export.json",
+      "bytes": 2550,
+      "sha256": "08b274caa7bf3274b03ca9b6a534fd77d6035c397c5fd879378a8fdba8b837c4"
+    },
+    {
+      "path": "ci-pid-observed/result.json",
+      "bytes": 45287,
+      "sha256": "1de6635c35dc5c7d74bc4ae69c267b216e76d8e85000d22c2880f83e187498fb"
+    },
+    {
+      "path": "ci-pid-observed-command.json",
+      "bytes": 2745,
+      "sha256": "11572744429ed3cbc8baae67062c0e8027d8762298f87501954bf1c1c96a6bc2"
+    },
+    {
+      "path": "ci-red-1.json",
+      "bytes": 437,
+      "sha256": "e8b1eb54bddfa919c3b6e752fe376e693ac98ac0ee802f7d3b00478e027d15b2"
+    },
+    {
+      "path": "ci-red-1.log",
+      "bytes": 4577,
+      "sha256": "b8d7ac7422ffacb8f0f26eb3051124a596a6d1044846175478808c7bc4d26432"
+    },
+    {
+      "path": "ci-red-2.json",
+      "bytes": 333,
+      "sha256": "607cc7d32d4696b64e8aa9e4f81bd6a12efe45bf8976eccd2980f2fe839ddf81"
+    },
+    {
+      "path": "ci-red-2.log",
+      "bytes": 4577,
+      "sha256": "b8d7ac7422ffacb8f0f26eb3051124a596a6d1044846175478808c7bc4d26432"
+    },
+    {
+      "path": "ci-scope-addendum.md",
+      "bytes": 1405,
+      "sha256": "e04443bc33d66e5f98742313fcab938051e90c879643a8ea420f2303c1eccd86"
+    },
+    {
+      "path": "default-1.json",
+      "bytes": 368,
+      "sha256": "acd49e7b233a14bb0f5066e0a304c1af4d39ec950379b02e4d306aa800579163"
+    },
+    {
+      "path": "default-1.stderr.txt",
+      "bytes": 681,
+      "sha256": "3a60af94ded642eef20a0b5bcd0e470f71741739f87d76dea97c7d363a0eee93"
+    },
+    {
+      "path": "default-1.stdout.txt",
+      "bytes": 1608,
+      "sha256": "fa9f452f2cf9c95fa41bb7e7cb6f271a93f66fd7daa0669ae31530088deb700a"
+    },
+    {
+      "path": "failure-matrix.md",
+      "bytes": 3047,
+      "sha256": "5577e1e44994e9512a6202e6340404607ec02658a39bbb9206da3ed441adbc6c"
+    },
+    {
+      "path": "final-contract-0.log",
+      "bytes": 107,
+      "sha256": "603db52fd0016ca5cdcf83b2588160ae92bde08c66ba4c61dfc8a2a74cdb95c9"
+    },
+    {
+      "path": "final-contract-1.log",
+      "bytes": 336,
+      "sha256": "e9392d13e13b81e04f6104e9cc4ff9453eab58d22e45ab881e638d7237b4aeae"
+    },
+    {
+      "path": "final-contract-2.log",
+      "bytes": 176,
+      "sha256": "a6173884c66c1c796331db47079cffe2a89301226aba5112c2b74e7fc2ce5070"
+    },
+    {
+      "path": "final-contracts.json",
+      "bytes": 828,
+      "sha256": "b4c9d66ba32c8f88495848780b7265a3273d7c009356e3884258afd823a5f181"
+    },
+    {
+      "path": "final-receipt-check.json",
+      "bytes": 1601,
+      "sha256": "71f0308fb94593eda7cd78e573f3785607005cfd1dc9e03ca1d0963c174097df"
+    },
+    {
+      "path": "final-source/.github/workflows/native-package-repository-drill.yml",
+      "bytes": 17610,
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6"
+    },
+    {
+      "path": "final-source/CHANGELOG.md",
+      "bytes": 3802,
+      "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d"
+    },
+    {
+      "path": "final-source/docs/object-storage-delivery.md",
+      "bytes": 16905,
+      "sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6"
+    },
+    {
+      "path": "final-source/tests/native_object_delivery_fixture_drill.py",
+      "bytes": 18297,
+      "sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756"
+    },
+    {
+      "path": "final-source/tests/native_stable_candidate_drill.py",
+      "bytes": 53365,
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e"
+    },
+    {
+      "path": "final-source/tests/native_stable_clients_drill.py",
+      "bytes": 70217,
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24"
+    },
+    {
+      "path": "final-source/tests/test_native_object_delivery_fixture_workflow.py",
+      "bytes": 4180,
+      "sha256": "6e4f713a6f32179cab44bb3cb697dea2a5a4d176033272fa4e37fcfeac5b4066"
+    },
+    {
+      "path": "first-green-five-files/implementation.patch",
+      "bytes": 40509,
+      "sha256": "f275f868a7f609b2f016d7ecadaf11e5f37eb76c34887cbcd6b325de291e0eee"
+    },
+    {
+      "path": "first-green-five-files/source/CHANGELOG.md",
+      "bytes": 3802,
+      "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d"
+    },
+    {
+      "path": "first-green-five-files/source/docs/object-storage-delivery.md",
+      "bytes": 16596,
+      "sha256": "5fa4a5010017b17509eb5de395cd47d3afe54a86d44cbd27530986d52006de3c"
+    },
+    {
+      "path": "first-green-five-files/source/tests/native_object_delivery_fixture_drill.py",
+      "bytes": 18297,
+      "sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756"
+    },
+    {
+      "path": "first-green-five-files/source/tests/native_stable_candidate_drill.py",
+      "bytes": 53365,
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e"
+    },
+    {
+      "path": "first-green-five-files/source/tests/native_stable_clients_drill.py",
+      "bytes": 70217,
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24"
+    },
+    {
+      "path": "first-green-five-files/source-freeze.json",
+      "bytes": 1098,
+      "sha256": "037bf75bac473ca73cd5a3eeb010e5da57734b9466790d67a3cd849c5ee3f79b"
+    },
+    {
+      "path": "first-red-tests.py",
+      "bytes": 18218,
+      "sha256": "18c18914d99428cadbfbf1637023e20f77fee531cb71551065af84634bce6932"
+    },
+    {
+      "path": "implementation.patch",
+      "bytes": 48424,
+      "sha256": "7c1aadc1e94c5de01ccfbc4e818b159ffdfbf4a75dcdfcc822485ce2fd2b8929"
+    },
+    {
+      "path": "init-green.json",
+      "bytes": 262,
+      "sha256": "c8c255a71be444adb10f5a9858caaa0de7c3c177166e5198581f57258c2414d0"
+    },
+    {
+      "path": "init-green.log",
+      "bytes": 103,
+      "sha256": "6273232de4d3ef7acd4ecafa5c86beeeb974f56586b21089a2990b3f72facbe6"
+    },
+    {
+      "path": "init-live-snapshot.json",
+      "bytes": 775,
+      "sha256": "e3cacd82ea6a4602fe96267e9ad37d84574d126e542b617836aea97cafef00e5"
+    },
+    {
+      "path": "init-red.json",
+      "bytes": 437,
+      "sha256": "d52897705e268cb2933a205e40156950c9a8810b1978ff50b3f361ff8e0c75b7"
+    },
+    {
+      "path": "init-red.log",
+      "bytes": 2941,
+      "sha256": "ba112cb13cb79209cb1bd92e97a285b58d4f0e1ecce27fdec8694b8164b0f67f"
+    },
+    {
+      "path": "native-1-command.json",
+      "bytes": 2412,
+      "sha256": "2f07e2974481a56e7f8e51ee25d2ed2d11787de62a8ddb4d62b555043562a172"
+    },
+    {
+      "path": "native-2/result.json",
+      "bytes": 394,
+      "sha256": "e07a083a42cb116fed073511339deb6b36a147211c8b0b99fa8c3413fac17048"
+    },
+    {
+      "path": "native-2-command.json",
+      "bytes": 2071,
+      "sha256": "96897354c771d09e16d26e660e9790dcd0b50b562dd474265ffb3f50ebab06e1"
+    },
+    {
+      "path": "native-3/result.json",
+      "bytes": 5510,
+      "sha256": "db0b62ada33a4ef920915621936c4ddac1d999f59f36a44871c5b268406c49d2"
+    },
+    {
+      "path": "native-3-command.json",
+      "bytes": 2070,
+      "sha256": "cc7586fb7e95d1d2e348672a0a0f33b5f8405b817d40a403b58398a258d37f8e"
+    },
+    {
+      "path": "native-3-public-diagnostic.json",
+      "bytes": 376,
+      "sha256": "98a3d716da5bb677892e9b074517b8085af8996e2f9f2d87e9f5708ae5c1f298"
+    },
+    {
+      "path": "native-4/result.json",
+      "bytes": 11657,
+      "sha256": "728cec2100269b610d58ba9c0109608b4cb5cead5a394afbd189127f516e6663"
+    },
+    {
+      "path": "native-4-command.json",
+      "bytes": 2070,
+      "sha256": "2c3909ebe4f809fb7e64a90af136eed0958beebc4a2ac5d6ed05021d4904bb31"
+    },
+    {
+      "path": "native-4-public-diagnostic.json",
+      "bytes": 425,
+      "sha256": "8fa7c98b46d74704b1800ea374f8a879379d65d22fb925db613af2cc19d4ff5b"
+    },
+    {
+      "path": "native-5/fixture-export.json",
+      "bytes": 2550,
+      "sha256": "b67205d9ba18d1a798540cf2612d17cc1566730e29bd33a2de9686c01faf9c2b"
+    },
+    {
+      "path": "native-5/fixtures/A/apt-receipt.json",
+      "bytes": 1055,
+      "sha256": "f3d957a0e9497e25352f33475e719429dfe92d9cf0b8c9ddd6787719300008bd"
+    },
+    {
+      "path": "native-5/fixtures/A/control/keys/README.md",
+      "bytes": 5439,
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "native-5/fixtures/A/control/keys/apt-preview.asc",
+      "bytes": 6210,
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "native-5/fixtures/A/control/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "c0d024a138b73785417ff3aaf55d13bf7c3d027f83a10114e6ce8e67e117a995"
+    },
+    {
+      "path": "native-5/fixtures/A/control/keys/rpm-preview.asc",
+      "bytes": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "native-5/fixtures/A/control/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "e717275143975bece6bd2a3fe6f9f4d200016c544fc2bd9ace07a0dabdefcfec"
+    },
+    {
+      "path": "native-5/fixtures/A/control/manifests/audit-access.json",
+      "bytes": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "native-5/fixtures/A/control/manifests/bootstrap-packages.json",
+      "bytes": 83,
+      "sha256": "05911ad7a14e8efa4c08b1070e5f5aaeacce0f99832be672465824ce662b3a1c"
+    },
+    {
+      "path": "native-5/fixtures/A/control/manifests/channels.json",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "native-5/fixtures/A/control/manifests/preview-signing.json",
+      "bytes": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "native-5/fixtures/A/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "native-5/fixtures/A/control/manifests/source-read.json",
+      "bytes": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "native-5/fixtures/A/control/manifests/stable-public-keys.json",
+      "bytes": 538,
+      "sha256": "11ce47585b325b510fc7fd37d4058134b8da968a057d4de51aaef667f6832736"
+    },
+    {
+      "path": "native-5/fixtures/A/control/manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "native-5/fixtures/A/plan.json",
+      "bytes": 3757,
+      "sha256": "6be96e75774ac7c173fa7c7e6247c26181c2a35d8850ca71d244661f8110080c"
+    },
+    {
+      "path": "native-5/fixtures/A/rpm-receipt.json",
+      "bytes": 2268,
+      "sha256": "f0e4eea0fac81c33ee33e2fa023204855862707112b9deb7f36c40ba8a200d23"
+    },
+    {
+      "path": "native-5/fixtures/A/site/apt/dists/stable/InRelease",
+      "bytes": 1807,
+      "sha256": "b6548c6d38a80b800e58055db61f8c3803efddc7ee120a8162e3a17daedd5b5c"
+    },
+    {
+      "path": "native-5/fixtures/A/site/apt/dists/stable/Release",
+      "bytes": 1099,
+      "sha256": "30a6fbad8916b41713beb9ef7bb8db51b282a671a7af79d40cf402d4cabfdc63"
+    },
+    {
+      "path": "native-5/fixtures/A/site/apt/dists/stable/Release.gpg",
+      "bytes": 659,
+      "sha256": "aa17e5ab063daeee2f18015a5ff39007ab1b2ef9641ff9150fac4cebe02bead2"
+    },
+    {
+      "path": "native-5/fixtures/A/site/apt/dists/stable/main/binary-amd64/Packages",
+      "bytes": 994,
+      "sha256": "9aacfbf742fb2bb5a0b790df96eb89b022e7f7fb346f0543926ade551fb6bd32"
+    },
+    {
+      "path": "native-5/fixtures/A/site/apt/dists/stable/main/binary-amd64/Packages.gz",
+      "bytes": 589,
+      "sha256": "111e425bddef855f77acf80928157cad0b0bab45590aa8ef22e7c3f9650f0aa6"
+    },
+    {
+      "path": "native-5/fixtures/A/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/111e425bddef855f77acf80928157cad0b0bab45590aa8ef22e7c3f9650f0aa6",
+      "bytes": 589,
+      "sha256": "111e425bddef855f77acf80928157cad0b0bab45590aa8ef22e7c3f9650f0aa6"
+    },
+    {
+      "path": "native-5/fixtures/A/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/9aacfbf742fb2bb5a0b790df96eb89b022e7f7fb346f0543926ade551fb6bd32",
+      "bytes": 994,
+      "sha256": "9aacfbf742fb2bb5a0b790df96eb89b022e7f7fb346f0543926ade551fb6bd32"
+    },
+    {
+      "path": "native-5/fixtures/A/site/apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.1_all.deb",
+      "bytes": 4446,
+      "sha256": "f99680d56bee6d1ee8ad097b4755cb8d23cc8df7e49b1b3f9b6ddb56d7408fa1"
+    },
+    {
+      "path": "native-5/fixtures/A/site/apt/pool/main/w/wukongim/wukongim_3.0.0_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "bffd802296088cc452ef3b352db1e5d693c363f43ce6030a7d742b07503c9ee3"
+    },
+    {
+      "path": "native-5/fixtures/A/site/bootstrap/manifest.json",
+      "bytes": 1152,
+      "sha256": "193508c6e9eb4ba2dec46067823adfd2c4e4a6dc3808222e6e00ecd875f44f97"
+    },
+    {
+      "path": "native-5/fixtures/A/site/bootstrap/wukongim-archive-keyring-stable_1.1.1_all.deb",
+      "bytes": 4446,
+      "sha256": "f99680d56bee6d1ee8ad097b4755cb8d23cc8df7e49b1b3f9b6ddb56d7408fa1"
+    },
+    {
+      "path": "native-5/fixtures/A/site/bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "b1a1236125b760695be8ed7b0e4ff8a0796c2210dd74eadd5858c430e46fb880"
+    },
+    {
+      "path": "native-5/fixtures/A/site/index.html",
+      "bytes": 199,
+      "sha256": "2ddf9f298245c1ad3e34993533eac883e6990e53615b45d6c5409e13b94a1f49"
+    },
+    {
+      "path": "native-5/fixtures/A/site/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "c0d024a138b73785417ff3aaf55d13bf7c3d027f83a10114e6ce8e67e117a995"
+    },
+    {
+      "path": "native-5/fixtures/A/site/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "e717275143975bece6bd2a3fe6f9f4d200016c544fc2bd9ace07a0dabdefcfec"
+    },
+    {
+      "path": "native-5/fixtures/A/site/repo",
+      "bytes": 3900,
+      "sha256": "62624511c407bd04fe9569325f874e347b0fe280d69d238688556140f43cf5d2"
+    },
+    {
+      "path": "native-5/fixtures/A/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.1-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "b1a1236125b760695be8ed7b0e4ff8a0796c2210dd74eadd5858c430e46fb880"
+    },
+    {
+      "path": "native-5/fixtures/A/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "c047d2aa41701ee005c3971303db25e81abec5a7ce7313df5047047cea139174"
+    },
+    {
+      "path": "native-5/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "bytes": 389,
+      "sha256": "b5e0ef3a5b39ed8862250102ea767bdbf25dc66e8e9acb96962740c2a6a875e4"
+    },
+    {
+      "path": "native-5/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/other.xml.gz",
+      "bytes": 302,
+      "sha256": "7f16cd51fc6e39f8e7b5edbaa776a4a51bc9920a39b864feb2b90234d88e9e0d"
+    },
+    {
+      "path": "native-5/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "bytes": 948,
+      "sha256": "17aebaa29460095ad9817c1786607441ceb620297631da093a040c9d91384d7b"
+    },
+    {
+      "path": "native-5/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "bytes": 1351,
+      "sha256": "1218861003052954659faceeda0ce055f4dcc07ea6af2cc515f1476ee3a71b97"
+    },
+    {
+      "path": "native-5/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "bytes": 659,
+      "sha256": "cf91df563af8caed4fcbf838bbf754915264ffbe904a55a4580eea8e548c0070"
+    },
+    {
+      "path": "native-5/fixtures/A/site/signing-manifest.txt",
+      "bytes": 514,
+      "sha256": "d749fde17cc99833c78a80f6d07d83c890fbe84ac17e8bd897e7491620a28284"
+    },
+    {
+      "path": "native-5/fixtures/A/site/status.json",
+      "bytes": 324,
+      "sha256": "3a3ba0b27741866677b2e39007fdfcca47fd0f3591e0bc0edb4ea67270cb7875"
+    },
+    {
+      "path": "native-5/fixtures/A/source/assets/wukongim_3.0.0_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "bffd802296088cc452ef3b352db1e5d693c363f43ce6030a7d742b07503c9ee3"
+    },
+    {
+      "path": "native-5/fixtures/A/source/assets/wukongim_3.0.0_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "7bb37321222dc81e0b0c6b944333d5ebdbd88c370d3997a15a55fcb9f0c1090e"
+    },
+    {
+      "path": "native-5/fixtures/A/source/resolution.json",
+      "bytes": 389,
+      "sha256": "2447687228699927d0ec8e58a5e37d95c9b1871996f726ba9fd57f0f55f0aebd"
+    },
+    {
+      "path": "native-5/fixtures/A/wukongim-stable-3.0.0-a4da447588e3ec0d0e51ed9295b7c550ec9e9a21d714c0d6b29bfd75153d0a57-candidate-receipt.json",
+      "bytes": 2624,
+      "sha256": "213b15f9982e6dc90d4eb3bfbecb90d54bd98f99b9fd01a5541b3ea0daa727a8"
+    },
+    {
+      "path": "native-5/fixtures/A/wukongim-stable-3.0.0-a4da447588e3ec0d0e51ed9295b7c550ec9e9a21d714c0d6b29bfd75153d0a57-candidate-site.tar",
+      "bytes": 151552,
+      "sha256": "a9bfdcf4e8c716e12509b264a7604fc8d50a499a94af28814cd5b97a877d8fae"
+    },
+    {
+      "path": "native-5/fixtures/B/apt-receipt.json",
+      "bytes": 1055,
+      "sha256": "618c50ff204ca1287fc56b7f12f3eb9a4315082e43b9ac546bb1a2b9b292d7d3"
+    },
+    {
+      "path": "native-5/fixtures/B/control/keys/README.md",
+      "bytes": 5439,
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "native-5/fixtures/B/control/keys/apt-preview.asc",
+      "bytes": 6210,
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "native-5/fixtures/B/control/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "c0d024a138b73785417ff3aaf55d13bf7c3d027f83a10114e6ce8e67e117a995"
+    },
+    {
+      "path": "native-5/fixtures/B/control/keys/rpm-preview.asc",
+      "bytes": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "native-5/fixtures/B/control/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "e717275143975bece6bd2a3fe6f9f4d200016c544fc2bd9ace07a0dabdefcfec"
+    },
+    {
+      "path": "native-5/fixtures/B/control/manifests/audit-access.json",
+      "bytes": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "native-5/fixtures/B/control/manifests/bootstrap-packages.json",
+      "bytes": 83,
+      "sha256": "64cc3bcaecfcd967d1b5a58fea834ec49609740d5704810c3cb736ac4069829c"
+    },
+    {
+      "path": "native-5/fixtures/B/control/manifests/channels.json",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "native-5/fixtures/B/control/manifests/preview-signing.json",
+      "bytes": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "native-5/fixtures/B/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "native-5/fixtures/B/control/manifests/source-read.json",
+      "bytes": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "native-5/fixtures/B/control/manifests/stable-public-keys.json",
+      "bytes": 538,
+      "sha256": "11ce47585b325b510fc7fd37d4058134b8da968a057d4de51aaef667f6832736"
+    },
+    {
+      "path": "native-5/fixtures/B/control/manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "native-5/fixtures/B/plan.json",
+      "bytes": 3757,
+      "sha256": "fe0bea3a89b6c22645b7b91b43fab9b906248a668187291292b6f7f6e2c6e75d"
+    },
+    {
+      "path": "native-5/fixtures/B/rpm-receipt.json",
+      "bytes": 2268,
+      "sha256": "f7e7c1ee9004eb37e33103b3afd8377edce2bd8853204aa2bff5b116741f58c0"
+    },
+    {
+      "path": "native-5/fixtures/B/site/apt/dists/stable/InRelease",
+      "bytes": 1807,
+      "sha256": "33e4b2f2a0ad9a7d5429e63fe74443aaf10d26cb0a8afb3e19b0d5a4781dd22d"
+    },
+    {
+      "path": "native-5/fixtures/B/site/apt/dists/stable/Release",
+      "bytes": 1099,
+      "sha256": "4a23243b64fb3220a92f7d6e876f6d78340bb3fe3e88b7d3c3da66f9fb0399d9"
+    },
+    {
+      "path": "native-5/fixtures/B/site/apt/dists/stable/Release.gpg",
+      "bytes": 659,
+      "sha256": "bd30f904db455cb9a10482196b273846d9f28592fc8ec5a4a275976d7cc93f09"
+    },
+    {
+      "path": "native-5/fixtures/B/site/apt/dists/stable/main/binary-amd64/Packages",
+      "bytes": 994,
+      "sha256": "731a2f4d4ffdaf8fef82f520d5936edb037f62063d17975967bf5e316968ef60"
+    },
+    {
+      "path": "native-5/fixtures/B/site/apt/dists/stable/main/binary-amd64/Packages.gz",
+      "bytes": 589,
+      "sha256": "1a66007195b3387b9fd4e92320918bb91611398e84b5e84c7792c8fe8f72906f"
+    },
+    {
+      "path": "native-5/fixtures/B/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/1a66007195b3387b9fd4e92320918bb91611398e84b5e84c7792c8fe8f72906f",
+      "bytes": 589,
+      "sha256": "1a66007195b3387b9fd4e92320918bb91611398e84b5e84c7792c8fe8f72906f"
+    },
+    {
+      "path": "native-5/fixtures/B/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/731a2f4d4ffdaf8fef82f520d5936edb037f62063d17975967bf5e316968ef60",
+      "bytes": 994,
+      "sha256": "731a2f4d4ffdaf8fef82f520d5936edb037f62063d17975967bf5e316968ef60"
+    },
+    {
+      "path": "native-5/fixtures/B/site/apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.2_all.deb",
+      "bytes": 4448,
+      "sha256": "e0e220c2a5858b505719efc3e9f9295a84f13a5e00e03037439daae347b62bb5"
+    },
+    {
+      "path": "native-5/fixtures/B/site/apt/pool/main/w/wukongim/wukongim_3.0.1_linux_amd64.deb",
+      "bytes": 590,
+      "sha256": "1c10a704926b64e4beef093b33c5c7dfd2ef0c632986f3d016a3e63bdda9c26e"
+    },
+    {
+      "path": "native-5/fixtures/B/site/bootstrap/manifest.json",
+      "bytes": 1152,
+      "sha256": "c03bf2a39f8db2b418d4316d24a0fad3ddd96ca749bbe37dc67c945741ce9398"
+    },
+    {
+      "path": "native-5/fixtures/B/site/bootstrap/wukongim-archive-keyring-stable_1.1.2_all.deb",
+      "bytes": 4448,
+      "sha256": "e0e220c2a5858b505719efc3e9f9295a84f13a5e00e03037439daae347b62bb5"
+    },
+    {
+      "path": "native-5/fixtures/B/site/bootstrap/wukongim-release-stable-1.1.2-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "29344854bfb006d301387c8553dd9dab9573fcfca02cbc6e1f6cba423f6572bb"
+    },
+    {
+      "path": "native-5/fixtures/B/site/index.html",
+      "bytes": 199,
+      "sha256": "2ddf9f298245c1ad3e34993533eac883e6990e53615b45d6c5409e13b94a1f49"
+    },
+    {
+      "path": "native-5/fixtures/B/site/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "c0d024a138b73785417ff3aaf55d13bf7c3d027f83a10114e6ce8e67e117a995"
+    },
+    {
+      "path": "native-5/fixtures/B/site/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "e717275143975bece6bd2a3fe6f9f4d200016c544fc2bd9ace07a0dabdefcfec"
+    },
+    {
+      "path": "native-5/fixtures/B/site/repo",
+      "bytes": 3900,
+      "sha256": "25450da68b0a70711052ef27e5a078766892ad0d2f157c7a40f58f1477e91422"
+    },
+    {
+      "path": "native-5/fixtures/B/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.2-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "29344854bfb006d301387c8553dd9dab9573fcfca02cbc6e1f6cba423f6572bb"
+    },
+    {
+      "path": "native-5/fixtures/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "a71108bd28b47c84bddbb6197ed6513a0cdba0032d95bc0cf95edf9a1dc5076f"
+    },
+    {
+      "path": "native-5/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "bytes": 389,
+      "sha256": "4a06daa7eed0b44b185212bdd5247142257721b358bb405390f1cb0bc9f5ff3f"
+    },
+    {
+      "path": "native-5/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/other.xml.gz",
+      "bytes": 305,
+      "sha256": "fe7db08f564f63234d87925b4ea786b0e5d3428e93c53441f26173880cf9a909"
+    },
+    {
+      "path": "native-5/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "bytes": 949,
+      "sha256": "7eff44bc22437ec5b61b3a8127202344e8b610b4dbba3f5e63d28a6e8eaf3a99"
+    },
+    {
+      "path": "native-5/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "bytes": 1351,
+      "sha256": "5e523812e8d6941f07a735f4e29a136bb8737bf17fbb765f0b5676041e3af38a"
+    },
+    {
+      "path": "native-5/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "bytes": 659,
+      "sha256": "97b8c95cafb4b97c9fbe70f801e8eabcdd9fb982d64674cabe1bc8bbd679e876"
+    },
+    {
+      "path": "native-5/fixtures/B/site/signing-manifest.txt",
+      "bytes": 514,
+      "sha256": "d749fde17cc99833c78a80f6d07d83c890fbe84ac17e8bd897e7491620a28284"
+    },
+    {
+      "path": "native-5/fixtures/B/site/status.json",
+      "bytes": 324,
+      "sha256": "0e59295930fb171f372eb0428a894099d62cda17c9de52871b6019266e486b92"
+    },
+    {
+      "path": "native-5/fixtures/B/source/assets/wukongim_3.0.1_linux_amd64.deb",
+      "bytes": 590,
+      "sha256": "1c10a704926b64e4beef093b33c5c7dfd2ef0c632986f3d016a3e63bdda9c26e"
+    },
+    {
+      "path": "native-5/fixtures/B/source/assets/wukongim_3.0.1_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "a81be165b57e1e1fbfc45a01d8cc910564a759d9aca3ff2d872b18afbf19b0af"
+    },
+    {
+      "path": "native-5/fixtures/B/source/resolution.json",
+      "bytes": 389,
+      "sha256": "2da1a0a1e03f4a53e9fa4d423af58bcf7275b835f67d668a7e26e0c2fba42a36"
+    },
+    {
+      "path": "native-5/fixtures/B/wukongim-stable-3.0.1-14b3727f31836dfb7f91b85c7d58883b550277f44b791d3174a0e799d5b8a588-candidate-receipt.json",
+      "bytes": 2624,
+      "sha256": "a35bc861d632647c2025dd7e2a918ae84374e6a68089585321fd38e84d062d02"
+    },
+    {
+      "path": "native-5/fixtures/B/wukongim-stable-3.0.1-14b3727f31836dfb7f91b85c7d58883b550277f44b791d3174a0e799d5b8a588-candidate-site.tar",
+      "bytes": 151552,
+      "sha256": "11ad819ab2fcb3a331cf63f82393c98fdd0a66b58c28dc6d8e7436e373d0b5f0"
+    },
+    {
+      "path": "native-5/fixtures/preview/apt-receipt.json",
+      "bytes": 1058,
+      "sha256": "42f93d60131cca8ff9fe2b33ce03955cca2fa9dd2a165a339ff8c491056be6df"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/keys/README.md",
+      "bytes": 5439,
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/keys/apt-preview.asc",
+      "bytes": 4824,
+      "sha256": "c0d024a138b73785417ff3aaf55d13bf7c3d027f83a10114e6ce8e67e117a995"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "c0d024a138b73785417ff3aaf55d13bf7c3d027f83a10114e6ce8e67e117a995"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/keys/rpm-preview.asc",
+      "bytes": 4824,
+      "sha256": "e717275143975bece6bd2a3fe6f9f4d200016c544fc2bd9ace07a0dabdefcfec"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "e717275143975bece6bd2a3fe6f9f4d200016c544fc2bd9ace07a0dabdefcfec"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/manifests/audit-access.json",
+      "bytes": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/manifests/bootstrap-packages.json",
+      "bytes": 96,
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/manifests/channels.json",
+      "bytes": 856,
+      "sha256": "4286d4676b81efcf8955f3f28a033c6121b4e90847d9b2592d1c924b4a20b6bf"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/manifests/preview-signing.json",
+      "bytes": 945,
+      "sha256": "5fd4314beb49e3753fd11e701e1c8476e28c9f1e033e6dbee6c0e36bbbc6c734"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/manifests/source-read.json",
+      "bytes": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/manifests/stable-public-keys.json",
+      "bytes": 538,
+      "sha256": "11ce47585b325b510fc7fd37d4058134b8da968a057d4de51aaef667f6832736"
+    },
+    {
+      "path": "native-5/fixtures/preview/control/manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "native-5/fixtures/preview/plan.json",
+      "bytes": 347,
+      "sha256": "b84e43a40c14c0915c91b0b07d923e9035e96a34a60aea1527510713a4e8451a"
+    },
+    {
+      "path": "native-5/fixtures/preview/rpm-receipt.json",
+      "bytes": 2263,
+      "sha256": "dc7201683c02332de5861547d25bc7364127708dc6db4017193c5220cab3617c"
+    },
+    {
+      "path": "native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_checksums.txt",
+      "bytes": 626,
+      "sha256": "d41913dc9faec5e367639f68da12541cb47cbf6ae667041e08aabd8f33413a27"
+    },
+    {
+      "path": "native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_darwin_amd64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_darwin_arm64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "7e51890012714fa1b1f8f695194306a1bbd749db7a48ee815c3e4ab07abecf5a"
+    },
+    {
+      "path": "native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_amd64.rpm",
+      "bytes": 6271,
+      "sha256": "2522557e76910ee936714c6a4706e2687e36a6112123f9da66b8fae5360dfcdd"
+    },
+    {
+      "path": "native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_amd64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_arm64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "native-5/fixtures/preview/source/source.json",
+      "bytes": 2915,
+      "sha256": "860f8c7d3407f58024e63725e685b51810f76c6ae75e1dbf45ba999a812d51b6"
+    },
+    {
+      "path": "native-5/fixtures/preview/wukongim-preview-r10-receipt.json",
+      "bytes": 3674,
+      "sha256": "8a51add45a60b44ea0bb5711ea526178c6b40ca946d6309e33a952145fe92bf0"
+    },
+    {
+      "path": "native-5/fixtures/preview/wukongim-preview-r10-site.tar",
+      "bytes": 116736,
+      "sha256": "9791f2a740b605f5bcf22f2334db4f77830dbb26ac4dcfdcb9952c96ca56a48c"
+    },
+    {
+      "path": "native-5/result.json",
+      "bytes": 48313,
+      "sha256": "ab798ae8d28d2e33b5571b8dcb37e164f13ca18ee4e31f383ef948f03be3f00f"
+    },
+    {
+      "path": "native-5-command.json",
+      "bytes": 1964,
+      "sha256": "1473faeb666581047c25d78424eb4561d6d99c9cf0cc424f3e8f3407314a6d22"
+    },
+    {
+      "path": "pid-diagnosis.json",
+      "bytes": 1435,
+      "sha256": "5ca0f7227330411941ee84e270de15ab3065de82494da9462a709d4c927b631e"
+    },
+    {
+      "path": "pid-observations/gpg-observations.jsonl",
+      "bytes": 418792,
+      "sha256": "15137d43b9ef7b3275e7b1e1b8aef9072c3879acbfcd12a4835de832f6b7d90e"
+    },
+    {
+      "path": "pid-observer/sitecustomize.py",
+      "bytes": 3254,
+      "sha256": "241f30df3a3009f85f7f6d582f005090d2f8202bfb6e1be6e2b29082a309f5ea"
+    },
+    {
+      "path": "pre-implementation-binding.json",
+      "bytes": 1995,
+      "sha256": "c189bf35f9099961402850d2c04433eb51486cc5e009893d05cec61baf938941"
+    },
+    {
+      "path": "protected-source-preservation.json",
+      "bytes": 13553,
+      "sha256": "4b4a7d77e905706026e13c2cc1dd216acbf260d39b865c633acb3b7d69f41a83"
+    },
+    {
+      "path": "red-1/result.json",
+      "bytes": 428,
+      "sha256": "14bdba7c95df664d7cd29a948ba87312518b5bc2dce0d70508ad8eadbf980eaa"
+    },
+    {
+      "path": "red-1-command.json",
+      "bytes": 1728,
+      "sha256": "85515dcf08e1a2c705f1ad8a55b074fe677e34f120e1b39a205d6bbf06371598"
+    },
+    {
+      "path": "related-1.json",
+      "bytes": 381,
+      "sha256": "1e5c9d0d75466359ee461c92a21fb7e24395616072f73de0eaa6fb927fa98f18"
+    },
+    {
+      "path": "related-1.stderr.txt",
+      "bytes": 158,
+      "sha256": "4f69bb613adc5e0703e23dc3f96dbc4d00335c595a1b30706601589e8c191724"
+    },
+    {
+      "path": "related-1.stdout.txt",
+      "bytes": 178,
+      "sha256": "f01be87c29c8d96472df2114a599fa5795fe322bc1355c1ebb756a47c15c4947"
+    },
+    {
+      "path": "run-native.py",
+      "bytes": 2337,
+      "sha256": "ec51d18f92663182ed58a830bdbbde96573bb4c63ab4e1ed2dad9fba2e1c3510"
+    },
+    {
+      "path": "source-freeze.json",
+      "bytes": 2486,
+      "sha256": "50515387f78397c37570dcb3fe6f5b0fc254851df3817105d2fa633ce6892155"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 1409,
+      "sha256": "e332f1cb297eedd17c78855a53f1a2a2c96c55412527ceb56f765f80719e3c70"
+    },
+    {
+      "path": "trusted-toolchain/scripts/build-native-package-repositories.sh",
+      "bytes": 5052,
+      "sha256": "09d87b6b8191ba0c80cf9be64150f16be19b2fdd5c5fc8f1ade66e784695e7d2"
+    },
+    {
+      "path": "trusted-toolchain/scripts/generate-native-package-test-keyring.sh",
+      "bytes": 4550,
+      "sha256": "9578ceb1cfe342547a9d7cf16054e1b98f308ef3001101f947abf384ac8618fe"
+    },
+    {
+      "path": "trusted-toolchain/scripts/sign-native-package-repositories.sh",
+      "bytes": 13602,
+      "sha256": "1ab5eaf87974128d3ee755187d17b50071bab455a1b7c5cbb37f9258929b9e7e"
+    },
+    {
+      "path": "trusted-toolchain/scripts/validate-native-package-repositories-container.sh",
+      "bytes": 14642,
+      "sha256": "a04bf029429c71a2a390408ac7cc00107a46c393d80c4b20159aa6b257cf0af4"
+    },
+    {
+      "path": "trusted-toolchain/scripts/verify-native-package-metadata.py",
+      "bytes": 19940,
+      "sha256": "b232d9ceacf2179e9b74ef3757c02a5c3a9d3f1ee0a7a532f402318d8cb8ca34"
+    },
+    {
+      "path": "trusted-toolchain/scripts/verify-native-package-repositories.sh",
+      "bytes": 11503,
+      "sha256": "7370ff43cf826dc9faee72df4b731e76515210171dafe68b72b7665862015622"
+    },
+    {
+      "path": "workflow-legacy-preservation-final.json",
+      "bytes": 334,
+      "sha256": "9bd84fbbf8218a9e841474d030ce082a2099889c3328cb53d356cfb136e9814b"
+    },
+    {
+      "path": "workflow-legacy-preservation.json",
+      "bytes": 242,
+      "sha256": "c7b4835ee31557664812d59945e727ea6defc44d52a9630359c1088bf6889c07"
+    }
+  ],
+  "file_count": 317,
+  "total_bytes": 2633399,
+  "secret_scan": {
+    "generated_output_files": 248,
+    "archive_members": 390,
+    "private_key_markers_found": 0,
+    "symlinks": 0
+  },
+  "exclusions": [
+    "**/__pycache__/**",
+    "manifest/allowlist/archive bookkeeping itself"
+  ]
+}

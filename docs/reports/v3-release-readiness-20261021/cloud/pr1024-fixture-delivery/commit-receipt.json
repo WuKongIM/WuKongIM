@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-21T19:10:33.824683+00:00",
+  "parent": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+  "head": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "tree": "85f578ba19135892c3d4f5e18db37329cd515cf7",
+  "changed_file": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+  "file_sha256": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1",
+  "review_freeze_sha256": "5d6532c831cc0596fd77931a98674835f69b06229f2444965b4269179dec46b2",
+  "standards_manifest_sha256": "7b909bfdc8e96aa2ccaca1ea7cf4d0855e8a7fdaf4f096d329d514bdc76bc1e6",
+  "spec_manifest_sha256": "c742a79dcdabb617cf9e0d9f07afb1c34a42deabb08231345eaa8053876dc178",
+  "product_objects_equal_to_cee5": {
+    "cmd": "a667d96681bd972d0e839e67103652791587a9b6",
+    "internal": "bc98e8e0827e44fd73ae100c1d9adabf6664ac22",
+    "pkg": "1f01d2e69354fa05164cf237337bdfbc3844755d",
+    "go.mod": "840bd60ba9789d0e28aef6db867da2e472c65f41",
+    "go.sum": "1692c2bb1806d016e62aa440142582d0b1aa54a6"
+  },
+  "commit_stdout": "[codex/v3-rc-terminal-evidence 2cc562fa3] test: reduce terminal evidence fixture startup overhead\n 1 file changed, 110 insertions(+), 67 deletions(-)\n",
+  "working_tree_clean": true,
+  "ci_status": "not yet run on new head"
+}

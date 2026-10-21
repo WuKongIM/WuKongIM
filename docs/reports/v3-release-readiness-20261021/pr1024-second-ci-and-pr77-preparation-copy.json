@@ -1,0 +1,3610 @@
+{
+  "recorded_at": "2026-10-21T19:27:18.659583+00:00",
+  "evidence_base": "1f1d0297c5d2e02bfe7fb5a69b3da9122d830bfe",
+  "old_top_manifest_sha256": "addd62ade0a18698821a5551ad5263a4e490816dcaa67822d56e1a99ae2bd661",
+  "old_entries_verified_unchanged": 8983,
+  "rules": {
+    "AGENTS.md_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "applicable_flow": [],
+    "reason": "No ancestor FLOW.md or more-specific AGENTS.md applies to docs/reports. Archived rules are data."
+  },
+  "groups": [
+    {
+      "group": "cloud/pr1024-fixture-profiling",
+      "manifest": "allowlist.json",
+      "manifest_sha256": "2a2bf24c20f6ba00c88720d8ae51c39587500778188db11be478876593bf19f0",
+      "payloads": 46
+    },
+    {
+      "group": "cloud/pr1024-fixture-repair-v1",
+      "manifest": "allowlist.json",
+      "manifest_sha256": "62daf8fe5369ed9f11c63956f5a23b5f2439e368bcb5de4254b88836f0d5917a",
+      "payloads": 14
+    },
+    {
+      "group": "cloud/pr1024-fixture-repair-review/spec",
+      "manifest": "manifest.json",
+      "manifest_sha256": "c742a79dcdabb617cf9e0d9f07afb1c34a42deabb08231345eaa8053876dc178",
+      "payloads": 4
+    },
+    {
+      "group": "cloud/pr1024-ci-generation-2/candidate",
+      "manifest": "archive-sha256.json",
+      "manifest_sha256": "ad00293d7a034d59a6df7bb4a3b6b9fabe4b04b471e1ce22f4de8762fc23a4ee",
+      "payloads": 134
+    },
+    {
+      "group": "cloud/pr1024-ci-generation-2/performance",
+      "manifest": "archive-sha256.json",
+      "manifest_sha256": "ccd5ead7f6f5768a1ce2c4b78bb1a92d1b799285ce5b79f75c0296cfbbaa0047",
+      "payloads": 135
+    },
+    {
+      "group": "packages/provider-preview-fixture-implementation",
+      "manifest": "public-manifest.json",
+      "manifest_sha256": "d9ea88a690de4c82dfe7316cc3d6c7a8f8671a70963462c886f6bd0be7471ca0",
+      "payloads": 317
+    },
+    {
+      "group": "packages/provider-preview-fixture-implementation/alias-readability",
+      "manifest": "manifest.json",
+      "manifest_sha256": "07271fa21df10fdee5c28a57c3a46a8b4a7f290281dfbd41fec1260206f325ef",
+      "payloads": 5
+    },
+    {
+      "group": "packages/provider-preview-fixture-review/spec",
+      "manifest": "manifest.json",
+      "manifest_sha256": "d39571b539146560e18a7aa9a848d28331bd06f692a0c72bd4b21f53d73ea1c9",
+      "payloads": 7
+    },
+    {
+      "group": "packages/provider-next-route-gap",
+      "manifest": "manifest.json",
+      "manifest_sha256": "b1a781f9c65c5f02e58df734c374f0fde15fe1f733b8f6eda73f47925fdd7e42",
+      "payloads": 1
+    },
+    {
+      "group": "packages/provider-after-m1-plan",
+      "manifest": "manifest.json",
+      "manifest_sha256": "98043034d19d4d0a16e5554710cecf424ca5740fd979abe79ac9acbc541effcf",
+      "payloads": 3
+    }
+  ],
+  "copied": [
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/PUBLIC_ALLOWLIST.txt",
+      "bytes": 4931,
+      "sha256": "15e056a2fac98d49602998b59352e42fb27aac1d2b6a045033775e7ed923ede0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/README.md",
+      "bytes": 3160,
+      "sha256": "dcd7cc112dc9578b62953841a545688f442f64235fd6582cced28b72dcfc9d50"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/SHA256SUMS",
+      "bytes": 13775,
+      "sha256": "746f4aa58eba5a0814dc40d2692eb1f947431dc8cd6c62b8c57aec3bd3a4317e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/archive-sha256.json",
+      "bytes": 23159,
+      "sha256": "ad00293d7a034d59a6df7bb4a3b6b9fabe4b04b471e1ce22f4de8762fc23a4ee"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373581673/inventory.json",
+      "bytes": 2262,
+      "sha256": "035088cefef96b0c702c7f61fbda914d07fa9fe65a28d6a40af97609798b85ed"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373581673/members/command.json",
+      "bytes": 334,
+      "sha256": "0cb6625e3ac51b84b8154054b2295ed766dcd7cb0cb0967da00310244dffa3d9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373581673/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373581673/members/identity.json",
+      "bytes": 286,
+      "sha256": "2eba4e5793b9d13702e437606f9c5afe6dc6316c5399f5b798b874fbbaa9ba6c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373581673/members/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373581673/members/result.json",
+      "bytes": 370,
+      "sha256": "4e6d98794bc1fc1d8790008757ffae3f458566a62e1ba9f659a42c705a0a538c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373581673/members/stdout-stderr.log",
+      "bytes": 22006,
+      "sha256": "4666b41c9cb12fc75dabbf398be99b254696ce6c50f9aa48ff36108516d62feb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373581673/receipt.json",
+      "bytes": 1315,
+      "sha256": "c7c0a51ec2b24114c9c6239a6d243a7a551164293bfeea0e3be60964afe30c75"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373581673/test-events.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/inventory.json",
+      "bytes": 13288,
+      "sha256": "46bdc8b27445e5b435d2abd0a80a29df06d623d05833c2008e48a830191c1cf3"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/members/command.json",
+      "bytes": 338,
+      "sha256": "d75afa8dcac0e56685c0d3dd8613d8f5690b8cd27e383b8beead00a883303e27"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/members/identity.json",
+      "bytes": 286,
+      "sha256": "2eba4e5793b9d13702e437606f9c5afe6dc6316c5399f5b798b874fbbaa9ba6c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/members/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/members/result.json",
+      "bytes": 373,
+      "sha256": "fa5df166c2635d8e06f6d4593827d616adb4dd817f1b0d342ba0732b81926ffc"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/members/stdout-stderr.log",
+      "bytes": 1482303,
+      "sha256": "461bc6a0d5326f604bb57034dc3fbd743abd87ce57e894e6690fbeec04aaa2db"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/receipt.json",
+      "bytes": 1319,
+      "sha256": "cb2b2cd1a0eb084224991504bb03d0624a004c53523e17872f4fbd18701aba60"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373881817/test-events.json",
+      "bytes": 595678,
+      "sha256": "e54c935b86b7254b22c3cbead0e67a7a6745aea3837319f0862f67e625307dd2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/inventory.json",
+      "bytes": 7868,
+      "sha256": "b38fc2148df143d0de552dee3bb32310930bde8bf60daf5466b876c49b9dccb1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/binary-build-info.txt",
+      "bytes": 8895,
+      "sha256": "244c9823093a231403c9b3b7dfc6f1caffd7627ca696094bbf7582a25d713b78"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/binary.sha256",
+      "bytes": 134,
+      "sha256": "66e686f46293c3a07b4155bfec230f5e5c00efe0580c62d427baf4a9da91efe2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/build/command.json",
+      "bytes": 285,
+      "sha256": "d217e59e9b4daf5d5697c69dfb37b3bc75149305ca265b7622f2e2accbfeba75"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/build/result.json",
+      "bytes": 367,
+      "sha256": "358e2ee1a7922feb4b9f9a8ae4339327eaafccc8d825fa87493de1ed71a7bae1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/build/stderr.log",
+      "bytes": 5028,
+      "sha256": "8fc7e7cd844547f5a178583297ad846fb49c24195000e7f2c522bc0d4b62d5dd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/build/stdout.jsonl",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/cross_node_delivery/command.json",
+      "bytes": 283,
+      "sha256": "cd7d2b139b98210a11ee5ef3fe41ca69914269a99bccaeffb8426f9995811eab"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/cross_node_delivery/result.json",
+      "bytes": 370,
+      "sha256": "cfbef32d837f6524baad31e8d12697a07847f919d30a737887ce9ab7800b6566"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/cross_node_delivery/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/cross_node_delivery/stdout.jsonl",
+      "bytes": 8445,
+      "sha256": "0df55fbd87cc13714c1bfd4ae68283e4cc494bb6d6de098a3d6509f0bdf8b25f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/identity.json",
+      "bytes": 172,
+      "sha256": "68265c1653c73d5b93b078015c4af1e16b67a409d3fa6787f3a2e89084d03e6a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/ordinary_history/command.json",
+      "bytes": 302,
+      "sha256": "ed22c31c4d2a4b3de5ca70e3da7cd45e85c15a06c5b0ad825af6b256e6fbd1c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/ordinary_history/result.json",
+      "bytes": 370,
+      "sha256": "1dee50283425d4b47044649da6dc8ba4dd73267e4dbe855fc150ca5d82e6fa2b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/ordinary_history/stderr.log",
+      "bytes": 262,
+      "sha256": "f7dd913964261c3ba2ef4af097ec9bc69ed4030b3f4518d76e2bf4780580196b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/ordinary_history/stdout.jsonl",
+      "bytes": 27300,
+      "sha256": "206a9160d530c4954fa50d2c40b4470a21a1c98ebed21ccd195f516662d65ecc"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/self_chat/command.json",
+      "bytes": 273,
+      "sha256": "2c43b9ab69c4a6aa8798aea284f8c701219f8faef97fd15a61bb75324835a0e6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/self_chat/report.json",
+      "bytes": 47382,
+      "sha256": "77979c310e7825edb70d14f99515289090f5c081bcd744bff59b564f27d5c4b1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/self_chat/result.json",
+      "bytes": 370,
+      "sha256": "01d71b04aa44d25c593c7de772ddcbb556fad7f03fb0eac3cae55c2815701d07"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/self_chat/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/members/self_chat/stdout.jsonl",
+      "bytes": 3700,
+      "sha256": "9cd3b2d823d2618079b511b11df9b0a2970ad5f4b6db7c7242d91d6480ce9139"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/receipt.json",
+      "bytes": 1315,
+      "sha256": "04635358606f92b01c08dbf4ef7454a1373add568f40eb703d42f95f48f2986e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/artifacts-public/12373992243/test-events.json",
+      "bytes": 6736,
+      "sha256": "13d672cf44dd2e0dd7c7e2fcfcdc79bb48867095f0f202567f46affee6a5a723"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/candidate-summary.json",
+      "bytes": 31485,
+      "sha256": "55a8fcce552a1822eadc6e6944846f70191b4e7508ac8564e3831dd7aab367d0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/collect-completed.py",
+      "bytes": 6457,
+      "sha256": "662d826b59e21935e8e5d056a9273cef6fd770d3aaa2c87ce48ebcecf883d9d1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/collector-fixed-suite.json",
+      "bytes": 2136,
+      "sha256": "5cbdd6964fba28a6faeae3fb1a30a22c0ea065a2e839d03dbca6d68c2b35a511"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/job-logs-public/119428117327/complete.log",
+      "bytes": 85130,
+      "sha256": "54dc16a22545ce40610442279a9d1c88f4228ba0e6cb0ad4927fff522ca9434b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/job-logs-public/119428117327/job.json",
+      "bytes": 3742,
+      "sha256": "3c562ab1c1d6fbe9d9dda6ea90e44e3000a75567e764467efba5b35cf214b622"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/job-logs-public/119428117327/receipt.json",
+      "bytes": 1455,
+      "sha256": "0d3714d645e8b127c8c5e792b021c24d2c8205aec98c91a18b664ae8762dddac"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/job-logs-public/119428117999/complete.log",
+      "bytes": 85338,
+      "sha256": "620feb60adac471ac23ae4745367f18282ecfbad93327dd13de49c07297c0462"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/job-logs-public/119428117999/job.json",
+      "bytes": 3750,
+      "sha256": "05d1b0ed30c3c5183cc6eb8e1079db647ee0a2921f1b676d3be66d7dac24f1bb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/job-logs-public/119428117999/receipt.json",
+      "bytes": 1455,
+      "sha256": "5c7cfbf0ad6447b9b8a371f6110d33f3b43d7eb76e7767f974db9f003b5a227e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/job-logs-public/119432005879/complete.log",
+      "bytes": 85415,
+      "sha256": "89d4b89b514bf8fcaf2701435e754e93d9745f1815a985f1065f4d325d60309f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/job-logs-public/119432005879/job.json",
+      "bytes": 3554,
+      "sha256": "d9059457d8ee9aabc668dddf81c2abbe26f7a08b5065ae2666504f4022269739"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/job-logs-public/119432005879/receipt.json",
+      "bytes": 1455,
+      "sha256": "6cf102a7e6258ff18a7084a582f077ba5bb79fa57809a9185a57b15bfa550ce6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/latest-snapshot.txt",
+      "bytes": 12,
+      "sha256": "072c2d60f848626660dc38ed1b76069c8015d8db28be0873a437bda696bebef1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/read-snapshot.py",
+      "bytes": 1720,
+      "sha256": "54c95eeff022b843959223b6cf860a28de5fa53fca7a18c2eeec8041e48e0ab3"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/scripts-first-failure-analysis.json",
+      "bytes": 484003,
+      "sha256": "894801d2441ee865811a9a333d7cfdce6071e0145b9367f8f7f80d95d6db2b96"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/scripts-first-failure-excerpt.json",
+      "bytes": 2525,
+      "sha256": "8fddfd28030c6d1b26c5991c6f5481a3eb63915795bd44e8d25803b81dce576e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-01-summary.txt",
+      "bytes": 3823,
+      "sha256": "38fc8f141266be9c52e1361edacd9d833169d64771db293bc67cbb02f7b2fcb6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-01/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "b893beda0ee7c4749db259886375954b0bb934d2d3997fd30a61837915c3bba5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-01/artifacts.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-01/jobs-read.json",
+      "bytes": 233,
+      "sha256": "6dcf4cd83ad05c969fff482c9d7f5fec884b649d9cd94675a1b9326d7b9fd40f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-01/jobs.json",
+      "bytes": 5298,
+      "sha256": "f3c67780d633d74edc30047243a82eb31760ced48610acce24e13fa3e9ae945c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-01/pr-read.json",
+      "bytes": 201,
+      "sha256": "7bf3ff57dfcbc4d49ebea9785cecdbe340e7d071161d5ea42e6d1041b0a42caa"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-01/pr.json",
+      "bytes": 18261,
+      "sha256": "0632fdcbc0f40078ccc623c51125a563863a280985373728895e06773b8955c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-01/run-read.json",
+      "bytes": 215,
+      "sha256": "1fb66e11add3b76998ce5defe88f9ca62306335ec878d08e1883b908d87d3d44"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-01/run.json",
+      "bytes": 12461,
+      "sha256": "342ee7d7672e20b3c911d4bb7f2781b42b9f0336f72927e460d344ca90734071"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-02-summary.txt",
+      "bytes": 3823,
+      "sha256": "38fc8f141266be9c52e1361edacd9d833169d64771db293bc67cbb02f7b2fcb6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-02/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "0727eb1b480e3a85d8175b605db18d1914d166699f606fe5b08733292808cc7a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-02/artifacts.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-02/jobs-read.json",
+      "bytes": 233,
+      "sha256": "1793992b60f94e1c787cf3299eeeeda67ed9257c46936d5785c29614a7f68a9c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-02/jobs.json",
+      "bytes": 5298,
+      "sha256": "f3c67780d633d74edc30047243a82eb31760ced48610acce24e13fa3e9ae945c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-02/pr-read.json",
+      "bytes": 201,
+      "sha256": "8c09f3f3b0616a66869dd2d0b71802f59f22bf43ffe0c8584716527a7a1df180"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-02/pr.json",
+      "bytes": 18261,
+      "sha256": "0632fdcbc0f40078ccc623c51125a563863a280985373728895e06773b8955c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-02/run-read.json",
+      "bytes": 215,
+      "sha256": "9121a196bb8447aeb21172348093ec53ed30cc2ee9df04a870366f485786f6ef"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-02/run.json",
+      "bytes": 12461,
+      "sha256": "342ee7d7672e20b3c911d4bb7f2781b42b9f0336f72927e460d344ca90734071"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-03-summary.txt",
+      "bytes": 3823,
+      "sha256": "38fc8f141266be9c52e1361edacd9d833169d64771db293bc67cbb02f7b2fcb6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-03/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "b8f4951a891b65681372e58d823ebb859ab20672bd295f8ddfeca5034e357f32"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-03/artifacts.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-03/jobs-read.json",
+      "bytes": 233,
+      "sha256": "465b59921df4dd875b09ff9618e497f5a4462ead96222ba80a45babd92907556"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-03/jobs.json",
+      "bytes": 5298,
+      "sha256": "f3c67780d633d74edc30047243a82eb31760ced48610acce24e13fa3e9ae945c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-03/pr-read.json",
+      "bytes": 201,
+      "sha256": "25ac3431b90ee1d1e1a9ac97461a921a494192ff5115041ad502701803b8d644"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-03/pr.json",
+      "bytes": 18261,
+      "sha256": "0632fdcbc0f40078ccc623c51125a563863a280985373728895e06773b8955c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-03/run-read.json",
+      "bytes": 215,
+      "sha256": "5cccb00c13628a008c46812725bfacd35ea76aba72d8e9c228cbcf3802f0b086"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-03/run.json",
+      "bytes": 12461,
+      "sha256": "342ee7d7672e20b3c911d4bb7f2781b42b9f0336f72927e460d344ca90734071"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-04-summary.txt",
+      "bytes": 6051,
+      "sha256": "951be0a860b700edeaab33ee683523b97e334db852aa61153806e5e265c8f9da"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-04/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "3e98deb589b3e442c2d5dcae6d49e5287e43d97022f2de362ecada93eb509b2a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-04/artifacts.json",
+      "bytes": 749,
+      "sha256": "164496cfef30c35bd3b1a5d436f7118e8a864f628ac6b7dccdb47c7dc1ec6c2b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-04/jobs-read.json",
+      "bytes": 233,
+      "sha256": "0aa2442e7d9675aa768adf8a39231782c2a17311cbb997ca433db01c045587b0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-04/jobs.json",
+      "bytes": 8168,
+      "sha256": "56c25a971207bd2a0a17e9f5322c941cdee0c2c47489c72f1e104ddf11b9f966"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-04/pr-read.json",
+      "bytes": 201,
+      "sha256": "f5a21ea03a8e7800027b3de1ca3c5337ab4f991dc174d2d14d7fab5dc5449ae7"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-04/pr.json",
+      "bytes": 18261,
+      "sha256": "0632fdcbc0f40078ccc623c51125a563863a280985373728895e06773b8955c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-04/run-read.json",
+      "bytes": 215,
+      "sha256": "3233a694e45abcbb64b4b66f9d3fd79bc6843e84025095da8e830cc5fcca629e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-04/run.json",
+      "bytes": 12461,
+      "sha256": "49e9410945e6e8ea00dfde9c3cc12fee3c5b3636ba85fcacc517d79425f1c6fa"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-05-summary.txt",
+      "bytes": 6576,
+      "sha256": "70e40fb6a0097e8321b70a515d4dd87926b5f8cc2ccc32bc6be9b253c188d7ae"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-05/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "d1ba919e569db4fb13b05d4e4949903e52a15857892dbbae4ca7078bb3804b69"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-05/artifacts.json",
+      "bytes": 1469,
+      "sha256": "f4f6d6f1e884d71285afea7642baf58511f785632155ee13a1f155865961b65b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-05/jobs-read.json",
+      "bytes": 233,
+      "sha256": "16049b15e98a1f7479de085f7331d3de5f449bd1773f7a2f2f5f09b58d2c919a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-05/jobs.json",
+      "bytes": 8536,
+      "sha256": "799d7bcaf392ad0276fe2517bc813dc4049ef2b4ba2664108a681d50a69b326d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-05/pr-read.json",
+      "bytes": 201,
+      "sha256": "1c4bceca14619222b1f4d17b6ef99ad33893695277b033cc4f55609d9d329f9b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-05/pr.json",
+      "bytes": 18261,
+      "sha256": "0632fdcbc0f40078ccc623c51125a563863a280985373728895e06773b8955c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-05/run-read.json",
+      "bytes": 215,
+      "sha256": "79800eefbc64ecb37cb18b24f8c21b1b21949961c6c46d7a7ffcae0807a5cb80"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-05/run.json",
+      "bytes": 12461,
+      "sha256": "49e9410945e6e8ea00dfde9c3cc12fee3c5b3636ba85fcacc517d79425f1c6fa"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-06-summary.txt",
+      "bytes": 6576,
+      "sha256": "70e40fb6a0097e8321b70a515d4dd87926b5f8cc2ccc32bc6be9b253c188d7ae"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-06/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "af19abe22504e80de3f4e2f5d861c38da3f936de2c31f277ce1797262a198e90"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-06/artifacts.json",
+      "bytes": 1469,
+      "sha256": "f4f6d6f1e884d71285afea7642baf58511f785632155ee13a1f155865961b65b"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-06/jobs-read.json",
+      "bytes": 233,
+      "sha256": "63b7df857e80d37f0901931ade3a9af4107f415ee7a3474e9c3ec225bd9860c8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-06/jobs.json",
+      "bytes": 8536,
+      "sha256": "799d7bcaf392ad0276fe2517bc813dc4049ef2b4ba2664108a681d50a69b326d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-06/pr-read.json",
+      "bytes": 201,
+      "sha256": "0b47526adb9906de5126fdd003921fe2bc247512b4a0cf76b44860659dfa7c02"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-06/pr.json",
+      "bytes": 18261,
+      "sha256": "0632fdcbc0f40078ccc623c51125a563863a280985373728895e06773b8955c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-06/run-read.json",
+      "bytes": 215,
+      "sha256": "f2e399ccf1bf173db4fab74fb5da86e177390ce16e35e285e95e2a529d9f7aa7"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-06/run.json",
+      "bytes": 12461,
+      "sha256": "49e9410945e6e8ea00dfde9c3cc12fee3c5b3636ba85fcacc517d79425f1c6fa"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-07-summary.txt",
+      "bytes": 7099,
+      "sha256": "3f9d509fe9044aae9e57b7d4522f698c9143ec946c503bb838c6b10489db53ed"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-07/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "d8043b1d511d9316449be8ffa2446bd646789062af2836d5920f0fd5e7a30aba"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-07/artifacts.json",
+      "bytes": 2184,
+      "sha256": "3a8a49f730b3b3666b725a8fac56ea00c150dcc35c786f4b530004e91e43d41f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-07/jobs-read.json",
+      "bytes": 233,
+      "sha256": "b01b781b046bfc56456681971b126d3d0bebd9fb7c7e35b39e37a2cf093f4298"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-07/jobs.json",
+      "bytes": 8904,
+      "sha256": "d42afaca59f6adcc4aa412b1130b5b06f62874237dc2823ed918a326d586d3f5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-07/pr-read.json",
+      "bytes": 201,
+      "sha256": "0f780de2ec79b4d998c1b207e958218b10cf7ffb14e94ebdb4517669ce11741a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-07/pr.json",
+      "bytes": 18261,
+      "sha256": "0632fdcbc0f40078ccc623c51125a563863a280985373728895e06773b8955c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-07/run-read.json",
+      "bytes": 215,
+      "sha256": "0177a3a8bdb0a58efb0f0a07a92b97ab5c82da41565ffe16bfec440227178694"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/snapshot-07/run.json",
+      "bytes": 12464,
+      "sha256": "30d106d53a10b715335b022298cde0ffb82f61da51a5f7293d583dc3112b29b2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/source/.github/review-agent/policy.json.source",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/source/.github/workflows/README.md.source",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/source/.github/workflows/v3-candidate-regression.yml.source",
+      "bytes": 13951,
+      "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/source/AGENTS.md.source",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/source/collector-source-binding.json",
+      "bytes": 564,
+      "sha256": "62388a029f011deda5efe37c8538db6c2a00d041fb49342b51c82bc8bb07fd3e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/source/scripts/chat_lifecycle_terminal_evidence_integration_test.go.source",
+      "bytes": 4854,
+      "sha256": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/source/scripts/run-v3-candidate-check.py.source",
+      "bytes": 10569,
+      "sha256": "c650a3c828e074197520defe79b386b160f2465debc487acc1172f7216be05dc"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/source/scripts/testdata/chat_lifecycle_terminal_evidence_test.py.source",
+      "bytes": 30494,
+      "sha256": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/source/source-binding.json",
+      "bytes": 1363,
+      "sha256": "c64d62058211bb6281cfb813d8944b3c50cc87398f692350257643174f962978"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/synthetic-merge-commit.json",
+      "bytes": 2602,
+      "sha256": "ffc12e2b0a88108e3e4179c6b92f4fad68a307b189b6354dd20d3f9ae526af83"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/unchanged-source-and-controls.json",
+      "bytes": 1916,
+      "sha256": "39d90fda284eeb38fb114b9811b960c464ef4daaa724e15382e68d3d2f7eb4d2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/candidate/workflow-event-merge-commit.json",
+      "bytes": 2602,
+      "sha256": "a6066f6f2e3692e03bd1cbef41df7bee6abafcc33825bdf83a41b4804e1102e7"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/PUBLIC_ALLOWLIST.txt",
+      "bytes": 5755,
+      "sha256": "56552699de2fa1b235796f1ed005b0be0224766b73c980f3164ae808d3d25d63"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/README.md",
+      "bytes": 3045,
+      "sha256": "9182548fdd0a5b6c2f1272ecc5ea9f23a9835707ec1bf436eff7c19ab80d6bf6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/SHA256SUMS",
+      "bytes": 14665,
+      "sha256": "b27c8db84fe4d44e416b63322606102dfd3a41b8187cd38a9f7e91a333e297dc"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/archive-sha256.json",
+      "bytes": 24123,
+      "sha256": "ccd5ead7f6f5768a1ce2c4b78bb1a92d1b799285ce5b79f75c0296cfbbaa0047"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/inventory.json",
+      "bytes": 3882,
+      "sha256": "e4e9b153b692464a8565bfaa488d692204d8b9feff14de9e819a73cbca4f4ded"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/members/arrival.json",
+      "bytes": 58098,
+      "sha256": "f777df4dc11652f79a770fe3f1ed1e36a912720cc1cd384031db8df34f9c78d8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/members/arrival.warmup.json",
+      "bytes": 19442,
+      "sha256": "0844dcf5f4b79cd7a6408ceebbb925c3c6884e5f470baf3381248591aa88dab5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/members/benchmark.txt",
+      "bytes": 2957,
+      "sha256": "6b0910e25356e51124299558479813e4b9bce1ccb13f693e23fc67200cc4670f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/members/binary.sha256",
+      "bytes": 124,
+      "sha256": "bcbf4e5a79a5d400c74c1174447bb2a6c2aa95808f7ba4af8ff0b2a0b672a939"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/members/data-filesystem.json",
+      "bytes": 244,
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/members/filesystem-preflight.txt",
+      "bytes": 123,
+      "sha256": "662aee42aae556fced93490ff9aa98fdba59eacddf7c55593c90a9858ca6b4d1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/members/host.json",
+      "bytes": 4483,
+      "sha256": "61dcffad00ce53e335d409d1803c82792f62ab6a364ed2b2e11b8c45d1941490"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/members/kernel.txt",
+      "bytes": 113,
+      "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/members/result.json",
+      "bytes": 18,
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/members/source.sha",
+      "bytes": 41,
+      "sha256": "b0d89ecd9cf9cb453361ebe14d24e6750c41497b7e269c8a07e6092c228a0201"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/receipt.json",
+      "bytes": 1344,
+      "sha256": "ef5dea89999d2b645e447b3563fc91648df4b5ff1686dceb24bc4bf50384b5ed"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373107022/test-events.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/inventory.json",
+      "bytes": 6811,
+      "sha256": "17f0034083dab2eb6f297a596c86808a9c924a6bf46bad8a4bb07d25f7c66b9c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/arrival.json",
+      "bytes": 57690,
+      "sha256": "bf76048c5e13ad1a3f542995378a3c2241ea7e81f792c1f48cfe3ad624dc4dfc"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/arrival.warmup.json",
+      "bytes": 19289,
+      "sha256": "c027d2ccf12e90e7c136af347c8d6e23a83472c78067c51b08e1fd6f59f8e2d9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/benchmark.txt",
+      "bytes": 4014,
+      "sha256": "78bc674a31007a9bd9a647c63ff8b13f255eb3a0ccb3d74aba0f64490d92c2d1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/binary.sha256",
+      "bytes": 123,
+      "sha256": "0a02679af22e0659a5b382724dc317b84972516562544c0e2af212ec45f6e770"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/counters.warmup/after.json",
+      "bytes": 313361,
+      "sha256": "86163aa78cfa50cefbfc46dcb022f3cca5b8b42b03586db1d608402e8affdbe0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/counters.warmup/before.json",
+      "bytes": 310790,
+      "sha256": "9c48d5ea646b11b77577f971090dd67134dd49d9c80406dfbbae456389a87252"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/counters.warmup/window.json",
+      "bytes": 478,
+      "sha256": "3ae578a67853ecea80e2f83e4fa4158444a23f1ec234776143518b05f7b521c8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/counters/after.json",
+      "bytes": 314078,
+      "sha256": "211a3d907c5731af7d7f3be36313dde549b4ccfec740b6347b19489ea7bb28a4"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/counters/before.json",
+      "bytes": 313360,
+      "sha256": "04e34e9a709acc9a5efdef4bb8ae06cb3d34d14fdb3d527737bb1c1882352e41"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/counters/window.json",
+      "bytes": 533,
+      "sha256": "d65f6cd4d18f7b76470adc4eb3b483e62369dfc8c1eab4842378b1a73c8d5527"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/data-filesystem.json",
+      "bytes": 244,
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/filesystem-preflight.txt",
+      "bytes": 123,
+      "sha256": "eb855a442907e687ddb56e0b7e3e36cbf60781fe8fd1c95634af9f4de8571213"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/flight/retention-status.txt",
+      "bytes": 28,
+      "sha256": "fe914d9861d4c6f558854c355a1422208df73e3235e7e7061ec8948c58874fed"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/flight/window.json",
+      "bytes": 2088688,
+      "sha256": "57e520f496371fecc0c3a8227ea73f91410aeddd93556c5c4751a18abc659e21"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/host.json",
+      "bytes": 4483,
+      "sha256": "61dcffad00ce53e335d409d1803c82792f62ab6a364ed2b2e11b8c45d1941490"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/kernel.txt",
+      "bytes": 128,
+      "sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/result.json",
+      "bytes": 18,
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/members/source.sha",
+      "bytes": 41,
+      "sha256": "b0d89ecd9cf9cb453361ebe14d24e6750c41497b7e269c8a07e6092c228a0201"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/receipt.json",
+      "bytes": 1347,
+      "sha256": "0a5c4915d58b5d5f6c87185cff23939da21b92e59307d952d46d033f27876617"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373377132/test-events.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/inventory.json",
+      "bytes": 6069,
+      "sha256": "dbbb319595f082c424b477d96d51775d996228f520d67fe387422e7c04a30b95"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/arrival.json",
+      "bytes": 57443,
+      "sha256": "b8b9037545b487cc8016a7d26e8055d54d4173e3963dada3fa5f683714790738"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/arrival.warmup.json",
+      "bytes": 19229,
+      "sha256": "cfe278e6b6869f35e4f2d0e6f2bf3555a1fb1954144bf358bf0a22d4e5c5c97e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/benchmark.txt",
+      "bytes": 2353,
+      "sha256": "052dfa4bf8cf1419520a9ab6f08c1de43f4c3fbdc1c6e27a7264d378b9b2c420"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/binary.sha256",
+      "bytes": 127,
+      "sha256": "01763e40ea9953b19666552a582ec78cc7a9ed16181bd737549fe536efa547e2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/counters.warmup/after.json",
+      "bytes": 50396,
+      "sha256": "092ca09a837f84c0d606a97315f3a4986702e9753e23c49d52d285fe9d91aee3"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/counters.warmup/before.json",
+      "bytes": 21545,
+      "sha256": "067430ef1b46d0ef9afc9f24cb27608c98f2baf8d548bc10491358b3762c8f0e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/counters.warmup/window.json",
+      "bytes": 504,
+      "sha256": "1c10e07312ace81564ff9a79a0c294ce11c1768ee20c437f88e5f53246dbabe6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/counters/after.json",
+      "bytes": 50634,
+      "sha256": "19154ed2a9b446ed6f7ca2050c4d34f40a6b4dcc0b91674de72e905e902b9736"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/counters/before.json",
+      "bytes": 50396,
+      "sha256": "e3d00fa91cf3a02c99d96cacd6b3bb8b0a51c9bb2726ac4f704f3cc50cb4e108"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/counters/window.json",
+      "bytes": 576,
+      "sha256": "2e64e94785c30723a3dc92c2c89c9287c54a9fba2110142c1629bb6f5ce7cb25"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/data-filesystem.json",
+      "bytes": 244,
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/filesystem-preflight.txt",
+      "bytes": 123,
+      "sha256": "909d73f52610c0ecc3135f4ac969af253735c460c174f51e4d7eb31307f038c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/go-version.txt",
+      "bytes": 33,
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/host.json",
+      "bytes": 4483,
+      "sha256": "2f72fd2c0ca26676f75a405427ca1c18f553daa5e73c5d7af534a4dae94c22c4"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/kernel.txt",
+      "bytes": 128,
+      "sha256": "c20c1a935ed6144be22c896e917263da27219d14ba7f06ddd2f71e7d093cf33f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/result.json",
+      "bytes": 18,
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/members/source.sha",
+      "bytes": 41,
+      "sha256": "b0d89ecd9cf9cb453361ebe14d24e6750c41497b7e269c8a07e6092c228a0201"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/receipt.json",
+      "bytes": 1349,
+      "sha256": "7f522a28648527b40f614ae462a5311edd9ac51eadebbb3518d023339515ab7c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12373801103/test-events.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/artifacts-public/12374280497/not-downloaded.json",
+      "bytes": 966,
+      "sha256": "7ac3f29b076d69a6945ef461562f71078773d083d8359cb662269bc308c3e182"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/collect-completed.py",
+      "bytes": 6456,
+      "sha256": "dfdafc5f1effd1869e2819b145d6afa8e8fc5cb1eec8fad298a3a9e1db00ab6d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members-integrity.json",
+      "bytes": 16873,
+      "sha256": "547e8d58256d7dc2fd81fe10603bd1fef9189caced073f1e6f50d43e0ff2d3a7"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/artifacts/evidence/checksums.sha256",
+      "bytes": 8919,
+      "sha256": "1309613c50543f2b4bd25486f531af6ddc5d3f30ec0b34c1b94c383c65c2df89"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/artifacts/evidence/graceful-stop-status.json",
+      "bytes": 237,
+      "sha256": "7b7f2c9cf3b894f3b2e525714e6f592083046405ed8f0ed5da42855f83ddafec"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/artifacts/evidence/process-continuity.tsv",
+      "bytes": 212,
+      "sha256": "0279cee778f6d9c8ad40c13d63862f8f655f794408e5de1f9574312b6617ed07"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/artifacts/evidence/threshold-pprof-status.json",
+      "bytes": 287,
+      "sha256": "16fdec56e0522031eef0de1a6dad7d10d58aaed67a5afc03990d37f5d6571178"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/artifacts/evidence/timeline.tsv",
+      "bytes": 1941,
+      "sha256": "3d8cc4d15a5261d3cc7c9142314948833ea1f2c294f008e6e083329b66bed8df"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/artifacts/local-step.json",
+      "bytes": 835,
+      "sha256": "5d9a8001e782e6ce99fbe1fcb1e3c8550162356ff1743bc50aeddb1ed6d97004"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/artifacts/product_queue_summary.tsv",
+      "bytes": 209,
+      "sha256": "0e99226358076a2b0484444ac4daa3a632f85b49e3e0a4f2699799c9ff58a8c5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/artifacts/report/diagnostic-status.json",
+      "bytes": 8799,
+      "sha256": "49003c353ed4a0ce6d3e15d165603d569bda99a09620f5b631c3cc565e588781"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/artifacts/report/final.json",
+      "bytes": 23522,
+      "sha256": "a304ba583659e5a4f69087c3add4bb3aba08a127447fb95ac22ca98fb416d4c7"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/artifacts/report/qualification.json",
+      "bytes": 23462,
+      "sha256": "18373e2563e29767a3e680090759340c900d009452b12c706e531ffd9cf4a1e9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/artifacts/report/worker-evidence.json",
+      "bytes": 584,
+      "sha256": "ef2fdb80f7229b36602dcc68c94185673da394a917831f690bf760ebb9eeeb99"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/data-filesystem.json",
+      "bytes": 249,
+      "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/host.json",
+      "bytes": 4633,
+      "sha256": "65f12c33e22051311486d4e6c22ab280b9e6584e63bb3ef925f4b0c2ebb15d60"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-members/source.sha",
+      "bytes": 41,
+      "sha256": "b0d89ecd9cf9cb453361ebe14d24e6750c41497b7e269c8a07e6092c228a0201"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-read-command.json",
+      "bytes": 317,
+      "sha256": "22f73a1f49e44ec34f18672fffbe4d969a29e09c7f48160a4c08446f0c9bb532"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/correctness-summary.json",
+      "bytes": 11197,
+      "sha256": "6f4837d005103fc4bf73941a0da57b5a43c912df893f1901a54df03a45bc9260"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/flight-summary.json",
+      "bytes": 467,
+      "sha256": "78efdf7f32b2df5ac64abff55756fcaaed5fc694eb952b6b267cd47d85a10d13"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428117356/complete.log",
+      "bytes": 70998,
+      "sha256": "cba2f8ed595da50f3b54b701a6fac0ad5abf91512cae6d84481e3a4eb637bc2f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428117356/job.json",
+      "bytes": 2238,
+      "sha256": "6bc0f7a93a3acc5dea84517d061cfab8bbf9f217f9e6eeef99f4656350508e48"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428117356/receipt.json",
+      "bytes": 1323,
+      "sha256": "2eed861fed8ae0bdaf25cd6714604527c1bb0edcee7800a65a35c7314ce08b82"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428117493/complete.log",
+      "bytes": 85993,
+      "sha256": "11a2dc06f6b6f7af6ab8e6a61c60745783fdded0f7fbe8ea2ce0373001526506"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428117493/job.json",
+      "bytes": 3292,
+      "sha256": "064e096875d9369ba9d5fb2b9f66e0a6403bcf55611c30d34721569c14d590b0"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428117493/receipt.json",
+      "bytes": 2120,
+      "sha256": "c3c5daa01d4c36fab196abb7beadab5a6bfcbf7bfbc417728dca4c32f5df2545"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428118388/complete.log",
+      "bytes": 80412,
+      "sha256": "42be58648d06a93a9459ef180dfaed17a470cb4cbb4a8c2501512f6c015ce2e3"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428118388/job.json",
+      "bytes": 3071,
+      "sha256": "e40eb1e106a19807c00c5fa84dfee1097c677d197223bde7a4baaae66b2d16a5"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428118388/receipt.json",
+      "bytes": 1456,
+      "sha256": "fb152b78a8ca6612b63cbf9e0eb6a583e74518f9e7e299f087fff55d5c584627"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428119480/job.json",
+      "bytes": 1036,
+      "sha256": "03d3affe9f0c84c7a526929da88cd03c6847638b5ca03679a50d6d56ea2642ec"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428120283/job.json",
+      "bytes": 1046,
+      "sha256": "e6fd17d80055003b86caea6058d37a7a9422f579ea9f257b8dddd98a51ae6c3c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428257030/complete.log",
+      "bytes": 83440,
+      "sha256": "e56cf7aa5265d9adfd0f03cceeff5857aea96032d2317324f6361e43125641df"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428257030/job.json",
+      "bytes": 3048,
+      "sha256": "f1d817e662e565041aa63adfd43c2c224315512d2ee189612ba7823feb9f6a60"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428257030/receipt.json",
+      "bytes": 1455,
+      "sha256": "e7c46695bb35db03b4c63f95ccd64176bafb9c47ec78bd74501ffa7e6cc796bd"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428257049/complete.log",
+      "bytes": 82746,
+      "sha256": "4636abf4537cf18aaa8801084b6c8840d2ef987411301eab1aad6d08effe18b3"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428257049/job.json",
+      "bytes": 3051,
+      "sha256": "2184db765f02693ccaf4a3cb8b24178af245e81e1ffe0ee53a321a7053cfdc84"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428257049/receipt.json",
+      "bytes": 1455,
+      "sha256": "8daaa036f1620ef673d676a120940f94afd63e7ace330931d690171c0de09302"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428257127/complete.log",
+      "bytes": 85555,
+      "sha256": "13f9849824c37e1f5968572f3ee4238919ff7ba1ff8929ed0d8973fc69250b5d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428257127/job.json",
+      "bytes": 3047,
+      "sha256": "8e24f346573173e3c31e4253548e15fc2c249c74629abc1ef19888ed01e49637"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119428257127/receipt.json",
+      "bytes": 1455,
+      "sha256": "91f866871f906c8ff9e8b05085a99ad8ab336af566e1206e3d34d145267a448e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119430956539/complete.log",
+      "bytes": 2684,
+      "sha256": "b7edf0ff959d1529ac6e186e12f29ae8100fca862a380704d1bade4c7ac06d89"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119430956539/job.json",
+      "bytes": 1724,
+      "sha256": "a1052097c1a669b3cc3a0e3e90797675f758dfdd79e34b806b6170bb720a34b2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/job-logs-public/119430956539/receipt.json",
+      "bytes": 923,
+      "sha256": "c37e123172c6398b3c899df887c7bffe7a0164c95630c7a8b9e7e72efa0862eb"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/latest-snapshot.txt",
+      "bytes": 12,
+      "sha256": "b4d32c259a675c51f341a77d7ef6bdf32720dc8ca71a3324e4e2661f9af9f3f3"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/performance-window-summary.json",
+      "bytes": 7274,
+      "sha256": "d5d33d2a27f1692f3b653c70d20d9715944e06dfb5ef442997a71fb787354f40"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/read-snapshot.py",
+      "bytes": 1722,
+      "sha256": "af1dca05960a8ea55e489d3bc0fab1366dc37343097de27d4724c438d25aed83"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-01-summary.txt",
+      "bytes": 8288,
+      "sha256": "82b662b94e5a21e9eea01493c904d6d385fb95e0ba2fba4e3722ecf23d2adb02"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-01/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "88136a5a8cfe2d178faefb6f740c98c8d2a1826f607ae00457084377b9d0f495"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-01/artifacts.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-01/jobs-read.json",
+      "bytes": 233,
+      "sha256": "e129c47cbb88f1c53b77a2823badd47cf64a794a3d5f8e9b61b1cc4507559e2e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-01/jobs.json",
+      "bytes": 14599,
+      "sha256": "25000034d6b26a4fb6d6379103ae4a7eb1b31290bca82bc7905cebac1b20b222"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-01/pr-read.json",
+      "bytes": 201,
+      "sha256": "5fd6b1239f5a62b0d84d182eb51b4a5a1919a05fcb837c4947ca8b7b4da59b07"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-01/pr.json",
+      "bytes": 18261,
+      "sha256": "0632fdcbc0f40078ccc623c51125a563863a280985373728895e06773b8955c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-01/run-read.json",
+      "bytes": 215,
+      "sha256": "351b13e38c5ed6e571447d49ffb48b707a7824a3cd002fc861fab816d1bdae24"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-01/run.json",
+      "bytes": 12501,
+      "sha256": "a983de050c4f46e34428df522f79bd9b65dfe95e7180a0ecc90545328fd0a9f7"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-02-summary.txt",
+      "bytes": 8374,
+      "sha256": "29f580ae8b9eeefc11c2ac4c41119b04ddec57ebdb0f3988f7bb261c0acc8ad8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-02/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "58d1bb673fb8c728490265761d32e303ac562c3ff134d85aed43ab9592d253ee"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-02/artifacts.json",
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-02/jobs-read.json",
+      "bytes": 233,
+      "sha256": "7197445aeb5f12aa9a55977f91bd4acada8f302757396eb0e7c3a16ce83bfd95"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-02/jobs.json",
+      "bytes": 14685,
+      "sha256": "ef566f0c764209716c03ce48a0d0f2687cbef24b5b1ddeff03f2fffe0ee1599a"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-02/pr-read.json",
+      "bytes": 201,
+      "sha256": "b6fd731d7bd1929aed151ea57fe0cf6f8d2eb40848e675a1b89e457687b665db"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-02/pr.json",
+      "bytes": 18261,
+      "sha256": "0632fdcbc0f40078ccc623c51125a563863a280985373728895e06773b8955c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-02/run-read.json",
+      "bytes": 215,
+      "sha256": "1b1c0317a8fff630a4c64967b9f17aca2385a60a864badc1ec3654f72a6e4ad6"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-02/run.json",
+      "bytes": 12501,
+      "sha256": "a983de050c4f46e34428df522f79bd9b65dfe95e7180a0ecc90545328fd0a9f7"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-03-summary.txt",
+      "bytes": 11127,
+      "sha256": "35ff91eca3d42311718a52b76a56e1dd0f87544886f6c7942f58c3b00511c9da"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-03/artifacts-read.json",
+      "bytes": 238,
+      "sha256": "f1a2df6f8e12355d2edb18d75ffb7716ddd91c86f95caa4102aa0d6c0325b76f"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-03/artifacts.json",
+      "bytes": 3021,
+      "sha256": "6ceb43b92b9e79600dd6d01d155b75a487a6ecbac3cc17a48b131e58585fa142"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-03/jobs-read.json",
+      "bytes": 233,
+      "sha256": "8f8ad240917e9823680d12bf312ce7c41dc3fb689dd4c40d965e56a7ff268298"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-03/jobs.json",
+      "bytes": 17517,
+      "sha256": "16abe975b5cf043766652e279cf718dee3573bca947a9980e7b63ec5ceab183e"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-03/pr-read.json",
+      "bytes": 201,
+      "sha256": "7a023ae03229c7b91b26561589c7e3efd95239e391c072ba378ce25bc2d2ce92"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-03/pr.json",
+      "bytes": 18261,
+      "sha256": "0632fdcbc0f40078ccc623c51125a563863a280985373728895e06773b8955c9"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-03/run-read.json",
+      "bytes": 215,
+      "sha256": "55c973f1a3083710c7ca72d489fe09095d5a2129df356302dd11242d29797e1d"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/snapshot-03/run.json",
+      "bytes": 12504,
+      "sha256": "d031ffa95578688e8ae399fa2a5e060fd96249c9c87a32ed44e2270ea983f3e1"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/source/.github/workflows/three-node-chat-lifecycle-regression.yml.source",
+      "bytes": 13037,
+      "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/source/source-binding.json",
+      "bytes": 483,
+      "sha256": "b7fe7e36e4d00e526ee8be27d1c0fa006c608ae8122e6a9bc4773f6aa5794cb8"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/synthetic-merge-commit.json",
+      "bytes": 2602,
+      "sha256": "ffc12e2b0a88108e3e4179c6b92f4fad68a307b189b6354dd20d3f9ae526af83"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/unchanged-source-and-controls.json",
+      "bytes": 1916,
+      "sha256": "39d90fda284eeb38fb114b9811b960c464ef4daaa724e15382e68d3d2f7eb4d2"
+    },
+    {
+      "path": "cloud/pr1024-ci-generation-2/performance/workflow-event-merge-commit.json",
+      "bytes": 2602,
+      "sha256": "a6066f6f2e3692e03bd1cbef41df7bee6abafcc33825bdf83a41b4804e1102e7"
+    },
+    {
+      "path": "cloud/pr1024-fixture-delivery/after-push-pr.json",
+      "bytes": 2755,
+      "sha256": "73d918dcbdf4c2f2e1e59bc62fc218f606621fcf0602a261935f6ba62e5e07dc"
+    },
+    {
+      "path": "cloud/pr1024-fixture-delivery/before-push-pr.json",
+      "bytes": 5618,
+      "sha256": "09c953a0457ec7643bf72bc6edb5710226d75e6ca336a9d77e97bf293f78c184"
+    },
+    {
+      "path": "cloud/pr1024-fixture-delivery/combined-review.md",
+      "bytes": 3490,
+      "sha256": "2bb8190ca0fa690271e8aa7144b58383bd22633263f5ba186a55fe7db8d70c75"
+    },
+    {
+      "path": "cloud/pr1024-fixture-delivery/commit-receipt.json",
+      "bytes": 1236,
+      "sha256": "826628ffe2e2f7c3d1b482302c9cca69d7d70f0c874308928a5eba42057d9ab2"
+    },
+    {
+      "path": "cloud/pr1024-fixture-delivery/pr-body-pending-linux.md",
+      "bytes": 2567,
+      "sha256": "144a368e4807c8c1b2347cc115ba2fba50581a974043acc775313f2d15992a8d"
+    },
+    {
+      "path": "cloud/pr1024-fixture-delivery/push-receipt.json",
+      "bytes": 452,
+      "sha256": "34a6f6dba5c13e60e1c30f6dc0b2d34801ec4fc34d081cd21bd36406f3f90cc4"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/README.md",
+      "bytes": 10962,
+      "sha256": "56a76d90d7437a45fc493bbc0ad27a832220622d19096be3a8fd86404412894a"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/SHA256SUMS",
+      "bytes": 4448,
+      "sha256": "5acafe8b9e88e556b6e5e49d3969ec86fab050fc06a5ee614f4b6089e9efe942"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/allowlist.json",
+      "bytes": 7582,
+      "sha256": "2a2bf24c20f6ba00c88720d8ae51c39587500778188db11be478876593bf19f0"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/compare_timings.py",
+      "bytes": 3165,
+      "sha256": "2ce5ba0692a9acd969d5d92a11f63ca3d87fecf1869d5f29f27d10b86378346a"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/compile-tracer.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/fast-host-first-run.log",
+      "bytes": 4931,
+      "sha256": "adb3d0f46aa052ed5d2b85b007338c4208505bf69d9c2cb309999af069871e3c"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/fast-host-results.json",
+      "bytes": 7004,
+      "sha256": "97b2e58292933d18edba5223d583d89e58ba3a92ad3a17cbeefc070f128864ce"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/final-receipt.json",
+      "bytes": 1515,
+      "sha256": "cd416f9b0ab706bcbf23d8fcc2d5e6be11fa91fb3273bd8621ae64e0d66a147c"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/formal-capacity-fast-host-trace.jsonl",
+      "bytes": 18583,
+      "sha256": "9f1d63c975b565d7bc02b181d919ade8275eef8693e227b795fb6eae0bd9babf"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/formal-capacity-precomputed-corrected-trace.jsonl",
+      "bytes": 18547,
+      "sha256": "9e373746550286621e34dccbb35c14c98061b6b2f9f452b29fc9ac3239c31957"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/formal-capacity-trace.jsonl",
+      "bytes": 20443,
+      "sha256": "c61630670629b2d34c814b17bda39a50bdd2d20bdd9005589a3b0a9384a07353"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/invalid-anchor-fast-host-trace.jsonl",
+      "bytes": 15655,
+      "sha256": "1eb5277caba8cbff3a4b91b02c4f20edb6706f4ffd4014e6249e62b82a672291"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/invalid-anchor-precomputed-corrected-trace.jsonl",
+      "bytes": 15655,
+      "sha256": "69f5e66e80ae4f59be41fabc3a57637090cbd71880caa3ea2f2753702b3b84ee"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/invalid-anchor-trace.jsonl",
+      "bytes": 17515,
+      "sha256": "7e912a19af46472b0bed02c18895173a6d370788f3c6853ee2206a293342000a"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/large-fast-host-trace.jsonl",
+      "bytes": 18095,
+      "sha256": "bf387d96bbbc88c977f654b92d47d569e975d5c48b4d9d716a4260c0e497cc08"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/large-precomputed-corrected-trace.jsonl",
+      "bytes": 18065,
+      "sha256": "65173faf9f83ac68fe9eb76c699fca7c57911b146baed3ee76e0f7d71820e32e"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/large-trace.jsonl",
+      "bytes": 19955,
+      "sha256": "6cb126ff25ec6d4b2fcb11ef4b55191e7a3693981558d97b8cfba475c2f2f037"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/measurement-plan.md",
+      "bytes": 1247,
+      "sha256": "92e8bdb3c4d93755776201ae84b066c3bb7261d3d86cebf6897e71eecaa2bcca"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/missing-worker-fast-host-trace.jsonl",
+      "bytes": 18095,
+      "sha256": "01ed0d968e8bf65650a00de5215b23ddf00d56123b0a420203535b154adb1852"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/missing-worker-precomputed-corrected-trace.jsonl",
+      "bytes": 17944,
+      "sha256": "f6bd94dcdf20f2d6e605c24c0ff6f14510e27ca7348683527cb87af614693614"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/missing-worker-trace.jsonl",
+      "bytes": 19955,
+      "sha256": "26ae42124955f8f7a6d226b357ddc5ebecdad6ea07157fc4b971a3e060f3a9bf"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/normal-1-fast-host-trace.jsonl",
+      "bytes": 18095,
+      "sha256": "0cae542ee03abe97c152ed66e6442e0af5e83542de851e6780e5f84c2bc69cf7"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/normal-1-precomputed-first-failed-trace.jsonl",
+      "bytes": 17823,
+      "sha256": "14beb2cd522ad855d83d4badf6639740bd4fa0da057cd7f96301cb3db629e7de"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/normal-1-precomputed-trace.jsonl",
+      "bytes": 17823,
+      "sha256": "14beb2cd522ad855d83d4badf6639740bd4fa0da057cd7f96301cb3db629e7de"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/normal-1-trace.jsonl",
+      "bytes": 19955,
+      "sha256": "21e1c7ca4a0f199ae8aff6e97f65ffceaa7da3066c54649c68b646b8cca36add"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/normal-2-fast-host-trace.jsonl",
+      "bytes": 18095,
+      "sha256": "892ac3879096e6942b9788b2c24ce84124e3733c1d014d2b8b8859aa2f99b902"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/normal-2-trace.jsonl",
+      "bytes": 19955,
+      "sha256": "0ddea9eee70b222f14e7cd98c4743b004ec1730e95defa5854864cc0fa33af71"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/normal-corrected-precomputed-corrected-trace.jsonl",
+      "bytes": 18065,
+      "sha256": "14d2cfb609d216238e494fdd4330ab76d50b2f216454f9661c658d386a5ce957"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/phase-first-run.log",
+      "bytes": 4907,
+      "sha256": "25ba0184fc9bd59bdd6d47d470a4c47dbb83093f31a55c389902b031583459ca"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/phase-results.json",
+      "bytes": 6980,
+      "sha256": "0d8a37cd276d9edcf824e96ae287fa97fc697f744bc9221f48ef11195a2250a8"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/precomputed-corrected-first-run.log",
+      "bytes": 4119,
+      "sha256": "355dfc08dec03c2dd6ad22120a14775f6f7fb908ddb3188e3e7b65f3c2b57da8"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/precomputed-corrected-results.json",
+      "bytes": 94940,
+      "sha256": "dfe5313c028681823c41efc6f486ddb6780fe1d10114b7830880d872bfadf936"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/precomputed-first-failed-results.json",
+      "bytes": 20661,
+      "sha256": "7d0c244442c884145062975e41d39c3ba7774a85508b87a25225c0a06b6aacb3"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/precomputed-first-run.log",
+      "bytes": 27291,
+      "sha256": "e61404dc6ecb43ea2d468f7332d39aba6ff8e04cc02a718efa14cf0f3a75ad1e"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/precomputed-results.json",
+      "bytes": 20661,
+      "sha256": "7d0c244442c884145062975e41d39c3ba7774a85508b87a25225c0a06b6aacb3"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/profile_cases.py",
+      "bytes": 2407,
+      "sha256": "f4d64b5398050b58e6685a418c118ad35749203b680fd376364adfe699fa84c6"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/profile_fast_host_cases.py",
+      "bytes": 3094,
+      "sha256": "258093ec73025692dc553ed649e00de6faa5568b3fb7acd01754d59a0a29842c"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/profile_precomputed_cases.first-failed.py",
+      "bytes": 7228,
+      "sha256": "967f243d7a5d8bc772728d9f3e1d4cb2bb6a3b33813c8bf40a1ce7473f95bc26"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/profile_precomputed_cases.py",
+      "bytes": 7228,
+      "sha256": "967f243d7a5d8bc772728d9f3e1d4cb2bb6a3b33813c8bf40a1ce7473f95bc26"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/profile_precomputed_corrected_cases.py",
+      "bytes": 7229,
+      "sha256": "9a5c7598d0e68be9b28ded0af86244cc3a3a75bdefff0934d401b92a9589053e"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/replay_precomputed.py",
+      "bytes": 7549,
+      "sha256": "28e607b6e543eb72f3200115d509a0771772eb37b1420d59d084a101f5822d51"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/semantic-comparison-rules-corrected.json",
+      "bytes": 1729,
+      "sha256": "138e395b5feb9df7846261782ebed2645bb42abf95df0c1f9e3ec206c19178ad"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/semantic-comparison-rules.json",
+      "bytes": 1464,
+      "sha256": "66ee321c0283388844c37c64fba340b264e56c66223e213cb4aba307bae7183f"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/source-freeze.json",
+      "bytes": 977,
+      "sha256": "7d811ab088d00e019558509240001a1b94f0ee38d892a9eb18acf018e3d046ff"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/timing-comparison.json",
+      "bytes": 377372,
+      "sha256": "5699689108cd6c45a5c952e2d330f21d6df98d1542a2988c696aa7c63de6f07d"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/timing-comparison.log",
+      "bytes": 11546,
+      "sha256": "c79d762757a1bb88b30be071e6ecbf784e7ff43c48eef8ae9b42093ce9e2fe0c"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/trace-tool",
+      "bytes": 34104,
+      "sha256": "c63328dea0157874ef0511d20758d9c0c79e64042f553e5ad486553400f5ab32"
+    },
+    {
+      "path": "cloud/pr1024-fixture-profiling/trace-tool.c",
+      "bytes": 1139,
+      "sha256": "a0de953140fb6f075224131da79bc303f835b42f37608e91e61258d19f7a6258"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-review/spec/adapter-probe-results.json",
+      "bytes": 9597,
+      "sha256": "23bc97a6ef5d3e372fa9c0c14c9baf55866559f6e95ec7b0862619b0dcb17524"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-review/spec/adapter-probe.py",
+      "bytes": 4156,
+      "sha256": "62f172f654f95b6df023ecaa3acc7515a8671510647f592d5a8bcfd58a0d711c"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-review/spec/before-and-equivalence.json",
+      "bytes": 24677,
+      "sha256": "8961deb8581e784fabf000a1a649872b852bc62aefdc0687bfff644610828bfd"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-review/spec/manifest.json",
+      "bytes": 4680,
+      "sha256": "c742a79dcdabb617cf9e0d9f07afb1c34a42deabb08231345eaa8053876dc178"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-review/spec/review.md",
+      "bytes": 999,
+      "sha256": "cee31cbd5b3a1815f6b33c8d1e7babad782fca66351d68ea2028302b6479f93b"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-review/standards/manifest.json",
+      "bytes": 5465,
+      "sha256": "7b909bfdc8e96aa2ccaca1ea7cf4d0855e8a7fdaf4f096d329d514bdc76bc1e6"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-review/standards/review.md",
+      "bytes": 2253,
+      "sha256": "dda73ca4ff495fc04fb9a452212a8062c9482a1d9af299ab9b12a9804aca9454"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/README.md",
+      "bytes": 3384,
+      "sha256": "67fb231963ee37cb9724480460d2c31109e0478adaaf6232195a0efebaf2fdef"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/SHA256SUMS",
+      "bytes": 1329,
+      "sha256": "bc8fdce8156264590e419972f31d4b0bb340a30d5fd72e62a30ab5376dd4b89f"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/allowlist.json",
+      "bytes": 2273,
+      "sha256": "62daf8fe5369ed9f11c63956f5a23b5f2439e368bcb5de4254b88836f0d5917a"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/before-freeze.json",
+      "bytes": 3891,
+      "sha256": "c96d9efb4422173eb78c948deb45b1c0f76fb0314352dd4e3fd6c95d0f2f258b"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/compare_artifacts.py",
+      "bytes": 2716,
+      "sha256": "9c55b21b05c03185c3e2e605c8a15b97c3f197fb1262faa45be109de0dcef53d"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/delivery-receipt.json",
+      "bytes": 536,
+      "sha256": "9ecabbe77503cc5a34dab41fd9bd1f4b3b62aa5c65d9626c0ace4e185b1cca66"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/fixture-before.py",
+      "bytes": 28540,
+      "sha256": "5eb949fd72c6fd44ffc99c837aab15b881641d0a3ed29bf18e80fa76a78af2af"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/focused-first-results.json",
+      "bytes": 1268612,
+      "sha256": "0d1900a9ba731a066f37398e17901970b69147d14b409e475f3473fc00cdfe79"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/focused-first.jsonl",
+      "bytes": 3969,
+      "sha256": "b57e7916de433406ccaeeb70534beb8ddbbf04d16a251698342d299cccd85264"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/implementation-first-freeze.json",
+      "bytes": 264,
+      "sha256": "b0f4b67b9f45aa7fb59484f776eb7ebfc5c70b35ad0811ab27fc757e769193d9"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/implementation-first.py",
+      "bytes": 30494,
+      "sha256": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/new-adapter.txt",
+      "bytes": 5984,
+      "sha256": "dac768fff1c27f571318a8e1b53887bb8d181160f2c89f1360cf9afda90a57d3"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/plan-and-failure-matrix.md",
+      "bytes": 4615,
+      "sha256": "dcd73f97e9c4b1d0c8e626158e2f98a07574d498b3d143b93527cb4e0449ec3d"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/review-source-freeze.json",
+      "bytes": 3767,
+      "sha256": "5d6532c831cc0596fd77931a98674835f69b06229f2444965b4269179dec46b2"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/semantic-comparison-first.json",
+      "bytes": 58798,
+      "sha256": "46ecff3c627befffa0e9c8005505a18ff8d0c5c286f9f600c2cb255508d91e78"
+    },
+    {
+      "path": "cloud/pr1024-fixture-repair-v1/semantic-comparison-first.log",
+      "bytes": 1009,
+      "sha256": "2c9fe29d73affaef9ae05d145dbecf804ba66c193c96d3f2eaf4baa559e7adb3"
+    },
+    {
+      "path": "packages/provider-after-m1-plan/README.md",
+      "bytes": 9130,
+      "sha256": "3ecb56b5adc41aefd259662bac671de0311345796be237180353bf444247af9e"
+    },
+    {
+      "path": "packages/provider-after-m1-plan/failure-matrix.md",
+      "bytes": 2762,
+      "sha256": "47fa70c0077e2106ff0c9467f61b1d75bae0bc309173a034d5e43c4f9392ebea"
+    },
+    {
+      "path": "packages/provider-after-m1-plan/manifest.json",
+      "bytes": 543,
+      "sha256": "98043034d19d4d0a16e5554710cecf424ca5740fd979abe79ac9acbc541effcf"
+    },
+    {
+      "path": "packages/provider-after-m1-plan/public-allowlist.txt",
+      "bytes": 47,
+      "sha256": "9bfafd11c9e259e517c108f399961e722b3b26c5f11337abd7e67dbc89175cad"
+    },
+    {
+      "path": "packages/provider-after-m1-plan/sourcebinding.json",
+      "bytes": 4499,
+      "sha256": "e12fb8e9ddffeed30ea5b8734a28a72a78f981e9e4adb5816c9c3b5c3bfbe346"
+    },
+    {
+      "path": "packages/provider-next-route-gap/manifest.json",
+      "bytes": 171,
+      "sha256": "b1a781f9c65c5f02e58df734c374f0fde15fe1f733b8f6eda73f47925fdd7e42"
+    },
+    {
+      "path": "packages/provider-next-route-gap/observation.json",
+      "bytes": 3156,
+      "sha256": "441b29c9de98b4dead49c82c3d10d2edce08074faf75a01fe34c884507e860b9"
+    },
+    {
+      "path": "packages/provider-preview-fixture-delivery/combined-review.md",
+      "bytes": 6102,
+      "sha256": "9f26d52d60d5dce7da37c4533a697664a555e6c4fbb7f5cbdfac1b4a11577b4d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-delivery/commit-receipt.json",
+      "bytes": 2376,
+      "sha256": "6ca0fd0cf8e182f89fa9645520b2d2368569708cf9436d5ff360d2a568cebffe"
+    },
+    {
+      "path": "packages/provider-preview-fixture-delivery/pr-body.md",
+      "bytes": 2208,
+      "sha256": "0061b71d647d0cbb127b735e684c18d1b38de3f8e6bff1dc9075b319083f2c21"
+    },
+    {
+      "path": "packages/provider-preview-fixture-delivery/pr-created.json",
+      "bytes": 2432,
+      "sha256": "b39a913451d8ebc843ad3ea0abacd1a3da88c8875abcec2ffa4abda5eb89d7d5"
+    },
+    {
+      "path": "packages/provider-preview-fixture-delivery/push-receipt.json",
+      "bytes": 719,
+      "sha256": "9e6f59d43f5d23fdb95d21feb9d7e0a7b283122cebcdf2b3d941663cfc341783"
+    },
+    {
+      "path": "packages/provider-preview-fixture-delivery/staged.patch",
+      "bytes": 48844,
+      "sha256": "fa0513f056f866e1934d0b72eca051cccc58e42dfee199ceae063e6beb08be46"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/README.md",
+      "bytes": 8369,
+      "sha256": "2ef59f3dbbf422fbad92079961e2a68501f5b6217731804dd37a3c1a1f81a35e"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/alias-readability/driver-after.py",
+      "bytes": 18717,
+      "sha256": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/alias-readability/driver-before.py",
+      "bytes": 18297,
+      "sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/alias-readability/manifest.json",
+      "bytes": 783,
+      "sha256": "07271fa21df10fdee5c28a57c3a46a8b4a7f290281dfbd41fec1260206f325ef"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/alias-readability/rename-receipt.json",
+      "bytes": 483,
+      "sha256": "8685c9e0f72cf5af772e4b668a858bb9046a87a20768253dbf982c3326a458b2"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/alias-readability/root-validation.json",
+      "bytes": 685,
+      "sha256": "3a1d83e91a92e70a3d236c40fa83b98b98b37e2277d5a70138d0d48252e05d7f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/alias-readability/source-freeze.json",
+      "bytes": 2533,
+      "sha256": "3cb9a49dc9387961364af9e0ebc85a0108e2c1d0a9d66419f31500124a18dccc"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-first-red-tests.py",
+      "bytes": 4177,
+      "sha256": "91e9685885ea727c22297ef5d2941a677688f2303b5285c6d1d1371963badfc7"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-green-1.json",
+      "bytes": 262,
+      "sha256": "272f7fdac9aabb02ee7a4dfb3c15bae867ff0eafcc8501050e27e322a5c690ef"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-green-1.log",
+      "bytes": 103,
+      "sha256": "6273232de4d3ef7acd4ecafa5c86beeeb974f56586b21089a2990b3f72facbe6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1-command.json",
+      "bytes": 2325,
+      "sha256": "2d226813121a59c03ea9c1b55a1f97f7a391cf99e029ec17a5598f2cd05d5946"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixture-export.json",
+      "bytes": 2550,
+      "sha256": "5b2c8ae22abb95ed041a87f7656e89771aaca38376b539927b4e74cc995ea0d2"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/apt-receipt.json",
+      "bytes": 1055,
+      "sha256": "20f77166ccf6281c04ccdf80c11c97f2149bad25e52f6e3f45eacf8726293f69"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/keys/README.md",
+      "bytes": 5439,
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/keys/apt-preview.asc",
+      "bytes": 6210,
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "2a62b36296a9f4ad9fc42e2780419da6f3d73d5b5bcd591f6cf95d273ebb29db"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/keys/rpm-preview.asc",
+      "bytes": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/manifests/audit-access.json",
+      "bytes": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/manifests/bootstrap-packages.json",
+      "bytes": 83,
+      "sha256": "05911ad7a14e8efa4c08b1070e5f5aaeacce0f99832be672465824ce662b3a1c"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/manifests/channels.json",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/manifests/preview-signing.json",
+      "bytes": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/manifests/source-read.json",
+      "bytes": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/manifests/stable-public-keys.json",
+      "bytes": 538,
+      "sha256": "743cc4becc7865094f0b321e0ea94e5ab8b49008a59b44494cdec9995a05afbb"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/control/manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/plan.json",
+      "bytes": 3757,
+      "sha256": "0483a01f2cd4ac66aa9070ddf5d193d2f48dda4025e17540771b6291c14d50ea"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/rpm-receipt.json",
+      "bytes": 2268,
+      "sha256": "9a4c2b3f76b6626f4c7c3b3b2ef1fed5214e7c71ce6855c8415efad5bc99b64a"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/apt/dists/stable/InRelease",
+      "bytes": 1807,
+      "sha256": "bd1af47e6e8f8d942434203258db00c1f5b8c099aca3cef25dea32c8df5d8f15"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/apt/dists/stable/Release",
+      "bytes": 1099,
+      "sha256": "35aedc1e91fec80ecea6fbc636da5e59936bea9d2c7e6f0db1c19a0a4f863d87"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/apt/dists/stable/Release.gpg",
+      "bytes": 659,
+      "sha256": "0f5281ea207d69c5ae5afb7c11299c42b3ec601c16696fb021c12ceb08459a66"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/apt/dists/stable/main/binary-amd64/Packages",
+      "bytes": 994,
+      "sha256": "9cc7d35b94e8b985ce351a253cb841662d83f54fc383426e5c5d0598678211bd"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/apt/dists/stable/main/binary-amd64/Packages.gz",
+      "bytes": 588,
+      "sha256": "ec4d57d37b01e137a8b021a8be7f42aa20509ad450e6dec496087303833f4010"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/9cc7d35b94e8b985ce351a253cb841662d83f54fc383426e5c5d0598678211bd",
+      "bytes": 994,
+      "sha256": "9cc7d35b94e8b985ce351a253cb841662d83f54fc383426e5c5d0598678211bd"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/ec4d57d37b01e137a8b021a8be7f42aa20509ad450e6dec496087303833f4010",
+      "bytes": 588,
+      "sha256": "ec4d57d37b01e137a8b021a8be7f42aa20509ad450e6dec496087303833f4010"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.1_all.deb",
+      "bytes": 4448,
+      "sha256": "005bb2044f36dad3fa73850d1a59eef9d347cadf15b1a49d1a39e2f6e905396a"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/apt/pool/main/w/wukongim/wukongim_3.0.0_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "9b74d28a3eeb7c64cb2d9a47009d32800f43b2f22067bdcf34750e6b72194fc6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/bootstrap/manifest.json",
+      "bytes": 1152,
+      "sha256": "991069fbeffc73d8b6f1b410c7058a92589b5cf43626c53270385190c1a5d898"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/bootstrap/wukongim-archive-keyring-stable_1.1.1_all.deb",
+      "bytes": 4448,
+      "sha256": "005bb2044f36dad3fa73850d1a59eef9d347cadf15b1a49d1a39e2f6e905396a"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "6d33e9f1c4842670d8ae75a203a06ae80528928ea3cb94a38e9a9b16215d86d2"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/index.html",
+      "bytes": 199,
+      "sha256": "2ddf9f298245c1ad3e34993533eac883e6990e53615b45d6c5409e13b94a1f49"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "2a62b36296a9f4ad9fc42e2780419da6f3d73d5b5bcd591f6cf95d273ebb29db"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/repo",
+      "bytes": 3900,
+      "sha256": "1ad4b92f49a2b46eed228eb20e6d611c7494ee1462d1631facaef446c4663fb0"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.1-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "6d33e9f1c4842670d8ae75a203a06ae80528928ea3cb94a38e9a9b16215d86d2"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "f0b20704bd6fa9200bec8080cac9c729904049c79ea63f7122f5cb59de06c3db"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "bytes": 389,
+      "sha256": "b3ac37c88b63ea169f3055ed8ee17044ea3135c22be1a030440eadac511212c6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/other.xml.gz",
+      "bytes": 305,
+      "sha256": "d2fc4f1d1bd678b51d6d2c921fe8525b57521b4fe7740be2971a39a605263ba9"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "bytes": 950,
+      "sha256": "1686cf8911ea9ceac933a200671fca532efdf447ccdf9378841d02050a3dba54"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "bytes": 1351,
+      "sha256": "ecfabce9014909a6d0deb88914f87ed507c31fd0b72c7146e85284cee259323c"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "bytes": 659,
+      "sha256": "e775c503f66c974f33946dc8f1bfbc3c508cc5fa8d3646b863ead6da3c81ec25"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/signing-manifest.txt",
+      "bytes": 514,
+      "sha256": "3ce03f9ad1bc9241363d0710d292fe1794891b3f8e6bd14c9c45816eb31cf926"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/site/status.json",
+      "bytes": 324,
+      "sha256": "aa4dd06c6a999f84ce5e77bb7f4d4d3c8bacd078a649d450c6382a9df59ff84f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/source/assets/wukongim_3.0.0_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "9b74d28a3eeb7c64cb2d9a47009d32800f43b2f22067bdcf34750e6b72194fc6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/source/assets/wukongim_3.0.0_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "1458dd57d3a1b41c56c257f06d08d7d5e9ed257e5446857f93c3d5e8b62e37d6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/source/resolution.json",
+      "bytes": 389,
+      "sha256": "83376d0b9c10004e447d6b625ad4f09f411b25770afe26cfc39f083cccc095b1"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/wukongim-stable-3.0.0-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b-candidate-receipt.json",
+      "bytes": 2624,
+      "sha256": "8f11ce33d949b81668f25bb13af156333eeef152726c49b3fcfb98e96991b5f2"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/A/wukongim-stable-3.0.0-12beae675e9cde07319cefd8ce51fbf846ada0cd71451f1247697374f425175b-candidate-site.tar",
+      "bytes": 151552,
+      "sha256": "725a50c97949fb967113c6463a227b9f510027b3509784d92cdef70dc14d2102"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/apt-receipt.json",
+      "bytes": 1055,
+      "sha256": "ac29b6aa61d5043abec52a7d7d669b62ab5ca093df73a26962ab324e92ae5d99"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/keys/README.md",
+      "bytes": 5439,
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/keys/apt-preview.asc",
+      "bytes": 6210,
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "2a62b36296a9f4ad9fc42e2780419da6f3d73d5b5bcd591f6cf95d273ebb29db"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/keys/rpm-preview.asc",
+      "bytes": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/manifests/audit-access.json",
+      "bytes": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/manifests/bootstrap-packages.json",
+      "bytes": 83,
+      "sha256": "64cc3bcaecfcd967d1b5a58fea834ec49609740d5704810c3cb736ac4069829c"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/manifests/channels.json",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/manifests/preview-signing.json",
+      "bytes": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/manifests/source-read.json",
+      "bytes": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/manifests/stable-public-keys.json",
+      "bytes": 538,
+      "sha256": "743cc4becc7865094f0b321e0ea94e5ab8b49008a59b44494cdec9995a05afbb"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/control/manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/plan.json",
+      "bytes": 3757,
+      "sha256": "bb02400fe5c2b3b380dc49839c1c8f5ea15995be7b591f71c2ba1996892cc29a"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/rpm-receipt.json",
+      "bytes": 2268,
+      "sha256": "027aa52579ade52a450b5b0a4f3ba38b39bfc1d51f00c28ae4bac475e2a23428"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/apt/dists/stable/InRelease",
+      "bytes": 1807,
+      "sha256": "73fb7570d7cd52cc9fde87291d5f3aa2f2950862271d4efcce5e0ef250bf4a47"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/apt/dists/stable/Release",
+      "bytes": 1099,
+      "sha256": "f40dbd37bb58bb1a60ea94801f8737f156e1e7d5d58bc27583d87e385ade8b40"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/apt/dists/stable/Release.gpg",
+      "bytes": 659,
+      "sha256": "3d3584cbe84da3279e9abfe060fd42267782bf567500098df2429a9fd2952a2a"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/apt/dists/stable/main/binary-amd64/Packages",
+      "bytes": 994,
+      "sha256": "1b38484268d129c38a5e1722ad4a7664b612a1d36d052085105cd77f20c97e3f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/apt/dists/stable/main/binary-amd64/Packages.gz",
+      "bytes": 588,
+      "sha256": "e103a42482e02e2b16f2b4483fca6c00e30b06204ab9bdbc1f9e362c96fc29f1"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/1b38484268d129c38a5e1722ad4a7664b612a1d36d052085105cd77f20c97e3f",
+      "bytes": 994,
+      "sha256": "1b38484268d129c38a5e1722ad4a7664b612a1d36d052085105cd77f20c97e3f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/e103a42482e02e2b16f2b4483fca6c00e30b06204ab9bdbc1f9e362c96fc29f1",
+      "bytes": 588,
+      "sha256": "e103a42482e02e2b16f2b4483fca6c00e30b06204ab9bdbc1f9e362c96fc29f1"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.2_all.deb",
+      "bytes": 4450,
+      "sha256": "d6608099fcaf9bcef2189751cbfb71765bc0322b58cc9059bcd0fc7b0603ca9f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/apt/pool/main/w/wukongim/wukongim_3.0.1_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "f5df53105b222e949f535a0d45eeb94dda970160bd0d955ed3d263ed935360fa"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/bootstrap/manifest.json",
+      "bytes": 1152,
+      "sha256": "176d47ebd8cdca7990a3e20cfce8f5cf2dd2d8a1f43f7dddfce9f9d9d87ac76b"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/bootstrap/wukongim-archive-keyring-stable_1.1.2_all.deb",
+      "bytes": 4450,
+      "sha256": "d6608099fcaf9bcef2189751cbfb71765bc0322b58cc9059bcd0fc7b0603ca9f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/bootstrap/wukongim-release-stable-1.1.2-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "f691f76859d3f4747a90d47263178378eab82d2bdbcfdcf73aa334e6b80eb2b0"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/index.html",
+      "bytes": 199,
+      "sha256": "2ddf9f298245c1ad3e34993533eac883e6990e53615b45d6c5409e13b94a1f49"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "2a62b36296a9f4ad9fc42e2780419da6f3d73d5b5bcd591f6cf95d273ebb29db"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/repo",
+      "bytes": 3900,
+      "sha256": "f1467418811bdb5854ec32605bb0eca239a13404001c4e95b81c198b34084691"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.2-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "f691f76859d3f4747a90d47263178378eab82d2bdbcfdcf73aa334e6b80eb2b0"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "c929628919a768d5a9ad111e3e48ab3d2f0b556bb3a8b05a5ea8b513a1d4043c"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "bytes": 389,
+      "sha256": "d761d66ab6aafd2a2d04bd9bbf5fb2e0c3ca4dcde639e37dc587395605845d9f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/other.xml.gz",
+      "bytes": 303,
+      "sha256": "136f2773757740cf436947f0815003a0123a34a01c605d3b3c252ce648e67cc1"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "bytes": 949,
+      "sha256": "fd404d40ceae78feb66dcf017de32b957bcf4bedc813262b9a1bf7dda9370877"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "bytes": 1351,
+      "sha256": "27e48466c2e9febdab7af1a38e832f8c4102290d54700e98c0c69eaabc908348"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "bytes": 659,
+      "sha256": "08b61bbe18a47dddf7f8fc4ead667e560f48c22260d027090f1f272263027b07"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/signing-manifest.txt",
+      "bytes": 514,
+      "sha256": "3ce03f9ad1bc9241363d0710d292fe1794891b3f8e6bd14c9c45816eb31cf926"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/site/status.json",
+      "bytes": 324,
+      "sha256": "be05556f7d25f69e518067ce005ce92d04def0bd860927014f637cd34ca6dbf6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/source/assets/wukongim_3.0.1_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "f5df53105b222e949f535a0d45eeb94dda970160bd0d955ed3d263ed935360fa"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/source/assets/wukongim_3.0.1_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "959279de9512ba2810622b522b2286a4187eaf2ffbb0035c8bcd16c3545cf2ec"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/source/resolution.json",
+      "bytes": 389,
+      "sha256": "aadf253a36132224313c40d795143a5f4e5ba3854205901de03d6bbbe3f1fc5a"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/wukongim-stable-3.0.1-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5-candidate-receipt.json",
+      "bytes": 2624,
+      "sha256": "1c931ac30dbf0366fa108afc40fbc22c10e707e0f959bb265a04b2d792800eb1"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/B/wukongim-stable-3.0.1-1f5c678f8b352a4506a8515a3db843b3fe8c57c7e65328066e1664f37513ffb5-candidate-site.tar",
+      "bytes": 151552,
+      "sha256": "46d30e880e22d2103960b1371a06cddc0f42989b6b234d66272dd10c608b6623"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/apt-receipt.json",
+      "bytes": 1058,
+      "sha256": "0d840a47024b8a16996b18e00daa49645eca3e7ab196a2d64d709939d01e58e2"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/keys/README.md",
+      "bytes": 5439,
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/keys/apt-preview.asc",
+      "bytes": 4824,
+      "sha256": "2a62b36296a9f4ad9fc42e2780419da6f3d73d5b5bcd591f6cf95d273ebb29db"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "2a62b36296a9f4ad9fc42e2780419da6f3d73d5b5bcd591f6cf95d273ebb29db"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/keys/rpm-preview.asc",
+      "bytes": 4824,
+      "sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/manifests/audit-access.json",
+      "bytes": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/manifests/bootstrap-packages.json",
+      "bytes": 96,
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/manifests/channels.json",
+      "bytes": 856,
+      "sha256": "713095cb6aea11903b058d72eb3390c9527f4c389f95e611859f0783a117fcca"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/manifests/preview-signing.json",
+      "bytes": 945,
+      "sha256": "492e68bae031cdbf1fb50cdf6d5c210ee9743115415a942a14571a67358807c9"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/manifests/source-read.json",
+      "bytes": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/manifests/stable-public-keys.json",
+      "bytes": 538,
+      "sha256": "743cc4becc7865094f0b321e0ea94e5ab8b49008a59b44494cdec9995a05afbb"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/control/manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/plan.json",
+      "bytes": 347,
+      "sha256": "b84e43a40c14c0915c91b0b07d923e9035e96a34a60aea1527510713a4e8451a"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/rpm-receipt.json",
+      "bytes": 2263,
+      "sha256": "88e6924c9e766799b0886810649f84c970554c52e734cd67e644a8d0390911a6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_checksums.txt",
+      "bytes": 626,
+      "sha256": "71718b427892a52c07b63d8af67e7f84f7da7fa4e3bfdc77cb8551498f8d52db"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_darwin_amd64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_darwin_arm64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_amd64.deb",
+      "bytes": 590,
+      "sha256": "9aebb99d3a8ebfb54d4503b0781ee8f73978c1f6598bc2e6a64d32332c3c16d4"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_amd64.rpm",
+      "bytes": 6271,
+      "sha256": "cf99dc8b90810ca8916e18e6328b1eb012972403d846bb0699d160bf2ec9887b"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_amd64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_arm64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/source/source.json",
+      "bytes": 2915,
+      "sha256": "8f3f9f694f36c28f50bdf9f551fd83aa81320c9ada032f7f11ea83707248ed54"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/wukongim-preview-r10-receipt.json",
+      "bytes": 3674,
+      "sha256": "1a5e56a3e9528b42c04d149deb60d5693d027fee08b2a0c1d333c792ae1c9c6f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/fixtures/preview/wukongim-preview-r10-site.tar",
+      "bytes": 116736,
+      "sha256": "d2515af566ce00ac98977a11e4648df48caebda783f24b7d5adb69804e0effa1"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-init-native-1/result.json",
+      "bytes": 48314,
+      "sha256": "77b5c913d1ca86c618269d98b6038ef5eb945fd434bb170144a16fcb898893ea"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-native-1-command.json",
+      "bytes": 2050,
+      "sha256": "c0cded623777b1c0e15a4163ffbdbdc35d173526f52de3f6bde54f335f065c74"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-native-1/fixture-export.json",
+      "bytes": 2550,
+      "sha256": "4839f857fca8d8c6d62ffeb28567064185c1c74919bd7f3b31a4340006e174a4"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-native-1/result.json",
+      "bytes": 45286,
+      "sha256": "0571ea968708d7b0a55053136be040abbf038f04cf452997bcc4d8b6485e75d5"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-pid-observed-command.json",
+      "bytes": 2745,
+      "sha256": "11572744429ed3cbc8baae67062c0e8027d8762298f87501954bf1c1c96a6bc2"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-pid-observed/fixture-export.json",
+      "bytes": 2550,
+      "sha256": "08b274caa7bf3274b03ca9b6a534fd77d6035c397c5fd879378a8fdba8b837c4"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-pid-observed/result.json",
+      "bytes": 45287,
+      "sha256": "1de6635c35dc5c7d74bc4ae69c267b216e76d8e85000d22c2880f83e187498fb"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-red-1.json",
+      "bytes": 437,
+      "sha256": "e8b1eb54bddfa919c3b6e752fe376e693ac98ac0ee802f7d3b00478e027d15b2"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-red-1.log",
+      "bytes": 4577,
+      "sha256": "b8d7ac7422ffacb8f0f26eb3051124a596a6d1044846175478808c7bc4d26432"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-red-2.json",
+      "bytes": 333,
+      "sha256": "607cc7d32d4696b64e8aa9e4f81bd6a12efe45bf8976eccd2980f2fe839ddf81"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-red-2.log",
+      "bytes": 4577,
+      "sha256": "b8d7ac7422ffacb8f0f26eb3051124a596a6d1044846175478808c7bc4d26432"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/ci-scope-addendum.md",
+      "bytes": 1405,
+      "sha256": "e04443bc33d66e5f98742313fcab938051e90c879643a8ea420f2303c1eccd86"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/default-1.json",
+      "bytes": 368,
+      "sha256": "acd49e7b233a14bb0f5066e0a304c1af4d39ec950379b02e4d306aa800579163"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/default-1.stderr.txt",
+      "bytes": 681,
+      "sha256": "3a60af94ded642eef20a0b5bcd0e470f71741739f87d76dea97c7d363a0eee93"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/default-1.stdout.txt",
+      "bytes": 1608,
+      "sha256": "fa9f452f2cf9c95fa41bb7e7cb6f271a93f66fd7daa0669ae31530088deb700a"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/failure-matrix.md",
+      "bytes": 3047,
+      "sha256": "5577e1e44994e9512a6202e6340404607ec02658a39bbb9206da3ed441adbc6c"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/final-contract-0.log",
+      "bytes": 107,
+      "sha256": "603db52fd0016ca5cdcf83b2588160ae92bde08c66ba4c61dfc8a2a74cdb95c9"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/final-contract-1.log",
+      "bytes": 336,
+      "sha256": "e9392d13e13b81e04f6104e9cc4ff9453eab58d22e45ab881e638d7237b4aeae"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/final-contract-2.log",
+      "bytes": 176,
+      "sha256": "a6173884c66c1c796331db47079cffe2a89301226aba5112c2b74e7fc2ce5070"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/final-contracts.json",
+      "bytes": 828,
+      "sha256": "b4c9d66ba32c8f88495848780b7265a3273d7c009356e3884258afd823a5f181"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/final-receipt-check.json",
+      "bytes": 1601,
+      "sha256": "71f0308fb94593eda7cd78e573f3785607005cfd1dc9e03ca1d0963c174097df"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/final-source/.github/workflows/native-package-repository-drill.yml",
+      "bytes": 17610,
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/final-source/CHANGELOG.md",
+      "bytes": 3802,
+      "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/final-source/docs/object-storage-delivery.md",
+      "bytes": 16905,
+      "sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/final-source/tests/native_object_delivery_fixture_drill.py",
+      "bytes": 18297,
+      "sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/final-source/tests/native_stable_candidate_drill.py",
+      "bytes": 53365,
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/final-source/tests/native_stable_clients_drill.py",
+      "bytes": 70217,
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/final-source/tests/test_native_object_delivery_fixture_workflow.py",
+      "bytes": 4180,
+      "sha256": "6e4f713a6f32179cab44bb3cb697dea2a5a4d176033272fa4e37fcfeac5b4066"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/first-green-five-files/implementation.patch",
+      "bytes": 40509,
+      "sha256": "f275f868a7f609b2f016d7ecadaf11e5f37eb76c34887cbcd6b325de291e0eee"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/first-green-five-files/source-freeze.json",
+      "bytes": 1098,
+      "sha256": "037bf75bac473ca73cd5a3eeb010e5da57734b9466790d67a3cd849c5ee3f79b"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/first-green-five-files/source/CHANGELOG.md",
+      "bytes": 3802,
+      "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/first-green-five-files/source/docs/object-storage-delivery.md",
+      "bytes": 16596,
+      "sha256": "5fa4a5010017b17509eb5de395cd47d3afe54a86d44cbd27530986d52006de3c"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/first-green-five-files/source/tests/native_object_delivery_fixture_drill.py",
+      "bytes": 18297,
+      "sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/first-green-five-files/source/tests/native_stable_candidate_drill.py",
+      "bytes": 53365,
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/first-green-five-files/source/tests/native_stable_clients_drill.py",
+      "bytes": 70217,
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/first-red-tests.py",
+      "bytes": 18218,
+      "sha256": "18c18914d99428cadbfbf1637023e20f77fee531cb71551065af84634bce6932"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/implementation.patch",
+      "bytes": 48424,
+      "sha256": "7c1aadc1e94c5de01ccfbc4e818b159ffdfbf4a75dcdfcc822485ce2fd2b8929"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/init-green.json",
+      "bytes": 262,
+      "sha256": "c8c255a71be444adb10f5a9858caaa0de7c3c177166e5198581f57258c2414d0"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/init-green.log",
+      "bytes": 103,
+      "sha256": "6273232de4d3ef7acd4ecafa5c86beeeb974f56586b21089a2990b3f72facbe6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/init-live-snapshot.json",
+      "bytes": 775,
+      "sha256": "e3cacd82ea6a4602fe96267e9ad37d84574d126e542b617836aea97cafef00e5"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/init-red.json",
+      "bytes": 437,
+      "sha256": "d52897705e268cb2933a205e40156950c9a8810b1978ff50b3f361ff8e0c75b7"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/init-red.log",
+      "bytes": 2941,
+      "sha256": "ba112cb13cb79209cb1bd92e97a285b58d4f0e1ecce27fdec8694b8164b0f67f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-1-command.json",
+      "bytes": 2412,
+      "sha256": "2f07e2974481a56e7f8e51ee25d2ed2d11787de62a8ddb4d62b555043562a172"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-2-command.json",
+      "bytes": 2071,
+      "sha256": "96897354c771d09e16d26e660e9790dcd0b50b562dd474265ffb3f50ebab06e1"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-2/result.json",
+      "bytes": 394,
+      "sha256": "e07a083a42cb116fed073511339deb6b36a147211c8b0b99fa8c3413fac17048"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-3-command.json",
+      "bytes": 2070,
+      "sha256": "cc7586fb7e95d1d2e348672a0a0f33b5f8405b817d40a403b58398a258d37f8e"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-3-public-diagnostic.json",
+      "bytes": 376,
+      "sha256": "98a3d716da5bb677892e9b074517b8085af8996e2f9f2d87e9f5708ae5c1f298"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-3/result.json",
+      "bytes": 5510,
+      "sha256": "db0b62ada33a4ef920915621936c4ddac1d999f59f36a44871c5b268406c49d2"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-4-command.json",
+      "bytes": 2070,
+      "sha256": "2c3909ebe4f809fb7e64a90af136eed0958beebc4a2ac5d6ed05021d4904bb31"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-4-public-diagnostic.json",
+      "bytes": 425,
+      "sha256": "8fa7c98b46d74704b1800ea374f8a879379d65d22fb925db613af2cc19d4ff5b"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-4/result.json",
+      "bytes": 11657,
+      "sha256": "728cec2100269b610d58ba9c0109608b4cb5cead5a394afbd189127f516e6663"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5-command.json",
+      "bytes": 1964,
+      "sha256": "1473faeb666581047c25d78424eb4561d6d99c9cf0cc424f3e8f3407314a6d22"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixture-export.json",
+      "bytes": 2550,
+      "sha256": "b67205d9ba18d1a798540cf2612d17cc1566730e29bd33a2de9686c01faf9c2b"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/apt-receipt.json",
+      "bytes": 1055,
+      "sha256": "f3d957a0e9497e25352f33475e719429dfe92d9cf0b8c9ddd6787719300008bd"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/keys/README.md",
+      "bytes": 5439,
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/keys/apt-preview.asc",
+      "bytes": 6210,
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "c0d024a138b73785417ff3aaf55d13bf7c3d027f83a10114e6ce8e67e117a995"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/keys/rpm-preview.asc",
+      "bytes": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "e717275143975bece6bd2a3fe6f9f4d200016c544fc2bd9ace07a0dabdefcfec"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/manifests/audit-access.json",
+      "bytes": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/manifests/bootstrap-packages.json",
+      "bytes": 83,
+      "sha256": "05911ad7a14e8efa4c08b1070e5f5aaeacce0f99832be672465824ce662b3a1c"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/manifests/channels.json",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/manifests/preview-signing.json",
+      "bytes": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/manifests/source-read.json",
+      "bytes": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/manifests/stable-public-keys.json",
+      "bytes": 538,
+      "sha256": "11ce47585b325b510fc7fd37d4058134b8da968a057d4de51aaef667f6832736"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/control/manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/plan.json",
+      "bytes": 3757,
+      "sha256": "6be96e75774ac7c173fa7c7e6247c26181c2a35d8850ca71d244661f8110080c"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/rpm-receipt.json",
+      "bytes": 2268,
+      "sha256": "f0e4eea0fac81c33ee33e2fa023204855862707112b9deb7f36c40ba8a200d23"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/apt/dists/stable/InRelease",
+      "bytes": 1807,
+      "sha256": "b6548c6d38a80b800e58055db61f8c3803efddc7ee120a8162e3a17daedd5b5c"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/apt/dists/stable/Release",
+      "bytes": 1099,
+      "sha256": "30a6fbad8916b41713beb9ef7bb8db51b282a671a7af79d40cf402d4cabfdc63"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/apt/dists/stable/Release.gpg",
+      "bytes": 659,
+      "sha256": "aa17e5ab063daeee2f18015a5ff39007ab1b2ef9641ff9150fac4cebe02bead2"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/apt/dists/stable/main/binary-amd64/Packages",
+      "bytes": 994,
+      "sha256": "9aacfbf742fb2bb5a0b790df96eb89b022e7f7fb346f0543926ade551fb6bd32"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/apt/dists/stable/main/binary-amd64/Packages.gz",
+      "bytes": 589,
+      "sha256": "111e425bddef855f77acf80928157cad0b0bab45590aa8ef22e7c3f9650f0aa6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/111e425bddef855f77acf80928157cad0b0bab45590aa8ef22e7c3f9650f0aa6",
+      "bytes": 589,
+      "sha256": "111e425bddef855f77acf80928157cad0b0bab45590aa8ef22e7c3f9650f0aa6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/9aacfbf742fb2bb5a0b790df96eb89b022e7f7fb346f0543926ade551fb6bd32",
+      "bytes": 994,
+      "sha256": "9aacfbf742fb2bb5a0b790df96eb89b022e7f7fb346f0543926ade551fb6bd32"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.1_all.deb",
+      "bytes": 4446,
+      "sha256": "f99680d56bee6d1ee8ad097b4755cb8d23cc8df7e49b1b3f9b6ddb56d7408fa1"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/apt/pool/main/w/wukongim/wukongim_3.0.0_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "bffd802296088cc452ef3b352db1e5d693c363f43ce6030a7d742b07503c9ee3"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/bootstrap/manifest.json",
+      "bytes": 1152,
+      "sha256": "193508c6e9eb4ba2dec46067823adfd2c4e4a6dc3808222e6e00ecd875f44f97"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/bootstrap/wukongim-archive-keyring-stable_1.1.1_all.deb",
+      "bytes": 4446,
+      "sha256": "f99680d56bee6d1ee8ad097b4755cb8d23cc8df7e49b1b3f9b6ddb56d7408fa1"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "b1a1236125b760695be8ed7b0e4ff8a0796c2210dd74eadd5858c430e46fb880"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/index.html",
+      "bytes": 199,
+      "sha256": "2ddf9f298245c1ad3e34993533eac883e6990e53615b45d6c5409e13b94a1f49"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "c0d024a138b73785417ff3aaf55d13bf7c3d027f83a10114e6ce8e67e117a995"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "e717275143975bece6bd2a3fe6f9f4d200016c544fc2bd9ace07a0dabdefcfec"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/repo",
+      "bytes": 3900,
+      "sha256": "62624511c407bd04fe9569325f874e347b0fe280d69d238688556140f43cf5d2"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.1-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "b1a1236125b760695be8ed7b0e4ff8a0796c2210dd74eadd5858c430e46fb880"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "c047d2aa41701ee005c3971303db25e81abec5a7ce7313df5047047cea139174"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "bytes": 389,
+      "sha256": "b5e0ef3a5b39ed8862250102ea767bdbf25dc66e8e9acb96962740c2a6a875e4"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/other.xml.gz",
+      "bytes": 302,
+      "sha256": "7f16cd51fc6e39f8e7b5edbaa776a4a51bc9920a39b864feb2b90234d88e9e0d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "bytes": 948,
+      "sha256": "17aebaa29460095ad9817c1786607441ceb620297631da093a040c9d91384d7b"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "bytes": 1351,
+      "sha256": "1218861003052954659faceeda0ce055f4dcc07ea6af2cc515f1476ee3a71b97"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "bytes": 659,
+      "sha256": "cf91df563af8caed4fcbf838bbf754915264ffbe904a55a4580eea8e548c0070"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/signing-manifest.txt",
+      "bytes": 514,
+      "sha256": "d749fde17cc99833c78a80f6d07d83c890fbe84ac17e8bd897e7491620a28284"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/site/status.json",
+      "bytes": 324,
+      "sha256": "3a3ba0b27741866677b2e39007fdfcca47fd0f3591e0bc0edb4ea67270cb7875"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/source/assets/wukongim_3.0.0_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "bffd802296088cc452ef3b352db1e5d693c363f43ce6030a7d742b07503c9ee3"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/source/assets/wukongim_3.0.0_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "7bb37321222dc81e0b0c6b944333d5ebdbd88c370d3997a15a55fcb9f0c1090e"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/source/resolution.json",
+      "bytes": 389,
+      "sha256": "2447687228699927d0ec8e58a5e37d95c9b1871996f726ba9fd57f0f55f0aebd"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/wukongim-stable-3.0.0-a4da447588e3ec0d0e51ed9295b7c550ec9e9a21d714c0d6b29bfd75153d0a57-candidate-receipt.json",
+      "bytes": 2624,
+      "sha256": "213b15f9982e6dc90d4eb3bfbecb90d54bd98f99b9fd01a5541b3ea0daa727a8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/A/wukongim-stable-3.0.0-a4da447588e3ec0d0e51ed9295b7c550ec9e9a21d714c0d6b29bfd75153d0a57-candidate-site.tar",
+      "bytes": 151552,
+      "sha256": "a9bfdcf4e8c716e12509b264a7604fc8d50a499a94af28814cd5b97a877d8fae"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/apt-receipt.json",
+      "bytes": 1055,
+      "sha256": "618c50ff204ca1287fc56b7f12f3eb9a4315082e43b9ac546bb1a2b9b292d7d3"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/keys/README.md",
+      "bytes": 5439,
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/keys/apt-preview.asc",
+      "bytes": 6210,
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "c0d024a138b73785417ff3aaf55d13bf7c3d027f83a10114e6ce8e67e117a995"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/keys/rpm-preview.asc",
+      "bytes": 6210,
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "e717275143975bece6bd2a3fe6f9f4d200016c544fc2bd9ace07a0dabdefcfec"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/manifests/audit-access.json",
+      "bytes": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/manifests/bootstrap-packages.json",
+      "bytes": 83,
+      "sha256": "64cc3bcaecfcd967d1b5a58fea834ec49609740d5704810c3cb736ac4069829c"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/manifests/channels.json",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/manifests/preview-signing.json",
+      "bytes": 1110,
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/manifests/source-read.json",
+      "bytes": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/manifests/stable-public-keys.json",
+      "bytes": 538,
+      "sha256": "11ce47585b325b510fc7fd37d4058134b8da968a057d4de51aaef667f6832736"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/control/manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/plan.json",
+      "bytes": 3757,
+      "sha256": "fe0bea3a89b6c22645b7b91b43fab9b906248a668187291292b6f7f6e2c6e75d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/rpm-receipt.json",
+      "bytes": 2268,
+      "sha256": "f7e7c1ee9004eb37e33103b3afd8377edce2bd8853204aa2bff5b116741f58c0"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/apt/dists/stable/InRelease",
+      "bytes": 1807,
+      "sha256": "33e4b2f2a0ad9a7d5429e63fe74443aaf10d26cb0a8afb3e19b0d5a4781dd22d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/apt/dists/stable/Release",
+      "bytes": 1099,
+      "sha256": "4a23243b64fb3220a92f7d6e876f6d78340bb3fe3e88b7d3c3da66f9fb0399d9"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/apt/dists/stable/Release.gpg",
+      "bytes": 659,
+      "sha256": "bd30f904db455cb9a10482196b273846d9f28592fc8ec5a4a275976d7cc93f09"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/apt/dists/stable/main/binary-amd64/Packages",
+      "bytes": 994,
+      "sha256": "731a2f4d4ffdaf8fef82f520d5936edb037f62063d17975967bf5e316968ef60"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/apt/dists/stable/main/binary-amd64/Packages.gz",
+      "bytes": 589,
+      "sha256": "1a66007195b3387b9fd4e92320918bb91611398e84b5e84c7792c8fe8f72906f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/1a66007195b3387b9fd4e92320918bb91611398e84b5e84c7792c8fe8f72906f",
+      "bytes": 589,
+      "sha256": "1a66007195b3387b9fd4e92320918bb91611398e84b5e84c7792c8fe8f72906f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/731a2f4d4ffdaf8fef82f520d5936edb037f62063d17975967bf5e316968ef60",
+      "bytes": 994,
+      "sha256": "731a2f4d4ffdaf8fef82f520d5936edb037f62063d17975967bf5e316968ef60"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.2_all.deb",
+      "bytes": 4448,
+      "sha256": "e0e220c2a5858b505719efc3e9f9295a84f13a5e00e03037439daae347b62bb5"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/apt/pool/main/w/wukongim/wukongim_3.0.1_linux_amd64.deb",
+      "bytes": 590,
+      "sha256": "1c10a704926b64e4beef093b33c5c7dfd2ef0c632986f3d016a3e63bdda9c26e"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/bootstrap/manifest.json",
+      "bytes": 1152,
+      "sha256": "c03bf2a39f8db2b418d4316d24a0fad3ddd96ca749bbe37dc67c945741ce9398"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/bootstrap/wukongim-archive-keyring-stable_1.1.2_all.deb",
+      "bytes": 4448,
+      "sha256": "e0e220c2a5858b505719efc3e9f9295a84f13a5e00e03037439daae347b62bb5"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/bootstrap/wukongim-release-stable-1.1.2-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "29344854bfb006d301387c8553dd9dab9573fcfca02cbc6e1f6cba423f6572bb"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/index.html",
+      "bytes": 199,
+      "sha256": "2ddf9f298245c1ad3e34993533eac883e6990e53615b45d6c5409e13b94a1f49"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "c0d024a138b73785417ff3aaf55d13bf7c3d027f83a10114e6ce8e67e117a995"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "e717275143975bece6bd2a3fe6f9f4d200016c544fc2bd9ace07a0dabdefcfec"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/repo",
+      "bytes": 3900,
+      "sha256": "25450da68b0a70711052ef27e5a078766892ad0d2f157c7a40f58f1477e91422"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.2-1.noarch.rpm",
+      "bytes": 10442,
+      "sha256": "29344854bfb006d301387c8553dd9dab9573fcfca02cbc6e1f6cba423f6572bb"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "a71108bd28b47c84bddbb6197ed6513a0cdba0032d95bc0cf95edf9a1dc5076f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz",
+      "bytes": 389,
+      "sha256": "4a06daa7eed0b44b185212bdd5247142257721b358bb405390f1cb0bc9f5ff3f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/other.xml.gz",
+      "bytes": 305,
+      "sha256": "fe7db08f564f63234d87925b4ea786b0e5d3428e93c53441f26173880cf9a909"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz",
+      "bytes": 949,
+      "sha256": "7eff44bc22437ec5b61b3a8127202344e8b610b4dbba3f5e63d28a6e8eaf3a99"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml",
+      "bytes": 1351,
+      "sha256": "5e523812e8d6941f07a735f4e29a136bb8737bf17fbb765f0b5676041e3af38a"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc",
+      "bytes": 659,
+      "sha256": "97b8c95cafb4b97c9fbe70f801e8eabcdd9fb982d64674cabe1bc8bbd679e876"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/signing-manifest.txt",
+      "bytes": 514,
+      "sha256": "d749fde17cc99833c78a80f6d07d83c890fbe84ac17e8bd897e7491620a28284"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/site/status.json",
+      "bytes": 324,
+      "sha256": "0e59295930fb171f372eb0428a894099d62cda17c9de52871b6019266e486b92"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/source/assets/wukongim_3.0.1_linux_amd64.deb",
+      "bytes": 590,
+      "sha256": "1c10a704926b64e4beef093b33c5c7dfd2ef0c632986f3d016a3e63bdda9c26e"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/source/assets/wukongim_3.0.1_linux_amd64.rpm",
+      "bytes": 6211,
+      "sha256": "a81be165b57e1e1fbfc45a01d8cc910564a759d9aca3ff2d872b18afbf19b0af"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/source/resolution.json",
+      "bytes": 389,
+      "sha256": "2da1a0a1e03f4a53e9fa4d423af58bcf7275b835f67d668a7e26e0c2fba42a36"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/wukongim-stable-3.0.1-14b3727f31836dfb7f91b85c7d58883b550277f44b791d3174a0e799d5b8a588-candidate-receipt.json",
+      "bytes": 2624,
+      "sha256": "a35bc861d632647c2025dd7e2a918ae84374e6a68089585321fd38e84d062d02"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/B/wukongim-stable-3.0.1-14b3727f31836dfb7f91b85c7d58883b550277f44b791d3174a0e799d5b8a588-candidate-site.tar",
+      "bytes": 151552,
+      "sha256": "11ad819ab2fcb3a331cf63f82393c98fdd0a66b58c28dc6d8e7436e373d0b5f0"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/apt-receipt.json",
+      "bytes": 1058,
+      "sha256": "42f93d60131cca8ff9fe2b33ce03955cca2fa9dd2a165a339ff8c491056be6df"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/keys/README.md",
+      "bytes": 5439,
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/keys/apt-preview.asc",
+      "bytes": 4824,
+      "sha256": "c0d024a138b73785417ff3aaf55d13bf7c3d027f83a10114e6ce8e67e117a995"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/keys/apt-stable.asc",
+      "bytes": 4824,
+      "sha256": "c0d024a138b73785417ff3aaf55d13bf7c3d027f83a10114e6ce8e67e117a995"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/keys/rpm-preview.asc",
+      "bytes": 4824,
+      "sha256": "e717275143975bece6bd2a3fe6f9f4d200016c544fc2bd9ace07a0dabdefcfec"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/keys/rpm-stable.asc",
+      "bytes": 4824,
+      "sha256": "e717275143975bece6bd2a3fe6f9f4d200016c544fc2bd9ace07a0dabdefcfec"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/manifests/audit-access.json",
+      "bytes": 785,
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/manifests/bootstrap-packages.json",
+      "bytes": 96,
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/manifests/channels.json",
+      "bytes": 856,
+      "sha256": "4286d4676b81efcf8955f3f28a033c6121b4e90847d9b2592d1c924b4a20b6bf"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/manifests/preview-signing.json",
+      "bytes": 945,
+      "sha256": "5fd4314beb49e3753fd11e701e1c8476e28c9f1e033e6dbee6c0e36bbbc6c734"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/manifests/signing-toolchain.json",
+      "bytes": 295,
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/manifests/source-read.json",
+      "bytes": 381,
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/manifests/stable-public-keys.json",
+      "bytes": 538,
+      "sha256": "11ce47585b325b510fc7fd37d4058134b8da968a057d4de51aaef667f6832736"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/control/manifests/trusted-toolchain.json",
+      "bytes": 898,
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/plan.json",
+      "bytes": 347,
+      "sha256": "b84e43a40c14c0915c91b0b07d923e9035e96a34a60aea1527510713a4e8451a"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/rpm-receipt.json",
+      "bytes": 2263,
+      "sha256": "dc7201683c02332de5861547d25bc7364127708dc6db4017193c5220cab3617c"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_checksums.txt",
+      "bytes": 626,
+      "sha256": "d41913dc9faec5e367639f68da12541cb47cbf6ae667041e08aabd8f33413a27"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_darwin_amd64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_darwin_arm64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_amd64.deb",
+      "bytes": 592,
+      "sha256": "7e51890012714fa1b1f8f695194306a1bbd749db7a48ee815c3e4ab07abecf5a"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_amd64.rpm",
+      "bytes": 6271,
+      "sha256": "2522557e76910ee936714c6a4706e2687e36a6112123f9da66b8fae5360dfcdd"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_amd64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/source/assets/wukongim_3.1.0-rc.1_linux_arm64.tar.gz",
+      "bytes": 25,
+      "sha256": "379e46b80d99a4c762f51b364a4deb7400d07401e58e6f5b69a18800f21f1eb8"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/source/source.json",
+      "bytes": 2915,
+      "sha256": "860f8c7d3407f58024e63725e685b51810f76c6ae75e1dbf45ba999a812d51b6"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/wukongim-preview-r10-receipt.json",
+      "bytes": 3674,
+      "sha256": "8a51add45a60b44ea0bb5711ea526178c6b40ca946d6309e33a952145fe92bf0"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/fixtures/preview/wukongim-preview-r10-site.tar",
+      "bytes": 116736,
+      "sha256": "9791f2a740b605f5bcf22f2334db4f77830dbb26ac4dcfdcb9952c96ca56a48c"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/native-5/result.json",
+      "bytes": 48313,
+      "sha256": "ab798ae8d28d2e33b5571b8dcb37e164f13ca18ee4e31f383ef948f03be3f00f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/pid-diagnosis.json",
+      "bytes": 1435,
+      "sha256": "5ca0f7227330411941ee84e270de15ab3065de82494da9462a709d4c927b631e"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/pid-observations/gpg-observations.jsonl",
+      "bytes": 418792,
+      "sha256": "15137d43b9ef7b3275e7b1e1b8aef9072c3879acbfcd12a4835de832f6b7d90e"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/pid-observer/sitecustomize.py",
+      "bytes": 3254,
+      "sha256": "241f30df3a3009f85f7f6d582f005090d2f8202bfb6e1be6e2b29082a309f5ea"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/pre-implementation-binding.json",
+      "bytes": 1995,
+      "sha256": "c189bf35f9099961402850d2c04433eb51486cc5e009893d05cec61baf938941"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/protected-source-preservation.json",
+      "bytes": 13553,
+      "sha256": "4b4a7d77e905706026e13c2cc1dd216acbf260d39b865c633acb3b7d69f41a83"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/public-allowlist.txt",
+      "bytes": 18627,
+      "sha256": "ba1b2ebf8d907dc1a939cb068ffe2d7bb7ec210c156e4c0800ee7cc5d943ff71"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/public-manifest.json",
+      "bytes": 61512,
+      "sha256": "d9ea88a690de4c82dfe7316cc3d6c7a8f8671a70963462c886f6bd0be7471ca0"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/red-1-command.json",
+      "bytes": 1728,
+      "sha256": "85515dcf08e1a2c705f1ad8a55b074fe677e34f120e1b39a205d6bbf06371598"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/red-1/result.json",
+      "bytes": 428,
+      "sha256": "14bdba7c95df664d7cd29a948ba87312518b5bc2dce0d70508ad8eadbf980eaa"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/related-1.json",
+      "bytes": 381,
+      "sha256": "1e5c9d0d75466359ee461c92a21fb7e24395616072f73de0eaa6fb927fa98f18"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/related-1.stderr.txt",
+      "bytes": 158,
+      "sha256": "4f69bb613adc5e0703e23dc3f96dbc4d00335c595a1b30706601589e8c191724"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/related-1.stdout.txt",
+      "bytes": 178,
+      "sha256": "f01be87c29c8d96472df2114a599fa5795fe322bc1355c1ebb756a47c15c4947"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/run-native.py",
+      "bytes": 2337,
+      "sha256": "ec51d18f92663182ed58a830bdbbde96573bb4c63ab4e1ed2dad9fba2e1c3510"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/source-freeze.json",
+      "bytes": 2486,
+      "sha256": "50515387f78397c37570dcb3fe6f5b0fc254851df3817105d2fa633ce6892155"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/summary.json",
+      "bytes": 1409,
+      "sha256": "e332f1cb297eedd17c78855a53f1a2a2c96c55412527ceb56f765f80719e3c70"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/trusted-toolchain/scripts/build-native-package-repositories.sh",
+      "bytes": 5052,
+      "sha256": "09d87b6b8191ba0c80cf9be64150f16be19b2fdd5c5fc8f1ade66e784695e7d2"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/trusted-toolchain/scripts/generate-native-package-test-keyring.sh",
+      "bytes": 4550,
+      "sha256": "9578ceb1cfe342547a9d7cf16054e1b98f308ef3001101f947abf384ac8618fe"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/trusted-toolchain/scripts/sign-native-package-repositories.sh",
+      "bytes": 13602,
+      "sha256": "1ab5eaf87974128d3ee755187d17b50071bab455a1b7c5cbb37f9258929b9e7e"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/trusted-toolchain/scripts/validate-native-package-repositories-container.sh",
+      "bytes": 14642,
+      "sha256": "a04bf029429c71a2a390408ac7cc00107a46c393d80c4b20159aa6b257cf0af4"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/trusted-toolchain/scripts/verify-native-package-metadata.py",
+      "bytes": 19940,
+      "sha256": "b232d9ceacf2179e9b74ef3757c02a5c3a9d3f1ee0a7a532f402318d8cb8ca34"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/trusted-toolchain/scripts/verify-native-package-repositories.sh",
+      "bytes": 11503,
+      "sha256": "7370ff43cf826dc9faee72df4b731e76515210171dafe68b72b7665862015622"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/workflow-legacy-preservation-final.json",
+      "bytes": 334,
+      "sha256": "9bd84fbbf8218a9e841474d030ce082a2099889c3328cb53d356cfb136e9814b"
+    },
+    {
+      "path": "packages/provider-preview-fixture-implementation/workflow-legacy-preservation.json",
+      "bytes": 242,
+      "sha256": "c7b4835ee31557664812d59945e727ea6defc44d52a9630359c1088bf6889c07"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/spec/SHA256SUMS",
+      "bytes": 682,
+      "sha256": "dfc687c7905d692e48f27a8ce5cabd99145321395811e27cd2e13566fbb667ca"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/spec/alias-binding.json",
+      "bytes": 2623,
+      "sha256": "cdc21c5b5efaf61fee2e8c7932707a6e2b9ddb548c4806d8993fb24f5f95f6d0"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/spec/check-and-probe-initial.py",
+      "bytes": 6741,
+      "sha256": "77fd433cfecea61363e2bfb8493adbeb5f42a377ac0481c3f2436f05dd340543"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/spec/check-and-probe.py",
+      "bytes": 6769,
+      "sha256": "6f576ee5f83e8b0a56165ffd083faa2d336f8388a1c38d0eb0ae2ced8bcfee8f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/spec/helper-probe.json",
+      "bytes": 840,
+      "sha256": "bd1f9c312c84d3de11a3567d0778df2a2a9ff562a4415b072de019741d82f3dc"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/spec/initial-check-outcome.json",
+      "bytes": 309,
+      "sha256": "f804a7b2f1c3e3ecf25a1f3bf3e369d13f34314d7f8e4b30e472ba024ec3adc7"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/spec/manifest.json",
+      "bytes": 1216,
+      "sha256": "d39571b539146560e18a7aa9a848d28331bd06f692a0c72bd4b21f53d73ea1c9"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/spec/receipt-check.json",
+      "bytes": 9907,
+      "sha256": "0970eae3883076bc6c1d6e9748ab16c6beaaebe9dd3482a00c36ecfaf075260f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/spec/review.md",
+      "bytes": 2445,
+      "sha256": "3476414a9269a202501a329a97b4552b8ee3bf6826434a71bc69feae0a51b0da"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/spec/source-binding.json",
+      "bytes": 10429,
+      "sha256": "050f7b9c54e97be5d1b2c57dd03858f65dcaa4cdccd6840588803becc3a10e6f"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/standards/SHA256SUMS",
+      "bytes": 162,
+      "sha256": "40741e099df63a266c950cfe468d86eef7678043677cd6e842bd10321f045083"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/standards/alias-closure.json",
+      "bytes": 3807,
+      "sha256": "9b3deb1887e0eec2ae5b25370607c76e3dd8fc2f669ef261da7f67e9cb941974"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/standards/alias-closure.md",
+      "bytes": 927,
+      "sha256": "3c6af6f45a35c4ca2c3982b483ab105d437a3ac99eeaf5b7ac2cd401fae54019"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/standards/report.md",
+      "bytes": 2464,
+      "sha256": "c9c366cf63437187917b3786a3ebc528ecb1070c909f584dab450e592ebd230d"
+    },
+    {
+      "path": "packages/provider-preview-fixture-review/standards/source-binding.json",
+      "bytes": 15856,
+      "sha256": "ada1dc88577a372fad1918e3eac62a5bf94583d21844bb4907917f464a1fab70"
+    }
+  ],
+  "copied_files": 705,
+  "copied_bytes": 13710473,
+  "public_only": true,
+  "source_mutation": false,
+  "ci_rerun": false,
+  "limitations": [
+    "#1024 generation 2 has one scripts assertion failure.",
+    "#77 client CI is still pending at this checkpoint.",
+    "No new cloud request or GA publication."
+  ]
+}

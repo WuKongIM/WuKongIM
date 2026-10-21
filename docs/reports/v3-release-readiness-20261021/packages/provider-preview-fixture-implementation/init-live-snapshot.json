@@ -1,0 +1,32 @@
+{
+  "exit_code": 0,
+  "time_unix": 1792609661.101393,
+  "observation": {
+    "processes": [
+      {
+        "pid": 1,
+        "ppid": 0,
+        "state": "S",
+        "comm": "docker-init"
+      },
+      {
+        "pid": 2502,
+        "ppid": 1,
+        "state": "S",
+        "comm": "gpg-agent"
+      }
+    ],
+    "gpg_agent_live": 1,
+    "gpg_agent_zombies": 0,
+    "cgroup": {
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "memory.current": "77635584\n",
+      "memory.max": "536870912\n",
+      "pids.current": "5\n",
+      "pids.max": "128\n",
+      "pids.events": "max 0\n"
+    }
+  },
+  "stderr": "",
+  "note": "Read-only owned-container process/cgroup snapshot; actual verifier and its subprocesses are uninstrumented."
+}

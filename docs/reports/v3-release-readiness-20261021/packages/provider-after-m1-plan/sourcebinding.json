@@ -1,0 +1,97 @@
+{
+  "schema": "wukongim/m2-readonly-plan/v1",
+  "created_at_utc": "2026-10-21T19:19:20.044951+00:00",
+  "implemented": false,
+  "external_authorized": false,
+  "source_mutated": false,
+  "tests_or_provider_or_ci_executed": false,
+  "native_route_count_each": 178,
+  "native_object_count_each": 153,
+  "compressed_rule_count": null,
+  "exact_route_readback_required": true,
+  "basis": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/scripts/aliyun-object-storage-provider.py",
+      "sha256": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802",
+      "bytes": 24964
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/scripts/prepare-object-storage-delivery.py",
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401",
+      "bytes": 26015
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/scripts/plan-object-storage-publication.py",
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+      "bytes": 38978
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/native_stable_clients_drill.py",
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+      "bytes": 70217
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "sha256": "a291ee7917c3f2797f1cffa5f0bf9d54c52fa066b65f92bd2513c8de66fff8ed",
+      "bytes": 27245
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/.github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "bytes": 1660
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/source-freeze.json",
+      "sha256": "50515387f78397c37570dcb3fe6f5b0fc254851df3817105d2fa633ce6892155",
+      "bytes": 2486
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-init-native-1/result.json",
+      "sha256": "77b5c913d1ca86c618269d98b6038ef5eb945fd434bb170144a16fcb898893ea",
+      "bytes": 48314
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-init-native-1/fixture-export.json",
+      "sha256": "5b2c8ae22abb95ed041a87f7656e89771aaca38376b539927b4e74cc995ea0d2",
+      "bytes": 2550
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-next-route-gap/observation.json",
+      "sha256": "441b29c9de98b4dead49c82c3d10d2edce08074faf75a01fe34c884507e860b9",
+      "bytes": 3156
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-after-d2-plan/README.md",
+      "sha256": "2008eba29bb0c62cd05635bcce93bcc94d8c90d1411bb741dd0bffae95e1c7f4",
+      "bytes": 7722
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-after-d2-plan-review/report.md",
+      "sha256": "5f0a7e53d102b4b0a9f64a94b1a076124cde82b437af205830e9b0ca86d3bd20",
+      "bytes": 1843
+    }
+  ],
+  "official_sources": [
+    {
+      "url": "https://help.aliyun.com/zh/cdn/user-guide/rewrite-urls-in-back-to-origin-requests/",
+      "read_utc_date": "2026-10-21",
+      "facts": [
+        "50 rules per domain",
+        "ordered rewrite, break stops following matches",
+        "PCRE path syntax; cache key unaffected",
+        "break rewrites resource path, query handling remains separate"
+      ]
+    },
+    {
+      "url": "https://help.aliyun.com/zh/cdn/developer-reference/parameters-for-configuring-features-for-domain-names",
+      "read_utc_date": "2026-10-21",
+      "context": "root independently frozen field/capture contract in provider-next-route-gap observation"
+    }
+  ],
+  "limitations": [
+    "Exact original composite plan/delivery JSON not retained; original-helper bounded native re-materialization required before implementation.",
+    "No final compression count or local/live PCRE equivalence proven.",
+    "Local candidate nonmatch does not prove live CDN HTTP rejection.",
+    "Existing unmanaged/deletion rejection and unsupported activation retained."
+  ]
+}

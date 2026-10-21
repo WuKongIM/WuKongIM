@@ -1,0 +1,55 @@
+{
+  "head": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "objects": [
+    {
+      "path": "cmd",
+      "base_object": "a667d96681bd972d0e839e67103652791587a9b6",
+      "head_object": "a667d96681bd972d0e839e67103652791587a9b6",
+      "identical": true
+    },
+    {
+      "path": "internal",
+      "base_object": "bc98e8e0827e44fd73ae100c1d9adabf6664ac22",
+      "head_object": "bc98e8e0827e44fd73ae100c1d9adabf6664ac22",
+      "identical": true
+    },
+    {
+      "path": "pkg",
+      "base_object": "1f01d2e69354fa05164cf237337bdfbc3844755d",
+      "head_object": "1f01d2e69354fa05164cf237337bdfbc3844755d",
+      "identical": true
+    },
+    {
+      "path": "go.mod",
+      "base_object": "840bd60ba9789d0e28aef6db867da2e472c65f41",
+      "head_object": "840bd60ba9789d0e28aef6db867da2e472c65f41",
+      "identical": true
+    },
+    {
+      "path": "go.sum",
+      "base_object": "1692c2bb1806d016e62aa440142582d0b1aa54a6",
+      "head_object": "1692c2bb1806d016e62aa440142582d0b1aa54a6",
+      "identical": true
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "base_object": "9fb5ac274b91e73b364794536f31896ecbf51c01",
+      "head_object": "9fb5ac274b91e73b364794536f31896ecbf51c01",
+      "identical": true
+    },
+    {
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "base_object": "7cd41b43751ec364ddeab32b9a2249149de530b8",
+      "head_object": "7cd41b43751ec364ddeab32b9a2249149de530b8",
+      "identical": true
+    },
+    {
+      "path": ".github/workflows/three-node-chat-lifecycle-regression.yml",
+      "base_object": "768e4129521e4ab02b3106b81fdcf856d861c3e9",
+      "head_object": "768e4129521e4ab02b3106b81fdcf856d861c3e9",
+      "identical": true
+    }
+  ],
+  "limit": "Exact product source/dependency/control Git object equality does not assert identical built binaries or historical failure repair."
+}

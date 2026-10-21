@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-21T19:19:11.583501+00:00",
+  "author_public_files_verified": 317,
+  "author_public_bytes_verified": 2633399,
+  "author_manifest_sha256": "d9ea88a690de4c82dfe7316cc3d6c7a8f8671a70963462c886f6bd0be7471ca0",
+  "workflow_contract_observation": {
+    "command": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_native_object_delivery_fixture_workflow.py",
+      "-v"
+    ],
+    "exit_code": 0,
+    "tests_run": 5,
+    "tests_passed": 5,
+    "source": "functions.exec result 6aef5b, observed after alias rename; no repeated execution for archival"
+  },
+  "original_freeze_preserved": true
+}

@@ -1,0 +1,14 @@
+F....
+======================================================================
+FAIL: test_execution_is_bounded_and_has_no_external_authority (test_native_object_delivery_fixture_workflow.NativeDeliveryFixtureWorkflowTests.test_execution_is_bounded_and_has_no_external_authority)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/tests/test_native_object_delivery_fixture_workflow.py", line 49, in test_execution_is_bounded_and_has_no_external_authority
+    self.assertIn(token, step)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: '--init' not found in '      - name: Verify native TEST ONLY preview and stable delivery fixtures\n        shell: bash\n        run: |\n          set -euo pipefail\n          jq -e \'.enabled == true\' manifests/signing-toolchain.json >/dev/null\n          image="$(jq -r \'.image + "@" + .digest\' manifests/signing-toolchain.json)"\n          fixture_output="$RUNNER_TEMP/native-delivery-fixture"\n          mkdir "$fixture_output"\n          chmod 0777 "$fixture_output"\n          container="wk-native-delivery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"\n          trap \'docker rm --force "$container" >/dev/null 2>&1 || true\' EXIT\n          trap \'exit 130\' INT\n          trap \'exit 143\' TERM\n          timeout --signal=TERM --kill-after=10s 15m docker run --rm --name "$container" \\\n            --platform linux/amd64 --network none --read-only --cap-drop ALL \\\n            --security-opt no-new-privileges --user 65532:65532 \\\n            --cpus 1 --memory 512m --pids-limit 128 \\\n            --tmpfs /tmp:rw,nosuid,nodev,size=536870912 \\\n            --volume "$GITHUB_WORKSPACE:/control:ro" \\\n            --volume "$fixture_output:/evidence" \\\n            --workdir /tmp "$image" \\\n            python3 -B /control/tests/native_object_delivery_fixture_drill.py \\\n            --output-dir /evidence --source-sha "$GITHUB_SHA" \\\n            --trusted-root /control/.trusted/wukongim\n          jq -e --arg source "$GITHUB_SHA" \'.source_sha == $source and .test_only == true and .passed == true and .scratch_removed == true and (.cases | length) == 29 and all(.cases[]; .passed == true) and .verification.native_preview_verified == true and .verification.native_stable_verified == true and .verification.github_provenance_verified == false and .verification.fresh_production_auth_verified == false and .verification.activation_authorized == false\' \\\n            "$fixture_output/result.json" >/dev/null\n          jq -e \'.test_only == true and .data_only == true and .secret_tree_removed == true and .source_provenance_verified == false\' \\\n            "$fixture_output/fixture-export.json" >/dev/null\n\n'
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.001s
+
+FAILED (failures=1)

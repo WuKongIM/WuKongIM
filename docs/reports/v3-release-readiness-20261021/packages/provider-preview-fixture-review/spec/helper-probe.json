@@ -1,0 +1,31 @@
+{
+  "cases": [
+    {
+      "case": "missing binary root",
+      "exception": "RuntimeError",
+      "message": "client fixture binary generation root must be a nonlinked directory",
+      "passed": true
+    },
+    {
+      "case": "malformed ELF",
+      "exception": "RuntimeError",
+      "message": "binary payload must be a Linux amd64 ELF executable",
+      "passed": true
+    },
+    {
+      "case": "wrong fixed source",
+      "exception": "RuntimeError",
+      "message": "client fixtures require the fixed product source",
+      "passed": true
+    },
+    {
+      "case": "fresh production rejects explicit TEST ONLY",
+      "exception": "InputError",
+      "message": "fresh delivery input authentication failed",
+      "passed": true
+    }
+  ],
+  "native_tools_or_network_invoked": false,
+  "passed": true,
+  "scratch_removed": true
+}

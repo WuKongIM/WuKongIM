@@ -1,0 +1,357 @@
+{
+  "schema": "wukongim/chat-lifecycle-diagnostic-status/v1",
+  "run_id": "local-chat-lifecycle-shakeout",
+  "state": "running",
+  "stage": "measured",
+  "started_at": "2026-10-21T19:13:12.993792551Z",
+  "updated_at": "2026-10-21T19:15:45.225407862Z",
+  "cut": "terminal",
+  "totals": {
+    "target": 2500,
+    "online": 0,
+    "starting": 0,
+    "closing": 0,
+    "traffic_ready": 0
+  },
+  "close_reasons": {
+    "expired": 0,
+    "heartbeat_failed": 0,
+    "remote_terminal": 0,
+    "read_failed": 0,
+    "generation_stop": 2500,
+    "explicit_logout": 0,
+    "transport_close_failed": 0
+  },
+  "harness": {
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 0,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "workers": [
+    {
+      "worker_id": 0,
+      "phase": "final",
+      "snapshot_sequence": 32,
+      "connections": {
+        "target": 834,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 834,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      }
+    },
+    {
+      "worker_id": 1,
+      "phase": "final",
+      "snapshot_sequence": 32,
+      "connections": {
+        "target": 833,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 833,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      }
+    },
+    {
+      "worker_id": 2,
+      "phase": "final",
+      "snapshot_sequence": 32,
+      "connections": {
+        "target": 833,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 833,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      }
+    }
+  ],
+  "recent_events": [
+    {
+      "at": "2026-10-21T19:13:18.124187928Z",
+      "kind": "worker_connections_changed",
+      "worker_id": 0,
+      "connections": {
+        "target": 834,
+        "online": 834,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 834
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T19:13:18.124187928Z",
+      "kind": "worker_connections_changed",
+      "worker_id": 1,
+      "connections": {
+        "target": 833,
+        "online": 833,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 833
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T19:13:18.124187928Z",
+      "kind": "worker_connections_changed",
+      "worker_id": 2,
+      "connections": {
+        "target": 833,
+        "online": 833,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 833
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T19:15:45.225407862Z",
+      "kind": "worker_connections_changed",
+      "worker_id": 0,
+      "connections": {
+        "target": 834,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 834,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T19:15:45.225407862Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 0,
+      "connections": {
+        "target": 834,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 834,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T19:15:45.225407862Z",
+      "kind": "worker_connections_changed",
+      "worker_id": 1,
+      "connections": {
+        "target": 833,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 833,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T19:15:45.225407862Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 1,
+      "connections": {
+        "target": 833,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 833,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T19:15:45.225407862Z",
+      "kind": "worker_connections_changed",
+      "worker_id": 2,
+      "connections": {
+        "target": 833,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 833,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    },
+    {
+      "at": "2026-10-21T19:15:45.225407862Z",
+      "kind": "worker_close_reasons_changed",
+      "worker_id": 2,
+      "connections": {
+        "target": 833,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 833,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      }
+    }
+  ]
+}

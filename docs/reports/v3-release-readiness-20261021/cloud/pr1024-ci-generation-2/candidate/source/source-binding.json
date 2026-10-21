@@ -1,0 +1,37 @@
+{
+  "head": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "expected_tree": "85f578ba19135892c3d4f5e18db37329cd515cf7",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "archive_path": "source/AGENTS.md.source",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "archive_path": "source/.github/workflows/README.md.source",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "archive_path": "source/.github/workflows/v3-candidate-regression.yml.source",
+      "bytes": 13951,
+      "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "archive_path": "source/.github/review-agent/policy.json.source",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "scripts/run-v3-candidate-check.py",
+      "archive_path": "source/scripts/run-v3-candidate-check.py.source",
+      "bytes": 10569,
+      "sha256": "c650a3c828e074197520defe79b386b160f2465debc487acc1172f7216be05dc"
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "schema": "standards-alias-closure/v1",
+  "reviewed_at": "2026-10-21T19:18:13.070639+00:00",
+  "fixed_head": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "finding": {
+    "kind": "heuristic_judgment",
+    "priority": 3,
+    "smell": "Mysterious Name",
+    "path": "tests/native_object_delivery_fixture_drill.py",
+    "lines": [
+      25,
+      26
+    ],
+    "status": "closed"
+  },
+  "open_hard_findings": 0,
+  "open_heuristic_findings": 0,
+  "before_driver_sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756",
+  "after_driver_sha256": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884",
+  "changed_identifier_tokens": 27,
+  "changes_are_only_NAME_tokens": true,
+  "reverse_alias_normalized_complete_bytes_equal": true,
+  "reverse_alias_normalized_AST_equal": true,
+  "all_seven_worktree_files_match_new_freeze": true,
+  "other_six_files_match_original_review": true,
+  "original_freeze_sha256": "50515387f78397c37570dcb3fe6f5b0fc254851df3817105d2fa633ce6892155",
+  "new_freeze_sha256": "3cb9a49dc9387961364af9e0ebc85a0108e2c1d0a9d66419f31500124a18dccc",
+  "new_source_files": [
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "bytes": 17610,
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+      "untracked": false
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 3802,
+      "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d",
+      "untracked": false
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "bytes": 16905,
+      "sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6",
+      "untracked": false
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "bytes": 53365,
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e",
+      "untracked": false
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "bytes": 70217,
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+      "untracked": false
+    },
+    {
+      "path": "tests/native_object_delivery_fixture_drill.py",
+      "bytes": 18717,
+      "sha256": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884",
+      "untracked": true
+    },
+    {
+      "path": "tests/test_native_object_delivery_fixture_workflow.py",
+      "bytes": 4180,
+      "sha256": "6e4f713a6f32179cab44bb3cb697dea2a5a4d176033272fa4e37fcfeac5b4066",
+      "untracked": true
+    }
+  ],
+  "delta_evidence_sha256": {
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/alias-readability/driver-before.py": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/alias-readability/driver-after.py": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/alias-readability/source-freeze.json": "3cb9a49dc9387961364af9e0ebc85a0108e2c1d0a9d66419f31500124a18dccc",
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/alias-readability/rename-receipt.json": "8685c9e0f72cf5af772e4b668a858bb9046a87a20768253dbf982c3326a458b2"
+  },
+  "original_report_sha256": "c9c366cf63437187917b3786a3ebc528ecb1070c909f584dab450e592ebd230d",
+  "original_source_binding_sha256": "ada1dc88577a372fad1918e3eac62a5bf94583d21844bb4907917f464a1fab70",
+  "original_reports_untouched": true,
+  "tests_executed_by_reviewer": false,
+  "source_edits_by_reviewer": false,
+  "native_rerun": false,
+  "GitHub_CI_pending": true,
+  "closure_report_sha256": "3c6af6f45a35c4ca2c3982b483ab105d437a3ac99eeaf5b7ac2cd401fae54019"
+}

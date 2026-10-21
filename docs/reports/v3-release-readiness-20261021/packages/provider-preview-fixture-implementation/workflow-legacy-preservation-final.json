@@ -1,0 +1,7 @@
+{
+  "exact_base_match_after_removing_only_two_new_steps": true,
+  "base_sha256": "1a4721788a2d96df323c113ce8a5c4ed3b96fda71ce282223cd764b446a3d5ca",
+  "final_sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+  "added_step_bytes": 2537,
+  "original_commands_deadlines_permissions_triggers_unchanged": true
+}

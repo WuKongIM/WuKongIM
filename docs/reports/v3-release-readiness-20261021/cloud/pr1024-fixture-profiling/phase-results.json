@@ -1,0 +1,308 @@
+[
+  {
+    "case": "normal-1",
+    "fixture_seconds": 2.2275626250193454,
+    "collector_seconds": 2.2233618339523673,
+    "collector_exit": 0,
+    "complete": true,
+    "request_count": 25,
+    "tools": {
+      "ssh": {
+        "count": 25,
+        "inclusive_seconds": 0.907745
+      },
+      "timeout": {
+        "count": 15,
+        "inclusive_seconds": 0.884628
+      },
+      "python3": {
+        "count": 26,
+        "inclusive_seconds": 0.787148
+      },
+      "jq": {
+        "count": 19,
+        "inclusive_seconds": 0.051196
+      },
+      "wc": {
+        "count": 15,
+        "inclusive_seconds": 0.032807
+      },
+      "tr": {
+        "count": 15,
+        "inclusive_seconds": 0.036137
+      },
+      "install": {
+        "count": 16,
+        "inclusive_seconds": 0.04298
+      },
+      "rm": {
+        "count": 31,
+        "inclusive_seconds": 0.061859
+      },
+      "mktemp": {
+        "count": 2,
+        "inclusive_seconds": 0.009359
+      },
+      "date": {
+        "count": 1,
+        "inclusive_seconds": 0.002383
+      }
+    },
+    "note": "inclusive durations overlap: timeout wraps ssh; python is inside ssh or main helper"
+  },
+  {
+    "case": "normal-2",
+    "fixture_seconds": 1.3498645829968154,
+    "collector_seconds": 1.345923125045374,
+    "collector_exit": 0,
+    "complete": true,
+    "request_count": 25,
+    "tools": {
+      "ssh": {
+        "count": 25,
+        "inclusive_seconds": 0.661769
+      },
+      "timeout": {
+        "count": 15,
+        "inclusive_seconds": 0.625709
+      },
+      "python3": {
+        "count": 26,
+        "inclusive_seconds": 0.7838970000000001
+      },
+      "jq": {
+        "count": 19,
+        "inclusive_seconds": 0.051365
+      },
+      "wc": {
+        "count": 15,
+        "inclusive_seconds": 0.034299
+      },
+      "tr": {
+        "count": 15,
+        "inclusive_seconds": 0.037742
+      },
+      "install": {
+        "count": 16,
+        "inclusive_seconds": 0.03304
+      },
+      "rm": {
+        "count": 31,
+        "inclusive_seconds": 0.058396
+      },
+      "mktemp": {
+        "count": 2,
+        "inclusive_seconds": 0.005406
+      },
+      "date": {
+        "count": 1,
+        "inclusive_seconds": 0.001839
+      }
+    },
+    "note": "inclusive durations overlap: timeout wraps ssh; python is inside ssh or main helper"
+  },
+  {
+    "case": "large",
+    "fixture_seconds": 1.370218250027392,
+    "collector_seconds": 1.3632419589557685,
+    "collector_exit": 0,
+    "complete": true,
+    "request_count": 25,
+    "tools": {
+      "ssh": {
+        "count": 25,
+        "inclusive_seconds": 0.676047
+      },
+      "timeout": {
+        "count": 15,
+        "inclusive_seconds": 0.620316
+      },
+      "python3": {
+        "count": 26,
+        "inclusive_seconds": 0.828425
+      },
+      "jq": {
+        "count": 19,
+        "inclusive_seconds": 0.050663
+      },
+      "wc": {
+        "count": 15,
+        "inclusive_seconds": 0.033762
+      },
+      "tr": {
+        "count": 15,
+        "inclusive_seconds": 0.037042
+      },
+      "install": {
+        "count": 16,
+        "inclusive_seconds": 0.032744999999999996
+      },
+      "rm": {
+        "count": 31,
+        "inclusive_seconds": 0.056838
+      },
+      "mktemp": {
+        "count": 2,
+        "inclusive_seconds": 0.005355
+      },
+      "date": {
+        "count": 1,
+        "inclusive_seconds": 0.001803
+      }
+    },
+    "note": "inclusive durations overlap: timeout wraps ssh; python is inside ssh or main helper"
+  },
+  {
+    "case": "missing-worker",
+    "fixture_seconds": 1.3921794170164503,
+    "collector_seconds": 1.388199832988903,
+    "collector_exit": 1,
+    "complete": false,
+    "request_count": 25,
+    "tools": {
+      "ssh": {
+        "count": 25,
+        "inclusive_seconds": 0.673526
+      },
+      "timeout": {
+        "count": 15,
+        "inclusive_seconds": 0.640073
+      },
+      "python3": {
+        "count": 26,
+        "inclusive_seconds": 0.795762
+      },
+      "jq": {
+        "count": 19,
+        "inclusive_seconds": 0.052155
+      },
+      "wc": {
+        "count": 15,
+        "inclusive_seconds": 0.034744
+      },
+      "tr": {
+        "count": 15,
+        "inclusive_seconds": 0.042166
+      },
+      "install": {
+        "count": 16,
+        "inclusive_seconds": 0.034064
+      },
+      "rm": {
+        "count": 31,
+        "inclusive_seconds": 0.059054
+      },
+      "mktemp": {
+        "count": 2,
+        "inclusive_seconds": 0.006092
+      },
+      "date": {
+        "count": 1,
+        "inclusive_seconds": 0.001846
+      }
+    },
+    "note": "inclusive durations overlap: timeout wraps ssh; python is inside ssh or main helper"
+  },
+  {
+    "case": "invalid-anchor",
+    "fixture_seconds": 1.096024041005876,
+    "collector_seconds": 1.0930298329913057,
+    "collector_exit": 1,
+    "complete": false,
+    "request_count": 15,
+    "tools": {
+      "ssh": {
+        "count": 15,
+        "inclusive_seconds": 0.434824
+      },
+      "timeout": {
+        "count": 15,
+        "inclusive_seconds": 0.636525
+      },
+      "python3": {
+        "count": 16,
+        "inclusive_seconds": 0.325831
+      },
+      "jq": {
+        "count": 19,
+        "inclusive_seconds": 0.050412
+      },
+      "wc": {
+        "count": 15,
+        "inclusive_seconds": 0.033098
+      },
+      "tr": {
+        "count": 15,
+        "inclusive_seconds": 0.036668
+      },
+      "install": {
+        "count": 16,
+        "inclusive_seconds": 0.033692
+      },
+      "rm": {
+        "count": 31,
+        "inclusive_seconds": 0.058599
+      },
+      "mktemp": {
+        "count": 2,
+        "inclusive_seconds": 0.0059830000000000005
+      },
+      "date": {
+        "count": 1,
+        "inclusive_seconds": 0.001818
+      }
+    },
+    "note": "inclusive durations overlap: timeout wraps ssh; python is inside ssh or main helper"
+  },
+  {
+    "case": "formal-capacity",
+    "fixture_seconds": 1.441191208024975,
+    "collector_seconds": 1.4364776670117863,
+    "collector_exit": 0,
+    "complete": true,
+    "request_count": 27,
+    "tools": {
+      "ssh": {
+        "count": 27,
+        "inclusive_seconds": 0.722522
+      },
+      "timeout": {
+        "count": 15,
+        "inclusive_seconds": 0.6370709999999999
+      },
+      "python3": {
+        "count": 28,
+        "inclusive_seconds": 0.8981819999999999
+      },
+      "jq": {
+        "count": 19,
+        "inclusive_seconds": 0.051552
+      },
+      "wc": {
+        "count": 15,
+        "inclusive_seconds": 0.034372
+      },
+      "tr": {
+        "count": 15,
+        "inclusive_seconds": 0.038167
+      },
+      "install": {
+        "count": 16,
+        "inclusive_seconds": 0.034067
+      },
+      "rm": {
+        "count": 31,
+        "inclusive_seconds": 0.060437
+      },
+      "mktemp": {
+        "count": 2,
+        "inclusive_seconds": 0.00549
+      },
+      "date": {
+        "count": 1,
+        "inclusive_seconds": 0.003017
+      }
+    },
+    "note": "inclusive durations overlap: timeout wraps ssh; python is inside ssh or main helper"
+  }
+]

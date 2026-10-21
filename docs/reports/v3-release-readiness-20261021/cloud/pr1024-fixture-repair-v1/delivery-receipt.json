@@ -1,0 +1,15 @@
+{
+  "observed_at": "2026-10-21T19:06:35.581650+00:00",
+  "head": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+  "source_hashes_match_review_freeze": true,
+  "git_status_porcelain": " M scripts/testdata/chat_lifecycle_terminal_evidence_test.py\n",
+  "diff_check_exit": 0,
+  "owned_fixture_processes": [],
+  "focused_first_exit": 0,
+  "related_tests_pass": 2,
+  "fixture_methods": 20,
+  "fixture_cases": 79,
+  "equivalent_cases": 79,
+  "linux_original_policy_status": "not yet verified for this change",
+  "commit_push_performed": false
+}

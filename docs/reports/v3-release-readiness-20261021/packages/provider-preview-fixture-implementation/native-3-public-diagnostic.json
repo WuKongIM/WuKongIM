@@ -1,0 +1,9 @@
+{
+  "diagnostic": "package-site preparation failed: source assets are missing for Release 4242\n",
+  "exact_stderr_hash_match": true,
+  "facts": {
+    "size": 76,
+    "sha256": "f930037d40e7fe4734d1b7cb6955b4ba185453aeb55d95ae9e21869ffebeedd1"
+  },
+  "reason": "Preview producer requires assets/<source_release_id>; the fixture initially supplied stable-style flat assets."
+}

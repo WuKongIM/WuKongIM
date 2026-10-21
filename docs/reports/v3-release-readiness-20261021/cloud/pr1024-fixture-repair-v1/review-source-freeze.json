@@ -1,0 +1,43 @@
+{
+  "head": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+  "observed_at": "2026-10-21T19:05:48.524438+00:00",
+  "files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "scripts/chat-lifecycle/collect-terminal-evidence.sh": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe",
+    "scripts/chat-lifecycle/terminal-evidence.py": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a",
+    "scripts/chat_lifecycle_terminal_evidence_integration_test.go": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+  },
+  "allowed_changed_file": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+  "test_methods_unchanged": true,
+  "test_methods": {
+    "test_rehearsal_retains_exact_terminal_documents_and_failure_window": "f7e4a2086d2f71150494c291978b251b9a6865730b5268a32b72604b01283077",
+    "test_formal_before_capacity_is_explicitly_not_applicable": "b1994d9294e644aa1ea87ba6aaf5cbf83ec0a0224cd8a8725716e1e7627f09b2",
+    "test_prometheus_millisecond_closed_window_and_raw_anchor": "767fd68b868ca1698184dd77a45437ef8a0edb4bfb96b8e304fe945c752c2b8a",
+    "test_capacity_order_preserves_nanoseconds": "73beab184cdca3981c12c7ad6131366d28f4effb1222d7bde0ac77fa86dd2f2f",
+    "test_formal_exemption_requires_legal_failure_and_phase_evidence": "6b8e0887f22503188755332988bbee266361c6003031528d9813be2b7fb13a2b",
+    "test_invalid_formal_verdict_or_capacity_proof_is_not_exempted": "f3c309346ba5e3e6c1e3ce1c41561a501828f3bd513e0ff54c6bf012de28a860",
+    "test_formal_capacity_retains_both_stages": "9b651fd235615d5608ea1da320c1e368d4c6568eb765e49256db6252fd68e6fb",
+    "test_invalid_or_missing_diagnostic_files_stay_incomplete": "b384f14c6a99817bca87f185ca45bf5c73ee5f8af9741a395e377fe1d31c4823",
+    "test_wrong_identity_schema_and_unsafe_fields_are_rejected": "47e8c0b6942ed81f0183d4b18cb53288d1c8de15ba464d744cd4c09becc7127d",
+    "test_capacity_required_by_passing_formal_cannot_be_missing": "199fa9c156a1402b32b7515c6770fff1d293ef740c5562ed034d90d6ad1dd4f3",
+    "test_byte_caps_accept_exact_and_reject_next_byte": "613c69c95bb5607a1bcf0ae476ec5a8c985976b6c3b8ff233f81ce8484730568",
+    "test_invalid_status_is_rejected": "b2b71e3e436b158f7a8dc5a920f4646d7dd0e1f9eff71c5a15f19ed38abebeea",
+    "test_bad_terminal_anchor_never_queries_now": "25ba798c2d7cd76fabce9e2db65d499f4f7fc603274883deb3ee6a32942fc6d6",
+    "test_partitions_retain_more_than_original_single_response_cap": "84752f38253d8e0976508ed6f64fe71d09db3d9baac3f4465516355e5cf49670",
+    "test_empty_optional_metric_family_has_explicit_zero_coverage": "4c97c7e80b2510f7e9cde1a6e4d4014a1029226cc2a136c260c1578f54e6f4c6",
+    "test_partial_metrics_keep_successful_siblings": "5c66b319abdb0be4b8120ed9112c165f213eb8c83e49902217f54163f305bc49",
+    "test_selector_partition_is_disjoint_and_complete": "addf4894a78ee639b1cc1d3da9d1e604708c708a119c2d303ea5b0b0086989cd",
+    "test_diagnostic_metric_names_are_exact_and_disjoint": "cf1d031b62747c664e3dba995a0766395244c8dd6ec7bdddeaee516f7a603cae",
+    "test_metric_total_transfer_budget_is_shared": "d062aa1fd2ec440cc2f00bde8e92f2a6b0fef1210ace66ece179dce7c790d135",
+    "test_metric_deadline_stops_requests_and_retains_first_partition": "46d97f024a266b539fa5c99d140d48e24554a4fbc4bd00b386f08dfb6bd5273d"
+  },
+  "focused_first_exit": 0,
+  "focused_tests_pass": 2,
+  "fixture_test_methods": 20,
+  "fixture_process_cases": 79,
+  "semantic_equal_cases": 79,
+  "linux_named_check_status": "not rerun; original failure retained",
+  "fullsuite_rerun": false
+}

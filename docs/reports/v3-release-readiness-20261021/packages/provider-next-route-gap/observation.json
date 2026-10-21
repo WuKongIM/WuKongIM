@@ -1,0 +1,78 @@
+{
+  "observed_at": "2026-10-21T19:15:17.647262+00:00",
+  "scope": "Read-only next-slice feasibility observation; no source, provider, resource or workflow mutation",
+  "native_result": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-init-native-1/result.json",
+    "sha256": "77b5c913d1ca86c618269d98b6038ef5eb945fd434bb170144a16fcb898893ea",
+    "passed": true,
+    "materializations": {
+      "A": {
+        "delivery": {
+          "sha256": "732408c12ddc314d246b9b88f7bfd753f144cf3e6c7bc597c4178e899c55c8d8",
+          "size": 157519
+        },
+        "objects": 153,
+        "plan": {
+          "sha256": "03f1eca406c2cef1f43192dca0331d25cf632daa54d0de2157829c3192bf47ed",
+          "size": 75560
+        },
+        "routes": 178,
+        "source_audit_ids": [
+          10,
+          4242,
+          4243
+        ]
+      },
+      "B": {
+        "delivery": {
+          "sha256": "7f87d0c2f841327351d0695aa00fd722c3e3c929e3311f0899206aa85ed7e323",
+          "size": 157519
+        },
+        "objects": 153,
+        "plan": {
+          "sha256": "ac5784370093e3903a0dc6447cbef57621c3ccba9615b615892d83692bb5917f",
+          "size": 75560
+        },
+        "routes": 178,
+        "source_audit_ids": [
+          10,
+          4242,
+          4243
+        ]
+      }
+    }
+  },
+  "provider_source": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture/scripts/aliyun-object-storage-provider.py",
+    "sha256": "d592db17365043b20a38fd28cabd7c44e13fc8b5839945e67e4cf0a5bb8d4802",
+    "function": "compile_rewrites",
+    "current_rule_limit": 50,
+    "strategy": "one literal rewrite per distinct public_uri"
+  },
+  "primary_sources": [
+    {
+      "url": "https://help.aliyun.com/zh/cdn/user-guide/rewrite-urls-in-back-to-origin-requests/",
+      "facts": [
+        "Alibaba Cloud CDN documents a maximum of 50 origin-path rewrite rules per domain.",
+        "Rules execute in list order; break stops subsequent rewriting.",
+        "PCRE captures can be referenced in the target path.",
+        "Origin rewrites do not change CDN cache keys."
+      ]
+    },
+    {
+      "url": "https://help.aliyun.com/zh/cdn/developer-reference/parameters-for-configuring-features-for-domain-names",
+      "facts": [
+        "back_to_origin_url_rewrite uses source_url, target_url, flag and sequence.",
+        "sequence ranges from 1 to 99; lower values take priority."
+      ]
+    }
+  ],
+  "inference": "A complete 178-route native composite cannot pass the current one-rule-per-URI compiler with its 50-rule limit. This is a code/count inference, not a live API test or a rerun of the planner.",
+  "implication": "M1 remains a native-fixture milestone. Before promising complete SDK/CDN integration, derive and test an equivalent bounded routing representation from actual materialized routes. Do not truncate routes or raise the documented domain limit.",
+  "unverified": [
+    "actual Alibaba PCRE and URI/query normalization",
+    "live configuration and cache propagation",
+    "public exact-version client acceptance"
+  ],
+  "production_enabled": false
+}

@@ -397,3 +397,8 @@ immutable publication and signed native-package public-client acceptance.
 - [#1024首次候选CI](cloud/pr1024-ci-generation-1/candidate/README.md)：219默认包及迁移/消息E2E通过，scripts原600秒外层首次timeout、collector79内嵌场景未完成；六个owned SID均零遗留，不重跑或覆盖首失败。
 - [#1024首次三节点性能](cloud/pr1024-ci-generation-1/performance/README.md)：七job通过/两条件skip，三seam各90,000完成、零错误丢弃；smoke不是长稳通过，大ZIP全包SHA仅API声明。
 - [采集修复产品源码等价](cloud/rc-new-cee5/terminal-evidence-delivery/product-source-equality.json)与[本次复制校验](pr1024-first-ci-checkpoint-copy.json)：产品/依赖Git对象未变，未将采集改动称为消息丢失修复；旧immutable证据逐项不变。
+
+- [夹具耗时量测](cloud/pr1024-fixture-profiling/README.md)、[首修验证](cloud/pr1024-fixture-repair-v1/README.md)与[双轴复核](cloud/pr1024-fixture-delivery/combined-review.md)：79场景语义不变，提交2cc仅优化测试进程开销。
+- [#1024第二代候选](cloud/pr1024-ci-generation-2/candidate/README.md)与[性能](cloud/pr1024-ci-generation-2/performance/README.md)：collector/default/E2E/性能通过；scripts正常完成但pprof中断清理断言失败，未重跑或合并。
+- [#77真实preview/stable夹具](packages/provider-preview-fixture-implementation/README.md)、[双轴复核](packages/provider-preview-fixture-delivery/combined-review.md)与[新PR](packages/provider-preview-fixture-delivery/pr-created.json)：29本地场景通过，保留PID僵尸首失败及同资源init修复；Linux49客户端待终态。
+- [真实路由数量与服务限制](packages/provider-next-route-gap/observation.json)、[M2只读计划](packages/provider-after-m1-plan/README.md)及[本次复制校验](pr1024-second-ci-and-pr77-preparation-copy.json)：尚未实施provider变更或操作云资源。

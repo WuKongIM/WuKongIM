@@ -1,0 +1,99 @@
+{
+  "schema": "wukongim.fixture-spec-review.v1",
+  "reviewed_at": "2026-10-21T19:09:37.316268+00:00",
+  "axis": "Spec",
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "head": "c91e37b4e35e1009c9c5cb55ff351a38b870014f",
+  "review_scope": "Working-copy single-file delta against c91; original c91 seven-file change excluded from this incremental review.",
+  "commit_list_in_scope": [],
+  "diff_command": "git diff c91e37b4e35e1009c9c5cb55ff351a38b870014f -- scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+  "scope_files": [
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py"
+  ],
+  "untracked": [],
+  "findings": [],
+  "source_before": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "scripts/chat-lifecycle/collect-terminal-evidence.sh": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe",
+    "scripts/chat-lifecycle/terminal-evidence.py": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a",
+    "scripts/chat_lifecycle_terminal_evidence_integration_test.go": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+  },
+  "source_after": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "scripts/chat-lifecycle/collect-terminal-evidence.sh": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe",
+    "scripts/chat-lifecycle/terminal-evidence.py": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a",
+    "scripts/chat_lifecycle_terminal_evidence_integration_test.go": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+  },
+  "before_after_identical": true,
+  "flow_discovery": "scripts/cloud-deployment/FLOW.md is the only FLOW under scripts and does not apply. No applicable scripts/testdata FLOW or more-specific AGENTS/CONTEXT. Root AGENTS and CONTEXT read.",
+  "spec": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-fixture-repair-v1/plan-and-failure-matrix.md",
+    "bytes": 4615,
+    "sha256": "dcd73f97e9c4b1d0c8e626158e2f98a07574d498b3d143b93527cb4e0449ec3d"
+  },
+  "author_freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-fixture-repair-v1/review-source-freeze.json",
+    "bytes": 3767,
+    "sha256": "5d6532c831cc0596fd77931a98674835f69b06229f2444965b4269179dec46b2"
+  },
+  "evidence": {
+    "method_count": 20,
+    "methods_byte_identical": true,
+    "cases_compared": 79,
+    "cases_equal": 79,
+    "normalization": "Only observed_at and its derived manifest SHA after original bytes/hash verification. Source provenance headers separately retained.",
+    "independent_adapter_checks": 15,
+    "independent_adapter_failures": 0,
+    "author_focused_first": {
+      "go_entries_passed": 2,
+      "python_methods": 20,
+      "process_cases": 79,
+      "failure_count": 0,
+      "error_count": 0,
+      "sources": [
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-fixture-repair-v1/focused-first.jsonl",
+          "bytes": 3969,
+          "sha256": "b57e7916de433406ccaeeb70534beb8ddbbf04d16a251698342d299cccd85264"
+        },
+        {
+          "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-fixture-repair-v1/focused-first-results.json",
+          "bytes": 1268612,
+          "sha256": "0d1900a9ba731a066f37398e17901970b69147d14b409e475f3473fc00cdfe79"
+        }
+      ]
+    },
+    "source_not_changed": true,
+    "full_fixture_or_suite_rerun": false,
+    "cloud_or_CI_invoked": false,
+    "standards_report_read": false,
+    "all_subprocesses_terminal": true,
+    "Linux_timeout_resolved": false
+  },
+  "files": [
+    {
+      "path": "review.md",
+      "bytes": 999,
+      "sha256": "cee31cbd5b3a1815f6b33c8d1e7babad782fca66351d68ea2028302b6479f93b"
+    },
+    {
+      "path": "before-and-equivalence.json",
+      "bytes": 24677,
+      "sha256": "8961deb8581e784fabf000a1a649872b852bc62aefdc0687bfff644610828bfd"
+    },
+    {
+      "path": "adapter-probe.py",
+      "bytes": 4156,
+      "sha256": "62f172f654f95b6df023ecaa3acc7515a8671510647f592d5a8bcfd58a0d711c"
+    },
+    {
+      "path": "adapter-probe-results.json",
+      "bytes": 9597,
+      "sha256": "23bc97a6ef5d3e372fa9c0c14c9baf55866559f6e95ec7b0862619b0dcb17524"
+    }
+  ]
+}

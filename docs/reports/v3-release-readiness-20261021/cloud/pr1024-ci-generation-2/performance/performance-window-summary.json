@@ -1,0 +1,238 @@
+{
+  "run_id": 39659391116,
+  "attempt": 1,
+  "conclusion": "success",
+  "head": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "event_checkout": "884f88e74b68ec2db26f37bc6659195d24c417a2",
+  "current_pr_merge_readback": "45c1f5da10721c9be1c9907be098a11118a92f0f",
+  "tree": "85f578ba19135892c3d4f5e18db37329cd515cf7",
+  "different_merge_objects_same_tree": true,
+  "baseline_reused": false,
+  "job_sources": [
+    {
+      "job_id": 119428117356,
+      "name": "PR performance baseline evidence",
+      "source_checkout": "884f88e74b68ec2db26f37bc6659195d24c417a2",
+      "source_present_in_actual_log": true,
+      "conclusion": "success"
+    },
+    {
+      "job_id": 119428117493,
+      "name": "PR three-node correctness",
+      "source_checkout": "884f88e74b68ec2db26f37bc6659195d24c417a2",
+      "source_present_in_actual_log": true,
+      "conclusion": "success"
+    },
+    {
+      "job_id": 119428118388,
+      "name": "PR messaging unit and race",
+      "source_checkout": "884f88e74b68ec2db26f37bc6659195d24c417a2",
+      "source_present_in_actual_log": true,
+      "conclusion": "success"
+    },
+    {
+      "job_id": 119428257030,
+      "name": "PR 500 QPS / tcp-sendack",
+      "source_checkout": "884f88e74b68ec2db26f37bc6659195d24c417a2",
+      "source_present_in_actual_log": true,
+      "conclusion": "success"
+    },
+    {
+      "job_id": 119428257049,
+      "name": "PR 500 QPS / channel-append",
+      "source_checkout": "884f88e74b68ec2db26f37bc6659195d24c417a2",
+      "source_present_in_actual_log": true,
+      "conclusion": "success"
+    },
+    {
+      "job_id": 119428257127,
+      "name": "PR 500 QPS / mixed-send",
+      "source_checkout": "884f88e74b68ec2db26f37bc6659195d24c417a2",
+      "source_present_in_actual_log": true,
+      "conclusion": "success"
+    },
+    {
+      "job_id": 119430956539,
+      "name": "PR three-node regression",
+      "source_checkout": null,
+      "source_present_in_actual_log": false,
+      "conclusion": "success"
+    }
+  ],
+  "skipped_jobs": [
+    "Fixed Linux SEND diagnosis",
+    "Nightly direct 500 QPS qualification"
+  ],
+  "seams": [
+    {
+      "seam": "channel-append",
+      "artifact_id": 12373801103,
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 6.872664,
+          "scheduled_to_start_p99_ms": 1.113593,
+          "service_p99_ms": 5.585925
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 7.183742,
+          "scheduled_to_start_p99_ms": 1.09541,
+          "service_p99_ms": 5.967716
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 9.97001,
+          "scheduled_to_start_p99_ms": 1.316703,
+          "service_p99_ms": 7.806227
+        }
+      ],
+      "warmup_phase": "warmup",
+      "warmup_seconds": 60,
+      "totals": {
+        "planned": 90000,
+        "started": 90000,
+        "completed": 90000,
+        "errors": 0,
+        "dropped": 0
+      },
+      "cpu_model": "AMD EPYC 7763 64-Core Processor",
+      "binary_sha256": "f9459f8008c66c83289cef9bdf68aa0efee59c15d6570457f23d9c64ae76432e",
+      "benchmark_output_truncated_marker": false
+    },
+    {
+      "seam": "tcp-sendack",
+      "artifact_id": 12373107022,
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.213185,
+          "scheduled_to_start_p99_ms": 1.079354,
+          "service_p99_ms": 177.577169
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.222339,
+          "scheduled_to_start_p99_ms": 1.078387,
+          "service_p99_ms": 177.617436
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.188236,
+          "scheduled_to_start_p99_ms": 1.078372,
+          "service_p99_ms": 177.567476
+        }
+      ],
+      "warmup_phase": "warmup",
+      "warmup_seconds": 60,
+      "totals": {
+        "planned": 90000,
+        "started": 90000,
+        "completed": 90000,
+        "errors": 0,
+        "dropped": 0
+      },
+      "cpu_model": "AMD EPYC 7763 64-Core Processor",
+      "binary_sha256": "c7fba65f798e5bf1f0e889ae759bef3173fa221118334d9f94526fc1b69169f0",
+      "benchmark_output_truncated_marker": true
+    },
+    {
+      "seam": "mixed-send",
+      "artifact_id": 12373377132,
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 13.234821,
+          "scheduled_to_start_p99_ms": 1.25916,
+          "service_p99_ms": 12.236025
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 14.306312,
+          "scheduled_to_start_p99_ms": 1.462168,
+          "service_p99_ms": 13.352914
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 17.774992,
+          "scheduled_to_start_p99_ms": 1.686011,
+          "service_p99_ms": 16.493782
+        }
+      ],
+      "warmup_phase": "warmup",
+      "warmup_seconds": 60,
+      "totals": {
+        "planned": 90000,
+        "started": 90000,
+        "completed": 90000,
+        "errors": 0,
+        "dropped": 0
+      },
+      "cpu_model": "AMD EPYC 7763 64-Core Processor",
+      "binary_sha256": "49a07ff32c17b1388c7586ef5810ac167beb0cb5790d5a17b03089967cc31f3c",
+      "benchmark_output_truncated_marker": false
+    }
+  ],
+  "aggregate": {
+    "planned": 270000,
+    "started": 270000,
+    "completed": 270000,
+    "errors": 0,
+    "dropped": 0
+  },
+  "limits": "Window P99 is not maximum request latency. Different hosted hardware is not a controlled same-hardware performance comparison. Unit/race nonverbose logs do not identify every internal skip."
+}

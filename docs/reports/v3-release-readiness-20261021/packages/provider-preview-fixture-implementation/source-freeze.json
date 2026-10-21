@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "frozen_at_utc": "2026-10-21T19:10:34.458593+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-preview-fixture",
+  "branch": "codex/native-preview-fixture",
+  "base": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "head": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "base_tree": "e319ee72e8d30f012fd5e6206d131e2b75c47a09",
+  "source_dir": "final-source",
+  "source_files": [
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "bytes": 17610,
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+      "untracked": false
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 3802,
+      "sha256": "91261bd10388b3a32c79e77a7b5ed564ce63ce91fed29d36889d4ebd1e26db8d",
+      "untracked": false
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "bytes": 16905,
+      "sha256": "b638531d3503c0b66a8e66059c19290c02b05fa85400f4dd6b0b891864bc8ba6",
+      "untracked": false
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "bytes": 53365,
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e",
+      "untracked": false
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "bytes": 70217,
+      "sha256": "e3d6092d330dd2e625f6b7fa464a814cc238691914288f25fa77d4f39b2d8a24",
+      "untracked": false
+    },
+    {
+      "path": "tests/native_object_delivery_fixture_drill.py",
+      "bytes": 18297,
+      "sha256": "bb96c4f1265781c3edfe3190840b0d1e9734a6bf8df85677d11199bd1e3fc756",
+      "untracked": true
+    },
+    {
+      "path": "tests/test_native_object_delivery_fixture_workflow.py",
+      "bytes": 4180,
+      "sha256": "6e4f713a6f32179cab44bb3cb697dea2a5a4d176033272fa4e37fcfeac5b4066",
+      "untracked": true
+    }
+  ],
+  "scope_count": 7,
+  "patch": {
+    "path": "implementation.patch",
+    "bytes": 48424,
+    "sha256": "7c1aadc1e94c5de01ccfbc4e818b159ffdfbf4a75dcdfcc822485ce2fd2b8929"
+  },
+  "tracked_paths": [
+    ".github/workflows/native-package-repository-drill.yml",
+    "CHANGELOG.md",
+    "docs/object-storage-delivery.md",
+    "tests/native_stable_candidate_drill.py",
+    "tests/native_stable_clients_drill.py"
+  ],
+  "untracked_paths": [
+    "tests/native_object_delivery_fixture_drill.py",
+    "tests/test_native_object_delivery_fixture_workflow.py"
+  ],
+  "git_diff_check_exit": 0,
+  "source_frozen": true,
+  "no_commit_or_push": true
+}

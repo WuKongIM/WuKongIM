@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-21T19:20:08.266232+00:00",
+  "head": "19ce29fb2233b3039e29c503963e27bd1fab972a",
+  "url": "https://github.com/WuKongIM/packages/pull/77",
+  "remote_matches": true,
+  "push_stdout": "branch 'codex/native-preview-fixture' set up to track 'origin/codex/native-preview-fixture'.\n",
+  "push_stderr": "remote: \nremote: Create a pull request for 'codex/native-preview-fixture' on GitHub by visiting:        \nremote:      https://github.com/WuKongIM/packages/pull/new/codex/native-preview-fixture        \nremote: \nTo https://github.com/WuKongIM/packages.git\n * [new branch]      codex/native-preview-fixture -> codex/native-preview-fixture\n",
+  "ci": "natural new PR triggers; no dispatch or rerun"
+}

@@ -1,0 +1,1444 @@
+{
+  "schema": "fixture-equivalence/v1",
+  "baseline": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-new-cee5/terminal-evidence-repair-v2/focused-corrected-results.json",
+    "sha256": "963e69ea7998670b2e587985f35db8ba36d939e9433781b4abcf11d338277411",
+    "source_sha": "cee5d51f325fb84033060f546337d326110adae5"
+  },
+  "candidate": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-fixture-repair-v1/focused-first-results.json",
+    "sha256": "0d1900a9ba731a066f37398e17901970b69147d14b409e475f3473fc00cdfe79",
+    "source_sha": "c91e37b4e35e1009c9c5cb55ff351a38b870014f"
+  },
+  "normalization_allowlist": [
+    "cases[].manifest.observed_at",
+    "cases[].files[path=manifest.json].sha256 derived only from observed_at normalization; originals verified"
+  ],
+  "provenance_note": "source_sha headers are separately recorded provenance, not normalized or compared as runtime behavior; case receipts otherwise compare entire objects",
+  "cases_compared": 79,
+  "cases_equal": 79,
+  "results": [
+    {
+      "case": "anchor-schema",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:09Z",
+          "original_manifest_sha256": "bdbfc2bdfd9aafc49182d2cae42ea2c52a0e5ad561f1dd0786964840b1a3b69c",
+          "normalized_manifest_sha256": "03a2d4001cb664b821b180a0aea9b602c1d121887d99c75c1eb572a6db56222e"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:32Z",
+          "original_manifest_sha256": "e6aaa4601985fea1506abcbabaa186845d8dfa4561d1514d558769bb2a200c7e",
+          "normalized_manifest_sha256": "03a2d4001cb664b821b180a0aea9b602c1d121887d99c75c1eb572a6db56222e"
+        }
+      ]
+    },
+    {
+      "case": "anchor-not-final",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:10Z",
+          "original_manifest_sha256": "68ad158274c0c048a929db7ea81c0451974473e90e0032abb57c61ee1fdc3787",
+          "normalized_manifest_sha256": "03a2d4001cb664b821b180a0aea9b602c1d121887d99c75c1eb572a6db56222e"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:32Z",
+          "original_manifest_sha256": "e6aaa4601985fea1506abcbabaa186845d8dfa4561d1514d558769bb2a200c7e",
+          "normalized_manifest_sha256": "03a2d4001cb664b821b180a0aea9b602c1d121887d99c75c1eb572a6db56222e"
+        }
+      ]
+    },
+    {
+      "case": "anchor-missing-end",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:10Z",
+          "original_manifest_sha256": "68ad158274c0c048a929db7ea81c0451974473e90e0032abb57c61ee1fdc3787",
+          "normalized_manifest_sha256": "03a2d4001cb664b821b180a0aea9b602c1d121887d99c75c1eb572a6db56222e"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:33Z",
+          "original_manifest_sha256": "9b6ff5ad170ebe73eba1260f0dea696b14efe1c76dd128654c82041aac2b5001",
+          "normalized_manifest_sha256": "03a2d4001cb664b821b180a0aea9b602c1d121887d99c75c1eb572a6db56222e"
+        }
+      ]
+    },
+    {
+      "case": "anchor-future",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:11Z",
+          "original_manifest_sha256": "7ec1052ef44ba3848b0242dadadd56982e93fb4ed42118af0f330c5e1f95caa5",
+          "normalized_manifest_sha256": "03a2d4001cb664b821b180a0aea9b602c1d121887d99c75c1eb572a6db56222e"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:33Z",
+          "original_manifest_sha256": "9b6ff5ad170ebe73eba1260f0dea696b14efe1c76dd128654c82041aac2b5001",
+          "normalized_manifest_sha256": "03a2d4001cb664b821b180a0aea9b602c1d121887d99c75c1eb572a6db56222e"
+        }
+      ]
+    },
+    {
+      "case": "anchor-backward",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:12Z",
+          "original_manifest_sha256": "f27c8ab028534ea6b83f58ed7dd83d366f86d2efb85fbc409d1e943752088702",
+          "normalized_manifest_sha256": "03a2d4001cb664b821b180a0aea9b602c1d121887d99c75c1eb572a6db56222e"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:34Z",
+          "original_manifest_sha256": "5f56b5af2c704d4bf0459586f96d6d567a32034265176962555ef8c5fc672e6f",
+          "normalized_manifest_sha256": "03a2d4001cb664b821b180a0aea9b602c1d121887d99c75c1eb572a6db56222e"
+        }
+      ]
+    },
+    {
+      "case": "boundary-worker-evidence.json-0",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:13Z",
+          "original_manifest_sha256": "fd1c916c01f2797a4d71e4b1486d790ddf215b6e1290de1dce5d5513b66c098b",
+          "normalized_manifest_sha256": "acf5d6a80b6e537353448d7b92581a140d944dcc01dacb507137733784465add"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:35Z",
+          "original_manifest_sha256": "17fdfe40a38061746d9d75175f21d0b20a5694146ad4dd54e0699259a824d016",
+          "normalized_manifest_sha256": "acf5d6a80b6e537353448d7b92581a140d944dcc01dacb507137733784465add"
+        }
+      ]
+    },
+    {
+      "case": "boundary-worker-evidence.json-1",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:14Z",
+          "original_manifest_sha256": "63ba058f8e0f4dd812b34f1049e79ea592ec2b0553d7a5b699f80c075daf76a1",
+          "normalized_manifest_sha256": "5c7dd9aaf42053b9cdec946ecc1352e183dfac75297762f49b577e430e6ab36a"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:36Z",
+          "original_manifest_sha256": "d73c1d74dcc57a8c63077a13fba1e9a11633ff165bc81c769283b849e0702236",
+          "normalized_manifest_sha256": "5c7dd9aaf42053b9cdec946ecc1352e183dfac75297762f49b577e430e6ab36a"
+        }
+      ]
+    },
+    {
+      "case": "boundary-diagnostic-status.json-0",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:15Z",
+          "original_manifest_sha256": "0812713b09b761a7308107df17095ab7b27ac755cc57e509fbb95947a086fe74",
+          "normalized_manifest_sha256": "55f5baaecb64a33bb11885e7accc470d960f4c9194837864bdaf3d510f938041"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:37Z",
+          "original_manifest_sha256": "2f89dcc7221bb5a12e7dbd9a8b7be436edb3f2b9624566d7981a669a29e5ce78",
+          "normalized_manifest_sha256": "55f5baaecb64a33bb11885e7accc470d960f4c9194837864bdaf3d510f938041"
+        }
+      ]
+    },
+    {
+      "case": "boundary-diagnostic-status.json-1",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:17Z",
+          "original_manifest_sha256": "d81f5e1738c60242942062675121fd3986846d8a1cd2fd1f140ece1e2c4bb765",
+          "normalized_manifest_sha256": "b285914de9b3a129dd26aed119de3e310271525e52a8f38b91d89bd88e333e53"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:37Z",
+          "original_manifest_sha256": "a1d1f5c49cb4e03bb74e41afc33afbb94b2fb9a6efdac3090311b66ff72cf8e6",
+          "normalized_manifest_sha256": "b285914de9b3a129dd26aed119de3e310271525e52a8f38b91d89bd88e333e53"
+        }
+      ]
+    },
+    {
+      "case": "capacity-backward-submillisecond",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:18Z",
+          "original_manifest_sha256": "7346f37a92a1186f13283ad573de21de517bec07109dc3eeae3b9de10aa07902",
+          "normalized_manifest_sha256": "5ac306fc1ed09126063514c68007806866f785d76a6c38404e63068280622664"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:39Z",
+          "original_manifest_sha256": "1a9f54793e134c07639f13c505499c06538099d09112219c0784cdcfec1e6f39",
+          "normalized_manifest_sha256": "5ac306fc1ed09126063514c68007806866f785d76a6c38404e63068280622664"
+        }
+      ]
+    },
+    {
+      "case": "missing-capacity",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:19Z",
+          "original_manifest_sha256": "ce52f5d92c8599cf4372f91438ba29693ad954a3df184affc88fb6e8193a10a9",
+          "normalized_manifest_sha256": "dbdd99d3a83724efb6e802272dad9d6086f5f86517c078356e423b7577a52579"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:39Z",
+          "original_manifest_sha256": "037f2145369442e9fc9ac9c6f09da72d67b6bf01fecde602f5ab323a529def86",
+          "normalized_manifest_sha256": "dbdd99d3a83724efb6e802272dad9d6086f5f86517c078356e423b7577a52579"
+        }
+      ]
+    },
+    {
+      "case": "empty-go",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:20Z",
+          "original_manifest_sha256": "55766e9e42b3f1c6a0eba7f38ed1c37756797da468b9520dab5b759ccca1d460",
+          "normalized_manifest_sha256": "5ed7b1625a75b41f6fb9b8693557b8fc72ed9ade494ce60187b9c8278d1e4dd1"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:40Z",
+          "original_manifest_sha256": "0b3020d16c13585e9b47af71d2e703efc4117bb65184ee7532ceac25f45d9521",
+          "normalized_manifest_sha256": "5ed7b1625a75b41f6fb9b8693557b8fc72ed9ade494ce60187b9c8278d1e4dd1"
+        }
+      ]
+    },
+    {
+      "case": "formal-only",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:21Z",
+          "original_manifest_sha256": "11a56bc1081dc7b3963316241cc36d921b3840abdd4615dcfb3df092641c7cee",
+          "normalized_manifest_sha256": "effb7778d562c8d61548f1494eedf23d3205efda6fc5c4025ae7b9be19e3639f"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:41Z",
+          "original_manifest_sha256": "116b3ae76eb620953be5ed49bd280f43909de3cc1e93148fd232dd55a52e3187",
+          "normalized_manifest_sha256": "effb7778d562c8d61548f1494eedf23d3205efda6fc5c4025ae7b9be19e3639f"
+        }
+      ]
+    },
+    {
+      "case": "capacity",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:22Z",
+          "original_manifest_sha256": "0fe11ebe3fd29b9fcafd7ae7bc30b617150e2938fed5aaed1fa80404f86f96ff",
+          "normalized_manifest_sha256": "9154127e81afc0e714751ac162c7e3e41db25df2c186c7e2d0ad947e72170741"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:42Z",
+          "original_manifest_sha256": "b3b76a3721659355dc673986af1076c485de65c933219337b34fdf37259496af",
+          "normalized_manifest_sha256": "9154127e81afc0e714751ac162c7e3e41db25df2c186c7e2d0ad947e72170741"
+        }
+      ]
+    },
+    {
+      "case": "formal-product_failure",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:24Z",
+          "original_manifest_sha256": "47d39ef6068af0b75b06a4adb606a003b94af79862142f4862e806c41eafdffe",
+          "normalized_manifest_sha256": "effb7778d562c8d61548f1494eedf23d3205efda6fc5c4025ae7b9be19e3639f"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:42Z",
+          "original_manifest_sha256": "68f62b04c951724e6e3a35500d5aa8dfc6110b39d8322dd2c75b5e21080597a8",
+          "normalized_manifest_sha256": "effb7778d562c8d61548f1494eedf23d3205efda6fc5c4025ae7b9be19e3639f"
+        }
+      ]
+    },
+    {
+      "case": "formal-harness_invalid",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:25Z",
+          "original_manifest_sha256": "148d9bab9f743b80639cce628e99f60ba6664a3bbcd1b3d80eda15340c4ba14d",
+          "normalized_manifest_sha256": "6a9561a313fe93bdc6d85ad7913b8e7ce51ece9a9c44b8a9595808b2cb2c4cd6"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:43Z",
+          "original_manifest_sha256": "fe69dc5e1a2525406d605b23e46c1dfe97d4993216d7c2cbb522613c7d290b28",
+          "normalized_manifest_sha256": "6a9561a313fe93bdc6d85ad7913b8e7ce51ece9a9c44b8a9595808b2cb2c4cd6"
+        }
+      ]
+    },
+    {
+      "case": "formal-infrastructure_failure",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:26Z",
+          "original_manifest_sha256": "89590222e1bab81a20f826f8527bd52ddbf0ffef913fd1f6f4370562b611c1a3",
+          "normalized_manifest_sha256": "88f995e02e496a71208c4900a75e730e57280eb8b8ad162743932ff280c48b30"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:44Z",
+          "original_manifest_sha256": "bb1e4f940407d41e39bd2328cee01d0c355f9c1dc02b8b91b5e048ecea1fe960",
+          "normalized_manifest_sha256": "88f995e02e496a71208c4900a75e730e57280eb8b8ad162743932ff280c48b30"
+        }
+      ]
+    },
+    {
+      "case": "formal-operator_stop",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:27Z",
+          "original_manifest_sha256": "6a4d4c81b7a3410132d26829972ce5f53d3ccd28db21ca1a16bb863cd933f6a4",
+          "normalized_manifest_sha256": "f2584a8882922cdc50f746ed09aa85f076ba79d27416c96a3342b516cf727b7f"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:44Z",
+          "original_manifest_sha256": "f53190edafde5623c9028646baef6c9c3cc02a56c9c56c4c646388d88a38aec4",
+          "normalized_manifest_sha256": "f2584a8882922cdc50f746ed09aa85f076ba79d27416c96a3342b516cf727b7f"
+        }
+      ]
+    },
+    {
+      "case": "formal-insufficient_evidence",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:28Z",
+          "original_manifest_sha256": "2c32e2d7c4f617ff97e3fea9dab876ac70fb7e2dd7753d5eed1c0345150235c6",
+          "normalized_manifest_sha256": "cead75909f03bd24d8b84806274c03404e20a664b6a7595a75a518265cb72901"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:45Z",
+          "original_manifest_sha256": "b5a032da5f5f22bbcc0015d92f6e1a47573d7f0d1e1b63c56069e2e8934f6048",
+          "normalized_manifest_sha256": "cead75909f03bd24d8b84806274c03404e20a664b6a7595a75a518265cb72901"
+        }
+      ]
+    },
+    {
+      "case": "formal-success-pass",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:29Z",
+          "original_manifest_sha256": "0a6e18bd174d6e987c1676fb87388ce8ad9b81f7ff076d25d6726b252b1d7016",
+          "normalized_manifest_sha256": "dbdd99d3a83724efb6e802272dad9d6086f5f86517c078356e423b7577a52579"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:46Z",
+          "original_manifest_sha256": "e85fa5049a71ac9cf3824c7a23398c0137f7561c22277467918940f264c3ad1f",
+          "normalized_manifest_sha256": "dbdd99d3a83724efb6e802272dad9d6086f5f86517c078356e423b7577a52579"
+        }
+      ]
+    },
+    {
+      "case": "formal-success-passed_with_capacity_warning",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:30Z",
+          "original_manifest_sha256": "0aa9e3d7567f239ae3e7a35903a920418c2655ed2bf32be1792b7b52ef952b4b",
+          "normalized_manifest_sha256": "34172d611eda7a1a02373422763edf8c8e82bcc7b256871b144bcd1551071498"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:47Z",
+          "original_manifest_sha256": "c1f386555585d2d7a9fe1ad364e1e35e47bc35b1bd4c27b72a294b0b4fcc40e0",
+          "normalized_manifest_sha256": "34172d611eda7a1a02373422763edf8c8e82bcc7b256871b144bcd1551071498"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-unknown-outcome",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:31Z",
+          "original_manifest_sha256": "df24f7eddca59adf3519eae7c86d945f28de5393c3de4d0e0711fe2355b1f85c",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:47Z",
+          "original_manifest_sha256": "586ca4b3e09e2089482336ec260b9f2de3e8535bbc4d718ba78cc811f0a287c5",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-unknown-cause",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:32Z",
+          "original_manifest_sha256": "fed0d8a6ae2e5532dffe84d5fcc25776ad08d2e5745b7317d325a586d13d1e40",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:48Z",
+          "original_manifest_sha256": "77cfb9d90fb617849a8d6fb34fd4d7324e26b8937d9c606a0a75d0d6d9839a45",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-missing-cause",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:33Z",
+          "original_manifest_sha256": "5f93fdc7f196696efa878752eabe89fcf2460f3f909c67aead01127b7ef5d25f",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:49Z",
+          "original_manifest_sha256": "890385d493a8b81cb1752b4d2248f93fb8d76f991fb67c870c6eee8b2db891c6",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-success-pair",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:34Z",
+          "original_manifest_sha256": "e1ee569e1c8ef16a65dbdcc53941622a1fc4e7510646af6496bc216dc1f4b407",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:50Z",
+          "original_manifest_sha256": "3608cdf3cef49b4a3d6e9ebd6f75c1ed557b702cc8db64b30c06cf786a86e270",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-failure-pair",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:35Z",
+          "original_manifest_sha256": "07ad5dc40dd9844bb235319cdd53a5641d2dce7aa1aff9e8f759b28a83cb7b90",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:51Z",
+          "original_manifest_sha256": "dd3cbf25bfec3d8b556a5a16d5562081f822f39ac5818d1389fda47bc413e538",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-rehearsal-success",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:36Z",
+          "original_manifest_sha256": "d15b17f6efd7e222381900845be1e4748f70a56e9d894efdf8b24c02a00c5580",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:51Z",
+          "original_manifest_sha256": "dd3cbf25bfec3d8b556a5a16d5562081f822f39ac5818d1389fda47bc413e538",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-capacity-only-cause",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:37Z",
+          "original_manifest_sha256": "082c27f9959db4d92026e63455507b03043461286193e7ba5b15483aa4f50f43",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:52Z",
+          "original_manifest_sha256": "67fb074eb83b901aca8e873f666635ffcd80cfba41d2887e8eabeaddce8040b6",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-continuation",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:38Z",
+          "original_manifest_sha256": "ebef97aad653a9c277892559bf5f8cbbf0bc0ef37b22fb8f0bcf0b7a289d86d5",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:52Z",
+          "original_manifest_sha256": "67fb074eb83b901aca8e873f666635ffcd80cfba41d2887e8eabeaddce8040b6",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-mode",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:39Z",
+          "original_manifest_sha256": "f81efc8c0ce8d798f85c6305d27b5c15ac9fea57fbea702503e7c9be33ab8ea3",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:53Z",
+          "original_manifest_sha256": "e2678a9523ae0b926abb5a14af35a8b982c04a5d5ec941e1f241e6ccef8da94f",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-capacity-missing-completed",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:40Z",
+          "original_manifest_sha256": "341b7e340db03ec1882bbe1e5cfe5834b2e73bad8b12ec9535accac1d5cbeea5",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:54Z",
+          "original_manifest_sha256": "39ff3bf167fbb928f44401f3039b483ec0fd7a73b4c7d60c3ac0f9877b2d51bb",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-capacity-completed",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:40Z",
+          "original_manifest_sha256": "341b7e340db03ec1882bbe1e5cfe5834b2e73bad8b12ec9535accac1d5cbeea5",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:54Z",
+          "original_manifest_sha256": "39ff3bf167fbb928f44401f3039b483ec0fd7a73b4c7d60c3ac0f9877b2d51bb",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-capacity-lower-bound",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:41Z",
+          "original_manifest_sha256": "0b63a635181e24b4eea01f7ac0ffd7466214b896321cc6ef14692bc325bf6c6a",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:55Z",
+          "original_manifest_sha256": "dc3205586719632f4e50d949b803a63510888296f6d71941ee1808994e31d979",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-capacity-rate",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:42Z",
+          "original_manifest_sha256": "33506b1549559df42037e168f24d0467819a4db53c45fc4bbe5520d6f1dad1e1",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:55Z",
+          "original_manifest_sha256": "dc3205586719632f4e50d949b803a63510888296f6d71941ee1808994e31d979",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-capacity-failed-rate",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:43Z",
+          "original_manifest_sha256": "32d7df96b1d6848357f074c51349aa1d550126bb9cdb074b96530eb46fc5105f",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:56Z",
+          "original_manifest_sha256": "3c538a134fc2b2174ebef5453726f7da1210f774bd08c831fcc0a5a3f5a69372",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-capacity-recovery",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:44Z",
+          "original_manifest_sha256": "3c24d59150208ea8addfbebb840c6695f5467569ea8cfed956b37cf96ac328f3",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:57Z",
+          "original_manifest_sha256": "b8ae2dcea8db8e2a10b89e98e1cc36367836c5f61664424f43952480fa8239dc",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "invalid-phase-capacity-attribution",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:45Z",
+          "original_manifest_sha256": "f20a43044c906dbb216aee2da401c7195fcb6d55b8710e55bfee71618328c3c1",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:57Z",
+          "original_manifest_sha256": "b8ae2dcea8db8e2a10b89e98e1cc36367836c5f61664424f43952480fa8239dc",
+          "normalized_manifest_sha256": "b7bd1b2f036331a12260eb1618fbae2544e0589ffcc38a806c433b462b80e3e9"
+        }
+      ]
+    },
+    {
+      "case": "valid-terminal-rehearsal",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:46Z",
+          "original_manifest_sha256": "04a48c58c80d7a5f41f69817fb8e3fc764eb0afc39cf294775a5ed6a5bdc29d6",
+          "normalized_manifest_sha256": "403c65f5ab626816146de22e7eb43c3411932dd35645301a70be8e937a0fcf8d"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:58Z",
+          "original_manifest_sha256": "e1848960ddcab1bc989f0b96c7740796711de49d9af1e926183db65ff99e48a7",
+          "normalized_manifest_sha256": "403c65f5ab626816146de22e7eb43c3411932dd35645301a70be8e937a0fcf8d"
+        }
+      ]
+    },
+    {
+      "case": "valid-terminal-formal",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:47Z",
+          "original_manifest_sha256": "2d3b18420a6ccebbb1a76681867f0d9ab8080df584afe36ee1eaec3c8a2bab67",
+          "normalized_manifest_sha256": "effb7778d562c8d61548f1494eedf23d3205efda6fc5c4025ae7b9be19e3639f"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:04:59Z",
+          "original_manifest_sha256": "9b58a5533db764930e9a64ef0a7ea24fd47a44015fe6d3d48f08e77f907f3b3a",
+          "normalized_manifest_sha256": "effb7778d562c8d61548f1494eedf23d3205efda6fc5c4025ae7b9be19e3639f"
+        }
+      ]
+    },
+    {
+      "case": "worker-missing",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:48Z",
+          "original_manifest_sha256": "c6415e58e2d9a44eae0d314d356371147732aef02498f038ad9f571b95ebbb8d",
+          "normalized_manifest_sha256": "42c6963fe73e1f249284db59d01ed295cfe03b3d9ab8956b76e7a8b2a07af237"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:00Z",
+          "original_manifest_sha256": "61a9a0186a316fe48d9dc8873f604d88819d62d65189097049200a03b3584708",
+          "normalized_manifest_sha256": "42c6963fe73e1f249284db59d01ed295cfe03b3d9ab8956b76e7a8b2a07af237"
+        }
+      ]
+    },
+    {
+      "case": "worker-empty",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:49Z",
+          "original_manifest_sha256": "6b3267b00a582ed9bbce64809df4f3ceefe1c2535216f8eff10fdf00c34f2a86",
+          "normalized_manifest_sha256": "c5ef8a7e78dd375e9484fcbe52db2050a217d46e884b5707a71c362559539273"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:01Z",
+          "original_manifest_sha256": "17c5df5c473e621a78166d54c621f112e0b644b1c8ca8787640e8fbf0248df4e",
+          "normalized_manifest_sha256": "c5ef8a7e78dd375e9484fcbe52db2050a217d46e884b5707a71c362559539273"
+        }
+      ]
+    },
+    {
+      "case": "worker-malformed",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:50Z",
+          "original_manifest_sha256": "2ac06ae88386aa663a5b0350ab3cd07fd9008bd567ccbd52d69aff9f68df267c",
+          "normalized_manifest_sha256": "11b9773631796de9ff06f8ecaba266f91753790711e32710483dcd573747fe36"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:01Z",
+          "original_manifest_sha256": "717048b9713c5b31edff2cb553718d592192785829940c68c2e9b3b9b5e0805b",
+          "normalized_manifest_sha256": "11b9773631796de9ff06f8ecaba266f91753790711e32710483dcd573747fe36"
+        }
+      ]
+    },
+    {
+      "case": "worker-oversized",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:52Z",
+          "original_manifest_sha256": "8ad5d5980ac20002cd5d11dc1e09a7f7fc9a2ba64eea62e6e18ab5cfe752d0d3",
+          "normalized_manifest_sha256": "5c7dd9aaf42053b9cdec946ecc1352e183dfac75297762f49b577e430e6ab36a"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:02Z",
+          "original_manifest_sha256": "231ca4da91aa3a1952de90548c2f523e99c9087404c5eb8d4ef5515306b6681c",
+          "normalized_manifest_sha256": "5c7dd9aaf42053b9cdec946ecc1352e183dfac75297762f49b577e430e6ab36a"
+        }
+      ]
+    },
+    {
+      "case": "worker-unavailable",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:53Z",
+          "original_manifest_sha256": "221ba13c8f800bedfc8d2c9338f4b930d94cadc96cbf22d7edf47d0f0e31f190",
+          "normalized_manifest_sha256": "2334c18bf6b078e4d810b9883171f1542c6a329ef3315909802ac7e240b283f5"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:03Z",
+          "original_manifest_sha256": "41d6a10f8130b735522f549ee36c7ee8a7f4db4ecbd2e4732f1df8a37dae3a71",
+          "normalized_manifest_sha256": "2334c18bf6b078e4d810b9883171f1542c6a329ef3315909802ac7e240b283f5"
+        }
+      ]
+    },
+    {
+      "case": "worker-partial",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:54Z",
+          "original_manifest_sha256": "3e35f914cb437f49f105433e82ecbec3b8764d633495e43d8c0f6d5f8d8ab99c",
+          "normalized_manifest_sha256": "06c89cb08a92e006f89e500b634b1712abfef068eb9aff2cb94c503f1af0bd01"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:04Z",
+          "original_manifest_sha256": "1cc54c23995b59426b83f3d18e9d6e425aa03b6acaa5aaf2f7f3e419cf5050c0",
+          "normalized_manifest_sha256": "06c89cb08a92e006f89e500b634b1712abfef068eb9aff2cb94c503f1af0bd01"
+        }
+      ]
+    },
+    {
+      "case": "worker-timeout",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:55Z",
+          "original_manifest_sha256": "c1b64d320bd6357d739f3f5be14b10e63a62c87a346426050d822e32866b3aea",
+          "normalized_manifest_sha256": "0f1854793072de7f2b8fc471d50191a2b77a90517fdcbec9e8f0c921ae110651"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:05Z",
+          "original_manifest_sha256": "148bd9dbe58d43b5a3b3b1a379c2597176c3369c7edea8c2d19bb04d293a13a6",
+          "normalized_manifest_sha256": "0f1854793072de7f2b8fc471d50191a2b77a90517fdcbec9e8f0c921ae110651"
+        }
+      ]
+    },
+    {
+      "case": "status-wrong-run",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:56Z",
+          "original_manifest_sha256": "efffe796984446b43afe1fa0c534eadcbd9ea0d345c3de9c26e1bcea4773f58c",
+          "normalized_manifest_sha256": "ff0d23468106fe2c6ad1b2abc7e8f77ff7064bc0cc5eb22fc2c96da42dd044ec"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:05Z",
+          "original_manifest_sha256": "cb8279d8a6ea9dd6b5815cfc4ca94bf66748a015c6348652994c43d5f4d2a689",
+          "normalized_manifest_sha256": "ff0d23468106fe2c6ad1b2abc7e8f77ff7064bc0cc5eb22fc2c96da42dd044ec"
+        }
+      ]
+    },
+    {
+      "case": "status-wrong-cut",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:57Z",
+          "original_manifest_sha256": "0313ca70a3faf72f60cfebc2e11baebc52d7de8304cc8d0fe8fcc0c6b70db08d",
+          "normalized_manifest_sha256": "d576f5779eea95ae692ee82bd1921f144af66e565f1791727303ceb561db2ee8"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:06Z",
+          "original_manifest_sha256": "0e937cae5091a071bb87f0883df1ecd41340efee294ffa7167735ea1fcf00b67",
+          "normalized_manifest_sha256": "d576f5779eea95ae692ee82bd1921f144af66e565f1791727303ceb561db2ee8"
+        }
+      ]
+    },
+    {
+      "case": "status-raw-field",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:58Z",
+          "original_manifest_sha256": "cdde2705a2932be855f2a2ab891bbda34ad1230e25b6df1b6b6d40af032a0b66",
+          "normalized_manifest_sha256": "d1d868c4a8ac8dec9fa1e8fe41914badddd55235def92a21b5df41b177c206d5"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:07Z",
+          "original_manifest_sha256": "8231a8ac349c4bb839a8ad278e44b0ece654a77a2e8e1a68c9dced7adc96b015",
+          "normalized_manifest_sha256": "d1d868c4a8ac8dec9fa1e8fe41914badddd55235def92a21b5df41b177c206d5"
+        }
+      ]
+    },
+    {
+      "case": "status-wrong-sequence",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:22:59Z",
+          "original_manifest_sha256": "26fbc2cd2778edc8094c0e61edbda6ba1b44149ac18b17826c7e4e640bf4afef",
+          "normalized_manifest_sha256": "4144575305a3f95c38dbc313ed3d6b3d2861a83213c34f76d8468d13b12ba54f"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:07Z",
+          "original_manifest_sha256": "7b46ef137db2e602a8f43a4915e9567231cbb533032dbbead4aef8e51fc9f5e1",
+          "normalized_manifest_sha256": "4144575305a3f95c38dbc313ed3d6b3d2861a83213c34f76d8468d13b12ba54f"
+        }
+      ]
+    },
+    {
+      "case": "range-oversized",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:00Z",
+          "original_manifest_sha256": "6b093f97bad776f33656553fe16dbd4e04c656bbdf7ad5f0daae14be34c0afc5",
+          "normalized_manifest_sha256": "4df91bd33e7a2dff9a3acb1421170e41885a70b8cacf61145496dcba2cdb1de1"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:08Z",
+          "original_manifest_sha256": "cbb8e5ebb8feaa6dd805becbf956221622b647bb431c345907e7e839bc26f4b6",
+          "normalized_manifest_sha256": "4df91bd33e7a2dff9a3acb1421170e41885a70b8cacf61145496dcba2cdb1de1"
+        }
+      ]
+    },
+    {
+      "case": "range-unavailable",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:01Z",
+          "original_manifest_sha256": "14542fb63b6396a9a1db2ce4d96b1080916b0f207bdc297470446c9f951836e9",
+          "normalized_manifest_sha256": "7cb467ab214f2aeed637ffe6f61d1739c7d084711c8106bb103983b3f64d85c7"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:09Z",
+          "original_manifest_sha256": "2c33537bac54f9ab10472258be3665ad5d45cece59f11610aa6927600294ded5",
+          "normalized_manifest_sha256": "7cb467ab214f2aeed637ffe6f61d1739c7d084711c8106bb103983b3f64d85c7"
+        }
+      ]
+    },
+    {
+      "case": "range-partial",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:02Z",
+          "original_manifest_sha256": "eae1c77dc31d20b4fa2f04aad59ac976b6444dff06c2b0ac4e6f7684caa2747a",
+          "normalized_manifest_sha256": "33ead1a90121761757605d3ebac72755fc42a0dcb161605faccf149d6e505bfa"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:10Z",
+          "original_manifest_sha256": "fb6601803740437c5313840e3d995438cf6c48a15a344481b5bf10437a62bf23",
+          "normalized_manifest_sha256": "33ead1a90121761757605d3ebac72755fc42a0dcb161605faccf149d6e505bfa"
+        }
+      ]
+    },
+    {
+      "case": "range-timeout",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:04Z",
+          "original_manifest_sha256": "114cb5741c1c46855fad3a52e1f0fcfc22f05ae816179bb06afdf5334c0403ca",
+          "normalized_manifest_sha256": "46d06bbc8060bdb737de174bf0e98307efabd96988cfb74ac726be40f35818aa"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:11Z",
+          "original_manifest_sha256": "2589a0c74a0f6bf5bd4d916ad727b18077270d6eac84e40d459fe62285455583",
+          "normalized_manifest_sha256": "46d06bbc8060bdb737de174bf0e98307efabd96988cfb74ac726be40f35818aa"
+        }
+      ]
+    },
+    {
+      "case": "range-malformed",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:05Z",
+          "original_manifest_sha256": "d324886024cdc2720bcdca5879d69d811e44575e0621affcec2f73706c45ab79",
+          "normalized_manifest_sha256": "dc2dd5091117893512e620599493cfe50223aec83ae307ee4d6b93d75e96c1ee"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:12Z",
+          "original_manifest_sha256": "6b252c6994590021a8e750b063f68e313c00cd36a3b907ce01de2cfc251d020a",
+          "normalized_manifest_sha256": "dc2dd5091117893512e620599493cfe50223aec83ae307ee4d6b93d75e96c1ee"
+        }
+      ]
+    },
+    {
+      "case": "range-wrong-type",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:06Z",
+          "original_manifest_sha256": "9aa7696af02c6a646306cd8644fdffe903645d62d787f0efe26e369c16c69057",
+          "normalized_manifest_sha256": "ceaae295aa15f44376bfc6f4d358f39662079b329d81074ab468a564f73570cb"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:13Z",
+          "original_manifest_sha256": "7f31a291d6cd7a6e5d50601186da5015265f9ed97a1962c91ab8a8a86f0868f0",
+          "normalized_manifest_sha256": "ceaae295aa15f44376bfc6f4d358f39662079b329d81074ab468a564f73570cb"
+        }
+      ]
+    },
+    {
+      "case": "range-wrong-family",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:07Z",
+          "original_manifest_sha256": "19458749e3c503f2b6d883ea8575f42c42b28421062789e571f579a7d5687404",
+          "normalized_manifest_sha256": "fbe8ba08fcfc47c2f32dd0036acfbe3d92142f632658502abc9ce632f52bf965"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:13Z",
+          "original_manifest_sha256": "53c2e7a1b0b537d447e5015f5c89785469227b48dadb5efcbb62efa9bf5356ab",
+          "normalized_manifest_sha256": "fbe8ba08fcfc47c2f32dd0036acfbe3d92142f632658502abc9ce632f52bf965"
+        }
+      ]
+    },
+    {
+      "case": "range-error",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:08Z",
+          "original_manifest_sha256": "be52d14cfd1f1266c16c553e6b9cfcb765519f40fa2f3cd2b76265f10cbfddbb",
+          "normalized_manifest_sha256": "5b4afaaaa16e18a2efb1783dadbc694ee3646ea1fd76489d5607ebd4d9cfe6a3"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:14Z",
+          "original_manifest_sha256": "d8e07c3a00b845f287fe322bae223fee6914fdcacf1200dc5d83f771fc090f60",
+          "normalized_manifest_sha256": "5b4afaaaa16e18a2efb1783dadbc694ee3646ea1fd76489d5607ebd4d9cfe6a3"
+        }
+      ]
+    },
+    {
+      "case": "large-split",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:09Z",
+          "original_manifest_sha256": "3712955d2400519e5aa2f213e841d17d964936c37814cb4e4b805ec18664f0af",
+          "normalized_manifest_sha256": "2e34df7aefbcfc22d3426ae3d5f8adb6ac9d1059eb523f32ec56175e070b1f63"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:15Z",
+          "original_manifest_sha256": "9b0c79b1e4ac96816c714e9ed8827f7a1d0c46efa004818f3230f911f37ee8e1",
+          "normalized_manifest_sha256": "2e34df7aefbcfc22d3426ae3d5f8adb6ac9d1059eb523f32ec56175e070b1f63"
+        }
+      ]
+    },
+    {
+      "case": "millisecond-121277292-start",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:10Z",
+          "original_manifest_sha256": "0f123a1131f27175e8d20d062ae52e40b36c86703e8812a7caec070c2cfd1163",
+          "normalized_manifest_sha256": "747edf646ff95768df7ebc79e0ea6e34f63dea5396e7da3aa89f9b673c7424b2"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:16Z",
+          "original_manifest_sha256": "fdb599e2bb3745301b24f811527692b1917f35e37bf3a6aebfa858d3a533f1d4",
+          "normalized_manifest_sha256": "747edf646ff95768df7ebc79e0ea6e34f63dea5396e7da3aa89f9b673c7424b2"
+        }
+      ]
+    },
+    {
+      "case": "millisecond-121277292-end",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:11Z",
+          "original_manifest_sha256": "8454df3cb0ff6f4749175927df7affaac45f33cf417268c1e494c26db7b2352e",
+          "normalized_manifest_sha256": "b3df84707518f999f0d55f6877d1c94d7585df69393c3083355ed831b27b6928"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:16Z",
+          "original_manifest_sha256": "8246f7fffb10748ee9ca8df4ff7c35a1dba6f99fc7aa5472f06d647dc36d28a2",
+          "normalized_manifest_sha256": "b3df84707518f999f0d55f6877d1c94d7585df69393c3083355ed831b27b6928"
+        }
+      ]
+    },
+    {
+      "case": "millisecond-121777292-start",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:12Z",
+          "original_manifest_sha256": "f01f11c4c2ecc1fa4002ae170c25652a0881e7e17ac38a658a0fc4ee96f093fc",
+          "normalized_manifest_sha256": "d59cb160d3e644e2b2c65ae52e228072b541fff748d10c0ad4ddf18d309f9af2"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:17Z",
+          "original_manifest_sha256": "61d998c59dfd0ee08fb9d2f9036efd68c70e3c051748ec6456786c1a0bcd8e93",
+          "normalized_manifest_sha256": "d59cb160d3e644e2b2c65ae52e228072b541fff748d10c0ad4ddf18d309f9af2"
+        }
+      ]
+    },
+    {
+      "case": "millisecond-121777292-end",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:13Z",
+          "original_manifest_sha256": "b293db728b90fb7fa5f8020a2e84f0cd5361dbe34516bc88f7f8d20e09464962",
+          "normalized_manifest_sha256": "28d92ffd9eb097f22b26368070ae25d500eb6118dc25d21e877d2bbf326ccbdf"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:18Z",
+          "original_manifest_sha256": "8f9645fb3deda1dc2da421a0c633d38279b37d7062a8218677c755c661adb6b7",
+          "normalized_manifest_sha256": "28d92ffd9eb097f22b26368070ae25d500eb6118dc25d21e877d2bbf326ccbdf"
+        }
+      ]
+    },
+    {
+      "case": "millisecond-121500000-start",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:14Z",
+          "original_manifest_sha256": "a9e22e89f2d96dda3003c1ae805e357c535924c33dee2fd8b9e3be7da9a6023c",
+          "normalized_manifest_sha256": "715c7f28863ae7341b60fa5bc81ad92f68be21ae19cb9311b150224116d4e2c8"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:19Z",
+          "original_manifest_sha256": "d2aa81c247a7066ed946c5529f113ef5852a325640e90b5688926b005e9d2141",
+          "normalized_manifest_sha256": "715c7f28863ae7341b60fa5bc81ad92f68be21ae19cb9311b150224116d4e2c8"
+        }
+      ]
+    },
+    {
+      "case": "millisecond-121500000-end",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:16Z",
+          "original_manifest_sha256": "396c38bdf2fcccb3737467f81a0922f1b1dc8674b9455656fbe99357ef0302b5",
+          "normalized_manifest_sha256": "f9040f11f75550b18429dab8914c46b8d116b4324325cf318dba9c06ae6c7be2"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:20Z",
+          "original_manifest_sha256": "c57ec90716337042989745ee73449f06cf317921a6c2c7e7e1ee1d236a1d28f4",
+          "normalized_manifest_sha256": "f9040f11f75550b18429dab8914c46b8d116b4324325cf318dba9c06ae6c7be2"
+        }
+      ]
+    },
+    {
+      "case": "millisecond-999777292-start",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:17Z",
+          "original_manifest_sha256": "6a5480b7defe55641537183f324b43f4db70454cad833b51245464327cf543a8",
+          "normalized_manifest_sha256": "ae0741a28d35a61ed72f947fe25f9fede529f69a8d52e45121a1715bdde746aa"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:21Z",
+          "original_manifest_sha256": "9cc77bf6c19802a1385ddd91ed21200e2c6d7e64096e6d20fd821a24c014e2c3",
+          "normalized_manifest_sha256": "ae0741a28d35a61ed72f947fe25f9fede529f69a8d52e45121a1715bdde746aa"
+        }
+      ]
+    },
+    {
+      "case": "millisecond-999777292-end",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:18Z",
+          "original_manifest_sha256": "232858e518b8f032dabe07b5a849425c6039b3def9d5dab9698d28c6505327c9",
+          "normalized_manifest_sha256": "d9a456d5e2c59e59894935922af46ee3b81dfc1724c0dad8edbe906e565bb38a"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:22Z",
+          "original_manifest_sha256": "06b2b3d73850d2609ca42936e2ed253a51f85705e110942ef08f4563d13e12b0",
+          "normalized_manifest_sha256": "d9a456d5e2c59e59894935922af46ee3b81dfc1724c0dad8edbe906e565bb38a"
+        }
+      ]
+    },
+    {
+      "case": "before-start",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:19Z",
+          "original_manifest_sha256": "0317c6610fda702cf8b9247b19f4ad1b9010ac15202c2573e573769a6c36559f",
+          "normalized_manifest_sha256": "cdfa599ed8990acb09ed1bfa857809b778de5825c03807ef72de500a3842a4e8"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:23Z",
+          "original_manifest_sha256": "34200a280aa97dab8a7e3445d9cd672f0c95de46d4375242f7f31a68a41ae0a1",
+          "normalized_manifest_sha256": "cdfa599ed8990acb09ed1bfa857809b778de5825c03807ef72de500a3842a4e8"
+        }
+      ]
+    },
+    {
+      "case": "after-end",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:20Z",
+          "original_manifest_sha256": "caf17cd7011c93b10a50e2d63bbda64429e7cddfde615c5e63e419b74ceea285",
+          "normalized_manifest_sha256": "6f6a566be48483d961fa74a8a5ee922d7e04e4ec4cc4c254f0cf549fc51ea42c"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:24Z",
+          "original_manifest_sha256": "65d05bc655eeb320ae51841ae062e0998a98ba66e787854b3ffa5b71d4a942a6",
+          "normalized_manifest_sha256": "6f6a566be48483d961fa74a8a5ee922d7e04e4ec4cc4c254f0cf549fc51ea42c"
+        }
+      ]
+    },
+    {
+      "case": "sub-millisecond",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:21Z",
+          "original_manifest_sha256": "23f0069c36a46fc983154ea32e80518ff713f85e127de11ef4d97dd21627d77e",
+          "normalized_manifest_sha256": "dea83f5563389acce124b1a88cdabbd73cb5c0c1838d471e52c82df2a0ad9be2"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:25Z",
+          "original_manifest_sha256": "05c28879376996198101fe2b8d08f236eb3e9afe8cbc3e9b164564e2b9467938",
+          "normalized_manifest_sha256": "dea83f5563389acce124b1a88cdabbd73cb5c0c1838d471e52c82df2a0ad9be2"
+        }
+      ]
+    },
+    {
+      "case": "rehearsal",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:22Z",
+          "original_manifest_sha256": "ddc3a60f0099ca79716a15823087cd4c70565ec167fabf83542f3a5925e76e3a",
+          "normalized_manifest_sha256": "fc55e42891cc1ed6f6bdba401b045ee826135d670b673249f731c8ff5fcccdcc"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:25Z",
+          "original_manifest_sha256": "daa4313d601d5419d059a8e41848e65ad84815d25e0f3d6e96359bba49c4e74c",
+          "normalized_manifest_sha256": "fc55e42891cc1ed6f6bdba401b045ee826135d670b673249f731c8ff5fcccdcc"
+        }
+      ]
+    },
+    {
+      "case": "schema",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:23Z",
+          "original_manifest_sha256": "df3aae9bccfb578dba532b41f333dbab1aef2dd4d9142f3e30b872ae0a193f06",
+          "normalized_manifest_sha256": "2d143aa6e3d4e701b7416bb0d78bbad275c16aed170dc03094e9b25520fe44ad"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:26Z",
+          "original_manifest_sha256": "f14cc37e4a9da9c9a9a8c52d7ab4485a4e40830467606b317256fa381bb3f704",
+          "normalized_manifest_sha256": "2d143aa6e3d4e701b7416bb0d78bbad275c16aed170dc03094e9b25520fe44ad"
+        }
+      ]
+    },
+    {
+      "case": "run",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:24Z",
+          "original_manifest_sha256": "613ed298644366c39c2631c87b922935346918d4a6fb670581a8bb6e228dbb7d",
+          "normalized_manifest_sha256": "2fbcb3134e77c11a814ec7415a4b1148ca62a4a660117f563325890bcc87f38a"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:27Z",
+          "original_manifest_sha256": "0139dcf966043e5162fb5aae88101953546f8d91c7dd8f58c83ee26714ba9e13",
+          "normalized_manifest_sha256": "2fbcb3134e77c11a814ec7415a4b1148ca62a4a660117f563325890bcc87f38a"
+        }
+      ]
+    },
+    {
+      "case": "at",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:25Z",
+          "original_manifest_sha256": "ff57164a65faef7082319c06907c019b4b21d956827068d1dcb7d9c1704bf9ff",
+          "normalized_manifest_sha256": "230b1ac702c83a33b1d34f79bfa3814945b199dc356e3dd881a8f1de747383d2"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:27Z",
+          "original_manifest_sha256": "7d5397312758ee23047cd78728ba101129d94193e3f08b2c406702e5a3fded16",
+          "normalized_manifest_sha256": "230b1ac702c83a33b1d34f79bfa3814945b199dc356e3dd881a8f1de747383d2"
+        }
+      ]
+    },
+    {
+      "case": "worker-duplicate",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:27Z",
+          "original_manifest_sha256": "c53e94cbb16b861dbbb322e6e61a6d5cbe6df216905e9e806ddc48387446a225",
+          "normalized_manifest_sha256": "230b1ac702c83a33b1d34f79bfa3814945b199dc356e3dd881a8f1de747383d2"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:28Z",
+          "original_manifest_sha256": "4158a05e10b87322d49dbd5837dd601ee2997a5ec4307086de1fc6efda342492",
+          "normalized_manifest_sha256": "230b1ac702c83a33b1d34f79bfa3814945b199dc356e3dd881a8f1de747383d2"
+        }
+      ]
+    },
+    {
+      "case": "generation",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:28Z",
+          "original_manifest_sha256": "6b926c4871b91d10fd52a03d91e19987902709105b8f6d486ba2f84e1ac4e871",
+          "normalized_manifest_sha256": "230b1ac702c83a33b1d34f79bfa3814945b199dc356e3dd881a8f1de747383d2"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:29Z",
+          "original_manifest_sha256": "7d810a558a57d30e3a3d74761bcd9e2a3520706bd9293677dac5ac841e8d3af5",
+          "normalized_manifest_sha256": "230b1ac702c83a33b1d34f79bfa3814945b199dc356e3dd881a8f1de747383d2"
+        }
+      ]
+    },
+    {
+      "case": "sequence",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:29Z",
+          "original_manifest_sha256": "ff6060a3fc1f424a440b61ee86cb58257c8194107cb60dc6b47c6bc21bd2528c",
+          "normalized_manifest_sha256": "230b1ac702c83a33b1d34f79bfa3814945b199dc356e3dd881a8f1de747383d2"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:30Z",
+          "original_manifest_sha256": "becc5c4b42cde59ce2061d5f9717df342158cc22040b6b9625e731ce62e1a90a",
+          "normalized_manifest_sha256": "230b1ac702c83a33b1d34f79bfa3814945b199dc356e3dd881a8f1de747383d2"
+        }
+      ]
+    },
+    {
+      "case": "raw-field",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:30Z",
+          "original_manifest_sha256": "dbacd9ba359b1e7896febd738004f33d89b048d14da04bf5e3dde9e0adc93e58",
+          "normalized_manifest_sha256": "17c8dd4d7afd4e70619c6db06d11abcd95858af7441e18be7d975895fa7b38b9"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:30Z",
+          "original_manifest_sha256": "9de936833d50d7f9ccecd8a01239163d1813500788e83d3e4115a6f3d3f5d7f6",
+          "normalized_manifest_sha256": "17c8dd4d7afd4e70619c6db06d11abcd95858af7441e18be7d975895fa7b38b9"
+        }
+      ]
+    },
+    {
+      "case": "bad-example",
+      "equal": true,
+      "normalization": [
+        {
+          "side": "baseline",
+          "observed_at": "2026-10-21T18:23:31Z",
+          "original_manifest_sha256": "f0eccf14435beccfe66995bc2396c69b6506798c662c7b14439989f20a333d0e",
+          "normalized_manifest_sha256": "78c75330668a3180f17a33cbf3d337e05ffb1dff4bf5ca7be5dde5dd1dba837a"
+        },
+        {
+          "side": "candidate",
+          "observed_at": "2026-10-21T19:05:31Z",
+          "original_manifest_sha256": "aecdb8bd8a0ac3ed658d9e6abbb84d8706a11d269fe0767356fb13ff2b874118",
+          "normalized_manifest_sha256": "78c75330668a3180f17a33cbf3d337e05ffb1dff4bf5ca7be5dde5dd1dba837a"
+        }
+      ]
+    }
+  ]
+}

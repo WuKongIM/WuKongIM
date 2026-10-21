@@ -1,0 +1,356 @@
+go: downloading github.com/spf13/cobra v1.10.2
+go: downloading golang.org/x/crypto v0.55.0
+go: downloading gopkg.in/yaml.v3 v3.0.1
+go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+go: downloading github.com/pelletier/go-toml/v2 v2.3.1
+go: downloading github.com/shirou/gopsutil/v4 v4.26.5
+go: downloading github.com/spf13/pflag v1.0.10
+go: downloading golang.org/x/sys v0.47.0
+go: downloading github.com/gizak/termui/v3 v3.1.0
+go: downloading github.com/stretchr/testify v1.11.1
+go: downloading github.com/gorilla/websocket v1.5.3
+go: downloading github.com/mattn/go-isatty v0.0.20
+go: downloading github.com/modelcontextprotocol/go-sdk v1.6.1
+go: downloading github.com/gin-gonic/gin v1.12.0
+go: downloading github.com/google/uuid v1.6.0
+go: downloading github.com/google/jsonschema-go v0.4.3
+go: downloading google.golang.org/protobuf v1.36.10
+go: downloading github.com/WuKongIM/wkrpc v0.0.0-20250312122115-5e44de72d2c8
+go: downloading github.com/bwmarrin/snowflake v0.3.0
+go: downloading github.com/prometheus/client_golang v1.16.0
+go: downloading github.com/prometheus/client_model v0.3.0
+go: downloading github.com/google/pprof v0.0.0-20260709232956-b9395ee17fa0
+go: downloading github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.2
+go: downloading github.com/alibabacloud-go/ecs-20140526/v7 v7.9.1
+go: downloading github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.5.1
+go: downloading github.com/alibabacloud-go/ims-20190815/v4 v4.4.1
+go: downloading github.com/alibabacloud-go/quotas-20200510/v2 v2.2.2
+go: downloading github.com/minio/minio-go/v7 v7.2.1
+go: downloading github.com/alibabacloud-go/ram-20150501/v2 v2.2.1
+go: downloading github.com/alibabacloud-go/sts-20150401/v2 v2.1.0
+go: downloading github.com/alibabacloud-go/tea v1.5.1
+go: downloading golang.org/x/time v0.4.0
+go: downloading github.com/alibabacloud-go/vpc-20160428/v6 v6.16.0
+go: downloading github.com/aliyun/credentials-go v1.4.5
+go: downloading github.com/cockroachdb/pebble v1.0.0
+go: downloading go.etcd.io/raft/v3 v3.6.0
+go: downloading go.uber.org/zap v1.27.0
+go: downloading github.com/cockroachdb/pebble/v2 v2.1.4
+go: downloading gopkg.in/natefinch/lumberjack.v2 v2.2.1
+go: downloading github.com/panjf2000/ants/v2 v2.11.3
+go: downloading github.com/robfig/cron/v3 v3.0.1
+go: downloading github.com/valyala/bytebufferpool v1.0.0
+go: downloading github.com/tklauser/go-sysconf v0.3.16
+go: downloading github.com/mattn/go-runewidth v0.0.23
+go: downloading github.com/mitchellh/go-wordwrap v0.0.0-20150314170334-ad45545899c7
+go: downloading github.com/nsf/termbox-go v0.0.0-20190121233118-02980233997d
+go: downloading github.com/klauspost/compress v1.18.6
+go: downloading github.com/gin-contrib/sse v1.1.0
+go: downloading github.com/quic-go/quic-go v0.59.0
+go: downloading golang.org/x/net v0.58.0
+go: downloading golang.org/x/oauth2 v0.35.0
+go: downloading github.com/yosida95/uritemplate/v3 v3.0.2
+go: downloading github.com/eclipse/paho.golang v0.23.0
+go: downloading github.com/golang/protobuf v1.5.4
+go: downloading github.com/WuKongIM/wklog v0.0.0-20250123094253-32484fb54d05
+go: downloading github.com/panjf2000/gnet/v2 v2.9.7
+go: downloading github.com/fsnotify/fsnotify v1.9.0
+go: downloading github.com/pkg/errors v0.9.1
+go: downloading github.com/beorn7/perks v1.0.1
+go: downloading github.com/cespare/xxhash/v2 v2.3.0
+go: downloading github.com/prometheus/common v0.42.0
+go: downloading github.com/prometheus/procfs v0.10.1
+go: downloading github.com/tjfoc/gmsm v1.4.1
+go: downloading github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
+go: downloading github.com/lni/goutils v1.4.0
+go: downloading go.etcd.io/etcd/pkg/v3 v3.5.17
+go: downloading go.uber.org/atomic v1.11.0
+go: downloading github.com/yuin/goldmark v1.8.2
+go: downloading github.com/dustin/go-humanize v1.0.1
+go: downloading github.com/klauspost/crc32 v1.3.0
+go: downloading github.com/minio/crc64nvme v1.1.1
+go: downloading github.com/minio/md5-simd v1.1.2
+go: downloading github.com/zeebo/xxh3 v1.1.0
+go: downloading go.yaml.in/yaml/v3 v3.0.4
+go: downloading gopkg.in/ini.v1 v1.67.2
+go: downloading github.com/alibabacloud-go/debug v1.0.1
+go: downloading github.com/alibabacloud-go/tea-utils/v2 v2.0.9
+go: downloading github.com/clbanning/mxj/v2 v2.7.0
+go: downloading github.com/json-iterator/go v1.1.12
+go: downloading github.com/modern-go/reflect2 v1.0.2
+go: downloading github.com/gogo/protobuf v1.3.2
+go: downloading go.uber.org/multierr v1.11.0
+go: downloading github.com/cockroachdb/errors v1.11.3
+go: downloading github.com/cockroachdb/redact v1.1.5
+go: downloading golang.org/x/sync v0.22.0
+go: downloading github.com/clipperhouse/uax29/v2 v2.7.0
+go: downloading github.com/tklauser/numcpus v0.11.0
+go: downloading github.com/davecgh/go-spew v1.1.1
+go: downloading github.com/pmezard/go-difflib v1.0.0
+go: downloading github.com/go-playground/validator/v10 v10.30.1
+go: downloading github.com/goccy/go-yaml v1.19.2
+go: downloading github.com/ugorji/go/codec v1.3.1
+go: downloading go.mongodb.org/mongo-driver/v2 v2.5.0
+go: downloading github.com/quic-go/qpack v0.6.0
+go: downloading github.com/cockroachdb/crlib v0.0.0-20241112164430-1264a2edc35b
+[redacted authentication-related line; original hash retained]
+go: downloading github.com/segmentio/encoding v0.5.4
+go: downloading github.com/matttproud/golang_protobuf_extensions v1.0.4
+go: downloading github.com/klauspost/cpuid/v2 v2.3.0
+go: downloading github.com/rs/xid v1.6.0
+go: downloading github.com/tinylib/msgp v1.6.1
+go: downloading github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5
+go: downloading github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+go: downloading golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
+go: downloading github.com/DataDog/zstd v1.5.7
+go: downloading github.com/golang/snappy v0.0.5-0.20231225225746-43d5d4cd4e0e
+go: downloading github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b
+go: downloading github.com/getsentry/sentry-go v0.27.0
+go: downloading github.com/gabriel-vasile/mimetype v1.4.12
+go: downloading github.com/go-playground/universal-translator v0.18.1
+go: downloading github.com/leodido/go-urn v1.4.0
+go: downloading golang.org/x/text v0.41.0
+go: downloading github.com/cockroachdb/swiss v0.0.0-20251224182025-b0f6560f979b
+go: downloading github.com/RaduBerinde/axisds v0.1.0
+go: downloading github.com/philhofer/fwd v1.2.0
+go: downloading github.com/kr/pretty v0.3.1
+go: downloading github.com/segmentio/asm v1.1.3
+go: downloading github.com/go-playground/locales v0.14.1
+go: downloading github.com/minio/minlz v1.0.1-0.20250507153514-87eb42fe8882
+go: downloading github.com/RaduBerinde/btreemap v0.0.0-20250419174037-3d62b7205d54
+go: downloading github.com/kr/text v0.2.0
+go: downloading github.com/rogpeppe/go-internal v1.14.1
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkanalysis	0.079s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkchatlifecycle	0.062s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli	0.035s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/bench	0.011s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark	7.459s
+?   	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context	0.008s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/database	16.890s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/diagnostics	0.019s
+?   	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/migrate	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/nodeops	0.093s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/sim	0.204s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top	0.017s
+?   	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top/topapi	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudanalysisbridge	0.013s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudbootstrap	0.005s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudbundle	0.032s
+?   	github.com/WuKongIM/WuKongIM/cmd/wkclouddiagnosis	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudgate	0.018s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudhost	0.130s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudlease	0.024s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudleaseoidc	0.007s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudsim	0.034s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkcloudview	0.020s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkissueagent	0.013s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkreviewagent	0.016s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkreviewcheck	0.008s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wkreviewcheckmcp	0.012s
+ok  	github.com/WuKongIM/WuKongIM/cmd/wukongim	1.883s
+ok  	github.com/WuKongIM/WuKongIM/internal	1.751s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/api	0.184s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/api/demoui	0.019s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/cloudanalysismcp	0.062s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/cloudview	0.024s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/gateway	0.029s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/issueagentcli	0.004s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/manager	0.115s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/manager/webui	0.011s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/migratecli	0.002s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/mqtt	0.024s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/node	0.041s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/opsmcp	0.029s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/plugin	0.010s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/reviewagentcheckmcp	0.016s
+ok  	github.com/WuKongIM/WuKongIM/internal/access/reviewagentcli	0.005s
+ok  	github.com/WuKongIM/WuKongIM/internal/app	2.940s
+?   	github.com/WuKongIM/WuKongIM/internal/app/migration	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/arrival	0.025s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/capacity	0.033s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle	34.425s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/config	0.010s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/coordinator	1.019s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/devsim	0.009s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/localbaseline	0.304s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/messageevent	0.019s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/metrics	0.019s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/planner	0.006s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/report	0.013s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/target	0.572s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/wkproto	0.200s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/worker	5.355s
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/workload	2.761s
+ok  	github.com/WuKongIM/WuKongIM/internal/config	0.096s
+ok  	github.com/WuKongIM/WuKongIM/internal/contracts/authority	0.002s
+ok  	github.com/WuKongIM/WuKongIM/internal/contracts/backup	0.003s
+ok  	github.com/WuKongIM/WuKongIM/internal/contracts/channelappend	0.004s
+ok  	github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers	0.002s
+ok  	github.com/WuKongIM/WuKongIM/internal/contracts/issueagent	0.006s
+ok  	github.com/WuKongIM/WuKongIM/internal/contracts/messageevents	0.002s
+?   	github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery	0.002s
+?   	github.com/WuKongIM/WuKongIM/internal/contracts/opsmcp	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/internal/contracts/pluginevents	0.004s
+ok  	github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta	0.003s
+ok  	github.com/WuKongIM/WuKongIM/internal/contracts/reviewagent	0.009s
+ok  	github.com/WuKongIM/WuKongIM/internal/contracts/sendbanaudit	0.007s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/backup	0.499s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/cloudanalysis	0.057s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/clouddeploy	0.011s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/cloudlease/alibaba	0.059s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/cloudlease/fake	0.006s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/cloudsim/alibaba	0.063s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/cloudsim/deploy	0.280s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/cloudsim/fake	0.009s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/cluster	1.777s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/delivery	0.022s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/issueagentgithub	3.111s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/migrationv2	24.572s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/migrationv3	1.373s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/mqttowner	0.044s
+?   	github.com/WuKongIM/WuKongIM/internal/infra/mqttwill	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/reviewagentgithub	1.019s
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/webhook	0.009s
+ok  	github.com/WuKongIM/WuKongIM/internal/log	0.019s
+ok  	github.com/WuKongIM/WuKongIM/internal/observability/diagnostics	0.162s
+ok  	github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx	0.005s
+ok  	github.com/WuKongIM/WuKongIM/internal/observability/taskaudit	0.029s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/backup	0.183s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/channelappend	1.395s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/cloudviewstate	0.511s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/delivery	0.166s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/issueagentverify	0.016s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/messageupdates	0.010s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession	0.095s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/online	0.004s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp	0.014s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory	0.019s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/pluginhook	0.106s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/presence	0.325s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/readavailability	0.008s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/reviewagentverify	0.020s
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/webhook	0.072s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/backup	0.780s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal	0.016s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/channel	0.008s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerepair	0.004s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerun	0.012s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/cloudanalysis	0.014s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/clouddeploy	0.333s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease	0.008s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/cloudsim	0.004s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync	0.007s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/conversation	0.159s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/issueagent	0.006s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/management	0.425s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/message	0.142s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/migration	1.174s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession	20.467s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/opsobserve	0.009s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/plugin	0.031s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/presence	0.012s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/reviewagent	0.031s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/user	0.008s
+ok  	github.com/WuKongIM/WuKongIM/pkg/backup	0.059s
+ok  	github.com/WuKongIM/WuKongIM/pkg/bench/model	0.007s
+ok  	github.com/WuKongIM/WuKongIM/pkg/channel	0.009s
+ok  	github.com/WuKongIM/WuKongIM/pkg/channel/machine	0.009s
+ok  	github.com/WuKongIM/WuKongIM/pkg/channel/reactor	1.418s
+ok  	github.com/WuKongIM/WuKongIM/pkg/channel/replication	0.720s
+ok  	github.com/WuKongIM/WuKongIM/pkg/channel/service	0.320s
+ok  	github.com/WuKongIM/WuKongIM/pkg/channel/store	0.502s
+ok  	github.com/WuKongIM/WuKongIM/pkg/channel/testkit	0.122s
+ok  	github.com/WuKongIM/WuKongIM/pkg/channel/transport	0.005s
+ok  	github.com/WuKongIM/WuKongIM/pkg/channel/worker	0.298s
+ok  	github.com/WuKongIM/WuKongIM/pkg/client	0.793s
+ok  	github.com/WuKongIM/WuKongIM/pkg/cluster	2.827s
+ok  	github.com/WuKongIM/WuKongIM/pkg/cluster/channels	1.046s
+ok  	github.com/WuKongIM/WuKongIM/pkg/cluster/control	0.220s
+?   	github.com/WuKongIM/WuKongIM/pkg/cluster/internal/clock	[no test files]
+?   	github.com/WuKongIM/WuKongIM/pkg/cluster/internal/lifecycle	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/pkg/cluster/net	0.040s
+ok  	github.com/WuKongIM/WuKongIM/pkg/cluster/observe	0.031s
+ok  	github.com/WuKongIM/WuKongIM/pkg/cluster/propose	1.164s
+ok  	github.com/WuKongIM/WuKongIM/pkg/cluster/routing	0.031s
+ok  	github.com/WuKongIM/WuKongIM/pkg/cluster/slots	0.006s
+ok  	github.com/WuKongIM/WuKongIM/pkg/cluster/tasks	0.029s
+ok  	github.com/WuKongIM/WuKongIM/pkg/controller	0.024s
+ok  	github.com/WuKongIM/WuKongIM/pkg/controller/command	0.005s
+ok  	github.com/WuKongIM/WuKongIM/pkg/controller/fsm	0.299s
+ok  	github.com/WuKongIM/WuKongIM/pkg/controller/planner	0.004s
+ok  	github.com/WuKongIM/WuKongIM/pkg/controller/raft	0.062s
+ok  	github.com/WuKongIM/WuKongIM/pkg/controller/raft/raftstore	0.188s
+ok  	github.com/WuKongIM/WuKongIM/pkg/controller/server	0.055s
+ok  	github.com/WuKongIM/WuKongIM/pkg/controller/state	0.107s
+ok  	github.com/WuKongIM/WuKongIM/pkg/controller/statefile	0.010s
+ok  	github.com/WuKongIM/WuKongIM/pkg/controller/sync	0.092s
+ok  	github.com/WuKongIM/WuKongIM/pkg/dataformat	0.012s
+ok  	github.com/WuKongIM/WuKongIM/pkg/db	0.338s
+ok  	github.com/WuKongIM/WuKongIM/pkg/db/inspect	0.079s
+ok  	github.com/WuKongIM/WuKongIM/pkg/db/internal/cache	0.002s
+ok  	github.com/WuKongIM/WuKongIM/pkg/db/internal/commit	0.475s
+?   	github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/pkg/db/internal/engine	0.047s
+ok  	github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec	0.002s
+ok  	github.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec	0.006s
+ok  	github.com/WuKongIM/WuKongIM/pkg/db/internal/schema	0.012s
+ok  	github.com/WuKongIM/WuKongIM/pkg/db/message	6.649s
+?   	github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/pkg/db/meta	3.893s
+ok  	github.com/WuKongIM/WuKongIM/pkg/db/transfer	18.806s
+ok  	github.com/WuKongIM/WuKongIM/pkg/flowdoc	0.004s
+ok  	github.com/WuKongIM/WuKongIM/pkg/gateway	0.011s
+?   	github.com/WuKongIM/WuKongIM/pkg/gateway/binding	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/pkg/gateway/core	1.169s
+?   	github.com/WuKongIM/WuKongIM/pkg/gateway/protocol	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/jsonrpc	0.006s
+ok  	github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/mqtt	0.004s
+ok  	github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wkproto	0.007s
+ok  	github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wsmux	0.006s
+ok  	github.com/WuKongIM/WuKongIM/pkg/gateway/session	0.023s
+ok  	github.com/WuKongIM/WuKongIM/pkg/gateway/testkit	0.006s
+?   	github.com/WuKongIM/WuKongIM/pkg/gateway/transport	[no test files]
+ok  	github.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet	0.016s
+ok  	github.com/WuKongIM/WuKongIM/pkg/gateway/types	0.006s
+ok  	github.com/WuKongIM/WuKongIM/pkg/gateway/wkprotoenc	0.007s
+ok  	github.com/WuKongIM/WuKongIM/pkg/goroutine	0.162s
+ok  	github.com/WuKongIM/WuKongIM/pkg/hashslot	0.005s
+ok  	github.com/WuKongIM/WuKongIM/pkg/metrics	1.821s
+ok  	github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace	0.003s
+ok  	github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost	0.294s
+ok  	github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto	0.005s
+ok  	github.com/WuKongIM/WuKongIM/pkg/protocol/channelid	0.005s
+ok  	github.com/WuKongIM/WuKongIM/pkg/protocol/codec	0.005s
+ok  	github.com/WuKongIM/WuKongIM/pkg/protocol/frame	0.003s
+ok  	github.com/WuKongIM/WuKongIM/pkg/protocol/jsonrpc	0.008s
+ok  	github.com/WuKongIM/WuKongIM/pkg/protocol/mqtt	0.005s
+ok  	github.com/WuKongIM/WuKongIM/pkg/protocol/publication	0.005s
+ok  	github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc	0.006s
+ok  	github.com/WuKongIM/WuKongIM/pkg/quorumlog	0.004s
+ok  	github.com/WuKongIM/WuKongIM/pkg/raftlog	0.886s
+ok  	github.com/WuKongIM/WuKongIM/pkg/slot/fsm	1.799s
+ok  	github.com/WuKongIM/WuKongIM/pkg/slot/multiraft	7.147s
+ok  	github.com/WuKongIM/WuKongIM/pkg/slot/proxy	0.941s
+ok  	github.com/WuKongIM/WuKongIM/pkg/transport	0.011s
+ok  	github.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer	0.010s
+ok  	github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn	0.111s
+ok  	github.com/WuKongIM/WuKongIM/pkg/transport/internal/core	1.099s
+ok  	github.com/WuKongIM/WuKongIM/pkg/transport/internal/peer	0.009s
+ok  	github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc	0.472s
+ok  	github.com/WuKongIM/WuKongIM/pkg/transport/internal/sched	0.032s
+ok  	github.com/WuKongIM/WuKongIM/pkg/transport/testkit	0.006s
+ok  	github.com/WuKongIM/WuKongIM/pkg/transport/wire	0.006s
+ok  	github.com/WuKongIM/WuKongIM/pkg/wklog	0.005s
+ok  	github.com/WuKongIM/WuKongIM/pkg/workqueue	0.135s
+ok  	github.com/WuKongIM/WuKongIM/scripts	27.374s
+ok  	github.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper	1.899s
+ok  	github.com/WuKongIM/WuKongIM/scripts/flowcheck	0.009s
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcheck	0.073s
+ok  	github.com/WuKongIM/WuKongIM/scripts/skillcontracts	0.011s
+ok  	github.com/WuKongIM/WuKongIM/scripts/transport-perf/probe	0.006s
+ok  	github.com/WuKongIM/WuKongIM/docker	0.053s
+ok  	github.com/WuKongIM/WuKongIM/docker/observability/grafana	0.047s
+ok  	github.com/WuKongIM/WuKongIM/docker/observability/prometheus	0.003s
+ok  	github.com/WuKongIM/WuKongIM/docker/sim	0.185s

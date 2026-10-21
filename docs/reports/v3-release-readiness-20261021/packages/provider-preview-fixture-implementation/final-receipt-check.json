@@ -1,0 +1,47 @@
+{
+  "checks": [
+    {
+      "command": [
+        "jq",
+        "-e",
+        "--arg",
+        "source",
+        "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+        ".source_sha == $source and .test_only == true and .passed == true and .scratch_removed == true and (.cases | length) == 29 and all(.cases[]; .passed == true) and .verification.native_preview_verified == true and .verification.native_stable_verified == true and .verification.github_provenance_verified == false and .verification.fresh_production_auth_verified == false and .verification.activation_authorized == false",
+        "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-init-native-1/result.json"
+      ],
+      "exit_code": 0,
+      "stdout": "true\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "jq",
+        "-e",
+        ".test_only == true and .data_only == true and .secret_tree_removed == true and .source_provenance_verified == false",
+        "/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-init-native-1/fixture-export.json"
+      ],
+      "exit_code": 0,
+      "stdout": "true\n",
+      "stderr": ""
+    }
+  ],
+  "source_freeze_matches": true,
+  "native_run_has_no_observer": true,
+  "deadline_seconds": 900,
+  "native_elapsed_seconds": 114.184,
+  "owned_containers_remaining": [],
+  "cleanup_query": {
+    "command": [
+      "docker",
+      "ps",
+      "-a",
+      "--filter",
+      "name=wk-d3-preview-",
+      "--format",
+      "{{.Names}}"
+    ],
+    "exit_code": 0
+  },
+  "validation_time_unix": 1792609869.147284
+}

@@ -1,0 +1,874 @@
+{
+  "run_id": 39659391125,
+  "run_attempt": 1,
+  "head": "2cc562fa39f7b430c61a4494636f6ee0ec0d631a",
+  "base": "cee5d51f325fb84033060f546337d326110adae5",
+  "actual_checkout": "884f88e74b68ec2db26f37bc6659195d24c417a2",
+  "current_pr_merge_readback": "45c1f5da10721c9be1c9907be098a11118a92f0f",
+  "tree": "85f578ba19135892c3d4f5e18db37329cd515cf7",
+  "checkout_same_tree_as_head": true,
+  "candidate_conclusion": "failure",
+  "authority_unchanged": true,
+  "jobs": [
+    {
+      "id": 119428117327,
+      "name": "Candidate default suite (go-unit)",
+      "started_at": "2026-10-21T19:11:13Z",
+      "completed_at": "2026-10-21T19:18:50Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 119428117999,
+      "name": "Candidate scripts integration",
+      "started_at": "2026-10-21T19:11:13Z",
+      "completed_at": "2026-10-21T19:21:15Z",
+      "conclusion": "failure"
+    },
+    {
+      "id": 119432005879,
+      "name": "Candidate migration and messaging E2E",
+      "started_at": "2026-10-21T19:18:52Z",
+      "completed_at": "2026-10-21T19:24:14Z",
+      "conclusion": "success"
+    }
+  ],
+  "candidate": {
+    "default": {
+      "artifact_id": 12373581673,
+      "identity": {
+        "source_sha": "884f88e74b68ec2db26f37bc6659195d24c417a2",
+        "policy_sha": "cee5d51f325fb84033060f546337d326110adae5",
+        "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "event": "pull_request",
+        "run_id": "39659391125",
+        "run_attempt": "1"
+      },
+      "results": {
+        "result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2613,
+          "output_bytes": 22029,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2613,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 423.721
+        }
+      },
+      "command": {
+        "arguments": [
+          "go",
+          "test",
+          "./cmd/...",
+          "./internal/...",
+          "./pkg/...",
+          "./scripts/...",
+          "./docker/...",
+          "-count=1"
+        ],
+        "working_dir": ".",
+        "timeout_seconds": 1800,
+        "max_output_bytes": 8388608,
+        "named_check": "go-unit",
+        "environment": {
+          "GOWORK": "off",
+          "GOFLAGS": "-p=2"
+        }
+      },
+      "tested_packages": 219,
+      "no_test_packages": 15
+    },
+    "scripts": {
+      "artifact_id": 12373881817,
+      "identity": {
+        "source_sha": "884f88e74b68ec2db26f37bc6659195d24c417a2",
+        "policy_sha": "cee5d51f325fb84033060f546337d326110adae5",
+        "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "event": "pull_request",
+        "run_id": "39659391125",
+        "run_attempt": "1"
+      },
+      "results": {
+        "result.json": {
+          "status": "failed",
+          "exit_code": 1,
+          "session_id": 2323,
+          "output_bytes": 1496252,
+          "output_truncated": false,
+          "passed": false,
+          "cleanup": {
+            "session_id": 2323,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "failed",
+          "wrapper_exit_code": 1,
+          "elapsed_seconds": 575.954
+        }
+      },
+      "command": {
+        "arguments": [
+          "go",
+          "test",
+          "-tags=integration",
+          "./scripts/...",
+          "-count=1",
+          "-timeout=9m",
+          "-parallel=2"
+        ],
+        "working_dir": ".",
+        "timeout_seconds": 600,
+        "max_output_bytes": 8388608,
+        "named_check": "scripts-integration",
+        "environment": {
+          "GOWORK": "off",
+          "GOFLAGS": "-p=2 -json"
+        }
+      },
+      "terminal_counts": {
+        "pass": 1290,
+        "skip": 6,
+        "fail": 1
+      },
+      "root_counts": {
+        "pass": 641,
+        "skip": 6,
+        "fail": 1
+      },
+      "skipped_tests": [
+        "TestDockerImageRuntimeContract",
+        "TestDockerImageEmbeddedPrometheus",
+        "TestEasySDKReadinessSerialDelayFixture",
+        "TestNativePackageLifecycle",
+        "TestNativePackageSignedRepository",
+        "TestNativePackageRepositoryDeadlineFixture"
+      ],
+      "failure_tests": [
+        {
+          "Time": "2026-10-21T19:20:50.432306791Z",
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/scripts",
+          "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata",
+          "Elapsed": 6.03
+        }
+      ],
+      "collector": {
+        "actual_linux_passes": {
+          "TestChatLifecycleTerminalEvidenceRetention": {
+            "Time": "2026-10-21T19:17:41.991034555Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleTerminalEvidenceRetention",
+            "Elapsed": 14.79
+          },
+          "TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor": {
+            "Time": "2026-10-21T19:18:43.212863714Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/scripts",
+            "Test": "TestChatLifecycleTerminalEvidenceCollectorRequiresTerminalAnchor",
+            "Elapsed": 0.37
+          }
+        },
+        "fixed_suite": {
+          "source_sha256": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1",
+          "python_method_count": 20,
+          "methods": [
+            "CollectorTests.test_rehearsal_retains_exact_terminal_documents_and_failure_window",
+            "CollectorTests.test_formal_before_capacity_is_explicitly_not_applicable",
+            "CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor",
+            "CollectorTests.test_capacity_order_preserves_nanoseconds",
+            "CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence",
+            "CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted",
+            "CollectorTests.test_formal_capacity_retains_both_stages",
+            "CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete",
+            "CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected",
+            "CollectorTests.test_capacity_required_by_passing_formal_cannot_be_missing",
+            "CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte",
+            "CollectorTests.test_invalid_status_is_rejected",
+            "CollectorTests.test_bad_terminal_anchor_never_queries_now",
+            "CollectorTests.test_partitions_retain_more_than_original_single_response_cap",
+            "CollectorTests.test_empty_optional_metric_family_has_explicit_zero_coverage",
+            "CollectorTests.test_partial_metrics_keep_successful_siblings",
+            "HelperBoundsTests.test_selector_partition_is_disjoint_and_complete",
+            "HelperBoundsTests.test_diagnostic_metric_names_are_exact_and_disjoint",
+            "HelperBoundsTests.test_metric_total_transfer_budget_is_shared",
+            "HelperBoundsTests.test_metric_deadline_stops_requests_and_retains_first_partition"
+          ],
+          "process_case_count_expected_from_reviewed_fixture_and_local_receipt": 79,
+          "linux_per_case_receipt_directly_retained": false,
+          "admission": "Go parent invokes the complete fixed Python unittest module without a filter, checks subprocess success and JSON fixture_only=true/tests_run>0/failure_count=0/error_count=0. Actual CI PASS must be observed before coverage is reported.",
+          "test_artifact_location": "Go temporary test directory, not part of workflow artifact upload"
+        },
+        "interpretation": "Actual Retention PASS plus unchanged complete-module execution/parent check contract covers the reviewed 20-method/79-process-case suite. Per-case inner JSON was not directly retained in the uploaded Linux artifact; no fabricated per-case receipts."
+      },
+      "failure_class": "pprof_interrupt_fixture_assertion",
+      "causality": "A concrete pprof helper assertion failed. No diagnosis beyond the observed request still active after helper exit; no test/CI rerun."
+    },
+    "e2e": {
+      "artifact_id": 12373992243,
+      "identity": {
+        "source_sha": "884f88e74b68ec2db26f37bc6659195d24c417a2",
+        "policy_sha": "cee5d51f325fb84033060f546337d326110adae5",
+        "run_id": "39659391125",
+        "run_attempt": "1"
+      },
+      "results": {
+        "cross_node_delivery/result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 13996,
+          "output_bytes": 8445,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 13996,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 50.336
+        },
+        "ordinary_history/result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 8033,
+          "output_bytes": 27562,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 8033,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 108.852
+        },
+        "self_chat/result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 14312,
+          "output_bytes": 3700,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 14312,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 37.134
+        },
+        "build/result.json": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2499,
+          "output_bytes": 5051,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2499,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 99.15
+        }
+      },
+      "binary_sha256": "83c3b3ff70fa86228f7844ecc4ae1ac7c77b7d52c38e38e26ee6b18b43f7bca9",
+      "binary_checks_success": 4,
+      "terminal_tests": [
+        {
+          "Time": "2026-10-21T19:22:57.052794108Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+          "Elapsed": 12.54
+        },
+        {
+          "Time": "2026-10-21T19:23:07.169512878Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaTwoClusterConvergesSlotTopology",
+          "Elapsed": 10.12
+        },
+        {
+          "Time": "2026-10-21T19:23:16.567550663Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaThreeClusterConvergesSlotTopology",
+          "Elapsed": 9.4
+        },
+        {
+          "Time": "2026-10-21T19:23:32.906587058Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+          "Elapsed": 16.34
+        },
+        {
+          "Time": "2026-10-21T19:23:32.906615571Z",
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+          "Elapsed": 0
+        },
+        {
+          "Time": "2026-10-21T19:21:35.553881681Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+          "Elapsed": 22.5
+        },
+        {
+          "Time": "2026-10-21T19:21:53.051252166Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "Elapsed": 17.5
+        },
+        {
+          "Time": "2026-10-21T19:22:06.148412961Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+          "Elapsed": 13.1
+        },
+        {
+          "Time": "2026-10-21T19:22:25.184643453Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "Elapsed": 19.04
+        },
+        {
+          "Time": "2026-10-21T19:22:42.358496636Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "Elapsed": 17.17
+        },
+        {
+          "Time": "2026-10-21T19:22:42.358518649Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+          "Test": "TestOriginalOrdinaryHistoryTopology",
+          "Elapsed": 89.31
+        },
+        {
+          "Time": "2026-10-21T19:23:48.201324256Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/self_chat",
+          "Test": "TestSelfChatPersistsAcrossClusterRestart/1-node-cluster",
+          "Elapsed": 13.49
+        },
+        {
+          "Time": "2026-10-21T19:24:10.161935213Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/self_chat",
+          "Test": "TestSelfChatPersistsAcrossClusterRestart/3-node-cluster",
+          "Elapsed": 21.96
+        },
+        {
+          "Time": "2026-10-21T19:24:10.162585608Z",
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/self_chat",
+          "Test": "TestSelfChatPersistsAcrossClusterRestart",
+          "Elapsed": 35.46
+        }
+      ],
+      "history_verifications": [
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+          "time": "2026-10-21T19:21:30.966944526Z",
+          "phase": "after-import",
+          "node": 1,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+          "time": "2026-10-21T19:21:31.004083927Z",
+          "phase": "after-protocol-append",
+          "node": 1,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+          "time": "2026-10-21T19:21:35.020072538Z",
+          "phase": "after-full-restart",
+          "node": 1,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+          "time": "2026-10-21T19:21:35.031477909Z",
+          "phase": "final",
+          "node": 1,
+          "rows": 5,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:43.115368839Z",
+          "phase": "after-import",
+          "node": 1,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:43.117103995Z",
+          "phase": "after-import",
+          "node": 2,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:43.119700259Z",
+          "phase": "after-import",
+          "node": 3,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:43.174907247Z",
+          "phase": "after-protocol-append",
+          "node": 1,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:43.176100666Z",
+          "phase": "after-protocol-append",
+          "node": 2,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:43.177673487Z",
+          "phase": "after-protocol-append",
+          "node": 3,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:47.619762612Z",
+          "phase": "after-full-restart",
+          "node": 1,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:47.622366979Z",
+          "phase": "after-full-restart",
+          "node": 2,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:47.623346807Z",
+          "phase": "after-full-restart",
+          "node": 3,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:51.368460643Z",
+          "phase": "after-leader-stop",
+          "node": 1,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:52.505641208Z",
+          "phase": "final",
+          "node": 1,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:52.507142097Z",
+          "phase": "final",
+          "node": 2,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:21:52.509830607Z",
+          "phase": "final",
+          "node": 3,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+          "time": "2026-10-21T19:22:01.149606523Z",
+          "phase": "after-import",
+          "node": 1,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+          "time": "2026-10-21T19:22:01.188528551Z",
+          "phase": "after-protocol-append",
+          "node": 1,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+          "time": "2026-10-21T19:22:05.610658786Z",
+          "phase": "after-full-restart",
+          "node": 1,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+          "time": "2026-10-21T19:22:05.620855516Z",
+          "phase": "final",
+          "node": 1,
+          "rows": 5,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:13.068334771Z",
+          "phase": "after-import",
+          "node": 1,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:13.07772061Z",
+          "phase": "after-import",
+          "node": 2,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:13.079243296Z",
+          "phase": "after-import",
+          "node": 3,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:13.135378248Z",
+          "phase": "after-protocol-append",
+          "node": 1,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:13.136941064Z",
+          "phase": "after-protocol-append",
+          "node": 2,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:13.138094323Z",
+          "phase": "after-protocol-append",
+          "node": 3,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:19.433751107Z",
+          "phase": "after-full-restart",
+          "node": 1,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:19.434848607Z",
+          "phase": "after-full-restart",
+          "node": 2,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:19.437122411Z",
+          "phase": "after-full-restart",
+          "node": 3,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:23.379908472Z",
+          "phase": "after-leader-stop",
+          "node": 1,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:24.63455859Z",
+          "phase": "final",
+          "node": 1,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:24.640778851Z",
+          "phase": "final",
+          "node": 2,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "time": "2026-10-21T19:22:24.642702997Z",
+          "phase": "final",
+          "node": 3,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:32.767926248Z",
+          "phase": "after-import",
+          "node": 1,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:32.770652475Z",
+          "phase": "after-import",
+          "node": 2,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:32.771728057Z",
+          "phase": "after-import",
+          "node": 3,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:32.77444851Z",
+          "phase": "after-import",
+          "node": 4,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:32.777192909Z",
+          "phase": "after-import",
+          "node": 5,
+          "rows": 3,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:32.834741042Z",
+          "phase": "after-protocol-append",
+          "node": 1,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:32.836257018Z",
+          "phase": "after-protocol-append",
+          "node": 2,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:32.837125293Z",
+          "phase": "after-protocol-append",
+          "node": 3,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:32.838600458Z",
+          "phase": "after-protocol-append",
+          "node": 4,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:32.840006979Z",
+          "phase": "after-protocol-append",
+          "node": 5,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:38.716937916Z",
+          "phase": "after-full-restart",
+          "node": 1,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:38.718589044Z",
+          "phase": "after-full-restart",
+          "node": 2,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:38.720678243Z",
+          "phase": "after-full-restart",
+          "node": 3,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:38.723450171Z",
+          "phase": "after-full-restart",
+          "node": 4,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:38.726404234Z",
+          "phase": "after-full-restart",
+          "node": 5,
+          "rows": 4,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:41.378290752Z",
+          "phase": "after-leader-stop",
+          "node": 1,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:41.78314889Z",
+          "phase": "final",
+          "node": 1,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:41.784894226Z",
+          "phase": "final",
+          "node": 2,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:41.787834051Z",
+          "phase": "final",
+          "node": 3,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:41.78948777Z",
+          "phase": "final",
+          "node": 4,
+          "rows": 6,
+          "temporary_retries": 0
+        },
+        {
+          "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "time": "2026-10-21T19:22:41.791349906Z",
+          "phase": "final",
+          "node": 5,
+          "rows": 6,
+          "temporary_retries": 0
+        }
+      ],
+      "history_count": 55,
+      "self_chat": {
+        "hash_slots": 256,
+        "token_authentication": "production_default",
+        "cases": [
+          {
+            "nodes": 1,
+            "phase": "complete",
+            "passed": true,
+            "binary_sha256": "83c3b3ff70fa86228f7844ecc4ae1ac7c77b7d52c38e38e26ee6b18b43f7bca9",
+            "invalid_auth_refused": true,
+            "whole_cluster_restarts": 1,
+            "acknowledged_count": 6,
+            "history_count": 3
+          },
+          {
+            "nodes": 3,
+            "phase": "complete",
+            "passed": true,
+            "binary_sha256": "83c3b3ff70fa86228f7844ecc4ae1ac7c77b7d52c38e38e26ee6b18b43f7bca9",
+            "invalid_auth_refused": true,
+            "whole_cluster_restarts": 1,
+            "acknowledged_count": 6,
+            "history_count": 9
+          }
+        ]
+      }
+    }
+  },
+  "all_six_owned_session_cleanups_verified_zero": true,
+  "artifact_boundary": "All 3 small ZIPs fully downloaded, matching API size/SHA256 and every member CRC; ZIP/binaries/private raw logs excluded from public archive."
+}
