@@ -4,8 +4,12 @@ package legacy_conversation_sync
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,7 +71,9 @@ type expectedLegacySync struct {
 
 func TestLegacyConversationSyncSingleNodeCluster(t *testing.T) {
 	node := suite.New(t).StartSingleNodeCluster(
-		suite.WithNodeConfigOverrides(1, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false"}),
+		suite.WithNodeConfigOverrides(1, map[string]string{
+			"WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_CLUSTER_HASH_SLOT_COUNT": "256",
+		}),
 	)
 
 	t.Run("person full and cursor sync project both users", func(t *testing.T) {
@@ -90,9 +96,15 @@ func TestLegacyConversationSyncSingleNodeCluster(t *testing.T) {
 func TestLegacyConversationSyncMultiNodeCluster(t *testing.T) {
 	cluster := suite.New(t).StartThreeNodeCluster(
 		suite.WithManagerHTTP(),
-		suite.WithNodeConfigOverrides(1, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false"}),
-		suite.WithNodeConfigOverrides(2, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false"}),
-		suite.WithNodeConfigOverrides(3, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false"}),
+		suite.WithNodeConfigOverrides(1, map[string]string{
+			"WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_CLUSTER_HASH_SLOT_COUNT": "256",
+		}),
+		suite.WithNodeConfigOverrides(2, map[string]string{
+			"WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_CLUSTER_HASH_SLOT_COUNT": "256",
+		}),
+		suite.WithNodeConfigOverrides(3, map[string]string{
+			"WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_CLUSTER_HASH_SLOT_COUNT": "256",
+		}),
 	)
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
@@ -315,6 +327,103 @@ func finishLegacyGroupSyncFlow(t *testing.T, node suite.StartedNode, diagnostics
 			Unread: unread, ReadToMsgSeq: readToMsgSeq, Message: second,
 		}, diagnostics)
 	}
+	requireLegacySyncBudgetPreservesConversations(t, node, diagnostics, users, members, client, first, second)
+}
+
+// requireLegacySyncBudgetPreservesConversations reuses the group flow to prove
+// an oversized recent-message request retains every selected conversation.
+func requireLegacySyncBudgetPreservesConversations(t *testing.T, node suite.StartedNode, diagnostics func() string, users legacyGroupUsers, members []string, client *suite.WKProtoClient, first, second committedMessage) {
+	t.Helper()
+	started := time.Now().UTC()
+	var observations []map[string]any
+	passed := false
+	defer func() {
+		dir := os.Getenv("WK_E2E_LEGACY_SYNC_REPORT_DIR")
+		if dir == "" {
+			dir = node.Spec.RootDir
+		}
+		path := filepath.Join(dir, strings.SplitN(t.Name(), "/", 2)[0]+".json")
+		body, err := json.MarshalIndent(map[string]any{
+			"scenario": "legacy_sync_recent_budget", "test": t.Name(), "hash_slots": 256,
+			"started_at": started, "finished_at": time.Now().UTC(),
+			"passed": passed && !t.Failed(), "requests": observations,
+		}, "", "  ")
+		require.NoError(t, err)
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(path, append(body, '\n'), 0o644))
+		t.Logf("legacy sync budget evidence: %s", path)
+	}()
+
+	otherChannelID := users.ChannelID + "-budget"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	err := suite.PostChannel(ctx, node.APIAddr(), map[string]any{
+		"channel_id": otherChannelID, "channel_type": frame.ChannelTypeGroup,
+		"reset": 1, "subscribers": members,
+	})
+	cancel()
+	require.NoError(t, err, diagnostics())
+	other := sendCommittedMessage(t, client, users.SenderUID, otherChannelID, frame.ChannelTypeGroup, 3, users.MessagePrefix+"-budget", diagnostics)
+
+	for _, uid := range []string{users.SenderUID, users.RecipientUIDs[0]} {
+		unread, readToMsgSeq := legacyBadgeExpectation(uid, users.SenderUID, second.MessageSeq, 2)
+		otherUnread, otherReadToMsgSeq := legacyBadgeExpectation(uid, users.SenderUID, other.MessageSeq, 1)
+		want := []expectedLegacySync{
+			{ChannelID: users.ChannelID, ChannelType: frame.ChannelTypeGroup, Unread: unread, ReadToMsgSeq: readToMsgSeq, Message: second},
+			{ChannelID: otherChannelID, ChannelType: frame.ChannelTypeGroup, Unread: otherUnread, ReadToMsgSeq: otherReadToMsgSeq, Message: other},
+		}
+		req := legacySyncRequest{
+			UID: uid, LastMessageSeqs: fmt.Sprintf("%s:%d:%d", users.ChannelID, frame.ChannelTypeGroup, first.MessageSeq), MessageCount: 1,
+		}
+		var lastErr error
+		require.Eventually(t, func() bool {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			rows, err := postLegacySync(ctx, node.APIAddr(), req)
+			lastErr = err
+			if err == nil {
+				lastErr = checkLegacySyncRows(rows, want)
+			}
+			return lastErr == nil
+		}, 20*time.Second, legacySyncPollInterval, "both conversations must be visible before testing the budget\n%s", diagnostics())
+
+		// Two selected conversations exceed the old 10,000 requested-record
+		// guard even though this cursor needs only their latest messages.
+		req.MessageCount = 10000
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		var rows []legacySyncRow
+		body, err := suite.PostJSON(ctx, "http://"+node.APIAddr()+"/conversation/sync", req, &rows)
+		cancel()
+		observation := map[string]any{"request": req, "expected": want, "response": json.RawMessage(body), "http_succeeded": err == nil}
+		if err != nil {
+			observation["error"] = err.Error()
+		}
+		observations = append(observations, observation)
+		require.NoError(t, err, diagnostics())
+		require.NoError(t, checkLegacySyncRows(rows, want), diagnostics())
+	}
+	passed = true
+}
+
+func checkLegacySyncRows(rows []legacySyncRow, want []expectedLegacySync) error {
+	if len(rows) != len(want) {
+		return fmt.Errorf("conversation count = %d, want %d", len(rows), len(want))
+	}
+	for _, expected := range want {
+		found := false
+		for _, row := range rows {
+			if row.ChannelID == expected.ChannelID && row.ChannelType == expected.ChannelType {
+				if err := checkLegacySyncRow(row, expected); err != nil {
+					return err
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("missing conversation %s/%d", expected.ChannelID, expected.ChannelType)
+		}
+	}
+	return nil
 }
 
 func legacyBadgeExpectation(uid, senderUID string, senderReadToMsgSeq, recipientUnread uint64) (uint64, uint64) {

@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Automatically reduce recent messages per conversation when legacy sync would
+  exceed 10,000 requested messages, while preserving selected conversations and
+  the 32 MiB payload limit. / 旧式会话同步请求超过 10000 条最近消息额度时，自动
+  降低每个会话的消息数，保留选中会话及 32 MiB 载荷限制。
+
 - Stop nested MQTT subscription cleanup when the original caller is canceled,
   before further contention reads or source sealing; preserve owner fencing
   and deadlines. / MQTT 订阅清理的嵌套操作及时检查原始调用方取消，停止后续争用

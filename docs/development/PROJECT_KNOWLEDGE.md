@@ -250,6 +250,11 @@ specification, runbook, report, or module documentation; link to them when neede
   Legacy sync sorts its bounded candidates by activation, string Channel ID, and
   type. Canonical list uses its encoded directory cursor; only `done=true` ends a
   pass. Clients own pinning and final display order.
+- Legacy sync scans at most 1,000 directory candidates. After pagination and
+  unread/type filters select `N > 0` Channels, it bounds each recent-message
+  query by `min(msg_count, floor(10000 / N))`; the record budget reduces message
+  depth without dropping selected Channels. `msg_count <= 0` still returns an
+  empty array. Base/stream payloads exceeding 32 MiB still fail the whole request.
 - `read_seq` is a monotonic badge boundary, not a pull cursor or read receipt.
   Badge calculation also uses the user's committed sender sequence and excludes
   SyncOnce recovery positions. A bounded Channel storage proof may reuse complete

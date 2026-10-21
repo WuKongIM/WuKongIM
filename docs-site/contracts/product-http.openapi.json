@@ -5092,7 +5092,7 @@
           "msg_count": {
             "type": "integer",
             "default": 0,
-            "description": "Values <=0 return an empty array; downstream sync caps positive values at 10000."
+            "description": "Values <=0 return an empty array. Positive values are capped at 10000; with N>0 Channels selected after pagination and unread/type filters, the effective per-Channel limit is min(msg_count, floor(10000/N))."
           },
           "only_unread": {
             "type": "integer",
@@ -5125,10 +5125,10 @@
             "description": "When page>0, values <=0 become 100 and values above 500 are capped."
           }
         },
-        "description": "Legacy v2.2 conversation sync. Retry the original request on failure. List and sync share 16 active requests and a five-second deadline. Sync scans at most 1,000 candidates in batches of 200 Channels; requests exceeding 10,000 recent messages or 32 MiB of base/stream payloads fail without partial data.",
+        "description": "Legacy v2.2 conversation sync. Retry the original request on read failure. List and sync share 16 active requests and a five-second deadline. Sync scans at most 1,000 candidates in batches of 200 Channels. After pagination and unread/type filters, msg_count is automatically reduced for every selected Conversation to keep requested recents within 10,000 records without dropping selected Conversations. Base/stream payloads exceeding 32 MiB still fail without partial data.",
         "x-i18n": {
           "zh": {
-            "description": "v2.2 兼容会话同步参数。失败时重试原请求。与 list 共用 16 个并发请求名额，整次请求限时 5 秒。最多扫描 1000 个候选频道，每批 200 个；请求最近消息总数超过 10000 条或基础/流式载荷超过 32 MiB 时整次失败。"
+            "description": "v2.2 兼容会话同步参数。读取失败时重试原请求。与 list 共用 16 个并发请求名额，整次请求限时 5 秒。最多扫描 1000 个候选频道，每批 200 个。分页和未读/类型过滤后，自动降低每个会话的 msg_count，使请求最近消息总数不超过 10000 条，不因该额度丢弃选中会话。基础/流式载荷超过 32 MiB 时仍整次失败。"
           }
         }
       },

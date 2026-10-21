@@ -32,8 +32,9 @@ _openapi:
 
           ConversationSyncLegacyRequest
 
-          v2.2 兼容会话同步参数。失败时重试原请求。与 list 共用 16 个并发名额，整次请求限时 5 秒；最多 1000 个候选频道，每批
-          200 个。请求最近消息总数超过 10000 条或基础/流式载荷超过 32 MiB 时整次失败。
+          v2.2 兼容会话同步参数。读取失败时重试原请求。与 list 共用 16 个并发名额，整次请求限时 5 秒；最多 1000
+          个候选频道，每批 200 个。分页和未读/类型过滤后，自动降低每个会话的 msg_count，使请求最近消息总数不超过 10000
+          条，不因该额度丢弃选中会话。基础/流式载荷超过 32 MiB 时仍整次失败。
 
           additionalProperties true
 
@@ -44,8 +45,9 @@ _openapi:
           last_msg_seqs `string` default: `""` 以 | 分隔的
           channel_id:channel_type:message_seq 游标；格式错误的条目会被跳过。
 
-          msg_count `integer` default: `0` 每个会话读取的最近消息数；小于等于 0 返回空数组，正数最大按 10000
-          处理。
+          msg_count `integer` default: `0` 每个会话请求的最近消息数；小于等于 0 返回空数组。正数最多为
+          10000；分页和未读/类型过滤后选中 N 个频道（N>0）时，实际每频道上限为 min(msg_count,
+          floor(10000/N))。
 
           only_unread `integer:uint8` 0–255; default: `0` 未读过滤兼容标志；仅 1
           表示只读取未读会话。
@@ -84,8 +86,8 @@ _openapi:
 
           version `integer:int64` — 旧式会话版本。
 
-          recents array<`LegacyMessage`> — 按 msg_count
-          返回最近消息；为修复旧客户端空编号冲突，最新空编号消息或修改过的末条消息可在游标已前移时再次返回，已读和删除位置不变。
+          recents array<`LegacyMessage`> — 最近消息数受 msg_count 及整次请求 10000
+          条额度共同限制；为修复旧客户端空编号冲突，最新空编号消息或修改过的末条消息可在游标已前移时再次返回，已读和删除位置不变。
 
           LegacyMessage
 
