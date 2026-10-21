@@ -1,0 +1,3 @@
+{
+  "note": "Initial summary assertion expected OK on next log line, but timestamped blank separator exists. Parsing corrected by removing timestamp prefixes; raw logs unchanged. This local report assertion is not a CI failure."
+}

@@ -1,0 +1,17 @@
+[
+  {
+    "path": "checksums.txt",
+    "bytes": 248,
+    "compressed_bytes": 157
+  },
+  {
+    "path": "wukongim_3.0.0-beta.24-SNAPSHOT-33733629c_linux_amd64.deb",
+    "bytes": 39057150,
+    "compressed_bytes": 38929506
+  },
+  {
+    "path": "wukongim_3.0.0-beta.24-SNAPSHOT-33733629c_linux_amd64.rpm",
+    "bytes": 39062445,
+    "compressed_bytes": 38936543
+  }
+]

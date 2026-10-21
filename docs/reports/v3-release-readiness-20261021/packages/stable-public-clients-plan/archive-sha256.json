@@ -1,0 +1,42 @@
+[
+  {
+    "path": "failure-matrix.md",
+    "size": 2757,
+    "sha256": "0804b7294429452197157c345634bbad2adc1d91d66c4af6913c234296ef3291"
+  },
+  {
+    "path": "legacy-toolchain-packaging.yaml",
+    "size": 2168,
+    "sha256": "1583fcfe001ab49818e58890ee3ac1179ed03419307308da51badb8803876b1b"
+  },
+  {
+    "path": "product-fixture-packaging.yaml",
+    "size": 2609,
+    "sha256": "18a88c4559040d6991a5118ebdda6303d2467f6983eafb6472e63a3a71fea3a6"
+  },
+  {
+    "path": "product-fixture-source.json",
+    "size": 926,
+    "sha256": "dd723fed3960ed1a2f182cc2547f2e78ef78bf11a3db2361ee002e94684a0651"
+  },
+  {
+    "path": "rules-summary.md",
+    "size": 1044,
+    "sha256": "1b71a4c54b93a5b2af2a16916eb482f097265586c917b4168908cafcb1ded0b4"
+  },
+  {
+    "path": "scope-proposal.md",
+    "size": 10613,
+    "sha256": "9758edb4d71e0aee3949bdef19b9f1b19cc19960922802877f6a948507cbfa42"
+  },
+  {
+    "path": "source-freeze.json",
+    "size": 5380,
+    "sha256": "44905ffd904e70129e7f73eeb3113c1cded33558f1114552f7a86ea4a7af34d0"
+  },
+  {
+    "path": "allowlist.txt",
+    "size": 177,
+    "sha256": "ea630280a5a8053e921f867ef22b979bff436a03b706702554e1a3634174743b"
+  }
+]

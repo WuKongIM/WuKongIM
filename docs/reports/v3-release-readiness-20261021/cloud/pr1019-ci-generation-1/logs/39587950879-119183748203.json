@@ -1,0 +1,10 @@
+{
+  "run": 39587950879,
+  "job": 119183748203,
+  "name": "Exercise AlmaLinux 9 package lifecycle",
+  "conclusion": "success",
+  "at": "2026-10-21T11:04:14.637392+00:00",
+  "raw_bytes": 82263,
+  "raw_sha256": "e8c74202cf3e15187579d2169dd4eccd56f26ac322c780b6be325d8cf07bc873",
+  "gzip_sha256": "b73dc2f6ee606416cdcbc4df16c8896fd3b52e010a3d26a1187ec6f059ed60c4"
+}

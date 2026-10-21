@@ -1,0 +1,20 @@
+{
+  "method": "existing Chrome session rendered AX/DOM only",
+  "ram_roles": {
+    "url": "https://ram.console.aliyun.com/roles",
+    "result": "navigation/menu rendered; role list body unavailable; presence/policy unknown"
+  },
+  "icp": {
+    "url": "https://beian.aliyun.com/pcContainer/myorder",
+    "result": "navigation timeout then outer ICP page rendered; no domain/order details; filing unknown"
+  },
+  "pricing": {
+    "url": "https://cn.aliyun.com/price/product?from_alibabacloud=#/oss/detail",
+    "result": "outer page and iframes only; actual price table not established"
+  },
+  "forms_submitted": false,
+  "keys_accessed": false,
+  "mutations": false,
+  "unrelated_account_data_archived": false,
+  "completed_before_utc": "2026-10-21T11:02:37Z"
+}

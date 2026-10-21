@@ -1,0 +1,10 @@
+{
+  "run": 39587950879,
+  "job": 119181442143,
+  "name": "Build and install deb/rpm preview",
+  "conclusion": "success",
+  "at": "2026-10-21T11:00:59.070589+00:00",
+  "raw_bytes": 228543,
+  "raw_sha256": "9a8bbe4f6d021c453e2f6083068262c71b223c6efa670f9e957e396d79a7271c",
+  "gzip_sha256": "40560d4097a18c06304ca43f3a3a9e14f99fd94ad6379208e4214445d11e2648"
+}

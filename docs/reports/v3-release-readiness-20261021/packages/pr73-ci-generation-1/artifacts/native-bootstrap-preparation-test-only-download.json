@@ -1,0 +1,34 @@
+{
+  "artifact": {
+    "id": 12340537174,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM0MDUzNzE3NA==",
+    "name": "native-bootstrap-preparation-test-only",
+    "size_in_bytes": 7152,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12340537174",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12340537174/zip",
+    "expired": false,
+    "digest": "sha256:33f497bb0dd7c6048c479d595fd82dc52990b6406c01fe226774ccd437cc6a1a",
+    "created_at": "2026-10-21T10:53:40Z",
+    "updated_at": "2026-10-21T10:53:40Z",
+    "expires_at": "2026-11-20T10:53:40Z",
+    "workflow_run": {
+      "id": 39587825081,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/stable-audit-seal-transport",
+      "head_sha": "59549efe1074562928b8ae175faeda8778849e0e"
+    }
+  },
+  "observed_at": "2026-10-21T10:56:01.765075+00:00",
+  "exit_code": 0,
+  "archive_sha256": "33f497bb0dd7c6048c479d595fd82dc52990b6406c01fe226774ccd437cc6a1a",
+  "digest_matches_api": true,
+  "members": [
+    {
+      "name": "native-bootstrap-preparation.json",
+      "size": 44122,
+      "sha256": "2983ab5a44baa481d3044bfcbb937e09a5d096a18e478b9a077195aa58854dda",
+      "crc32": "0249ec8d"
+    }
+  ]
+}

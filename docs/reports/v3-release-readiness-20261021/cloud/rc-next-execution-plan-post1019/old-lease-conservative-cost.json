@@ -1,0 +1,51 @@
+{
+  "observed_at": "2026-10-21T11:11:35.401414+00:00",
+  "request_id": "chat-20261021T095421Z-cf11d65c",
+  "lease_id": "chat-20261021T095421Z-cf11d65c-rehearsal-1",
+  "created_at": "2026-10-21T10:11:00.703367749Z",
+  "zero_observed_at": "2026-10-21T10:19:19.689029905Z",
+  "quote_estimated_cost_micros": 74477600,
+  "prior_committed_micros": 0,
+  "offline_accrued_cost_micros": 28939800,
+  "network_measurement": null,
+  "network_fallback": "-1 retains whole quoted public egress allowance",
+  "provider_actual_bill": null,
+  "meaning": "Repository conservative cost formula only, NOT observed provider billing or proof of settled maximum",
+  "command": [
+    "bash",
+    "scripts/chat-lifecycle/accrued-cost.sh",
+    "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/run-plan.json",
+    "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/quote.json",
+    "2026-10-21T10:11:00.703367749Z",
+    "2026-10-21T10:19:19.689029905Z",
+    "-1"
+  ],
+  "exit_code": 0,
+  "stdout": "28939800\n",
+  "stderr": "",
+  "source_inputs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/run-plan.json",
+      "bytes": 2361,
+      "sha256": "50c07bc5fa5c4bbcb6fcae626f299a360b1713cd36eaf80980574e2a0e2b2597"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/quote.json",
+      "bytes": 1842,
+      "sha256": "67c4999af53cf745453a464da4956edcd3f939c7c0b8e87f81bb67cfdc58cbac"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/attempt-1/receipt.json",
+      "bytes": 41123,
+      "sha256": "6f3e56a748650ceffd3ed569eef11556df3038ac33f7e229f5818959b8fc5937"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/rc-live-fc182/terminal-public-frozen/evidence/zero-inventory.json",
+      "bytes": 661,
+      "sha256": "41d8ce371f4f6546c4f2f163c8afa0fb567b08110cd6f5543ec8a21b379d8f21"
+    }
+  ],
+  "comparison_only_remaining_stop_micros": 1321060200,
+  "comparison_only_remaining_hard_micros": 1471060200,
+  "automatically_carried_by_current_rehearsal": false
+}

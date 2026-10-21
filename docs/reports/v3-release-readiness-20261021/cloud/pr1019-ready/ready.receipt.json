@@ -1,0 +1,13 @@
+{
+  "started_at": "2026-10-21T11:10:26.301463+00:00",
+  "finished_at": "2026-10-21T11:10:28.169585+00:00",
+  "command": [
+    "gh",
+    "pr",
+    "ready",
+    "1019",
+    "--repo",
+    "WuKongIM/WuKongIM"
+  ],
+  "exit_code": 0
+}

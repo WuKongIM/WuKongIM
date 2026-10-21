@@ -1,0 +1,30 @@
+{
+  "product_source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "tree": "3254faa77819a1dc7c4b7230b567ec1115be5a7a",
+  "legacy_source_sha": "ed7e67d8f781b4f92872e42116c11b304fe03b5c",
+  "legacy_contains_wkcli_build": false,
+  "proposed_fixture_contains_wkcli_build": true,
+  "execution": "not run",
+  "files": [
+    {
+      "path": "go.mod",
+      "sha256": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d",
+      "size": 6662
+    },
+    {
+      "path": ".goreleaser.packages.yaml",
+      "sha256": "18a88c4559040d6991a5118ebdda6303d2467f6983eafb6472e63a3a71fea3a6",
+      "size": 2609
+    },
+    {
+      "path": "cmd/wukongim/main.go",
+      "sha256": "fe97e541f44d9288cf961b2aef5aaf210b0ab633e1bbc0092ffc29cccd3eb214",
+      "size": 2100
+    },
+    {
+      "path": "cmd/wkcli/main.go",
+      "sha256": "f40f333b0b13bef391799b90f7706ad1c2a4f827ba6bc95963839ad5abf9f315",
+      "size": 75
+    }
+  ]
+}

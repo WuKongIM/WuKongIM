@@ -1,0 +1,15 @@
+{
+  "started_at": "2026-10-21T11:10:28.170375+00:00",
+  "finished_at": "2026-10-21T11:10:29.227014+00:00",
+  "command": [
+    "gh",
+    "pr",
+    "view",
+    "1019",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--json",
+    "headRefOid,isDraft,state,body"
+  ],
+  "exit_code": 0
+}

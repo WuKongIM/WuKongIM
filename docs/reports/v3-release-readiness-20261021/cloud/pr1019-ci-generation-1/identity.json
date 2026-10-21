@@ -1,0 +1,18 @@
+{
+  "observed_at": "2026-10-21T10:55:09.693411+00:00",
+  "pr": 1019,
+  "head": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e",
+  "head_tree": "0acb67250313fc81a463941295082c828a46124c",
+  "base": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "synthetic_merge": "33733629ced4bdd21efb68aaf5a94ec1b01dc6bd",
+  "synthetic_tree": "0acb67250313fc81a463941295082c828a46124c",
+  "tree_equal": true,
+  "run_attempt": 1,
+  "runs": {
+    "candidate": 39587951020,
+    "chat": 39587950872,
+    "native": 39587950879,
+    "sdk": 39587950769,
+    "signal": 39587950854
+  }
+}

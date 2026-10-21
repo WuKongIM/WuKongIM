@@ -1,0 +1,13 @@
+{
+  "command": [
+    "gh",
+    "api",
+    "--hostname",
+    "github.com",
+    "--method",
+    "GET",
+    "repos/WuKongIM/packages/actions/runs?head_sha=59549efe1074562928b8ae175faeda8778849e0e&per_page=20"
+  ],
+  "observed_at": "2026-10-21T10:53:48.196696+00:00",
+  "exit_code": 0
+}

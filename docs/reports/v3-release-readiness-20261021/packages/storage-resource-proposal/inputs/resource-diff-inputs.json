@@ -1,0 +1,40 @@
+{
+  "as_of_utc": "2026-10-21T10:24:37Z",
+  "read_only": true,
+  "current": {
+    "public_domain": "packages.githubim.com",
+    "cname": "wukongim.github.io.",
+    "cname_observed_ttl_seconds": 600,
+    "http_status": 200,
+    "http_server": "GitHub.com",
+    "public_certificate_sha256": "cbf9504c6d4ba397ca025e5c51bea47f77e1355ae393a7213739f4de88ddb0ce",
+    "public_certificate_expires_utc": "2026-11-30T02:19:16Z",
+    "dedicated_distribution_bucket": null,
+    "packages_cdn_domain": null,
+    "matching_usable_aliyun_certificate_in_inspected_cn_hangzhou_scope": null
+  },
+  "required_concrete_choices_before_resource_diff": [
+    "new dedicated bucket name and region",
+    "packages CDN acceleration scope",
+    "exact OSS endpoint and Origin Host/TLS behavior",
+    "packages HTTPS certificate ID/region/domain coverage and authorized deployment path",
+    "new CDN CNAME returned by provisioning",
+    "exact cache/rewrite rule set and config identifiers",
+    "precise uploader/origin/activator role policies and any one-time service-linked role",
+    "DNS change/rollback record and migration verification method"
+  ],
+  "preserve": [
+    "all four backup/test buckets",
+    "docs.githubim.com CDN, origin and certificate",
+    "preview canonical bytes and /repo default"
+  ],
+  "unknown": [
+    "Other CAS regions/accounts not inspected.",
+    "No private key custody or exportability assessed.",
+    "No packages CDN configuration or OSS endpoint exists in this inspected inventory.",
+    "RAM/service-linked roles, bucket ACL/policy, ICP eligibility and pricing not inspected.",
+    "Public A lookup/connection peer 198.18.3.216 is a non-public local-resolver result; public origin IP is not established.",
+    "Console UI date/time timezone not shown."
+  ],
+  "no_resource_creation_or_permission_change": true
+}

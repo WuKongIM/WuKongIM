@@ -1,0 +1,10 @@
+{
+  "run": 39587950872,
+  "job": 119183668968,
+  "name": "PR three-node regression",
+  "conclusion": "success",
+  "at": "2026-10-21T11:00:54.323687+00:00",
+  "raw_bytes": 2673,
+  "raw_sha256": "07103125c3d08e8c5f735178878d143c7e016ea4a46aecafe16bd330f621fcd3",
+  "gzip_sha256": "d50fe45eb98adc67a296cfd76733afd564f76fc9d8ca998d5e92de4027a42bb2"
+}

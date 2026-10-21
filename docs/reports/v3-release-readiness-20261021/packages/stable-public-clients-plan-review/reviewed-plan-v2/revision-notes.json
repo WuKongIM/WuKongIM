@@ -1,0 +1,30 @@
+{
+  "updated_at": "2026-10-21T11:13:51.330120+00:00",
+  "previous_manifest_sha256": "4df54241e0e4e32c8debd20da164c6b06a5e07a5e2e80ff800cdb42caafc9c2a",
+  "changes": [
+    {
+      "id": "R1",
+      "change": "Different scratch TEST ONLY bootstrap versions 1.1.1/1.1.2; same public keys/repo config, no shared signed-bytes assumption or new/preserved waiver.",
+      "code_evidence": [
+        "scripts/build-repository-bootstrap-packages.py:655-680",
+        "scripts/validate-control.py:158-178",
+        "scripts/compose-package-site.py:716-735",
+        "scripts/compose-package-site.py:920-929",
+        "scripts/compose-package-site.py:1746-1787"
+      ],
+      "validation_status": "static source confirmation only; tests remain to run before implementation"
+    },
+    {
+      "id": "R2",
+      "change": "Stable validator uses same-process host native tools; Linux CI installs dependencies and records actual versions; fail before client Docker when unavailable. Signing/build still pinned image; no new verification IPC/receipt bypass.",
+      "code_evidence": [
+        "scripts/plan-object-storage-publication.py:343",
+        "scripts/verify-stable-seal-inputs.py:302-320",
+        "scripts/verify-production-package-site.py:146-405",
+        "scripts/verify-production-package-site.py:851"
+      ]
+    }
+  ],
+  "scope_change": "No additional shipping file or producer/control change; remains estimated10 files.",
+  "actions": "read-only source inspection and /tmp plan writes only; no tests/build/native/cloud/containers"
+}

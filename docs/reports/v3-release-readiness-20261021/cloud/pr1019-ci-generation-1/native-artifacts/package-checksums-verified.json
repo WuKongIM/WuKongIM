@@ -1,0 +1,14 @@
+[
+  {
+    "name": "wukongim_3.0.0-beta.24-SNAPSHOT-33733629c_linux_amd64.deb",
+    "bytes": 39057150,
+    "sha256": "41a618cf09139a2eb46ed2e42406b60f01df3bbaf6870b413f80b70e7cb1d7fe",
+    "checksum_matches": true
+  },
+  {
+    "name": "wukongim_3.0.0-beta.24-SNAPSHOT-33733629c_linux_amd64.rpm",
+    "bytes": 39062445,
+    "sha256": "e3d4ceb8ef2f70e4ebc0d805efa7feb66d8d23782dc923b94ede796ddab2e06a",
+    "checksum_matches": true
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "run": 39587951020,
+  "job": 119181442854,
+  "name": "Candidate default suite (go-unit)",
+  "conclusion": "success",
+  "at": "2026-10-21T11:03:49.034967+00:00",
+  "raw_bytes": 84813,
+  "raw_sha256": "0c4c5a2796a0dfbf5a1aa0c86b4129cd6d567e19c22602e2f0a033d9fe4c7ff7",
+  "gzip_sha256": "8915cb2ec489535591b04379e36fa3c2181e41bf49058919e55336b104268b1d"
+}

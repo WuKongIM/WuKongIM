@@ -1,0 +1,32 @@
+{
+  "frozen_utc": "2026-10-21T11:02:31.416226+00:00",
+  "inputs": [
+    {
+      "path": "storage-current-readonly/resource-diff-inputs.json",
+      "sha256": "d86f5441fe04981dabac8ac714f81acd734d5bb3a61c13d068681133f9d896c0",
+      "size": 1826
+    },
+    {
+      "path": "storage-current-readonly/console-observations.json",
+      "sha256": "098659770c396de2810ce5c301d606a72277bb019a2d0da8eb6f6ded01af3e61",
+      "size": 5061
+    },
+    {
+      "path": "storage-design/design.md",
+      "sha256": "1a02a99b1bb0d1b427ddda6140c4add951d9ef1a64f2ba54f6dbc1c1a8c1a311",
+      "size": 21154
+    },
+    {
+      "path": "stable-post-candidate-plan/dependency-matrix.md",
+      "sha256": "c162cddf52324bfa837a413e88a4d11e277ea4de5663d3f8e7e4dd5d0667817c",
+      "size": 9737
+    },
+    {
+      "git_commit": "59549efe1074562928b8ae175faeda8778849e0e",
+      "path": "scripts/plan-object-storage-publication.py",
+      "sha256": "b45845f469c5081b7bbb2e5eb8aaa73cc6faa14aa1985df75756032d0639128f",
+      "size": 34845
+    }
+  ],
+  "old_design_key_custody_statements_superseded": true
+}

@@ -1,0 +1,28 @@
+{
+  "run_id": 39590499333,
+  "head_sha": "ce3c4d9110f17bb71dc99a89dc3c09758fabf980",
+  "attempt": 1,
+  "conclusion": "success",
+  "completed_at": "2026-10-21T11:18:04Z",
+  "jobs": [
+    {
+      "name": "Verify and package the static documentation site",
+      "conclusion": "success"
+    },
+    {
+      "name": "Deploy the verified artifact",
+      "conclusion": "success"
+    },
+    {
+      "name": "Verify the direct GitHub Pages origin",
+      "conclusion": "success"
+    },
+    {
+      "name": "Refresh bounded Alibaba CDN URLs",
+      "conclusion": "success"
+    }
+  ],
+  "raw_log_size": 1332094,
+  "raw_log_sha256": "2f0b4db3505cbf1f1fa17e23363d94ce2491b82cee7ac7cc51fadc3ce6be9333",
+  "scope": "Automatic documentation site build/deploy/origin verification and bounded docs CDN refresh caused by approved main merge; no paid RC dispatch or stable channel publication."
+}

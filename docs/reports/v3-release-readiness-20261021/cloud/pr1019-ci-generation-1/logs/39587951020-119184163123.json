@@ -1,0 +1,10 @@
+{
+  "run": 39587951020,
+  "job": 119184163123,
+  "name": "Candidate migration and messaging E2E",
+  "conclusion": "success",
+  "at": "2026-10-21T11:06:30.624563+00:00",
+  "raw_bytes": 85092,
+  "raw_sha256": "dd845bfbc2448b5a3040974771187f4d9c3f5056414dbde05a235f74571629a4",
+  "gzip_sha256": "2b7ec94d40f1642d660b17aa81a3556114979fcf918093de8d6cb5abb5498795"
+}

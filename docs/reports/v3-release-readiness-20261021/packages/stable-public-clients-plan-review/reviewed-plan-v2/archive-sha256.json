@@ -1,0 +1,52 @@
+[
+  {
+    "path": "failure-matrix.md",
+    "size": 3065,
+    "sha256": "0ab3c0f321aefaf40fae8dfb43fcabd3e0bfb20b7c54c208235644172df154ac"
+  },
+  {
+    "path": "initial-independent-review.json",
+    "size": 1289,
+    "sha256": "5762701276f858727f0fac499fb7223e2b94eda86bf5602031640427cb32d1c7"
+  },
+  {
+    "path": "legacy-toolchain-packaging.yaml",
+    "size": 2168,
+    "sha256": "1583fcfe001ab49818e58890ee3ac1179ed03419307308da51badb8803876b1b"
+  },
+  {
+    "path": "product-fixture-packaging.yaml",
+    "size": 2609,
+    "sha256": "18a88c4559040d6991a5118ebdda6303d2467f6983eafb6472e63a3a71fea3a6"
+  },
+  {
+    "path": "product-fixture-source.json",
+    "size": 926,
+    "sha256": "dd723fed3960ed1a2f182cc2547f2e78ef78bf11a3db2361ee002e94684a0651"
+  },
+  {
+    "path": "revision-notes.json",
+    "size": 1536,
+    "sha256": "c62ae2fd57dcf23778b3203c98e5417b2d0e4d4a153a07be217a9205a14b9362"
+  },
+  {
+    "path": "rules-summary.md",
+    "size": 1044,
+    "sha256": "1b71a4c54b93a5b2af2a16916eb482f097265586c917b4168908cafcb1ded0b4"
+  },
+  {
+    "path": "scope-proposal.md",
+    "size": 13067,
+    "sha256": "757ca30d9f83cb5abdd5296873cf2ab67c3dac4bd145fbc04643d3239f53e572"
+  },
+  {
+    "path": "source-freeze.json",
+    "size": 5380,
+    "sha256": "44905ffd904e70129e7f73eeb3113c1cded33558f1114552f7a86ea4a7af34d0"
+  },
+  {
+    "path": "allowlist.txt",
+    "size": 229,
+    "sha256": "711bbb0f6f44bfe3b9b5fa09d17d8ffe26f9574368e2f65d0be6b9368ddfa069"
+  }
+]

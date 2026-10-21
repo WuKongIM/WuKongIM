@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-21T11:19:15.407278+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-stable-seal-transport",
+  "branch": "codex/stable-audit-seal-transport",
+  "tracked_and_unignored_untracked": "clean",
+  "original_tip_ancestor_of_main": false,
+  "same_complete_tree": true,
+  "worktree_removed": false,
+  "branch_deleted": false,
+  "reason": "Rebase merge preserves the reviewed complete tree but not original tip ancestry. Governing rule requires target contains branch tip before cleanup; no force-delete."
+}

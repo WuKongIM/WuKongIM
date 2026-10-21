@@ -1,0 +1,57 @@
+[
+  {
+    "path": "arrival.json",
+    "bytes": 58099,
+    "compressed_bytes": 2997
+  },
+  {
+    "path": "benchmark.txt",
+    "bytes": 2938,
+    "compressed_bytes": 842
+  },
+  {
+    "path": "arrival.warmup.json",
+    "bytes": 19444,
+    "compressed_bytes": 1194
+  },
+  {
+    "path": "binary.sha256",
+    "bytes": 124,
+    "compressed_bytes": 106
+  },
+  {
+    "path": "data-filesystem.json",
+    "bytes": 249,
+    "compressed_bytes": 163
+  },
+  {
+    "path": "filesystem-preflight.txt",
+    "bytes": 123,
+    "compressed_bytes": 109
+  },
+  {
+    "path": "go-version.txt",
+    "bytes": 33,
+    "compressed_bytes": 35
+  },
+  {
+    "path": "host.json",
+    "bytes": 4832,
+    "compressed_bytes": 1296
+  },
+  {
+    "path": "kernel.txt",
+    "bytes": 128,
+    "compressed_bytes": 115
+  },
+  {
+    "path": "result.json",
+    "bytes": 18,
+    "compressed_bytes": 20
+  },
+  {
+    "path": "source.sha",
+    "bytes": 41,
+    "compressed_bytes": 42
+  }
+]

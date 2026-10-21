@@ -1,0 +1,38 @@
+{
+  "run_id": 39590474857,
+  "head_sha": "335cd2569d2b62de577916ed86c097fd3a22547e",
+  "attempt": 1,
+  "conclusion": "success",
+  "completed_at": "2026-10-21T11:16:17Z",
+  "unittest_lines": [
+    {
+      "ran": 4,
+      "seconds": 0.001
+    },
+    {
+      "ran": 468,
+      "seconds": 98.233
+    }
+  ],
+  "publication_steps": [
+    {
+      "job": "Validate complete Pages snapshot",
+      "name": "Configure Pages",
+      "conclusion": "skipped"
+    },
+    {
+      "job": "Validate complete Pages snapshot",
+      "name": "Upload complete Pages artifact",
+      "conclusion": "skipped"
+    }
+  ],
+  "raw_log_bytes": 31330,
+  "raw_log_sha256": "4a2c97b5f11bc21066e2e29d9117de9dca55ef650a6110fc1393290f0d95d0af",
+  "native_drill_rerun": false,
+  "deployment_jobs": [
+    {
+      "name": "Deploy complete Pages snapshot",
+      "conclusion": "skipped"
+    }
+  ]
+}

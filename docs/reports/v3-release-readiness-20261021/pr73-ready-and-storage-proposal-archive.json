@@ -1,0 +1,119 @@
+{
+  "entries": [
+    {
+      "path": "packages/pr73-ready/after.receipt.json",
+      "size_bytes": 277,
+      "sha256": "5d90b7c80cf7984ba58d34e888057a48ef8863757559b36a9c40771654466089"
+    },
+    {
+      "path": "packages/pr73-ready/after.stderr",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr73-ready/after.stdout",
+      "size_bytes": 2630,
+      "sha256": "e43d5f9fa8dd21b9733a9a40145c2d6cbf04d465e32dba54e11cd78030d92dcb"
+    },
+    {
+      "path": "packages/pr73-ready/before.receipt.json",
+      "size_bytes": 290,
+      "sha256": "fbd1837f55c990b4c329a949d329b4c197344434decd6ef14a0dbf4dd195953a"
+    },
+    {
+      "path": "packages/pr73-ready/before.stderr",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr73-ready/before.stdout",
+      "size_bytes": 1160,
+      "sha256": "dc6e394ed54364a0e0909af4d2ca5a72adcc6a188b6749ae535b5c4cdfb2928f"
+    },
+    {
+      "path": "packages/pr73-ready/edit.receipt.json",
+      "size_bytes": 319,
+      "sha256": "034679e7109a05cec96188f7817f7229dd27f4abc37d436c2a7964671d85b689"
+    },
+    {
+      "path": "packages/pr73-ready/edit.stderr",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr73-ready/edit.stdout",
+      "size_bytes": 45,
+      "sha256": "d7976bd146a099598e9d8323f6762719fafb4ecd77c462e9802f00efaa56b143"
+    },
+    {
+      "path": "packages/pr73-ready/pr-body.md",
+      "size_bytes": 2519,
+      "sha256": "ca8eaa5b24bd0ce77beaff7e54afa5382c19ba717b741870993ca5dcb29e9f17"
+    },
+    {
+      "path": "packages/pr73-ready/ready.receipt.json",
+      "size_bytes": 227,
+      "sha256": "913b3204c40407c8917ae5eb39ee17d9498411351d0972a538431193153e2d76"
+    },
+    {
+      "path": "packages/pr73-ready/ready.stderr",
+      "size_bytes": 70,
+      "sha256": "fb50a25d97ebcc7508498aab6d07ead68c83161b76625d28f83e2f9553d1cf9a"
+    },
+    {
+      "path": "packages/pr73-ready/ready.stdout",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/pr73-ready/archive-sha256.json",
+      "size_bytes": 1773,
+      "sha256": "761b1ac5aa1703f6f0ad5a56ba5c7596d56adaf052cf34b4059eb5cf5f230c72"
+    },
+    {
+      "path": "packages/storage-resource-proposal/ARCHIVE_ALLOWLIST.txt",
+      "size_bytes": 163,
+      "sha256": "c28bc58c9014c6bc3dcce6b9e61fc220dccbb9d7a36a27f294b0018499e0df08"
+    },
+    {
+      "path": "packages/storage-resource-proposal/README.md",
+      "size_bytes": 656,
+      "sha256": "fa67171f79b8592376035fa63a754b7b7df268cf9d78069985ab4836dab7c6dd"
+    },
+    {
+      "path": "packages/storage-resource-proposal/console-followup.json",
+      "size_bytes": 761,
+      "sha256": "7ea0a8831d54985d1383c837a274292daa54cca407167d16f46a2837c8a4b773"
+    },
+    {
+      "path": "packages/storage-resource-proposal/input-freeze.json",
+      "size_bytes": 1078,
+      "sha256": "0e4d753fb33ed01d9eaa0d77be6e88e543aed60fbea20814922f7875c7d97a77"
+    },
+    {
+      "path": "packages/storage-resource-proposal/inputs/console-observations.json",
+      "size_bytes": 5061,
+      "sha256": "098659770c396de2810ce5c301d606a72277bb019a2d0da8eb6f6ded01af3e61"
+    },
+    {
+      "path": "packages/storage-resource-proposal/inputs/resource-diff-inputs.json",
+      "size_bytes": 1826,
+      "sha256": "d86f5441fe04981dabac8ac714f81acd734d5bb3a61c13d068681133f9d896c0"
+    },
+    {
+      "path": "packages/storage-resource-proposal/proposal.md",
+      "size_bytes": 13085,
+      "sha256": "d3164f6a4410003692d68ff35863311ba7b852856f7a7e7e106b314ada6df4f1"
+    },
+    {
+      "path": "packages/storage-resource-proposal/summary.json",
+      "size_bytes": 1941,
+      "sha256": "ccee8bb1407c4d0bcdfaf4f70f4ac9df6776edeb1b24198a7a90568d58fa09c7"
+    },
+    {
+      "path": "packages/storage-resource-proposal/SHA256SUMS",
+      "size_bytes": 691,
+      "sha256": "2ffe0ef261814db47d59d9d977d124348d1958a9813219121057c2c62001b33e"
+    }
+  ]
+}

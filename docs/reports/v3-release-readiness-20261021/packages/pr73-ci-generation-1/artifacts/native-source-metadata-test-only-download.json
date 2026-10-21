@@ -1,0 +1,34 @@
+{
+  "artifact": {
+    "id": 12340332265,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM0MDMzMjI2NQ==",
+    "name": "native-source-metadata-test-only",
+    "size_in_bytes": 1268,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12340332265",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12340332265/zip",
+    "expired": false,
+    "digest": "sha256:c60413b9e328eadf77cfaf3822091aa374a7a0bb1035d3e5672a7f656ecfbd97",
+    "created_at": "2026-10-21T10:53:18Z",
+    "updated_at": "2026-10-21T10:53:18Z",
+    "expires_at": "2026-11-20T10:53:18Z",
+    "workflow_run": {
+      "id": 39587825081,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/stable-audit-seal-transport",
+      "head_sha": "59549efe1074562928b8ae175faeda8778849e0e"
+    }
+  },
+  "observed_at": "2026-10-21T10:56:03.975129+00:00",
+  "exit_code": 0,
+  "archive_sha256": "c60413b9e328eadf77cfaf3822091aa374a7a0bb1035d3e5672a7f656ecfbd97",
+  "digest_matches_api": true,
+  "members": [
+    {
+      "name": "native-source-metadata.json",
+      "size": 4464,
+      "sha256": "976ec3589f0bcbba8e60b769345f8efac958d9d45f50b119a78686a080b115ff",
+      "crc32": "b7ea7976"
+    }
+  ]
+}

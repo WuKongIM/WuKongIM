@@ -1,0 +1,23 @@
+{
+  "reviewed_at": "2026-10-21T11:10:53.061915+00:00",
+  "manifest_sha256": "4df54241e0e4e32c8debd20da164c6b06a5e07a5e2e80ff800cdb42caafc9c2a",
+  "status": "one_design_assumption_requires_resolution",
+  "findings": [
+    {
+      "id": "R1",
+      "title": "Same-version shared signed RPM bootstrap is not guaranteed by two first-generation pipelines",
+      "evidence": [
+        "compose-package-site.py:920-929 requires new first-generation bootstrap",
+        "compose-package-site.py:1746-1787 requires matching newly signed receipt entries",
+        "sign-package-family.py:707-719 invokes rpmsign without deterministic signing time",
+        "compose-package-site.py:717-735 paths are bootstrap-version derived",
+        "plan-object-storage-publication.py:436-438 rejects immutable URI differing bytes"
+      ],
+      "requested_resolution": "Use separate TEST ONLY bootstrap versions sharing public keys and repository config, or demonstrate an existing supported sign-once reuse path without producer changes.",
+      "runtime_reproduction": "Not run; design/code review only."
+    }
+  ],
+  "implementation_clarification": [
+    "State where real gpg/rpm tools used by make_composite_plan are available to Python/Docker coordinator; clients must not receive Docker socket."
+  ]
+}

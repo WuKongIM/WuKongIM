@@ -1,0 +1,13 @@
+{
+  "started_at": "2026-10-21T11:02:56.022689+00:00",
+  "finished_at": "2026-10-21T11:02:58.614201+00:00",
+  "command": [
+    "gh",
+    "pr",
+    "ready",
+    "73",
+    "--repo",
+    "WuKongIM/packages"
+  ],
+  "exit_code": 0
+}

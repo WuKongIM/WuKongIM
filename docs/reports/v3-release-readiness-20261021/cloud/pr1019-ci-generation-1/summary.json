@@ -1,0 +1,41 @@
+{
+  "schema": "wukongim/pr-first-ci-readonly/v1",
+  "observed_at": "2026-10-21T11:10:25.980719+00:00",
+  "pr": 1019,
+  "head": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e",
+  "synthetic_merge": "33733629ced4bdd21efb68aaf5a94ec1b01dc6bd",
+  "accepted_and_tested_tree": "0acb67250313fc81a463941295082c828a46124c",
+  "all_four_first_attempt_workflows_success": true,
+  "workflow_ids": [
+    39587951020,
+    39587950872,
+    39587950879,
+    39587950769
+  ],
+  "scripts": {
+    "elapsed_seconds": 545.325,
+    "root_pass": 613,
+    "root_skip": 6,
+    "root_fail": 0,
+    "unfinished": 0,
+    "three_summary_ssh_nested_tests_all_pass_no_skip": true,
+    "cleanup_verified_complete": true
+  },
+  "archive_scan": {
+    "private_key_pattern": false,
+    "temporary_signed_url_pattern": false,
+    "github_token_value_pattern": false,
+    "scope": "selected archive text and decompressed logs; pattern check is not proof that arbitrary secrets cannot exist"
+  },
+  "limits": [
+    "No workflow dispatch, rerun, mutation or cloud calls during this monitoring task.",
+    "Branch protection exposes strict=true but no named required status checks; coverage means four observed automatic PR workflows.",
+    "Existing six scripts skips and one cross-node load-comparison skip remain; they are not reported as executed.",
+    "All product-checkout jobs use exact synthetic merge; aggregate job has no source checkout. SDK dependency checkouts are distinct.",
+    "Native package bytes match original checksums; artifacts are TEST ONLY and do not publish a package channel.",
+    "Chat smoke accepted by local-step.json; final is intentional operator_stop and qualification overrides are not formal cloud acceptance. Retry1 and receive_ack_failure1 preserved.",
+    "Large original correctness/native ZIPs remain outside small evidence archive; metadata and full log digests retained.",
+    "Original pre-clock cloud failure cause remains unknown; this CI verifies diagnostics and preflight behavior, not a successful new cloud run.",
+    "One artifact download first read failed EOF, bounded read retried; no CI rerun."
+  ]
+}

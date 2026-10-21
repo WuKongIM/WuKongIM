@@ -1,0 +1,48 @@
+{
+  "reviewed_at": "2026-10-21T11:15:20.711132+00:00",
+  "status": "no_remaining_design_blockers",
+  "review_scope": "read-only independent plan review, not implementation or execution acceptance",
+  "packages_sha": "59549efe1074562928b8ae175faeda8778849e0e",
+  "packages_tree": "6237c709d8cca42cc716a7aee796760c3cd867a9",
+  "plan_generation": 2,
+  "plan_manifest_sha256": "40aad480d58a1809eba758a81122f6ed056d5fb6333f46fca6cf61008e0bca06",
+  "plan_entries_independently_hashed": 10,
+  "product_source_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "product_tree": "3254faa77819a1dc7c4b7230b567ec1115be5a7a",
+  "product_file_hashes_independently_checked": 4,
+  "resolved": [
+    {
+      "id": "R1",
+      "status": "closed_in_design",
+      "resolution": "Separate scratch bootstrap versions 1.1.1/1.1.2, shared public keys/config, independent new unsigned signing; same-version immutable collisions remain rejected."
+    },
+    {
+      "id": "R2",
+      "status": "clarified_in_design",
+      "resolution": "Host same-process native verification; explicit Linux tool preparation/version evidence and fail-before-client when missing; no verification receipt bypass."
+    }
+  ],
+  "scope_guards": [
+    "One shipping client adapter; default preview behavior/receipt remain unchanged.",
+    "No producer/control/key/public route or publisher changes.",
+    "Actual distinct A/B signed payloads and request barriers for APT by-hash and RPM mirrorlist.",
+    "Real fixed-source server/wkcli and all existing installed CLI acceptance checks on four pinned clients.",
+    "TEST ONLY override cannot replace production source identity.",
+    "Local seal JSON is not fresh authenticated GitHub provenance."
+  ],
+  "not_executed": [
+    "implementation",
+    "tests",
+    "GPG/key generation",
+    "Docker/build",
+    "cloud operations",
+    "GitHub workflow dispatch",
+    "public client verification"
+  ],
+  "remaining_verification": [
+    "tests-first failures and implementation review",
+    "complete relevant regression",
+    "actual four native clients, A/B barriers, full installed CLI and owned cleanup in CI",
+    "actual production source/seal/public domain acceptance after separate publication work"
+  ]
+}

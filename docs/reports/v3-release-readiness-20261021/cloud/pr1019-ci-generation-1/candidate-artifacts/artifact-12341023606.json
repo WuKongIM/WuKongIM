@@ -1,0 +1,28 @@
+{
+  "artifact": {
+    "id": 12341023606,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM0MTAyMzYwNg==",
+    "name": "v3-candidate-scripts-39587951020-1",
+    "size_in_bytes": 101957,
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12341023606",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12341023606/zip",
+    "expired": false,
+    "digest": "sha256:42cca8e118af80f2c488b471bfb297f1bf7de1077f90ff465a959b46f85fd49c",
+    "created_at": "2026-10-21T11:03:36Z",
+    "updated_at": "2026-10-21T11:03:36Z",
+    "expires_at": "2026-11-04T11:03:35Z",
+    "workflow_run": {
+      "id": 39587951020,
+      "repository_id": 638054601,
+      "head_repository_id": 638054601,
+      "head_branch": "codex/v3-rc-preclock-diagnostics",
+      "head_sha": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e"
+    }
+  },
+  "observed_sha256": "42cca8e118af80f2c488b471bfb297f1bf7de1077f90ff465a959b46f85fd49c",
+  "observed_size": 101957,
+  "zip_crc_pass": true,
+  "identity_matches": true,
+  "downloaded_at": "2026-10-21T11:04:26.148927+00:00",
+  "directory": "/private/tmp/wukongim-v3-readiness-20261021/cloud/pr1019-ci-generation-1/candidate-artifacts/artifact-12341023606"
+}

@@ -1,0 +1,82 @@
+[
+  {
+    "path": "after.receipt.json",
+    "size": 279,
+    "sha256": "2e5236ea5d00ad0c2a8eb25188f720b66e34e9ae2769543d2882c9ba9325a5c2"
+  },
+  {
+    "path": "after.stderr",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "after.stdout",
+    "size": 2964,
+    "sha256": "3253e1f021b2b24820a999d687173f81b1ee47e9b4fcc00e04b6971631227377"
+  },
+  {
+    "path": "before.receipt.json",
+    "size": 292,
+    "sha256": "3d95d9b8296a6a1c96c8355887e890ef57089d41a863c85471e6689936d3c1bf"
+  },
+  {
+    "path": "before.stderr",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "before.stdout",
+    "size": 7378,
+    "sha256": "22e02748d97edd84176a69114c9cbfe2aac23811c9c4b20485ec0a59a9a98274"
+  },
+  {
+    "path": "edit.receipt.json",
+    "size": 320,
+    "sha256": "bb778f453376ca88229ec7f89f9747e08af59cbf3930b9583307bf22c39e87f3"
+  },
+  {
+    "path": "edit.stderr",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "edit.stdout",
+    "size": 47,
+    "sha256": "edfb16c3d3faf2f6b79825266449f85677a137bf7185888159fb5fc7621eb983"
+  },
+  {
+    "path": "pr-body.md",
+    "size": 2853,
+    "sha256": "a5f0eba434efb1f04094de44c3542db60c9a9ee0e04b26f773fe7132bc5527e7"
+  },
+  {
+    "path": "ready.receipt.json",
+    "size": 229,
+    "sha256": "21610898d1c5747010a4cdc2a7883a9089910dbd8f4e2392d579baa1a8ef07f2"
+  },
+  {
+    "path": "ready.stderr",
+    "size": 72,
+    "sha256": "906d0f7abaaee036dae3af101352f4173729ac89c25f578bd2dc99404e47a03d"
+  },
+  {
+    "path": "ready.stdout",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "review-agent-state.receipt.json",
+    "size": 272,
+    "sha256": "0145c6a7fa7a29984bba42bfb5f5eb825952b8185d0f50e27c63f02668363918"
+  },
+  {
+    "path": "review-agent-state.stderr",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "review-agent-state.stdout",
+    "size": 142,
+    "sha256": "9c548dbe6388af702c2a8fa693feddfd18a753417680f74eb78cf5c4350d4737"
+  }
+]

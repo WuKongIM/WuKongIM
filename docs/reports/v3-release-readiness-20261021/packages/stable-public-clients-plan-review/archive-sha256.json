@@ -1,0 +1,132 @@
+[
+  {
+    "path": "README.md",
+    "size": 266,
+    "sha256": "b136348d2e3cf4bb0a669a8d847f929517fc02afb9e5d338866b887fe811baf3"
+  },
+  {
+    "path": "initial-review.json",
+    "size": 1289,
+    "sha256": "5762701276f858727f0fac499fb7223e2b94eda86bf5602031640427cb32d1c7"
+  },
+  {
+    "path": "review.json",
+    "size": 2215,
+    "sha256": "2e5eea3055f32887f750e146f5ab9e608b530e533f0d25212b47dcea83f8a58e"
+  },
+  {
+    "path": "review.md",
+    "size": 4225,
+    "sha256": "3a56ff46b84bb4ca459a0e9b609851924c66509d40949dc8509edadf698522c7"
+  },
+  {
+    "path": "reviewed-plan-v1/allowlist.txt",
+    "size": 177,
+    "sha256": "ea630280a5a8053e921f867ef22b979bff436a03b706702554e1a3634174743b"
+  },
+  {
+    "path": "reviewed-plan-v1/archive-sha256.json",
+    "size": 1163,
+    "sha256": "4df54241e0e4e32c8debd20da164c6b06a5e07a5e2e80ff800cdb42caafc9c2a"
+  },
+  {
+    "path": "reviewed-plan-v1/failure-matrix.md",
+    "size": 2757,
+    "sha256": "0804b7294429452197157c345634bbad2adc1d91d66c4af6913c234296ef3291"
+  },
+  {
+    "path": "reviewed-plan-v1/legacy-toolchain-packaging.yaml",
+    "size": 2168,
+    "sha256": "1583fcfe001ab49818e58890ee3ac1179ed03419307308da51badb8803876b1b"
+  },
+  {
+    "path": "reviewed-plan-v1/product-fixture-packaging.yaml",
+    "size": 2609,
+    "sha256": "18a88c4559040d6991a5118ebdda6303d2467f6983eafb6472e63a3a71fea3a6"
+  },
+  {
+    "path": "reviewed-plan-v1/product-fixture-source.json",
+    "size": 926,
+    "sha256": "dd723fed3960ed1a2f182cc2547f2e78ef78bf11a3db2361ee002e94684a0651"
+  },
+  {
+    "path": "reviewed-plan-v1/rules-summary.md",
+    "size": 1044,
+    "sha256": "1b71a4c54b93a5b2af2a16916eb482f097265586c917b4168908cafcb1ded0b4"
+  },
+  {
+    "path": "reviewed-plan-v1/scope-proposal.md",
+    "size": 10613,
+    "sha256": "9758edb4d71e0aee3949bdef19b9f1b19cc19960922802877f6a948507cbfa42"
+  },
+  {
+    "path": "reviewed-plan-v1/source-freeze.json",
+    "size": 5380,
+    "sha256": "44905ffd904e70129e7f73eeb3113c1cded33558f1114552f7a86ea4a7af34d0"
+  },
+  {
+    "path": "reviewed-plan-v2/allowlist.txt",
+    "size": 229,
+    "sha256": "711bbb0f6f44bfe3b9b5fa09d17d8ffe26f9574368e2f65d0be6b9368ddfa069"
+  },
+  {
+    "path": "reviewed-plan-v2/archive-sha256.json",
+    "size": 1461,
+    "sha256": "40aad480d58a1809eba758a81122f6ed056d5fb6333f46fca6cf61008e0bca06"
+  },
+  {
+    "path": "reviewed-plan-v2/failure-matrix.md",
+    "size": 3065,
+    "sha256": "0ab3c0f321aefaf40fae8dfb43fcabd3e0bfb20b7c54c208235644172df154ac"
+  },
+  {
+    "path": "reviewed-plan-v2/initial-independent-review.json",
+    "size": 1289,
+    "sha256": "5762701276f858727f0fac499fb7223e2b94eda86bf5602031640427cb32d1c7"
+  },
+  {
+    "path": "reviewed-plan-v2/legacy-toolchain-packaging.yaml",
+    "size": 2168,
+    "sha256": "1583fcfe001ab49818e58890ee3ac1179ed03419307308da51badb8803876b1b"
+  },
+  {
+    "path": "reviewed-plan-v2/product-fixture-packaging.yaml",
+    "size": 2609,
+    "sha256": "18a88c4559040d6991a5118ebdda6303d2467f6983eafb6472e63a3a71fea3a6"
+  },
+  {
+    "path": "reviewed-plan-v2/product-fixture-source.json",
+    "size": 926,
+    "sha256": "dd723fed3960ed1a2f182cc2547f2e78ef78bf11a3db2361ee002e94684a0651"
+  },
+  {
+    "path": "reviewed-plan-v2/revision-notes.json",
+    "size": 1536,
+    "sha256": "c62ae2fd57dcf23778b3203c98e5417b2d0e4d4a153a07be217a9205a14b9362"
+  },
+  {
+    "path": "reviewed-plan-v2/rules-summary.md",
+    "size": 1044,
+    "sha256": "1b71a4c54b93a5b2af2a16916eb482f097265586c917b4168908cafcb1ded0b4"
+  },
+  {
+    "path": "reviewed-plan-v2/scope-proposal.md",
+    "size": 13067,
+    "sha256": "757ca30d9f83cb5abdd5296873cf2ab67c3dac4bd145fbc04643d3239f53e572"
+  },
+  {
+    "path": "reviewed-plan-v2/source-freeze.json",
+    "size": 5380,
+    "sha256": "44905ffd904e70129e7f73eeb3113c1cded33558f1114552f7a86ea4a7af34d0"
+  },
+  {
+    "path": "source-freeze.json",
+    "size": 2341,
+    "sha256": "c31fa2b2c155a4a5dfc4d52017ccaf9869da6f3bc6e415f0845497c6275b19f0"
+  },
+  {
+    "path": "allowlist.txt",
+    "size": 857,
+    "sha256": "fd08127564274bf2de7c9b9157639191422c5de571440ca159c8bf3646bcf930"
+  }
+]

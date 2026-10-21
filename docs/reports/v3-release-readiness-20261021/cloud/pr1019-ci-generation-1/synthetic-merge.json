@@ -1,0 +1,40 @@
+{
+  "sha": "33733629ced4bdd21efb68aaf5a94ec1b01dc6bd",
+  "node_id": "C_kwDOJgfwydoAKDMzNzMzNjI5Y2VkNGJkZDIxZWZiNjhhYWY1YTk0ZWMxYjAxZGM2YmQ",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/33733629ced4bdd21efb68aaf5a94ec1b01dc6bd",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/commit/33733629ced4bdd21efb68aaf5a94ec1b01dc6bd",
+  "author": {
+    "name": "WuKongIM",
+    "email": "tangtaoit@githubim.com",
+    "date": "2026-10-21T10:53:59Z"
+  },
+  "committer": {
+    "name": "GitHub",
+    "email": "noreply@github.com",
+    "date": "2026-10-21T10:53:59Z"
+  },
+  "tree": {
+    "sha": "0acb67250313fc81a463941295082c828a46124c",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/0acb67250313fc81a463941295082c828a46124c"
+  },
+  "message": "Merge 5403a3ba28f2a6846aba2bc238cc1d0b7ded349e into fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "parents": [
+    {
+      "sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/fc18221282f289088ec9b4282fda8e0bfc67a3b8"
+    },
+    {
+      "sha": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/5403a3ba28f2a6846aba2bc238cc1d0b7ded349e",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/5403a3ba28f2a6846aba2bc238cc1d0b7ded349e"
+    }
+  ],
+  "verification": {
+    "verified": true,
+    "reason": "valid",
+    "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq2JnHCRC1aQ7uu5UhlAAA5J0QAHpeDXIyoRWmj/G5ubNk7lED\nqjtKllx3OEH+Ldnioye4WNLj1b6KaK2Bff+G1MWLGefZU3+foc1Us9rDpquiJ4uV\nqpMViKWcT6dtFM5TSPMKxjPvRIAdnkn+t+HhbKBWZiR02fGGc9gQPOjXmAePbxOb\nfQtp0loGjLVLjiwl1iEbDlFkfmRIUAaE0CUJKWOkhpLYqrBHWQR2S08cyJl3snh1\nLSM/WEUzhyPrETXVeBWM0EvSwUlA7nEKAMgJklI1Ni7a50TCJzFx8oNu2fWTBakB\nSgiuTrF6hprfIeYFh0P4X1/TgrRvh3slD+fNYg4NyoZqk719sz1uMKPCGM9xCjVE\n5IhdYYH1hI9BYLXYkinURkp/YNsoI7sa6bJwVEJT9GWu3fQkLxBHhm2H7LrSsD/a\nOBbBsBfZnq/wHjPHdZOUwblndZi9ByjTtZU4KL/vZdhdKsTb8s0M2aEG7yvisKuY\nmufVQOB4op2Djv5ezCrC1+XENaeVrXu5ZygzNszNWS6n7wDp8JPo0Z2lENLKRX3r\nWAyydpp7OENj8kdXYckJLufluA+UyrpjrB3Tr5L2JuDsTkWkyEnOEz6mVjQCCFfQ\nHA2yXvMT0hXwSDj2VRENr/5v5CVpkVdN85AGRmymod0aC87197dC+FHqRotWmNfV\n+XJ9JjNxNKKlsBHZ6uVg\n=cikC\n-----END PGP SIGNATURE-----\n",
+    "payload": "tree 0acb67250313fc81a463941295082c828a46124c\nparent fc18221282f289088ec9b4282fda8e0bfc67a3b8\nparent 5403a3ba28f2a6846aba2bc238cc1d0b7ded349e\nauthor WuKongIM <tangtaoit@githubim.com> 1792580039 +0800\ncommitter GitHub <noreply@github.com> 1792580039 +0800\n\nMerge 5403a3ba28f2a6846aba2bc238cc1d0b7ded349e into fc18221282f289088ec9b4282fda8e0bfc67a3b8\n",
+    "verified_at": "2026-10-21T10:54:00Z"
+  }
+}

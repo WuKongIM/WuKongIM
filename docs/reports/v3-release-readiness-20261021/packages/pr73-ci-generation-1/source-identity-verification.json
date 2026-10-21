@@ -1,0 +1,174 @@
+{
+  "observed_at": "2026-10-21T10:56:47.589422+00:00",
+  "head_sha": "59549efe1074562928b8ae175faeda8778849e0e",
+  "head_tree": "6237c709d8cca42cc716a7aee796760c3cd867a9",
+  "base_sha": "3fe04138403a7c9443e4ede457dccfa16dff2b00",
+  "pr_merge_sha": "873b760b734ace5d19d7f56d90ee053c83a3abac",
+  "pr_merge_tree": "6237c709d8cca42cc716a7aee796760c3cd867a9",
+  "merge_parents": [
+    "3fe04138403a7c9443e4ede457dccfa16dff2b00",
+    "59549efe1074562928b8ae175faeda8778849e0e"
+  ],
+  "same_tree": true,
+  "actual_pages_checkout_from_job_log": "873b760b734ace5d19d7f56d90ee053c83a3abac",
+  "actual_native_source_sha_from_receipt": "873b760b734ace5d19d7f56d90ee053c83a3abac",
+  "input_controls": [
+    {
+      "path": "keys/README.md",
+      "receipt": {
+        "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408",
+        "size": 5439
+      },
+      "git_head": {
+        "size": 5439,
+        "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+      },
+      "matches": true
+    },
+    {
+      "path": "keys/apt-preview.asc",
+      "receipt": {
+        "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886",
+        "size": 6210
+      },
+      "git_head": {
+        "size": 6210,
+        "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+      },
+      "matches": true
+    },
+    {
+      "path": "keys/apt-stable.asc",
+      "receipt": {
+        "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949",
+        "size": 4772
+      },
+      "git_head": {
+        "size": 4772,
+        "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949"
+      },
+      "matches": true
+    },
+    {
+      "path": "keys/rpm-preview.asc",
+      "receipt": {
+        "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+        "size": 6210
+      },
+      "git_head": {
+        "size": 6210,
+        "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+      },
+      "matches": true
+    },
+    {
+      "path": "keys/rpm-stable.asc",
+      "receipt": {
+        "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e",
+        "size": 4772
+      },
+      "git_head": {
+        "size": 4772,
+        "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e"
+      },
+      "matches": true
+    },
+    {
+      "path": "manifests/audit-access.json",
+      "receipt": {
+        "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d",
+        "size": 785
+      },
+      "git_head": {
+        "size": 785,
+        "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+      },
+      "matches": true
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "receipt": {
+        "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831",
+        "size": 96
+      },
+      "git_head": {
+        "size": 96,
+        "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+      },
+      "matches": true
+    },
+    {
+      "path": "manifests/channels.json",
+      "receipt": {
+        "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+        "size": 2579
+      },
+      "git_head": {
+        "size": 2579,
+        "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+      },
+      "matches": true
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "receipt": {
+        "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9",
+        "size": 1110
+      },
+      "git_head": {
+        "size": 1110,
+        "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+      },
+      "matches": true
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "receipt": {
+        "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+        "size": 295
+      },
+      "git_head": {
+        "size": 295,
+        "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+      },
+      "matches": true
+    },
+    {
+      "path": "manifests/source-read.json",
+      "receipt": {
+        "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8",
+        "size": 381
+      },
+      "git_head": {
+        "size": 381,
+        "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+      },
+      "matches": true
+    },
+    {
+      "path": "manifests/stable-public-keys.json",
+      "receipt": {
+        "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41",
+        "size": 651
+      },
+      "git_head": {
+        "size": 651,
+        "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41"
+      },
+      "matches": true
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "receipt": {
+        "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6",
+        "size": 898
+      },
+      "git_head": {
+        "size": 898,
+        "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+      },
+      "matches": true
+    }
+  ],
+  "evidence_limit": "TEST ONLY receipts establish this CI path, not a production external seal, publication or public client verification."
+}

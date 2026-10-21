@@ -1,0 +1,10 @@
+{
+  "run": 39587951020,
+  "job": 119181443191,
+  "name": "Candidate scripts integration",
+  "conclusion": "success",
+  "at": "2026-10-21T11:03:51.597936+00:00",
+  "raw_bytes": 84996,
+  "raw_sha256": "1765e6732fefa3b3a0d364ec4aa6f02e935cf66d64215bb19f8d5e505dbd0e1a",
+  "gzip_sha256": "edb38e0146420c446f82401cbde7cbcb609d89ba481a98b0ac840dd9bbb45ad6"
+}

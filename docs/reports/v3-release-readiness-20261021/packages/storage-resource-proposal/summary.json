@@ -1,0 +1,54 @@
+{
+  "schema": "wukongim.storage_resource_proposal/v1",
+  "proposal_only": true,
+  "resource_mutations": false,
+  "repository_mutations": false,
+  "production_secret_access": false,
+  "code_commit": "59549efe1074562928b8ae175faeda8778849e0e",
+  "baseline_as_of_utc": "2026-10-21T10:24:37Z",
+  "recommended": {
+    "bucket": "wukongim-packages-prod-hz",
+    "region": "cn-hangzhou",
+    "storage_class": "Standard",
+    "redundancy": "LRS",
+    "acl": "private",
+    "versioning": "never_enabled",
+    "cdn_domain": "packages.githubim.com",
+    "cdn_scope": "global_conditional_on_verified_icp",
+    "origin_type": "oss",
+    "origin_scheme": "https",
+    "origin_port": 443,
+    "origin_hostname_proposed_not_observed": "wukongim-packages-prod-hz.oss-cn-hangzhou.aliyuncs.com",
+    "certificate": "new dedicated Lets Encrypt RSA2048 via DNS-01 and CDN custom upload",
+    "new_cname": null,
+    "certificate_id": null,
+    "config_ids": null,
+    "approval_budget_cny_proposed_not_authorized": 100,
+    "acceptance_days": 7
+  },
+  "preserve": [
+    "four existing backup/test buckets",
+    "docs.githubim.com",
+    "preview canonical bytes",
+    "/repo preview default"
+  ],
+  "unknown": [
+    "bucket name availability",
+    "ICP and ownership",
+    "existing private origin role/policy",
+    "authoritative DNS record identity/CAA",
+    "OSS default public API eligibility",
+    "actual account prices and certificate deployment quote"
+  ],
+  "rollback": {
+    "before_stable_publication": "restore original CNAME wukongim.github.io. with original DNS fields, keeping same preview bytes",
+    "after_stable_publication": "restore previous complete composite transport configuration, not preview-only Pages"
+  },
+  "limits": [
+    "not an atomic global switch",
+    "no cloud validation performed",
+    "no purchase or free-certificate application",
+    "no workflow/manifest/permission change",
+    "no publication approval inferred"
+  ]
+}

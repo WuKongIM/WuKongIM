@@ -1,0 +1,10 @@
+{
+  "run": 39587950879,
+  "job": 119183747867,
+  "name": "Exercise Rocky Linux 9 package lifecycle",
+  "conclusion": "success",
+  "at": "2026-10-21T11:04:03.260550+00:00",
+  "raw_bytes": 82100,
+  "raw_sha256": "7bc6524bf8cd427e8911995e261765a561a80dcb1350bd4629270152d2557457",
+  "gzip_sha256": "713dfc5f3d230c8228c42cccedb6524f7a3eb3ee3c960dc4fadfa1ef9effe451"
+}

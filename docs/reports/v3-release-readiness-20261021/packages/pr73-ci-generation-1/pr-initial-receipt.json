@@ -1,0 +1,13 @@
+{
+  "command": [
+    "gh",
+    "api",
+    "--hostname",
+    "github.com",
+    "--method",
+    "GET",
+    "repos/WuKongIM/packages/pulls/73"
+  ],
+  "observed_at": "2026-10-21T10:53:47.287478+00:00",
+  "exit_code": 0
+}

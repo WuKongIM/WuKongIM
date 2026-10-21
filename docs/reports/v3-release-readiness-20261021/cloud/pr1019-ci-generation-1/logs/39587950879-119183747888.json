@@ -1,0 +1,10 @@
+{
+  "run": 39587950879,
+  "job": 119183747888,
+  "name": "Exercise Ubuntu 24.04 package lifecycle",
+  "conclusion": "success",
+  "at": "2026-10-21T11:04:05.959695+00:00",
+  "raw_bytes": 82266,
+  "raw_sha256": "d5156b3ecf488f9d07291021ee3dc0e450bd288a191317f8d51b7084950daa73",
+  "gzip_sha256": "549a475cab9b1998e7507e7ec08f3388d93b3cbcabcbc44ce0ed0dd235746c37"
+}

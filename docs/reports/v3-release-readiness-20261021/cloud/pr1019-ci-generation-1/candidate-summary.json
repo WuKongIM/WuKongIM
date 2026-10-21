@@ -1,0 +1,703 @@
+{
+  "default": {
+    "artifact_id": 12340303523,
+    "zip_integrity_verified": true,
+    "identity": {
+      "source_sha": "33733629ced4bdd21efb68aaf5a94ec1b01dc6bd",
+      "policy_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "event": "pull_request",
+      "run_id": "39587951020",
+      "run_attempt": "1"
+    },
+    "source_matches_exact_synthetic_merge": true,
+    "tree_matches_accepted_head": true,
+    "cases": {
+      ".": {
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2502,
+          "output_bytes": 22029,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2502,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 377.31
+        },
+        "root_outcomes": {},
+        "all_outcomes": {},
+        "failures": [],
+        "skipped": [],
+        "unfinished": [],
+        "non_json_lines": 356,
+        "log_files": [
+          {
+            "path": "candidate-artifacts/artifact-12340303523/stdout-stderr.log",
+            "sha256": "d4fee93affb346a02c3e30039e7aad7c0f3b5682df3bd64088c0078b3076a411"
+          }
+        ]
+      }
+    }
+  },
+  "e2e": {
+    "artifact_id": 12341004096,
+    "zip_integrity_verified": true,
+    "identity": {
+      "source_sha": "33733629ced4bdd21efb68aaf5a94ec1b01dc6bd",
+      "policy_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "run_id": "39587951020",
+      "run_attempt": "1"
+    },
+    "source_matches_exact_synthetic_merge": true,
+    "tree_matches_accepted_head": true,
+    "cases": {
+      "build": {
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2796,
+          "output_bytes": 5051,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2796,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 97.227
+        },
+        "root_outcomes": {},
+        "all_outcomes": {},
+        "failures": [],
+        "skipped": [],
+        "unfinished": [],
+        "non_json_lines": 0,
+        "log_files": [
+          {
+            "path": "candidate-artifacts/artifact-12341004096/build/stdout.jsonl",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ]
+      },
+      "cross_node_delivery": {
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 14133,
+          "output_bytes": 8445,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 14133,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 48.35
+        },
+        "root_outcomes": {
+          "pass": 4,
+          "skip": 1
+        },
+        "all_outcomes": {
+          "pass": 4,
+          "skip": 1
+        },
+        "failures": [],
+        "skipped": [
+          "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS"
+        ],
+        "unfinished": [],
+        "non_json_lines": 0,
+        "log_files": [
+          {
+            "path": "candidate-artifacts/artifact-12341004096/cross_node_delivery/stdout.jsonl",
+            "sha256": "e4ea681a91730498e52c0854be428518cdf1104fc04647d24c5956f3ee051e79"
+          }
+        ]
+      },
+      "ordinary_history": {
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 8242,
+          "output_bytes": 27563,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 8242,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 108.471
+        },
+        "root_outcomes": {
+          "pass": 1
+        },
+        "all_outcomes": {
+          "pass": 6
+        },
+        "failures": [],
+        "skipped": [],
+        "unfinished": [],
+        "non_json_lines": 0,
+        "log_files": [
+          {
+            "path": "candidate-artifacts/artifact-12341004096/ordinary_history/stdout.jsonl",
+            "sha256": "09234887e62a42fa83aa66666394416dcb2f4879a9bf797b763f8e99ee0e60bd"
+          }
+        ]
+      },
+      "self_chat": {
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 14442,
+          "output_bytes": 3700,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 14442,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 36.65
+        },
+        "root_outcomes": {
+          "pass": 1
+        },
+        "all_outcomes": {
+          "pass": 3
+        },
+        "failures": [],
+        "skipped": [],
+        "unfinished": [],
+        "non_json_lines": 0,
+        "log_files": [
+          {
+            "path": "candidate-artifacts/artifact-12341004096/self_chat/stdout.jsonl",
+            "sha256": "574780d42388c00277bbbe41102c44b660ee26fc72ef3e506f4535c3cc1781f0"
+          }
+        ]
+      }
+    }
+  },
+  "scripts": {
+    "artifact_id": 12341023606,
+    "zip_integrity_verified": true,
+    "identity": {
+      "source_sha": "33733629ced4bdd21efb68aaf5a94ec1b01dc6bd",
+      "policy_sha": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+      "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "event": "pull_request",
+      "run_id": "39587951020",
+      "run_attempt": "1"
+    },
+    "source_matches_exact_synthetic_merge": true,
+    "tree_matches_accepted_head": true,
+    "cases": {
+      ".": {
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2422,
+          "output_bytes": 1253427,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2422,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 545.325
+        },
+        "root_outcomes": {
+          "pass": 613,
+          "skip": 6
+        },
+        "all_outcomes": {
+          "pass": 1077,
+          "skip": 6
+        },
+        "failures": [],
+        "skipped": [
+          "TestDockerImageRuntimeContract",
+          "TestDockerImageEmbeddedPrometheus",
+          "TestEasySDKReadinessSerialDelayFixture",
+          "TestNativePackageLifecycle",
+          "TestNativePackageSignedRepository",
+          "TestNativePackageRepositoryDeadlineFixture"
+        ],
+        "unfinished": [],
+        "non_json_lines": 96,
+        "log_files": [
+          {
+            "path": "candidate-artifacts/artifact-12341023606/stdout-stderr.log",
+            "sha256": "cc6475e3f353849900b05b64f5ad821faaa946b589d2862cceb3d52fa6d87d04"
+          }
+        ],
+        "new_scope_outcomes": [
+          {
+            "Test": "TestChatLifecycleIssuePreflightReadOnlyIdentity/minimal_environment",
+            "Action": "pass",
+            "Elapsed": 0.04
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightReadOnlyIdentity/ignores_inherited_comment_and_close",
+            "Action": "pass",
+            "Elapsed": 0.04
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightReadOnlyIdentity",
+            "Action": "pass",
+            "Elapsed": 0.09
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing",
+            "Action": "pass",
+            "Elapsed": 0.02
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/fuzzy_title",
+            "Action": "pass",
+            "Elapsed": 0.02
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/pull_request",
+            "Action": "pass",
+            "Elapsed": 0.02
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/duplicate_including_closed",
+            "Action": "pass",
+            "Elapsed": 0.02
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/incomplete_search",
+            "Action": "pass",
+            "Elapsed": 0.01
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/truncated_search",
+            "Action": "pass",
+            "Elapsed": 0.01
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing_completeness",
+            "Action": "pass",
+            "Elapsed": 0.01
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_count",
+            "Action": "pass",
+            "Elapsed": 0.01
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_items",
+            "Action": "pass",
+            "Elapsed": 0.01
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/malformed_json",
+            "Action": "pass",
+            "Elapsed": 0.01
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/search_api_failure",
+            "Action": "pass",
+            "Elapsed": 0.01
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/invalid_number",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/missing_id",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/foreign_repository",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/wrong_html_url",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_api_failure",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/closed_after_search",
+            "Action": "pass",
+            "Elapsed": 0.04
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/locked_issue",
+            "Action": "pass",
+            "Elapsed": 0.05
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_identity_changed",
+            "Action": "pass",
+            "Elapsed": 0.04
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_title_changed",
+            "Action": "pass",
+            "Elapsed": 0.04
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_repository_changed",
+            "Action": "pass",
+            "Elapsed": 0.04
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_pull_request",
+            "Action": "pass",
+            "Elapsed": 0.04
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_state_missing",
+            "Action": "pass",
+            "Elapsed": 0.04
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_comments_missing",
+            "Action": "pass",
+            "Elapsed": 0.04
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue/get_comments_invalid",
+            "Action": "pass",
+            "Elapsed": 0.04
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnusableTrackingIssue",
+            "Action": "pass",
+            "Elapsed": 0.65
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GH_TOKEN/GH_TOKEN=",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GITHUB_REPOSITORY/GITHUB_REPOSITORY=",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/GITHUB_REPOSITORY/GITHUB_REPOSITORY=../other",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/WK_CHAT_REQUEST_ID/WK_CHAT_REQUEST_ID=",
+            "Action": "pass",
+            "Elapsed": 0.01
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI/WK_CHAT_REQUEST_ID/WK_CHAT_REQUEST_ID=bad_request",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsInvalidEnvironmentBeforeAPI",
+            "Action": "pass",
+            "Elapsed": 0.02
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSafeUnitMetadata/terminal",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSafeUnitMetadata/secret_value",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSafeUnitMetadata/invalid_job",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSafeUnitMetadata/duplicate",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSafeUnitMetadata/oversize",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSafeUnitMetadata",
+            "Action": "pass",
+            "Elapsed": 0.13
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision/preflight",
+            "Action": "pass",
+            "Elapsed": 0.04
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision/runtime",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision/unknown_field",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision/extra_line",
+            "Action": "pass",
+            "Elapsed": 0.04
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryDiagnosticKeepsLegacyDecision",
+            "Action": "pass",
+            "Elapsed": 0.14
+          },
+          {
+            "Test": "TestChatLifecyclePreflightArtifactWorkflowsRemainDiagnosticOnly/rehearsal",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreflightArtifactWorkflowsRemainDiagnosticOnly/formal",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreflightArtifactWorkflowsRemainDiagnosticOnly",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/setup_is_terminal",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/current_observer_detail_remains_terminal",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/current_known_worker_runtime_detail_remains_terminal",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/current_grant_delivery_detail_remains_terminal",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/observer_detail_remains_terminal",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/legacy_observer_summary_remains_terminal",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/unknown_worker_runtime_detail_fails_closed",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/unknown_grant_detail_fails_closed",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/unknown_observer_detail_fails_closed",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/empty_observer_detail_fails_closed",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/non-observer_rejects_observer_detail",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/preflight_remains_repairable",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/unknown_code_fails_closed",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification/extra_line_is_rejected",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockSummaryClassification",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/start_failed",
+            "Action": "pass",
+            "Elapsed": 0.19
+          },
+          {
+            "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/SSH_read_failed",
+            "Action": "pass",
+            "Elapsed": 0.38
+          },
+          {
+            "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/classifier_rejected",
+            "Action": "pass",
+            "Elapsed": 0.27
+          },
+          {
+            "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight",
+            "Action": "pass",
+            "Elapsed": 0.55
+          },
+          {
+            "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime",
+            "Action": "pass",
+            "Elapsed": 0.36
+          },
+          {
+            "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier",
+            "Action": "pass",
+            "Elapsed": 0
+          },
+          {
+            "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary",
+            "Action": "pass",
+            "Elapsed": 0.72
+          },
+          {
+            "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/actual_deadline",
+            "Action": "pass",
+            "Elapsed": 0.55
+          },
+          {
+            "Test": "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill",
+            "Action": "pass",
+            "Elapsed": 3.05
+          },
+          {
+            "Test": "TestChatLifecyclePreClockDiagnosticWriteFailureCannotReplaceStatusOrCleanup/missing_directory_false",
+            "Action": "pass",
+            "Elapsed": 0.05
+          },
+          {
+            "Test": "TestChatLifecyclePreClockDiagnosticWriteFailureCannotReplaceStatusOrCleanup/missing_directory_true",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecyclePreClockDiagnosticWriteFailureCannotReplaceStatusOrCleanup",
+            "Action": "pass",
+            "Elapsed": 0.08
+          },
+          {
+            "Test": "TestChatLifecycleStagePreflightRejectsBeforeAnyBuildKeyOrCloudAction",
+            "Action": "pass",
+            "Elapsed": 0.03
+          },
+          {
+            "Test": "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams/0",
+            "Action": "pass",
+            "Elapsed": 0.09
+          },
+          {
+            "Test": "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams/17",
+            "Action": "pass",
+            "Elapsed": 0.06
+          },
+          {
+            "Test": "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams/255",
+            "Action": "pass",
+            "Elapsed": 0.08
+          },
+          {
+            "Test": "TestChatLifecyclePreClockCaptureRetainsExactStatusAndRedactsStreams",
+            "Action": "pass",
+            "Elapsed": 0.23
+          },
+          {
+            "Test": "TestChatLifecycleIssuePreflightRejectsUnknownFlagsBeforeAPI",
+            "Action": "pass",
+            "Elapsed": 0.01
+          }
+        ],
+        "required_linux_summary_branches": {
+          "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_preflight/summary_command_and_classifier": [
+            "pass"
+          ],
+          "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_runtime/summary_command_and_classifier": [
+            "pass"
+          ],
+          "TestChatLifecyclePreClockActualReadinessBranchesFreezeBeforeKill/terminal_unknown_summary/summary_command_and_classifier": [
+            "pass"
+          ]
+        },
+        "linux_summary_all_executed_pass_without_skip": true
+      }
+    }
+  }
+}

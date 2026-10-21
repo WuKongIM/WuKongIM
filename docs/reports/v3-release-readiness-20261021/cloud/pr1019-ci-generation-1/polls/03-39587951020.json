@@ -1,0 +1,294 @@
+{
+  "conclusion": "",
+  "createdAt": "2026-10-21T10:54:01Z",
+  "databaseId": 39587951020,
+  "event": "pull_request",
+  "headSha": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e",
+  "jobs": [
+    {
+      "completedAt": "2026-10-21T11:00:44Z",
+      "conclusion": "success",
+      "databaseId": 119181442854,
+      "name": "Candidate default suite (go-unit)",
+      "startedAt": "2026-10-21T10:54:04Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T10:54:05Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T10:54:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T10:54:15Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "number": 2,
+          "startedAt": "2026-10-21T10:54:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T10:54:15Z",
+          "conclusion": "success",
+          "name": "Freeze source and named-check authority",
+          "number": 3,
+          "startedAt": "2026-10-21T10:54:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T10:54:16Z",
+          "conclusion": "success",
+          "name": "Validate workflow static contracts",
+          "number": 4,
+          "startedAt": "2026-10-21T10:54:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T10:54:24Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "number": 5,
+          "startedAt": "2026-10-21T10:54:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:00:41Z",
+          "conclusion": "success",
+          "name": "Run frozen go-unit named check once",
+          "number": 6,
+          "startedAt": "2026-10-21T10:54:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:00:41Z",
+          "conclusion": "success",
+          "name": "Reject tracked-tree mutation",
+          "number": 7,
+          "startedAt": "2026-10-21T11:00:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:00:42Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "number": 8,
+          "startedAt": "2026-10-21T11:00:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:00:42Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "number": 15,
+          "startedAt": "2026-10-21T11:00:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:00:42Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "number": 16,
+          "startedAt": "2026-10-21T11:00:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:00:42Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 17,
+          "startedAt": "2026-10-21T11:00:42Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39587951020/job/119181442854"
+    },
+    {
+      "completedAt": "2026-10-21T11:03:39Z",
+      "conclusion": "success",
+      "databaseId": 119181443191,
+      "name": "Candidate scripts integration",
+      "startedAt": "2026-10-21T10:54:04Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T10:54:06Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T10:54:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T10:54:21Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "number": 2,
+          "startedAt": "2026-10-21T10:54:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T10:54:21Z",
+          "conclusion": "success",
+          "name": "Freeze source and named-check authority",
+          "number": 3,
+          "startedAt": "2026-10-21T10:54:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T10:54:21Z",
+          "conclusion": "success",
+          "name": "Validate workflow static contracts",
+          "number": 4,
+          "startedAt": "2026-10-21T10:54:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T10:54:30Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "number": 5,
+          "startedAt": "2026-10-21T10:54:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:03:35Z",
+          "conclusion": "success",
+          "name": "Run frozen scripts-integration named check once",
+          "number": 6,
+          "startedAt": "2026-10-21T10:54:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:03:35Z",
+          "conclusion": "success",
+          "name": "Reject tracked-tree mutation",
+          "number": 7,
+          "startedAt": "2026-10-21T11:03:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:03:37Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "number": 8,
+          "startedAt": "2026-10-21T11:03:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:03:37Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "number": 15,
+          "startedAt": "2026-10-21T11:03:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:03:37Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "number": 16,
+          "startedAt": "2026-10-21T11:03:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:03:37Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 17,
+          "startedAt": "2026-10-21T11:03:37Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39587951020/job/119181443191"
+    },
+    {
+      "completedAt": "0001-01-01T00:00:00Z",
+      "conclusion": "",
+      "databaseId": 119184163123,
+      "name": "Candidate migration and messaging E2E",
+      "startedAt": "2026-10-21T11:00:47Z",
+      "status": "in_progress",
+      "steps": [
+        {
+          "completedAt": "2026-10-21T11:00:49Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-21T11:00:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:00:59Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "number": 2,
+          "startedAt": "2026-10-21T11:00:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:01:00Z",
+          "conclusion": "success",
+          "name": "Record exact source and initial case state",
+          "number": 3,
+          "startedAt": "2026-10-21T11:00:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-21T11:01:08Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "number": 4,
+          "startedAt": "2026-10-21T11:01:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Build once and run migration, cross-node delivery, and self-chat serially",
+          "number": 5,
+          "startedAt": "2026-10-21T11:01:08Z",
+          "status": "in_progress"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Reject tracked-tree mutation",
+          "number": 6,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "number": 7,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "number": 13,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "number": 14,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        }
+      ],
+      "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39587951020/job/119184163123"
+    }
+  ],
+  "name": "V3 Candidate Regression pull_request 1019 attempt 1",
+  "status": "in_progress",
+  "updatedAt": "2026-10-21T11:00:47Z",
+  "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39587951020"
+}

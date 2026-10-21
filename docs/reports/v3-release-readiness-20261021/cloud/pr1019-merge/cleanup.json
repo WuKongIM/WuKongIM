@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-21T11:18:58.475868+00:00",
+  "head": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e",
+  "target": "origin/main",
+  "contains_original_tip": true,
+  "tracked_untracked_ignored_before": "clean",
+  "worktree_removed": true,
+  "original_local_branch_deleted": true,
+  "forced": false,
+  "user_primary_head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83"
+}

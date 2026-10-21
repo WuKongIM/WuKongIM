@@ -1,0 +1,9 @@
+{
+  "authorized_pr": 73,
+  "authorized_head": "59549efe1074562928b8ae175faeda8778849e0e",
+  "method": "rebase",
+  "admin_bypass": false,
+  "started_at": "2026-10-21T11:14:21.782346+00:00",
+  "finished_at": "2026-10-21T11:14:26.314853+00:00",
+  "exit_code": 0
+}

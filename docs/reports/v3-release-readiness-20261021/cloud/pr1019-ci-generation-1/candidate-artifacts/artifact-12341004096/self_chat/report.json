@@ -1,0 +1,1509 @@
+{
+  "schema_version": 1,
+  "started_at": "2026-10-21T11:05:24.814062805Z",
+  "finished_at": "2026-10-21T11:05:59.792621657Z",
+  "passed": true,
+  "hash_slots": 256,
+  "token_authentication": "production_default",
+  "suppression_window_ms": 1000,
+  "cases": [
+    {
+      "nodes": 1,
+      "phase": "complete",
+      "passed": true,
+      "binary_sha256": "1b95eb775a23923852be019f93a1f7a9411c6cd221ac986215584ca0e4e46c8d",
+      "invalid_auth_refused": true,
+      "whole_cluster_restarts": 1,
+      "acknowledged": [
+        {
+          "message_idstr": "2112862828242145280",
+          "message_seq": 1,
+          "client_msg_no": "self-0-wkproto-0",
+          "from_uid": "e2e-self-chat-user",
+          "channel_id": "e2e-self-chat-user",
+          "channel_type": 1,
+          "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+          "header": {
+            "no_persist": 0,
+            "sync_once": 0,
+            "red_dot": 0
+          }
+        },
+        {
+          "message_idstr": "2112862828271505408",
+          "message_seq": 2,
+          "client_msg_no": "self-0-wkproto-1",
+          "from_uid": "e2e-self-chat-user",
+          "channel_id": "e2e-self-chat-user",
+          "channel_type": 1,
+          "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+          "header": {
+            "no_persist": 0,
+            "sync_once": 0,
+            "red_dot": 0
+          }
+        },
+        {
+          "message_idstr": "2112862828296671232",
+          "message_seq": 3,
+          "client_msg_no": "self-0-http",
+          "from_uid": "e2e-self-chat-user",
+          "channel_id": "e2e-self-chat-user",
+          "channel_type": 1,
+          "payload": "c2VsZi0wLWh0dHA=",
+          "header": {
+            "no_persist": 0,
+            "sync_once": 0,
+            "red_dot": 0
+          }
+        },
+        {
+          "message_idstr": "2112862860777361408",
+          "message_seq": 4,
+          "client_msg_no": "self-1-wkproto-0",
+          "from_uid": "e2e-self-chat-user",
+          "channel_id": "e2e-self-chat-user",
+          "channel_type": 1,
+          "payload": "c2VsZi0xLXdrcHJvdG8tMA==",
+          "header": {
+            "no_persist": 0,
+            "sync_once": 0,
+            "red_dot": 0
+          }
+        },
+        {
+          "message_idstr": "2112862860810915840",
+          "message_seq": 5,
+          "client_msg_no": "self-1-wkproto-1",
+          "from_uid": "e2e-self-chat-user",
+          "channel_id": "e2e-self-chat-user",
+          "channel_type": 1,
+          "payload": "c2VsZi0xLXdrcHJvdG8tMQ==",
+          "header": {
+            "no_persist": 0,
+            "sync_once": 0,
+            "red_dot": 0
+          }
+        },
+        {
+          "message_idstr": "2112862860836081664",
+          "message_seq": 6,
+          "client_msg_no": "self-1-http",
+          "from_uid": "e2e-self-chat-user",
+          "channel_id": "e2e-self-chat-user",
+          "channel_type": 1,
+          "payload": "c2VsZi0xLWh0dHA=",
+          "header": {
+            "no_persist": 0,
+            "sync_once": 0,
+            "red_dot": 0
+          }
+        }
+      ],
+      "receives": [
+        {
+          "phase": "generation-0",
+          "device": "web",
+          "message_id": "2112862828242145280",
+          "message_seq": 1,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-0",
+          "device": "app",
+          "message_id": "2112862828271505408",
+          "message_seq": 2,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-0",
+          "device": "app",
+          "message_id": "2112862828271505408",
+          "message_seq": 2,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-0",
+          "device": "app",
+          "message_id": "2112862828296671232",
+          "message_seq": 3,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-0",
+          "device": "app",
+          "message_id": "2112862828296671232",
+          "message_seq": 3,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-0",
+          "device": "web",
+          "message_id": "2112862828242145280",
+          "message_seq": 1,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-0",
+          "device": "web",
+          "message_id": "2112862828296671232",
+          "message_seq": 3,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-0",
+          "device": "web",
+          "message_id": "2112862828296671232",
+          "message_seq": 3,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-1",
+          "device": "web",
+          "message_id": "2112862860777361408",
+          "message_seq": 4,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-1",
+          "device": "app",
+          "message_id": "2112862860810915840",
+          "message_seq": 5,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-1",
+          "device": "app",
+          "message_id": "2112862860810915840",
+          "message_seq": 5,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-1",
+          "device": "app",
+          "message_id": "2112862860836081664",
+          "message_seq": 6,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-1",
+          "device": "app",
+          "message_id": "2112862860836081664",
+          "message_seq": 6,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-1",
+          "device": "web",
+          "message_id": "2112862860777361408",
+          "message_seq": 4,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-1",
+          "device": "web",
+          "message_id": "2112862860836081664",
+          "message_seq": 6,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-1",
+          "device": "web",
+          "message_id": "2112862860836081664",
+          "message_seq": 6,
+          "duplicate": true
+        }
+      ],
+      "history": [
+        {
+          "phase": "generation-0",
+          "node_id": 1,
+          "pages": 2,
+          "temporary_retries": 0,
+          "messages": [
+            {
+              "message_idstr": "2112862828242145280",
+              "message_seq": 1,
+              "client_msg_no": "self-0-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862828271505408",
+              "message_seq": 2,
+              "client_msg_no": "self-0-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862828296671232",
+              "message_seq": 3,
+              "client_msg_no": "self-0-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            }
+          ],
+          "last_page": {
+            "start_message_seq": 3,
+            "more": 0,
+            "messages": [
+              {
+                "message_idstr": "2112862828296671232",
+                "message_seq": 3,
+                "client_msg_no": "self-0-http",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0wLWh0dHA=",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              }
+            ]
+          },
+          "complete": true
+        },
+        {
+          "phase": "whole-cluster-restart-before-any-send",
+          "node_id": 1,
+          "pages": 2,
+          "temporary_retries": 0,
+          "messages": [
+            {
+              "message_idstr": "2112862828242145280",
+              "message_seq": 1,
+              "client_msg_no": "self-0-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862828271505408",
+              "message_seq": 2,
+              "client_msg_no": "self-0-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862828296671232",
+              "message_seq": 3,
+              "client_msg_no": "self-0-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            }
+          ],
+          "last_page": {
+            "start_message_seq": 3,
+            "more": 0,
+            "messages": [
+              {
+                "message_idstr": "2112862828296671232",
+                "message_seq": 3,
+                "client_msg_no": "self-0-http",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0wLWh0dHA=",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              }
+            ]
+          },
+          "complete": true
+        },
+        {
+          "phase": "generation-1",
+          "node_id": 1,
+          "pages": 3,
+          "temporary_retries": 0,
+          "messages": [
+            {
+              "message_idstr": "2112862828242145280",
+              "message_seq": 1,
+              "client_msg_no": "self-0-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862828271505408",
+              "message_seq": 2,
+              "client_msg_no": "self-0-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862828296671232",
+              "message_seq": 3,
+              "client_msg_no": "self-0-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862860777361408",
+              "message_seq": 4,
+              "client_msg_no": "self-1-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0xLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862860810915840",
+              "message_seq": 5,
+              "client_msg_no": "self-1-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0xLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862860836081664",
+              "message_seq": 6,
+              "client_msg_no": "self-1-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0xLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            }
+          ],
+          "last_page": {
+            "start_message_seq": 5,
+            "more": 0,
+            "messages": [
+              {
+                "message_idstr": "2112862860810915840",
+                "message_seq": 5,
+                "client_msg_no": "self-1-wkproto-1",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0xLXdrcHJvdG8tMQ==",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              },
+              {
+                "message_idstr": "2112862860836081664",
+                "message_seq": 6,
+                "client_msg_no": "self-1-http",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0xLWh0dHA=",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              }
+            ]
+          },
+          "complete": true
+        }
+      ],
+      "sender_suppression_windows": 4
+    },
+    {
+      "nodes": 3,
+      "phase": "complete",
+      "passed": true,
+      "binary_sha256": "1b95eb775a23923852be019f93a1f7a9411c6cd221ac986215584ca0e4e46c8d",
+      "invalid_auth_refused": true,
+      "whole_cluster_restarts": 1,
+      "acknowledged": [
+        {
+          "message_idstr": "2112862911457140736",
+          "message_seq": 1,
+          "client_msg_no": "self-0-wkproto-0",
+          "from_uid": "e2e-self-chat-user",
+          "channel_id": "e2e-self-chat-user",
+          "channel_type": 1,
+          "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+          "header": {
+            "no_persist": 0,
+            "sync_once": 0,
+            "red_dot": 0
+          }
+        },
+        {
+          "message_idstr": "2112862911511666688",
+          "message_seq": 2,
+          "client_msg_no": "self-0-wkproto-1",
+          "from_uid": "e2e-self-chat-user",
+          "channel_id": "e2e-self-chat-user",
+          "channel_type": 1,
+          "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+          "header": {
+            "no_persist": 0,
+            "sync_once": 0,
+            "red_dot": 0
+          }
+        },
+        {
+          "message_idstr": "2112862911549415424",
+          "message_seq": 3,
+          "client_msg_no": "self-0-http",
+          "from_uid": "e2e-self-chat-user",
+          "channel_id": "e2e-self-chat-user",
+          "channel_type": 1,
+          "payload": "c2VsZi0wLWh0dHA=",
+          "header": {
+            "no_persist": 0,
+            "sync_once": 0,
+            "red_dot": 0
+          }
+        },
+        {
+          "message_idstr": "2112862950795517952",
+          "message_seq": 4,
+          "client_msg_no": "self-1-wkproto-0",
+          "from_uid": "e2e-self-chat-user",
+          "channel_id": "e2e-self-chat-user",
+          "channel_type": 1,
+          "payload": "c2VsZi0xLXdrcHJvdG8tMA==",
+          "header": {
+            "no_persist": 0,
+            "sync_once": 0,
+            "red_dot": 0
+          }
+        },
+        {
+          "message_idstr": "2112862950837460992",
+          "message_seq": 5,
+          "client_msg_no": "self-1-wkproto-1",
+          "from_uid": "e2e-self-chat-user",
+          "channel_id": "e2e-self-chat-user",
+          "channel_type": 1,
+          "payload": "c2VsZi0xLXdrcHJvdG8tMQ==",
+          "header": {
+            "no_persist": 0,
+            "sync_once": 0,
+            "red_dot": 0
+          }
+        },
+        {
+          "message_idstr": "2112862950866821120",
+          "message_seq": 6,
+          "client_msg_no": "self-1-http",
+          "from_uid": "e2e-self-chat-user",
+          "channel_id": "e2e-self-chat-user",
+          "channel_type": 1,
+          "payload": "c2VsZi0xLWh0dHA=",
+          "header": {
+            "no_persist": 0,
+            "sync_once": 0,
+            "red_dot": 0
+          }
+        }
+      ],
+      "receives": [
+        {
+          "phase": "generation-0",
+          "device": "web",
+          "message_id": "2112862911457140736",
+          "message_seq": 1,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-0",
+          "device": "app",
+          "message_id": "2112862911511666688",
+          "message_seq": 2,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-0",
+          "device": "app",
+          "message_id": "2112862911511666688",
+          "message_seq": 2,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-0",
+          "device": "app",
+          "message_id": "2112862911549415424",
+          "message_seq": 3,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-0",
+          "device": "app",
+          "message_id": "2112862911549415424",
+          "message_seq": 3,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-0",
+          "device": "web",
+          "message_id": "2112862911457140736",
+          "message_seq": 1,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-0",
+          "device": "web",
+          "message_id": "2112862911549415424",
+          "message_seq": 3,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-0",
+          "device": "web",
+          "message_id": "2112862911549415424",
+          "message_seq": 3,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-1",
+          "device": "web",
+          "message_id": "2112862950795517952",
+          "message_seq": 4,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-1",
+          "device": "app",
+          "message_id": "2112862950837460992",
+          "message_seq": 5,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-1",
+          "device": "app",
+          "message_id": "2112862950837460992",
+          "message_seq": 5,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-1",
+          "device": "app",
+          "message_id": "2112862950866821120",
+          "message_seq": 6,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-1",
+          "device": "app",
+          "message_id": "2112862950866821120",
+          "message_seq": 6,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-1",
+          "device": "web",
+          "message_id": "2112862950795517952",
+          "message_seq": 4,
+          "duplicate": true
+        },
+        {
+          "phase": "generation-1",
+          "device": "web",
+          "message_id": "2112862950866821120",
+          "message_seq": 6,
+          "duplicate": false
+        },
+        {
+          "phase": "generation-1",
+          "device": "web",
+          "message_id": "2112862950866821120",
+          "message_seq": 6,
+          "duplicate": true
+        }
+      ],
+      "history": [
+        {
+          "phase": "generation-0",
+          "node_id": 1,
+          "pages": 2,
+          "temporary_retries": 0,
+          "messages": [
+            {
+              "message_idstr": "2112862911457140736",
+              "message_seq": 1,
+              "client_msg_no": "self-0-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911511666688",
+              "message_seq": 2,
+              "client_msg_no": "self-0-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911549415424",
+              "message_seq": 3,
+              "client_msg_no": "self-0-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            }
+          ],
+          "last_page": {
+            "start_message_seq": 3,
+            "more": 0,
+            "messages": [
+              {
+                "message_idstr": "2112862911549415424",
+                "message_seq": 3,
+                "client_msg_no": "self-0-http",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0wLWh0dHA=",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              }
+            ]
+          },
+          "complete": true
+        },
+        {
+          "phase": "generation-0",
+          "node_id": 2,
+          "pages": 2,
+          "temporary_retries": 0,
+          "messages": [
+            {
+              "message_idstr": "2112862911457140736",
+              "message_seq": 1,
+              "client_msg_no": "self-0-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911511666688",
+              "message_seq": 2,
+              "client_msg_no": "self-0-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911549415424",
+              "message_seq": 3,
+              "client_msg_no": "self-0-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            }
+          ],
+          "last_page": {
+            "start_message_seq": 3,
+            "more": 0,
+            "messages": [
+              {
+                "message_idstr": "2112862911549415424",
+                "message_seq": 3,
+                "client_msg_no": "self-0-http",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0wLWh0dHA=",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              }
+            ]
+          },
+          "complete": true
+        },
+        {
+          "phase": "generation-0",
+          "node_id": 3,
+          "pages": 2,
+          "temporary_retries": 0,
+          "messages": [
+            {
+              "message_idstr": "2112862911457140736",
+              "message_seq": 1,
+              "client_msg_no": "self-0-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911511666688",
+              "message_seq": 2,
+              "client_msg_no": "self-0-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911549415424",
+              "message_seq": 3,
+              "client_msg_no": "self-0-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            }
+          ],
+          "last_page": {
+            "start_message_seq": 3,
+            "more": 0,
+            "messages": [
+              {
+                "message_idstr": "2112862911549415424",
+                "message_seq": 3,
+                "client_msg_no": "self-0-http",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0wLWh0dHA=",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              }
+            ]
+          },
+          "complete": true
+        },
+        {
+          "phase": "whole-cluster-restart-before-any-send",
+          "node_id": 1,
+          "pages": 2,
+          "temporary_retries": 0,
+          "messages": [
+            {
+              "message_idstr": "2112862911457140736",
+              "message_seq": 1,
+              "client_msg_no": "self-0-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911511666688",
+              "message_seq": 2,
+              "client_msg_no": "self-0-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911549415424",
+              "message_seq": 3,
+              "client_msg_no": "self-0-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            }
+          ],
+          "last_page": {
+            "start_message_seq": 3,
+            "more": 0,
+            "messages": [
+              {
+                "message_idstr": "2112862911549415424",
+                "message_seq": 3,
+                "client_msg_no": "self-0-http",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0wLWh0dHA=",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              }
+            ]
+          },
+          "complete": true
+        },
+        {
+          "phase": "whole-cluster-restart-before-any-send",
+          "node_id": 2,
+          "pages": 2,
+          "temporary_retries": 0,
+          "messages": [
+            {
+              "message_idstr": "2112862911457140736",
+              "message_seq": 1,
+              "client_msg_no": "self-0-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911511666688",
+              "message_seq": 2,
+              "client_msg_no": "self-0-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911549415424",
+              "message_seq": 3,
+              "client_msg_no": "self-0-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            }
+          ],
+          "last_page": {
+            "start_message_seq": 3,
+            "more": 0,
+            "messages": [
+              {
+                "message_idstr": "2112862911549415424",
+                "message_seq": 3,
+                "client_msg_no": "self-0-http",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0wLWh0dHA=",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              }
+            ]
+          },
+          "complete": true
+        },
+        {
+          "phase": "whole-cluster-restart-before-any-send",
+          "node_id": 3,
+          "pages": 2,
+          "temporary_retries": 0,
+          "messages": [
+            {
+              "message_idstr": "2112862911457140736",
+              "message_seq": 1,
+              "client_msg_no": "self-0-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911511666688",
+              "message_seq": 2,
+              "client_msg_no": "self-0-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911549415424",
+              "message_seq": 3,
+              "client_msg_no": "self-0-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            }
+          ],
+          "last_page": {
+            "start_message_seq": 3,
+            "more": 0,
+            "messages": [
+              {
+                "message_idstr": "2112862911549415424",
+                "message_seq": 3,
+                "client_msg_no": "self-0-http",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0wLWh0dHA=",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              }
+            ]
+          },
+          "complete": true
+        },
+        {
+          "phase": "generation-1",
+          "node_id": 1,
+          "pages": 3,
+          "temporary_retries": 0,
+          "messages": [
+            {
+              "message_idstr": "2112862911457140736",
+              "message_seq": 1,
+              "client_msg_no": "self-0-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911511666688",
+              "message_seq": 2,
+              "client_msg_no": "self-0-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911549415424",
+              "message_seq": 3,
+              "client_msg_no": "self-0-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862950795517952",
+              "message_seq": 4,
+              "client_msg_no": "self-1-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0xLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862950837460992",
+              "message_seq": 5,
+              "client_msg_no": "self-1-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0xLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862950866821120",
+              "message_seq": 6,
+              "client_msg_no": "self-1-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0xLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            }
+          ],
+          "last_page": {
+            "start_message_seq": 5,
+            "more": 0,
+            "messages": [
+              {
+                "message_idstr": "2112862950837460992",
+                "message_seq": 5,
+                "client_msg_no": "self-1-wkproto-1",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0xLXdrcHJvdG8tMQ==",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              },
+              {
+                "message_idstr": "2112862950866821120",
+                "message_seq": 6,
+                "client_msg_no": "self-1-http",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0xLWh0dHA=",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              }
+            ]
+          },
+          "complete": true
+        },
+        {
+          "phase": "generation-1",
+          "node_id": 2,
+          "pages": 3,
+          "temporary_retries": 0,
+          "messages": [
+            {
+              "message_idstr": "2112862911457140736",
+              "message_seq": 1,
+              "client_msg_no": "self-0-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911511666688",
+              "message_seq": 2,
+              "client_msg_no": "self-0-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911549415424",
+              "message_seq": 3,
+              "client_msg_no": "self-0-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862950795517952",
+              "message_seq": 4,
+              "client_msg_no": "self-1-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0xLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862950837460992",
+              "message_seq": 5,
+              "client_msg_no": "self-1-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0xLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862950866821120",
+              "message_seq": 6,
+              "client_msg_no": "self-1-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0xLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            }
+          ],
+          "last_page": {
+            "start_message_seq": 5,
+            "more": 0,
+            "messages": [
+              {
+                "message_idstr": "2112862950837460992",
+                "message_seq": 5,
+                "client_msg_no": "self-1-wkproto-1",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0xLXdrcHJvdG8tMQ==",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              },
+              {
+                "message_idstr": "2112862950866821120",
+                "message_seq": 6,
+                "client_msg_no": "self-1-http",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0xLWh0dHA=",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              }
+            ]
+          },
+          "complete": true
+        },
+        {
+          "phase": "generation-1",
+          "node_id": 3,
+          "pages": 3,
+          "temporary_retries": 0,
+          "messages": [
+            {
+              "message_idstr": "2112862911457140736",
+              "message_seq": 1,
+              "client_msg_no": "self-0-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911511666688",
+              "message_seq": 2,
+              "client_msg_no": "self-0-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862911549415424",
+              "message_seq": 3,
+              "client_msg_no": "self-0-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0wLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862950795517952",
+              "message_seq": 4,
+              "client_msg_no": "self-1-wkproto-0",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0xLXdrcHJvdG8tMA==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862950837460992",
+              "message_seq": 5,
+              "client_msg_no": "self-1-wkproto-1",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0xLXdrcHJvdG8tMQ==",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            },
+            {
+              "message_idstr": "2112862950866821120",
+              "message_seq": 6,
+              "client_msg_no": "self-1-http",
+              "from_uid": "e2e-self-chat-user",
+              "channel_id": "e2e-self-chat-user",
+              "channel_type": 1,
+              "payload": "c2VsZi0xLWh0dHA=",
+              "header": {
+                "no_persist": 0,
+                "sync_once": 0,
+                "red_dot": 0
+              }
+            }
+          ],
+          "last_page": {
+            "start_message_seq": 5,
+            "more": 0,
+            "messages": [
+              {
+                "message_idstr": "2112862950837460992",
+                "message_seq": 5,
+                "client_msg_no": "self-1-wkproto-1",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0xLXdrcHJvdG8tMQ==",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              },
+              {
+                "message_idstr": "2112862950866821120",
+                "message_seq": 6,
+                "client_msg_no": "self-1-http",
+                "from_uid": "e2e-self-chat-user",
+                "channel_id": "e2e-self-chat-user",
+                "channel_type": 1,
+                "payload": "c2VsZi0xLWh0dHA=",
+                "header": {
+                  "no_persist": 0,
+                  "sync_once": 0,
+                  "red_dot": 0
+                }
+              }
+            ]
+          },
+          "complete": true
+        }
+      ],
+      "sender_suppression_windows": 4
+    }
+  ]
+}

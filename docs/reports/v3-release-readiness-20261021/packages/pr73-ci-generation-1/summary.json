@@ -1,0 +1,240 @@
+{
+  "schema": "wukongim.packages.pr_ci_evidence/v1",
+  "observed_at": "2026-10-21T11:01:29.772159+00:00",
+  "pr_url": "https://github.com/WuKongIM/packages/pull/73",
+  "head_sha": "59549efe1074562928b8ae175faeda8778849e0e",
+  "base_sha": "3fe04138403a7c9443e4ede457dccfa16dff2b00",
+  "checkout_sha": "873b760b734ace5d19d7f56d90ee053c83a3abac",
+  "tree_sha": "6237c709d8cca42cc716a7aee796760c3cd867a9",
+  "head_equals_checkout_tree": true,
+  "draft": true,
+  "runs": [
+    {
+      "id": 39587825259,
+      "html_url": "https://github.com/WuKongIM/packages/actions/runs/39587825259",
+      "name": "Safety Automation - Deploy Package Repository Bootstrap",
+      "run_attempt": 1,
+      "event": "pull_request",
+      "head_sha": "59549efe1074562928b8ae175faeda8778849e0e",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-21T10:53:00Z",
+      "updated_at": "2026-10-21T10:54:51Z"
+    },
+    {
+      "id": 39587825081,
+      "html_url": "https://github.com/WuKongIM/packages/actions/runs/39587825081",
+      "name": "Safety Automation - Drill Native Package Repository",
+      "run_attempt": 1,
+      "event": "pull_request",
+      "head_sha": "59549efe1074562928b8ae175faeda8778849e0e",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-21T10:53:00Z",
+      "updated_at": "2026-10-21T10:58:56Z"
+    }
+  ],
+  "test_results": {
+    "python": {
+      "run": 468,
+      "skipped": 0,
+      "elapsed_seconds": 102.264
+    },
+    "pages_contract": {
+      "run": 4,
+      "skipped": 0
+    },
+    "native_contract": {
+      "run": 4,
+      "skipped": 0
+    },
+    "native_source_metadata": {
+      "cases": 7,
+      "passed": 7
+    },
+    "native_local_signing": {
+      "cases": 10,
+      "passed": 10
+    },
+    "native_bootstrap_preparation": {
+      "cases": 6,
+      "passed": 6
+    },
+    "native_stable_candidate": {
+      "cases": 31,
+      "passed": 31,
+      "positive_cases": 10,
+      "expected_rejections": 21
+    },
+    "native_stable_transport": {
+      "cases": 8,
+      "passed": 8,
+      "positive_cases": 6,
+      "expected_rejections": 2,
+      "results": [
+        {
+          "case": "stable-bind",
+          "exit_code": 0,
+          "expected_rejection": false,
+          "passed": true,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "1cbcd72b5e137cb122d038929e724d2c50d0bb8a1512447fa0abde71b1556804"
+        },
+        {
+          "case": "stable-seal",
+          "exit_code": 0,
+          "expected_rejection": false,
+          "passed": true,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "308ebbf0e59114a3838684f6bde61142e022395f40752a5d155e4d926753ab81"
+        },
+        {
+          "case": "stable-resolve",
+          "exit_code": 0,
+          "expected_rejection": false,
+          "passed": true,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "b830073c537d5f9d6b9693c213d733816c2ad09c398c29736a6a1492fd4e5752"
+        },
+        {
+          "case": "composite-plan",
+          "exit_code": 0,
+          "expected_rejection": false,
+          "passed": true,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "d0b3f4bbd375cae0d191920d896e39e23a0df8bf58f6e35b0235536129ba284a"
+        },
+        {
+          "case": "composite-repeat",
+          "exit_code": 0,
+          "expected_rejection": false,
+          "passed": true,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "d0b3f4bbd375cae0d191920d896e39e23a0df8bf58f6e35b0235536129ba284a"
+        },
+        {
+          "case": "reject-test-without-optin",
+          "exit_code": 1,
+          "expected_rejection": true,
+          "passed": true,
+          "stderr_sha256": "115f4147773184e0d907208b93e151ee887f22d7b9dfe0640676ea41976083c3",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "case": "composite-retained",
+          "exit_code": 0,
+          "expected_rejection": false,
+          "passed": true,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "5d456925e647833793858dea0697774d35c599607a9eefb2e3ed1b0b0f20d8aa"
+        },
+        {
+          "case": "reject-changed-retained",
+          "exit_code": 1,
+          "expected_rejection": true,
+          "passed": true,
+          "stderr_sha256": "2ca500592b419b56f633ae989bdf2d2a623618d554351a8a8b9e37421a030960",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    "complete_repository_drill": {
+      "passed": true,
+      "trusted_product_source_sha": "ed7e67d8f781b4f92872e42116c11b304fe03b5c",
+      "apt": "file-based signed preview repository download",
+      "rpm": "RockyLinux9 file-based signed preview repository install with gpgcheck=1 and repo_gpgcheck=1; release build_source checked",
+      "marker_timestamp": "2026-10-21T10:58:26.5602888Z"
+    }
+  },
+  "candidate_cleanup": {
+    "scratch_removed": true,
+    "secret_tree_removed_before_verification": true,
+    "checked_in_control_unchanged": true
+  },
+  "transport": {
+    "actual_stable_signatures_verified": true,
+    "asset_count": 2,
+    "candidate_bytes_preserved": true,
+    "plan": {
+      "sha256": "9830f6dd84bcd21282fc545a8d3b9cde368e1b6d4777204ecc673177dfe8b530",
+      "size": 50824
+    },
+    "preview_fixture": "structural-only",
+    "public_api_writes": false,
+    "request_methods": [
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "POST",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "POST",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "POST",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "PATCH",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET"
+    ],
+    "source_provenance_verified": false
+  },
+  "deployment": "configure/upload/deploy all skipped",
+  "read_failures": [
+    {
+      "operation": "artifact GET",
+      "artifact_id": 12340537250,
+      "error": "EOF",
+      "resolution": "one later GET succeeded; no workflow retry; first read exit code was not captured by collector"
+    }
+  ],
+  "limits": [
+    "All native signing used TEST ONLY keys; no production stable signature or public seal was produced.",
+    "Composite preview fixture is structural-only; stable candidate signatures were actually verified.",
+    "No cloud storage/CDN upload, channel activation, production publish, or public stable client installation was exercised.",
+    "Complete legacy repository drill uses the immutable trusted WuKongIM toolchain/source commit, not the latest product candidate."
+  ]
+}

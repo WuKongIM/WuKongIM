@@ -1,0 +1,6 @@
+{
+  "outcome": "download failed",
+  "stderr_file": "native-stable-candidate-test-only.stderr",
+  "exit_code": "not captured by original loop",
+  "note": "Read failure only; workflow step succeeded; retry is GET only."
+}

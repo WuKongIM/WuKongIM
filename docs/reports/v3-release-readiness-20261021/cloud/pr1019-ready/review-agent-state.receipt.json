@@ -1,0 +1,12 @@
+{
+  "started_at": "2026-10-21T11:10:22.460547+00:00",
+  "finished_at": "2026-10-21T11:10:23.422667+00:00",
+  "command": [
+    "gh",
+    "api",
+    "repos/WuKongIM/WuKongIM/actions/workflows/review-agent.yml",
+    "--jq",
+    "{id,name,path,state}"
+  ],
+  "exit_code": 0
+}

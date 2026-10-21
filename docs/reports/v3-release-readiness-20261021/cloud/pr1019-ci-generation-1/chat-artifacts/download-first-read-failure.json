@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-21T11:02:15.627965+00:00",
+  "artifact_id": 12340708017,
+  "operation": "read GitHub artifact zip",
+  "result": "EOF after redirect",
+  "temporary_signed_url_omitted": true,
+  "workflow_not_retried": true,
+  "read_retry_limit": 1
+}

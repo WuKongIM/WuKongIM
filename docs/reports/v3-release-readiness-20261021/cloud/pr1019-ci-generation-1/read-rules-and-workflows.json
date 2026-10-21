@@ -1,0 +1,8 @@
+{
+  "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+  ".github/workflows/README.md": "afe54a4b14be7ccad401fdac00234d20bd0d02181fe31228e4648d48ad6e613f",
+  ".github/workflows/v3-candidate-regression.yml": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f",
+  ".github/workflows/three-node-chat-lifecycle-regression.yml": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71",
+  ".github/workflows/native-package-preview.yml": "a620e3d2345f670f701d6661869a33fe1673e32a66d02b1d1caf587cf343ccf2",
+  ".github/workflows/easysdk-release-acceptance.yml": "3073866aecc25a86dd1ad4cbef27b3913732e8a1c581cb53bc1a77a10a8f3ecd"
+}

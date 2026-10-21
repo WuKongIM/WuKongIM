@@ -1,0 +1,15 @@
+{
+  "started_at": "2026-10-21T11:10:23.423046+00:00",
+  "finished_at": "2026-10-21T11:10:26.301072+00:00",
+  "command": [
+    "gh",
+    "pr",
+    "edit",
+    "1019",
+    "--repo",
+    "WuKongIM/WuKongIM",
+    "--body-file",
+    "/tmp/wukongim-v3-readiness-20261021/cloud/pr1019-ready/pr-body.md"
+  ],
+  "exit_code": 0
+}

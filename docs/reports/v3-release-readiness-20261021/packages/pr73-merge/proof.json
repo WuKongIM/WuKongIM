@@ -1,0 +1,14 @@
+{
+  "pr": 73,
+  "merged_at": "2026-10-21T11:14:25Z",
+  "approved_head": "59549efe1074562928b8ae175faeda8778849e0e",
+  "merge_sha": "335cd2569d2b62de577916ed86c097fd3a22547e",
+  "tree": "6237c709d8cca42cc716a7aee796760c3cd867a9",
+  "parents": [
+    "3fe04138403a7c9443e4ede457dccfa16dff2b00"
+  ],
+  "same_tree_as_reviewed": true,
+  "protection_unchanged": true,
+  "original_tip_ancestor_of_main": false,
+  "local_git_object": "335cd2569d2b62de577916ed86c097fd3a22547e 6237c709d8cca42cc716a7aee796760c3cd867a9 3fe04138403a7c9443e4ede457dccfa16dff2b00"
+}

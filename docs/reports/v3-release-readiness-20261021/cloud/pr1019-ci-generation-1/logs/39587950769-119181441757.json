@@ -1,0 +1,10 @@
+{
+  "run": 39587950769,
+  "job": 119181441757,
+  "name": "iOS CocoaPods 1.1.1",
+  "conclusion": "success",
+  "at": "2026-10-21T10:58:32.065139+00:00",
+  "raw_bytes": 46763,
+  "raw_sha256": "94d1304694f52b0e2f5335384eba2877282575f377a972d7b1818dc3b70eb76f",
+  "gzip_sha256": "b2a561079a7c22a065e07bbef6072cc85dc6829bcdfea9bffb5abc23743bf810"
+}

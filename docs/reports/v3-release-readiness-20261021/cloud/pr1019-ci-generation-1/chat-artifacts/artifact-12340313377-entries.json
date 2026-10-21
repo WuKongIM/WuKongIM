@@ -1,0 +1,97 @@
+[
+  {
+    "path": "arrival.json",
+    "bytes": 57668,
+    "compressed_bytes": 3501
+  },
+  {
+    "path": "arrival.warmup.json",
+    "bytes": 19276,
+    "compressed_bytes": 1306
+  },
+  {
+    "path": "binary.sha256",
+    "bytes": 123,
+    "compressed_bytes": 107
+  },
+  {
+    "path": "benchmark.txt",
+    "bytes": 4013,
+    "compressed_bytes": 1024
+  },
+  {
+    "path": "counters/after.json",
+    "bytes": 316066,
+    "compressed_bytes": 13513
+  },
+  {
+    "path": "counters/before.json",
+    "bytes": 313411,
+    "compressed_bytes": 13112
+  },
+  {
+    "path": "counters/window.json",
+    "bytes": 534,
+    "compressed_bytes": 318
+  },
+  {
+    "path": "counters.warmup/after.json",
+    "bytes": 313428,
+    "compressed_bytes": 13144
+  },
+  {
+    "path": "counters.warmup/before.json",
+    "bytes": 310839,
+    "compressed_bytes": 12005
+  },
+  {
+    "path": "counters.warmup/window.json",
+    "bytes": 478,
+    "compressed_bytes": 296
+  },
+  {
+    "path": "data-filesystem.json",
+    "bytes": 244,
+    "compressed_bytes": 159
+  },
+  {
+    "path": "filesystem-preflight.txt",
+    "bytes": 123,
+    "compressed_bytes": 109
+  },
+  {
+    "path": "flight/retention-status.txt",
+    "bytes": 28,
+    "compressed_bytes": 30
+  },
+  {
+    "path": "flight/window.json",
+    "bytes": 2101321,
+    "compressed_bytes": 167996
+  },
+  {
+    "path": "go-version.txt",
+    "bytes": 33,
+    "compressed_bytes": 35
+  },
+  {
+    "path": "host.json",
+    "bytes": 4484,
+    "compressed_bytes": 1180
+  },
+  {
+    "path": "kernel.txt",
+    "bytes": 113,
+    "compressed_bytes": 100
+  },
+  {
+    "path": "result.json",
+    "bytes": 18,
+    "compressed_bytes": 20
+  },
+  {
+    "path": "source.sha",
+    "bytes": 41,
+    "compressed_bytes": 42
+  }
+]

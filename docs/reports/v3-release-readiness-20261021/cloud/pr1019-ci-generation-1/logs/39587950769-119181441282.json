@@ -1,0 +1,10 @@
+{
+  "run": 39587950769,
+  "job": 119181441282,
+  "name": "Android Maven Central 1.0.5",
+  "conclusion": "success",
+  "at": "2026-10-21T10:58:29.701471+00:00",
+  "raw_bytes": 76453,
+  "raw_sha256": "21de091a2babeece7e94b295336519f48fd8503fe1f10bb261730be9b92f135b",
+  "gzip_sha256": "cd0de27be8bace6d2b79c52ff9bd868418f75751d6fca48a9544a49c07056882"
+}

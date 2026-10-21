@@ -1,0 +1,49 @@
+{
+  "schema": "wukongim/offline-quote-reserve-boundary/v1",
+  "quote_micros": 74477600,
+  "line_items": [
+    {
+      "kind": "postpaid_host_hour",
+      "role": "service",
+      "quantity": 36,
+      "cost_micros": 40093200
+    },
+    {
+      "kind": "postpaid_host_hour",
+      "role": "load",
+      "quantity": 12,
+      "cost_micros": 9584400
+    },
+    {
+      "kind": "eip_public_egress_gib",
+      "role": "load",
+      "quantity": 11,
+      "cost_micros": 8800000
+    },
+    {
+      "kind": "eip_retention_policy_risk_hour",
+      "role": "load",
+      "quantity": 16,
+      "cost_micros": 16000000
+    }
+  ],
+  "quoted_at": "2026-10-21T10:03:22.765550024Z",
+  "zero_observed_at": "2026-10-21T10:19:19.689029905Z",
+  "quote_to_zero_seconds_rounded_up": 957,
+  "bandwidth_from_authenticated_plan_and_provider_create_code_mbps": 20,
+  "calculated_egress_upper_bytes_if_enforced": 2392500000,
+  "quoted_egress_bytes": 11811160064,
+  "conditional_egress_bound_within_quote": true,
+  "host_quote_hours": 12,
+  "retention_quote_hours": 16,
+  "receipt_created_after_quote": true,
+  "receipt_quote_equals_saved_quote": true,
+  "assessment": "Full Quote reserve dominates the existing offline accrued formula and conditionally covers this short creation-to-zero interval under the quoted bandwidth/pricing/resource model. It is not a provider invoice or independently measured traffic proof.",
+  "remaining_evidence_conditions": [
+    "Authenticate all prior producer/Acquire/release/zero artifacts and exact selector, quote, line items, plan and observed chronology at use time.",
+    "Prove the billable set has no resource outside the authenticated plan and no earlier billable acquisition; do not infer this from a GitHub green state alone.",
+    "20Mbps is bound in admitted plan/create code; no independent live bandwidth reading is available after deletion. Treat the mathematical traffic bound as conditional on successful provider enforcement.",
+    "Delayed actual billing remains unresolved; do not release conservative reserve merely because workflow cleanup passed.",
+    "No requirement changes or provider lookup were made."
+  ]
+}

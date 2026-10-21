@@ -284,3 +284,14 @@ immutable publication and signed native-package public-client acceptance.
   generations, including the original native exit137 and the closed read race.
 - `preclock-and-stable-transport-delivery-archive.json`: copy receipts for these
   implementation/review records. No production release or cloud restart occurred.
+
+- [#73 首次完整 CI](packages/pr73-ci-generation-1/README.md)与[ready 回读](packages/pr73-ready/after.stdout)：精确候选全绿；此ready快照早于合并，后续合并收据见下方。
+- [OSS/CDN资源建议](packages/storage-resource-proposal/proposal.md)：预算与资源均为建议，未执行云写入。
+
+- [原云请求账单只读补查](cloud/provider-billing-readonly/README.md)：页面未加载费用行，实际成本仍未知。
+
+- [#1019 首次完整 Linux CI](cloud/pr1019-ci-generation-1/README.md)与[ready回读](cloud/pr1019-ready/after.stdout)：三个平台差异子例已实际通过；此ready快照早于合并，未重新采购。
+
+- [#73 已授权合并及后置CI](packages/pr73-merge/README.md)；[#1019 已授权合并、清理及文档自动发布](cloud/pr1019-merge/README.md)。
+- [四客户端/A-B方案v2](packages/stable-public-clients-plan/generation-2/scope-proposal.md)及[独审](packages/stable-public-clients-plan-review/review.md)：开始实现，尚未完成新native验收。
+- [云续跑费用继承初稿](cloud/rc-next-execution-plan-post1019/README.md)：没有直接可提交的paid JSON，仍待独审。

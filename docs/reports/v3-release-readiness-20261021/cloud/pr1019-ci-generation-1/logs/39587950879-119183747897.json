@@ -1,0 +1,10 @@
+{
+  "run": 39587950879,
+  "job": 119183747897,
+  "name": "Exercise Debian 12 package lifecycle",
+  "conclusion": "success",
+  "at": "2026-10-21T11:06:37.493657+00:00",
+  "raw_bytes": 82316,
+  "raw_sha256": "606b2a21d3fbcc1909d750de93056597833c8beb3a63db66acb6ea1d7f3424a9",
+  "gzip_sha256": "7792ba2c6338f67efbc00c6410f4f8a04b2f704148d2d121100f8086025e76b9"
+}

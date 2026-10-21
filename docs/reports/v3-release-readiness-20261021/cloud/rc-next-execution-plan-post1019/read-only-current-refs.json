@@ -1,0 +1,22 @@
+{
+  "observed_at": "2026-10-21T11:12:46.582731+00:00",
+  "remote_main": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+  "pr": {
+    "number": 1019,
+    "state": "open",
+    "draft": false,
+    "merged": false,
+    "merged_at": null,
+    "merge_commit_sha": "33733629ced4bdd21efb68aaf5a94ec1b01dc6bd"
+  },
+  "head_sha": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e",
+  "issue": {
+    "number": 1018,
+    "id": 5958965729,
+    "state": "open",
+    "locked": false,
+    "title": "[chat-lifecycle] chat-20261021T095421Z-cf11d65c",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/issues/1018",
+    "comments": 0
+  }
+}

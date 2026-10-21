@@ -1,0 +1,15 @@
+{
+  "counter_scope": "post-warmup through completed handlers; rolling trace and one-second sampler enabled; see flight receipt for actual instrumentation interval",
+  "counter_window_seconds": 180.028168506,
+  "ended_at": "2026-10-21T10:59:30.341746612Z",
+  "go_version": "go1.25.11",
+  "goarch": "amd64",
+  "gomaxprocs": 4,
+  "goos": "linux",
+  "handlers_completed": true,
+  "offered_qps": 500,
+  "operations": 90000,
+  "profile_enabled": true,
+  "schema": "mixed-send-counters/v1",
+  "started_at": "2026-10-21T10:56:30.313578106Z"
+}

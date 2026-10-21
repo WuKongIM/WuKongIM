@@ -1,0 +1,141 @@
+{
+  "head": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "bytes": 80690,
+      "sha256": "afe54a4b14be7ccad401fdac00234d20bd0d02181fe31228e4648d48ad6e613f"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "bytes": 2691,
+      "sha256": "ab301c7579d789e4eadc41c833b3856b7b2b64c5c1c365f75dd11599b70bcf7f"
+    },
+    {
+      "path": "internal/usecase/cloudlease/FLOW.md",
+      "bytes": 2327,
+      "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/FLOW.md",
+      "bytes": 2508,
+      "sha256": "d4372bf9bda8ab65a7eb82626ede922b5b1af97dda3e2fa7c849562eeead0c28"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "bytes": 17330,
+      "sha256": "db0e076554cc78b2203df272c4aca26024eb2e1b448a1d8d3abf1bb11ed0fb51"
+    },
+    {
+      "path": "internal/usecase/chatlifecyclerun/run_test.go",
+      "bytes": 11676,
+      "sha256": "801e0c60b3333813e9d4aef51dbb205d91d17b1e8cedaa38e74f4c2e014e5bcd"
+    },
+    {
+      "path": "internal/usecase/cloudlease/control.go",
+      "bytes": 34885,
+      "sha256": "4b9f73a03d25833e08186a5c23b16c46654c738b8f36edd08e8301842915a71f"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/provider.go",
+      "bytes": 29986,
+      "sha256": "f748431d05fd73ee5a6d115d06a239030cfd171a9666656f8f71b57c740350b8"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/lifecycle_openapi.go",
+      "bytes": 20665,
+      "sha256": "c769a71d157465cb020a368460b801ffe5613921cf60908a865c6cf9ebfb63eb"
+    },
+    {
+      "path": "cmd/wkchatlifecycle/main.go",
+      "bytes": 15849,
+      "sha256": "448e079f061c70575a17b3a97d3b0690e3778f1a248c0291b3c121fb26a7077f"
+    },
+    {
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "bytes": 47065,
+      "sha256": "81876a76e2b114b8a209c1c1f74cbb9a4b5470483e0aaa2e37aa09eae25cbc7d"
+    },
+    {
+      "path": "scripts/chat-lifecycle/accrued-cost.sh",
+      "bytes": 2354,
+      "sha256": "23c02bcf61b7999cef24244e01c53897cf1fb6a8fc946fd1d41c6f87259defa2"
+    },
+    {
+      "path": "scripts/chat-lifecycle/select-formal-transition-committed.jq",
+      "bytes": 389,
+      "sha256": "daa93110f502a6f7915c1acba09ecbbe823f9f3c010f764ed4e65f0f04136f8e"
+    },
+    {
+      "path": "scripts/chat-lifecycle/authenticate-cleanup-artifact.sh",
+      "bytes": 3917,
+      "sha256": "8220b61b85040aed8fc0b8ce66bfcf4741543bea17b952a6c646dcf8d6510722"
+    },
+    {
+      "path": "scripts/chat-lifecycle/authenticate-handoff-producer.sh",
+      "bytes": 1318,
+      "sha256": "07e43230e37b55eb2fa09c9f4cfe0aa48c883a3e223f7454cc6c01ba7979f49c"
+    },
+    {
+      "path": "scripts/chat-lifecycle/select-finalization-matrix.jq",
+      "bytes": 963,
+      "sha256": "1cc6f4437429d66c5e5686a617bb10d7364fa275939c112a68aa2ad09d3737c8"
+    },
+    {
+      "path": "scripts/chat-lifecycle/comment-request-issue.sh",
+      "bytes": 6706,
+      "sha256": "993eaa996b2eacea612fa44a791c81b08921579eea8c458fe07fc435789831a0"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "bytes": 9024,
+      "sha256": "a3fcf2d1cf07ec21b99a42745e1b75a477493f03c9c5efc7ae19e109d436c274"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "bytes": 15609,
+      "sha256": "d400211c3ec827e02dc8efc85e6a2151310cf85bcd50cce0610dac888ed6270c"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "bytes": 32176,
+      "sha256": "2181d008be6273e6d8b6c2bf30f77c5934de2bdf515bddf0f24659cbe3c0bb1c"
+    },
+    {
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "bytes": 28906,
+      "sha256": "3b4bcdffd747ba0839b52557849bdc4c9bfc530ad4381f79fffeda3999e5448f"
+    },
+    {
+      "path": ".github/workflows/cloud-deployment-bundle.yml",
+      "bytes": 8145,
+      "sha256": "2a9dcb59ad4b220fb44f361275009cea04faea0fecc2c6459e543e9729e325d4"
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/rehearsal-v1.json",
+      "bytes": 1021,
+      "sha256": "a44133d19b01820c88e5e67dadaa5ae4e342fc93e7ae7b4b3ea3f755f599384b"
+    },
+    {
+      "path": "configs/cloud/chat-lifecycle/formal-v1.json",
+      "bytes": 1021,
+      "sha256": "09ab883f81a9721fb041fed2865f3015b48f8912ca9d4f708ad63c628122b2a0"
+    },
+    {
+      "path": "docs/adr/0047-retain-one-lease-across-deployment-repair.md",
+      "bytes": 2322,
+      "sha256": "fbd72cff0f2d7345693882321a4ff9156475390b2411837befbaa30a7f4b6b38"
+    },
+    {
+      "path": "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+      "bytes": 14038,
+      "sha256": "3bd523e203367c2abef5f2a7b6718e2783e32e828b96f1ab48da440bdf3969cf"
+    }
+  ],
+  "no_applicable_scripts_flow": true
+}

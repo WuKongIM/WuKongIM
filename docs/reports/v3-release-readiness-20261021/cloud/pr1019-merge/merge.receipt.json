@@ -1,0 +1,9 @@
+{
+  "authorized_pr": 1019,
+  "authorized_head": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e",
+  "method": "merge",
+  "admin_bypass": false,
+  "started_at": "2026-10-21T11:14:34.586198+00:00",
+  "finished_at": "2026-10-21T11:14:38.594383+00:00",
+  "exit_code": 0
+}

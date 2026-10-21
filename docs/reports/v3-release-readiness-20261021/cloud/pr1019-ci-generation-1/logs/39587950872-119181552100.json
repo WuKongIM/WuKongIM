@@ -1,0 +1,10 @@
+{
+  "run": 39587950872,
+  "job": 119181552100,
+  "name": "PR 500 QPS / channel-append",
+  "conclusion": "success",
+  "at": "2026-10-21T11:03:58.580429+00:00",
+  "raw_bytes": 82345,
+  "raw_sha256": "2c331f00427ba3b059fa2256077388ada69c68bb94a87765c8f2b0b85aec4b7a",
+  "gzip_sha256": "3e642756586fa3dd3c08b611d8bc7354e4e2bfce015ed7c4854729b3ce042026"
+}

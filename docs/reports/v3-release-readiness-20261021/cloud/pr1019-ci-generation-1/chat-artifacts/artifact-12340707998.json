@@ -1,0 +1,28 @@
+{
+  "artifact": {
+    "id": 12340707998,
+    "node_id": "MDg6QXJ0aWZhY3QxMjM0MDcwNzk5OA==",
+    "name": "three-node-pr-1019-33733629ced4bdd21efb68aaf5a94ec1b01dc6bd-1",
+    "size_in_bytes": 229615421,
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12340707998",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12340707998/zip",
+    "expired": false,
+    "digest": "sha256:4412a6edfdaf057ddfa28177fe75b7d1ffd2ccf26fb270d352b1b463b563128f",
+    "created_at": "2026-10-21T10:58:48Z",
+    "updated_at": "2026-10-21T10:58:48Z",
+    "expires_at": "2026-10-28T10:58:33Z",
+    "workflow_run": {
+      "id": 39587950872,
+      "repository_id": 638054601,
+      "head_repository_id": 638054601,
+      "head_branch": "codex/v3-rc-preclock-diagnostics",
+      "head_sha": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e"
+    }
+  },
+  "observed_sha256": "4412a6edfdaf057ddfa28177fe75b7d1ffd2ccf26fb270d352b1b463b563128f",
+  "observed_bytes": 229615421,
+  "zip_crc_pass": true,
+  "entry_count": 337,
+  "uncompressed_bytes": 863676429,
+  "at": "2026-10-21T11:03:50.691917+00:00"
+}

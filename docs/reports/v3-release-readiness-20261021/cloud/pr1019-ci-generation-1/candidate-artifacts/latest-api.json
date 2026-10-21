@@ -1,0 +1,65 @@
+{
+  "total_count": 3,
+  "artifacts": [
+    {
+      "id": 12341023606,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM0MTAyMzYwNg==",
+      "name": "v3-candidate-scripts-39587951020-1",
+      "size_in_bytes": 101957,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12341023606",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12341023606/zip",
+      "expired": false,
+      "digest": "sha256:42cca8e118af80f2c488b471bfb297f1bf7de1077f90ff465a959b46f85fd49c",
+      "created_at": "2026-10-21T11:03:36Z",
+      "updated_at": "2026-10-21T11:03:36Z",
+      "expires_at": "2026-11-04T11:03:35Z",
+      "workflow_run": {
+        "id": 39587951020,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-rc-preclock-diagnostics",
+        "head_sha": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e"
+      }
+    },
+    {
+      "id": 12341004096,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM0MTAwNDA5Ng==",
+      "name": "v3-candidate-e2e-39587951020-1",
+      "size_in_bytes": 16563,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12341004096",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12341004096/zip",
+      "expired": false,
+      "digest": "sha256:87009c2652d7d88bb7ae67c8e045d5bba96e472bf4ea3931602b7cb62766b515",
+      "created_at": "2026-10-21T11:06:01Z",
+      "updated_at": "2026-10-21T11:06:01Z",
+      "expires_at": "2026-11-04T11:06:00Z",
+      "workflow_run": {
+        "id": 39587951020,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-rc-preclock-diagnostics",
+        "head_sha": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e"
+      }
+    },
+    {
+      "id": 12340303523,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM0MDMwMzUyMw==",
+      "name": "v3-candidate-default-39587951020-1",
+      "size_in_bytes": 8223,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12340303523",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12340303523/zip",
+      "expired": false,
+      "digest": "sha256:1320042b53d251672f502cdba8951101d23d4223416e90b03465291e2e44eb40",
+      "created_at": "2026-10-21T11:00:42Z",
+      "updated_at": "2026-10-21T11:00:42Z",
+      "expires_at": "2026-11-04T11:00:41Z",
+      "workflow_run": {
+        "id": 39587951020,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-rc-preclock-diagnostics",
+        "head_sha": "5403a3ba28f2a6846aba2bc238cc1d0b7ded349e"
+      }
+    }
+  ]
+}
