@@ -20,22 +20,24 @@ import (
 )
 
 const (
-	TemplateSchemaV1         = "wukongim.chat_lifecycle.run_plan_template/v1"
-	RunPlanSchemaV1          = "wukongim.chat_lifecycle.run_plan/v1"
-	FormalTransitionSchemaV1 = "wukongim.chat_lifecycle.formal_transition/v1"
-	StageRepair              = "repair"
-	StageRehearsal           = "rehearsal"
-	StageFormal              = "formal"
-	maxDocumentBytes         = 1 << 20
-	minimumRepairWorkload    = int64((16 * time.Minute) / time.Second)
-	maximumRepairWorkload    = int64((72*time.Hour + 15*time.Minute) / time.Second)
-	minimumRepairLease       = int64((6 * time.Hour) / time.Second)
-	repairLeaseReserve       = int64((4*time.Hour + 45*time.Minute) / time.Second)
-	defaultRepairBudgetCNY   = int64(300)
-	defaultRepairStopCNY     = int64(250)
-	maximumRepairBudgetCNY   = int64(1500)
-	customRepairStopReserve  = int64(20)
-	microsPerCNY             = int64(1_000_000)
+	TemplateSchemaV1              = "wukongim.chat_lifecycle.run_plan_template/v1"
+	RunPlanSchemaV1               = "wukongim.chat_lifecycle.run_plan/v1"
+	FormalTransitionSchemaV1      = "wukongim.chat_lifecycle.formal_transition/v1"
+	ReleasedPreclockProofSchemaV1 = "wukongim.chat_lifecycle.released_preclock_continuation/v1"
+	StageRepair                   = "repair"
+	StageRehearsal                = "rehearsal"
+	StageFormal                   = "formal"
+	maxDocumentBytes              = 1 << 20
+	maxReleasedPreclockProofBytes = 256 << 10
+	minimumRepairWorkload         = int64((16 * time.Minute) / time.Second)
+	maximumRepairWorkload         = int64((72*time.Hour + 15*time.Minute) / time.Second)
+	minimumRepairLease            = int64((6 * time.Hour) / time.Second)
+	repairLeaseReserve            = int64((4*time.Hour + 45*time.Minute) / time.Second)
+	defaultRepairBudgetCNY        = int64(300)
+	defaultRepairStopCNY          = int64(250)
+	maximumRepairBudgetCNY        = int64(1500)
+	customRepairStopReserve       = int64(20)
+	microsPerCNY                  = int64(1_000_000)
 )
 
 var (
@@ -45,6 +47,8 @@ var (
 	repositoryPattern  = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 	shaPattern         = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	digestPattern      = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	hexDigestPattern   = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	proofFieldPattern  = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 )
 
 // Template is the reviewed, versioned policy source. Direct repair may derive
@@ -117,7 +121,7 @@ type TrustedContext struct {
 	DeploymentPubKey string
 	// Now is the trusted orchestration time used for expiry and transition checks.
 	Now time.Time
-	// Attempt is the one-based procurement attempt and is fixed to one per stage.
+	// Attempt is one per stage, or two for an explicitly authenticated released rehearsal.
 	Attempt int
 	// CommittedMicros is authenticated spend from all earlier attempts and stages.
 	CommittedMicros int64
@@ -126,6 +130,130 @@ type TrustedContext struct {
 	AuthorizedRepairBudgetCNY int64
 	// Transition authorizes formal procurement only after released rehearsal evidence.
 	Transition *StageTransition
+	// ReleasedPreclockProof carries the protected helper's authenticated history;
+	// it permits only one adjacent-run rehearsal with the old Quote reserve.
+	ReleasedPreclockProof *ReleasedPreclockProof
+}
+
+// ReleasedPreclockProof is the bounded public output of the read-only history
+// authenticator. Materialize checks its bindings but does not authenticate GitHub
+// or provider evidence itself. Consumers must retain and verify the original
+// evidence manifest; this document is not a standalone procurement credential.
+type ReleasedPreclockProof struct {
+	Schema       string `json:"schema"`
+	Repository   string `json:"repository"`
+	RepositoryID int64  `json:"repository_id"`
+	RequestID    string `json:"request_id"`
+	SourceSHA    string `json:"source_sha"`
+	Operator     string `json:"operator"`
+	// CodexDiagnosticPublicKey preserves the original request's diagnostic owner.
+	CodexDiagnosticPublicKey string `json:"codex_diagnostic_public_key"`
+	// Predecessor identifies the original, fully released rehearsal-1, never a continuation.
+	PredecessorRunID          int64     `json:"predecessor_run_id"`
+	PredecessorWorkflowID     int64     `json:"predecessor_workflow_id"`
+	PredecessorRunNumber      int64     `json:"predecessor_run_number"`
+	PredecessorRunAttempt     int64     `json:"predecessor_run_attempt"`
+	PredecessorControlSHA     string    `json:"predecessor_control_sha"`
+	PredecessorLeaseID        string    `json:"predecessor_lease_id"`
+	PredecessorPlanDigest     string    `json:"predecessor_plan_digest"`
+	PredecessorCreatedAt      time.Time `json:"predecessor_created_at"`
+	PredecessorZeroObservedAt time.Time `json:"predecessor_zero_observed_at"`
+	AcquireRunID              int64     `json:"acquire_run_id"`
+	ReleaseRunID              int64     `json:"release_run_id"`
+	// CurrentRunNumber must be the immediate successor in the same numeric workflow.
+	CurrentRunID      int64  `json:"current_run_id"`
+	CurrentWorkflowID int64  `json:"current_workflow_id"`
+	CurrentRunNumber  int64  `json:"current_run_number"`
+	CurrentRunAttempt int64  `json:"current_run_attempt"`
+	ControlSHA        string `json:"control_sha"`
+	NextAttempt       int    `json:"next_attempt"`
+	// CommittedMicros reserves the full admitted old Quote, not an asserted invoice.
+	CommittedMicros       int64  `json:"committed_micros"`
+	HardLimitMicros       int64  `json:"hard_limit_micros"`
+	OperationalStopMicros int64  `json:"operational_stop_micros"`
+	FailureClass          string `json:"failure_class"`
+	CostMethod            string `json:"cost_method"`
+	// EvidenceManifestSHA256 binds the retained public predecessor evidence bytes.
+	EvidenceManifestSHA256 string `json:"evidence_manifest_sha256"`
+}
+
+// DecodeReleasedPreclockProof rejects oversized, duplicate, unknown and trailing
+// fields before the protected workflow may bind the proof to a new Run Plan.
+func DecodeReleasedPreclockProof(reader io.Reader) (ReleasedPreclockProof, error) {
+	if reader == nil {
+		return ReleasedPreclockProof{}, ErrInvalidInput
+	}
+	body, err := io.ReadAll(io.LimitReader(reader, maxReleasedPreclockProofBytes+1))
+	if err != nil || len(body) == 0 || len(body) > maxReleasedPreclockProofBytes {
+		return ReleasedPreclockProof{}, ErrInvalidInput
+	}
+	// Scan the same bounded bytes for duplicate keys; encoding/json otherwise
+	// silently replaces a previously decoded field with the later value.
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	opening, err := decoder.Token()
+	if err != nil || opening != json.Delim('{') {
+		return ReleasedPreclockProof{}, ErrInvalidInput
+	}
+	seen := make(map[string]bool)
+	for decoder.More() {
+		token, err := decoder.Token()
+		key, ok := token.(string)
+		// DisallowUnknownFields still accepts case-folded JSON tag aliases.
+		// Require the schema's lower-case ASCII spelling before typed decoding.
+		if err != nil || !ok || !proofFieldPattern.MatchString(key) || seen[key] {
+			return ReleasedPreclockProof{}, ErrInvalidInput
+		}
+		seen[key] = true
+		var value json.RawMessage
+		if err := decoder.Decode(&value); err != nil {
+			return ReleasedPreclockProof{}, ErrInvalidInput
+		}
+	}
+	if closing, err := decoder.Token(); err != nil || closing != json.Delim('}') {
+		return ReleasedPreclockProof{}, ErrInvalidInput
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return ReleasedPreclockProof{}, ErrInvalidInput
+	}
+	decoder = json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	var proof ReleasedPreclockProof
+	if err := decoder.Decode(&proof); err != nil || !validReleasedPreclockProof(proof) {
+		return ReleasedPreclockProof{}, ErrInvalidInput
+	}
+	return proof, nil
+}
+
+func validReleasedPreclockProof(proof ReleasedPreclockProof) bool {
+	if proof.Schema != ReleasedPreclockProofSchemaV1 || !repositoryPattern.MatchString(proof.Repository) ||
+		proof.RepositoryID <= 0 || !identityPattern.MatchString(proof.RequestID) ||
+		!shaPattern.MatchString(proof.SourceSHA) || proof.Operator != "tangtaoit" ||
+		!shaPattern.MatchString(proof.PredecessorControlSHA) || !shaPattern.MatchString(proof.ControlSHA) ||
+		!hexDigestPattern.MatchString(proof.PredecessorPlanDigest) || !hexDigestPattern.MatchString(proof.EvidenceManifestSHA256) ||
+		proof.PredecessorLeaseID != proof.RequestID+"-rehearsal-1" || proof.NextAttempt != 2 ||
+		proof.PredecessorWorkflowID <= 0 || proof.CurrentWorkflowID != proof.PredecessorWorkflowID ||
+		proof.CurrentRunID <= proof.PredecessorRunID || proof.PredecessorRunNumber <= 0 ||
+		proof.CurrentRunNumber <= proof.PredecessorRunNumber || proof.CurrentRunNumber-proof.PredecessorRunNumber != 1 ||
+		proof.PredecessorRunAttempt != 1 || proof.CurrentRunAttempt != 1 ||
+		proof.PredecessorCreatedAt.IsZero() || proof.PredecessorCreatedAt.Location() != time.UTC ||
+		proof.PredecessorZeroObservedAt.IsZero() || proof.PredecessorZeroObservedAt.Location() != time.UTC ||
+		proof.PredecessorZeroObservedAt.Before(proof.PredecessorCreatedAt) ||
+		proof.CommittedMicros <= 0 || proof.CommittedMicros >= proof.OperationalStopMicros ||
+		proof.HardLimitMicros != 1_500_000_000 || proof.OperationalStopMicros != 1_350_000_000 ||
+		proof.CostMethod != "full_admitted_quote_reserve" ||
+		(proof.FailureClass != "unclassified_before_accepted_run_start" && proof.FailureClass != "preflight_before_accepted_run_start") {
+		return false
+	}
+	seen := make(map[int64]bool, 4)
+	for _, id := range []int64{proof.PredecessorRunID, proof.CurrentRunID, proof.AcquireRunID, proof.ReleaseRunID} {
+		if id <= 0 || seen[id] {
+			return false
+		}
+		seen[id] = true
+	}
+	_, err := normalizeEd25519PublicKey(proof.CodexDiagnosticPublicKey)
+	return err == nil
 }
 
 // StageTransition is the authenticated, non-secret proof that the rehearsal
@@ -207,6 +335,13 @@ func Materialize(template Template, input OperatorInput, trusted TrustedContext)
 	codexKey, err := normalizeEd25519PublicKey(input.CodexDiagnosticPubKey)
 	if err != nil || codexKey == deploymentKey {
 		return RunPlan{}, ErrInvalidInput
+	}
+	if proof := trusted.ReleasedPreclockProof; proof != nil {
+		proofKey, err := normalizeEd25519PublicKey(proof.CodexDiagnosticPublicKey)
+		if err != nil || proofKey != codexKey || proof.RequestID != input.RequestID ||
+			proof.SourceSHA != input.SourceSHA || proof.Operator != input.Operator {
+			return RunPlan{}, ErrInvalidInput
+		}
 	}
 	if template.Stage == StageFormal {
 		transitionCodexKey, transitionErr := normalizeEd25519PublicKey(trusted.Transition.CodexDiagnosticPubKey)
@@ -329,6 +464,14 @@ func validTrustedContext(template Template, trusted TrustedContext) bool {
 		return false
 	}
 	baseCommitted := int64(0)
+	expectedAttempt := 1
+	if proof := trusted.ReleasedPreclockProof; proof != nil {
+		if template.Stage != StageRehearsal || !validReleasedPreclockProof(*proof) ||
+			proof.Repository != trusted.Repository || proof.PredecessorZeroObservedAt.After(trusted.Now) {
+			return false
+		}
+		baseCommitted, expectedAttempt = proof.CommittedMicros, 2
+	}
 	if template.Stage == StageFormal {
 		transition := trusted.Transition
 		if transition == nil || transition.Schema != FormalTransitionSchemaV1 ||
@@ -342,7 +485,7 @@ func validTrustedContext(template Template, trusted TrustedContext) bool {
 	} else if trusted.Transition != nil {
 		return false
 	}
-	return trusted.Attempt == 1 && trusted.CommittedMicros == baseCommitted
+	return trusted.Attempt == expectedAttempt && trusted.CommittedMicros == baseCommitted
 }
 
 func validRepairBudget(budget BudgetTemplate) bool {

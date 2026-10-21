@@ -375,9 +375,23 @@ jobs:
             echo 'Release emitted neither zero proof nor cleanup continuation.' >&2
             exit 1
           fi
+      - name: Authenticate released pre-clock continuation after cleanup
+        id: continuation
+        if: steps.cleanup.outputs.zero == 'true' && steps.handoff.outputs.mode == 'run'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/chat-lifecycle/authenticate-released-preclock.py validate \
+            --directory "$WK_CHAT_HANDOFF_DIR/rehearsal" --run-plan "$WK_CHAT_HANDOFF_DIR/rehearsal/run-plan.json"
+          final_dir="$WK_CHAT_FINAL_DIR"
+          [[ "${{ steps.existing.outputs.ready }}" == true ]] && final_dir="$RUNNER_TEMP/previous-final"
+          rehearsal_committed_micros="$(jq -er .committed_micros "$WK_CHAT_HANDOFF_DIR/rehearsal/transition.json")"
+          test "$(jq -er .lease_plan.budget.committed_micros "$WK_CHAT_HANDOFF_DIR/run-plan.json")" = "$rehearsal_committed_micros"
+          test "$(jq -er .lease_plan.budget.committed_micros "$final_dir/run-plan.json")" = "$rehearsal_committed_micros"
       - name: Assemble terminal evidence with exact zero-inventory proof
         id: complete
-        if: steps.handoff.outputs.mode == 'run' && steps.cleanup.outputs.zero == 'true'
+        if: steps.continuation.outcome == 'success' && steps.handoff.outputs.mode == 'run' && steps.cleanup.outputs.zero == 'true'
         shell: bash
         env:
           WK_CHAT_COMPLETE_DIR: ${{ runner.temp }}/complete
@@ -449,6 +463,11 @@ jobs:
           set -euo pipefail
           [[ "${{ matrix.handoff_artifact_id }}" =~ ^[1-9][0-9]*$ ]]
           gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${{ matrix.handoff_artifact_id }}"
+      - name: Fail invalid continuation after publishing cleanup proof
+        id: continuation_failure
+        if: steps.continuation.outcome == 'failure'
+        shell: bash
+        run: exit 1
       - name: Fail after persisting a Release continuation
         if: steps.release.outcome == 'failure'
         shell: bash

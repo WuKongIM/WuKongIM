@@ -147,6 +147,88 @@ func TestMaterializeCommandBindsOnlyReviewedRehearsalInputs(t *testing.T) {
 	}
 }
 
+func TestMaterializeCommandRequiresStrictReleasedPreclockProof(t *testing.T) {
+	key := commandPublicKey(t)
+	proof := map[string]any{
+		"schema":     "wukongim.chat_lifecycle.released_preclock_continuation/v1",
+		"repository": "WuKongIM/WuKongIM", "repository_id": 638054601,
+		"request_id": "released-command", "source_sha": strings.Repeat("a", 40),
+		"operator": "tangtaoit", "codex_diagnostic_public_key": key,
+		"predecessor_run_id": 100, "predecessor_workflow_id": 200,
+		"predecessor_run_number": 32, "predecessor_run_attempt": 1,
+		"predecessor_control_sha":      strings.Repeat("b", 40),
+		"predecessor_lease_id":         "released-command-rehearsal-1",
+		"predecessor_plan_digest":      strings.Repeat("c", 64),
+		"predecessor_created_at":       "2026-10-21T10:11:00Z",
+		"predecessor_zero_observed_at": "2026-10-21T10:19:19Z",
+		"acquire_run_id":               101, "release_run_id": 102,
+		"current_run_id": 103, "current_workflow_id": 200,
+		"current_run_number": 33, "current_run_attempt": 1,
+		"control_sha": strings.Repeat("d", 40), "next_attempt": 2,
+		"committed_micros": 74477600, "hard_limit_micros": 1500000000,
+		"operational_stop_micros":  1350000000,
+		"failure_class":            "unclassified_before_accepted_run_start",
+		"cost_method":              "full_admitted_quote_reserve",
+		"evidence_manifest_sha256": strings.Repeat("e", 64),
+	}
+	body, err := json.Marshal(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name     string
+		body     string
+		wantPass bool
+	}{
+		{"authenticated-shape", string(body), true},
+		{"unknown-field", strings.TrimSuffix(string(body), "}") + `,"unknown":1}`, false},
+		{"duplicate-field", strings.TrimSuffix(string(body), "}") + `,"next_attempt":2}`, false},
+		{"case-folded-alias", strings.TrimSuffix(string(body), "}") + `,"NEXT_ATTEMPT":2}`, false},
+		{"trailing-document", string(body) + "\n{}", false},
+		{"null-document", "null", false},
+		{"oversized", string(body) + strings.Repeat(" ", 256<<10), false},
+		{"null-identity", strings.Replace(string(body), `"current_run_id":103`, `"current_run_id":null`, 1), false},
+		{"unknown-cause", strings.Replace(string(body), "unclassified_before_accepted_run_start", "runtime_failure", 1), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "proof.json")
+			if err := os.WriteFile(path, []byte(tc.body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var output bytes.Buffer
+			command := newRootCommand(&output)
+			command.SetArgs([]string{
+				"materialize", "--template", filepath.Join("..", "..", "configs", "cloud", "chat-lifecycle", "rehearsal-v1.json"),
+				"--source-sha", strings.Repeat("a", 40), "--operator", "tangtaoit",
+				"--codex-diagnostic-pubkey", key, "--request-id", "released-command",
+				"--repository", "WuKongIM/WuKongIM", "--bundle-digest", "sha256:" + strings.Repeat("f", 64),
+				"--deployment-pubkey", commandPublicKey(t), "--now", "2026-10-21T11:00:00Z",
+				"--attempt", "2", "--committed-micros", "74477600", "--released-preclock-proof", path,
+			})
+			err := command.Execute()
+			if !tc.wantPass {
+				if err == nil || output.Len() != 0 {
+					t.Fatalf("invalid proof yielded plan: %v %s", err, output.String())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var plan chatlifecyclerun.RunPlan
+			if err := json.Unmarshal(output.Bytes(), &plan); err != nil {
+				t.Fatal(err)
+			}
+			if plan.Attempt != 2 || plan.LeasePlan.LeaseID != "released-command-rehearsal-2" ||
+				plan.LeasePlan.Budget.CommittedMicros != 74477600 || plan.LeasePlan.Budget.LimitMicros != 1500000000 ||
+				plan.OperationalStopMicros != 1350000000 || plan.WorkloadDurationSeconds != 7200 {
+				t.Fatalf("continuation changed fixed plan or lost reserve: %+v", plan)
+			}
+		})
+	}
+}
+
 func TestMaterializeCommandBindsExplicitRepairBudgetFromTrustedFlag(t *testing.T) {
 	templatePath := filepath.Join("..", "..", "configs", "cloud", "chat-lifecycle", "repair-v1.json")
 	templateFile, err := os.Open(templatePath)

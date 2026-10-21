@@ -67,6 +67,155 @@ func TestSecondProcurementAttemptIsRejected(t *testing.T) {
 	}
 }
 
+func releasedPreclockFixture(t *testing.T) (OperatorInput, TrustedContext, ReleasedPreclockProof) {
+	t.Helper()
+	input := OperatorInput{SourceSHA: strings.Repeat("a", 40), Operator: "tangtaoit",
+		CodexDiagnosticPubKey: testPublicKey(t), RequestID: "released-run"}
+	trusted := TrustedContext{Repository: "WuKongIM/WuKongIM", BundleDigest: "sha256:" + strings.Repeat("b", 64),
+		DeploymentPubKey: testPublicKey(t), Now: time.Date(2026, 10, 21, 11, 0, 0, 0, time.UTC),
+		Attempt: 2, CommittedMicros: 74477600}
+	proof := ReleasedPreclockProof{
+		Schema:     "wukongim.chat_lifecycle.released_preclock_continuation/v1",
+		Repository: trusted.Repository, RepositoryID: 638054601, RequestID: input.RequestID,
+		SourceSHA: input.SourceSHA, Operator: input.Operator, CodexDiagnosticPublicKey: input.CodexDiagnosticPubKey,
+		PredecessorRunID: 100, PredecessorWorkflowID: 200, PredecessorRunNumber: 32, PredecessorRunAttempt: 1,
+		PredecessorControlSHA: strings.Repeat("c", 40), PredecessorLeaseID: "released-run-rehearsal-1",
+		PredecessorPlanDigest: strings.Repeat("d", 64),
+		PredecessorCreatedAt:  trusted.Now.Add(-time.Hour), PredecessorZeroObservedAt: trusted.Now.Add(-time.Minute),
+		AcquireRunID: 101, ReleaseRunID: 102, CurrentRunID: 103, CurrentWorkflowID: 200,
+		CurrentRunNumber: 33, CurrentRunAttempt: 1, ControlSHA: strings.Repeat("e", 40), NextAttempt: 2,
+		CommittedMicros: trusted.CommittedMicros, HardLimitMicros: 1500000000, OperationalStopMicros: 1350000000,
+		FailureClass: "unclassified_before_accepted_run_start", CostMethod: "full_admitted_quote_reserve",
+		EvidenceManifestSHA256: strings.Repeat("f", 64),
+	}
+	return input, trusted, proof
+}
+
+func TestReleasedPreclockMaterializationKeepsOneRequestBudgetAndFixedLease(t *testing.T) {
+	template := loadRepositoryTemplate(t)
+	input, trusted, proof := releasedPreclockFixture(t)
+	proof.CodexDiagnosticPublicKey += " diagnostic-owner"
+	trusted.ReleasedPreclockProof = &proof
+	plan, err := Materialize(template, input, trusted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Attempt != 2 || plan.LeasePlan.LeaseID != "released-run-rehearsal-2" ||
+		plan.LeasePlan.RequestID != input.RequestID || plan.LeasePlan.Provenance.SourceSHA != input.SourceSHA ||
+		plan.LeasePlan.Budget.CommittedMicros != 74477600 || plan.LeasePlan.Budget.LimitMicros != 1500000000 ||
+		plan.OperationalStopMicros != 1350000000 || plan.WorkloadDurationSeconds != 7200 ||
+		plan.LeasePlan.ExpiresAt != trusted.Now.Add(12*time.Hour) || len(plan.LeasePlan.HostGroups) != 2 ||
+		plan.LeasePlan.HostGroups[0].Count != 3 || plan.LeasePlan.HostGroups[1].Count != 1 {
+		t.Fatalf("released continuation changed fixed policy or lost commitment: %+v", plan)
+	}
+	proof.FailureClass = "preflight_before_accepted_run_start"
+	if _, err := Materialize(template, input, trusted); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReleasedPreclockMaterializationRejectsUnboundOrRepeatedProof(t *testing.T) {
+	template := loadRepositoryTemplate(t)
+	cases := map[string]func(*ReleasedPreclockProof, *OperatorInput, *TrustedContext){
+		"missing-proof":      func(_ *ReleasedPreclockProof, _ *OperatorInput, c *TrustedContext) { c.ReleasedPreclockProof = nil },
+		"attempt-one":        func(_ *ReleasedPreclockProof, _ *OperatorInput, c *TrustedContext) { c.Attempt = 1 },
+		"attempt-three":      func(_ *ReleasedPreclockProof, _ *OperatorInput, c *TrustedContext) { c.Attempt = 3 },
+		"commitment-reset":   func(_ *ReleasedPreclockProof, _ *OperatorInput, c *TrustedContext) { c.CommittedMicros = 0 },
+		"commitment-changed": func(_ *ReleasedPreclockProof, _ *OperatorInput, c *TrustedContext) { c.CommittedMicros++ },
+		"schema":             func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.Schema = "future/v2" },
+		"request":            func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.RequestID = "other" },
+		"source": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) {
+			p.SourceSHA = strings.Repeat("0", 40)
+		},
+		"repository":    func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.Repository = "other/repo" },
+		"repository-id": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.RepositoryID = 0 },
+		"operator":      func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.Operator = "other" },
+		"diagnostic-key": func(p *ReleasedPreclockProof, _ *OperatorInput, c *TrustedContext) {
+			p.CodexDiagnosticPublicKey = c.DeploymentPubKey
+		},
+		"predecessor-id": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.PredecessorRunID = 0 },
+		"parent-reuse": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) {
+			p.CurrentRunID = p.PredecessorRunID
+		},
+		"child-reuse":   func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.ReleaseRunID = p.AcquireRunID },
+		"child-parent":  func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.AcquireRunID = p.CurrentRunID },
+		"missing-child": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.ReleaseRunID = 0 },
+		"workflow-id":   func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.CurrentWorkflowID++ },
+		"missing-workflow": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) {
+			p.CurrentWorkflowID = 0
+			p.PredecessorWorkflowID = 0
+		},
+		"nonadjacent": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.CurrentRunNumber++ },
+		"number-zero": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) {
+			p.PredecessorRunNumber = 0
+			p.CurrentRunNumber = 1
+		},
+		"number-overflow": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) {
+			p.PredecessorRunNumber = 1<<63 - 1
+			p.CurrentRunNumber = -1 << 63
+		},
+		"predecessor-rerun": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.PredecessorRunAttempt++ },
+		"current-rerun":     func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.CurrentRunAttempt++ },
+		"chained-predecessor": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) {
+			p.PredecessorLeaseID = "released-run-rehearsal-2"
+		},
+		"third-lease": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.NextAttempt = 3 },
+		"predecessor-control": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) {
+			p.PredecessorControlSHA = "invalid"
+		},
+		"current-control": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.ControlSHA = "" },
+		"plan-digest":     func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.PredecessorPlanDigest = "" },
+		"evidence-digest": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.EvidenceManifestSHA256 = "" },
+		"zero-before-create": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) {
+			p.PredecessorZeroObservedAt = p.PredecessorCreatedAt.Add(-time.Second)
+		},
+		"future-zero": func(p *ReleasedPreclockProof, _ *OperatorInput, c *TrustedContext) {
+			p.PredecessorZeroObservedAt = c.Now.Add(time.Second)
+		},
+		"missing-created": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) {
+			p.PredecessorCreatedAt = time.Time{}
+		},
+		"non-utc": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) {
+			p.PredecessorCreatedAt = p.PredecessorCreatedAt.In(time.FixedZone("offset", 3600))
+		},
+		"zero-reserve": func(p *ReleasedPreclockProof, _ *OperatorInput, c *TrustedContext) {
+			p.CommittedMicros = 0
+			c.CommittedMicros = 0
+		},
+		"stop-exhausted": func(p *ReleasedPreclockProof, _ *OperatorInput, c *TrustedContext) {
+			p.CommittedMicros = p.OperationalStopMicros
+			c.CommittedMicros = p.CommittedMicros
+		},
+		"hard-limit": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.HardLimitMicros++ },
+		"stop-limit": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.OperationalStopMicros++ },
+		"runtime-failure": func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) {
+			p.FailureClass = "runtime_failure"
+		},
+		"elapsed-cost":    func(p *ReleasedPreclockProof, _ *OperatorInput, _ *TrustedContext) { p.CostMethod = "elapsed_estimate" },
+		"with-transition": func(_ *ReleasedPreclockProof, _ *OperatorInput, c *TrustedContext) { c.Transition = &StageTransition{} },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			input, trusted, proof := releasedPreclockFixture(t)
+			trusted.ReleasedPreclockProof = &proof
+			mutate(&proof, &input, &trusted)
+			if _, err := Materialize(template, input, trusted); err == nil {
+				t.Fatal("unbound/replayed proof was accepted")
+			}
+		})
+	}
+	for _, stage := range []string{"repair-v1.json", "formal-v1.json"} {
+		t.Run(stage, func(t *testing.T) {
+			input, trusted, proof := releasedPreclockFixture(t)
+			trusted.ReleasedPreclockProof = &proof
+			trusted.Attempt = 1
+			if _, err := Materialize(loadRepositoryTemplateNamed(t, stage), input, trusted); err == nil {
+				t.Fatal("proof crossed stage boundary")
+			}
+		})
+	}
+}
+
 func TestRepositoryFormalTemplateRequiresReleasedPassingRehearsalAndCarriesAggregateBudget(t *testing.T) {
 	template := loadRepositoryTemplateNamed(t, "formal-v1.json")
 	now := time.Date(2026, 8, 8, 12, 0, 0, 0, time.UTC)

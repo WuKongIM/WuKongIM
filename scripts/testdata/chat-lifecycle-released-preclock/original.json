@@ -1,0 +1,1426 @@
+{
+  "attempt-1/run-plan.json": {
+    "schema": "wukongim.chat_lifecycle.run_plan/v1",
+    "template_schema": "wukongim.chat_lifecycle.run_plan_template/v1",
+    "stage": "rehearsal",
+    "attempt": 1,
+    "workload_duration_seconds": 7200,
+    "readiness_timeout_seconds": 7200,
+    "operational_stop_micros": 1350000000,
+    "lease_plan": {
+      "schema": "wukongim.cloud_lease/v1",
+      "lease_id": "request-1-rehearsal-1",
+      "request_id": "request-1",
+      "provider": "alibaba",
+      "region": "cn-hangzhou",
+      "repository": "WuKongIM/WuKongIM",
+      "operator": "tangtaoit",
+      "expires_at": "2026-10-21T22:02:56Z",
+      "budget": {
+        "currency": "CNY",
+        "limit_micros": 1500000000,
+        "committed_micros": 0,
+        "operational_stop_micros": 1350000000
+      },
+      "provenance": {
+        "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bundle_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "network": {
+        "isolated": true,
+        "single_zone": true,
+        "initial_access": [
+          {
+            "id": "public-ssh",
+            "target_role": "load",
+            "protocol": "tcp",
+            "port_from": 22,
+            "port_to": 22,
+            "source_prefix": "0.0.0.0/0",
+            "until": "2026-10-21T22:02:56Z"
+          },
+          {
+            "id": "public-http",
+            "target_role": "load",
+            "protocol": "tcp",
+            "port_from": 80,
+            "port_to": 80,
+            "source_prefix": "0.0.0.0/0",
+            "until": "2026-10-21T22:02:56Z"
+          }
+        ],
+        "conservative_public_egress_bytes": 10737418241
+      },
+      "placement": {},
+      "host_groups": [
+        {
+          "role": "service",
+          "count": 3,
+          "compute": {
+            "vcpus": 4,
+            "memory_bytes": 8589934592,
+            "architecture": "x86_64",
+            "billing_model": "postpaid",
+            "allow_burstable": false
+          },
+          "system_disk": {
+            "role": "system",
+            "count_per_host": 1,
+            "size_bytes": 42949672960,
+            "class": "essd",
+            "performance_level": "PL0"
+          },
+          "data_disks": [
+            {
+              "role": "data",
+              "count_per_host": 1,
+              "size_bytes": 536870912000,
+              "class": "essd",
+              "performance_level": "PL0"
+            }
+          ],
+          "public_ipv4": false,
+          "internet_egress": false
+        },
+        {
+          "role": "load",
+          "count": 1,
+          "compute": {
+            "vcpus": 4,
+            "memory_bytes": 8589934592,
+            "architecture": "x86_64",
+            "billing_model": "postpaid",
+            "allow_burstable": false
+          },
+          "system_disk": {
+            "role": "system",
+            "count_per_host": 1,
+            "size_bytes": 42949672960,
+            "class": "essd",
+            "performance_level": "PL0"
+          },
+          "data_disks": [
+            {
+              "role": "data",
+              "count_per_host": 1,
+              "size_bytes": 214748364800,
+              "class": "essd",
+              "performance_level": "PL0"
+            }
+          ],
+          "public_ipv4": true,
+          "internet_egress": true,
+          "peak_bandwidth_mbps": 20
+        }
+      ],
+      "tags": {
+        "stage": "rehearsal"
+      }
+    },
+    "bootstrap_access": {
+      "authorized_keys": [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB",
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIC"
+      ]
+    }
+  },
+  "attempt-1/lease-plan.json": {
+    "schema": "wukongim.cloud_lease/v1",
+    "lease_id": "request-1-rehearsal-1",
+    "request_id": "request-1",
+    "provider": "alibaba",
+    "region": "cn-hangzhou",
+    "repository": "WuKongIM/WuKongIM",
+    "operator": "tangtaoit",
+    "expires_at": "2026-10-21T22:02:56Z",
+    "budget": {
+      "currency": "CNY",
+      "limit_micros": 1500000000,
+      "committed_micros": 0,
+      "operational_stop_micros": 1350000000
+    },
+    "provenance": {
+      "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bundle_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "network": {
+      "isolated": true,
+      "single_zone": true,
+      "initial_access": [
+        {
+          "id": "public-ssh",
+          "target_role": "load",
+          "protocol": "tcp",
+          "port_from": 22,
+          "port_to": 22,
+          "source_prefix": "0.0.0.0/0",
+          "until": "2026-10-21T22:02:56Z"
+        },
+        {
+          "id": "public-http",
+          "target_role": "load",
+          "protocol": "tcp",
+          "port_from": 80,
+          "port_to": 80,
+          "source_prefix": "0.0.0.0/0",
+          "until": "2026-10-21T22:02:56Z"
+        }
+      ],
+      "conservative_public_egress_bytes": 10737418241
+    },
+    "placement": {},
+    "host_groups": [
+      {
+        "role": "service",
+        "count": 3,
+        "compute": {
+          "vcpus": 4,
+          "memory_bytes": 8589934592,
+          "architecture": "x86_64",
+          "billing_model": "postpaid",
+          "allow_burstable": false
+        },
+        "system_disk": {
+          "role": "system",
+          "count_per_host": 1,
+          "size_bytes": 42949672960,
+          "class": "essd",
+          "performance_level": "PL0"
+        },
+        "data_disks": [
+          {
+            "role": "data",
+            "count_per_host": 1,
+            "size_bytes": 536870912000,
+            "class": "essd",
+            "performance_level": "PL0"
+          }
+        ],
+        "public_ipv4": false,
+        "internet_egress": false
+      },
+      {
+        "role": "load",
+        "count": 1,
+        "compute": {
+          "vcpus": 4,
+          "memory_bytes": 8589934592,
+          "architecture": "x86_64",
+          "billing_model": "postpaid",
+          "allow_burstable": false
+        },
+        "system_disk": {
+          "role": "system",
+          "count_per_host": 1,
+          "size_bytes": 42949672960,
+          "class": "essd",
+          "performance_level": "PL0"
+        },
+        "data_disks": [
+          {
+            "role": "data",
+            "count_per_host": 1,
+            "size_bytes": 214748364800,
+            "class": "essd",
+            "performance_level": "PL0"
+          }
+        ],
+        "public_ipv4": true,
+        "internet_egress": true,
+        "peak_bandwidth_mbps": 20
+      }
+    ],
+    "tags": {
+      "stage": "rehearsal"
+    }
+  },
+  "attempt-1/receipt.json": {
+    "schema": "wukongim.cloud_lease.receipt/v1",
+    "receipt": {
+      "lease_id": "request-1-rehearsal-1",
+      "request_id": "request-1",
+      "provider": "alibaba",
+      "region": "cn-hangzhou",
+      "zone": "cn-hangzhou-b",
+      "account_id_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "repository": "WuKongIM/WuKongIM",
+      "operator": "tangtaoit",
+      "plan_digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+      "provenance": {
+        "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bundle_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "state": "active",
+      "created_at": "2026-10-21T10:11:00.703367749Z",
+      "expires_at": "2026-10-21T22:02:56Z",
+      "quote": {
+        "lease_id": "request-1-rehearsal-1",
+        "request_id": "request-1",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "zone": "cn-hangzhou-b",
+        "account_id_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "plan_digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+        "currency": "CNY",
+        "estimated_cost_micros": 74477600,
+        "capacity_available": true,
+        "quota_available": true,
+        "quoted_at": "2026-10-21T10:03:22.765550024Z",
+        "valid_until": "2026-10-21T10:13:22.765550024Z",
+        "line_items": [
+          {
+            "kind": "postpaid_host_hour",
+            "role": "service",
+            "quantity": 36,
+            "cost_micros": 40093200
+          },
+          {
+            "kind": "postpaid_host_hour",
+            "role": "load",
+            "quantity": 12,
+            "cost_micros": 9584400
+          },
+          {
+            "kind": "eip_public_egress_gib",
+            "role": "load",
+            "quantity": 11,
+            "cost_micros": 8800000
+          },
+          {
+            "kind": "eip_retention_policy_risk_hour",
+            "role": "load",
+            "quantity": 16,
+            "cost_micros": 16000000
+          }
+        ],
+        "selection": {
+          "architecture": "x86_64",
+          "billing_model": "PostPaid",
+          "conservative_public_egress_gib": "11",
+          "eip_billing_evidence_valid_until": "2026-11-06T00:00:00Z",
+          "eip_billing_evidence_version": "alibaba-eip-payg-cn-mainland-2026-08-07",
+          "eip_quota_limit": "20",
+          "eip_retention_fee": "full_lease_plus_cleanup_risk_allowance;direct_ecs_waiver_expected_quota_lte_2000",
+          "eip_retention_risk_unit_micros": "1000000",
+          "image_id": "ubuntu_24_04_x64_20G_alibase_20260916.vhd",
+          "instance_type": "ecs.u2a-c1m2.xlarge",
+          "internet_charge_type": "PayByTraffic",
+          "lease_hours": "12",
+          "load_data_disk": "cloud_essd:PL0:200GiB",
+          "load_instance_type": "ecs.u2a-c1m2.xlarge",
+          "load_system_disk": "cloud_essd:PL0:40GiB",
+          "peak_bandwidth_mbps": "20",
+          "service_data_disk": "cloud_essd:PL0:500GiB",
+          "service_instance_type": "ecs.u2a-c1m2.xlarge",
+          "service_system_disk": "cloud_essd:PL0:40GiB",
+          "system_disk": "cloud_essd:PL0:40GiB",
+          "zone": "cn-hangzhou-b"
+        }
+      },
+      "budget": {
+        "currency": "CNY",
+        "limit_micros": 1500000000,
+        "committed_micros": 0,
+        "operational_stop_micros": 1350000000
+      },
+      "tags": {
+        "stage": "rehearsal",
+        "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+        "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+        "wukongim-expires-at": "2026-10-21T22:02:56Z",
+        "wukongim-lease-id": "request-1-rehearsal-1",
+        "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+        "wukongim-managed-by": "wukongim-cloud-lease",
+        "wukongim-operator": "tangtaoit",
+        "wukongim-provider": "alibaba",
+        "wukongim-region": "cn-hangzhou",
+        "wukongim-repository": "WuKongIM/WuKongIM",
+        "wukongim-request-id": "request-1",
+        "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "resources": [
+        {
+          "id": "fixture-resource-0",
+          "kind": "disk",
+          "role": "service",
+          "parent_id": "fixture-resource-18",
+          "billable": true,
+          "size_bytes": 42949672960,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "category": "cloud_essd",
+            "disk_type": "system",
+            "performance_level": "PL0"
+          }
+        },
+        {
+          "id": "fixture-resource-1",
+          "kind": "disk",
+          "role": "service",
+          "parent_id": "fixture-resource-18",
+          "billable": true,
+          "size_bytes": 536870912000,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "category": "cloud_essd",
+            "disk_type": "data",
+            "performance_level": "PL0"
+          }
+        },
+        {
+          "id": "fixture-resource-2",
+          "kind": "disk",
+          "role": "service",
+          "parent_id": "fixture-resource-19",
+          "billable": true,
+          "size_bytes": 42949672960,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "category": "cloud_essd",
+            "disk_type": "system",
+            "performance_level": "PL0"
+          }
+        },
+        {
+          "id": "fixture-resource-3",
+          "kind": "disk",
+          "role": "service",
+          "parent_id": "fixture-resource-19",
+          "billable": true,
+          "size_bytes": 536870912000,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "category": "cloud_essd",
+            "disk_type": "data",
+            "performance_level": "PL0"
+          }
+        },
+        {
+          "id": "fixture-resource-4",
+          "kind": "disk",
+          "role": "load",
+          "parent_id": "fixture-resource-20",
+          "billable": true,
+          "size_bytes": 42949672960,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "load",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "category": "cloud_essd",
+            "disk_type": "system",
+            "performance_level": "PL0"
+          }
+        },
+        {
+          "id": "fixture-resource-5",
+          "kind": "disk",
+          "role": "load",
+          "parent_id": "fixture-resource-20",
+          "billable": true,
+          "size_bytes": 214748364800,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "load",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "category": "cloud_essd",
+            "disk_type": "data",
+            "performance_level": "PL0"
+          }
+        },
+        {
+          "id": "fixture-resource-6",
+          "kind": "disk",
+          "role": "service",
+          "parent_id": "fixture-resource-21",
+          "billable": true,
+          "size_bytes": 42949672960,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "category": "cloud_essd",
+            "disk_type": "system",
+            "performance_level": "PL0"
+          }
+        },
+        {
+          "id": "fixture-resource-7",
+          "kind": "disk",
+          "role": "service",
+          "parent_id": "fixture-resource-21",
+          "billable": true,
+          "size_bytes": 536870912000,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "category": "cloud_essd",
+            "disk_type": "data",
+            "performance_level": "PL0"
+          }
+        },
+        {
+          "id": "fixture-resource-8",
+          "kind": "disk-attachment",
+          "role": "service",
+          "parent_id": "fixture-resource-18",
+          "billable": false,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "disk_id": "fixture-resource-1"
+          }
+        },
+        {
+          "id": "fixture-resource-9",
+          "kind": "disk-attachment",
+          "role": "service",
+          "parent_id": "fixture-resource-19",
+          "billable": false,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "disk_id": "fixture-resource-3"
+          }
+        },
+        {
+          "id": "fixture-resource-10",
+          "kind": "disk-attachment",
+          "role": "load",
+          "parent_id": "fixture-resource-20",
+          "billable": false,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "load",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "disk_id": "fixture-resource-5"
+          }
+        },
+        {
+          "id": "fixture-resource-11",
+          "kind": "disk-attachment",
+          "role": "service",
+          "parent_id": "fixture-resource-21",
+          "billable": false,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "disk_id": "fixture-resource-7"
+          }
+        },
+        {
+          "id": "fixture-resource-12",
+          "kind": "eip",
+          "role": "load",
+          "billable": true,
+          "public_address": "192.0.2.10",
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "load",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        {
+          "id": "fixture-resource-13",
+          "kind": "eip-association",
+          "role": "load",
+          "parent_id": "fixture-resource-20",
+          "billable": false,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "load",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "eip_id": "fixture-resource-12"
+          }
+        },
+        {
+          "id": "fixture-resource-14",
+          "kind": "eni",
+          "role": "service",
+          "parent_id": "fixture-resource-18",
+          "billable": false,
+          "private_address": "192.0.2.10",
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "eni_type": "Primary",
+            "vpc_id": "fixture-resource-26",
+            "vswitch_id": "fixture-resource-27"
+          }
+        },
+        {
+          "id": "fixture-resource-15",
+          "kind": "eni",
+          "role": "service",
+          "parent_id": "fixture-resource-19",
+          "billable": false,
+          "private_address": "192.0.2.10",
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "eni_type": "Primary",
+            "vpc_id": "fixture-resource-26",
+            "vswitch_id": "fixture-resource-27"
+          }
+        },
+        {
+          "id": "fixture-resource-16",
+          "kind": "eni",
+          "role": "load",
+          "parent_id": "fixture-resource-20",
+          "billable": false,
+          "private_address": "192.0.2.10",
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "load",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "eni_type": "Primary",
+            "vpc_id": "fixture-resource-26",
+            "vswitch_id": "fixture-resource-27"
+          }
+        },
+        {
+          "id": "fixture-resource-17",
+          "kind": "eni",
+          "role": "service",
+          "parent_id": "fixture-resource-21",
+          "billable": false,
+          "private_address": "192.0.2.10",
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "eni_type": "Primary",
+            "vpc_id": "fixture-resource-26",
+            "vswitch_id": "fixture-resource-27"
+          }
+        },
+        {
+          "id": "fixture-resource-18",
+          "kind": "instance",
+          "role": "service",
+          "parent_id": "fixture-resource-27",
+          "billable": true,
+          "private_address": "192.0.2.10",
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "image_id": "ubuntu_24_04_x64_20G_alibase_20260916.vhd",
+            "instance_type": "ecs.u2a-c1m2.xlarge",
+            "vpc_id": "fixture-resource-26"
+          }
+        },
+        {
+          "id": "fixture-resource-19",
+          "kind": "instance",
+          "role": "service",
+          "parent_id": "fixture-resource-27",
+          "billable": true,
+          "private_address": "192.0.2.10",
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "image_id": "ubuntu_24_04_x64_20G_alibase_20260916.vhd",
+            "instance_type": "ecs.u2a-c1m2.xlarge",
+            "vpc_id": "fixture-resource-26"
+          }
+        },
+        {
+          "id": "fixture-resource-20",
+          "kind": "instance",
+          "role": "load",
+          "parent_id": "fixture-resource-27",
+          "billable": true,
+          "private_address": "192.0.2.10",
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "load",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "image_id": "ubuntu_24_04_x64_20G_alibase_20260916.vhd",
+            "instance_type": "ecs.u2a-c1m2.xlarge",
+            "vpc_id": "fixture-resource-26"
+          }
+        },
+        {
+          "id": "fixture-resource-21",
+          "kind": "instance",
+          "role": "service",
+          "parent_id": "fixture-resource-27",
+          "billable": true,
+          "private_address": "192.0.2.10",
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "service",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "image_id": "ubuntu_24_04_x64_20G_alibase_20260916.vhd",
+            "instance_type": "ecs.u2a-c1m2.xlarge",
+            "vpc_id": "fixture-resource-26"
+          }
+        },
+        {
+          "id": "fixture-resource-22",
+          "kind": "security-group",
+          "role": "network",
+          "parent_id": "fixture-resource-26",
+          "billable": false,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "network",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        {
+          "id": "fixture-resource-23",
+          "kind": "security-rule",
+          "role": "network",
+          "parent_id": "fixture-resource-22",
+          "billable": false,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "network",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "rule_kind": "private"
+          }
+        },
+        {
+          "id": "fixture-resource-24",
+          "kind": "security-rule",
+          "role": "load",
+          "parent_id": "fixture-resource-22",
+          "billable": false,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "load",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "rule_kind": "grant"
+          }
+        },
+        {
+          "id": "fixture-resource-25",
+          "kind": "security-rule",
+          "role": "load",
+          "parent_id": "fixture-resource-22",
+          "billable": false,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "load",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "attributes": {
+            "rule_kind": "grant"
+          }
+        },
+        {
+          "id": "fixture-resource-26",
+          "kind": "vpc",
+          "role": "network",
+          "billable": false,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "network",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        {
+          "id": "fixture-resource-27",
+          "kind": "vswitch",
+          "role": "network",
+          "parent_id": "fixture-resource-26",
+          "billable": false,
+          "tags": {
+            "stage": "rehearsal",
+            "wukongim-alibaba-account-hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "wukongim-alibaba-lifecycle": "active",
+            "wukongim-alibaba-manifest": "v1/4/8/4/4/1/1/3/1/1/1",
+            "wukongim-alibaba-quote-cost-micros": "74477600",
+            "wukongim-alibaba-zone": "cn-hangzhou-b",
+            "wukongim-bootstrap-access-digest": "sha256:89e8320d66fff1f5eb7cb455ef94c5b3694d775592de5212658e81faa06a0f3f",
+            "wukongim-bundle-digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "wukongim-created-at": "2026-10-21T10:11:00.703367749Z",
+            "wukongim-expires-at": "2026-10-21T22:02:56Z",
+            "wukongim-lease-id": "request-1-rehearsal-1",
+            "wukongim-lease-plan-digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+            "wukongim-managed-by": "wukongim-cloud-lease",
+            "wukongim-operator": "tangtaoit",
+            "wukongim-provider": "alibaba",
+            "wukongim-region": "cn-hangzhou",
+            "wukongim-repository": "WuKongIM/WuKongIM",
+            "wukongim-request-id": "request-1",
+            "wukongim-resource-role": "network",
+            "wukongim-source-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        }
+      ],
+      "access_grants": [
+        {
+          "id": "public-http",
+          "target_role": "load",
+          "protocol": "tcp",
+          "port_from": 80,
+          "port_to": 80,
+          "source_prefix": "0.0.0.0/0",
+          "until": "2026-10-21T22:02:56Z"
+        },
+        {
+          "id": "public-ssh",
+          "target_role": "load",
+          "protocol": "tcp",
+          "port_from": 22,
+          "port_to": 22,
+          "source_prefix": "0.0.0.0/0",
+          "until": "2026-10-21T22:02:56Z"
+        }
+      ]
+    }
+  },
+  "attempt-1/quote.json": {
+    "schema": "wukongim.cloud_lease.quote/v1",
+    "quote": {
+      "lease_id": "request-1-rehearsal-1",
+      "request_id": "request-1",
+      "provider": "alibaba",
+      "region": "cn-hangzhou",
+      "zone": "cn-hangzhou-b",
+      "account_id_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "plan_digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38",
+      "currency": "CNY",
+      "estimated_cost_micros": 74477600,
+      "capacity_available": true,
+      "quota_available": true,
+      "quoted_at": "2026-10-21T10:03:22.765550024Z",
+      "valid_until": "2026-10-21T10:13:22.765550024Z",
+      "line_items": [
+        {
+          "kind": "postpaid_host_hour",
+          "role": "service",
+          "quantity": 36,
+          "cost_micros": 40093200
+        },
+        {
+          "kind": "postpaid_host_hour",
+          "role": "load",
+          "quantity": 12,
+          "cost_micros": 9584400
+        },
+        {
+          "kind": "eip_public_egress_gib",
+          "role": "load",
+          "quantity": 11,
+          "cost_micros": 8800000
+        },
+        {
+          "kind": "eip_retention_policy_risk_hour",
+          "role": "load",
+          "quantity": 16,
+          "cost_micros": 16000000
+        }
+      ],
+      "selection": {
+        "architecture": "x86_64",
+        "billing_model": "PostPaid",
+        "conservative_public_egress_gib": "11",
+        "eip_billing_evidence_valid_until": "2026-11-06T00:00:00Z",
+        "eip_billing_evidence_version": "alibaba-eip-payg-cn-mainland-2026-08-07",
+        "eip_quota_limit": "20",
+        "eip_retention_fee": "full_lease_plus_cleanup_risk_allowance;direct_ecs_waiver_expected_quota_lte_2000",
+        "eip_retention_risk_unit_micros": "1000000",
+        "image_id": "ubuntu_24_04_x64_20G_alibase_20260916.vhd",
+        "instance_type": "ecs.u2a-c1m2.xlarge",
+        "internet_charge_type": "PayByTraffic",
+        "lease_hours": "12",
+        "load_data_disk": "cloud_essd:PL0:200GiB",
+        "load_instance_type": "ecs.u2a-c1m2.xlarge",
+        "load_system_disk": "cloud_essd:PL0:40GiB",
+        "peak_bandwidth_mbps": "20",
+        "service_data_disk": "cloud_essd:PL0:500GiB",
+        "service_instance_type": "ecs.u2a-c1m2.xlarge",
+        "service_system_disk": "cloud_essd:PL0:40GiB",
+        "system_disk": "cloud_essd:PL0:40GiB",
+        "zone": "cn-hangzhou-b"
+      }
+    }
+  },
+  "release-selector.json": {
+    "schema": "wukongim.cloud_lease.selector/v1",
+    "selector": {
+      "lease_id": "request-1-rehearsal-1",
+      "request_id": "request-1",
+      "provider": "alibaba",
+      "region": "cn-hangzhou",
+      "repository": "WuKongIM/WuKongIM",
+      "plan_digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38"
+    }
+  },
+  "zero-inventory.json": {
+    "schema": "wukongim.cloud_lease.release/v1",
+    "result": {
+      "zero_inventory": {
+        "selector": {
+          "lease_id": "request-1-rehearsal-1",
+          "request_id": "request-1",
+          "provider": "alibaba",
+          "region": "cn-hangzhou",
+          "repository": "WuKongIM/WuKongIM",
+          "plan_digest": "33902fb72c4fcc57b4b72ae0eff015d5121b3000a703e80749e4eb23836b4e38"
+        },
+        "account_id_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "observed_at": "2026-10-21T10:19:19.689029905Z",
+        "scopes": [
+          "disk_attachments",
+          "disks",
+          "eip_associations",
+          "eips",
+          "enis",
+          "instances",
+          "nat_gateways",
+          "route_entries",
+          "security_group_rules",
+          "security_groups",
+          "vpcs",
+          "vswitches"
+        ]
+      }
+    }
+  },
+  "cleanup.json": {
+    "schema": "wukongim.chat_lifecycle.rehearsal_cleanup/v1",
+    "request_id": "request-1",
+    "release_run_id": 103,
+    "zero_inventory": true
+  },
+  "deployment-repair-pending.json": {
+    "schema": "wukongim.chat_lifecycle.rehearsal_deployment_repair/v1",
+    "request_id": "request-1",
+    "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "bundle_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "lease_id": "request-1-rehearsal-1",
+    "failure_code": "stage_readiness_timeout",
+    "last_successful_gate": "deployment_receipt",
+    "control_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "repair_deadline": "2026-10-21T13:11:56Z",
+    "acquire_run_id": 102,
+    "deployment_run_id": 104,
+    "generation": 1
+  }
+}

@@ -14,7 +14,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-func TestChatLifecycleRehearsalExposesExactlyFourOperatorInputs(t *testing.T) {
+func TestChatLifecycleRehearsalExposesFourRequiredInputsAndExplicitReleasedContinuation(t *testing.T) {
 	var workflow struct {
 		On struct {
 			Dispatch struct {
@@ -32,10 +32,11 @@ func TestChatLifecycleRehearsalExposesExactlyFourOperatorInputs(t *testing.T) {
 		Required bool   `yaml:"required"`
 		Type     string `yaml:"type"`
 	}{
-		"source_sha":              {Required: true, Type: "string"},
-		"operator":                {Required: true, Type: "string"},
-		"codex_diagnostic_pubkey": {Required: true, Type: "string"},
-		"request_id":              {Required: true, Type: "string"},
+		"source_sha":               {Required: true, Type: "string"},
+		"operator":                 {Required: true, Type: "string"},
+		"codex_diagnostic_pubkey":  {Required: true, Type: "string"},
+		"request_id":               {Required: true, Type: "string"},
+		"released_preclock_run_id": {Required: false, Type: "string"},
 	}
 	if !reflect.DeepEqual(workflow.On.Dispatch.Inputs, want) {
 		t.Fatalf("operator inputs = %#v, want %#v", workflow.On.Dispatch.Inputs, want)
@@ -76,7 +77,7 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 		"wait_for_deployment_repair_revision",
 		"attempted-deployment-control-shas",
 		"repair_reserve_seconds",
-		"for attempt in 1; do",
+		`for attempt in "$stage_attempt"; do`,
 		"(sudo systemctl reset-failed '$stage_service' || true)",
 		"capture-stage-journal-cursor.sh",
 		"pre-clock journal cursor unavailable; exact Lease was released",

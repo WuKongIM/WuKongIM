@@ -18,8 +18,10 @@ private credentials.
   template. The direct repair controller may derive its bounded workload and
   Lease durations from the operator's qualification window and bind an
   explicitly authorized whole-CNY repair budget independently of the template.
-- Each stage has exactly one procurement attempt. Deployment readiness repairs
-  reuse the exact Lease, bundle, sealed identity, and request-bound control fix.
+- Each invocation has exactly one procurement attempt. Deployment readiness
+  repairs reuse the exact Lease, bundle, sealed identity, and request-bound
+  control fix. One explicit adjacent workflow may start rehearsal-2 after the
+  original rehearsal-1 is released and its public evidence is authenticated.
 - Runtime YAML owns workload details; this use case owns cross-stage identity,
   budget, duration, and transition policy.
 
@@ -32,11 +34,16 @@ private credentials.
    matching identities, public diagnostic owner, and carried commitment.
 3. Materialize a fresh 96-hour formal lease bound to the same source, bundle,
    request, diagnostic identity, and aggregate ledger.
+4. For a released rehearsal continuation, strictly decode the bounded helper
+   proof and bind its request/source/diagnostic identity and full old Quote
+   reserve to rehearsal-2. GitHub/artifact authentication remains the protected
+   helper's responsibility; this package performs no network verification.
 
 ## Invariants and Failure Semantics
 
-- The shared CNY 1,350 operational stop and CNY 1,500 hard limit cover both
-  stages.
+- The shared CNY 1,350 operational stop and CNY 1,500 hard limit cover all
+  stages, including the original released rehearsal's conservative reserve.
+  A reserve is not provider billing evidence.
 - Topology is fixed at four Ubuntu x86 hosts, one EIP, and reviewed disk and
   port settings; rehearsal runs two hours and formal runs 72 hours after their
   two-hour readiness windows.
@@ -45,7 +52,10 @@ private credentials.
   45 minutes. Its default hard/stop limits are CNY 300/250; an exact explicit
   whole-CNY authorization may raise the hard limit through CNY 1,500, with a
   CNY 20 operational reserve, while every other quantity remains fixed.
-- No fresh Lease is created for deployment retry.
+- No automatic deployment retry creates a fresh Lease. The explicit released
+  continuation requires adjacent first-attempt workflow runs, the original
+  rehearsal-1 identity, and nonzero authenticated commitment; it cannot chain
+  another continuation or authorize a known runtime/correctness failure.
 - The exact release selector is derived before paid Acquire so ambiguous or
   artifact-losing acquisition remains cleanup-capable.
 

@@ -14,6 +14,12 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve the full prior cloud Quote reserve when explicitly restarting a
+  released pre-clock rehearsal, authenticate its cleanup and producer evidence,
+  and carry that reserve through formal qualification without blocking cleanup.
+  / 显式接续已释放的计时前预演失败时，核验前序身份与清零证据并继承完整报价预留，
+  正式验收继续累计该费用；证明失败不阻碍已有资源清理。
+
 - Verify the exact open tracking Issue before cloud chat-lifecycle procurement,
   and preserve bounded exit evidence when workload preparation stops before its
   measurement clock starts. / 云端聊天生命周期验收在采购前检查对应的开放跟踪 Issue，

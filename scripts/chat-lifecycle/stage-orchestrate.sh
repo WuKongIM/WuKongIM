@@ -51,6 +51,23 @@ esac
 install -d -m 0700 "$WK_CHAT_OUTPUT_DIR"
 install -d -m 0700 "$WK_CHAT_WORK_DIR"
 scripts/chat-lifecycle/comment-request-issue.sh --preflight >"$WK_CHAT_OUTPUT_DIR/issue-preflight.json"
+# This admission is before bundle generation, identity creation or any paid
+# call. It cannot interfere with cleanup of an already-owned Lease.
+stage_attempt=1
+committed_micros=0
+continuation_proof=''
+if [[ "$chat_stage" == rehearsal ]]; then
+  : "${WK_CHAT_ARTIFACT_INVENTORY:?complete protected Artifact inventory required}"
+  python3 scripts/chat-lifecycle/authenticate-released-preclock.py prepare \
+    --inventory "$WK_CHAT_ARTIFACT_INVENTORY" --output "$WK_CHAT_OUTPUT_DIR/continuation" \
+    >"$WK_CHAT_OUTPUT_DIR/continuation-authentication.json"
+  stage_attempt="$(jq -er '.attempt | select(. == 1 or . == 2)' "$WK_CHAT_OUTPUT_DIR/continuation-authentication.json")"
+  committed_micros="$(jq -er '.committed_micros | select(type == "number" and . >= 0)' "$WK_CHAT_OUTPUT_DIR/continuation-authentication.json")"
+  if [[ "$stage_attempt" == 2 ]]; then
+    continuation_proof="$WK_CHAT_OUTPUT_DIR/continuation/proof.json"
+    [[ -f "$continuation_proof" ]]
+  fi
+fi
 active_selector=''
 keep_active=false
 release_generation=0
@@ -327,7 +344,6 @@ else
 fi
 bundle_artifact="cloud-deployment-bundle-${bundle_digest#sha256:}"
 
-committed_micros=0
 if [[ "$chat_stage" == formal ]]; then
   committed_micros="$(jq -er --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" \
     --arg bundle "$bundle_digest" -f scripts/chat-lifecycle/select-formal-transition-committed.jq \
@@ -403,7 +419,7 @@ record_deployment_repair_pending() {
       deployment_run_id:$deployment_run_id,generation:$generation}' \
     >"$WK_CHAT_OUTPUT_DIR/deployment-repair-pending.json"
   export WK_CHAT_ISSUE_STATE="${chat_stage}_deployment_repair_pending"
-  export WK_CHAT_ISSUE_DEDUPE_KEY="${chat_stage}_deployment_repair_${deployment_generation}"
+  export WK_CHAT_ISSUE_DEDUPE_KEY="${chat_stage}_deployment_repair_${GITHUB_RUN_ID}_${stage_attempt}_${deployment_generation}"
   export WK_CHAT_ISSUE_BODY="failure_code=${failure_code} last_gate=${last_gate} deployment_run=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${deployment_run_id} control_sha=${deployment_control_sha} repair_deadline_utc=${repair_deadline}; retaining the exact Lease and waiting for a protected-main revision with trailer Chat-Lifecycle-Repair: ${WK_CHAT_REQUEST_ID}"
   for issue_attempt in 1 2 3; do
     if scripts/chat-lifecycle/comment-request-issue.sh; then
@@ -533,7 +549,7 @@ run_deployment_action() {
   fi
 }
 
-for attempt in 1; do
+for attempt in "$stage_attempt"; do
   attempt_dir="$WK_CHAT_OUTPUT_DIR/attempt-$attempt"
   install -d -m 0700 "$attempt_dir"
   deployment_key="$WK_CHAT_WORK_DIR/deployment-${chat_stage}-${attempt}"
@@ -548,6 +564,9 @@ for attempt in 1; do
     --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --attempt "$attempt"
     --committed-micros "$committed_micros"
   )
+  if [[ -n "$continuation_proof" ]]; then
+    materialize_args+=(--released-preclock-proof "$continuation_proof")
+  fi
   if [[ "$chat_stage" == formal ]]; then
     materialize_args+=(--transition "$WK_CHAT_TRANSITION")
   fi

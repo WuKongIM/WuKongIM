@@ -119,6 +119,8 @@ jobs:
           ' "$WK_CHAT_TRANSITION_DIR/cleanup.json" >/dev/null
           cmp -s <(jq -S -c .selector "$WK_CHAT_TRANSITION_DIR/release-selector.json") \
             <(jq -S -c .result.zero_inventory.selector "$WK_CHAT_TRANSITION_DIR/zero-inventory.json")
+          python3 scripts/chat-lifecycle/authenticate-released-preclock.py validate \
+            --directory "$WK_CHAT_TRANSITION_DIR" --run-plan "$WK_CHAT_TRANSITION_DIR/run-plan.json"
           prior="$(jq -er .lease_plan.budget.committed_micros "$WK_CHAT_TRANSITION_DIR/run-plan.json")"
           created_at="$(jq -er --arg request "$WK_CHAT_REQUEST_ID" \
             -f scripts/chat-lifecycle/select-active-receipt-created-at.jq \

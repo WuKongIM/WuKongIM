@@ -9,6 +9,8 @@ set -euo pipefail
 
 requested="${1-}"
 output="${2:?output required}"
+inventory_output="${3-}"
+[[ -z "$inventory_output" || ! -e "$inventory_output" ]]
 if [[ -n "$requested" ]]; then
   [[ "$requested" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
 fi
@@ -83,3 +85,11 @@ done < <(jq -c '.include[]' "$temporary/candidate-matrix.json")
 
 jq -sc '{include:.[0:20]}' "$temporary/active-rows.jsonl" >"$temporary/matrix.json"
 install -m 0600 "$temporary/matrix.json" "$output"
+
+# Reuse this complete, bounded inventory for the request spend admission guard.
+# It is metadata, not proof of a producer; the continuation helper authenticates
+# exact run/artifact identities before trusting historical cost or zero evidence.
+if [[ -n "$inventory_output" ]]; then
+  jq '{complete:true,artifacts:.}' "$temporary/artifacts.json" >"$temporary/inventory.json"
+  install -m 0600 "$temporary/inventory.json" "$inventory_output"
+fi

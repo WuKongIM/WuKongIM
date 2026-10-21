@@ -301,6 +301,16 @@ jobs:
         if: steps.handoff.outputs.mode == 'run' && matrix.final_exists == true && steps.previous.outputs.usable == 'true'
         shell: bash
         run: echo 'ready=true' >>"$GITHUB_OUTPUT"
+      - name: Preserve released pre-clock continuation in terminal evidence
+        id: continuation_capture
+        if: steps.collect.outputs.ready == 'true' || steps.collect.outputs.diagnosis_pending == 'true' || steps.credential_evidence.outputs.ready == 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -d "$WK_CHAT_HANDOFF_DIR/continuation" ]]; then
+            cp -a "$WK_CHAT_HANDOFF_DIR/continuation" "$WK_CHAT_FINAL_DIR/"
+          fi
       - name: Upload bounded terminal or diagnosis evidence before any Release
         id: final_upload
         if: steps.collect.outputs.ready == 'true' || steps.collect.outputs.diagnosis_pending == 'true' || steps.credential_evidence.outputs.ready == 'true'
@@ -361,13 +371,26 @@ jobs:
             echo 'Rehearsal Release emitted neither zero proof nor cleanup continuation.' >&2
             exit 1
           fi
+      - name: Authenticate released pre-clock continuation after cleanup
+        id: continuation
+        if: steps.cleanup.outputs.zero == 'true' && steps.handoff.outputs.mode == 'run'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          final_dir="$WK_CHAT_FINAL_DIR"
+          [[ "${{ steps.existing.outputs.ready }}" == true ]] && final_dir="$RUNNER_TEMP/previous-final"
+          python3 scripts/chat-lifecycle/authenticate-released-preclock.py validate \
+            --directory "$WK_CHAT_HANDOFF_DIR" --run-plan "$WK_CHAT_HANDOFF_DIR/run-plan.json"
+          python3 scripts/chat-lifecycle/authenticate-released-preclock.py validate \
+            --directory "$final_dir" --run-plan "$final_dir/run-plan.json"
       - name: Enable formal continuation before transition publication
-        if: steps.cleanup.outputs.zero == 'true' && env.WK_CHAT_OPERATOR_STOP != 'true' && steps.handoff.outputs.mode == 'run' && ((steps.collect.outputs.ready == 'true' && steps.final_upload.outcome == 'success') || steps.existing.outputs.ready == 'true')
+        if: steps.continuation.outcome == 'success' && steps.cleanup.outputs.zero == 'true' && env.WK_CHAT_OPERATOR_STOP != 'true' && steps.handoff.outputs.mode == 'run' && ((steps.collect.outputs.ready == 'true' && steps.final_upload.outcome == 'success') || steps.existing.outputs.ready == 'true')
         shell: bash
         run: scripts/chat-lifecycle/formal-workflows-state.sh enable-starter
       - name: Seal fresh-formal transition after rehearsal evidence and zero inventory
         id: transition
-        if: steps.cleanup.outputs.zero == 'true' && env.WK_CHAT_OPERATOR_STOP != 'true' && steps.handoff.outputs.mode == 'run' && ((steps.collect.outputs.ready == 'true' && steps.final_upload.outcome == 'success') || steps.existing.outputs.ready == 'true')
+        if: steps.continuation.outcome == 'success' && steps.cleanup.outputs.zero == 'true' && env.WK_CHAT_OPERATOR_STOP != 'true' && steps.handoff.outputs.mode == 'run' && ((steps.collect.outputs.ready == 'true' && steps.final_upload.outcome == 'success') || steps.existing.outputs.ready == 'true')
         shell: bash
         env:
           WK_CHAT_TRANSITION_DIR: ${{ runner.temp }}/formal-transition
@@ -431,6 +454,9 @@ jobs:
             "$final_dir/receipt.json" "$final_dir/final.json" "$final_dir/rehearsal-result.json" \
             "$final_dir/finalization.json" "$WK_CHAT_TRANSITION_DIR/"
           cp -a "$final_dir/evidence" "$WK_CHAT_TRANSITION_DIR/"
+          if [[ -d "$final_dir/continuation" ]]; then
+            cp -a "$final_dir/continuation" "$WK_CHAT_TRANSITION_DIR/"
+          fi
           cp "$WK_CHAT_HANDOFF_DIR/release-selector.json" "$WK_CHAT_TRANSITION_DIR/"
           cp "$WK_CHAT_CLEANUP_DIR/cleanup.json" "$WK_CHAT_CLEANUP_DIR/zero-inventory.json" \
             "$WK_CHAT_TRANSITION_DIR/"
@@ -446,7 +472,7 @@ jobs:
           retention-days: 8
       - name: Assemble terminal evidence with exact zero-inventory proof
         id: complete
-        if: steps.cleanup.outputs.zero == 'true' && steps.handoff.outputs.mode == 'run' && (steps.report_rescue.outputs.release == 'true' || steps.existing.outputs.ready == 'true')
+        if: steps.continuation.outcome == 'success' && steps.cleanup.outputs.zero == 'true' && steps.handoff.outputs.mode == 'run' && (steps.report_rescue.outputs.release == 'true' || steps.existing.outputs.ready == 'true')
         shell: bash
         env:
           WK_CHAT_COMPLETE_DIR: ${{ runner.temp }}/complete
@@ -503,6 +529,11 @@ jobs:
           set -euo pipefail
           [[ "${{ matrix.handoff_artifact_id }}" =~ ^[1-9][0-9]*$ ]]
           gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${{ matrix.handoff_artifact_id }}"
+      - name: Fail invalid continuation after publishing cleanup proof
+        id: continuation_failure
+        if: steps.continuation.outcome == 'failure'
+        shell: bash
+        run: exit 1
       - name: Fail after persisting a rehearsal Release continuation
         if: steps.release.outcome == 'failure'
         shell: bash
@@ -539,6 +570,7 @@ jobs:
           elif [[ "$state" == rehearsal_released_formal_ready ]]; then
             detail="${detail} committed_micros=$(jq -er .committed_micros "$RUNNER_TEMP/formal-transition/transition.json")"
           fi
+          dedupe="${dedupe}-producer-${{ matrix.handoff_run_id }}"
           export WK_CHAT_ISSUE_STATE="$state"
           export WK_CHAT_ISSUE_DEDUPE_KEY="$dedupe"
           export WK_CHAT_ISSUE_BODY="$detail"
