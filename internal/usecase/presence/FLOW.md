@@ -48,8 +48,9 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 - Production target-aware lookup preserves the complete fence and returns
   aligned results. The per-UID fallback exists only for limited compatibility
   implementations and cannot provide that target fence.
-- Flight completion stores no routes: callers reread current Directory proof,
-  including after FIFO eviction. Canceling a follower does not cancel its leader;
+- Flights store no routes. After successful completion, callers reread current
+  Directory proof, including after FIFO eviction; failed completions may propagate
+  their typed failure. Canceling a follower does not cancel its leader;
   a canceled leader leaves live followers retryable without adding a retry.
 - Import-boundary tests reject concrete entry, protocol, cluster, and app imports.
 

@@ -1078,9 +1078,11 @@ specification, runbook, report, or module documentation; link to them when neede
   The original 512-UID/256-target page fits maximum 65,535-byte stored identities.
   Larger arbitrary lookup strings can now remain explicitly not ready. Quota
   waits hold no partial keys; owned proofs publish/release before joining old
-  flights. Every waiter rereads Directory, so FIFO eviction remains unknown,
-  never fabricated offline. Follower cancellation is isolated; canceled leaders
-  leave live followers typed not-ready under the existing outer retry policy.
+  flights. Successful completions require a fresh Directory read, so FIFO
+  eviction remains unknown, never fabricated offline. Failed completions can
+  directly propagate their typed failure. Follower cancellation is isolated;
+  canceled leaders leave live followers typed not-ready under the existing outer
+  retry policy.
 - Every online route, including advisory EVENT hints, must preserve device ID,
   flag and level along with the exact owner/session identity. The final session
   fence rejects a route with missing or stale device fields.
