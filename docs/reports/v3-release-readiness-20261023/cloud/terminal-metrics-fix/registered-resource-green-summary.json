@@ -1,0 +1,47 @@
+{
+  "range-process": {
+    "query": "{__name__=~\"(wukongim_)?process_.*\"}",
+    "series_count": 4,
+    "sample_count": 8,
+    "window": {
+      "end": "2026-10-21T17:06:50.121277292Z",
+      "epoch_end": "1792602410.121",
+      "epoch_start": "1792601510.121",
+      "query_precision": "nearest_millisecond",
+      "source": "rehearsal/final.json",
+      "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+      "step_seconds": 15
+    },
+    "sha256": "2275b02a14de3f879a1acba7e1396d2a1451cfc40ff59c1ee8e9df13cb034609"
+  },
+  "range-counters": {
+    "query": "{__name__=~\"wukongim_channel(v2)?_(meta_created|activation_rejected)_total\"}",
+    "series_count": 4,
+    "sample_count": 8,
+    "window": {
+      "end": "2026-10-21T17:06:50.121277292Z",
+      "epoch_end": "1792602410.121",
+      "epoch_start": "1792601510.121",
+      "query_precision": "nearest_millisecond",
+      "source": "rehearsal/final.json",
+      "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+      "step_seconds": 15
+    },
+    "sha256": "f5623999e6f89fc0ad2dae0131db607f2560ce365bd800f5881e7899b359a065"
+  },
+  "range-go": {
+    "query": "{__name__=~\"go_.*\"}",
+    "series_count": 6,
+    "sample_count": 12,
+    "window": {
+      "end": "2026-10-21T17:06:50.121277292Z",
+      "epoch_end": "1792602410.121",
+      "epoch_start": "1792601510.121",
+      "query_precision": "nearest_millisecond",
+      "source": "rehearsal/final.json",
+      "report_sha256": "3deac9ba52b4aa3671f6fa2b3811aae5627e51e07fe120afb57edd36cab15c3f",
+      "step_seconds": 15
+    },
+    "sha256": "6b6ac5476c4dbcf3ce9a189aba545715f74666076afe0b54482fb59db542f928"
+  }
+}

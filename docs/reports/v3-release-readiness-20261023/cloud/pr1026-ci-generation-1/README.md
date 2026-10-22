@@ -1,0 +1,17 @@
+# PR #1026 first Linux CI evidence
+
+Head `23cf3f8764c2b841128b1a80d79ba9f49f447549`; actual PR merge checkout `2f7e1df8492c98255092ae69c813def0c5703fe1`; both trees equal `89011038f444c5e9c8bd95f4a6814868676b4501`. All non-aggregate executed job logs confirm that checkout. The merge parents are exact base `79a71770` and reviewed head `23cf3f87`.
+
+Both acceptance runs finished successfully on attempt 1: Candidate 39832747504 has all three jobs successful; Three-Node 39832747798 has seven successful jobs and two event-skipped jobs (manual diagnosis and nightly qualification). Issue Signal 39832747456 succeeded but is not acceptance evidence. All 13 PR checks are terminal: 11 success and 2 skipped. No failed CI run, retry, dispatch, mutation, merge or local test was performed by this collector.
+
+Candidate default passed 219 package summaries plus 15 no-test-file summaries. Individual default-test skip counts are not exposed by its non-verbose command. Scripts integration ran the unchanged frozen policy command once, in 575.414 seconds of its 600-second limit; output was not truncated and SID cleanup was verified/complete with no survivors. Its JSON stream contains 1,317 test-pass events, seven package-pass events, zero failure events and six explicit skips; these are event counts, including subtests. The exact terminal collector Go test passed in 27.57 seconds. Its Python 23-method/80-process-case detailed receipt was consumed from t.TempDir and not uploaded: this archive retains the actual Go pass event, not an invented Linux per-case receipt.
+
+The native package lifecycle and signed repository tests were skipped by their existing opt-in environment gates. Two Docker tests, a scheduling subprocess fixture and a native deadline subprocess fixture were also skipped. Native-preview was not triggered. These checks cannot establish native package acceptance.
+
+The E2E job built one binary (`d2b4dfb9...1a6a42`), then passed all five migration topologies (1→1, 1→3, 3→1, 3→3, 3→5), four cross-node functional tests, and self-chat with whole-cluster restart on one and three nodes. All four command/SID cleanup receipts are verified and complete with no survivors. The opt-in replica-load 2,000 QPS comparison was explicitly skipped; its reason is retained. An initial offline parser assertion incorrectly expected no E2E skips; that failure boundary and its corrected interpretation are preserved separately and are not a CI failure.
+
+Each fresh performance seam passed three consecutive 60-second 500 QPS windows, each with 30,000 completions and zero errors/drops. Scheduled-to-completion P99 milliseconds: append 35.75/6.26/9.45; mixed SEND 12.71/14.98/15.33; TCP SENDACK 178.30/178.35/178.31; all below 400 ms. No baseline reuse or best-window selection is claimed.
+
+Six small public artifact ZIPs (403,275 bytes total) were fully verified against API size/digest, all CRCs and member hashes, and extracted byte-identically. The 230,287,344-byte three-node correctness archive was not downloaded under the explicit 16 MiB small-evidence limit; its API metadata and complete successful job log remain available. Its bytes/CRC are unverified. No private cloud archive, key, identity envelope or production credential was downloaded.
+
+This evidence qualifies the bounded PR regression scope. It does not qualify the failed cloud rehearsal, long soak, original message-loss root cause, production native release or 2,000 QPS capacity. `validation.json`, exact logs, command identities, artifacts and API snapshots carry the full details.

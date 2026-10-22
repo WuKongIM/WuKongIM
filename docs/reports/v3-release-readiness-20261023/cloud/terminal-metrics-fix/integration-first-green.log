@@ -1,0 +1,28 @@
+test_bad_terminal_anchor_never_queries_now (__main__.CollectorTests.test_bad_terminal_anchor_never_queries_now) ... ok
+test_byte_caps_accept_exact_and_reject_next_byte (__main__.CollectorTests.test_byte_caps_accept_exact_and_reject_next_byte) ... ok
+test_capacity_order_preserves_nanoseconds (__main__.CollectorTests.test_capacity_order_preserves_nanoseconds) ... ok
+test_capacity_required_by_passing_formal_cannot_be_missing (__main__.CollectorTests.test_capacity_required_by_passing_formal_cannot_be_missing) ... ok
+test_empty_optional_metric_family_has_explicit_zero_coverage (__main__.CollectorTests.test_empty_optional_metric_family_has_explicit_zero_coverage) ... ok
+test_formal_before_capacity_is_explicitly_not_applicable (__main__.CollectorTests.test_formal_before_capacity_is_explicitly_not_applicable) ... ok
+test_formal_capacity_retains_both_stages (__main__.CollectorTests.test_formal_capacity_retains_both_stages) ... ok
+test_formal_exemption_requires_legal_failure_and_phase_evidence (__main__.CollectorTests.test_formal_exemption_requires_legal_failure_and_phase_evidence) ... ok
+test_invalid_formal_verdict_or_capacity_proof_is_not_exempted (__main__.CollectorTests.test_invalid_formal_verdict_or_capacity_proof_is_not_exempted) ... ok
+test_invalid_or_missing_diagnostic_files_stay_incomplete (__main__.CollectorTests.test_invalid_or_missing_diagnostic_files_stay_incomplete) ... ok
+test_invalid_status_is_rejected (__main__.CollectorTests.test_invalid_status_is_rejected) ... ok
+test_partial_metrics_keep_successful_siblings (__main__.CollectorTests.test_partial_metrics_keep_successful_siblings) ... ok
+test_partitions_retain_more_than_original_single_response_cap (__main__.CollectorTests.test_partitions_retain_more_than_original_single_response_cap) ... ok
+test_prometheus_millisecond_closed_window_and_raw_anchor (__main__.CollectorTests.test_prometheus_millisecond_closed_window_and_raw_anchor) ... ok
+test_registered_resource_families_survive_the_real_collector (__main__.CollectorTests.test_registered_resource_families_survive_the_real_collector) ... ok
+test_rehearsal_retains_exact_terminal_documents_and_failure_window (__main__.CollectorTests.test_rehearsal_retains_exact_terminal_documents_and_failure_window) ... ok
+test_wrong_identity_schema_and_unsafe_fields_are_rejected (__main__.CollectorTests.test_wrong_identity_schema_and_unsafe_fields_are_rejected) ... ok
+test_diagnostic_metric_names_are_exact_and_disjoint (__main__.HelperBoundsTests.test_diagnostic_metric_names_are_exact_and_disjoint) ... ok
+test_metric_deadline_stops_requests_and_retains_first_partition (__main__.HelperBoundsTests.test_metric_deadline_stops_requests_and_retains_first_partition) ... ok
+test_metric_total_transfer_budget_is_shared (__main__.HelperBoundsTests.test_metric_total_transfer_budget_is_shared) ... ok
+test_registered_counter_names_follow_exported_aliases (__main__.HelperBoundsTests.test_registered_counter_names_follow_exported_aliases) ... ok
+test_registered_resource_matrices_retain_exact_bytes_without_extra_queries (__main__.HelperBoundsTests.test_registered_resource_matrices_retain_exact_bytes_without_extra_queries) ... ok
+test_selector_partition_is_disjoint_and_complete (__main__.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 50.736s
+
+OK

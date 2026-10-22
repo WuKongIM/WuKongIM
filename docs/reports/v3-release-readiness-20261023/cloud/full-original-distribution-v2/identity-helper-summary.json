@@ -1,0 +1,113 @@
+{
+  "catalog": 2000,
+  "cloud_calls": 0,
+  "expired_samples_selected": 3,
+  "initial_population": {
+    "exclusive_last_index": 10000,
+    "first_index": 0
+  },
+  "limitations": [
+    "Only ordinary-group samples using original initial roster population are enumerated.",
+    "Unsupported domains, absent matches, or non-unique matches remain insufficient evidence.",
+    "A matching fingerprint identifies a candidate, not the delivery failure cause."
+  ],
+  "maximum_expired_samples": 16,
+  "mode": "offline_hash_transcription",
+  "network_requests": 0,
+  "repository_mutations": 0,
+  "results": [
+    {
+      "attempted_candidates": 3335,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 114
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "2efcbfa3df411300591fa4d22a48638c",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1731,
+          "target_group_index": 1731
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798130,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 0
+    },
+    {
+      "attempted_candidates": 3330,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 14
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "8ea8b0568129e91f2e24921fca3fcb07",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1766,
+          "target_group_index": 1766
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798030,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 2
+    },
+    {
+      "attempted_candidates": 3330,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 314
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "0db0904a5c1178a44b1596dfd762770d",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1646,
+          "target_group_index": 1646
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798330,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 2
+    }
+  ],
+  "run_id": "chat-20261021T214505Z-00299e37-rehearsal-1",
+  "schema": "wukongim/offline-initial-identity-summary/v1",
+  "seed": 1,
+  "selfcheck": false,
+  "source_sha256": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/bench/FLOW.md": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/bench/chatlifecycle/FLOW.md": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/bench/chatlifecycle/evidence.go": "3f630c9086b727ed7bab5b541c8ddab6fb7eca3fe89d06c32874f2983c12d852",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/bench/chatlifecycle/identity.go": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/bench/chatlifecycle/payload.go": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/bench/chatlifecycle/traffic.go": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/replay-anonymous-evidence.py": "bea56b5e773cbf3d81f741d42cc09ea572048ab91b63445868a5119343d56a7e"
+  },
+  "timing": {
+    "cpu_seconds": 0.036243,
+    "utc_end": "2026-10-22T19:05:15.249678+00:00",
+    "utc_start": "2026-10-22T19:05:15.213334+00:00",
+    "wall_seconds": 0.036244832910597324
+  },
+  "workers": 3
+}

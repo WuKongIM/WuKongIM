@@ -1,0 +1,44 @@
+{
+  "schema": "wukongim/product-source-freeze-recheck/v1",
+  "at_utc": "2026-10-22T19:13:42.003518+00:00",
+  "files": [
+    {
+      "path": "internal/bench/chatlifecycle/identity.go",
+      "expected_sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "actual_sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "unchanged": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/groups.go",
+      "expected_sha256": "b94b7a3a107e9b7470603051a15ffba073de718d2ca01dd0ca183fb61727f047",
+      "actual_sha256": "b94b7a3a107e9b7470603051a15ffba073de718d2ca01dd0ca183fb61727f047",
+      "unchanged": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/payload.go",
+      "expected_sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+      "actual_sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+      "unchanged": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/traffic.go",
+      "expected_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "actual_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "unchanged": true
+    },
+    {
+      "path": "internal/runtime/delivery/runtime.go",
+      "expected_sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b",
+      "actual_sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b",
+      "unchanged": true
+    },
+    {
+      "path": "internal/infra/cluster/presence.go",
+      "expected_sha256": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+      "actual_sha256": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+      "unchanged": true
+    }
+  ],
+  "all_unchanged": true,
+  "scope": "Exact product/benchmark source files frozen before tests; Git status separately confirms only E2E documentation and new test package changed."
+}

@@ -1,0 +1,22 @@
+{
+  "observed_at_utc": "2026-10-22T19:02:19.237259+00:00",
+  "head": "e0982275c158b5bd69520c42719ce6f833ee63bc",
+  "reviewed_head": "b8fc6d5e384630ef1d4c0f00281a836d115456e8",
+  "head_and_reviewed_tree": "05fe9cc3727ad49b41e8b197adc8eb0fb99e54d5",
+  "source_pr_after_sha256": "2ea5be48a99ae5d1a96508b4af0a7305748fb0b0011a45767b462f44e46f6aa7",
+  "merged_at": "2026-10-22T18:59:40Z",
+  "prior_groups": {
+    "pr80-ci-generation-1": {
+      "manifest_sha256": "cd5129184e1d41a7bc5d7c83f82ca74e267855d291defd3b326f155c7cdd88de",
+      "archive_summary_sha256": "8436708fecdc95c5672867f0ca8b78b5337e240dac0ff53342294349184bbdf0"
+    },
+    "pr80-ci-generation-2": {
+      "manifest_sha256": "226acc146923a91f05fdaa8a8a29144e4e9514d8d6f57506492307c5d8ad1ed6",
+      "archive_summary_sha256": "c145ec5be4103d548dacf04daebf2e424f34fa5e5d59be333abbdacca62059d2"
+    }
+  },
+  "read_only": true,
+  "dispatches": 0,
+  "reruns": 0,
+  "merges": 0
+}

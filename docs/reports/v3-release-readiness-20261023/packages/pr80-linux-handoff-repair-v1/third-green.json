@@ -1,0 +1,5 @@
+{
+  "exit_code": 0,
+  "command": "python3 -m unittest discover -s tests -p test_object_storage_delivery_inputs.py -v",
+  "reason": "Mac Bash3.2 does not apply errexit to the tested false regex builtin; explicit exit rejects invalid identity"
+}

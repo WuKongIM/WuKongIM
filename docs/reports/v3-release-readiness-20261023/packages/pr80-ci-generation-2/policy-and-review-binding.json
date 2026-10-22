@@ -1,0 +1,24 @@
+{
+  "head": "b8fc6d5e384630ef1d4c0f00281a836d115456e8",
+  "reviewed_working_copy_freeze": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-linux-handoff-repair-v1/final-source-freeze.json",
+  "reviewed_freeze_sha256": "1feb1c693287eee6dec5261d72b26b41aa2c8840cf7615d05b771adba7907bb2",
+  "reviewed_four_file_bytes_match_new_commit": true,
+  "files": {
+    ".github/workflows/native-package-repository-drill.yml": "01a6f86b4ca7b5551d03a17b0d5d362c2fbec1d670a7a710021b2f3d46bc6caf",
+    "CHANGELOG.md": "6b6618938faf5009c0e521369c317656c4fd9c81bd17890955549605762ca3aa",
+    "docs/object-storage-delivery.md": "4d012ab8e4f66b3692f8128db3a40a48853aeaad62cdb45bd41793d83345a3e5",
+    "tests/test_object_storage_delivery_inputs.py": "7a1d799c76d1efb9cfd95b48b27d575f68b7fac2222357198a07047b7d3f86a1"
+  },
+  "applicable_package_agents_or_flow": [],
+  "rule_and_workflow_sources": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.github/workflows/README.md": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/docs/release-contract.md": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/docs/object-storage-delivery.md": "4d012ab8e4f66b3692f8128db3a40a48853aeaad62cdb45bd41793d83345a3e5",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/.github/workflows/native-package-repository-drill.yml": "01a6f86b4ca7b5551d03a17b0d5d362c2fbec1d670a7a710021b2f3d46bc6caf",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/.github/workflows/object-storage-provider-contract.yml": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/.github/workflows/pages.yml": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719"
+  },
+  "source_worktree_clean": true,
+  "read_only_monitor": true
+}

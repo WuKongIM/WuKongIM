@@ -1,0 +1,194 @@
+{
+  "identity": {
+    "source_sha": "2f7e1df8492c98255092ae69c813def0c5703fe1",
+    "policy_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+    "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "event": "pull_request",
+    "run_id": "39832747504",
+    "run_attempt": "1"
+  },
+  "result": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 2748,
+    "output_bytes": 1507221,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 2748,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 575.414
+  },
+  "command": {
+    "arguments": [
+      "go",
+      "test",
+      "-tags=integration",
+      "./scripts/...",
+      "-count=1",
+      "-timeout=9m",
+      "-parallel=2"
+    ],
+    "working_dir": ".",
+    "timeout_seconds": 600,
+    "max_output_bytes": 8388608,
+    "named_check": "scripts-integration",
+    "environment": {
+      "GOWORK": "off",
+      "GOFLAGS": "-p=2 -json"
+    }
+  },
+  "json_events": 6322,
+  "test_pass_events": 1317,
+  "package_pass_events": 7,
+  "target_events": [
+    {
+      "line": 1798,
+      "event": {
+        "Time": "2026-10-22T18:38:24.455746095Z",
+        "Action": "run",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestChatLifecycleTerminalEvidenceRetention"
+      }
+    },
+    {
+      "line": 1799,
+      "event": {
+        "Time": "2026-10-22T18:38:24.455751565Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestChatLifecycleTerminalEvidenceRetention",
+        "Output": "=== RUN   TestChatLifecycleTerminalEvidenceRetention\n"
+      }
+    },
+    {
+      "line": 1800,
+      "event": {
+        "Time": "2026-10-22T18:38:24.455761744Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestChatLifecycleTerminalEvidenceRetention",
+        "Output": "=== PAUSE TestChatLifecycleTerminalEvidenceRetention\n"
+      }
+    },
+    {
+      "line": 1801,
+      "event": {
+        "Time": "2026-10-22T18:38:24.455765821Z",
+        "Action": "pause",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestChatLifecycleTerminalEvidenceRetention"
+      }
+    },
+    {
+      "line": 5790,
+      "event": {
+        "Time": "2026-10-22T18:44:33.969973429Z",
+        "Action": "cont",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestChatLifecycleTerminalEvidenceRetention"
+      }
+    },
+    {
+      "line": 5791,
+      "event": {
+        "Time": "2026-10-22T18:44:33.969977506Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestChatLifecycleTerminalEvidenceRetention",
+        "Output": "=== CONT  TestChatLifecycleTerminalEvidenceRetention\n"
+      }
+    },
+    {
+      "line": 5808,
+      "event": {
+        "Time": "2026-10-22T18:45:01.540278811Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestChatLifecycleTerminalEvidenceRetention",
+        "Output": "--- PASS: TestChatLifecycleTerminalEvidenceRetention (27.57s)\n"
+      }
+    },
+    {
+      "line": 5809,
+      "event": {
+        "Time": "2026-10-22T18:45:01.540319507Z",
+        "Action": "pass",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestChatLifecycleTerminalEvidenceRetention",
+        "Elapsed": 27.57
+      }
+    }
+  ],
+  "skip_events": [
+    {
+      "line": 3014,
+      "event": {
+        "Time": "2026-10-22T18:38:57.013856476Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestDockerImageRuntimeContract",
+        "Elapsed": 0
+      }
+    },
+    {
+      "line": 3039,
+      "event": {
+        "Time": "2026-10-22T18:38:57.055955883Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestDockerImageEmbeddedPrometheus",
+        "Elapsed": 0
+      }
+    },
+    {
+      "line": 3268,
+      "event": {
+        "Time": "2026-10-22T18:38:57.954977383Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestEasySDKReadinessSerialDelayFixture",
+        "Elapsed": 0
+      }
+    },
+    {
+      "line": 3545,
+      "event": {
+        "Time": "2026-10-22T18:39:27.56894833Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageLifecycle",
+        "Elapsed": 0
+      }
+    },
+    {
+      "line": 3550,
+      "event": {
+        "Time": "2026-10-22T18:39:27.568975471Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageSignedRepository",
+        "Elapsed": 0
+      }
+    },
+    {
+      "line": 3559,
+      "event": {
+        "Time": "2026-10-22T18:39:27.941908679Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageRepositoryDeadlineFixture",
+        "Elapsed": 0
+      }
+    }
+  ],
+  "fail_events": [],
+  "detailed_python_fixture_report_in_uploaded_members": false,
+  "note": "The wrapper consumes a temporary Python artifact and deletes it on test completion; uploaded evidence proves the Go test ran and passed, but does not retain its 23/80 per-case receipt."
+}

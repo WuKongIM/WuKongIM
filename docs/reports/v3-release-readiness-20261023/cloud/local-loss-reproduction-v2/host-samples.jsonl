@@ -1,0 +1,2 @@
+{"at_utc": "2026-10-22T18:34:53.610699+00:00", "sum_process_cpu_percent": 67.9, "sum_process_rss_kib": 27987840, "tracked_processes": [{"process": "go", "cpu_percent": 0.0, "rss_kib": 1984}, {"process": "com.docker.virtualization", "cpu_percent": 0.0, "rss_kib": 29936}]}
+{"at_utc": "2026-10-22T18:34:54.643009+00:00", "sum_process_cpu_percent": 143.4, "sum_process_rss_kib": 28067968, "tracked_processes": [{"process": "go", "cpu_percent": 33.7, "rss_kib": 65648}, {"process": "com.docker.virtualization", "cpu_percent": 0.0, "rss_kib": 29936}]}

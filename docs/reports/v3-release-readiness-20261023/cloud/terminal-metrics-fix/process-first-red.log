@@ -1,0 +1,15 @@
+test_registered_resource_families_survive_the_real_collector (fixture.CollectorTests.test_registered_resource_families_survive_the_real_collector) ... FAIL
+
+======================================================================
+FAIL: test_registered_resource_families_survive_the_real_collector (fixture.CollectorTests.test_registered_resource_families_survive_the_real_collector)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 230, in test_registered_resource_families_survive_the_real_collector
+    self.assertEqual(rc,0);self.assertTrue(m['complete'])
+    ~~~~~~~~~~~~~~~~^^^^^^
+AssertionError: 1 != 0
+
+----------------------------------------------------------------------
+Ran 1 test in 0.990s
+
+FAILED (failures=1)

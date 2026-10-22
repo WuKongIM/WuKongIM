@@ -1,0 +1,18 @@
+{
+  "pr": 1026,
+  "reviewed_head": "23cf3f8764c2b841128b1a80d79ba9f49f447549",
+  "merge_commit": "25a4765be7bed6696e1c9748142bdd61543b508c",
+  "merged_at": "2026-10-22T18:51:24Z",
+  "tree": "89011038f444c5e9c8bd95f4a6814868676b4501",
+  "exact_reviewed_tree_equal": true,
+  "target_contains_original_tip": true,
+  "protection_unchanged": true,
+  "method": "ordinary GitHub merge with exact head fence; no admin override",
+  "cleanup": {
+    "clean_worktree_removed": true,
+    "original_local_task_branch_deleted_without_force": true,
+    "target_ancestor_verified_locally": true,
+    "primary_checkout_unchanged": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+    "remote_task_branch_retained": true
+  }
+}

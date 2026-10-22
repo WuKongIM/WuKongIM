@@ -1,0 +1,22 @@
+{
+  "at_utc": "2026-10-22T18:48:56.506433+00:00",
+  "script_sha256": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+  "cases": [
+    {
+      "case": "deadline",
+      "exit_status": -15,
+      "watchdog_state": "deadline_kill",
+      "owned_pgid": 72331,
+      "remaining_pids": [],
+      "passed": true
+    },
+    {
+      "case": "normal_cancel",
+      "exit_status": 0,
+      "watchdog_state": "cancelled_after_coordinator_exit",
+      "owned_pgid": 72380,
+      "remaining_pids": [],
+      "passed": true
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "head": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "tree": "a13367b2dc4658e6c27a1992f240544636e5178d",
+  "changed_paths": [
+    "CHANGELOG.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "scripts/chat-lifecycle/terminal-evidence.py",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py"
+  ],
+  "changed_sha256": {
+    "CHANGELOG.md": "4324775eddc8ce4e77e5b0fede22ab958a87333b2c42efd6e26618fa369b84d8",
+    "docs/development/PROJECT_KNOWLEDGE.md": "55180951c23da3c3f24295eb3702fae175f4030e7fb83814d8baa2b69d2fa5ca",
+    "scripts/chat-lifecycle/terminal-evidence.py": "117958af687e43a57cbc4ffed768debf2c7c96a8ca444a36c3e79111d598aee7",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py": "5119e738b84f67b398a590ac65375d48919263a18c66cdb807a9dc967e879bb4"
+  },
+  "rules_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+  "unchanged_budget_constants": {
+    "MAX_FILE_BYTES": 4194304,
+    "METRIC_TOTAL_BYTES": 25165824,
+    "METRIC_DEADLINE_SECONDS": 60
+  },
+  "fixed_partition_count": 8,
+  "first_five_partitions_unchanged": true,
+  "all_helper_function_asts_unchanged": true,
+  "workflow_policy_skill_changes": false,
+  "source_dirty_only_four_intended_paths": true,
+  "test_methods": 23,
+  "fixture_cases": 80,
+  "first_full_python_seconds": 50.812,
+  "commit_push_PR_performed": false,
+  "cloud_SSH_MCP_operations_performed": false
+}

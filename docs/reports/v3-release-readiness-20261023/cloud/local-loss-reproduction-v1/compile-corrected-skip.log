@@ -1,0 +1,4 @@
+# github.com/WuKongIM/WuKongIM/test/e2e/message/online_loss_reproduction [github.com/WuKongIM/WuKongIM/test/e2e/message/online_loss_reproduction.test]
+test/e2e/message/online_loss_reproduction/online_loss_reproduction_test.go:259:40: cannot use ack.MessageID (variable of type int64) as uint64 value in argument to strconv.FormatUint
+FAIL	github.com/WuKongIM/WuKongIM/test/e2e/message/online_loss_reproduction [build failed]
+FAIL

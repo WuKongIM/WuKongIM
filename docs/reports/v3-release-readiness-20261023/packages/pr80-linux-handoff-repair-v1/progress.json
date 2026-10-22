@@ -1,0 +1,8 @@
+{
+  "first_red": "18 tests, 8 failures after inert timeout harness correction",
+  "initial_harness_failure": "macOS timeout unavailable; preserved separately",
+  "green": "18 tests, zero failures after explicit identity refusal",
+  "contracts": "four contracts, pass",
+  "native_first_attempt": "incomplete; old M1 native producer verifier hash correctly rejected after PR79; no validation relaxation",
+  "outstanding": "fresh M1 -> real Linux UID native bundle read/cleanup -> full native SDK20"
+}

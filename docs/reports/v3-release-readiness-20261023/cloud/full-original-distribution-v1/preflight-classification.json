@@ -1,0 +1,22 @@
+{
+  "schema": "wukongim/local-full-preflight-failure/v1",
+  "at_utc": "2026-10-22T18:56:08.350226+00:00",
+  "failure_stage": "misapplied_deployment_only_validator",
+  "error_message": "chat-lifecycle deployment config must be formal soak",
+  "source_guard": "cmd/wkcli/internal/benchmark/bench_command.go:55",
+  "shared_strict_LoadConfig_completed_before_guard": true,
+  "local_soak_entry_exists": true,
+  "actual_local_entry": "wkcli bench soak chat-lifecycle --config <local.yaml> --output-dir <fresh/report>",
+  "correct_loader": "cmd/wkcli/internal/benchmark/chat_lifecycle_command.go:89",
+  "product_processes_started": 0,
+  "worker_processes_started": 0,
+  "messages_sent": 0,
+  "full_workload_natural_run_started": false,
+  "retry_attempted": false,
+  "missing_artifacts": [
+    "host-process-samples.jsonl",
+    "preflight.json",
+    "report/final.json"
+  ],
+  "reason_missing": "deployment validator refused before workload launch/host sampling"
+}

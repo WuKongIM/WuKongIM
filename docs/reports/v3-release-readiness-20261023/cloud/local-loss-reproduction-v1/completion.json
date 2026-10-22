@@ -1,0 +1,31 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-tags=e2e",
+    "./test/e2e/message/online_loss_reproduction",
+    "-run",
+    "^TestOrdinaryGroupNaturalDeliveryBaseline$",
+    "-count=1",
+    "-timeout=4m",
+    "-p=1",
+    "-v"
+  ],
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "test_only_changes": [
+    " M test/e2e/AGENTS.md",
+    " M test/e2e/message/AGENTS.md",
+    "?? test/e2e/message/online_loss_reproduction/"
+  ],
+  "files": {
+    "test/e2e/AGENTS.md": "dd0f3c56bc09393bae9b907f55ba8218d6a48607dc565295a12e5c354b731edc",
+    "test/e2e/message/AGENTS.md": "a1ae245903995b9c6b613916f933d60068f17b2459ff2cbaf150bb005a57e329",
+    "test/e2e/message/online_loss_reproduction/AGENTS.md": "a339dc0fc819fe0a18ba243b4f296ade67617717392937b771197e1b756f1dd9",
+    "test/e2e/message/online_loss_reproduction/online_loss_reproduction_test.go": "c1893a7837c6dcf0597749b470b00fab54cbdc718eaeba154b0971f28ec905f3"
+  },
+  "binary_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+  "began_at_utc": "2026-10-22T18:23:21.258731+00:00",
+  "concurrency_note": "packages Linux tmpfs reproduction completed before window; native/signing/SDK work paused by coordination; external shared-host activity is not isolated",
+  "exit_status": 1,
+  "finished_at_utc": "2026-10-22T18:24:43.426335+00:00"
+}

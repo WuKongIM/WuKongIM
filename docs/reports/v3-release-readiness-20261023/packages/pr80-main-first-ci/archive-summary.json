@@ -1,0 +1,7 @@
+{
+  "payload_files": 27,
+  "payload_bytes": 201183,
+  "manifest_entries": 28,
+  "manifest_sha256": "06555ecde49e463c82177d23f865c01f641e4b3c9d6b1fcc80d7d773d81ba9fe",
+  "result": "passed_first_main_pages_and_sdk"
+}

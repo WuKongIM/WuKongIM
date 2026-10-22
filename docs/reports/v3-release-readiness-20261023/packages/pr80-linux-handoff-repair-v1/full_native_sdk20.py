@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""Bounded current non-root Mac identity/native-container/host SDK acceptance."""
+import hashlib,json,os,shutil,stat,subprocess,time
+from pathlib import Path
+r=Path('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk');o=Path(__file__).resolve().parent;data=o/'native-complete';fixture=data/'public-fixture';work=data/'native-sdk-work';evidence=data/'native-sdk-evidence'
+assert os.getuid()!=0 and os.getgid()!=0
+work.mkdir(mode=0o700);evidence.mkdir(mode=0o700)
+m=json.loads((r/'manifests/signing-toolchain.json').read_bytes());head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=r,text=True).strip();name='wk-sdk-fixed-host-uid-20261023'
+args=['docker','run','--rm','--name',name,'--platform','linux/amd64','--init','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--user',f'{os.getuid()}:{os.getgid()}','--cpus','1','--memory','512m','--pids-limit','128','--tmpfs','/tmp:rw,nosuid,nodev,size=536870912','--volume',str(r)+':/control:ro','--volume',str(fixture)+':'+str(fixture)+':ro','--volume',str(work)+':'+str(work),'--volume',str(evidence)+':'+str(evidence),'--workdir','/tmp',m['image']+'@'+m['digest'],'python3','-B','/control/tests/provider_sdk/native_object_delivery_sdk_drill.py','prepare','--public-dir',str(fixture),'--work-dir',str(work),'--expected-export-source',head,'--source-sha',head,'--output',str(evidence/'native-preparation.json')]
+start=time.monotonic()
+try:p=subprocess.run(args,capture_output=True,text=True,timeout=180)
+finally:subprocess.run(['docker','rm','--force',name],capture_output=True,text=True)
+(o/'full20-native-command.json').write_text(json.dumps({'argv':args,'deadline_seconds':180,'elapsed_seconds':round(time.monotonic()-start,3),'exit_code':p.returncode},indent=2)+'\n');(o/'full20-native.log').write_text(p.stdout+p.stderr);assert p.returncode==0,p.stdout+p.stderr
+prep=json.loads((evidence/'native-preparation.json').read_bytes());assert prep['passed'] and len(prep['cases'])==2
+(o/'full20-handoff-modes.json').write_text(json.dumps({'host_uid':os.getuid(),'host_gid':os.getgid(),'filesystem_limit':'Mac Docker bind mapping; Linux UID enforcement is independently proven in linux-native-handoff-v3.json','paths':[{'path':str(path.relative_to(data)),'uid':path.lstat().st_uid,'gid':path.lstat().st_gid,'mode':oct(stat.S_IMODE(path.lstat().st_mode))} for path in [work,evidence,work/'prepared/resolved-A',work/'A']]},indent=2)+'\n')
+python='/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-venv/bin/python';args=[python,'-B',str(r/'tests/provider_sdk/native_object_delivery_sdk_drill.py'),'sdk','--bundle',str(work/'bundle.json'),'--bundle-sha256',prep['bundle_sha256'],'--source-sha',head,'--output',str(evidence/'native-sdk-result.json')]
+start=time.monotonic();p=subprocess.run(args,capture_output=True,text=True,timeout=120);(o/'full20-sdk-command.json').write_text(json.dumps({'argv':args,'deadline_seconds':120,'elapsed_seconds':round(time.monotonic()-start,3),'exit_code':p.returncode},indent=2)+'\n');(o/'full20-sdk.log').write_text(p.stdout+p.stderr)
+q=subprocess.run(['docker','container','ls','--all','--filter','name=^/'+name+'$','--format','{{.Names}}'],capture_output=True,text=True,check=True);assert not q.stdout.strip();removed=not work.exists();(o/'full20-cleanup.json').write_text(json.dumps({'container_removed':True,'scratch_removed':removed,'no_root_or_chown_cleanup':True},indent=2)+'\n');assert p.returncode==0,p.stdout+p.stderr
+result=json.loads((evidence/'native-sdk-result.json').read_bytes());assert result['passed'] and result['state']=='fixture_complete' and result['scratch_removed'] and len(result['cases'])==20 and all(c['passed'] for c in result['cases']);assert all(v is False for v in result['verification'].values());assert removed
+print(json.dumps({'test_only':True,'native_cases':2,'sdk_all_cases':20,'scratch_removed':removed,'container_removed':True,'production_enabled':False,'linux_ci_claimed':False}))

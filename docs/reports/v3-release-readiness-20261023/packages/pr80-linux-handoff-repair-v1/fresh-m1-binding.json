@@ -1,0 +1,20 @@
+{
+  "source_sha": "4d868f264fb4758f7451c058dd329a06ad460449",
+  "passed": true,
+  "scratch_removed": true,
+  "verification": {
+    "activation_authorized": false,
+    "cloud_verified": false,
+    "data_only_packages": true,
+    "fresh_production_auth_verified": false,
+    "github_provenance_verified": false,
+    "installed_cli_verified": false,
+    "native_preview_verified": true,
+    "native_stable_verified": true,
+    "public_clients_verified": false,
+    "sdk_integration_verified": false
+  },
+  "cases": 29,
+  "result_sha256": "463b4ba9936edbd58c61513b2afdf38aea48d56bcc6d7ea61208c102d83f53a7",
+  "export_sha256": "0d4167d5b1bf32c9182aa555d0813515d3acd375ff2a6e42ebb3b1247e038881"
+}

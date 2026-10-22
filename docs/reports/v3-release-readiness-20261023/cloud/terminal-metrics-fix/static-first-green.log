@@ -1,0 +1,11 @@
+test_diagnostic_metric_names_are_exact_and_disjoint (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_diagnostic_metric_names_are_exact_and_disjoint) ... ok
+test_metric_deadline_stops_requests_and_retains_first_partition (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_metric_deadline_stops_requests_and_retains_first_partition) ... ok
+test_metric_total_transfer_budget_is_shared (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_metric_total_transfer_budget_is_shared) ... ok
+test_registered_counter_names_follow_exported_aliases (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_registered_counter_names_follow_exported_aliases) ... ok
+test_registered_resource_matrices_retain_exact_bytes_without_extra_queries (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_registered_resource_matrices_retain_exact_bytes_without_extra_queries) ... ok
+test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.010s
+
+OK

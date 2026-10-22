@@ -1,0 +1,32 @@
+{
+  "axis": "Standards",
+  "base_head": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "commit_list": [],
+  "diff_command": "git diff HEAD -- CHANGELOG.md docs/development/PROJECT_KNOWLEDGE.md scripts/chat-lifecycle/terminal-evidence.py scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+  "untracked_files": [],
+  "source_sha256": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    "docs/agents/issue-tracker.md": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+    "CHANGELOG.md": "4324775eddc8ce4e77e5b0fede22ab958a87333b2c42efd6e26618fa369b84d8",
+    "docs/development/PROJECT_KNOWLEDGE.md": "55180951c23da3c3f24295eb3702fae175f4030e7fb83814d8baa2b69d2fa5ca",
+    "scripts/chat-lifecycle/terminal-evidence.py": "117958af687e43a57cbc4ffed768debf2c7c96a8ca444a36c3e79111d598aee7",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py": "5119e738b84f67b398a590ac65375d48919263a18c66cdb807a9dc967e879bb4",
+    "scripts/chat_lifecycle_terminal_evidence_integration_test.go": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2"
+  },
+  "evidence_manifest_sha256": "98e543074a03664811c095e0e8e18f88da07df4f5d17e01e9236972f4d4c74e8",
+  "verified_manifest_entries": 24,
+  "binding_sha256": "f68cc0c23f79560a29e5a93ca2b5066a03a1101b56c9c5abbcf41e6f91125f45",
+  "helper_function_asts_unchanged": true,
+  "budget_constant_asts_unchanged": {
+    "MAX_FILE_BYTES": "BinOp(left=Constant(value=4), op=LShift(), right=Constant(value=20))",
+    "METRIC_TOTAL_BYTES": "BinOp(left=Constant(value=24), op=LShift(), right=Constant(value=20))",
+    "METRIC_DEADLINE_SECONDS": "Constant(value=60)"
+  },
+  "review_sha256": "af74f77a9fbb925b6c2cf76d72d6a3cc291521b68608e73e51d844a12775437c",
+  "findings": 0,
+  "highest_severity": null,
+  "reviewer_test_runs": 0,
+  "cloud_operations": 0,
+  "verification_note": "First reviewer verification attempt used ast.literal_eval on existing shift expressions and failed before report creation; repeated with structural AST comparison. No repository mutation occurred."
+}

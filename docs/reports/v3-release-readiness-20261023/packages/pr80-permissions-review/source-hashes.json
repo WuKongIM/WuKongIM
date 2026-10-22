@@ -1,0 +1,33 @@
+{
+  "axis": "Standards",
+  "head": "4d868f264fb4758f7451c058dd329a06ad460449",
+  "base": "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+  "scope": "four-file working-copy increment only",
+  "patch_sha256": "917398282c69ebb4800e46b98bed98c3772bec6f7fa892ebf531f5a17f579561",
+  "files": {
+    ".github/workflows/native-package-repository-drill.yml": "01a6f86b4ca7b5551d03a17b0d5d362c2fbec1d670a7a710021b2f3d46bc6caf",
+    "CHANGELOG.md": "6b6618938faf5009c0e521369c317656c4fd9c81bd17890955549605762ca3aa",
+    "docs/object-storage-delivery.md": "4d012ab8e4f66b3692f8128db3a40a48853aeaad62cdb45bd41793d83345a3e5",
+    "tests/test_object_storage_delivery_inputs.py": "7a1d799c76d1efb9cfd95b48b27d575f68b7fac2222357198a07047b7d3f86a1"
+  },
+  "standards_sources": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.github/workflows/README.md": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/docs/release-contract.md": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/docs/object-storage-delivery.md": "4d012ab8e4f66b3692f8128db3a40a48853aeaad62cdb45bd41793d83345a3e5",
+    "/Users/tt/.agents/skills/code-review/SKILL.md": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143"
+  },
+  "applicable_package_agents_or_flow": [],
+  "staged_files": [],
+  "untracked_files": [],
+  "freeze_source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-linux-handoff-repair-v1/final-source-freeze.json",
+  "freeze_source_sha256": "1feb1c693287eee6dec5261d72b26b41aa2c8840cf7615d05b771adba7907bb2",
+  "evidence_manifest_sha256": "95a44566fceb316a4c72b7456003634aad066db968fec76e7150bfb49182e070",
+  "evidence_manifest_files_verified": 58,
+  "evidence_manifest_failures": 0,
+  "tests_rerun": false,
+  "cloud_operations": false,
+  "findings": 0,
+  "highest_severity": null,
+  "report_sha256": "3c0d5d86492851c77ae2f4f05e0a2d760785a7f03129f2311fa7af8753bd6649"
+}

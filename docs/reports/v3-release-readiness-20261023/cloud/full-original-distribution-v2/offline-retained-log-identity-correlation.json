@@ -1,0 +1,153 @@
+{
+  "all_delivery_plan_incomplete_warnings": {
+    "count": 256,
+    "phase_counts": {
+      "owner_push": 2,
+      "presence": 254
+    },
+    "unparsed_count": 0
+  },
+  "at_utc": "2026-10-22T19:06:30.945255+00:00",
+  "cloud_calls": 0,
+  "conclusion": {
+    "expired_ordinary_group_samples_retained": 3,
+    "missing_sampled_recv_reproduced_from_terminal_evidence": true,
+    "same_mechanism_as_original_proven": false,
+    "same_roster_group_presence_errors_are_correlated_evidence_only": true
+  },
+  "limitations": [
+    "Retained worker expired-correlation evidence establishes sampled RECV non-observation after accepted SEND, not physical packet loss location.",
+    "A warning UID modulo the original 2000-group roster associates its roster group; the warning lacks exact target ChannelID and ClientMsgNo.",
+    "Same-group warnings do not establish that the warning belongs to the expired logical SEND.",
+    "No live history/API, storage, packet capture, RECV arrival, or verifier-consumption evidence was collected.",
+    "Raw identifiers are omitted from this report and stdout.",
+    "Warning timestamps are retained as written; log lines have no explicit UTC offset."
+  ],
+  "mode": "offline_retained_files_only",
+  "network_requests": 0,
+  "process_starts": 0,
+  "repository_mutations": 0,
+  "results": [
+    {
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 114
+      },
+      "exact_channel_id_log_match_count": 0,
+      "exact_channel_id_log_matches": [],
+      "exact_client_msg_no_log_match_count": 0,
+      "exact_client_msg_no_log_matches": [],
+      "exact_message_evidence": "absent_from_existing_node_logs",
+      "fingerprint": "2efcbfa3df411300591fa4d22a48638c",
+      "same_mechanism_proven": false,
+      "same_roster_group_presence_error_count": 1,
+      "same_roster_group_warning_count": 1,
+      "same_roster_group_warnings": [
+        {
+          "error_class": "deadline_exceeded",
+          "file": "logs/node1/app.log",
+          "line": 57,
+          "owner_node_id": 0,
+          "phase": "presence",
+          "recipients": 465,
+          "result": "timeout",
+          "timestamp": "2026-10-23 03:01:36.212",
+          "warning_uid_roster_group_index": 1731
+        }
+      ],
+      "sample_index": 9223380832947798130,
+      "sender_user_index": 1731,
+      "target_group_index": 1731,
+      "worker_id": 0
+    },
+    {
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 14
+      },
+      "exact_channel_id_log_match_count": 0,
+      "exact_channel_id_log_matches": [],
+      "exact_client_msg_no_log_match_count": 0,
+      "exact_client_msg_no_log_matches": [],
+      "exact_message_evidence": "absent_from_existing_node_logs",
+      "fingerprint": "8ea8b0568129e91f2e24921fca3fcb07",
+      "same_mechanism_proven": false,
+      "same_roster_group_presence_error_count": 1,
+      "same_roster_group_warning_count": 1,
+      "same_roster_group_warnings": [
+        {
+          "error_class": "deadline_exceeded",
+          "file": "logs/node3/app.log",
+          "line": 79,
+          "owner_node_id": 0,
+          "phase": "presence",
+          "recipients": 199,
+          "result": "timeout",
+          "timestamp": "2026-10-23 03:01:36.429",
+          "warning_uid_roster_group_index": 1766
+        }
+      ],
+      "sample_index": 9223380832947798030,
+      "sender_user_index": 1766,
+      "target_group_index": 1766,
+      "worker_id": 2
+    },
+    {
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 314
+      },
+      "exact_channel_id_log_match_count": 0,
+      "exact_channel_id_log_matches": [],
+      "exact_client_msg_no_log_match_count": 0,
+      "exact_client_msg_no_log_matches": [],
+      "exact_message_evidence": "absent_from_existing_node_logs",
+      "fingerprint": "0db0904a5c1178a44b1596dfd762770d",
+      "same_mechanism_proven": false,
+      "same_roster_group_presence_error_count": 1,
+      "same_roster_group_warning_count": 1,
+      "same_roster_group_warnings": [
+        {
+          "error_class": "deadline_exceeded",
+          "file": "logs/node2/app.log",
+          "line": 155,
+          "owner_node_id": 0,
+          "phase": "presence",
+          "recipients": 177,
+          "result": "timeout",
+          "timestamp": "2026-10-23 03:01:39.136",
+          "warning_uid_roster_group_index": 1646
+        }
+      ],
+      "sample_index": 9223380832947798330,
+      "sender_user_index": 1646,
+      "target_group_index": 1646,
+      "worker_id": 2
+    }
+  ],
+  "run_id": "chat-20261021T214505Z-00299e37-rehearsal-1",
+  "schema": "wukongim/offline-retained-log-identity-correlation/v1",
+  "source_sha256": {
+    "PRIVATE_matches.json": "f1ccbbe9c2bba84e641015668f58458a7db51b3367c415f5e92b19c2d375f78f",
+    "identity-helper-summary.json": "f3337cfeb8bb378bb24d12957fce56a06e9df2a69b56015077b794e7e181df7a",
+    "logs/node1/app.log": "5d96cea83806893c0d158393b336061950df5aded04af3e92cec09699c8a54cf",
+    "logs/node2/app.log": "603b36c2b6b5141dd4346928232b8ab528789bc66e5b9ea4af5e46cc0fdfca48",
+    "logs/node3/app.log": "790a4bdde73a3384e8af59199b6a56d705e84a845953ff0c56f1755c02524e53",
+    "report/worker-evidence.json": "5bd9e723db6b6ab9b0802fbba79974ab14d8c852fa7140059d92db30ab70758f"
+  },
+  "terminal_worker_evidence": {
+    "class3_counts_by_worker": {
+      "0": 1,
+      "1": 0,
+      "2": 2
+    },
+    "expired_retained_unique_examples": 3,
+    "schema": "wukongim/chat-lifecycle-worker-evidence/v1"
+  }
+}

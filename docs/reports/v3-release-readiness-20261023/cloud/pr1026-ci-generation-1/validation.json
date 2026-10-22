@@ -1,0 +1,265 @@
+{
+  "head": "23cf3f8764c2b841128b1a80d79ba9f49f447549",
+  "actual_checkout": "2f7e1df8492c98255092ae69c813def0c5703fe1",
+  "tree": "89011038f444c5e9c8bd95f4a6814868676b4501",
+  "actual_checkout_tree_equals_reviewed_head": true,
+  "runs": [
+    {
+      "id": 39832747504,
+      "conclusion": "success",
+      "attempt": 1,
+      "jobs": [
+        {
+          "id": 120012910672,
+          "name": "Candidate scripts integration",
+          "conclusion": "success"
+        },
+        {
+          "id": 120012911009,
+          "name": "Candidate default suite (go-unit)",
+          "conclusion": "success"
+        },
+        {
+          "id": 120015660318,
+          "name": "Candidate migration and messaging E2E",
+          "conclusion": "success"
+        }
+      ],
+      "artifact_inventory_count": 3
+    },
+    {
+      "id": 39832747798,
+      "conclusion": "success",
+      "attempt": 1,
+      "jobs": [
+        {
+          "id": 120012914199,
+          "name": "PR three-node correctness",
+          "conclusion": "success"
+        },
+        {
+          "id": 120012914646,
+          "name": "PR messaging unit and race",
+          "conclusion": "success"
+        },
+        {
+          "id": 120012914759,
+          "name": "PR performance baseline evidence",
+          "conclusion": "success"
+        },
+        {
+          "id": 120012916266,
+          "name": "Fixed Linux SEND diagnosis",
+          "conclusion": "skipped"
+        },
+        {
+          "id": 120012916462,
+          "name": "Nightly direct 500 QPS qualification",
+          "conclusion": "skipped"
+        },
+        {
+          "id": 120013053743,
+          "name": "PR 500 QPS / mixed-send",
+          "conclusion": "success"
+        },
+        {
+          "id": 120013053755,
+          "name": "PR 500 QPS / tcp-sendack",
+          "conclusion": "success"
+        },
+        {
+          "id": 120013054533,
+          "name": "PR 500 QPS / channel-append",
+          "conclusion": "success"
+        },
+        {
+          "id": 120015775680,
+          "name": "PR three-node regression",
+          "conclusion": "success"
+        }
+      ],
+      "artifact_inventory_count": 4
+    }
+  ],
+  "checks": {
+    "success": 11,
+    "event_skipped": 2,
+    "total": 13
+  },
+  "downloaded_artifacts": {
+    "count": 6,
+    "total_zip_bytes": 403275,
+    "all_downloaded_size_api_sha_crc_members_verified": true,
+    "members": 80
+  },
+  "excluded_large_artifact": {
+    "id": 12448689740,
+    "declared_bytes": 230287344,
+    "state": "not_downloaded",
+    "bytes_size_sha_crc_not_verified": true,
+    "reason": "larger than explicit 16 MiB small public evidence cap; success job log/API retained"
+  },
+  "default_suite": {
+    "passed_package_summaries": 219,
+    "no_test_file_package_summaries": 15,
+    "failed_package_summaries": [],
+    "skip_output_lines": [],
+    "summary_line_source": "default suite stdout-stderr.log; counts are packages, not individual tests"
+  },
+  "scripts": {
+    "elapsed_seconds": 575.414,
+    "test_pass_events": 1317,
+    "package_pass_events": 7,
+    "skip_tests": [
+      "TestDockerImageRuntimeContract",
+      "TestDockerImageEmbeddedPrometheus",
+      "TestEasySDKReadinessSerialDelayFixture",
+      "TestNativePackageLifecycle",
+      "TestNativePackageSignedRepository",
+      "TestNativePackageRepositoryDeadlineFixture"
+    ],
+    "target_go_test_elapsed_seconds": 27.57,
+    "uploaded_python_23_80_detail_receipt": false
+  },
+  "e2e_case_elapsed_seconds": {
+    "build": 106.145,
+    "ordinary_history": 111.668,
+    "cross_node_delivery": 45.591,
+    "self_chat": 38.086
+  },
+  "e2e_skip_tests": [
+    "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS"
+  ],
+  "performance": {
+    "500qps-channel-append": {
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 35.746497,
+          "scheduled_to_start_p99_ms": 1.076253,
+          "service_p99_ms": 35.130242
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 6.257031,
+          "scheduled_to_start_p99_ms": 1.075103,
+          "service_p99_ms": 4.250406
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 9.453793,
+          "scheduled_to_start_p99_ms": 1.127793,
+          "service_p99_ms": 6.558446
+        }
+      ]
+    },
+    "500qps-mixed-send": {
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 12.709438,
+          "scheduled_to_start_p99_ms": 1.270169,
+          "service_p99_ms": 11.364027
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 14.980952,
+          "scheduled_to_start_p99_ms": 1.535337,
+          "service_p99_ms": 13.965951
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 15.327452,
+          "scheduled_to_start_p99_ms": 1.653043,
+          "service_p99_ms": 14.567476
+        }
+      ]
+    },
+    "500qps-tcp-sendack": {
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.297933,
+          "scheduled_to_start_p99_ms": 0.954521,
+          "service_p99_ms": 177.636386
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.345514,
+          "scheduled_to_start_p99_ms": 0.954934,
+          "service_p99_ms": 177.658763
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.305966,
+          "scheduled_to_start_p99_ms": 0.95607,
+          "service_p99_ms": 177.621137
+        }
+      ]
+    }
+  },
+  "native_preview_triggered": false,
+  "first_ci_failure": null,
+  "local_artifact_parser_assertion_preserved": "e2e-validation-first-assertion-boundary.json",
+  "reruns_dispatches_mutations_merges_local_tests_performed": false,
+  "qualification_limitations": [
+    "Python detailed 23/80 receipt consumed in temporary Go directory and not uploaded",
+    "Large three-node artifact not downloaded or byte-verified",
+    "Native package live/systemd/signed-repository tests skipped in scripts; native-preview not triggered",
+    "No 2000 QPS capacity, 2-hour rehearsal, 72-hour soak or message_loss root-cause qualification"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "observed_at_utc": "2026-10-22T19:02:56.578966+00:00",
+  "logs": [
+    {
+      "job_id": 120025083121,
+      "name": "provider-contract",
+      "conclusion": "success",
+      "bytes": 43120,
+      "sha256": "89f7e383724bd44953ce2cc82ff1e4902d6ff8e3c3149046cf5bc5d863d124cb",
+      "path": "logs/job-120025083121.log"
+    },
+    {
+      "job_id": 120025083053,
+      "name": "Validate complete Pages snapshot",
+      "conclusion": "success",
+      "bytes": 20401,
+      "sha256": "eee3096f1205f1c0af2aea29fef5c265855019bcf7353aa9a8cb7b0d93e2deee",
+      "path": "logs/job-120025083053.log"
+    }
+  ]
+}

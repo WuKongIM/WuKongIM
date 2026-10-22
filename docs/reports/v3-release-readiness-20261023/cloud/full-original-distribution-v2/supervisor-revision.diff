@@ -1,0 +1,25 @@
+--- full-v1/supervise.py
++++ full-v2/supervise.py
+@@ -169,10 +169,7 @@
+         built = subprocess.run(["go", "build", "-o", str(OUT / "bin/wkcli"), "./cmd/wkcli"], cwd=ROOT, env=env,
+             stdout=log, stderr=subprocess.STDOUT, timeout=max(1, 55 - (time.monotonic() - started_mono)))
+     assert built.returncode == 0
+-    with (OUT / "logs/validate-cli.log").open("w") as log:
+-        validated = subprocess.run([str(OUT / "bin/wkcli"), "bench", "validate", "chat-lifecycle", "--config", str(OUT / "original-distribution-local.yaml")],
+-            cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=5)
+-    assert validated.returncode == 0 and time.monotonic() - started_mono <= 60
++    assert time.monotonic() - started_mono <= 60
+     initial = samples()
+     assert not initial["other_wukongim_processes"]
+     preflight = {"at_utc": now().isoformat(), "source_revision": SOURCE, "os": sys.platform, "fd_limit": resource.getrlimit(resource.RLIMIT_NOFILE),
+--- full-v1/launcher.sh
++++ full-v2/launcher.sh
+@@ -2,7 +2,7 @@
+ set -euo pipefail
+ umask 077
+ ROOT_DIR='/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis'
+-RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1'
++RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2'
+ BASE_PORT=25000
+ READY_TIMEOUT=60
+ CLEANUP_TIMEOUT=15

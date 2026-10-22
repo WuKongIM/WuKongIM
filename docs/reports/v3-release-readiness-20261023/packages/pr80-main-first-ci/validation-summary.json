@@ -1,0 +1,149 @@
+{
+  "schema": "wukongim/pr80-main-first-ci/v1",
+  "observed_at_utc": "2026-10-22T19:04:29.749086+00:00",
+  "head": "e0982275c158b5bd69520c42719ce6f833ee63bc",
+  "reviewed_head": "b8fc6d5e384630ef1d4c0f00281a836d115456e8",
+  "head_and_reviewed_tree": "05fe9cc3727ad49b41e8b197adc8eb0fb99e54d5",
+  "actual_checkout": "e0982275c158b5bd69520c42719ce6f833ee63bc",
+  "all_attempt_1": true,
+  "all_runs_terminal": true,
+  "final_observation": {
+    "observed_at_utc": "20261022T190240Z",
+    "head": "e0982275c158b5bd69520c42719ce6f833ee63bc",
+    "runs": [
+      {
+        "id": 39836199206,
+        "status": "completed",
+        "conclusion": "success",
+        "attempt": 1,
+        "head_sha": "e0982275c158b5bd69520c42719ce6f833ee63bc",
+        "event": "push",
+        "jobs": [
+          {
+            "id": 120025083053,
+            "name": "Validate complete Pages snapshot",
+            "status": "completed",
+            "conclusion": "success",
+            "current_steps": []
+          },
+          {
+            "id": 120026239077,
+            "name": "Deploy complete Pages snapshot",
+            "status": "completed",
+            "conclusion": "skipped",
+            "current_steps": []
+          }
+        ]
+      },
+      {
+        "id": 39836199218,
+        "status": "completed",
+        "conclusion": "success",
+        "attempt": 1,
+        "head_sha": "e0982275c158b5bd69520c42719ce6f833ee63bc",
+        "event": "push",
+        "jobs": [
+          {
+            "id": 120025083121,
+            "name": "provider-contract",
+            "status": "completed",
+            "conclusion": "success",
+            "current_steps": []
+          }
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": 120026239077,
+        "name": "Deploy complete Pages snapshot",
+        "status": "completed",
+        "conclusion": "skipped",
+        "started_at": "2026-10-22T19:02:04Z",
+        "completed_at": "2026-10-22T19:02:04Z"
+      },
+      {
+        "id": 120025083121,
+        "name": "provider-contract",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-22T18:59:46Z",
+        "completed_at": "2026-10-22T19:00:05Z"
+      },
+      {
+        "id": 120025083053,
+        "name": "Validate complete Pages snapshot",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-22T18:59:46Z",
+        "completed_at": "2026-10-22T19:02:03Z"
+      }
+    ]
+  },
+  "pages": {
+    "default_tests": 595,
+    "default_skips": 0,
+    "default_seconds": 129.762,
+    "contract_tests": 4,
+    "configure_pages": "skipped",
+    "upload_pages_artifact": "skipped",
+    "deploy": "skipped",
+    "artifact_count": 0
+  },
+  "provider_sdk": {
+    "tests": 49,
+    "seconds": 1.298,
+    "skips": 0,
+    "failures": 0,
+    "errors": 0,
+    "input_tests": 18,
+    "input_seconds": 3.967,
+    "input_skips": 0,
+    "provider_network_allowed": false,
+    "receipt": "artifacts/12451480283-object-storage-sdk-contract/provider-contract-receipt.json",
+    "receipt_sha256": "058b170511ab54452baac78a4dcd5f5be609349a6e3b230fa27383cf75b272f4"
+  },
+  "full_job_logs": {
+    "job-120025083053.log": {
+      "bytes": 20401,
+      "sha256": "eee3096f1205f1c0af2aea29fef5c265855019bcf7353aa9a8cb7b0d93e2deee",
+      "actual_checkout": "e0982275c158b5bd69520c42719ce6f833ee63bc"
+    },
+    "job-120025083121.log": {
+      "bytes": 43120,
+      "sha256": "89f7e383724bd44953ce2cc82ff1e4902d6ff8e3c3149046cf5bc5d863d124cb",
+      "actual_checkout": "e0982275c158b5bd69520c42719ce6f833ee63bc"
+    }
+  },
+  "public_artifact_zips": [
+    {
+      "id": 12451480283,
+      "name": "object-storage-sdk-contract",
+      "bytes": 1682,
+      "sha256": "0452b451d36d9414d2c31f5743e7bb4de05d2967177e1bbe05e2dc2d71da79a3",
+      "members": 1
+    }
+  ],
+  "prior_groups": [
+    {
+      "group": "pr80-ci-generation-1",
+      "unchanged": true,
+      "manifest_entries_verified": 111,
+      "manifest_sha256": "cd5129184e1d41a7bc5d7c83f82ca74e267855d291defd3b326f155c7cdd88de"
+    },
+    {
+      "group": "pr80-ci-generation-2",
+      "unchanged": true,
+      "manifest_entries_verified": 218,
+      "manifest_sha256": "226acc146923a91f05fdaa8a8a29144e4e9514d8d6f57506492307c5d8ad1ed6"
+    }
+  ],
+  "read_only_monitor": true,
+  "source_mutations": 0,
+  "dispatches": 0,
+  "reruns": 0,
+  "merges": 0,
+  "cloud_nas_or_key_operations": false,
+  "production_stable_publication": false,
+  "limits": "Only the automatic main push Pages and SDK workflows ran. The native drill has no main-push trigger; its prior first-attempt evidence remains separate and the identical source tree is proved. These offline TEST ONLY results do not establish public stable publication, live CDN/OSS acceptance or a v3 GA release."
+}

@@ -1,0 +1,357 @@
+{
+  "cases": [
+    {
+      "case": "wrong-passphrase",
+      "passed": true
+    },
+    {
+      "case": "full-primary-secret",
+      "passed": true
+    },
+    {
+      "case": "apt-files",
+      "independent_public_verification": true,
+      "passed": true,
+      "receipt": {
+        "family": "apt",
+        "key": {
+          "family": "apt",
+          "historical_signing_subkey_fingerprints": [],
+          "maximum_lifetime_days": 180,
+          "minimum_valid_days": 30,
+          "next_signing_subkey_fingerprint": "FF016CEE1D9A86C2FC89924918E28F8B339EFD28",
+          "primary_fingerprint": "73276FCFDC603FA138E076231A4AECC25C46A45E",
+          "public_certificate_sha256": "ad48b9d30b8b70752423eb219317a7e0d398a777fbf5aed5300037c1f1273279",
+          "public_certificate_size": 1237,
+          "signing_subkey_created": "2026-10-22T18:40:05Z",
+          "signing_subkey_expires": "2026-12-21T18:40:05Z",
+          "signing_subkey_fingerprint": "D9330836A0962AD72DAD1F82BC036AD49DB5928B",
+          "validated": true
+        },
+        "result": {
+          "inrelease": {
+            "path": "dists/stable/InRelease",
+            "sha256": "ec03ea1c53c01f8158be42e8be4f28085338095da43102ef177c49dd05384ca7",
+            "size": 1284
+          },
+          "release": {
+            "path": "dists/stable/Release",
+            "sha256": "aba9ed249bf708f4fe2c16859062d0ac38fe28f88e8a624e72d9a5838f888885",
+            "size": 1007
+          },
+          "release_gpg": {
+            "path": "dists/stable/Release.gpg",
+            "sha256": "ff8f940644c35c78cad60ed7a5a9773d7b838069c9f78ce1b2f286a06929627f",
+            "size": 228
+          }
+        },
+        "schema": "wukongim/package-family-signing-receipt/v1"
+      }
+    },
+    {
+      "case": "apt-env",
+      "independent_public_verification": true,
+      "passed": true,
+      "receipt": {
+        "family": "apt",
+        "key": {
+          "family": "apt",
+          "historical_signing_subkey_fingerprints": [],
+          "maximum_lifetime_days": 180,
+          "minimum_valid_days": 30,
+          "next_signing_subkey_fingerprint": "FF016CEE1D9A86C2FC89924918E28F8B339EFD28",
+          "primary_fingerprint": "73276FCFDC603FA138E076231A4AECC25C46A45E",
+          "public_certificate_sha256": "ad48b9d30b8b70752423eb219317a7e0d398a777fbf5aed5300037c1f1273279",
+          "public_certificate_size": 1237,
+          "signing_subkey_created": "2026-10-22T18:40:05Z",
+          "signing_subkey_expires": "2026-12-21T18:40:05Z",
+          "signing_subkey_fingerprint": "D9330836A0962AD72DAD1F82BC036AD49DB5928B",
+          "validated": true
+        },
+        "result": {
+          "inrelease": {
+            "path": "dists/stable/InRelease",
+            "sha256": "8ebea47c408d972bfe5f0ef0a5c88afd624b6e137ef03fe79c8919ab8768a98f",
+            "size": 1284
+          },
+          "release": {
+            "path": "dists/stable/Release",
+            "sha256": "aba9ed249bf708f4fe2c16859062d0ac38fe28f88e8a624e72d9a5838f888885",
+            "size": 1007
+          },
+          "release_gpg": {
+            "path": "dists/stable/Release.gpg",
+            "sha256": "5129178d27ce29998efea353c4ec5e4a9c7c759b6b537cccc8c7ccf4ea3a7e3c",
+            "size": 228
+          }
+        },
+        "schema": "wukongim/package-family-signing-receipt/v1"
+      }
+    },
+    {
+      "case": "apt-stdin",
+      "independent_public_verification": true,
+      "passed": true,
+      "receipt": {
+        "family": "apt",
+        "key": {
+          "family": "apt",
+          "historical_signing_subkey_fingerprints": [],
+          "maximum_lifetime_days": 180,
+          "minimum_valid_days": 30,
+          "next_signing_subkey_fingerprint": "FF016CEE1D9A86C2FC89924918E28F8B339EFD28",
+          "primary_fingerprint": "73276FCFDC603FA138E076231A4AECC25C46A45E",
+          "public_certificate_sha256": "ad48b9d30b8b70752423eb219317a7e0d398a777fbf5aed5300037c1f1273279",
+          "public_certificate_size": 1237,
+          "signing_subkey_created": "2026-10-22T18:40:05Z",
+          "signing_subkey_expires": "2026-12-21T18:40:05Z",
+          "signing_subkey_fingerprint": "D9330836A0962AD72DAD1F82BC036AD49DB5928B",
+          "validated": true
+        },
+        "result": {
+          "inrelease": {
+            "path": "dists/stable/InRelease",
+            "sha256": "3d694f5577e0896916dfa79a65134aea159b05bd2ccb54c92fa001a48ce5c4dc",
+            "size": 1284
+          },
+          "release": {
+            "path": "dists/stable/Release",
+            "sha256": "aba9ed249bf708f4fe2c16859062d0ac38fe28f88e8a624e72d9a5838f888885",
+            "size": 1007
+          },
+          "release_gpg": {
+            "path": "dists/stable/Release.gpg",
+            "sha256": "745e259ac3016dea8f69c1da9f5ff50a5a54a8431c4e29bf22f1ea854ce3a463",
+            "size": 228
+          }
+        },
+        "schema": "wukongim/package-family-signing-receipt/v1"
+      }
+    },
+    {
+      "case": "apt-tampered-release",
+      "passed": true
+    },
+    {
+      "case": "rpm-files",
+      "independent_public_verification": true,
+      "passed": true,
+      "receipt": {
+        "family": "rpm",
+        "key": {
+          "family": "rpm",
+          "historical_signing_subkey_fingerprints": [],
+          "maximum_lifetime_days": 180,
+          "minimum_valid_days": 30,
+          "next_signing_subkey_fingerprint": "9CD041DC530791B89FB01D8423922A9F945AF799",
+          "primary_fingerprint": "A0659476D0BAFE527EE46B3BBA31A1102755B6F4",
+          "public_certificate_sha256": "5ab67c7d589bb55ede0a5ec667ed081d7b9c673dca6aa7a03ea2a411eaede51b",
+          "public_certificate_size": 4808,
+          "signing_subkey_created": "2026-10-22T18:40:16Z",
+          "signing_subkey_expires": "2026-12-21T18:40:16Z",
+          "signing_subkey_fingerprint": "5AF2B5D083232DE537A0902B8BF4830253081606",
+          "validated": true
+        },
+        "result": {
+          "active": [
+            {
+              "path": "Packages/wukongim.rpm",
+              "sha256": "96be64b9af2d5ed890d7202751fbb7b7dfa17993859e6ded877ad808c176c77d",
+              "size": 6211
+            }
+          ],
+          "new_unsigned_inputs": [
+            {
+              "path": "Packages/wukongim.rpm",
+              "sha256": "d502a5318cfc17fd90c15450a4d9427a5970fb4b25a0bf2b733b7067d691df69",
+              "size": 6211
+            }
+          ],
+          "newly_signed": [
+            {
+              "path": "Packages/wukongim.rpm",
+              "sha256": "96be64b9af2d5ed890d7202751fbb7b7dfa17993859e6ded877ad808c176c77d",
+              "size": 6211
+            }
+          ],
+          "preserved_signed": [],
+          "repodata": [
+            {
+              "path": "repodata/filelists.xml.gz",
+              "sha256": "c2165282eb01250ef35bfe69c3f3f7eb1cf03e8804a3dd29385483e9111fc047",
+              "size": 265
+            },
+            {
+              "path": "repodata/other.xml.gz",
+              "sha256": "5957fbcb6f5c6700c9bffba69d668417cfa35e90cd599ff0fd21ca25d947fbda",
+              "size": 230
+            },
+            {
+              "path": "repodata/primary.xml.gz",
+              "sha256": "caaccd30ad21aca64a527adbd853b916921feeeda992bce19fa77f9dfc2d91b8",
+              "size": 604
+            },
+            {
+              "path": "repodata/repomd.xml",
+              "sha256": "6bc5e0447ecf5c4a9be067fd6c8d8eef32fd904d5c2ab2cf4c7371f9c19b3a62",
+              "size": 1351
+            },
+            {
+              "path": "repodata/repomd.xml.asc",
+              "sha256": "27640c682ce6038ba2b5135977f4b31f74e103f92b718742f488779d99bc67a0",
+              "size": 659
+            }
+          ],
+          "repository": "stable/el/9/x86_64",
+          "retired": []
+        },
+        "schema": "wukongim/package-family-signing-receipt/v1"
+      }
+    },
+    {
+      "case": "rpm-env",
+      "independent_public_verification": true,
+      "passed": true,
+      "receipt": {
+        "family": "rpm",
+        "key": {
+          "family": "rpm",
+          "historical_signing_subkey_fingerprints": [],
+          "maximum_lifetime_days": 180,
+          "minimum_valid_days": 30,
+          "next_signing_subkey_fingerprint": "9CD041DC530791B89FB01D8423922A9F945AF799",
+          "primary_fingerprint": "A0659476D0BAFE527EE46B3BBA31A1102755B6F4",
+          "public_certificate_sha256": "5ab67c7d589bb55ede0a5ec667ed081d7b9c673dca6aa7a03ea2a411eaede51b",
+          "public_certificate_size": 4808,
+          "signing_subkey_created": "2026-10-22T18:40:16Z",
+          "signing_subkey_expires": "2026-12-21T18:40:16Z",
+          "signing_subkey_fingerprint": "5AF2B5D083232DE537A0902B8BF4830253081606",
+          "validated": true
+        },
+        "result": {
+          "active": [
+            {
+              "path": "Packages/wukongim.rpm",
+              "sha256": "00e35bce08f0e9fd5939ec784dfa5dc7c3c86ff152444f089f4758faa74a110c",
+              "size": 6211
+            }
+          ],
+          "new_unsigned_inputs": [
+            {
+              "path": "Packages/wukongim.rpm",
+              "sha256": "d502a5318cfc17fd90c15450a4d9427a5970fb4b25a0bf2b733b7067d691df69",
+              "size": 6211
+            }
+          ],
+          "newly_signed": [
+            {
+              "path": "Packages/wukongim.rpm",
+              "sha256": "00e35bce08f0e9fd5939ec784dfa5dc7c3c86ff152444f089f4758faa74a110c",
+              "size": 6211
+            }
+          ],
+          "preserved_signed": [],
+          "repodata": [
+            {
+              "path": "repodata/filelists.xml.gz",
+              "sha256": "4c6be129c0adfc94a5ed99e764e4eaaca884d9c0a708c41bb5ca579d1a4a5406",
+              "size": 265
+            },
+            {
+              "path": "repodata/other.xml.gz",
+              "sha256": "a0fc54ad6e103373530f27a7fbb825e33be4528a0110a6f22a22d09ffd14d505",
+              "size": 231
+            },
+            {
+              "path": "repodata/primary.xml.gz",
+              "sha256": "0017ff8c78b4a7bdbe1dc27a7b04baa0effb6f72371541742d284a33f6d08df4",
+              "size": 606
+            },
+            {
+              "path": "repodata/repomd.xml",
+              "sha256": "eb415338df87567798a227a4dff041c28fccb2dd95c691ff23f07dd122a4552e",
+              "size": 1351
+            },
+            {
+              "path": "repodata/repomd.xml.asc",
+              "sha256": "51be5710f598a24c409cd768889e666d711e98f7a075fef6e0faf0f9f1031190",
+              "size": 659
+            }
+          ],
+          "repository": "stable/el/9/x86_64",
+          "retired": []
+        },
+        "schema": "wukongim/package-family-signing-receipt/v1"
+      }
+    },
+    {
+      "case": "rpm-tampered-payload",
+      "passed": true
+    },
+    {
+      "case": "rpm-tampered-repomd",
+      "passed": true
+    }
+  ],
+  "control_files": {
+    "manifests/signing-toolchain.json": {
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+      "size": 295
+    },
+    "scripts/sign-package-family.py": {
+      "sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0",
+      "size": 38244
+    },
+    "scripts/validate-signing-material.py": {
+      "sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4",
+      "size": 34568
+    },
+    "tests/native_local_signing_drill.py": {
+      "sha256": "1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578",
+      "size": 22961
+    },
+    "tests/native_source_metadata_drill.py": {
+      "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b",
+      "size": 12447
+    },
+    "tests/test_validate_signing_material.py": {
+      "sha256": "ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe",
+      "size": 24911
+    }
+  },
+  "keys": {
+    "apt": {
+      "current": "D9330836A0962AD72DAD1F82BC036AD49DB5928B",
+      "next": "FF016CEE1D9A86C2FC89924918E28F8B339EFD28",
+      "primary": "73276FCFDC603FA138E076231A4AECC25C46A45E",
+      "public_certificate": {
+        "sha256": "ad48b9d30b8b70752423eb219317a7e0d398a777fbf5aed5300037c1f1273279",
+        "size": 1237
+      }
+    },
+    "rpm": {
+      "current": "5AF2B5D083232DE537A0902B8BF4830253081606",
+      "next": "9CD041DC530791B89FB01D8423922A9F945AF799",
+      "primary": "A0659476D0BAFE527EE46B3BBA31A1102755B6F4",
+      "public_certificate": {
+        "sha256": "5ab67c7d589bb55ede0a5ec667ed081d7b9c673dca6aa7a03ea2a411eaede51b",
+        "size": 4808
+      }
+    }
+  },
+  "passed": true,
+  "payloads_executed": false,
+  "production_keys_used": false,
+  "published": false,
+  "schema": "wukongim/test-only-native-local-signing/v1",
+  "secret_tree_removed_before_verification": true,
+  "source_inputs_unchanged": true,
+  "source_provenance_verified": false,
+  "test_only": true,
+  "tool_versions": {
+    "createrepo_c": "Version: 0.17.3 (Features: DeltaRPM LegacyWeakdeps )",
+    "dpkg-deb": "Debian 'dpkg-deb' package archive backend version 1.22.6 (amd64).",
+    "gpg": "gpg (GnuPG) 2.4.4",
+    "rpm": "RPM version 4.18.2"
+  }
+}

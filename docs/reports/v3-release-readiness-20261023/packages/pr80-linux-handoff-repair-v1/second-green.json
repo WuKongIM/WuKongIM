@@ -1,0 +1,5 @@
+{
+  "exit_code": 1,
+  "command": "python3 -m unittest discover -s tests -p test_object_storage_delivery_inputs.py -v",
+  "first_implementation_failure": "Mac Bash3.2 errexit ignores false [[...&&...]]; separate simple assertions make both checks fail closed"
+}

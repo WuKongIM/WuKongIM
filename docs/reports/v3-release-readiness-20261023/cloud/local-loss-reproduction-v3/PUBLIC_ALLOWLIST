@@ -1,0 +1,7 @@
+compile-skip.log
+invocation.json
+completion.json
+report.json
+host-samples.jsonl
+cleanup-receipt.json
+redacted-immediate-history-failure.json

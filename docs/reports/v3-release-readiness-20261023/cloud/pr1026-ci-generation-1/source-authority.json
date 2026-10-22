@@ -1,0 +1,39 @@
+{
+  "head": "23cf3f8764c2b841128b1a80d79ba9f49f447549",
+  "files": {
+    "AGENTS.md": {
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    ".github/workflows/README.md": {
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "bytes": 85960
+    },
+    ".github/workflows/v3-candidate-regression.yml": {
+      "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f",
+      "bytes": 13951
+    },
+    ".github/workflows/three-node-chat-lifecycle-regression.yml": {
+      "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71",
+      "bytes": 13037
+    },
+    ".github/workflows/native-package-preview.yml": {
+      "sha256": "a620e3d2345f670f701d6661869a33fe1673e32a66d02b1d1caf587cf343ccf2",
+      "bytes": 6230
+    },
+    ".github/review-agent/policy.json": {
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "bytes": 14492
+    },
+    "scripts/chat_lifecycle_terminal_evidence_integration_test.go": {
+      "sha256": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2",
+      "bytes": 4854
+    },
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py": {
+      "sha256": "5119e738b84f67b398a590ac65375d48919263a18c66cdb807a9dc967e879bb4",
+      "bytes": 36979
+    }
+  },
+  "applicable_flow": [],
+  "workflow_invocation_mutation_rerun": false
+}

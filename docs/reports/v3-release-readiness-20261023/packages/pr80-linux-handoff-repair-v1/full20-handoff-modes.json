@@ -1,0 +1,31 @@
+{
+  "host_uid": 501,
+  "host_gid": 20,
+  "filesystem_limit": "Mac Docker bind mapping; Linux UID enforcement is independently proven in linux-native-handoff-v3.json",
+  "paths": [
+    {
+      "path": "native-sdk-work",
+      "uid": 501,
+      "gid": 0,
+      "mode": "0o700"
+    },
+    {
+      "path": "native-sdk-evidence",
+      "uid": 501,
+      "gid": 0,
+      "mode": "0o700"
+    },
+    {
+      "path": "native-sdk-work/prepared/resolved-A",
+      "uid": 501,
+      "gid": 0,
+      "mode": "0o700"
+    },
+    {
+      "path": "native-sdk-work/A",
+      "uid": 501,
+      "gid": 0,
+      "mode": "0o755"
+    }
+  ]
+}

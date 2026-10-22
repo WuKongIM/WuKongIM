@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-tags=e2e",
+    "./test/e2e/message/online_loss_reproduction",
+    "-run",
+    "^TestOrdinaryGroupNaturalDeliveryBaseline$",
+    "-count=1",
+    "-timeout=4m",
+    "-p=1",
+    "-v"
+  ],
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "product_source_unchanged": true,
+  "files": {
+    "test/e2e/AGENTS.md": "dd0f3c56bc09393bae9b907f55ba8218d6a48607dc565295a12e5c354b731edc",
+    "test/e2e/message/AGENTS.md": "a1ae245903995b9c6b613916f933d60068f17b2459ff2cbaf150bb005a57e329",
+    "test/e2e/message/online_loss_reproduction/AGENTS.md": "348e57de370710ffee2d41d284ddedcacd6d942c9b4c01caeb3f65b5ec3c7a7b",
+    "test/e2e/message/online_loss_reproduction/online_loss_reproduction_test.go": "688478813a69344e486534a186ef90aeb5f0224d3d5fbec8acda2a11614a0fdb"
+  },
+  "binary_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+  "began_at_utc": "2026-10-22T18:40:44.843745+00:00",
+  "concurrency_note": "permission native/SDK and collector tests completed; quiet window coordinated; unrelated desktop activity remains shared-host uncertainty"
+}

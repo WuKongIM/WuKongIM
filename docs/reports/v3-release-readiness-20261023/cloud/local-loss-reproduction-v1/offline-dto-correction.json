@@ -1,0 +1,15 @@
+{
+  "schema": "wukongim/group-history-fixture-correction/v1",
+  "at_utc": "2026-10-22T18:26:42.773463+00:00",
+  "original_run_passed": false,
+  "classification": "test_fixture_decode_error",
+  "completed_acknowledged_sends": 7,
+  "completed_matched_receives": 28,
+  "original_complete_history_assertions_executed": false,
+  "saved_manager_response_sha256": "12b28c0089a8a662649309b66592c328f9f710294ad95c2e657f53cb4d47e985",
+  "offline_corrected_decimal_string_ids_match_all_wire_acks": true,
+  "offline_item_count": 7,
+  "offline_has_more": false,
+  "new_product_processes": 0,
+  "product_source_changes": 0
+}

@@ -1,0 +1,92 @@
+{
+  "schema": "wukongim/local-batch128-controlled-predictions/v1",
+  "status": "offline_proposal_only_not_started",
+  "question": "Does the local session batch cap of 1 materially cause the observed permission-cohort admission refusals under the original arrival distribution?",
+  "single_changed_effective_field": {
+    "field": "gateway.session_batch_max_records",
+    "A": 1,
+    "B": 128,
+    "meaning": "maximum batch records, not proof of actual 128-record batches; TOML and environment precedence must agree"
+  },
+  "keep_fixed": [
+    "product and CLI binary hashes/source79a",
+    "Darwin host and fresh data directories",
+    "seed1, 10000 online, 2000 groups and exact original workload bytes",
+    "2000 primary SEND/s and existing canaries",
+    "service GOMAXPROCS2, worker/coordinator/observer1",
+    "Slot compaction1000entries/5s",
+    "all queue/cohort/permission/RPC limits, timeouts, retry policy and verdict thresholds",
+    "existing bounded startup/measured/cleanup envelope",
+    "same finite observation schedule in compared arms; no profile cost in only one arm"
+  ],
+  "baseline_observations": {
+    "elapsed_seconds": 13.330270417,
+    "initial_cut_sent": 10003,
+    "initial_cut_seconds_approx": 5.034635,
+    "first_attempt_failures": 32,
+    "cohort_busy_by_node": [
+      0,
+      14,
+      18
+    ],
+    "expired": 3,
+    "delivery_timeout_by_node": [
+      81,
+      90,
+      85
+    ]
+  },
+  "manipulation_check": [
+    "pin exact input diff and resolve effective config after environment override",
+    "confirm source/binaries unchanged and no other worker/service run active",
+    "observe actual gateway batching when existing metrics expose it; otherwise state actual batch shape unknown",
+    "compare permission cohort_requests/cohorts/facts per admitted logical send, without treating missing counters as zero"
+  ],
+  "primary_measures": [
+    "first_attempt_failures and raw rejected SENDACK class/source",
+    "permission cohort_busy by node, active/owned calls/bytes with original caps",
+    "new logical SEND and successful logical ACK rates using actual measured duration plus bounded interval cuts",
+    "recipient queue/inflight and permission fresh-barrier/RPC duration counts/sums",
+    "sampled/delivered/expired separately from admission failures"
+  ],
+  "predictions_and_decisions": [
+    {
+      "observation": "B has the same effective/actual batch shape as A despite cap128, or another config/binary changed",
+      "interpretation": "Manipulation failed or comparison confounded. No conclusion on the batch hypothesis; preserve failure and do not silently change another variable."
+    },
+    {
+      "observation": "B materially changes batching/cohort formation, sustains comparable arrival exposure, and lowers cohort_busy/first failures while 3-type delivery expiry remains",
+      "interpretation": "Supports batch shape as a contributor to the 32 admission refusals. Delivery-expiry cause remains unresolved and independent."
+    },
+    {
+      "observation": "B changes batching/cohort formation and eliminates cohort_busy/first failure, with no sampled expiry for a longer bounded exposure",
+      "interpretation": "Supports a local batch contribution to congestion. One improved run does not prove cloud causality or a full correctness/72h performance pass; reverse/matched repeat is needed before claiming causal repeatability."
+    },
+    {
+      "observation": "B changes batching/cohort formation but comparable admission busy and failures persist",
+      "interpretation": "Weakens batch-cap-alone explanation. Inspect which original cohort credit is exhausted and fresh-barrier/RPC completion; do not raise caps or timeouts as a diagnostic substitute."
+    },
+    {
+      "observation": "B lowers offered/actual logical arrival rate, fails bootstrap, is stopped before comparable exposure, lacks complete observations, or loses source/process continuity",
+      "interpretation": "Inconclusive. Reduced counters do not establish improvement; retain explicit failed/incomplete result."
+    },
+    {
+      "observation": "B removes first failures but retains recipient320/320, queue1024/1024, RPC timeouts or hot-latency degradation",
+      "interpretation": "Separates front-end permission admission from downstream delivery pressure. Continue narrow diagnosis without treating the 32 and expired sets as the same event."
+    }
+  ],
+  "separate_followups_only_if_justified": [
+    "service GOMAXPROCS single-variable contrast after batch result, keeping worker cap and compaction fixed",
+    "Slot compaction contrast in a different experiment; do not combine it with batch/GOMAX",
+    "bounded existing latency/profile observation with matched schedule when a remaining bottleneck requires it"
+  ],
+  "cannot_prove": [
+    "cloud GOMAXPROCS or 4-host Linux capacity",
+    "causal identity join among rejected32, delivery_timeout256 and expired3",
+    "permanently dropped committed messages",
+    "signed native channel readiness or complete v3 GA publication"
+  ],
+  "new_run_started": false,
+  "cloud_operation_performed": false,
+  "product_source_changed": false
+}

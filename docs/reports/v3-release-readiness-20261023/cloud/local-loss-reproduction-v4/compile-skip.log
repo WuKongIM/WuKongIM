@@ -1,0 +1,5 @@
+=== RUN   TestOrdinaryGroupNaturalDeliveryBaseline
+    online_loss_reproduction_test.go:36: set WK_E2E_ONLINE_LOSS_REPRODUCTION=1 for the bounded group diagnostic
+--- SKIP: TestOrdinaryGroupNaturalDeliveryBaseline (0.00s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/test/e2e/message/online_loss_reproduction	0.556s

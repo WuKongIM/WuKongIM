@@ -1,0 +1,749 @@
+{
+  "snapshot": "/tmp/wukongim-v3-readiness-20261023/cloud/pr1026-ci-generation-1/polls/20261022T184752Z",
+  "logs": [
+    {
+      "id": 120012910672,
+      "name": "Candidate scripts integration",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 85603,
+      "sha256": "da406b741eb2df383181e2d1ed1020e80531aa8126d0c0b99f07e6553ec66aaa",
+      "actual_checkout_candidates": [
+        "2f7e1df8492c98255092ae69c813def0c5703fe1"
+      ]
+    },
+    {
+      "id": 120012911009,
+      "name": "Candidate default suite (go-unit)",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 85425,
+      "sha256": "f15a74afd9bf246ed63241b6dd786e95d5c5845747ee2307c68ae26b0d9bbd29",
+      "actual_checkout_candidates": [
+        "2f7e1df8492c98255092ae69c813def0c5703fe1"
+      ]
+    },
+    {
+      "id": 120015660318,
+      "name": "Candidate migration and messaging E2E",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 85704,
+      "sha256": "415cf5535284688c0c42c23f1ab560f42768b1cc0d476beb793b2dd28d25abe8",
+      "actual_checkout_candidates": [
+        "2f7e1df8492c98255092ae69c813def0c5703fe1"
+      ]
+    },
+    {
+      "id": 120012914199,
+      "name": "PR three-node correctness",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 86305,
+      "sha256": "4a4860ce3922bf5f7c382b9f121a2a855d109b971bc35ceb59c8c3a28cc175ca",
+      "actual_checkout_candidates": [
+        "2f7e1df8492c98255092ae69c813def0c5703fe1"
+      ]
+    },
+    {
+      "id": 120012914646,
+      "name": "PR messaging unit and race",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 80860,
+      "sha256": "f3bec4312810ad2881bd74e3905f5299a36d1266b5489a61ad1e6fa362c08672",
+      "actual_checkout_candidates": [
+        "2f7e1df8492c98255092ae69c813def0c5703fe1"
+      ]
+    },
+    {
+      "id": 120012914759,
+      "name": "PR performance baseline evidence",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 71313,
+      "sha256": "30174af5d0f3f87465d4d9560c3d56d7caadb0fed7dcee6e5e404e767bb4f2db",
+      "actual_checkout_candidates": [
+        "2f7e1df8492c98255092ae69c813def0c5703fe1"
+      ]
+    },
+    {
+      "id": 120013053743,
+      "name": "PR 500 QPS / mixed-send",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 85935,
+      "sha256": "c22df96ddf2c1b5bc467586536f5c2e6dc4e7dc8aa8b51275547184b4d72b7f2",
+      "actual_checkout_candidates": [
+        "2f7e1df8492c98255092ae69c813def0c5703fe1"
+      ]
+    },
+    {
+      "id": 120013053755,
+      "name": "PR 500 QPS / tcp-sendack",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 83726,
+      "sha256": "f22855b2bf78ab96dc639d5ed7330170a18464f25c4897d1095b4f2189350536",
+      "actual_checkout_candidates": [
+        "2f7e1df8492c98255092ae69c813def0c5703fe1"
+      ]
+    },
+    {
+      "id": 120013054533,
+      "name": "PR 500 QPS / channel-append",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 83250,
+      "sha256": "a70ca33bf1240b0319b944fd00d83c9ea78b7dd40445f00915acf64883fac17f",
+      "actual_checkout_candidates": [
+        "2f7e1df8492c98255092ae69c813def0c5703fe1"
+      ]
+    },
+    {
+      "id": 120015775680,
+      "name": "PR three-node regression",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 2681,
+      "sha256": "a9a6a2b79edb72161890b02258e911f2493c9b284f49a6623682234db85e58c1",
+      "actual_checkout_candidates": []
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 12451105212,
+      "name": "v3-candidate-e2e-39832747504-1",
+      "state": "verified",
+      "zip_bytes": 16548,
+      "zip_sha256": "167a0e6758e6055b72ca5c548759c5d5167f5f3d2a25086174b08bece48d688f",
+      "declared_digest": "sha256:167a0e6758e6055b72ca5c548759c5d5167f5f3d2a25086174b08bece48d688f",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "binary-build-info.txt",
+          "bytes": 8955,
+          "compressed_bytes": 5039,
+          "crc32": "a7cb59e8",
+          "sha256": "c69e11782b2f8e75a95171c1075ffbf50043631352ac6b71d5035815a84f950d"
+        },
+        {
+          "path": "binary.sha256",
+          "bytes": 134,
+          "compressed_bytes": 111,
+          "crc32": "0c1518e2",
+          "sha256": "4a18de175e9b9c6edb575bd19dad722261f49fde86b0f8d6a3d40c4dffa35a01"
+        },
+        {
+          "path": "build/command.json",
+          "bytes": 285,
+          "compressed_bytes": 192,
+          "crc32": "c28e311d",
+          "sha256": "ed64e16587b3ac9c61f7e589ca64546d15d7d327b4ce9f5279894c0cb7ba821d"
+        },
+        {
+          "path": "build/result.json",
+          "bytes": 369,
+          "compressed_bytes": 194,
+          "crc32": "e0e4f7b4",
+          "sha256": "8e1393c9bf237e579a6e9e16e426b28dcf1ee360d9b2d06050b8cdf02eb76dbf"
+        },
+        {
+          "path": "build/stderr.log",
+          "bytes": 5051,
+          "compressed_bytes": 1484,
+          "crc32": "5bc7c246",
+          "sha256": "25b56c2db21f3000e5f521a456ae77af7056ffe70d1a2405152c77341137f60f"
+        },
+        {
+          "path": "build/stdout.jsonl",
+          "bytes": 0,
+          "compressed_bytes": 2,
+          "crc32": "00000000",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "cross_node_delivery/command.json",
+          "bytes": 283,
+          "compressed_bytes": 188,
+          "crc32": "6042e90b",
+          "sha256": "cd7d2b139b98210a11ee5ef3fe41ca69914269a99bccaeffb8426f9995811eab"
+        },
+        {
+          "path": "cross_node_delivery/result.json",
+          "bytes": 370,
+          "compressed_bytes": 195,
+          "crc32": "22f2bd38",
+          "sha256": "88d751c29ee931375585bad547b9c1893995d0fa455dc2d58f77ab589c3300af"
+        },
+        {
+          "path": "cross_node_delivery/stderr.log",
+          "bytes": 0,
+          "compressed_bytes": 2,
+          "crc32": "00000000",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "cross_node_delivery/stdout.jsonl",
+          "bytes": 8448,
+          "compressed_bytes": 1202,
+          "crc32": "137225d1",
+          "sha256": "317d3e89f9363c2e63fe9832dc317606b30afe5acdfedb1df78b96095d647a16"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "identity.json",
+          "bytes": 172,
+          "compressed_bytes": 128,
+          "crc32": "9bb5dbf8",
+          "sha256": "84e625eaba2bb6556523cb854983b2d13760d7ca92f16c4a505aa1c11995b680"
+        },
+        {
+          "path": "ordinary_history/command.json",
+          "bytes": 302,
+          "compressed_bytes": 195,
+          "crc32": "11e8a94e",
+          "sha256": "ed22c31c4d2a4b3de5ca70e3da7cd45e85c15a06c5b0ad825af6b256e6fbd1c9"
+        },
+        {
+          "path": "ordinary_history/result.json",
+          "bytes": 370,
+          "compressed_bytes": 195,
+          "crc32": "5b516d8d",
+          "sha256": "9a52817a6291088a5b902c8bbf21be797f8504655777c577434ae678e471b9c7"
+        },
+        {
+          "path": "ordinary_history/stderr.log",
+          "bytes": 262,
+          "compressed_bytes": 131,
+          "crc32": "6115e3f1",
+          "sha256": "f7dd913964261c3ba2ef4af097ec9bc69ed4030b3f4518d76e2bf4780580196b"
+        },
+        {
+          "path": "ordinary_history/stdout.jsonl",
+          "bytes": 27305,
+          "compressed_bytes": 1663,
+          "crc32": "16c4b3e8",
+          "sha256": "48e1b697c58348d37a19a5ca3b8b7d5887c5ca41c97d065ec4f149cf44b468fc"
+        },
+        {
+          "path": "self_chat/command.json",
+          "bytes": 273,
+          "compressed_bytes": 181,
+          "crc32": "fffc10bb",
+          "sha256": "2c43b9ab69c4a6aa8798aea284f8c701219f8faef97fd15a61bb75324835a0e6"
+        },
+        {
+          "path": "self_chat/report.json",
+          "bytes": 47382,
+          "compressed_bytes": 1778,
+          "crc32": "8e44121a",
+          "sha256": "4c73a24706aa702213183925f3fda8a13142c8b7b0b70bf8f04ddf4505d1a7c1"
+        },
+        {
+          "path": "self_chat/result.json",
+          "bytes": 370,
+          "compressed_bytes": 194,
+          "crc32": "8daa67bf",
+          "sha256": "5d843ba7ebbab4cbe2a6d53bd1308f2e9d3a8952d747119729650ae1da21e48f"
+        },
+        {
+          "path": "self_chat/stderr.log",
+          "bytes": 0,
+          "compressed_bytes": 2,
+          "crc32": "00000000",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "self_chat/stdout.jsonl",
+          "bytes": 3700,
+          "compressed_bytes": 535,
+          "crc32": "cc9673cf",
+          "sha256": "752f66825b66a74bdd02fd57437a5119894a631c196c82dbcfc0d9cd94ab8226"
+        }
+      ]
+    },
+    {
+      "id": 12450286129,
+      "name": "v3-candidate-default-39832747504-1",
+      "state": "verified",
+      "zip_bytes": 8243,
+      "zip_sha256": "7fb6a2ec19ab15990060ec4d4505ec8e63949173508c362c70d2aa1652baa0c3",
+      "declared_digest": "sha256:7fb6a2ec19ab15990060ec4d4505ec8e63949173508c362c70d2aa1652baa0c3",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "command.json",
+          "bytes": 334,
+          "compressed_bytes": 213,
+          "crc32": "c797ebb8",
+          "sha256": "0cb6625e3ac51b84b8154054b2295ed766dcd7cb0cb0967da00310244dffa3d9"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "identity.json",
+          "bytes": 286,
+          "compressed_bytes": 191,
+          "crc32": "a0150a7e",
+          "sha256": "bb3c4c2c2c0b31a4c45f6b37ffe1d547e4b9d6997075bac1566fd27b2218d98f"
+        },
+        {
+          "path": "policy.json",
+          "bytes": 14492,
+          "compressed_bytes": 2758,
+          "crc32": "4b2851e1",
+          "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+        },
+        {
+          "path": "result.json",
+          "bytes": 370,
+          "compressed_bytes": 192,
+          "crc32": "04e45497",
+          "sha256": "f1fcefe6502225094b199f9bc4fb461809e3669b4e4fcf4600f42301da46d5a8"
+        },
+        {
+          "path": "stdout-stderr.log",
+          "bytes": 22028,
+          "compressed_bytes": 4124,
+          "crc32": "9637e4cd",
+          "sha256": "b8df0e3ebe5e78d09922a9b74e0684f34991f58e59181b1450974ec5c6e2de30"
+        }
+      ]
+    },
+    {
+      "id": 12449972684,
+      "name": "v3-candidate-scripts-39832747504-1",
+      "state": "verified",
+      "zip_bytes": 118804,
+      "zip_sha256": "daedf036c69c303f3f6a54b6da79eab25903e4878db26d3a1ab2cf8f3c743fe7",
+      "declared_digest": "sha256:daedf036c69c303f3f6a54b6da79eab25903e4878db26d3a1ab2cf8f3c743fe7",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "command.json",
+          "bytes": 338,
+          "compressed_bytes": 224,
+          "crc32": "a3648e4d",
+          "sha256": "d75afa8dcac0e56685c0d3dd8613d8f5690b8cd27e383b8beead00a883303e27"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "identity.json",
+          "bytes": 286,
+          "compressed_bytes": 191,
+          "crc32": "a0150a7e",
+          "sha256": "bb3c4c2c2c0b31a4c45f6b37ffe1d547e4b9d6997075bac1566fd27b2218d98f"
+        },
+        {
+          "path": "policy.json",
+          "bytes": 14492,
+          "compressed_bytes": 2758,
+          "crc32": "4b2851e1",
+          "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+        },
+        {
+          "path": "result.json",
+          "bytes": 372,
+          "compressed_bytes": 197,
+          "crc32": "286d3987",
+          "sha256": "bbe12bd19250d559b0e2084bbe09f96c7fcfa562cfe5f63a077b31ad58d7349a"
+        },
+        {
+          "path": "stdout-stderr.log",
+          "bytes": 1507221,
+          "compressed_bytes": 114669,
+          "crc32": "98e63068",
+          "sha256": "88b618cffb59022e804aca14ddec966f401f53baa419f3abc92bf55fbdc96b7c"
+        }
+      ]
+    },
+    {
+      "id": 12450655213,
+      "name": "500qps-mixed-send-2f7e1df8492c98255092ae69c813def0c5703fe1-1",
+      "state": "verified",
+      "zip_bytes": 226384,
+      "zip_sha256": "44b5cd17db60df13192ad384bc6401594d0bb302b6beef2569c87624f8acafe5",
+      "declared_digest": "sha256:44b5cd17db60df13192ad384bc6401594d0bb302b6beef2569c87624f8acafe5",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "arrival.json",
+          "bytes": 57682,
+          "compressed_bytes": 3472,
+          "crc32": "831f8e2b",
+          "sha256": "f1f0243062e5b2269aa420205b7cf7b8a70d0a8fabd0995a35b32141d3c2dc7e"
+        },
+        {
+          "path": "arrival.warmup.json",
+          "bytes": 19260,
+          "compressed_bytes": 1300,
+          "crc32": "e5c32e1d",
+          "sha256": "fbcb0b936100cd262eeb2a3fd6d3b35762404b19d47e1db8a4bb5a54db727cca"
+        },
+        {
+          "path": "benchmark.txt",
+          "bytes": 4014,
+          "compressed_bytes": 1019,
+          "crc32": "222218e7",
+          "sha256": "704ad4fa5d894e4a567b7ace0f05b1412f8d95333c041444e5d3a0283a256589"
+        },
+        {
+          "path": "binary.sha256",
+          "bytes": 123,
+          "compressed_bytes": 106,
+          "crc32": "2143473b",
+          "sha256": "0a02679af22e0659a5b382724dc317b84972516562544c0e2af212ec45f6e770"
+        },
+        {
+          "path": "counters/after.json",
+          "bytes": 314040,
+          "compressed_bytes": 13272,
+          "crc32": "4976f4c7",
+          "sha256": "302ab232881f3f29902f5a03c1845eb43d6f77ddf880ad256441cba3a4217808"
+        },
+        {
+          "path": "counters/before.json",
+          "bytes": 313360,
+          "compressed_bytes": 12973,
+          "crc32": "607df473",
+          "sha256": "218901aa618e0ceb0de2aaa2c6b3ce2e9a022ddbc1a8b894cc7d7deb7c6f6385"
+        },
+        {
+          "path": "counters/window.json",
+          "bytes": 533,
+          "compressed_bytes": 321,
+          "crc32": "bbd3ad0d",
+          "sha256": "aeab0dcf8ee36958d912633191b692a9650c44ad9cb8fcccb9423720e423e4b9"
+        },
+        {
+          "path": "counters.warmup/after.json",
+          "bytes": 313362,
+          "compressed_bytes": 12981,
+          "crc32": "0b7feb98",
+          "sha256": "60b8e454ee9fe318947096cb81aef0c0a1ad37fce23d829e87546d8a64d52a93"
+        },
+        {
+          "path": "counters.warmup/before.json",
+          "bytes": 310876,
+          "compressed_bytes": 11995,
+          "crc32": "9b12d665",
+          "sha256": "4b3cc34fc176c87e942afc09815119e9af38f266fca9fc564eb5d54a1085d174"
+        },
+        {
+          "path": "counters.warmup/window.json",
+          "bytes": 478,
+          "compressed_bytes": 296,
+          "crc32": "ed40c0ac",
+          "sha256": "d70aaaeea2f62c6459b225f25483695e02d034cf4786f82905d113e016c1b749"
+        },
+        {
+          "path": "data-filesystem.json",
+          "bytes": 244,
+          "compressed_bytes": 159,
+          "crc32": "77ec143c",
+          "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+        },
+        {
+          "path": "filesystem-preflight.txt",
+          "bytes": 123,
+          "compressed_bytes": 109,
+          "crc32": "74faaf95",
+          "sha256": "8a359b6d41ca875d73d649b17d0bf68681efce47821b4601ff6f9b5281245c47"
+        },
+        {
+          "path": "flight/retention-status.txt",
+          "bytes": 28,
+          "compressed_bytes": 30,
+          "crc32": "1785ba98",
+          "sha256": "fe914d9861d4c6f558854c355a1422208df73e3235e7e7061ec8948c58874fed"
+        },
+        {
+          "path": "flight/window.json",
+          "bytes": 2088297,
+          "compressed_bytes": 164528,
+          "crc32": "66478e24",
+          "sha256": "f8b423e3bb29f49f93c4054974055a7fbd8893f6d40f5dbdeb0331f7a02db0a4"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "host.json",
+          "bytes": 4483,
+          "compressed_bytes": 1178,
+          "crc32": "f38c7b89",
+          "sha256": "61dcffad00ce53e335d409d1803c82792f62ab6a364ed2b2e11b8c45d1941490"
+        },
+        {
+          "path": "kernel.txt",
+          "bytes": 113,
+          "compressed_bytes": 100,
+          "crc32": "5f528912",
+          "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+        },
+        {
+          "path": "result.json",
+          "bytes": 18,
+          "compressed_bytes": 20,
+          "crc32": "81529131",
+          "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+        },
+        {
+          "path": "source.sha",
+          "bytes": 41,
+          "compressed_bytes": 42,
+          "crc32": "d95fd407",
+          "sha256": "3c3063f13a47d9773696737fc1a3960acb9fe5f5d871bb06c702a5ef8f974aa0"
+        }
+      ]
+    },
+    {
+      "id": 12448944162,
+      "name": "500qps-tcp-sendack-2f7e1df8492c98255092ae69c813def0c5703fe1-1",
+      "state": "verified",
+      "zip_bytes": 8156,
+      "zip_sha256": "1a4228d4b8f69fbaf39763c91dbeadf1dc7117c5f146689e9b7c55ea8299d7ab",
+      "declared_digest": "sha256:1a4228d4b8f69fbaf39763c91dbeadf1dc7117c5f146689e9b7c55ea8299d7ab",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "arrival.json",
+          "bytes": 58103,
+          "compressed_bytes": 3017,
+          "crc32": "f3e1a038",
+          "sha256": "b595b9b275ec994c660845b1af84debf5dffbe0c5fc802b7ff84c4bbdb91e0d5"
+        },
+        {
+          "path": "arrival.warmup.json",
+          "bytes": 19441,
+          "compressed_bytes": 1184,
+          "crc32": "71f17d15",
+          "sha256": "4ff58404f066698d123c915002af1b39f4e28fd676ed15188914beb4349c0323"
+        },
+        {
+          "path": "benchmark.txt",
+          "bytes": 2955,
+          "compressed_bytes": 847,
+          "crc32": "6f515b1f",
+          "sha256": "bf01d9270e41c88d393d99dce7ec04c2169efdb027935ce3afd53e0e0cd1ded4"
+        },
+        {
+          "path": "binary.sha256",
+          "bytes": 124,
+          "compressed_bytes": 106,
+          "crc32": "6e4afa0b",
+          "sha256": "bcbf4e5a79a5d400c74c1174447bb2a6c2aa95808f7ba4af8ff0b2a0b672a939"
+        },
+        {
+          "path": "data-filesystem.json",
+          "bytes": 244,
+          "compressed_bytes": 159,
+          "crc32": "77ec143c",
+          "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+        },
+        {
+          "path": "filesystem-preflight.txt",
+          "bytes": 123,
+          "compressed_bytes": 109,
+          "crc32": "031cc796",
+          "sha256": "1eaa64fcf874a790adf5e75d3299e712f25a157da9ee636bae444b1168442e62"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "host.json",
+          "bytes": 4483,
+          "compressed_bytes": 1178,
+          "crc32": "69c7bc49",
+          "sha256": "2f72fd2c0ca26676f75a405427ca1c18f553daa5e73c5d7af534a4dae94c22c4"
+        },
+        {
+          "path": "kernel.txt",
+          "bytes": 128,
+          "compressed_bytes": 115,
+          "crc32": "0a4ed566",
+          "sha256": "6ca303ff7f4270c5adaea54fed2eeac9e5fc826de7893cce2a10a0009a180084"
+        },
+        {
+          "path": "result.json",
+          "bytes": 18,
+          "compressed_bytes": 20,
+          "crc32": "81529131",
+          "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+        },
+        {
+          "path": "source.sha",
+          "bytes": 41,
+          "compressed_bytes": 42,
+          "crc32": "d95fd407",
+          "sha256": "3c3063f13a47d9773696737fc1a3960acb9fe5f5d871bb06c702a5ef8f974aa0"
+        }
+      ]
+    },
+    {
+      "id": 12448689740,
+      "name": "three-node-pr-1026-2f7e1df8492c98255092ae69c813def0c5703fe1-1",
+      "state": "not_downloaded",
+      "reason": "exceeds explicit 16 MiB small-evidence limit",
+      "declared_bytes": 230287344,
+      "declared_digest": "sha256:af12636ac77608f5b4e7a216bd23a7c3906321504377b7e2a11483b5afb389d0"
+    },
+    {
+      "id": 12448609565,
+      "name": "500qps-channel-append-2f7e1df8492c98255092ae69c813def0c5703fe1-1",
+      "state": "verified",
+      "zip_bytes": 25140,
+      "zip_sha256": "d96eb02460bead080fe1395e54013775ded004f7957ac7c3b8ab347505f2dd01",
+      "declared_digest": "sha256:d96eb02460bead080fe1395e54013775ded004f7957ac7c3b8ab347505f2dd01",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "arrival.json",
+          "bytes": 57426,
+          "compressed_bytes": 3316,
+          "crc32": "32e6a97f",
+          "sha256": "4c356e76358eace998ac4503b749aa1e0125e2849950dcda260b70cbcd907b76"
+        },
+        {
+          "path": "arrival.warmup.json",
+          "bytes": 19231,
+          "compressed_bytes": 1253,
+          "crc32": "573b250c",
+          "sha256": "cc6eb8a90a773efe737608bec7df5e3d58ff3e1cadaa6e2af995fa2eb14a7fa2"
+        },
+        {
+          "path": "benchmark.txt",
+          "bytes": 2361,
+          "compressed_bytes": 836,
+          "crc32": "ceb3fdd0",
+          "sha256": "bbe110aa2634710c26b78f95da1cea4958b8e428d9e2e5d61d4903dd9fb40f80"
+        },
+        {
+          "path": "binary.sha256",
+          "bytes": 127,
+          "compressed_bytes": 109,
+          "crc32": "169500e8",
+          "sha256": "01763e40ea9953b19666552a582ec78cc7a9ed16181bd737549fe536efa547e2"
+        },
+        {
+          "path": "counters/after.json",
+          "bytes": 50627,
+          "compressed_bytes": 4184,
+          "crc32": "3c2fe895",
+          "sha256": "4b0face7c4ca67c836610241056fa6959774a04c0a74234d284fb10c4f39b98b"
+        },
+        {
+          "path": "counters/before.json",
+          "bytes": 50380,
+          "compressed_bytes": 4021,
+          "crc32": "a141f3c0",
+          "sha256": "c110016ea7261befffdeb9732882b5dff97f7d29cb7e4aa09b244197379ce03f"
+        },
+        {
+          "path": "counters/window.json",
+          "bytes": 575,
+          "compressed_bytes": 353,
+          "crc32": "2b205e32",
+          "sha256": "07d07bcdd594603b74db9b5d65364ad5fc496f49bbdebffff819f2abcd5fd70e"
+        },
+        {
+          "path": "counters.warmup/after.json",
+          "bytes": 50380,
+          "compressed_bytes": 4017,
+          "crc32": "0b7dcf12",
+          "sha256": "c006a99a983a2c0fb92a7baa88e9dc1de965ce15f3a2f7b8a069d2ef2922d7d2"
+        },
+        {
+          "path": "counters.warmup/before.json",
+          "bytes": 21530,
+          "compressed_bytes": 2919,
+          "crc32": "32001ad2",
+          "sha256": "2411589373f792755e2b573a5e641ddb1b1c9e464c05d3d2e4b831bae30de6bb"
+        },
+        {
+          "path": "counters.warmup/window.json",
+          "bytes": 504,
+          "compressed_bytes": 312,
+          "crc32": "4bd3f4f6",
+          "sha256": "bd276077bf78c4f38856ba1390754d98782921736440d0600f0dab7ed0ee7715"
+        },
+        {
+          "path": "data-filesystem.json",
+          "bytes": 244,
+          "compressed_bytes": 159,
+          "crc32": "77ec143c",
+          "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+        },
+        {
+          "path": "filesystem-preflight.txt",
+          "bytes": 123,
+          "compressed_bytes": 109,
+          "crc32": "9f305411",
+          "sha256": "0feed51201d87dd838f0c7972de244acad8e6d9890c2a788be01e1247069aca5"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "host.json",
+          "bytes": 4484,
+          "compressed_bytes": 1181,
+          "crc32": "631e8f32",
+          "sha256": "578ae8da7371c92fb4efbc0f507a034c4327fc57a8a6eb98d7882de2c1a11994"
+        },
+        {
+          "path": "kernel.txt",
+          "bytes": 113,
+          "compressed_bytes": 100,
+          "crc32": "5f528912",
+          "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+        },
+        {
+          "path": "result.json",
+          "bytes": 18,
+          "compressed_bytes": 20,
+          "crc32": "81529131",
+          "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+        },
+        {
+          "path": "source.sha",
+          "bytes": 41,
+          "compressed_bytes": 42,
+          "crc32": "d95fd407",
+          "sha256": "3c3063f13a47d9773696737fc1a3960acb9fe5f5d871bb06c702a5ef8f974aa0"
+        }
+      ]
+    }
+  ]
+}

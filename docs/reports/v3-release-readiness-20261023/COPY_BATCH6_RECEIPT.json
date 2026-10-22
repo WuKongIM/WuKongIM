@@ -1,0 +1,1275 @@
+{
+  "schema": "wukongim/readiness-public-archive-copy-batch/v1",
+  "batch": 6,
+  "status": "copied_and_verified_unstaged",
+  "started_at_utc": "2026-10-22T19:38:17.049937+00:00",
+  "finished_at_utc": "2026-10-22T19:38:17.122450+00:00",
+  "authorization_plan_bindings": {
+    "first80": {
+      "path": "/tmp/wukongim-v3-readiness-20261023/archive-batch6-preflight/plan.json",
+      "bytes": 31789,
+      "sha256": "0444dcbc6dfebd54bbd37b816deba02459096e82863da0570f2b1a33f400c309"
+    },
+    "additional24": {
+      "path": "/tmp/wukongim-v3-readiness-20261023/archive-batch6-preflight/additional-three-groups-plan.json",
+      "bytes": 11499,
+      "sha256": "24dd0baf8c041edd5ddcbb60c5d0e6d0b674e0ca2b095e7ac93fdaa9b7f63d4d"
+    }
+  },
+  "source_files": 104,
+  "source_bytes": 877354,
+  "newly_copied_this_authorization_files": 24,
+  "newly_copied_this_authorization_bytes": 508568,
+  "source_groups": [
+    {
+      "group": "local-loss-reproduction-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 1062,
+        "sha256": "0e2212973c789ebcaefbd845b8ded51c9f6aae601f2b7ea852ddd1e85d13881c"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 270,
+        "sha256": "9b0fe2ce6b3328168e5036026c2e40d16fe326456bc6b2dcbd048e93dc2dfbfc"
+      },
+      "source_allowlist_names": [
+        "source-freeze-before-tests.json",
+        "failure-matrix-and-experiment.md",
+        "invocation.json",
+        "completion.json",
+        "report.json",
+        "host-samples.jsonl",
+        "cleanup-receipt.json",
+        "offline-dto-correction.json",
+        "compile-skip.log",
+        "compile-corrected-skip.log",
+        "original-distribution-local-plan.md",
+        "handoff.json"
+      ],
+      "source_allowlist_entries": 12,
+      "source_manifest_entries": 12,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 14,
+      "selected_bytes": 84558,
+      "all_source_manifest_entries_verified": true,
+      "source_manifest_validation_semantics": "Some source manifests count only payloads; signals manifests also hash their allowlist. COPY_BATCH6_SHA256SUMS independently covers every copied target and batch metadata.",
+      "excluded_public_allowlisted": [],
+      "source_manifest_target_rename": {}
+    },
+    {
+      "group": "local-loss-reproduction-v2",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v2",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 411,
+        "sha256": "1943a2f68b0d261e32236c1031f426e9da0a56b65aca8d7d9f5c365583c363c8"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 81,
+        "sha256": "a2a9d7da566e49779f4d0d58ddc62dd2339f18358ce4afe709dec952feb19e31"
+      },
+      "source_allowlist_names": [
+        "invocation.json",
+        "completion.json",
+        "host-samples.jsonl",
+        "cleanup-receipt.json",
+        "test.log"
+      ],
+      "source_allowlist_entries": 5,
+      "source_manifest_entries": 5,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 7,
+      "selected_bytes": 4076,
+      "all_source_manifest_entries_verified": true,
+      "source_manifest_validation_semantics": "Some source manifests count only payloads; signals manifests also hash their allowlist. COPY_BATCH6_SHA256SUMS independently covers every copied target and batch metadata.",
+      "excluded_public_allowlisted": [],
+      "source_manifest_target_rename": {}
+    },
+    {
+      "group": "local-loss-reproduction-v3",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v3",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 603,
+        "sha256": "73b6e675a3935934235f71a9c950dba3e90840902810e4dc9665d8372931ebae"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 141,
+        "sha256": "64b5352585a6df77ce2bf4c553ea540facc10ddaee1b5e789c6a6f0907d6c3e5"
+      },
+      "source_allowlist_names": [
+        "compile-skip.log",
+        "invocation.json",
+        "completion.json",
+        "report.json",
+        "host-samples.jsonl",
+        "cleanup-receipt.json",
+        "redacted-immediate-history-failure.json"
+      ],
+      "source_allowlist_entries": 7,
+      "source_manifest_entries": 7,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 9,
+      "selected_bytes": 67410,
+      "all_source_manifest_entries_verified": true,
+      "source_manifest_validation_semantics": "Some source manifests count only payloads; signals manifests also hash their allowlist. COPY_BATCH6_SHA256SUMS independently covers every copied target and batch metadata.",
+      "excluded_public_allowlisted": [],
+      "source_manifest_target_rename": {}
+    },
+    {
+      "group": "local-loss-reproduction-v4",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v4",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 497,
+        "sha256": "66732868f0b534437a129b36f10608d37d2306eaf4d1d24c2c15d5d89de60349"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 101,
+        "sha256": "d2213195e88c38b59218b3ce181218b3638ad90c79db54daa362424abdcf6859"
+      },
+      "source_allowlist_names": [
+        "compile-skip.log",
+        "invocation.json",
+        "completion.json",
+        "report.json",
+        "host-samples.jsonl",
+        "cleanup-receipt.json"
+      ],
+      "source_allowlist_entries": 6,
+      "source_manifest_entries": 6,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 8,
+      "selected_bytes": 79988,
+      "all_source_manifest_entries_verified": true,
+      "source_manifest_validation_semantics": "Some source manifests count only payloads; signals manifests also hash their allowlist. COPY_BATCH6_SHA256SUMS independently covers every copied target and batch metadata.",
+      "excluded_public_allowlisted": [],
+      "source_manifest_target_rename": {}
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 2058,
+        "sha256": "ff2c1ede9eee0c084d3673c8a8000850d9a68e8463bad59608c8f7efa28d9611"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 540,
+        "sha256": "ffcf6ad00fb35ec5ce0ed4c5faf027949d680434909606049bd64e77676b90a9"
+      },
+      "source_allowlist_names": [
+        "launcher-failure-matrix.md",
+        "launcher.sh",
+        "supervise.py",
+        "verify-slots.py",
+        "watchdog.py",
+        "original-distribution-local.yaml",
+        "extracted-functions-original.sh",
+        "extracted-functions-materialized.sh",
+        "extracted-functions.diff",
+        "configuration.diff",
+        "materialization.json",
+        "watchdog-selfcheck.json",
+        "watchdog-selfcheck-deadline.json",
+        "watchdog-selfcheck-normal_cancel.json",
+        "PRESTART_SHA256SUMS",
+        "supervisor-events.json",
+        "diagnostic-result.json",
+        "cleanup-receipt.json",
+        "supervisor.log",
+        "logs/build-wkcli.log",
+        "logs/validate-cli.log",
+        "preflight-classification.json",
+        "local-entry-boundary.md"
+      ],
+      "source_allowlist_entries": 23,
+      "source_manifest_entries": 23,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 18,
+      "selected_bytes": 23993,
+      "all_source_manifest_entries_verified": true,
+      "source_manifest_validation_semantics": "Some source manifests count only payloads; signals manifests also hash their allowlist. COPY_BATCH6_SHA256SUMS independently covers every copied target and batch metadata.",
+      "excluded_public_allowlisted": [
+        {
+          "path": "launcher.sh",
+          "bytes": 13533,
+          "sha256": "44193985711cb4127fd284e7122b89b8d78510e44fab2812fdeb7c6cdf2f8143",
+          "reason": "Runtime launcher embeds actual per-experiment runtime configuration; retained in /tmp per parent exclusion requirement."
+        },
+        {
+          "path": "supervise.py",
+          "bytes": 14744,
+          "sha256": "0511756eb471d177a2deb937179e4f5f23ee2ebfd214fde8cae1c81cd188745f",
+          "reason": "Runtime supervisor owns ephemeral auth material and experiment environment/configuration; retained in /tmp."
+        },
+        {
+          "path": "verify-slots.py",
+          "bytes": 4113,
+          "sha256": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+          "reason": "Raw runtime verification/auth bootstrap helper; retained in /tmp, not necessary for public result receipt."
+        },
+        {
+          "path": "original-distribution-local.yaml",
+          "bytes": 4362,
+          "sha256": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+          "reason": "Actual experiment workload/deployment configuration; excluded by parent requirement."
+        },
+        {
+          "path": "extracted-functions-original.sh",
+          "bytes": 10865,
+          "sha256": "c08c5c76abffb4193f5dc7b6155fbfb848955609e1d64eb53543a413b2dc6aee",
+          "reason": "Full runtime orchestration source including configuration/bootstrap; hashes retained in materialization.json."
+        },
+        {
+          "path": "extracted-functions-materialized.sh",
+          "bytes": 10880,
+          "sha256": "701a4ba32fcb2e06240848d95a363615a6751c30c34d3185a06aca6baab8d748",
+          "reason": "Full experiment runtime orchestration including actual settings; hashes retained in materialization.json."
+        },
+        {
+          "path": "configuration.diff",
+          "bytes": 2738,
+          "sha256": "be57a22005360f9ee94731c6d24c70b1f706342fc926570c1bc87bb813a607c3",
+          "reason": "Actual experiment configuration diff; excluded by parent requirement."
+        }
+      ],
+      "source_manifest_target_rename": {
+        "PUBLIC_ALLOWLIST": "cloud/full-original-distribution-v1/SOURCE_PUBLIC_ALLOWLIST",
+        "PUBLIC_SHA256SUMS": "cloud/full-original-distribution-v1/SOURCE_PUBLIC_SHA256SUMS"
+      }
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 2094,
+        "sha256": "04dfbf3d1cfdde42cc17085392c5160135558d87ece8eff990a928509eb9ad4b"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 642,
+        "sha256": "34f067a5022aef8bf00cfc249ffdff2100b62d43cd556186dae19ca540c7e1b8"
+      },
+      "source_allowlist_names": [
+        "diagnostic-conclusion.md",
+        "safe-final-evidence-snapshot.json",
+        "diagnostic-result.json",
+        "cleanup-receipt.json",
+        "supervisor-events.json",
+        "preflight.json",
+        "revision-receipt.json",
+        "supervisor-revision.diff",
+        "materialization.json",
+        "launcher-failure-matrix.md",
+        "identity-helper-summary.json",
+        "identity-helper-selfcheck.json",
+        "offline-retained-log-identity-correlation.json",
+        "offline-db-failure-matrix.md",
+        "offline-db-message-identity-typed.json",
+        "offline-messageid-log-join.json",
+        "offline-roster-warning-timing.json",
+        "product-source-freeze-after.json",
+        "evidence/metrics-first-measured-receipt.json",
+        "evidence/metrics-terminal-receipt.json",
+        "evidence/watchdog.json",
+        "watchdog-selfcheck.json"
+      ],
+      "source_allowlist_entries": 22,
+      "source_manifest_entries": 22,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 24,
+      "selected_bytes": 108761,
+      "all_source_manifest_entries_verified": true,
+      "source_manifest_validation_semantics": "Some source manifests count only payloads; signals manifests also hash their allowlist. COPY_BATCH6_SHA256SUMS independently covers every copied target and batch metadata.",
+      "excluded_public_allowlisted": [],
+      "source_manifest_target_rename": {}
+    },
+    {
+      "group": "full-original-distribution-v2/config-comparison-addendum",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 670,
+        "sha256": "e8ec8a502eeb555766807492ab6e415be2a638633e9702215930f71356232eca"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 208,
+        "sha256": "832eadfa6c60c321a278e1058114d1bac3d2f4d99120d29f810ba0c33e08b6a9"
+      },
+      "source_allowlist_names": [
+        "source-defaults.json",
+        "runtime-config-comparison.json",
+        "runtime-config-comparison.md",
+        "runtime-config-comparison-refinements.json",
+        "batch128-launcher-proposed.diff",
+        "batch128-proposal-receipt.json",
+        "batch128-proposal.md"
+      ],
+      "source_allowlist_entries": 7,
+      "source_manifest_entries": 7,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 9,
+      "selected_bytes": 170373,
+      "all_source_manifest_entries_verified": true,
+      "source_manifest_validation_semantics": "Some source manifests count only payloads; signals manifests also hash their allowlist. COPY_BATCH6_SHA256SUMS independently covers every copied target and batch metadata.",
+      "excluded_public_allowlisted": [],
+      "source_manifest_target_rename": {}
+    },
+    {
+      "group": "full-original-distribution-v2-signals",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 622,
+        "sha256": "6000f622e99146832aab529e6aafe382c63a5e5dbcff75850a56764657631bcc"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST.txt",
+        "bytes": 139,
+        "sha256": "e8addbda00884e5607afde236aaa0e987f410223dc8f543b082046e8330b0f00"
+      },
+      "source_allowlist_names": [
+        "analyze.py",
+        "batch128-controlled-predictions.json",
+        "configuration-axis-reference.json",
+        "limited-summary.json",
+        "report.md",
+        "source-input-binding.json"
+      ],
+      "source_allowlist_entries": 6,
+      "source_manifest_entries": 7,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": true,
+      "selected_files": 9,
+      "selected_bytes": 312893,
+      "all_source_manifest_entries_verified": true,
+      "source_manifest_validation_semantics": "Some source manifests count only payloads; signals manifests also hash their allowlist. COPY_BATCH6_SHA256SUMS independently covers every copied target and batch metadata.",
+      "excluded_public_allowlisted": [],
+      "source_manifest_target_rename": {}
+    },
+    {
+      "group": "full-original-distribution-v2-signals/gateway-batch-and-canary-addendum",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 319,
+        "sha256": "8143958e9a6216129d0a5c34a37a5a460cf2755e3848b17b52439a7d3483cf5a"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST.txt",
+        "bytes": 55,
+        "sha256": "8c032a5424af167bf469052d7e4c5fa94053328ec8fa1172be0cd81c023cc04d"
+      },
+      "source_allowlist_names": [
+        "analyze.py",
+        "summary.json",
+        "report.md",
+        "PUBLIC_ALLOWLIST.txt"
+      ],
+      "source_allowlist_entries": 4,
+      "source_manifest_entries": 4,
+      "allowlist_lists_itself": true,
+      "manifest_contains_allowlist": true,
+      "selected_files": 6,
+      "selected_bytes": 25302,
+      "all_source_manifest_entries_verified": true,
+      "source_manifest_validation_semantics": "Some source manifests count only payloads; signals manifests also hash their allowlist. COPY_BATCH6_SHA256SUMS independently covers every copied target and batch metadata.",
+      "excluded_public_allowlisted": [],
+      "source_manifest_target_rename": {}
+    }
+  ],
+  "copied": [
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/source-freeze-before-tests.json",
+      "target_relative": "cloud/local-loss-reproduction-v1/source-freeze-before-tests.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/source-freeze-before-tests.json",
+      "bytes": 2227,
+      "sha256": "961c99ffd3c56a44139635083f31517894d00c739ba97199541ac14368ca0dfd"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/failure-matrix-and-experiment.md",
+      "target_relative": "cloud/local-loss-reproduction-v1/failure-matrix-and-experiment.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/failure-matrix-and-experiment.md",
+      "bytes": 2855,
+      "sha256": "f353d02174fe31935eb6ffe89644ddd09fcf912fdbe1740ed8c5315221b30d21"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/invocation.json",
+      "target_relative": "cloud/local-loss-reproduction-v1/invocation.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/invocation.json",
+      "bytes": 1253,
+      "sha256": "7a42bd6a0b2287c14dd38abb8c54254e528e1510b4d23cc80c2a42c9d2bad888"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/completion.json",
+      "target_relative": "cloud/local-loss-reproduction-v1/completion.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/completion.json",
+      "bytes": 1330,
+      "sha256": "787fdfae37a261c9dccae62e20d85238537e0e2750aaa423c573c71a1bd88713"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/report.json",
+      "target_relative": "cloud/local-loss-reproduction-v1/report.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/report.json",
+      "bytes": 19115,
+      "sha256": "3366f4f633d628b331a9f20faf90f7076f7bb7578cc89b8b80df72461e2a2728"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/host-samples.jsonl",
+      "target_relative": "cloud/local-loss-reproduction-v1/host-samples.jsonl",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/host-samples.jsonl",
+      "bytes": 42980,
+      "sha256": "bd57a59210798839de2843d8117c2ea533f5d8b6ad36887b36e3d5f8015c8871"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/cleanup-receipt.json",
+      "target_relative": "cloud/local-loss-reproduction-v1/cleanup-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/cleanup-receipt.json",
+      "bytes": 312,
+      "sha256": "519154657e0c680efccbf227f1c4dd07a5ac5f79dc704b5da62d734db3af6a6c"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/offline-dto-correction.json",
+      "target_relative": "cloud/local-loss-reproduction-v1/offline-dto-correction.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/offline-dto-correction.json",
+      "bytes": 611,
+      "sha256": "ffb4d31dce95e64bdc43429ca34a58dee1c0e054a9e2751e4c3554d22e15eb31"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/compile-skip.log",
+      "target_relative": "cloud/local-loss-reproduction-v1/compile-skip.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/compile-skip.log",
+      "bytes": 310,
+      "sha256": "1bfcd8a675f34c5f386ccaf159279c0c93a70042b1107ed9ee73c949cd5d8e6f"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/compile-corrected-skip.log",
+      "target_relative": "cloud/local-loss-reproduction-v1/compile-corrected-skip.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/compile-corrected-skip.log",
+      "bytes": 430,
+      "sha256": "97b54d983feaffc9e2221a3dd61deee4dd11bd40d92cfe120f2d57e3c9313d0e"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/original-distribution-local-plan.md",
+      "target_relative": "cloud/local-loss-reproduction-v1/original-distribution-local-plan.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/original-distribution-local-plan.md",
+      "bytes": 10277,
+      "sha256": "55620f13f6624f45f59a3a99ae26c8bb49115ee405b9dac1c686e89fe2cb08fe"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/handoff.json",
+      "target_relative": "cloud/local-loss-reproduction-v1/handoff.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/handoff.json",
+      "bytes": 1526,
+      "sha256": "73dd28d8e96293d5f9f6c8dbc805e03c400a24937128779bfe22e4ed306ee8f8"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/local-loss-reproduction-v1/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/PUBLIC_ALLOWLIST",
+      "bytes": 270,
+      "sha256": "9b0fe2ce6b3328168e5036026c2e40d16fe326456bc6b2dcbd048e93dc2dfbfc"
+    },
+    {
+      "group": "local-loss-reproduction-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/local-loss-reproduction-v1/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v1/PUBLIC_SHA256SUMS",
+      "bytes": 1062,
+      "sha256": "0e2212973c789ebcaefbd845b8ded51c9f6aae601f2b7ea852ddd1e85d13881c"
+    },
+    {
+      "group": "local-loss-reproduction-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v2/invocation.json",
+      "target_relative": "cloud/local-loss-reproduction-v2/invocation.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v2/invocation.json",
+      "bytes": 1176,
+      "sha256": "81b0f6185daf2713386cd3ea3df4ebadee16b6d5c3d04fcb6e0736cd749b8b1f"
+    },
+    {
+      "group": "local-loss-reproduction-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v2/completion.json",
+      "target_relative": "cloud/local-loss-reproduction-v2/completion.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v2/completion.json",
+      "bytes": 1253,
+      "sha256": "85c9a6abf1e3dc5e9ba6ed3c3b609435be40f9457c1d4ed22e9dbca0f16a8725"
+    },
+    {
+      "group": "local-loss-reproduction-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v2/host-samples.jsonl",
+      "target_relative": "cloud/local-loss-reproduction-v2/host-samples.jsonl",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v2/host-samples.jsonl",
+      "bytes": 547,
+      "sha256": "2d6ccb14e0ea77a3b574f381d37636cffc88ac1503fdde84be0c06dbb44d2a5b"
+    },
+    {
+      "group": "local-loss-reproduction-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v2/cleanup-receipt.json",
+      "target_relative": "cloud/local-loss-reproduction-v2/cleanup-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v2/cleanup-receipt.json",
+      "bytes": 178,
+      "sha256": "61d4ee130b7653641a0c627b1ea941d13ed07a8155494915e2b98c783ce22b88"
+    },
+    {
+      "group": "local-loss-reproduction-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v2/test.log",
+      "target_relative": "cloud/local-loss-reproduction-v2/test.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v2/test.log",
+      "bytes": 430,
+      "sha256": "97b54d983feaffc9e2221a3dd61deee4dd11bd40d92cfe120f2d57e3c9313d0e"
+    },
+    {
+      "group": "local-loss-reproduction-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v2/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/local-loss-reproduction-v2/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v2/PUBLIC_ALLOWLIST",
+      "bytes": 81,
+      "sha256": "a2a9d7da566e49779f4d0d58ddc62dd2339f18358ce4afe709dec952feb19e31"
+    },
+    {
+      "group": "local-loss-reproduction-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v2/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/local-loss-reproduction-v2/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v2/PUBLIC_SHA256SUMS",
+      "bytes": 411,
+      "sha256": "1943a2f68b0d261e32236c1031f426e9da0a56b65aca8d7d9f5c365583c363c8"
+    },
+    {
+      "group": "local-loss-reproduction-v3",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v3/compile-skip.log",
+      "target_relative": "cloud/local-loss-reproduction-v3/compile-skip.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v3/compile-skip.log",
+      "bytes": 310,
+      "sha256": "25b294e3464744c9b18b935498f4ce2779a8a2e171eac70e141eaaf0399e0d8a"
+    },
+    {
+      "group": "local-loss-reproduction-v3",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v3/invocation.json",
+      "target_relative": "cloud/local-loss-reproduction-v3/invocation.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v3/invocation.json",
+      "bytes": 1126,
+      "sha256": "5e7be56bec3532d316a3fb0174af4408180ba626d7a7fcbc68f490921728faf0"
+    },
+    {
+      "group": "local-loss-reproduction-v3",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v3/completion.json",
+      "target_relative": "cloud/local-loss-reproduction-v3/completion.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v3/completion.json",
+      "bytes": 1203,
+      "sha256": "02c97984ea4beee33aad0b8e724f66dfe0c98a8a1a2edbf9b3e2220b5cfe047c"
+    },
+    {
+      "group": "local-loss-reproduction-v3",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v3/report.json",
+      "target_relative": "cloud/local-loss-reproduction-v3/report.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v3/report.json",
+      "bytes": 20802,
+      "sha256": "b3d1e71151edebb5de496977a4a06f4c7e720dd640ef84ccbd8ae1940be8a0c1"
+    },
+    {
+      "group": "local-loss-reproduction-v3",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v3/host-samples.jsonl",
+      "target_relative": "cloud/local-loss-reproduction-v3/host-samples.jsonl",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v3/host-samples.jsonl",
+      "bytes": 41735,
+      "sha256": "1e4d8dfe0bac3c333d730ed2ab89b1c1912a79db2f417066e1a0bf39c23a8fbe"
+    },
+    {
+      "group": "local-loss-reproduction-v3",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v3/cleanup-receipt.json",
+      "target_relative": "cloud/local-loss-reproduction-v3/cleanup-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v3/cleanup-receipt.json",
+      "bytes": 312,
+      "sha256": "a91adee21c0c5195abb3aefded2d04792e87eb71d9281cf75c5140ab438b7e79"
+    },
+    {
+      "group": "local-loss-reproduction-v3",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v3/redacted-immediate-history-failure.json",
+      "target_relative": "cloud/local-loss-reproduction-v3/redacted-immediate-history-failure.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v3/redacted-immediate-history-failure.json",
+      "bytes": 1178,
+      "sha256": "72823311cc5bcfeafe1060066f6b21cf9a204d8801c57f007cc3d2ee833cd1a7"
+    },
+    {
+      "group": "local-loss-reproduction-v3",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v3/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/local-loss-reproduction-v3/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v3/PUBLIC_ALLOWLIST",
+      "bytes": 141,
+      "sha256": "64b5352585a6df77ce2bf4c553ea540facc10ddaee1b5e789c6a6f0907d6c3e5"
+    },
+    {
+      "group": "local-loss-reproduction-v3",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v3/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/local-loss-reproduction-v3/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v3/PUBLIC_SHA256SUMS",
+      "bytes": 603,
+      "sha256": "73b6e675a3935934235f71a9c950dba3e90840902810e4dc9665d8372931ebae"
+    },
+    {
+      "group": "local-loss-reproduction-v4",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v4/compile-skip.log",
+      "target_relative": "cloud/local-loss-reproduction-v4/compile-skip.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v4/compile-skip.log",
+      "bytes": 310,
+      "sha256": "edae89f858849afffc8e9be5567593ee8dd01e3157d0053f4039764e8160e3dd"
+    },
+    {
+      "group": "local-loss-reproduction-v4",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v4/invocation.json",
+      "target_relative": "cloud/local-loss-reproduction-v4/invocation.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v4/invocation.json",
+      "bytes": 1126,
+      "sha256": "49d54b3770a46a02bbc150d9b980cd773a224aac2d7bb3f4edbf9716916ca6e8"
+    },
+    {
+      "group": "local-loss-reproduction-v4",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v4/completion.json",
+      "target_relative": "cloud/local-loss-reproduction-v4/completion.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v4/completion.json",
+      "bytes": 1203,
+      "sha256": "04b2d4da630ca84a518e24011cd48ee9badb420518414c020a71ea13c3c9de81"
+    },
+    {
+      "group": "local-loss-reproduction-v4",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v4/report.json",
+      "target_relative": "cloud/local-loss-reproduction-v4/report.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v4/report.json",
+      "bytes": 34603,
+      "sha256": "19dc5cf42d43851c3d00e18ed17430c424ea23460acd076d1efe0a8f52b8d38e"
+    },
+    {
+      "group": "local-loss-reproduction-v4",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v4/host-samples.jsonl",
+      "target_relative": "cloud/local-loss-reproduction-v4/host-samples.jsonl",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v4/host-samples.jsonl",
+      "bytes": 41836,
+      "sha256": "043c49642167c5579cb177db518a9ecb2c855765c4e25ff72500ea70f25c6804"
+    },
+    {
+      "group": "local-loss-reproduction-v4",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v4/cleanup-receipt.json",
+      "target_relative": "cloud/local-loss-reproduction-v4/cleanup-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v4/cleanup-receipt.json",
+      "bytes": 312,
+      "sha256": "83ac2bb7ce25ff72f7093bc07ce771e062f39e9cb1470452ab7dde109b5692b4"
+    },
+    {
+      "group": "local-loss-reproduction-v4",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v4/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/local-loss-reproduction-v4/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v4/PUBLIC_ALLOWLIST",
+      "bytes": 101,
+      "sha256": "d2213195e88c38b59218b3ce181218b3638ad90c79db54daa362424abdcf6859"
+    },
+    {
+      "group": "local-loss-reproduction-v4",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v4/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/local-loss-reproduction-v4/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/local-loss-reproduction-v4/PUBLIC_SHA256SUMS",
+      "bytes": 497,
+      "sha256": "66732868f0b534437a129b36f10608d37d2306eaf4d1d24c2c15d5d89de60349"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/launcher-failure-matrix.md",
+      "target_relative": "cloud/full-original-distribution-v1/launcher-failure-matrix.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/launcher-failure-matrix.md",
+      "bytes": 2019,
+      "sha256": "a274387198f9c7ec263098e835eee655a0dde60df6dd0cd8e27b3ddaa4b10f0d"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/watchdog.py",
+      "target_relative": "cloud/full-original-distribution-v1/watchdog.py",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/watchdog.py",
+      "bytes": 1065,
+      "sha256": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/extracted-functions.diff",
+      "target_relative": "cloud/full-original-distribution-v1/extracted-functions.diff",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/extracted-functions.diff",
+      "bytes": 791,
+      "sha256": "d8a571b40443813ef96314503a7d0261b2f3bb64408a380b7b2401e0b219afa1"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/materialization.json",
+      "target_relative": "cloud/full-original-distribution-v1/materialization.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/materialization.json",
+      "bytes": 7882,
+      "sha256": "7bbe844514ed2dd1af4088ea557ec6dc2e8954ee76c223980e1f68f0d786ea5d"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/watchdog-selfcheck.json",
+      "target_relative": "cloud/full-original-distribution-v1/watchdog-selfcheck.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/watchdog-selfcheck.json",
+      "bytes": 541,
+      "sha256": "a19ae8763f501783d90e06399fe0c37cff9c733e194532ecbe5647a6c14379c7"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/watchdog-selfcheck-deadline.json",
+      "target_relative": "cloud/full-original-distribution-v1/watchdog-selfcheck-deadline.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/watchdog-selfcheck-deadline.json",
+      "bytes": 88,
+      "sha256": "1a8d76eff7550f8b26cdd2d767b1d9ac329e015b052cba0eeab33e50222cd71c"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/watchdog-selfcheck-normal_cancel.json",
+      "target_relative": "cloud/full-original-distribution-v1/watchdog-selfcheck-normal_cancel.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/watchdog-selfcheck-normal_cancel.json",
+      "bytes": 107,
+      "sha256": "d77e9dbcd6db1efe296c737f209e51d3fbb25d587e11901fb52482a421cd83cb"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/PRESTART_SHA256SUMS",
+      "target_relative": "cloud/full-original-distribution-v1/PRESTART_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/PRESTART_SHA256SUMS",
+      "bytes": 1265,
+      "sha256": "7e46c8f613b9cb22ba73a04e9fe9f35a7b3a038cfcd8ee60685990d4f6fa1093"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/supervisor-events.json",
+      "target_relative": "cloud/full-original-distribution-v1/supervisor-events.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/supervisor-events.json",
+      "bytes": 174,
+      "sha256": "525228ed238e58fcbe0af06820bfc18755d2d058cb3f8743fe82355e41e7fe52"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/diagnostic-result.json",
+      "target_relative": "cloud/full-original-distribution-v1/diagnostic-result.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/diagnostic-result.json",
+      "bytes": 1824,
+      "sha256": "1ae371886bcf9ed927aae4eea1db3cc9cc12bbe042cd8ab5213a9e6100431205"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/cleanup-receipt.json",
+      "target_relative": "cloud/full-original-distribution-v1/cleanup-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/cleanup-receipt.json",
+      "bytes": 920,
+      "sha256": "f31ba54ee65853e9d75ef5eb678710e26267b651f585815c90b9687c59a2e23b"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/supervisor.log",
+      "target_relative": "cloud/full-original-distribution-v1/supervisor.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/supervisor.log",
+      "bytes": 1510,
+      "sha256": "62d29f0bdf79cc30c0d09ab0a35618a3039883b4a211ee1aa1ddfdd44dd4ffcc"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/logs/build-wkcli.log",
+      "target_relative": "cloud/full-original-distribution-v1/logs/build-wkcli.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/logs/build-wkcli.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/logs/validate-cli.log",
+      "target_relative": "cloud/full-original-distribution-v1/logs/validate-cli.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/logs/validate-cli.log",
+      "bytes": 53,
+      "sha256": "4ceb3f9e052c95574399704e36af72d9cd3e4c56b4fe737d42d9f3005214556e"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/preflight-classification.json",
+      "target_relative": "cloud/full-original-distribution-v1/preflight-classification.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/preflight-classification.json",
+      "bytes": 957,
+      "sha256": "218e2fb4eb53eebc42a6ab9394572c67a702af9efa4d2fe549bec03086891ce8"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/local-entry-boundary.md",
+      "target_relative": "cloud/full-original-distribution-v1/local-entry-boundary.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/local-entry-boundary.md",
+      "bytes": 2199,
+      "sha256": "4b766578854d7e94e367e0cddfe8c85bd617bb642b60afb4864a4d026dc2bdb3"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/full-original-distribution-v1/SOURCE_PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/SOURCE_PUBLIC_ALLOWLIST",
+      "bytes": 540,
+      "sha256": "ffcf6ad00fb35ec5ce0ed4c5faf027949d680434909606049bd64e77676b90a9"
+    },
+    {
+      "group": "full-original-distribution-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/full-original-distribution-v1/SOURCE_PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v1/SOURCE_PUBLIC_SHA256SUMS",
+      "bytes": 2058,
+      "sha256": "ff2c1ede9eee0c084d3673c8a8000850d9a68e8463bad59608c8f7efa28d9611"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/diagnostic-conclusion.md",
+      "target_relative": "cloud/full-original-distribution-v2/diagnostic-conclusion.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/diagnostic-conclusion.md",
+      "bytes": 6078,
+      "sha256": "f1effaceb1dd6f69e2770bd546a0c186902edc34fe293143540abb07faed1300"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/safe-final-evidence-snapshot.json",
+      "target_relative": "cloud/full-original-distribution-v2/safe-final-evidence-snapshot.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/safe-final-evidence-snapshot.json",
+      "bytes": 45368,
+      "sha256": "2d35f99153b3da20955d99dc7fc312416decbbeae6f69c4b4d7a4d2f4b741e5e"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/diagnostic-result.json",
+      "target_relative": "cloud/full-original-distribution-v2/diagnostic-result.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/diagnostic-result.json",
+      "bytes": 3335,
+      "sha256": "cc2f24827af22b23142db6aa492df9c3fd14600c1f0e15d2164a1e2c64cbb3a0"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/cleanup-receipt.json",
+      "target_relative": "cloud/full-original-distribution-v2/cleanup-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/cleanup-receipt.json",
+      "bytes": 921,
+      "sha256": "31aab9374c0870383197dea52cbf725ce74786d51362cde8eb54566e4584b5e0"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/supervisor-events.json",
+      "target_relative": "cloud/full-original-distribution-v2/supervisor-events.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/supervisor-events.json",
+      "bytes": 570,
+      "sha256": "a85b4ef21edb6ce921108733ae6c3f09ecbf452f55708f0fd1d5850fc22c0489"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/preflight.json",
+      "target_relative": "cloud/full-original-distribution-v2/preflight.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/preflight.json",
+      "bytes": 1471,
+      "sha256": "aa2f45fb967f759b12fe1cc0546e4c106d0b9abc32674e3f84b437b68f41c9b0"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/revision-receipt.json",
+      "target_relative": "cloud/full-original-distribution-v2/revision-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/revision-receipt.json",
+      "bytes": 1132,
+      "sha256": "be9626d366dc6eac2bfb99b77debedc98218f9fe1422e152d2d03bf75f4375fd"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/supervisor-revision.diff",
+      "target_relative": "cloud/full-original-distribution-v2/supervisor-revision.diff",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/supervisor-revision.diff",
+      "bytes": 1389,
+      "sha256": "3928177d5d23dd73a490372f8e4d1ac1a116159b2d6f80d6956b64da16be0422"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/materialization.json",
+      "target_relative": "cloud/full-original-distribution-v2/materialization.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/materialization.json",
+      "bytes": 7882,
+      "sha256": "7bbe844514ed2dd1af4088ea557ec6dc2e8954ee76c223980e1f68f0d786ea5d"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/launcher-failure-matrix.md",
+      "target_relative": "cloud/full-original-distribution-v2/launcher-failure-matrix.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/launcher-failure-matrix.md",
+      "bytes": 2019,
+      "sha256": "a274387198f9c7ec263098e835eee655a0dde60df6dd0cd8e27b3ddaa4b10f0d"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/identity-helper-summary.json",
+      "target_relative": "cloud/full-original-distribution-v2/identity-helper-summary.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/identity-helper-summary.json",
+      "bytes": 4472,
+      "sha256": "f3337cfeb8bb378bb24d12957fce56a06e9df2a69b56015077b794e7e181df7a"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/identity-helper-selfcheck.json",
+      "target_relative": "cloud/full-original-distribution-v2/identity-helper-selfcheck.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/identity-helper-selfcheck.json",
+      "bytes": 3155,
+      "sha256": "70b11f1912a21f3a6f97ade1457623d00d0200d33ea31c0a1380c99c6ee5fc66"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/offline-retained-log-identity-correlation.json",
+      "target_relative": "cloud/full-original-distribution-v2/offline-retained-log-identity-correlation.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/offline-retained-log-identity-correlation.json",
+      "bytes": 5619,
+      "sha256": "5be661e49d3180c4490f50a245e51e024b8dacd3ee2d16c59bc9cdd25bf5a0c9"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/offline-db-failure-matrix.md",
+      "target_relative": "cloud/full-original-distribution-v2/offline-db-failure-matrix.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/offline-db-failure-matrix.md",
+      "bytes": 1602,
+      "sha256": "b44e902d8203b3a2ac6430e35392255459f3bc247c376eabe71cfa885602f2a9"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/offline-db-message-identity-typed.json",
+      "target_relative": "cloud/full-original-distribution-v2/offline-db-message-identity-typed.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/offline-db-message-identity-typed.json",
+      "bytes": 13848,
+      "sha256": "20c2f61515628314207de1128e17127eb8d90cf7815995856b4a99eec05ea212"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/offline-messageid-log-join.json",
+      "target_relative": "cloud/full-original-distribution-v2/offline-messageid-log-join.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/offline-messageid-log-join.json",
+      "bytes": 945,
+      "sha256": "145ef77f292e5b2853f7f8618a96b0376c2ef87fcb8d4afd6fc7af65da56ea7c"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/offline-roster-warning-timing.json",
+      "target_relative": "cloud/full-original-distribution-v2/offline-roster-warning-timing.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/offline-roster-warning-timing.json",
+      "bytes": 2706,
+      "sha256": "4bb0e858184d1106daa0d8f2afa5de98747d98ee52760d298018f5e1dfd58336"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/product-source-freeze-after.json",
+      "target_relative": "cloud/full-original-distribution-v2/product-source-freeze-after.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/product-source-freeze-after.json",
+      "bytes": 1966,
+      "sha256": "2e138f6680aa852f8ca2a0a9b8cb822a22b7249fe3e3f06d93cf57b526d5645b"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/evidence/metrics-first-measured-receipt.json",
+      "target_relative": "cloud/full-original-distribution-v2/evidence/metrics-first-measured-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/evidence/metrics-first-measured-receipt.json",
+      "bytes": 449,
+      "sha256": "de239d7753c6b74db2504958f0a2f768502482b5c57346165b61691fbf563dd1"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/evidence/metrics-terminal-receipt.json",
+      "target_relative": "cloud/full-original-distribution-v2/evidence/metrics-terminal-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/evidence/metrics-terminal-receipt.json",
+      "bytes": 450,
+      "sha256": "f917c49fb35fc2726f783814d5b4f8c0db6ed0bc067af0c70c1313e4687a42e6"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/evidence/watchdog.json",
+      "target_relative": "cloud/full-original-distribution-v2/evidence/watchdog.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/evidence/watchdog.json",
+      "bytes": 107,
+      "sha256": "4bf36d2f08a909ff6697498322eb358774ba73403a54dc7bd5b3b60a0ab42662"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/watchdog-selfcheck.json",
+      "target_relative": "cloud/full-original-distribution-v2/watchdog-selfcheck.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/watchdog-selfcheck.json",
+      "bytes": 541,
+      "sha256": "a19ae8763f501783d90e06399fe0c37cff9c733e194532ecbe5647a6c14379c7"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/full-original-distribution-v2/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/PUBLIC_ALLOWLIST",
+      "bytes": 642,
+      "sha256": "34f067a5022aef8bf00cfc249ffdff2100b62d43cd556186dae19ca540c7e1b8"
+    },
+    {
+      "group": "full-original-distribution-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/full-original-distribution-v2/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/PUBLIC_SHA256SUMS",
+      "bytes": 2094,
+      "sha256": "04dfbf3d1cfdde42cc17085392c5160135558d87ece8eff990a928509eb9ad4b"
+    },
+    {
+      "group": "full-original-distribution-v2/config-comparison-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/source-defaults.json",
+      "target_relative": "cloud/full-original-distribution-v2/config-comparison-addendum/source-defaults.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/source-defaults.json",
+      "bytes": 19026,
+      "sha256": "ff035563705b8a6966574a961b9e6de36d061a001fe12e710319672558e07e05"
+    },
+    {
+      "group": "full-original-distribution-v2/config-comparison-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/runtime-config-comparison.json",
+      "target_relative": "cloud/full-original-distribution-v2/config-comparison-addendum/runtime-config-comparison.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/runtime-config-comparison.json",
+      "bytes": 131974,
+      "sha256": "88c408b91c282fdfc6690562d483f01f08fdaab912fd2e3acbd553ca4c9fe339"
+    },
+    {
+      "group": "full-original-distribution-v2/config-comparison-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/runtime-config-comparison.md",
+      "target_relative": "cloud/full-original-distribution-v2/config-comparison-addendum/runtime-config-comparison.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/runtime-config-comparison.md",
+      "bytes": 10659,
+      "sha256": "ad49a2f849bdb3b863029050aad4d4d783173093a2a981eb402bfdb97cc7600b"
+    },
+    {
+      "group": "full-original-distribution-v2/config-comparison-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/runtime-config-comparison-refinements.json",
+      "target_relative": "cloud/full-original-distribution-v2/config-comparison-addendum/runtime-config-comparison-refinements.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/runtime-config-comparison-refinements.json",
+      "bytes": 1333,
+      "sha256": "e5951c9e29d82ea999c6d7e9753d92363975589f094d737f75c15b3c98a6d321"
+    },
+    {
+      "group": "full-original-distribution-v2/config-comparison-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/batch128-launcher-proposed.diff",
+      "target_relative": "cloud/full-original-distribution-v2/config-comparison-addendum/batch128-launcher-proposed.diff",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/batch128-launcher-proposed.diff",
+      "bytes": 879,
+      "sha256": "65a8d3378876f3c31e9cef043e1b9f8cbd41d2154793d34aa8a29713490895c5"
+    },
+    {
+      "group": "full-original-distribution-v2/config-comparison-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/batch128-proposal-receipt.json",
+      "target_relative": "cloud/full-original-distribution-v2/config-comparison-addendum/batch128-proposal-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/batch128-proposal-receipt.json",
+      "bytes": 3583,
+      "sha256": "8d49d6c4a70485fab4fe3e85d2ecc5c3faee489977e3dde5c32d1ec5c3aac14a"
+    },
+    {
+      "group": "full-original-distribution-v2/config-comparison-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/batch128-proposal.md",
+      "target_relative": "cloud/full-original-distribution-v2/config-comparison-addendum/batch128-proposal.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/batch128-proposal.md",
+      "bytes": 2041,
+      "sha256": "8448e7a2edb30985016c74bc531f1b0dd82ef2334da707a0fcd1080513df0617"
+    },
+    {
+      "group": "full-original-distribution-v2/config-comparison-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/full-original-distribution-v2/config-comparison-addendum/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/PUBLIC_ALLOWLIST",
+      "bytes": 208,
+      "sha256": "832eadfa6c60c321a278e1058114d1bac3d2f4d99120d29f810ba0c33e08b6a9"
+    },
+    {
+      "group": "full-original-distribution-v2/config-comparison-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/full-original-distribution-v2/config-comparison-addendum/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/PUBLIC_SHA256SUMS",
+      "bytes": 670,
+      "sha256": "e8ec8a502eeb555766807492ab6e415be2a638633e9702215930f71356232eca"
+    },
+    {
+      "group": "full-original-distribution-v2-signals",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/analyze.py",
+      "target_relative": "cloud/full-original-distribution-v2-signals/analyze.py",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/analyze.py",
+      "bytes": 9898,
+      "sha256": "10dc85722520f644c4fa516e977c9ac1bd2cfa7c50e87a526c4e04b4208cc4a3"
+    },
+    {
+      "group": "full-original-distribution-v2-signals",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/batch128-controlled-predictions.json",
+      "target_relative": "cloud/full-original-distribution-v2-signals/batch128-controlled-predictions.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/batch128-controlled-predictions.json",
+      "bytes": 5143,
+      "sha256": "331cb2d34dd98a099148f21ad3f26d004c33b8a3ea6fc5e6daf75f872abe069c"
+    },
+    {
+      "group": "full-original-distribution-v2-signals",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/configuration-axis-reference.json",
+      "target_relative": "cloud/full-original-distribution-v2-signals/configuration-axis-reference.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/configuration-axis-reference.json",
+      "bytes": 3223,
+      "sha256": "5d40f41b5643ffeac31dd582383270434c8f8086ffb281f92c8f57f4f146c755"
+    },
+    {
+      "group": "full-original-distribution-v2-signals",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/limited-summary.json",
+      "target_relative": "cloud/full-original-distribution-v2-signals/limited-summary.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/limited-summary.json",
+      "bytes": 265346,
+      "sha256": "dfe4c8eb69c6a35245bcdb4e72246a30d2087415c5b53a8dcb7ae1346c260dfd"
+    },
+    {
+      "group": "full-original-distribution-v2-signals",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/report.md",
+      "target_relative": "cloud/full-original-distribution-v2-signals/report.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/report.md",
+      "bytes": 14335,
+      "sha256": "34d68f087f5754feb0d8012ae58477a1cf67fd9b6a4e17774242f4bf8c9f5ba3"
+    },
+    {
+      "group": "full-original-distribution-v2-signals",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/source-input-binding.json",
+      "target_relative": "cloud/full-original-distribution-v2-signals/source-input-binding.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/source-input-binding.json",
+      "bytes": 13565,
+      "sha256": "20f5f42f6328086c75b31bf485af47a934f7682ccafec4ab35247a0149ede9cb"
+    },
+    {
+      "group": "full-original-distribution-v2-signals",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/PUBLIC_ALLOWLIST.txt",
+      "target_relative": "cloud/full-original-distribution-v2-signals/PUBLIC_ALLOWLIST.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/PUBLIC_ALLOWLIST.txt",
+      "bytes": 139,
+      "sha256": "e8addbda00884e5607afde236aaa0e987f410223dc8f543b082046e8330b0f00"
+    },
+    {
+      "group": "full-original-distribution-v2-signals",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/full-original-distribution-v2-signals/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/PUBLIC_SHA256SUMS",
+      "bytes": 622,
+      "sha256": "6000f622e99146832aab529e6aafe382c63a5e5dbcff75850a56764657631bcc"
+    },
+    {
+      "group": "full-original-distribution-v2-signals",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/SHA256SUMS",
+      "target_relative": "cloud/full-original-distribution-v2-signals/SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/SHA256SUMS",
+      "bytes": 622,
+      "sha256": "6000f622e99146832aab529e6aafe382c63a5e5dbcff75850a56764657631bcc"
+    },
+    {
+      "group": "full-original-distribution-v2-signals/gateway-batch-and-canary-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/analyze.py",
+      "target_relative": "cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/analyze.py",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/analyze.py",
+      "bytes": 6363,
+      "sha256": "794b10a9a03b90b60ccf4b4d615377e676683ffa9414d0b261c8536e62406dbf"
+    },
+    {
+      "group": "full-original-distribution-v2-signals/gateway-batch-and-canary-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/summary.json",
+      "target_relative": "cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/summary.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/summary.json",
+      "bytes": 14710,
+      "sha256": "2ee1566dfd395f216def72aeee61a70996a023c889997f5346999ba2d20712f7"
+    },
+    {
+      "group": "full-original-distribution-v2-signals/gateway-batch-and-canary-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/report.md",
+      "target_relative": "cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/report.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/report.md",
+      "bytes": 3536,
+      "sha256": "37fd92a4f6117f16be509b57000244a8d9f602144effa7fa45fbb43cbab3a8a1"
+    },
+    {
+      "group": "full-original-distribution-v2-signals/gateway-batch-and-canary-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/PUBLIC_ALLOWLIST.txt",
+      "target_relative": "cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/PUBLIC_ALLOWLIST.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/PUBLIC_ALLOWLIST.txt",
+      "bytes": 55,
+      "sha256": "8c032a5424af167bf469052d7e4c5fa94053328ec8fa1172be0cd81c023cc04d"
+    },
+    {
+      "group": "full-original-distribution-v2-signals/gateway-batch-and-canary-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/PUBLIC_SHA256SUMS",
+      "bytes": 319,
+      "sha256": "8143958e9a6216129d0a5c34a37a5a460cf2755e3848b17b52439a7d3483cf5a"
+    },
+    {
+      "group": "full-original-distribution-v2-signals/gateway-batch-and-canary-addendum",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/SHA256SUMS",
+      "target_relative": "cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-v2-signals/gateway-batch-and-canary-addendum/SHA256SUMS",
+      "bytes": 319,
+      "sha256": "8143958e9a6216129d0a5c34a37a5a460cf2755e3848b17b52439a7d3483cf5a"
+    }
+  ],
+  "finite_scope_rules": {
+    "allowlist_semantics": "COPY_BATCH6_ALLOWLIST lists the 104 copied target files only. It excludes the three root COPY_BATCH6 metadata files. COPY_BATCH6_SHA256SUMS covers all 104 targets plus this allowlist and receipt, and excludes itself.",
+    "source_schema_differences": "Original local/full/config manifests hash source payloads only; source signal manifests additionally hash their allowlist. Do not compare source manifest counts as though they shared one schema. Exact membership and hashes are recorded above.",
+    "full_v1_partial_selection": "Seven source-public-allowlisted runtime configuration/bootstrap driver files were excluded. Its original PUBLIC_ALLOWLIST and PUBLIC_SHA256SUMS were copied as SOURCE_PUBLIC_ALLOWLIST and SOURCE_PUBLIC_SHA256SUMS. These document source provenance, not completeness of the copied target directory. Batch6 manifest is authoritative for copied-target membership.",
+    "private_inputs": "Raw identities, arbitrary payloads, original private runtime configuration, source databases, key material, original application logs and binary profiles remain outside this finite copied set. Their excluded inputs are not claimed fully archived.",
+    "batch128_execution_evidence_included": false,
+    "batch128_proposal_material_only": "The approved config/signal groups include pre-execution proposal/diff/controlled-prediction documents. No full-original-distribution-batch128-v1 execution directory or its ongoing diagnostic outputs are selected.",
+    "full_v2_original22_payloads_and_manifest_unchanged": {
+      "manifest_sha256": "04dfbf3d1cfdde42cc17085392c5160135558d87ece8eff990a928509eb9ad4b",
+      "payloads": 22,
+      "source_and_copied_targets_verified": true
+    }
+  },
+  "preservation": {
+    "head": "6e13d382ebd1a30447d979dbac73ff300be6b42c",
+    "index_tree": "cd6f8bb79e1341f1eb2afe3c0f47da82136549fa",
+    "old_checkpoint_entries_checked": 1038,
+    "old_payloads_except_parent_edited_root_report_unchanged": true,
+    "root_report": "Parent-owned edits remain permitted and untouched by this copying task.",
+    "protected_archive_metadata": {
+      "README.md": {
+        "bytes": 1637,
+        "sha256": "7b212824009ab56684d09e9d9ab4131b89dc2c0874eed449497244b236b627d8"
+      },
+      "CHECKPOINT_SHA256SUMS": {
+        "bytes": 183615,
+        "sha256": "820297b5bf3055648850cf88b1874d4a13deaefaea30932cda41f6a0c00a0841"
+      },
+      "COPY_BATCH5_ALLOWLIST": {
+        "bytes": 39998,
+        "sha256": "c1274d3490c47ada950cbc735c8202e02cf8d604b791c61bc899f47f07ba6107"
+      },
+      "COPY_BATCH5_RECEIPT.json": {
+        "bytes": 339993,
+        "sha256": "d07519ae25d00a4edfeceeab66834d5d5e5e7f6bf210eb35b25bff778a7c333f"
+      },
+      "COPY_BATCH5_SHA256SUMS": {
+        "bytes": 75817,
+        "sha256": "4db0a51b7d5a2997d95dbfdc7dc80dec5f0622582e55bd2427411ac16ab30dda"
+      }
+    },
+    "readme_or_global_checkpoint_written": false,
+    "stage_or_commit_performed": false
+  }
+}

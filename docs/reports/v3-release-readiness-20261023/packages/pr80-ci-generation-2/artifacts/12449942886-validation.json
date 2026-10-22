@@ -1,0 +1,41 @@
+{
+  "artifact_api": {
+    "id": 12449942886,
+    "node_id": "MDg6QXJ0aWZhY3QxMjQ0OTk0Mjg4Ng==",
+    "name": "native-object-delivery-fixture-test-only",
+    "size_in_bytes": 8411,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12449942886",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12449942886/zip",
+    "expired": false,
+    "digest": "sha256:65bbadd32048c8afaa469866e2c6a42f5caef7f33ea2b5a22004f5662f4e55e4",
+    "created_at": "2026-10-22T18:41:30Z",
+    "updated_at": "2026-10-22T18:41:30Z",
+    "expires_at": "2026-11-21T18:41:29Z",
+    "workflow_run": {
+      "id": 39833326934,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/native-delivery-sdk",
+      "head_sha": "b8fc6d5e384630ef1d4c0f00281a836d115456e8"
+    }
+  },
+  "downloaded_at_utc": "2026-10-22T18:42:05.190585+00:00",
+  "downloaded_bytes": 8411,
+  "local_sha256": "65bbadd32048c8afaa469866e2c6a42f5caef7f33ea2b5a22004f5662f4e55e4",
+  "api_sha256_matched": true,
+  "zip_crc_verified": true,
+  "members": [
+    {
+      "name": "result.json",
+      "bytes": 48486,
+      "sha256": "ee787479ea238fa976dbd3300ebba6069fb44278025df89a224779d2d3c7c818",
+      "crc32": "98e0ed89"
+    },
+    {
+      "name": "fixture-export.json",
+      "bytes": 2550,
+      "sha256": "b1386ad78892967310ebec7c5d064b229ffe5e525a1fa6c020f06c4eea4f0b6f",
+      "crc32": "c08f1a1d"
+    }
+  ]
+}

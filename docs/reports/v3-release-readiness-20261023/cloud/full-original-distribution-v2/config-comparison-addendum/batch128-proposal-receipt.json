@@ -1,0 +1,89 @@
+{
+  "schema": "wukongim/single-variable-local-replay-proposal/v1",
+  "at_utc": "2026-10-22T19:25:48.881495+00:00",
+  "status": "PREPARED_NOT_STARTED",
+  "output_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1",
+  "baseline_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "single_effective_change": {
+    "environment_key": "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS",
+    "baseline": 1,
+    "proposed": 128,
+    "TOML_file_value": 1,
+    "effective_precedence": "WK_ environment overrides TOML; source schema/build handles the same field",
+    "scope": "all3serviceprocesses"
+  },
+  "other_change": "fresh output-directory path only",
+  "runtime_files": {
+    "launcher.sh": {
+      "bytes": 13544,
+      "sha256": "f7f6f269c91a4178c7ee9737c883cbd17cccbfdb63c780212d86888ea49e628e",
+      "unchanged_from_baseline": false
+    },
+    "supervise.py": {
+      "bytes": 14416,
+      "sha256": "25c5afbc89581f0dd61874191fdab6db0cf2822b62bd5ac20b871078f2f74c33",
+      "unchanged_from_baseline": true
+    },
+    "verify-slots.py": {
+      "bytes": 4113,
+      "sha256": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+      "unchanged_from_baseline": true
+    },
+    "watchdog.py": {
+      "bytes": 1065,
+      "sha256": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+      "unchanged_from_baseline": true
+    },
+    "original-distribution-local.yaml": {
+      "bytes": 4362,
+      "sha256": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+      "unchanged_from_baseline": true
+    }
+  },
+  "launcher_diff_sha256": "65a8d3378876f3c31e9cef043e1b9f8cbd41d2154793d34aa8a29713490895c5",
+  "static_preflight": {
+    "bash_syntax": true,
+    "python_ast": true,
+    "exact_two_text_deltas_only": true,
+    "no_previous_runtime_directories": true,
+    "full_yaml_bytes_identical": true,
+    "product_binary_will_be_identical_baseline_source_copy": true
+  },
+  "unchanged_bounds": {
+    "overall_seconds": 600,
+    "measured_target_seconds": 120,
+    "all_user_barrier_deadline_seconds": 360,
+    "measured_admission_latest_stop_seconds": 480,
+    "diagnosis_hold_seconds": 90,
+    "independent_watchdog_TERM_at_seconds": 570,
+    "independent_watchdog_KILL_grace_seconds": 5,
+    "cleanup_zero_inventory": true
+  },
+  "existing_strict_loader": {
+    "invocation": "wkcli bench soak chat-lifecycle --config <unchanged local YAML> --output-dir <new report>",
+    "entry_source": "cmd/wkcli/internal/benchmark/chat_lifecycle_command.go:96",
+    "loader": "internal/bench/chatlifecycle/io.go:17",
+    "validation": "strict YAML KnownFields + Config.Validate, before coordinator network activity",
+    "deployment_only_validate_called": false,
+    "prior_identical_local_yaml_passed_this_loader_in_full_v2": true
+  },
+  "explicitly_unchanged": [
+    "GOMAXPROCS2service/1load",
+    "initial10k online/global100login per second",
+    "2000total SEND/s and whole workloadbytes",
+    "seed1/originalrunID",
+    "10sexpiry",
+    "cohort64/1024/16MiB",
+    "delivery320/1024/5s",
+    "Slotcompaction1000/5s",
+    "allappend/RPC/storagepolicies",
+    "noactiveprofiles",
+    "noextranetworkcollectors",
+    "90sholdandnormalcleanup",
+    "64selectedports25000..25063"
+  ],
+  "estimated_window": "3\u20135min bootstrap + up to120s traffic + existing90s hold/drain; hard\u2264600s fromsupervisorstart. Stop onfirstfailure, noautotry.",
+  "workload_starts": 0,
+  "source_edits": 0
+}

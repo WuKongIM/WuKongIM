@@ -1,0 +1,20 @@
+--- full-original-distribution-v2/launcher.sh
++++ full-original-distribution-batch128-v1/launcher.sh
+@@ -2,7 +2,7 @@
+ set -euo pipefail
+ umask 077
+ ROOT_DIR='/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis'
+-RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2'
++RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1'
+ BASE_PORT=25000
+ READY_TIMEOUT=60
+ CLEANUP_TIMEOUT=15
+@@ -231,7 +231,7 @@
+     WK_CLUSTER_SLOT_REPLICA_N=3 \
+     WK_CLUSTER_CHANNEL_REPLICA_N=3 \
+     WK_CLUSTER_MAX_CHANNELS=50000 \
+-    WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=1 \
++    WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=128 \
+     WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=500us \
+     WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=1 \
+     WK_CLUSTER_COMMIT_COORDINATOR_SYNC=true \

@@ -1,0 +1,3995 @@
+{
+  "schema": "wukongim/local-vs-frozen-cloud-runtime-config/v1",
+  "at_utc": "2026-10-22T19:22:12.427420+00:00",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "actual_local_inputs": {
+    "launcher.sh": {
+      "bytes": 13533,
+      "sha256": "232cb5a9e5ea8826d23c607f76dadb0dadf391345dc915eb43b64492782e0e3f"
+    },
+    "supervise.py": {
+      "bytes": 14416,
+      "sha256": "25c5afbc89581f0dd61874191fdab6db0cf2822b62bd5ac20b871078f2f74c33"
+    },
+    "config/node1.toml": {
+      "bytes": 8841,
+      "sha256": "ff5fe20ce9fb7942d7a7e59c9e5cc160388b6f4664e40d2da813c8e3a976b25d"
+    },
+    "config/node2.toml": {
+      "bytes": 8841,
+      "sha256": "de5adcfca4ae05293f05402974499e76558b470fee0a9431fa05905381bdde0e"
+    },
+    "config/node3.toml": {
+      "bytes": 8841,
+      "sha256": "0052bc446b21a56ae3eb02eede154b32e1df6c6beb15767c0baa27ff4006b305"
+    }
+  },
+  "cloud_bundle_inputs": {
+    "artifact_zip_sha256": "b5d5503195572d6569e150cfb15f7018cd30294c9caaa108eea965c25cef75fa",
+    "tar_sha256": "cb6bf5ccc33a0be9950cffe4810490b9f21e7370658fa8836adfee5da1e3b4b3",
+    "template_sha256": "ef4b3e9ae300ca663efff0cd901fc30a8b19cdf84252e1937ecc3675b37e9a78",
+    "service_unit_sha256": "b430999cef2ea4ce492c99ce72e15ca16d31b4e51b14da3b43c835826ebf3895",
+    "deployment_intent_sha256": "dc834173cc6307f6f89234dd5724ddf47fc27d4a23061126ca5e1655177374f0",
+    "bundle_manifest_sha256": "61d3582eee1aeca2e956b4dbcd1b424fd33de06251b415d81d6928aae81e21c2"
+  },
+  "source_sha256": {
+    "internal/config/build.go": "02ebac6d9b365b3ce453aeea2748bd0bfa4391a82c9731f601aa8aba5d6baf13",
+    "internal/config/schema.go": "9ae6ffa53282c929a67c116419af21d43f1f2cc633ad6787b96c6bf35e72e891",
+    "internal/config/snapshot.go": "e79b3076cde83e45be6ab565a672e04b79b15a15510572c4b2ddae50214394eb",
+    "internal/app/config.go": "abce8a6edbbb55f7b3c46a2a0957400c94cc47221b7b796f1d74727edfdc9c2a",
+    "internal/app/wiring.go": "e80b950481e6d05ec100616cc7a8db35cc785b42d630a89bbe145c0c81cebc34",
+    "internal/app/delivery_wiring.go": "67c219633b1c65ba9062c03685768dfc993358c35ea0bd977ecab27000ff788b",
+    "pkg/gateway/types/options.go": "4587f63d170a264cf59dde291e862931e3c650f73a30fe9560b73208f082b275",
+    "pkg/slot/multiraft/config.go": "8e60079e9b74b869279fce522eb35486084675988abab9f2e7e41d765acc9895",
+    "pkg/slot/proxy/send_permission_cohort.go": "d84be076ccc93552ada25c867d2c641cdfb1b67ce78ef4ac154a3247b58ad352",
+    "pkg/db/options.go": "64dc4ac6f2e453f19bde49c0ee9b5d1265b0c36b117b554f5631bc49f20853b8",
+    "pkg/db/internal/engine/db.go": "a5544110e6ef740a3dc70add13c716d3df8eec3a6a00131078f20c2355e47ec5",
+    "internal/usecase/clouddeploy/templates.go": "6258e8a22b8f3fc3faacd47fe1f1bc17214149fa768936a056f264c8dcc3257e",
+    "scripts/cloud-deployment/prepare-local-runtime.sh": "01a668f8353505ca86eef2065308a88f9ec54d8328c412e031e86468f66216a2",
+    "scripts/cloud-deployment/deploy.sh": "f0e15be89d8f41f49ff7bb70881f8ac0e2417c67a0878285b1e77fdc4ad53c4e",
+    "scripts/cloud-deployment/collect-readiness.sh": "7928e8e4bc0cd1e976349f37aa38accd52806bbb32c5a743ec3b5d9ba094a064",
+    "scripts/capture-wukongim-local-threshold-pprof.sh": "b17347aea7acdfc6320c7db547065893814b105b7fbe5b6f9655b8b044b0780a",
+    "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4",
+    "scripts/wukongim_local_threshold_pprof_script_integration_test.go": "8cdd6bb91e10a6f08fb84e710b16b2dff15bd3bd329c6f45fbeeb3391dd35311",
+    "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go": "0f665c92e3b99eeaf23a57e65fca4f91d16bf7b7e53a1d9d34462f49e820ccfa"
+  },
+  "cloud_safe_intent": {
+    "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+    "control_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+    "operating_system": "ubuntu",
+    "operating_system_version": "24.04",
+    "architecture": "amd64",
+    "service_nodes": 3,
+    "load_nodes": 1,
+    "hash_slots": 256,
+    "workload_slot_groups": 12,
+    "replicas": 3
+  },
+  "private_categories_omitted": [
+    "host addresses",
+    "listen addresses",
+    "data/log/plugin paths",
+    "secrets",
+    "credentials",
+    "user arrays",
+    "cluster/node identity strings"
+  ],
+  "source_normalized_comparison": [
+    {
+      "field": "delivery.owner_push_batch_routes",
+      "local_effective": 512,
+      "cloud_template_plus_source_default": 512,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "line": 34,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 614,
+          "line": 595,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 46,
+          "line": 29,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go"
+        },
+        {
+          "end_line": 16,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go"
+        },
+        {
+          "end_line": 23,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 198,
+          "line": 184,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 690,
+          "line": 660,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        }
+      ]
+    },
+    {
+      "field": "delivery.owner_push_concurrency_per_plan",
+      "local_effective": 4,
+      "cloud_template_plus_source_default": 4,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "line": 34,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 614,
+          "line": 595,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 46,
+          "line": 29,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go"
+        },
+        {
+          "end_line": 16,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go"
+        },
+        {
+          "end_line": 23,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 198,
+          "line": 184,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 690,
+          "line": 660,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        }
+      ]
+    },
+    {
+      "field": "delivery.pending_ack_max_per_session",
+      "local_effective": 1024,
+      "cloud_template_plus_source_default": 1024,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "line": 34,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 614,
+          "line": 595,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 46,
+          "line": 29,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go"
+        },
+        {
+          "end_line": 16,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go"
+        },
+        {
+          "end_line": 23,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 198,
+          "line": 184,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 690,
+          "line": 660,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        }
+      ]
+    },
+    {
+      "field": "delivery.pending_ack_ttl_ms",
+      "local_effective": 30000,
+      "cloud_template_plus_source_default": 30000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "line": 34,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 614,
+          "line": 595,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 46,
+          "line": 29,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go"
+        },
+        {
+          "end_line": 16,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go"
+        },
+        {
+          "end_line": 23,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 198,
+          "line": 184,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 690,
+          "line": 660,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        }
+      ]
+    },
+    {
+      "field": "delivery.plan_recipients",
+      "local_effective": 512,
+      "cloud_template_plus_source_default": 512,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "line": 34,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 614,
+          "line": 595,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 46,
+          "line": 29,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go"
+        },
+        {
+          "end_line": 16,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go"
+        },
+        {
+          "end_line": 23,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 198,
+          "line": 184,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 690,
+          "line": 660,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        }
+      ]
+    },
+    {
+      "field": "delivery.plan_timeout_ms",
+      "local_effective": 5000,
+      "cloud_template_plus_source_default": 5000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "line": 34,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 614,
+          "line": 595,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 46,
+          "line": 29,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go"
+        },
+        {
+          "end_line": 16,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go"
+        },
+        {
+          "end_line": 23,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 198,
+          "line": 184,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 690,
+          "line": 660,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        }
+      ]
+    },
+    {
+      "field": "delivery.queue_plans",
+      "local_effective": 1024,
+      "cloud_template_plus_source_default": 1024,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "line": 34,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 614,
+          "line": 595,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 46,
+          "line": 29,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go"
+        },
+        {
+          "end_line": 16,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go"
+        },
+        {
+          "end_line": 23,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 198,
+          "line": 184,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 690,
+          "line": 660,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        }
+      ]
+    },
+    {
+      "field": "delivery.recipient_workers",
+      "local_effective": 320,
+      "cloud_template_plus_source_default": 320,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "line": 34,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 614,
+          "line": 595,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 46,
+          "line": 29,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go"
+        },
+        {
+          "end_line": 16,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go"
+        },
+        {
+          "end_line": 23,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 198,
+          "line": 184,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 690,
+          "line": 660,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        }
+      ]
+    },
+    {
+      "field": "delivery.retry_initial_ms",
+      "local_effective": 10,
+      "cloud_template_plus_source_default": 10,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "line": 34,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 614,
+          "line": 595,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 46,
+          "line": 29,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go"
+        },
+        {
+          "end_line": 16,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go"
+        },
+        {
+          "end_line": 23,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 198,
+          "line": 184,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 690,
+          "line": 660,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        }
+      ]
+    },
+    {
+      "field": "delivery.retry_max_ms",
+      "local_effective": 10,
+      "cloud_template_plus_source_default": 10,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "line": 34,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 614,
+          "line": 595,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 46,
+          "line": 29,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go"
+        },
+        {
+          "end_line": 16,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go"
+        },
+        {
+          "end_line": 23,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 198,
+          "line": 184,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 690,
+          "line": 660,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        }
+      ]
+    },
+    {
+      "field": "delivery.retry_total_attempts",
+      "local_effective": 3,
+      "cloud_template_plus_source_default": 3,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "line": 34,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 614,
+          "line": 595,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 46,
+          "line": 29,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go"
+        },
+        {
+          "end_line": 16,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go"
+        },
+        {
+          "end_line": 23,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 198,
+          "line": 184,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        },
+        {
+          "end_line": 690,
+          "line": 660,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+        }
+      ]
+    },
+    {
+      "field": "person_directory.attempt_timeout_ms",
+      "local_effective": 4000,
+      "cloud_template_plus_source_default": 4000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/persondirectory/projector.go"
+        },
+        {
+          "end_line": 325,
+          "line": 308,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/wiring.go"
+        }
+      ]
+    },
+    {
+      "field": "person_directory.page_size",
+      "local_effective": 64,
+      "cloud_template_plus_source_default": 64,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/persondirectory/projector.go"
+        },
+        {
+          "end_line": 325,
+          "line": 308,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/wiring.go"
+        }
+      ]
+    },
+    {
+      "field": "person_directory.queue_tasks",
+      "local_effective": 512,
+      "cloud_template_plus_source_default": 512,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/persondirectory/projector.go"
+        },
+        {
+          "end_line": 325,
+          "line": 308,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/wiring.go"
+        }
+      ]
+    },
+    {
+      "field": "person_directory.repair_interval_ms",
+      "local_effective": 1000,
+      "cloud_template_plus_source_default": 1000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/persondirectory/projector.go"
+        },
+        {
+          "end_line": 325,
+          "line": 308,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/wiring.go"
+        }
+      ]
+    },
+    {
+      "field": "person_directory.workers",
+      "local_effective": 8,
+      "cloud_template_plus_source_default": 8,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/persondirectory/projector.go"
+        },
+        {
+          "end_line": 325,
+          "line": 308,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/wiring.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.advance_pool_size",
+      "local_effective": 500,
+      "cloud_template_plus_source_default": 500,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.authority_shards_formula",
+      "local_effective": 4,
+      "cloud_template_plus_source_default": "unknown; 4 if effective GOMAXPROCS<=4",
+      "comparison": "cloud_runtime_unmeasured",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.effect_pool_size",
+      "local_effective": 2000,
+      "cloud_template_plus_source_default": 2000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.reactor_append_batch_bytes",
+      "local_effective": 262144,
+      "cloud_template_plus_source_default": 262144,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.reactor_append_batch_records",
+      "local_effective": 128,
+      "cloud_template_plus_source_default": 128,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.reactor_append_batch_wait_us",
+      "local_effective": 1000,
+      "cloud_template_plus_source_default": 1000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.reactor_append_queue_bytes",
+      "local_effective": 4194304,
+      "cloud_template_plus_source_default": 4194304,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.reactor_append_queue_requests",
+      "local_effective": 1024,
+      "cloud_template_plus_source_default": 1024,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.reactor_append_store_retry_backoff_us",
+      "local_effective": 1000,
+      "cloud_template_plus_source_default": 1000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.reactor_count_formula",
+      "local_effective": 4,
+      "cloud_template_plus_source_default": "unknown; 4 if effective GOMAXPROCS<=4",
+      "comparison": "cloud_runtime_unmeasured",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.reactor_mailbox_items",
+      "local_effective": 1024,
+      "cloud_template_plus_source_default": 1024,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.reactor_tick_ms",
+      "local_effective": 50,
+      "cloud_template_plus_source_default": 50,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_append.recipient_authority_dispatch_concurrency",
+      "local_effective": 100,
+      "cloud_template_plus_source_default": 100,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 687,
+          "line": 657,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 421,
+          "line": 411,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 40,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_blocking_workers.rpc_batch_items",
+      "local_effective": 8,
+      "cloud_template_plus_source_default": 8,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 36,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go"
+        },
+        {
+          "end_line": 472,
+          "line": 450,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go"
+        },
+        {
+          "end_line": 424,
+          "line": 417,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_blocking_workers.rpc_batch_wait_us",
+      "local_effective": 250,
+      "cloud_template_plus_source_default": 250,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 36,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go"
+        },
+        {
+          "end_line": 472,
+          "line": 450,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go"
+        },
+        {
+          "end_line": 424,
+          "line": 417,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_blocking_workers.rpc_workers",
+      "local_effective": 96,
+      "cloud_template_plus_source_default": 96,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 36,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go"
+        },
+        {
+          "end_line": 472,
+          "line": 450,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go"
+        },
+        {
+          "end_line": 424,
+          "line": 417,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_blocking_workers.store_append_batch_items",
+      "local_effective": 64,
+      "cloud_template_plus_source_default": 64,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 36,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go"
+        },
+        {
+          "end_line": 472,
+          "line": 450,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go"
+        },
+        {
+          "end_line": 424,
+          "line": 417,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_blocking_workers.store_append_batch_wait_us",
+      "local_effective": 250,
+      "cloud_template_plus_source_default": 250,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 36,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go"
+        },
+        {
+          "end_line": 472,
+          "line": 450,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go"
+        },
+        {
+          "end_line": 424,
+          "line": 417,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_blocking_workers.store_append_workers",
+      "local_effective": 128,
+      "cloud_template_plus_source_default": 128,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 36,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go"
+        },
+        {
+          "end_line": 472,
+          "line": 450,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go"
+        },
+        {
+          "end_line": 424,
+          "line": 417,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_blocking_workers.store_apply_batch_items",
+      "local_effective": 64,
+      "cloud_template_plus_source_default": 64,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 36,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go"
+        },
+        {
+          "end_line": 472,
+          "line": 450,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go"
+        },
+        {
+          "end_line": 424,
+          "line": 417,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_blocking_workers.store_apply_batch_wait_us",
+      "local_effective": 250,
+      "cloud_template_plus_source_default": 250,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 36,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go"
+        },
+        {
+          "end_line": 472,
+          "line": 450,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go"
+        },
+        {
+          "end_line": 424,
+          "line": 417,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_blocking_workers.store_apply_workers",
+      "local_effective": 8,
+      "cloud_template_plus_source_default": 8,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 36,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go"
+        },
+        {
+          "end_line": 472,
+          "line": 450,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go"
+        },
+        {
+          "end_line": 424,
+          "line": 417,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_blocking_workers.store_read_workers_formula",
+      "local_effective": 4,
+      "cloud_template_plus_source_default": "unknown; 4 if effective GOMAXPROCS<=4",
+      "comparison": "cloud_runtime_unmeasured",
+      "basis": [
+        {
+          "end_line": 36,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go"
+        },
+        {
+          "end_line": 472,
+          "line": 450,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go"
+        },
+        {
+          "end_line": 424,
+          "line": 417,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        }
+      ]
+    },
+    {
+      "field": "channel_blocking_workers.worker_queue_items_from_default_mailbox",
+      "local_effective": 1024,
+      "cloud_template_plus_source_default": 1024,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 36,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go"
+        },
+        {
+          "end_line": 472,
+          "line": 450,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go"
+        },
+        {
+          "end_line": 424,
+          "line": 417,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.dial_failure_cooldown_ms",
+      "local_effective": 50,
+      "cloud_template_plus_source_default": 50,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.dial_timeout_ms",
+      "local_effective": 5000,
+      "cloud_template_plus_source_default": 5000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.foreground_channel_mutation_concurrency",
+      "local_effective": 512,
+      "cloud_template_plus_source_default": 512,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.frame_body_max_bytes",
+      "local_effective": 67108864,
+      "cloud_template_plus_source_default": 67108864,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.ordered_raft_service_concurrency",
+      "local_effective": 1,
+      "cloud_template_plus_source_default": 1,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.peer_connection_pool",
+      "local_effective": 16,
+      "cloud_template_plus_source_default": 16,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.per_service_queue_bytes",
+      "local_effective": 67108864,
+      "cloud_template_plus_source_default": 67108864,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.per_service_queue_items",
+      "local_effective": 4096,
+      "cloud_template_plus_source_default": 4096,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.queued_bytes_per_connection",
+      "local_effective": 67108864,
+      "cloud_template_plus_source_default": 67108864,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.queued_items_per_connection",
+      "local_effective": 4096,
+      "cloud_template_plus_source_default": 4096,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.service_default_concurrency",
+      "local_effective": 128,
+      "cloud_template_plus_source_default": 128,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.service_default_execution_timeout_ms",
+      "local_effective": 30000,
+      "cloud_template_plus_source_default": 30000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.service_queue_timeout_ms",
+      "local_effective": 5000,
+      "cloud_template_plus_source_default": 5000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.write_batch_max_bytes",
+      "local_effective": 1048576,
+      "cloud_template_plus_source_default": 1048576,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.write_batch_max_frames",
+      "local_effective": 64,
+      "cloud_template_plus_source_default": 64,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.write_batch_wait_ms",
+      "local_effective": 0,
+      "cloud_template_plus_source_default": 0,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "cluster_transport_rpc.write_timeout_ms",
+      "local_effective": 5000,
+      "cloud_template_plus_source_default": 5000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 20,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 376,
+          "line": 322,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 431,
+          "line": 416,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+        },
+        {
+          "end_line": 64,
+          "line": 53,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+        }
+      ]
+    },
+    {
+      "field": "physical_commit.flush_window_us",
+      "local_effective": 500,
+      "cloud_template_plus_source_default": 500,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 21,
+          "line": 20,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/store/channel_adapter.go"
+        },
+        {
+          "end_line": 13,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/options.go"
+        },
+        {
+          "end_line": 31,
+          "line": 25,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/message/compat.go"
+        },
+        {
+          "end_line": 775,
+          "line": 764,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/internal/commit/coordinator.go"
+        }
+      ]
+    },
+    {
+      "field": "physical_commit.max_bytes_zero_means_no_positive_limit",
+      "local_effective": 0,
+      "cloud_template_plus_source_default": 0,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 21,
+          "line": 20,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/store/channel_adapter.go"
+        },
+        {
+          "end_line": 13,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/options.go"
+        },
+        {
+          "end_line": 31,
+          "line": 25,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/message/compat.go"
+        },
+        {
+          "end_line": 775,
+          "line": 764,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/internal/commit/coordinator.go"
+        }
+      ]
+    },
+    {
+      "field": "physical_commit.max_records_zero_means_no_positive_limit",
+      "local_effective": 0,
+      "cloud_template_plus_source_default": 0,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 21,
+          "line": 20,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/store/channel_adapter.go"
+        },
+        {
+          "end_line": 13,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/options.go"
+        },
+        {
+          "end_line": 31,
+          "line": 25,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/message/compat.go"
+        },
+        {
+          "end_line": 775,
+          "line": 764,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/internal/commit/coordinator.go"
+        }
+      ]
+    },
+    {
+      "field": "physical_commit.max_requests_zero_means_no_positive_limit",
+      "local_effective": 0,
+      "cloud_template_plus_source_default": 0,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 21,
+          "line": 20,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/store/channel_adapter.go"
+        },
+        {
+          "end_line": 13,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/options.go"
+        },
+        {
+          "end_line": 31,
+          "line": 25,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/message/compat.go"
+        },
+        {
+          "end_line": 775,
+          "line": 764,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/internal/commit/coordinator.go"
+        }
+      ]
+    },
+    {
+      "field": "physical_commit.queue_requests",
+      "local_effective": 1024,
+      "cloud_template_plus_source_default": 1024,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 21,
+          "line": 20,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/store/channel_adapter.go"
+        },
+        {
+          "end_line": 13,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/options.go"
+        },
+        {
+          "end_line": 31,
+          "line": 25,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/message/compat.go"
+        },
+        {
+          "end_line": 775,
+          "line": 764,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/internal/commit/coordinator.go"
+        }
+      ]
+    },
+    {
+      "field": "physical_commit.shards",
+      "local_effective": 1,
+      "cloud_template_plus_source_default": 1,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 21,
+          "line": 20,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/store/channel_adapter.go"
+        },
+        {
+          "end_line": 13,
+          "line": 8,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/options.go"
+        },
+        {
+          "end_line": 31,
+          "line": 25,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/message/compat.go"
+        },
+        {
+          "end_line": 775,
+          "line": 764,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/internal/commit/coordinator.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.batch_bytes",
+      "local_effective": 4194304,
+      "cloud_template_plus_source_default": 4194304,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.batch_items",
+      "local_effective": 256,
+      "cloud_template_plus_source_default": 256,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.close_timeout_ms",
+      "local_effective": 5000,
+      "cloud_template_plus_source_default": 5000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.exchange_timeout_ms",
+      "local_effective": 5000,
+      "cloud_template_plus_source_default": 5000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.local_timeout_ms",
+      "local_effective": 5000,
+      "cloud_template_plus_source_default": 5000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.local_workers",
+      "local_effective": 32,
+      "cloud_template_plus_source_default": 32,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.max_channels",
+      "local_effective": 100000,
+      "cloud_template_plus_source_default": 100000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.max_voters",
+      "local_effective": 3,
+      "cloud_template_plus_source_default": 3,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.peer_workers",
+      "local_effective": 32,
+      "cloud_template_plus_source_default": 32,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.per_target_inflight",
+      "local_effective": 16,
+      "cloud_template_plus_source_default": 16,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.per_target_queue_bytes",
+      "local_effective": 67108864,
+      "cloud_template_plus_source_default": 67108864,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.per_target_queue_items",
+      "local_effective": 2048,
+      "cloud_template_plus_source_default": 2048,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.queue_bytes",
+      "local_effective": 268435456,
+      "cloud_template_plus_source_default": 268435456,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.queue_items",
+      "local_effective": 8192,
+      "cloud_template_plus_source_default": 8192,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.recovery_page_bytes",
+      "local_effective": 1048576,
+      "cloud_template_plus_source_default": 1048576,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.recovery_timeout_ms",
+      "local_effective": 15000,
+      "cloud_template_plus_source_default": 15000,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.repair_retry_ms",
+      "local_effective": 10,
+      "cloud_template_plus_source_default": 10,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.repair_workers",
+      "local_effective": 8,
+      "cloud_template_plus_source_default": 8,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.replica_hedge_delay_ms",
+      "local_effective": 25,
+      "cloud_template_plus_source_default": 25,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.retained_commands",
+      "local_effective": 64,
+      "cloud_template_plus_source_default": 64,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "replication_runtime.trailing_flush_ms",
+      "local_effective": 100,
+      "cloud_template_plus_source_default": 100,
+      "comparison": "same_fixed_default",
+      "basis": [
+        {
+          "end_line": 31,
+          "line": 15,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 352,
+          "line": 300,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+        },
+        {
+          "end_line": 14,
+          "line": 13,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+        }
+      ]
+    },
+    {
+      "field": "process.GOMAXPROCS",
+      "local_effective": [
+        2,
+        2,
+        2
+      ],
+      "cloud_template_plus_source_default": "unset in systemd/template; actual runtime unknown",
+      "comparison": "different_or_unknown",
+      "basis": [
+        {
+          "path": "launcher.sh",
+          "line": 216
+        },
+        {
+          "path": "supervise.py",
+          "line": 163
+        },
+        {
+          "path": "metrics-terminal-node{1,2,3}.prom",
+          "metric": "go_sched_gomaxprocs_threads"
+        }
+      ],
+      "note": "Cloud range-go retained result is empty; host4vCPU is not runtime proof."
+    },
+    {
+      "field": "gateway.actor_shards",
+      "local_effective": 2,
+      "cloud_template_plus_source_default": "unknown; 4 if cloud effective GOMAXPROCS=4",
+      "comparison": "different_or_unknown",
+      "basis": [
+        {
+          "end_line": 453,
+          "line": 452,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+        },
+        {
+          "end_line": 674,
+          "line": 673,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+        },
+        {
+          "end_line": 44,
+          "line": 39,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/transport/gnet/actor.go"
+        },
+        {
+          "line": 310,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/transport/gnet/group.go"
+        },
+        {
+          "end_line": 1337,
+          "line": 1332,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/config/build.go"
+        },
+        {
+          "end_line": 92,
+          "line": 80,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/transport/gnet/factory.go"
+        },
+        {
+          "end_line": 135,
+          "line": 128,
+          "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/gateway.go"
+        }
+      ],
+      "note": "Actor shards derive directly from GOMAXPROCS."
+    },
+    {
+      "field": "gateway.gnet_event_loops",
+      "local_effective": 4,
+      "cloud_template_plus_source_default": 4,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "internal/config/build.go",
+          "line": 1332
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "gateway.gnet_multicore",
+      "local_effective": true,
+      "cloud_template_plus_source_default": true,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "internal/config/build.go",
+          "line": 1332
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "gateway.async_send_workers",
+      "local_effective": 1000,
+      "cloud_template_plus_source_default": 1000,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "pkg/gateway/types/options.go",
+          "line": 98
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "gateway.async_send_queue_records",
+      "local_effective": 131072,
+      "cloud_template_plus_source_default": 131072,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "pkg/gateway/types/options.go",
+          "line": 99
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "gateway.session_batch_max_records",
+      "local_effective": 1,
+      "cloud_template_plus_source_default": 128,
+      "comparison": "confirmed_configuration_difference",
+      "basis": [
+        {
+          "path": "launcher.sh",
+          "line": 234
+        },
+        {
+          "path": "pkg/gateway/types/options.go",
+          "line": 105
+        }
+      ],
+      "note": "Local explicit TOML and environment set1; cloud template omits the field and uses production default128."
+    },
+    {
+      "field": "gateway.session_batch_max_wait_ms",
+      "local_effective": 1,
+      "cloud_template_plus_source_default": 1,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "pkg/gateway/types/options.go",
+          "line": 104
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "gateway.session_batch_max_bytes",
+      "local_effective": 524288,
+      "cloud_template_plus_source_default": 524288,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "pkg/gateway/types/options.go",
+          "line": 106
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "gateway.send_timeout_ms",
+      "local_effective": 5000,
+      "cloud_template_plus_source_default": 5000,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "internal/app/wiring.go",
+          "line": 117
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "slot.compaction_enabled",
+      "local_effective": true,
+      "cloud_template_plus_source_default": true,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "pkg/slot/multiraft/config.go",
+          "line": 30
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "slot.compaction_trigger_entries",
+      "local_effective": 1000,
+      "cloud_template_plus_source_default": 10000,
+      "comparison": "confirmed_configuration_difference",
+      "basis": [
+        {
+          "path": "config/node{1,2,3}.toml",
+          "field": "cluster.slot_log_compaction_trigger_entries"
+        },
+        {
+          "path": "pkg/slot/multiraft/config.go",
+          "line": 9
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "slot.compaction_check_interval_ms",
+      "local_effective": 5000,
+      "cloud_template_plus_source_default": 30000,
+      "comparison": "confirmed_configuration_difference",
+      "basis": [
+        {
+          "path": "config/node{1,2,3}.toml",
+          "field": "cluster.slot_log_compaction_check_interval"
+        },
+        {
+          "path": "pkg/slot/multiraft/config.go",
+          "line": 10
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "slot.raft_tick_interval_ms",
+      "local_effective": 50,
+      "cloud_template_plus_source_default": 50,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "pkg/cluster/config.go",
+          "line": 498
+        },
+        {
+          "path": "cloud template",
+          "field": "cluster.slot_tick_interval"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "slot.raft_heartbeat_ticks",
+      "local_effective": 2,
+      "cloud_template_plus_source_default": 2,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "pkg/cluster/config.go",
+          "line": 504
+        },
+        {
+          "path": "cloud template",
+          "field": "cluster.slot_heartbeat_tick"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "slot.raft_election_floor_ticks",
+      "local_effective": 40,
+      "cloud_template_plus_source_default": 40,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "pkg/cluster/config.go",
+          "line": 501
+        },
+        {
+          "path": "cloud template",
+          "field": "cluster.slot_election_tick"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "topology.logical_slots_hashslots_replicas",
+      "local_effective": [
+        12,
+        256,
+        3
+      ],
+      "cloud_template_plus_source_default": [
+        12,
+        256,
+        3
+      ],
+      "comparison": "same_explicit_values",
+      "basis": [
+        {
+          "path": "launcher.sh",
+          "line": 229
+        },
+        {
+          "path": "cloud template",
+          "field": "cluster topology"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "channel.max_loaded_channels",
+      "local_effective": 50000,
+      "cloud_template_plus_source_default": 50000,
+      "comparison": "same_explicit_values",
+      "basis": [
+        {
+          "path": "launcher.sh",
+          "line": 233
+        },
+        {
+          "path": "cloud template",
+          "field": "cluster.max_channels"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "append.authority_dispatch_concurrency",
+      "local_effective": 100,
+      "cloud_template_plus_source_default": 100,
+      "comparison": "same_source_default",
+      "basis": [
+        {
+          "path": "internal/app/config.go",
+          "line": 685
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "storage.sync_durability",
+      "local_effective": true,
+      "cloud_template_plus_source_default": true,
+      "comparison": "same_required_semantics",
+      "basis": [
+        {
+          "path": "internal/config/build.go",
+          "line": 498
+        }
+      ],
+      "note": "Loader rejects false; explicit local sync=true does not create a distinct durability mode."
+    },
+    {
+      "field": "storage.engine_BytesPerSync_argument",
+      "local_effective": 16777216,
+      "cloud_template_plus_source_default": "0 (Pebble library default normalization)",
+      "comparison": "platform_difference",
+      "basis": [
+        {
+          "path": "pkg/db/internal/engine/db.go",
+          "line": 213
+        }
+      ],
+      "note": "This is engine option input, not a measured disk flush size; actual Linux normalized Pebble option was not captured."
+    },
+    {
+      "field": "presence.activation_timeout_ms",
+      "local_effective": 3000,
+      "cloud_template_plus_source_default": 3000,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "internal/app/config.go",
+          "line": 576
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "presence.touch_flush_interval_ms",
+      "local_effective": 1000,
+      "cloud_template_plus_source_default": 1000,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "internal/app/config.go",
+          "line": 580
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "presence.touch_batch_size",
+      "local_effective": 512,
+      "cloud_template_plus_source_default": 512,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "internal/app/config.go",
+          "line": 583
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "presence.touch_max_routes_per_flush",
+      "local_effective": 65536,
+      "cloud_template_plus_source_default": 65536,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "internal/app/config.go",
+          "line": 586
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "presence.route_ttl_ms",
+      "local_effective": 90000,
+      "cloud_template_plus_source_default": 90000,
+      "comparison": "same_source_default_or_explicit",
+      "basis": [
+        {
+          "path": "internal/app/config.go",
+          "line": 589
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "send_permission.cohort_window_ms",
+      "local_effective": 1,
+      "cloud_template_plus_source_default": 1,
+      "comparison": "same_frozen_source",
+      "basis": [
+        {
+          "path": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 14
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "send_permission.cohort_max_calls",
+      "local_effective": 64,
+      "cloud_template_plus_source_default": 64,
+      "comparison": "same_frozen_source",
+      "basis": [
+        {
+          "path": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 14
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "send_permission.cohort_max_active",
+      "local_effective": 64,
+      "cloud_template_plus_source_default": 64,
+      "comparison": "same_frozen_source",
+      "basis": [
+        {
+          "path": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 14
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "send_permission.cohort_max_owned_calls",
+      "local_effective": 1024,
+      "cloud_template_plus_source_default": 1024,
+      "comparison": "same_frozen_source",
+      "basis": [
+        {
+          "path": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 14
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "send_permission.cohort_max_owned_bytes",
+      "local_effective": 16777216,
+      "cloud_template_plus_source_default": 16777216,
+      "comparison": "same_frozen_source",
+      "basis": [
+        {
+          "path": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 14
+        }
+      ],
+      "note": ""
+    }
+  ],
+  "explicit_template_scalar_comparison": [
+    {
+      "field": "cluster.initial_slot_count",
+      "local_node_toml_values": [
+        12,
+        12,
+        12
+      ],
+      "cloud_template_value": 12,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.hash_slot_count",
+      "local_node_toml_values": [
+        256,
+        256,
+        256
+      ],
+      "cloud_template_value": 256,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.slot_replica_n",
+      "local_node_toml_values": [
+        3,
+        3,
+        3
+      ],
+      "cloud_template_value": 3,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.channel_replica_n",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": 3,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.slot_tick_interval",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": "50ms",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.slot_heartbeat_tick",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": 2,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.slot_election_tick",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": 40,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.max_channels",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": 50000,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.channel_reactor_count",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.channel_store_append_workers",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": 128,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.channel_store_apply_workers",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": 8,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.channel_rpc_workers",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": 96,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.channel_rpc_batch_max_items",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": 8,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.slot_log_compaction_enabled",
+      "local_node_toml_values": [
+        true,
+        true,
+        true
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.slot_log_compaction_trigger_entries",
+      "local_node_toml_values": [
+        1000,
+        1000,
+        1000
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.slot_log_compaction_check_interval",
+      "local_node_toml_values": [
+        "5s",
+        "5s",
+        "5s"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.channel_append_batch_max_records",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.channel_append_batch_max_wait",
+      "local_node_toml_values": [
+        "0",
+        "0",
+        "0"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.channel_follower_recovery_probe_interval",
+      "local_node_toml_values": [
+        "2s",
+        "2s",
+        "2s"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.channel_follower_recovery_probe_jitter",
+      "local_node_toml_values": [
+        "1s",
+        "1s",
+        "1s"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.commit_coordinator_flush_window",
+      "local_node_toml_values": [
+        "500us",
+        "500us",
+        "500us"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.commit_coordinator_max_requests",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.commit_coordinator_max_records",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.commit_coordinator_max_bytes",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "cluster.commit_coordinator_shards",
+      "local_node_toml_values": [
+        1,
+        1,
+        1
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "gateway.gnet_multicore",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": true,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "gateway.gnet_num_event_loop",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": 4,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "gateway.runtime_async_send_workers",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": 1000,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "gateway.runtime_async_send_queue_capacity",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": 131072,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "gateway.runtime_async_auth_workers",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "gateway.runtime_async_auth_queue_capacity",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "gateway.runtime_async_pool_release_timeout",
+      "local_node_toml_values": [
+        "0s",
+        "0s",
+        "0s"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "gateway.default_session_async_send_batch_max_wait",
+      "local_node_toml_values": [
+        "1ms",
+        "1ms",
+        "1ms"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "gateway.default_session_async_send_batch_max_records",
+      "local_node_toml_values": [
+        1,
+        1,
+        1
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "gateway.default_session_async_send_batch_max_bytes",
+      "local_node_toml_values": [
+        524288,
+        524288,
+        524288
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "gateway.send_timeout",
+      "local_node_toml_values": [
+        "5s",
+        "5s",
+        "5s"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "presence.activation_timeout",
+      "local_node_toml_values": [
+        "3s",
+        "3s",
+        "3s"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "presence.touch_flush_interval",
+      "local_node_toml_values": [
+        "1s",
+        "1s",
+        "1s"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "presence.touch_batch_size",
+      "local_node_toml_values": [
+        512,
+        512,
+        512
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "presence.touch_max_routes_per_flush",
+      "local_node_toml_values": [
+        65536,
+        65536,
+        65536
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "presence.route_ttl",
+      "local_node_toml_values": [
+        "90s",
+        "90s",
+        "90s"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "delivery.enable",
+      "local_node_toml_values": [
+        true,
+        true,
+        true
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "delivery.fanout_page_size",
+      "local_node_toml_values": [
+        512,
+        512,
+        512
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "delivery.push_batch_size",
+      "local_node_toml_values": [
+        512,
+        512,
+        512
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "delivery.pending_ack_ttl",
+      "local_node_toml_values": [
+        "30s",
+        "30s",
+        "30s"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "delivery.pending_ack_max_per_session",
+      "local_node_toml_values": [
+        1024,
+        1024,
+        1024
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "delivery.event_queue_size",
+      "local_node_toml_values": [
+        1024,
+        1024,
+        1024
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "delivery.recipient_worker_concurrency",
+      "local_node_toml_values": [
+        "not_set",
+        "not_set",
+        "not_set"
+      ],
+      "cloud_template_value": 320,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "channel_append.shard_count",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "channel_append.advance_pool_size",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "channel_append.effect_pool_size",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "channel_append.recipient_authority_dispatch_concurrency",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "bench.api_enable",
+      "local_node_toml_values": [
+        true,
+        true,
+        true
+      ],
+      "cloud_template_value": true,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "bench.api_max_batch_size",
+      "local_node_toml_values": [
+        10000,
+        10000,
+        10000
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "bench.api_max_payload_bytes",
+      "local_node_toml_values": [
+        10485760,
+        10485760,
+        10485760
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "observability.metrics_enable",
+      "local_node_toml_values": [
+        true,
+        true,
+        true
+      ],
+      "cloud_template_value": true,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "observability.debug_api_enable",
+      "local_node_toml_values": [
+        false,
+        false,
+        false
+      ],
+      "cloud_template_value": true,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "prometheus.enable",
+      "local_node_toml_values": [
+        false,
+        false,
+        false
+      ],
+      "cloud_template_value": false,
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "prometheus.scrape_interval",
+      "local_node_toml_values": [
+        "15s",
+        "15s",
+        "15s"
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "diagnostics.enable",
+      "local_node_toml_values": [
+        true,
+        true,
+        true
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "diagnostics.buffer_size",
+      "local_node_toml_values": [
+        50000,
+        50000,
+        50000
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "diagnostics.sample_rate",
+      "local_node_toml_values": [
+        0.01,
+        0.01,
+        0.01
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "diagnostics.slow_threshold_ms",
+      "local_node_toml_values": [
+        500,
+        500,
+        500
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "diagnostics.error_sample_rate",
+      "local_node_toml_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "diagnostics.deep_sample_rate",
+      "local_node_toml_values": [
+        0,
+        0,
+        0
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "diagnostics.deep_slow_threshold_ms",
+      "local_node_toml_values": [
+        500,
+        500,
+        500
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    },
+    {
+      "field": "diagnostics.deep_max_items_per_batch",
+      "local_node_toml_values": [
+        16,
+        16,
+        16
+      ],
+      "cloud_template_value": "not_set",
+      "note": "not_set is not zero; effective values require source normalization and launcher/environment precedence"
+    }
+  ],
+  "local_runtime_metric_confirmation": [
+    {
+      "node": 1,
+      "name": "go_sched_gomaxprocs_threads",
+      "labels": {},
+      "value": 2.0
+    },
+    {
+      "node": 1,
+      "name": "wukongim_delivery_recipient_worker_capacity",
+      "labels": {
+        "node_id": "1"
+      },
+      "value": 320.0
+    },
+    {
+      "node": 1,
+      "name": "wukongim_delivery_recipient_worker_queue_capacity",
+      "labels": {
+        "node_id": "1"
+      },
+      "value": 1024.0
+    },
+    {
+      "node": 1,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "1",
+        "pool": "channelv2-cold-activation"
+      },
+      "value": 4.0
+    },
+    {
+      "node": 1,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "1",
+        "pool": "channelv2-meta-resolve"
+      },
+      "value": 2.0
+    },
+    {
+      "node": 1,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "1",
+        "pool": "channelv2-rpc"
+      },
+      "value": 96.0
+    },
+    {
+      "node": 1,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "1",
+        "pool": "channelv2-store-append"
+      },
+      "value": 128.0
+    },
+    {
+      "node": 1,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "1",
+        "pool": "channelv2-store-apply"
+      },
+      "value": 8.0
+    },
+    {
+      "node": 1,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "1",
+        "pool": "channelv2-store-checkpoint"
+      },
+      "value": 2.0
+    },
+    {
+      "node": 1,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "1",
+        "pool": "channelv2-store-read"
+      },
+      "value": 4.0
+    },
+    {
+      "node": 1,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "message",
+        "node_id": "1",
+        "pool": "person_directory"
+      },
+      "value": 8.0
+    },
+    {
+      "node": 2,
+      "name": "go_sched_gomaxprocs_threads",
+      "labels": {},
+      "value": 2.0
+    },
+    {
+      "node": 2,
+      "name": "wukongim_delivery_recipient_worker_capacity",
+      "labels": {
+        "node_id": "2"
+      },
+      "value": 320.0
+    },
+    {
+      "node": 2,
+      "name": "wukongim_delivery_recipient_worker_queue_capacity",
+      "labels": {
+        "node_id": "2"
+      },
+      "value": 1024.0
+    },
+    {
+      "node": 2,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "2",
+        "pool": "channelv2-cold-activation"
+      },
+      "value": 4.0
+    },
+    {
+      "node": 2,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "2",
+        "pool": "channelv2-meta-resolve"
+      },
+      "value": 2.0
+    },
+    {
+      "node": 2,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "2",
+        "pool": "channelv2-rpc"
+      },
+      "value": 96.0
+    },
+    {
+      "node": 2,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "2",
+        "pool": "channelv2-store-append"
+      },
+      "value": 128.0
+    },
+    {
+      "node": 2,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "2",
+        "pool": "channelv2-store-apply"
+      },
+      "value": 8.0
+    },
+    {
+      "node": 2,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "2",
+        "pool": "channelv2-store-checkpoint"
+      },
+      "value": 2.0
+    },
+    {
+      "node": 2,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "2",
+        "pool": "channelv2-store-read"
+      },
+      "value": 4.0
+    },
+    {
+      "node": 2,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "message",
+        "node_id": "2",
+        "pool": "person_directory"
+      },
+      "value": 8.0
+    },
+    {
+      "node": 3,
+      "name": "go_sched_gomaxprocs_threads",
+      "labels": {},
+      "value": 2.0
+    },
+    {
+      "node": 3,
+      "name": "wukongim_delivery_recipient_worker_capacity",
+      "labels": {
+        "node_id": "3"
+      },
+      "value": 320.0
+    },
+    {
+      "node": 3,
+      "name": "wukongim_delivery_recipient_worker_queue_capacity",
+      "labels": {
+        "node_id": "3"
+      },
+      "value": 1024.0
+    },
+    {
+      "node": 3,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "3",
+        "pool": "channelv2-cold-activation"
+      },
+      "value": 4.0
+    },
+    {
+      "node": 3,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "3",
+        "pool": "channelv2-meta-resolve"
+      },
+      "value": 2.0
+    },
+    {
+      "node": 3,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "3",
+        "pool": "channelv2-rpc"
+      },
+      "value": 96.0
+    },
+    {
+      "node": 3,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "3",
+        "pool": "channelv2-store-append"
+      },
+      "value": 128.0
+    },
+    {
+      "node": 3,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "3",
+        "pool": "channelv2-store-apply"
+      },
+      "value": 8.0
+    },
+    {
+      "node": 3,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "3",
+        "pool": "channelv2-store-checkpoint"
+      },
+      "value": 2.0
+    },
+    {
+      "node": 3,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "3",
+        "pool": "channelv2-store-read"
+      },
+      "value": 4.0
+    },
+    {
+      "node": 3,
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "message",
+        "node_id": "3",
+        "pool": "person_directory"
+      },
+      "value": 8.0
+    }
+  ],
+  "retained_cloud_worker_confirmation": [
+    {
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "3",
+        "pool": "channelv2-rpc"
+      },
+      "minimum": 96.0,
+      "maximum": 96.0,
+      "samples": 21
+    },
+    {
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "3",
+        "pool": "channelv2-store-append"
+      },
+      "minimum": 128.0,
+      "maximum": 128.0,
+      "samples": 21
+    },
+    {
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "3",
+        "pool": "channelv2-store-apply"
+      },
+      "minimum": 8.0,
+      "maximum": 8.0,
+      "samples": 21
+    },
+    {
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "2",
+        "pool": "channelv2-rpc"
+      },
+      "minimum": 96.0,
+      "maximum": 96.0,
+      "samples": 21
+    },
+    {
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "2",
+        "pool": "channelv2-store-append"
+      },
+      "minimum": 128.0,
+      "maximum": 128.0,
+      "samples": 21
+    },
+    {
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "2",
+        "pool": "channelv2-store-apply"
+      },
+      "minimum": 8.0,
+      "maximum": 8.0,
+      "samples": 21
+    },
+    {
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "1",
+        "pool": "channelv2-rpc"
+      },
+      "minimum": 96.0,
+      "maximum": 96.0,
+      "samples": 21
+    },
+    {
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "1",
+        "pool": "channelv2-store-append"
+      },
+      "minimum": 128.0,
+      "maximum": 128.0,
+      "samples": 21
+    },
+    {
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "channel",
+        "node_id": "1",
+        "pool": "channelv2-store-apply"
+      },
+      "minimum": 8.0,
+      "maximum": 8.0,
+      "samples": 21
+    },
+    {
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "message",
+        "node_id": "3",
+        "pool": "person_directory"
+      },
+      "minimum": 8.0,
+      "maximum": 8.0,
+      "samples": 21
+    },
+    {
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "message",
+        "node_id": "2",
+        "pool": "person_directory"
+      },
+      "minimum": 8.0,
+      "maximum": 8.0,
+      "samples": 21
+    },
+    {
+      "name": "wukongim_runtime_pool_workers",
+      "labels": {
+        "component": "message",
+        "node_id": "1",
+        "pool": "person_directory"
+      },
+      "minimum": 8.0,
+      "maximum": 8.0,
+      "samples": 21
+    }
+  ],
+  "cloud_runtime_gomaxprocs": "unknown: no explicit environment in bundle unit, node.env generator sets only manager auth and bench token, retained range-go result has zero series",
+  "readiness": {
+    "local": "loopback health/worker observers plus public12slot/256hash/3voter observed leader consistency stable2s; bootstrap10k exact first grant",
+    "cloud": "existing deploy gates exact source/lease, filesystem/clock/topology/observability and dormant coordinator; readiness budget1200s; independent 4 physical hosts",
+    "same_qualification": false
+  },
+  "confirmed_differences": [
+    "local session gateway batch max records1 versus cloud default128",
+    "local Slot compaction trigger1000/check5s versus cloud default10000/check30s",
+    "local measured GOMAXPROCS2 versus cloud actual unknown; potential actor shard difference",
+    "Darwin engine BytesPerSync input16MiB versus Linux library default argument0",
+    "3services+load share one physicalMac/disk vs cloud4hosts and separatedisks"
+  ],
+  "conclusion": "Workload bytes and fixed major runtime capacities match, but runtime config and physical environment do not. These differences may change admission/queue pressure and cannot yet be assigned causal weight. No original-cloud root-cause equivalence or capacity acceptance is claimed.",
+  "actions": {
+    "workload_starts": 0,
+    "source_changes": 0,
+    "product_restarts": 0,
+    "cloud_calls": 0,
+    "profile_calls": 0
+  }
+}

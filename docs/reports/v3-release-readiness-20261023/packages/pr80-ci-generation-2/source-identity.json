@@ -1,0 +1,18 @@
+{
+  "head": "b8fc6d5e384630ef1d4c0f00281a836d115456e8",
+  "actual_checkout": "7bb52a0d677c5349453c0004d73ffecf09ad47d6",
+  "base": "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+  "head_tree": "05fe9cc3727ad49b41e8b197adc8eb0fb99e54d5",
+  "checkout_tree": "05fe9cc3727ad49b41e8b197adc8eb0fb99e54d5",
+  "tree_equal": true,
+  "checkout_parents": [
+    "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+    "b8fc6d5e384630ef1d4c0f00281a836d115456e8"
+  ],
+  "actual_checkout_evidence": "logs/job-120015025493.log",
+  "api_files": {
+    "7bb52a0d677c5349453c0004d73ffecf09ad47d6.json": "23f4d426d55b4a5b660dec384891be26cc5bc5ca2bb5c8f77e056eb3103f9cf6",
+    "b8fc6d5e384630ef1d4c0f00281a836d115456e8.json": "dc40b21192409311f75625a11fb75fe446723cc306f661b554805851c954934c",
+    "721712e6d77c5f159fff94dcdb2bd1fb84ad464c.json": "580a5c00a0b5b3c7c01e98bc1b29dffa3cb05485361521874466acce25bace56"
+  }
+}

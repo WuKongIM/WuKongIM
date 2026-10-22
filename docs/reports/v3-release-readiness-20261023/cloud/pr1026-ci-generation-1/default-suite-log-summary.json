@@ -1,0 +1,7 @@
+{
+  "passed_package_summaries": 219,
+  "no_test_file_package_summaries": 15,
+  "failed_package_summaries": [],
+  "skip_output_lines": [],
+  "summary_line_source": "default suite stdout-stderr.log; counts are packages, not individual tests"
+}

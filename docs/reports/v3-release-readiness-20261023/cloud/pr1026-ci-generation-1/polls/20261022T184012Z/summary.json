@@ -1,0 +1,104 @@
+{
+  "polled_at": "20261022T184012Z",
+  "directory": "/tmp/wukongim-v3-readiness-20261023/cloud/pr1026-ci-generation-1/polls/20261022T184012Z",
+  "runs": [
+    {
+      "id": 39832747504,
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 120012910672,
+          "name": "Candidate scripts integration",
+          "status": "in_progress",
+          "conclusion": null,
+          "active_steps": [
+            "Run frozen scripts-integration named check once"
+          ]
+        },
+        {
+          "id": 120012911009,
+          "name": "Candidate default suite (go-unit)",
+          "status": "in_progress",
+          "conclusion": null,
+          "active_steps": [
+            "Run frozen go-unit named check once"
+          ]
+        }
+      ],
+      "artifacts": []
+    },
+    {
+      "id": 39832747798,
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 120012914199,
+          "name": "PR three-node correctness",
+          "status": "in_progress",
+          "conclusion": null,
+          "active_steps": [
+            "Upload PR regression evidence"
+          ]
+        },
+        {
+          "id": 120012914646,
+          "name": "PR messaging unit and race",
+          "status": "completed",
+          "conclusion": "success",
+          "active_steps": []
+        },
+        {
+          "id": 120012914759,
+          "name": "PR performance baseline evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "active_steps": []
+        },
+        {
+          "id": 120012916266,
+          "name": "Fixed Linux SEND diagnosis",
+          "status": "completed",
+          "conclusion": "skipped",
+          "active_steps": []
+        },
+        {
+          "id": 120012916462,
+          "name": "Nightly direct 500 QPS qualification",
+          "status": "completed",
+          "conclusion": "skipped",
+          "active_steps": []
+        },
+        {
+          "id": 120013053743,
+          "name": "PR 500 QPS / mixed-send",
+          "status": "in_progress",
+          "conclusion": null,
+          "active_steps": [
+            "Run fixed sustained 500 QPS profile"
+          ]
+        },
+        {
+          "id": 120013053755,
+          "name": "PR 500 QPS / tcp-sendack",
+          "status": "in_progress",
+          "conclusion": null,
+          "active_steps": [
+            "Run fixed sustained 500 QPS profile"
+          ]
+        },
+        {
+          "id": 120013054533,
+          "name": "PR 500 QPS / channel-append",
+          "status": "in_progress",
+          "conclusion": null,
+          "active_steps": [
+            "Run fixed sustained 500 QPS profile"
+          ]
+        }
+      ],
+      "artifacts": []
+    }
+  ]
+}

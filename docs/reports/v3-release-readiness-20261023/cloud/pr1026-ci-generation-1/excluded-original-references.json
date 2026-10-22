@@ -1,0 +1,177 @@
+{
+  "schema": "wukongim.excluded_original_references/v1",
+  "source_root": "/tmp/wukongim-v3-readiness-20261023/cloud/pr1026-ci-generation-1",
+  "source_manifest_sha256": "62f4f6724b5f87669ec5695fe7b600f0e213cbf4018bca320d96da266c4d8e45",
+  "copied_original_bytes": false,
+  "originals_preserved_in_local_source": true,
+  "exclusions": [
+    {
+      "source_relative_path": "artifacts/v3-candidate-e2e-39832747504-1/self_chat/report.json",
+      "bytes": 47382,
+      "sha256": "4c73a24706aa702213183925f3fda8a13142c8b7b0b70bf8f04ddf4505d1a7c1",
+      "reason": "Historical CI report contains raw client_msg_no, from_uid, channel_id and payload fields"
+    },
+    {
+      "source_relative_path": "verified-downloads/12451105212.zip",
+      "bytes": 16548,
+      "sha256": "167a0e6758e6055b72ca5c548759c5d5167f5f3d2a25086174b08bece48d688f",
+      "reason": "Original verified ZIP contains the excluded raw-identity self-chat report; keep only its verified size/SHA and member references"
+    }
+  ],
+  "original_zip_integrity_verified_before_exclusion": {
+    "path": "verified-downloads/12451105212.zip",
+    "bytes": 16548,
+    "sha256": "167a0e6758e6055b72ca5c548759c5d5167f5f3d2a25086174b08bece48d688f",
+    "declared_digest": "sha256:167a0e6758e6055b72ca5c548759c5d5167f5f3d2a25086174b08bece48d688f",
+    "full_size_sha_crc_valid": true,
+    "members": [
+      {
+        "path": "binary-build-info.txt",
+        "bytes": 8955,
+        "compressed_bytes": 5039,
+        "crc32": "a7cb59e8",
+        "sha256": "c69e11782b2f8e75a95171c1075ffbf50043631352ac6b71d5035815a84f950d"
+      },
+      {
+        "path": "binary.sha256",
+        "bytes": 134,
+        "compressed_bytes": 111,
+        "crc32": "0c1518e2",
+        "sha256": "4a18de175e9b9c6edb575bd19dad722261f49fde86b0f8d6a3d40c4dffa35a01"
+      },
+      {
+        "path": "build/command.json",
+        "bytes": 285,
+        "compressed_bytes": 192,
+        "crc32": "c28e311d",
+        "sha256": "ed64e16587b3ac9c61f7e589ca64546d15d7d327b4ce9f5279894c0cb7ba821d"
+      },
+      {
+        "path": "build/result.json",
+        "bytes": 369,
+        "compressed_bytes": 194,
+        "crc32": "e0e4f7b4",
+        "sha256": "8e1393c9bf237e579a6e9e16e426b28dcf1ee360d9b2d06050b8cdf02eb76dbf"
+      },
+      {
+        "path": "build/stderr.log",
+        "bytes": 5051,
+        "compressed_bytes": 1484,
+        "crc32": "5bc7c246",
+        "sha256": "25b56c2db21f3000e5f521a456ae77af7056ffe70d1a2405152c77341137f60f"
+      },
+      {
+        "path": "build/stdout.jsonl",
+        "bytes": 0,
+        "compressed_bytes": 2,
+        "crc32": "00000000",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "cross_node_delivery/command.json",
+        "bytes": 283,
+        "compressed_bytes": 188,
+        "crc32": "6042e90b",
+        "sha256": "cd7d2b139b98210a11ee5ef3fe41ca69914269a99bccaeffb8426f9995811eab"
+      },
+      {
+        "path": "cross_node_delivery/result.json",
+        "bytes": 370,
+        "compressed_bytes": 195,
+        "crc32": "22f2bd38",
+        "sha256": "88d751c29ee931375585bad547b9c1893995d0fa455dc2d58f77ab589c3300af"
+      },
+      {
+        "path": "cross_node_delivery/stderr.log",
+        "bytes": 0,
+        "compressed_bytes": 2,
+        "crc32": "00000000",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "cross_node_delivery/stdout.jsonl",
+        "bytes": 8448,
+        "compressed_bytes": 1202,
+        "crc32": "137225d1",
+        "sha256": "317d3e89f9363c2e63fe9832dc317606b30afe5acdfedb1df78b96095d647a16"
+      },
+      {
+        "path": "go-version.txt",
+        "bytes": 33,
+        "compressed_bytes": 35,
+        "crc32": "dd48af92",
+        "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+      },
+      {
+        "path": "identity.json",
+        "bytes": 172,
+        "compressed_bytes": 128,
+        "crc32": "9bb5dbf8",
+        "sha256": "84e625eaba2bb6556523cb854983b2d13760d7ca92f16c4a505aa1c11995b680"
+      },
+      {
+        "path": "ordinary_history/command.json",
+        "bytes": 302,
+        "compressed_bytes": 195,
+        "crc32": "11e8a94e",
+        "sha256": "ed22c31c4d2a4b3de5ca70e3da7cd45e85c15a06c5b0ad825af6b256e6fbd1c9"
+      },
+      {
+        "path": "ordinary_history/result.json",
+        "bytes": 370,
+        "compressed_bytes": 195,
+        "crc32": "5b516d8d",
+        "sha256": "9a52817a6291088a5b902c8bbf21be797f8504655777c577434ae678e471b9c7"
+      },
+      {
+        "path": "ordinary_history/stderr.log",
+        "bytes": 262,
+        "compressed_bytes": 131,
+        "crc32": "6115e3f1",
+        "sha256": "f7dd913964261c3ba2ef4af097ec9bc69ed4030b3f4518d76e2bf4780580196b"
+      },
+      {
+        "path": "ordinary_history/stdout.jsonl",
+        "bytes": 27305,
+        "compressed_bytes": 1663,
+        "crc32": "16c4b3e8",
+        "sha256": "48e1b697c58348d37a19a5ca3b8b7d5887c5ca41c97d065ec4f149cf44b468fc"
+      },
+      {
+        "path": "self_chat/command.json",
+        "bytes": 273,
+        "compressed_bytes": 181,
+        "crc32": "fffc10bb",
+        "sha256": "2c43b9ab69c4a6aa8798aea284f8c701219f8faef97fd15a61bb75324835a0e6"
+      },
+      {
+        "path": "self_chat/report.json",
+        "bytes": 47382,
+        "compressed_bytes": 1778,
+        "crc32": "8e44121a",
+        "sha256": "4c73a24706aa702213183925f3fda8a13142c8b7b0b70bf8f04ddf4505d1a7c1"
+      },
+      {
+        "path": "self_chat/result.json",
+        "bytes": 370,
+        "compressed_bytes": 194,
+        "crc32": "8daa67bf",
+        "sha256": "5d843ba7ebbab4cbe2a6d53bd1308f2e9d3a8952d747119729650ae1da21e48f"
+      },
+      {
+        "path": "self_chat/stderr.log",
+        "bytes": 0,
+        "compressed_bytes": 2,
+        "crc32": "00000000",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "self_chat/stdout.jsonl",
+        "bytes": 3700,
+        "compressed_bytes": 535,
+        "crc32": "cc9673cf",
+        "sha256": "752f66825b66a74bdd02fd57437a5119894a631c196c82dbcfc0d9cd94ab8226"
+      }
+    ]
+  }
+}

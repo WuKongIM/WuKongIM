@@ -1,0 +1,101 @@
+{
+  "test_only": true,
+  "filesystem": "Linux tmpfs",
+  "source_sha": "4d868f264fb4758f7451c058dd329a06ad460449",
+  "export_source_sha": "4d868f264fb4758f7451c058dd329a06ad460449",
+  "sdk_20_cases_claimed": false,
+  "cases": [
+    {
+      "case": "cross_uid",
+      "producer_uid": 65532,
+      "consumer_uid": 1001,
+      "prepare_exit": 0,
+      "elapsed_seconds": 33.429,
+      "prepare_stdout": "{\"passed\": true, \"state\": \"native_prepared\", \"stage\": \"prepare\", \"error_type\": null, \"bundle_sha256\": \"ade8d68e40ac1f737a02c9db8fac7fb4a3f59b7ba096874a2b375eb52c260380\", \"scratch_removed\": false}\n",
+      "prepare_stderr": "",
+      "preparation_cases": 2,
+      "bundle_sha256": "ade8d68e40ac1f737a02c9db8fac7fb4a3f59b7ba096874a2b375eb52c260380",
+      "path_modes": [
+        {
+          "path": ".",
+          "uid": 65532,
+          "gid": 65532,
+          "mode": "0o777"
+        },
+        {
+          "path": "prepared/resolved-A",
+          "uid": 65532,
+          "gid": 65532,
+          "mode": "0o700"
+        },
+        {
+          "path": "A",
+          "uid": 65532,
+          "gid": 65532,
+          "mode": "0o755"
+        },
+        {
+          "path": "A/archives/4242",
+          "uid": 65532,
+          "gid": 65532,
+          "mode": "0o755"
+        }
+      ],
+      "consumer": {
+        "uid": 1001,
+        "gid": 1001,
+        "bundle_error": "PermissionError",
+        "first_bound_failure": {
+          "path": "prepared/resolved-A/wukongim-stable-3.0.0-177ed7c12c5435c359a1ee206217df316b5547db600680311b6420dd924230b2-candidate-receipt.json",
+          "error_type": "PermissionError"
+        },
+        "cleanup_error": "PermissionError",
+        "removed": false
+      }
+    },
+    {
+      "case": "same_uid",
+      "producer_uid": 1001,
+      "consumer_uid": 1001,
+      "prepare_exit": 0,
+      "elapsed_seconds": 33.782,
+      "prepare_stdout": "{\"passed\": true, \"state\": \"native_prepared\", \"stage\": \"prepare\", \"error_type\": null, \"bundle_sha256\": \"0ef38e0c2c4f7c95464a0b38e6dedc677b66e8fa2e1276f2def672ad199f6d82\", \"scratch_removed\": false}\n",
+      "prepare_stderr": "",
+      "preparation_cases": 2,
+      "bundle_sha256": "0ef38e0c2c4f7c95464a0b38e6dedc677b66e8fa2e1276f2def672ad199f6d82",
+      "path_modes": [
+        {
+          "path": ".",
+          "uid": 1001,
+          "gid": 1001,
+          "mode": "0o700"
+        },
+        {
+          "path": "prepared/resolved-A",
+          "uid": 1001,
+          "gid": 1001,
+          "mode": "0o700"
+        },
+        {
+          "path": "A",
+          "uid": 1001,
+          "gid": 1001,
+          "mode": "0o755"
+        },
+        {
+          "path": "A/archives/4242",
+          "uid": 1001,
+          "gid": 1001,
+          "mode": "0o755"
+        }
+      ],
+      "consumer": {
+        "uid": 1001,
+        "gid": 1001,
+        "bundle_validated": true,
+        "bound_files": 414,
+        "removed": true
+      }
+    }
+  ]
+}

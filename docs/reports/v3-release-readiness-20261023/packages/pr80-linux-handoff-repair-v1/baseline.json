@@ -1,0 +1,14 @@
+{
+  "head": "4d868f264fb4758f7451c058dd329a06ad460449",
+  "files": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/.github/workflows/native-package-repository-drill.yml": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/tests/provider_sdk/native_object_delivery_sdk_drill.py": "5f2b3ac6470f0decedb4e18bfd3c4347195a170fd183f54aede1d2d161cb528f",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/tests/test_object_storage_delivery_inputs.py": "339c0c3c71dd33d010e3cc06708b83b5be985ef56575b33ed23c58671a1ccf7c",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/docs/object-storage-delivery.md": "373c59bf878ccc78deab15b45f2cc131af2f58c6716c05405ee0f7a5fd7157de",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/CHANGELOG.md": "533a6ec83558b484a19ce1d37c6a4cb626d79e3109c3f32cacd49188099214d3",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.github/workflows/README.md": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7"
+  },
+  "package_agents_flow": [],
+  "packages_workflow_readme_exists": false
+}

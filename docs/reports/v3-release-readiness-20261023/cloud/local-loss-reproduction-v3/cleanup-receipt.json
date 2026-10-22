@@ -1,0 +1,20 @@
+{
+  "at_utc": "2026-10-22T18:38:56.509436+00:00",
+  "owned_product_pids_remaining": [],
+  "tested_ports": [
+    27489,
+    27490,
+    27493,
+    27494,
+    27495,
+    27496,
+    27499,
+    27500,
+    27501,
+    27502,
+    27505,
+    27506
+  ],
+  "listening_ports_remaining": [],
+  "suite_cleanup_joined": true
+}

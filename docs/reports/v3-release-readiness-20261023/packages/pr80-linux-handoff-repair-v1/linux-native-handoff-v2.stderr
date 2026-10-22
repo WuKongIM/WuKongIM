@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "/probe.py", line 42, in <module>
+    record['path_modes']=[{'path':str(path.relative_to(work)),'uid':path.lstat().st_uid,'gid':path.lstat().st_gid,'mode':oct(stat.S_IMODE(path.lstat().st_mode))} for path in [work,work/'prepared/resolved-A',work/'A',work/'A/archives/4242']]
+                                                                    ^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 849, in lstat
+    return self.stat(follow_symlinks=False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 842, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/tmp/native-uid-probe/same_uid/native-sdk-work/prepared/resolved-A'

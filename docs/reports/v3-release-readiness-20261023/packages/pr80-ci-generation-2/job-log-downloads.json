@@ -1,0 +1,37 @@
+{
+  "observed_at_utc": "2026-10-22T18:57:15.065455+00:00",
+  "logs": [
+    {
+      "job_id": 120015025493,
+      "name": "provider-contract",
+      "conclusion": "success",
+      "bytes": 43906,
+      "sha256": "91e7be8c8a686afb9167f34ae13d3031376901b4ef979b82b3304571e5bc0871",
+      "path": "logs/job-120015025493.log"
+    },
+    {
+      "job_id": 120015025838,
+      "name": "Validate complete Pages snapshot",
+      "conclusion": "success",
+      "bytes": 21176,
+      "sha256": "c9441ac58dc9c55e9f9017d021e59f1f0c3eea084b4917cb8984d0f1bd4f19ca",
+      "path": "logs/job-120015025838.log"
+    },
+    {
+      "job_id": 120015026160,
+      "name": "TEST ONLY stable four clients and A/B",
+      "conclusion": "success",
+      "bytes": 64059,
+      "sha256": "7336551187f6b9048fd8b819d156bea9a435ed21d62073ec652841d4fa10cc09",
+      "path": "logs/job-120015026160.log"
+    },
+    {
+      "job_id": 120015026222,
+      "name": "TEST ONLY signed APT/RPM repository",
+      "conclusion": "success",
+      "bytes": 215360,
+      "sha256": "29a20e148142a2adea32deae01764050c42c28e4863c1ee2dc894e56569c9d81",
+      "path": "logs/job-120015026222.log"
+    }
+  ]
+}

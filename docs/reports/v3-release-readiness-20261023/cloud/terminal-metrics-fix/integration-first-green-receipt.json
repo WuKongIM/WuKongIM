@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 50.812,
+  "quiet_authorization": "loss_local_reproduction has no product run active; fixture-only compatibility window",
+  "fixture_only": true,
+  "cloud_contacted": false
+}

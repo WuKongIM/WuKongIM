@@ -1,0 +1,28 @@
+{
+  "head": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "tree": "a13367b2dc4658e6c27a1992f240544636e5178d",
+  "status": "",
+  "applicable_rules": [
+    "AGENTS.md"
+  ],
+  "applicable_FLOW": [],
+  "discovery": "No FLOW applies to scripts/chat-lifecycle, scripts/testdata, pkg/metrics, or docs/development. scripts/cloud-deployment/FLOW.md is package scope and does not apply. No subordinate AGENTS or CONTEXT in these paths. Root CONTEXT read.",
+  "seams": [
+    "terminal-evidence collect_ranges JSON transformation with independent fixed Prometheus matrix input",
+    "real collector CLI through fixture SSH process, existing integration harness"
+  ],
+  "files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    "scripts/chat-lifecycle/terminal-evidence.py": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a",
+    "scripts/chat-lifecycle/collect-terminal-evidence.sh": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1",
+    "scripts/chat_lifecycle_terminal_evidence_integration_test.go": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2",
+    "pkg/metrics/registry.go": "de1dfc8aa53b4271c83dc511250462cf1de70ec8e9636613ac7bd650b5981e02",
+    "pkg/metrics/channel_runtime.go": "4b516e84d602737c96e99aa03504a6094b3f23e1a3049c0a1cc8190bb77b58b4",
+    "pkg/metrics/channel.go": "f4449c3fbf85c6804caaa62f9d62c4b4331292c56f94952cc3287ff59c2a8a36",
+    "pkg/metrics/registry_test.go": "0640e992631dcf4b68549ad326166c1d9ba5acb2266b42de1d2bc510144f2da4",
+    "CHANGELOG.md": "6933c326cccd407769a18e32c1c09f254bca585090d587e887e112f917a07a29",
+    "docs/development/PROJECT_KNOWLEDGE.md": "42aa7f2976b12fde7ccd135e5acbef69ee7cabbcaac25fb1d42b8284050c6a36"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "at_utc": "2026-10-22T18:57:12.077716+00:00",
+  "prior_failure_manifest_sha256": "ff2c1ede9eee0c084d3673c8a8000850d9a68e8463bad59608c8f7efa28d9611",
+  "deployment_guard_source": "cmd/wkcli/internal/benchmark/bench_command.go:55",
+  "shared_LoadConfig_succeeded_before_guard_in_v1": true,
+  "local_entry_source": "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh:1675",
+  "local_strict_loader_source": "cmd/wkcli/internal/benchmark/chat_lifecycle_command.go:96",
+  "deployment_validator_unchanged": true,
+  "only_supervisor_functional_revision": "remove misapplied deployment-only validate command; retain 60-second build/preflight budget",
+  "other_revision": "fresh experimental RUN_DIR path only",
+  "full_workload_bytes_unchanged": true,
+  "yaml_bytes_unchanged_from_v1": true,
+  "new_offline_validator_added": false,
+  "product_source_changes": 0,
+  "supervisor_sha256": "25c5afbc89581f0dd61874191fdab6db0cf2822b62bd5ac20b871078f2f74c33",
+  "launcher_sha256": "232cb5a9e5ea8826d23c607f76dadb0dadf391345dc915eb43b64492782e0e3f",
+  "diff_sha256": "3928177d5d23dd73a490372f8e4d1ac1a116159b2d6f80d6956b64da16be0422"
+}

@@ -1,0 +1,385 @@
+{
+  "source_head": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "source_worktree_status": " M test/e2e/AGENTS.md\n M test/e2e/message/AGENTS.md\n?? test/e2e/message/online_loss_reproduction/\n",
+  "source_note": "Other agent owns unrelated E2E files; all inspected production sources and applicable rules match HEAD exactly. No files changed by this diagnosis.",
+  "source_files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "path": "internal/usecase/clouddeploy/FLOW.md",
+      "sha256": "5dcd339366b7dd8ebcd0cc1fd301a87441e1630cf1c0217aba46fcaa9f73f711"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/engine.go",
+      "sha256": "9b64ff416e105e869acb8921d7928da5517f800fb6c4159873bf8397bc4076ef"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/worker_protocol.go",
+      "sha256": "1ae2cfcebdf13ea926c53e08e589f7b297bcf8f836c1ff49c333fc1862daed15"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_evidence.go",
+      "sha256": "9f2b4c823cecd1dbffebd12a67c81227d6a0c8533437912c5a611296066211d0"
+    },
+    {
+      "path": "pkg/metrics/registry.go",
+      "sha256": "de1dfc8aa53b4271c83dc511250462cf1de70ec8e9636613ac7bd650b5981e02"
+    },
+    {
+      "path": "internal/access/gateway/FLOW.md",
+      "sha256": "617a64aafd4d1e60aef670770f2ac22dd7cdfcd537f1f5cb3a00b98218eefb31"
+    },
+    {
+      "path": "internal/usecase/message/FLOW.md",
+      "sha256": "e02fa0e23332e80174eb4ba4ee9cd4ed078a311d8f436ece35fb3b4f1f6f9348"
+    },
+    {
+      "path": "internal/runtime/channelappend/FLOW.md",
+      "sha256": "7ae41e62c0ba2a83051d9199d963e21dc4fd9c471b611b2c5a9224cdbfa689a5"
+    },
+    {
+      "path": "internal/contracts/channelappend/FLOW.md",
+      "sha256": "7b428a0ee4f2779c62f12afeb90f0d02ac844d5de13c7de34854c8580369f3f7"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "ae0f99b28ea52be22ddb95c785574819a4e4c31614435bff9250e5b10b8ecff2"
+    },
+    {
+      "path": "internal/runtime/delivery/FLOW.md",
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_observation.go",
+      "sha256": "85c147271c695a2af5f40fd35d16b13301dde3e3da9588f3bb78843b937bf8b7"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/verdict.go",
+      "sha256": "7796e085ff8d718dc3b49ba1f9a842241a96e59f8cd46fca375f2caa21d18589"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/worker_server.go",
+      "sha256": "456cc0b9f15653ca31d041d26f54bb5964f7cd2dc3a1f6715d341dd309b4b538"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/verifier.go",
+      "sha256": "f16dcacd27b6976f3ba3e680b4bc0b3d5adaa98cc53e9b9408f5f240194e4efa"
+    },
+    {
+      "path": "internal/bench/target/client.go",
+      "sha256": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762"
+    },
+    {
+      "path": "internal/access/gateway/error_map.go",
+      "sha256": "548e034c0079507095617e2a5c7ce83c6955a8cd29bc53402e6b407eb1cc98e4"
+    },
+    {
+      "path": "internal/access/gateway/deferred.go",
+      "sha256": "70332509fdeb3ec616abbdb28f542d45ac41b4d2c63a495211146ff672d3099b"
+    },
+    {
+      "path": "internal/access/gateway/handler.go",
+      "sha256": "08620f1fa8fcb80166d01e95fdd43d54f76ade4b4518f5114dbcefe8709e818b"
+    },
+    {
+      "path": "internal/access/gateway/observer.go",
+      "sha256": "ba90ed3e82aec7212869dd14833b6190844a1917ce90331a82eacdee24aac1b1"
+    },
+    {
+      "path": "internal/infra/cluster/channel_metadata.go",
+      "sha256": "b4fb4459f2c728651be87726acf3dbbc86236b9e0e937e3862825fa8d1c0406c"
+    },
+    {
+      "path": "internal/contracts/channelappend/errors.go",
+      "sha256": "0eeffbafb2d80b4aa6e3238d38f32a2103b1c1881e833a3bc3962111af3831cd"
+    },
+    {
+      "path": "internal/app/observability.go",
+      "sha256": "7e2c7a2b0549e9425770dde0195bca07414daef50fd6c072c0d8a26fab5a48db"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_cohort.go",
+      "sha256": "d84be076ccc93552ada25c867d2c641cdfb1b67ce78ef4ac154a3247b58ad352"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_rpc.go",
+      "sha256": "872417d9cb60df5d12a59f17da5fe17a055f29f166d7e38d8e763eccf9faa781"
+    },
+    {
+      "path": "pkg/protocol/frame/common.go",
+      "sha256": "c6391945b540deb6306eb287c7ff15b72b7c3f50cf567689ec13a0c53e5e6aea"
+    },
+    {
+      "path": "pkg/metrics/gateway.go",
+      "sha256": "427435ee53da8c20872998d96e327f2294f750d5cf3f0c992d41dcfd9aeb3bbd"
+    },
+    {
+      "path": "internal/runtime/delivery/runtime.go",
+      "sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b"
+    },
+    {
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+      "sha256": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4"
+    }
+  ],
+  "input_root": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2",
+  "finite_input_files": [
+    {
+      "path": "report/final.json",
+      "bytes": 23630,
+      "sha256": "48bc2327163c73a5c446c6bc69475ea728132396dbe14a3f1024cc5e7e901260",
+      "raw_private_file": false
+    },
+    {
+      "path": "report/diagnostic-status.json",
+      "bytes": 9017,
+      "sha256": "a3bb9b3b1f4f1e7e783e8702e3930f02ccdbb63e606ebbddf424640cc6027dd0",
+      "raw_private_file": false
+    },
+    {
+      "path": "report/worker-evidence.json",
+      "bytes": 2739,
+      "sha256": "5bd9e723db6b6ab9b0802fbba79974ab14d8c852fa7140059d92db30ab70758f",
+      "raw_private_file": false
+    },
+    {
+      "path": "diagnostic-result.json",
+      "bytes": 3335,
+      "sha256": "cc2f24827af22b23142db6aa492df9c3fd14600c1f0e15d2164a1e2c64cbb3a0",
+      "raw_private_file": false
+    },
+    {
+      "path": "diagnostic-cuts.jsonl",
+      "bytes": 10660,
+      "sha256": "ceb2e72a952ee5ef08a46f3add7e067eaa8918ec888a50070817da3f6ded6ebf",
+      "raw_private_file": false
+    },
+    {
+      "path": "host-process-samples.jsonl",
+      "bytes": 92241,
+      "sha256": "3b121af693aad158de697a16809da381de1c7a8245030227fa3d0396c7bf994a",
+      "raw_private_file": false
+    },
+    {
+      "path": "preflight.json",
+      "bytes": 1471,
+      "sha256": "aa2f45fb967f759b12fe1cc0546e4c106d0b9abc32674e3f84b437b68f41c9b0",
+      "raw_private_file": false
+    },
+    {
+      "path": "supervisor-events.json",
+      "bytes": 570,
+      "sha256": "a85b4ef21edb6ce921108733ae6c3f09ecbf452f55708f0fd1d5850fc22c0489",
+      "raw_private_file": false
+    },
+    {
+      "path": "cleanup-receipt.json",
+      "bytes": 921,
+      "sha256": "31aab9374c0870383197dea52cbf725ce74786d51362cde8eb54566e4584b5e0",
+      "raw_private_file": false
+    },
+    {
+      "path": "materialization.json",
+      "bytes": 7882,
+      "sha256": "7bbe844514ed2dd1af4088ea557ec6dc2e8954ee76c223980e1f68f0d786ea5d",
+      "raw_private_file": false
+    },
+    {
+      "path": "revision-receipt.json",
+      "bytes": 1132,
+      "sha256": "be9626d366dc6eac2bfb99b77debedc98218f9fe1422e152d2d03bf75f4375fd",
+      "raw_private_file": false
+    },
+    {
+      "path": "launcher.sh",
+      "bytes": 13533,
+      "sha256": "232cb5a9e5ea8826d23c607f76dadb0dadf391345dc915eb43b64492782e0e3f",
+      "raw_private_file": true
+    },
+    {
+      "path": "supervise.py",
+      "bytes": 14416,
+      "sha256": "25c5afbc89581f0dd61874191fdab6db0cf2822b62bd5ac20b871078f2f74c33",
+      "raw_private_file": true
+    },
+    {
+      "path": "extracted-functions-materialized.sh",
+      "bytes": 10880,
+      "sha256": "701a4ba32fcb2e06240848d95a363615a6751c30c34d3185a06aca6baab8d748",
+      "raw_private_file": true
+    },
+    {
+      "path": "original-distribution-local.yaml",
+      "bytes": 4362,
+      "sha256": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/pre-measured-diagnostic-metrics.json",
+      "bytes": 16504,
+      "sha256": "8e1e96d0399efecc1fb2e207f044ee1b08d0374cefb8e785813cc66455aa2bb6",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/first-measured-status.json",
+      "bytes": 5783,
+      "sha256": "ac30dbcdbcb5ca6711b1e747a4a117c814350113928bedc02e715d1dec7ed9cd",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/metrics-first-measured-receipt.json",
+      "bytes": 449,
+      "sha256": "de239d7753c6b74db2504958f0a2f768502482b5c57346165b61691fbf563dd1",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/metrics-terminal-receipt.json",
+      "bytes": 450,
+      "sha256": "f917c49fb35fc2726f783814d5b4f8c0db6ed0bc067af0c70c1313e4687a42e6",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/metrics-first-measured-node1.prom",
+      "bytes": 1020117,
+      "sha256": "e7caa5ed72636edc9ef3c7fd64c1e2a81468c87502bfd9a7548e65c378a1e5b9",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/metrics-first-measured-node2.prom",
+      "bytes": 1018202,
+      "sha256": "bd9192220a3438047209a1da188a0ddc885982fae5137b4d1f039721ed8924b5",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/metrics-first-measured-node3.prom",
+      "bytes": 990448,
+      "sha256": "904b245e2d4a15f0649a7339a6b5583710129010cbffae966f6e451375a49af2",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/metrics-terminal-node1.prom",
+      "bytes": 1053900,
+      "sha256": "25e3b9797f9c6a2799b91c6bcf65c4fde4be7166efdd54191acb0120e659eef0",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/metrics-terminal-node2.prom",
+      "bytes": 1040544,
+      "sha256": "ca3f87410eadc87d02e8a1dde2f0f36403ed16f593e777ce9231221ab623251f",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/metrics-terminal-node3.prom",
+      "bytes": 1042773,
+      "sha256": "74bafb7247dc1cc9c198df87e379952c601fcf1ec3b44582ea7c440555c42b21",
+      "raw_private_file": false
+    },
+    {
+      "path": "logs/service-1.log",
+      "bytes": 41285,
+      "sha256": "49888049c26a223ad9d8b36e2b60fe0bbac5918be1bf2fe49c7a053171b6d87a",
+      "raw_private_file": true
+    },
+    {
+      "path": "logs/service-2.log",
+      "bytes": 51528,
+      "sha256": "6b9735b4a16beb0a92fc53c1c39e7e565f40cc559b34e8b19ead64d0d1c54fcd",
+      "raw_private_file": true
+    },
+    {
+      "path": "logs/service-3.log",
+      "bytes": 51021,
+      "sha256": "5cb9f92ce7db23862240c8bc0a47023221661fda4a6f779ecff26f017c91c63c",
+      "raw_private_file": true
+    },
+    {
+      "path": "logs/worker-1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "raw_private_file": true
+    },
+    {
+      "path": "logs/worker-2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "raw_private_file": true
+    },
+    {
+      "path": "logs/worker-3.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "raw_private_file": true
+    },
+    {
+      "path": "logs/coordinator.log",
+      "bytes": 2849,
+      "sha256": "bfa7aae3b04e7ee9e320820330ea641fe068d6b4d838819f0f15055bdc05e457",
+      "raw_private_file": true
+    },
+    {
+      "path": "evidence/processes-node-1.prom",
+      "bytes": 1061,
+      "sha256": "9d9d91f5a982dda715edf7e0acd7d441cdd3a4f799d704d80b753e167ed48bae",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/processes-node-2.prom",
+      "bytes": 1061,
+      "sha256": "13d3557d2b045509ae9c193859c89f14e85b3b08b384bcd991dc0a71c0d0a231",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/processes-node-3.prom",
+      "bytes": 1061,
+      "sha256": "3c86e7c77b93d0d1bbb07ae0a6c6256fe2742d4102bb9d3015678b346a08c28f",
+      "raw_private_file": false
+    },
+    {
+      "path": "evidence/processes-load.prom",
+      "bytes": 1384,
+      "sha256": "69c3748370a72697bb57248e73220f8ba5a6107d916425e5f98a79ef328a5ba6",
+      "raw_private_file": false
+    }
+  ],
+  "metrics_receipts_verified": 6,
+  "raw_identity_match_files_read": false,
+  "cloud_or_process_or_profile_started": false,
+  "input_hashes_revalidated_after_diagnosis": true,
+  "applicable_FLOW_read": [
+    "internal/bench/FLOW.md",
+    "internal/bench/chatlifecycle/FLOW.md",
+    "internal/usecase/clouddeploy/FLOW.md",
+    "internal/access/gateway/FLOW.md",
+    "internal/usecase/message/FLOW.md",
+    "internal/runtime/channelappend/FLOW.md",
+    "internal/contracts/channelappend/FLOW.md",
+    "internal/infra/cluster/FLOW.md",
+    "internal/app/FLOW.md",
+    "pkg/slot/FLOW.md",
+    "internal/runtime/delivery/FLOW.md"
+  ],
+  "sources_read_only": true,
+  "independent_configuration_axis": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/runtime-config-comparison.json",
+    "sha256": "88c408b91c282fdfc6690562d483f01f08fdaab912fd2e3acbd553ca4c9fe339",
+    "separate_from_36_original_inputs": true
+  }
+}

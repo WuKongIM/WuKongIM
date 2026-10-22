@@ -1,0 +1,1979 @@
+{
+  "schema": "wukongim/local-original-distribution-safe-snapshot/v1",
+  "created_at_utc": "2026-10-22T19:08:39.712693+00:00",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "host": "Apple M4,10 mixed cores,32 GiB",
+    "service_gomaxprocs": 2,
+    "worker_gomaxprocs": 1,
+    "dedicated_linux_capacity_qualification": false,
+    "shared_host": true
+  },
+  "source_evidence": {
+    "report/final.json": {
+      "bytes": 23630,
+      "sha256": "48bc2327163c73a5c446c6bc69475ea728132396dbe14a3f1024cc5e7e901260"
+    },
+    "report/worker-evidence.json": {
+      "bytes": 2739,
+      "sha256": "5bd9e723db6b6ab9b0802fbba79974ab14d8c852fa7140059d92db30ab70758f"
+    },
+    "report/diagnostic-status.json": {
+      "bytes": 9017,
+      "sha256": "a3bb9b3b1f4f1e7e783e8702e3930f02ccdbb63e606ebbddf424640cc6027dd0"
+    },
+    "logs/coordinator.log": {
+      "bytes": 2849,
+      "sha256": "bfa7aae3b04e7ee9e320820330ea641fe068d6b4d838819f0f15055bdc05e457"
+    },
+    "host-process-samples.jsonl": {
+      "bytes": 92241,
+      "sha256": "3b121af693aad158de697a16809da381de1c7a8245030227fa3d0396c7bf994a"
+    },
+    "cleanup-receipt.json": {
+      "bytes": 921,
+      "sha256": "31aab9374c0870383197dea52cbf725ce74786d51362cde8eb54566e4584b5e0"
+    },
+    "evidence/metrics-first-measured-receipt.json": {
+      "bytes": 449,
+      "sha256": "de239d7753c6b74db2504958f0a2f768502482b5c57346165b61691fbf563dd1"
+    },
+    "evidence/metrics-terminal-receipt.json": {
+      "bytes": 450,
+      "sha256": "f917c49fb35fc2726f783814d5b4f8c0db6ed0bc067af0c70c1313e4687a42e6"
+    },
+    "identity-helper-summary.json": {
+      "bytes": 4472,
+      "sha256": "f3337cfeb8bb378bb24d12957fce56a06e9df2a69b56015077b794e7e181df7a"
+    }
+  },
+  "measurement": {
+    "first_grant_start": "2026-10-23T03:01:30.891168+08:00",
+    "final_cut": "2026-10-23T03:01:44.221268+08:00",
+    "elapsed_seconds": 13.330270417,
+    "requested_seconds": 120,
+    "stopped_early": true,
+    "actual_send_admission_stop_timestamp": "not_retained",
+    "offered_target_total_SEND_per_second": 2000,
+    "scope_of_rates": "cumulative counter divided by first-grant-to-cut elapsed; final includes stop/drain and is not active offered QPS"
+  },
+  "verdict": {
+    "outcome": "product_failure",
+    "cause": "overall_first_attempt_rate",
+    "terminal": true,
+    "cleanup_error_count": 0,
+    "latency_warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "latency_anomaly_count": 0,
+    "retention": {
+      "minute_samples": 1,
+      "minute_capacity": 16,
+      "latency_samples": [
+        0,
+        0,
+        0
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "messages": {
+    "sent": 12001,
+    "send_attempts": 12589,
+    "first_attempts": 12001,
+    "first_attempt_failures": 32,
+    "send_acknowledged": 12001,
+    "send_rejected": 32,
+    "received": 14488,
+    "receive_acknowledged": 14488,
+    "receive_ack_failures": 0,
+    "retry_attempts": 588,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 3,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "generated": {
+    "primary": 12000,
+    "person": 10800,
+    "group": 1200,
+    "canary": 1,
+    "payload_bytes": 9154560
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 102,
+    "delivered": 99,
+    "expired": 3,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "expired_samples": [
+    {
+      "attempted_candidates": 3335,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 114
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "2efcbfa3df411300591fa4d22a48638c",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1731,
+          "target_group_index": 1731
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798130,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 0
+    },
+    {
+      "attempted_candidates": 3330,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 14
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "8ea8b0568129e91f2e24921fca3fcb07",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1766,
+          "target_group_index": 1766
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798030,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 2
+    },
+    {
+      "attempted_candidates": 3330,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 314
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "0db0904a5c1178a44b1596dfd762770d",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1646,
+          "target_group_index": 1646
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798330,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 2
+    }
+  ],
+  "positive_ack_gating": {
+    "confirmed_by_verifier_source": true,
+    "criteria": "ReasonSuccess && MessageID>0 && MessageSeq>0; correlation expiry counts only ackSeen; no matching expected RECV before ACK+10s",
+    "per_sample_ACK_ID_and_timestamp_retained_in_worker_evidence": false,
+    "source_lines": [
+      "internal/bench/chatlifecycle/verifier.go:599",
+      "internal/bench/chatlifecycle/verifier.go:691",
+      "internal/bench/chatlifecycle/verifier.go:962",
+      "internal/bench/chatlifecycle/verifier.go:978"
+    ]
+  },
+  "first_attempt_failure_details": {
+    "worker_counter": 32,
+    "send_rejected_counter": 32,
+    "server_terminal_non_success_observed": {
+      "node2": 14,
+      "node3": 18,
+      "class": "route_not_ready",
+      "source": "batch_result_error",
+      "reason_label": "unknown",
+      "reason_code_inferred_from_enum": 0
+    },
+    "same_totals_not_exact_join": true,
+    "per_failure_latency_or_identity": "not_retained",
+    "exhausted_retry_terminal_count": 0,
+    "eventual_distinct_ACK_count": 12001
+  },
+  "status_cuts": [
+    {
+      "at": "2026-10-23T03:01:35.925803125+08:00",
+      "cut": "periodic",
+      "seconds_since_first_grant": 5.034635,
+      "totals": {
+        "target": 10000,
+        "online": 10000,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 10000
+      },
+      "messages": {
+        "sent": 10003,
+        "send_attempts": 10379,
+        "first_attempts": 10003,
+        "first_attempt_failures": 20,
+        "send_acknowledged": 8753,
+        "send_rejected": 20,
+        "received": 4551,
+        "receive_acknowledged": 4551,
+        "receive_ack_failures": 0,
+        "retry_attempts": 376,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 3428,
+        "above_limit": 3368
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "cumulative_rates_per_second": {
+        "sent": 1986.837178862023,
+        "send_attempts": 2061.519851985298,
+        "first_attempts": 1986.837178862023,
+        "send_acknowledged": 1738.5570155532625,
+        "received": 903.9384185745342
+      }
+    },
+    {
+      "at": "2026-10-23T03:01:44.221268+08:00",
+      "cut": "terminal",
+      "seconds_since_first_grant": 13.3301,
+      "totals": {
+        "target": 10000,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "messages": {
+        "sent": 12001,
+        "send_attempts": 12589,
+        "first_attempts": 12001,
+        "first_attempt_failures": 32,
+        "send_acknowledged": 12001,
+        "send_rejected": 32,
+        "received": 14488,
+        "receive_acknowledged": 14488,
+        "receive_ack_failures": 0,
+        "retry_attempts": 588,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 3,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 5750,
+        "above_limit": 5679
+      },
+      "harness": {
+        "classification": "product_failure",
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 197875,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "cumulative_rates_per_second": {
+        "sent": 900.2933211303741,
+        "send_attempts": 944.4040179743588,
+        "first_attempts": 900.2933211303741,
+        "send_acknowledged": 900.2933211303741,
+        "received": 1086.8635644143706
+      }
+    }
+  ],
+  "sessions": {
+    "target": 10000,
+    "online": 0,
+    "starting": 0,
+    "closing": 0,
+    "traffic_ready": 0,
+    "planned_new": 8000,
+    "planned_returning": 2000,
+    "completed_new": 10000,
+    "completed_returning": 0,
+    "expired": 0,
+    "close_reasons": {
+      "expired": 0,
+      "heartbeat_failed": 0,
+      "remote_terminal": 0,
+      "read_failed": 0,
+      "generation_stop": 10000,
+      "explicit_logout": 0,
+      "transport_close_failed": 0
+    }
+  },
+  "sync": {
+    "completed_new": 10000,
+    "completed_returning": 0,
+    "factory_failed": 0,
+    "factory_canceled": 0,
+    "connect_started": 10000,
+    "connect_completed": 10000,
+    "connect_failed": 0,
+    "connect_canceled": 0,
+    "sync_started": 10000,
+    "sync_completed": 10000,
+    "sync_failed": 0,
+    "sync_canceled": 0,
+    "failures": 0,
+    "connect_latency": {
+      "count": 10000,
+      "sum_nanos": 971636947275,
+      "max_nanos": 462941417,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        1,
+        11,
+        12,
+        34,
+        126,
+        1388,
+        4248,
+        3820,
+        344,
+        16,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "latency": {
+      "count": 10000,
+      "sum_nanos": 80811494777,
+      "max_nanos": 108179375,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        4654,
+        1046,
+        624,
+        611,
+        1588,
+        1338,
+        130,
+        9,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "thresholds": {
+      "P99Limit": 1000000000,
+      "P999Limit": 3000000000,
+      "Count": 10000,
+      "AboveP99": 0,
+      "AboveP999": 0,
+      "Above10Seconds": 0
+    }
+  },
+  "queues": {
+    "work_current": 0,
+    "deferred_group_routes": 0,
+    "work_peak": 219331,
+    "work_capacity": 458000,
+    "retry_current": 0,
+    "retry_peak": 64,
+    "retry_capacity": 27072,
+    "inflight_current": 0,
+    "inflight_peak": 2736,
+    "inflight_capacity": 27072,
+    "transport_current": 0,
+    "transport_capacity": 0,
+    "transport_rejected": 0
+  },
+  "harness": {
+    "classification": "product_failure",
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 197875,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "cluster": {
+    "healthy_samples": 1,
+    "unhealthy_samples": 0,
+    "logical_slot_groups": 12,
+    "leader_groups": 12,
+    "full_replica_groups": 12,
+    "hot_replica_lag_breaches": 0,
+    "leader_imbalance_warnings": 0
+  },
+  "resources": {
+    "nodes": [
+      {
+        "data_filesystem_bytes": 994662584320,
+        "data_filesystem_available_bytes": 744685133824,
+        "forced_gc_samples": 1,
+        "heap_start_bytes": 318829176,
+        "heap_end_bytes": 318829176,
+        "goroutine_start": 4399,
+        "goroutine_end": 4399,
+        "sched_latency_mean_nanos": 0,
+        "sched_latency_mean_peak_nanos": 0,
+        "queue_baseline": 2030,
+        "queue_current": 2030,
+        "inflight_baseline": 1642,
+        "inflight_current": 1642
+      },
+      {
+        "data_filesystem_bytes": 994662584320,
+        "data_filesystem_available_bytes": 744685133824,
+        "forced_gc_samples": 1,
+        "heap_start_bytes": 341021800,
+        "heap_end_bytes": 341021800,
+        "goroutine_start": 4389,
+        "goroutine_end": 4389,
+        "sched_latency_mean_nanos": 0,
+        "sched_latency_mean_peak_nanos": 0,
+        "queue_baseline": 1924,
+        "queue_current": 1924,
+        "inflight_baseline": 1571,
+        "inflight_current": 1571
+      },
+      {
+        "data_filesystem_bytes": 994662584320,
+        "data_filesystem_available_bytes": 744685133824,
+        "forced_gc_samples": 1,
+        "heap_start_bytes": 270929936,
+        "heap_end_bytes": 270929936,
+        "goroutine_start": 4297,
+        "goroutine_end": 4297,
+        "sched_latency_mean_nanos": 0,
+        "sched_latency_mean_peak_nanos": 0,
+        "queue_baseline": 2108,
+        "queue_current": 2108,
+        "inflight_baseline": 1581,
+        "inflight_current": 1581
+      }
+    ],
+    "retention": {
+      "minute_samples": 1,
+      "minute_capacity": 16,
+      "latency_samples": [
+        0,
+        0,
+        0
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    },
+    "capacity": {
+      "samples": 1,
+      "missing_samples": 0,
+      "sustained_window": 900000000000,
+      "host_cpu_percent_basis_points": [
+        1402,
+        1402,
+        1402,
+        1402
+      ],
+      "host_memory_percent_basis_points": [
+        6194,
+        6194,
+        6194,
+        6194
+      ],
+      "service_queue_percent_basis_points": [
+        10000,
+        10000,
+        10000
+      ],
+      "cpu_high_samples": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "memory_high_samples": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "queue_high_samples": [
+        1,
+        1,
+        1
+      ],
+      "cpu_sustained_events": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "memory_sustained_events": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "queue_sustained_events": [
+        0,
+        0,
+        0
+      ],
+      "cpu_sustained_active": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "memory_sustained_active": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "queue_sustained_active": [
+        false,
+        false,
+        false
+      ],
+      "worker_queue_samples": 1,
+      "worker_queue_missing_samples": 0,
+      "worker_queue_percent_basis_points": [
+        [
+          44,
+          6,
+          482,
+          0
+        ],
+        [
+          44,
+          2,
+          443,
+          0
+        ],
+        [
+          44,
+          1,
+          451,
+          0
+        ]
+      ],
+      "worker_queue_high_samples": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "worker_queue_sustained_events": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "worker_queue_sustained_active": [
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ]
+      ],
+      "worker_queues_complete": true,
+      "data_filesystem_bytes": [
+        994662584320,
+        994662584320,
+        994662584320,
+        994662584320
+      ],
+      "data_filesystem_available_bytes": [
+        744685133824,
+        744685133824,
+        744685133824,
+        744685133824
+      ],
+      "system_filesystem_bytes": [
+        994662584320,
+        994662584320,
+        994662584320,
+        994662584320
+      ],
+      "system_filesystem_available_bytes": [
+        744685133824,
+        744685133824,
+        744685133824,
+        744685133824
+      ],
+      "prometheus_bytes": 391,
+      "network_transmit_bytes": 0,
+      "process_up": [
+        [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          true,
+          true,
+          true,
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      ],
+      "process_cpu_jiffies": [
+        [
+          2711,
+          6,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2396,
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2411,
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          5,
+          409,
+          382,
+          395,
+          96,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "process_resident_memory_bytes": [
+        [
+          549535744,
+          26607616,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          548732928,
+          26017792,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          540114944,
+          26394624,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          26345472,
+          574570496,
+          589463552,
+          559628288,
+          33816576,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "processes_complete": true,
+      "accrued_cost_micros": 0,
+      "lease_remaining_seconds": 0,
+      "complete": true
+    }
+  },
+  "resource_validity": {
+    "host_capacity_samples": 1,
+    "host_observer_endpoints_same_physical_host": 4,
+    "host_cpu_percent_single_sample": 14.02,
+    "host_memory_percent_single_sample": 61.94,
+    "measured_ps_samples": 3,
+    "host_ps_aggregate_percent_range": [
+      62.4,
+      133.50000000000003
+    ],
+    "other_wukongim_process_samples": 0,
+    "continuous_CPU_or_IO_headroom_proven": false,
+    "scheduler_latency_zero_is_valid_measurement": false,
+    "standard_process_metrics_missing_on_mac": "missing means unknown, not zero",
+    "service_queue_100percent_snapshot": "present in reported capacity; insufficient to establish sustained saturation from single sample"
+  },
+  "measured_process_samples": [
+    {
+      "at_utc": "2026-10-22T19:01:33.184388+00:00",
+      "elapsed_seconds": 261.06986154202605,
+      "owned": [
+        {
+          "pid": 73277,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2097152
+        },
+        {
+          "pid": 73280,
+          "process": "Python",
+          "cpu_percent": 0.0,
+          "rss_bytes": 12451840
+        },
+        {
+          "pid": 73298,
+          "process": "wukongim",
+          "cpu_percent": 30.0,
+          "rss_bytes": 569065472
+        },
+        {
+          "pid": 73306,
+          "process": "wukongim",
+          "cpu_percent": 41.6,
+          "rss_bytes": 608075776
+        },
+        {
+          "pid": 73313,
+          "process": "wukongim",
+          "cpu_percent": 30.7,
+          "rss_bytes": 626737152
+        },
+        {
+          "pid": 73408,
+          "process": "wkcli",
+          "cpu_percent": 4.7,
+          "rss_bytes": 606863360
+        },
+        {
+          "pid": 73420,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26607616
+        },
+        {
+          "pid": 73438,
+          "process": "wkcli",
+          "cpu_percent": 4.7,
+          "rss_bytes": 622690304
+        },
+        {
+          "pid": 73450,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26017792
+        },
+        {
+          "pid": 73468,
+          "process": "wkcli",
+          "cpu_percent": 4.3,
+          "rss_bytes": 576323584
+        },
+        {
+          "pid": 73480,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26394624
+        },
+        {
+          "pid": 73523,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26345472
+        },
+        {
+          "pid": 73590,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 33914880
+        },
+        {
+          "pid": 73677,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2048000
+        },
+        {
+          "pid": 77957,
+          "process": "sleep",
+          "cpu_percent": 0.0,
+          "rss_bytes": 1064960
+        }
+      ],
+      "other_wukongim_processes": [],
+      "aggregate_process_cpu_percent": 133.50000000000003
+    },
+    {
+      "at_utc": "2026-10-22T19:01:38.415618+00:00",
+      "elapsed_seconds": 266.3011798330117,
+      "owned": [
+        {
+          "pid": 73277,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2097152
+        },
+        {
+          "pid": 73280,
+          "process": "Python",
+          "cpu_percent": 0.0,
+          "rss_bytes": 12451840
+        },
+        {
+          "pid": 73298,
+          "process": "wukongim",
+          "cpu_percent": 17.0,
+          "rss_bytes": 729677824
+        },
+        {
+          "pid": 73306,
+          "process": "wukongim",
+          "cpu_percent": 17.5,
+          "rss_bytes": 739328000
+        },
+        {
+          "pid": 73313,
+          "process": "wukongim",
+          "cpu_percent": 21.5,
+          "rss_bytes": 777289728
+        },
+        {
+          "pid": 73408,
+          "process": "wkcli",
+          "cpu_percent": 2.2,
+          "rss_bytes": 655212544
+        },
+        {
+          "pid": 73420,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26673152
+        },
+        {
+          "pid": 73438,
+          "process": "wkcli",
+          "cpu_percent": 2.2,
+          "rss_bytes": 672972800
+        },
+        {
+          "pid": 73450,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26050560
+        },
+        {
+          "pid": 73468,
+          "process": "wkcli",
+          "cpu_percent": 2.1,
+          "rss_bytes": 624754688
+        },
+        {
+          "pid": 73480,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26427392
+        },
+        {
+          "pid": 73523,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26509312
+        },
+        {
+          "pid": 73590,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 36356096
+        },
+        {
+          "pid": 73677,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2048000
+        },
+        {
+          "pid": 78047,
+          "process": "sleep",
+          "cpu_percent": 0.0,
+          "rss_bytes": 1064960
+        }
+      ],
+      "other_wukongim_processes": [],
+      "aggregate_process_cpu_percent": 80.7
+    },
+    {
+      "at_utc": "2026-10-22T19:01:43.497722+00:00",
+      "elapsed_seconds": 271.38332141702995,
+      "owned": [
+        {
+          "pid": 73277,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2097152
+        },
+        {
+          "pid": 73280,
+          "process": "Python",
+          "cpu_percent": 0.0,
+          "rss_bytes": 12451840
+        },
+        {
+          "pid": 73298,
+          "process": "wukongim",
+          "cpu_percent": 15.6,
+          "rss_bytes": 761413632
+        },
+        {
+          "pid": 73306,
+          "process": "wukongim",
+          "cpu_percent": 18.8,
+          "rss_bytes": 784629760
+        },
+        {
+          "pid": 73313,
+          "process": "wukongim",
+          "cpu_percent": 16.3,
+          "rss_bytes": 816218112
+        },
+        {
+          "pid": 73408,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 680755200
+        },
+        {
+          "pid": 73420,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26673152
+        },
+        {
+          "pid": 73438,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 696926208
+        },
+        {
+          "pid": 73450,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26050560
+        },
+        {
+          "pid": 73468,
+          "process": "wkcli",
+          "cpu_percent": 0.5,
+          "rss_bytes": 650493952
+        },
+        {
+          "pid": 73480,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26427392
+        },
+        {
+          "pid": 73523,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26509312
+        },
+        {
+          "pid": 73590,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 36356096
+        },
+        {
+          "pid": 73677,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2048000
+        },
+        {
+          "pid": 78197,
+          "process": "sleep",
+          "cpu_percent": 0.0,
+          "rss_bytes": 1064960
+        }
+      ],
+      "other_wukongim_processes": [],
+      "aggregate_process_cpu_percent": 62.4
+    }
+  ],
+  "fixed_metric_series": [
+    {
+      "phase": "first-measured",
+      "node": 1,
+      "name": "wukongim_gateway_sendacks_total",
+      "labels": {
+        "class": "none",
+        "node_id": "1",
+        "node_name": "node-1",
+        "reason": "success",
+        "source": "batch_result"
+      },
+      "value": 3095.0
+    },
+    {
+      "phase": "first-measured",
+      "node": 1,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "1",
+        "node_name": "node-1",
+        "outcome": "ok",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 936.0
+    },
+    {
+      "phase": "first-measured",
+      "node": 1,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "1",
+        "node_name": "node-1",
+        "outcome": "ok",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 1647.0
+    },
+    {
+      "phase": "first-measured",
+      "node": 2,
+      "name": "wukongim_gateway_sendacks_total",
+      "labels": {
+        "class": "none",
+        "node_id": "2",
+        "node_name": "node-2",
+        "reason": "success",
+        "source": "batch_result"
+      },
+      "value": 3122.0
+    },
+    {
+      "phase": "first-measured",
+      "node": 2,
+      "name": "wukongim_gateway_sendacks_total",
+      "labels": {
+        "class": "route_not_ready",
+        "node_id": "2",
+        "node_name": "node-2",
+        "reason": "unknown",
+        "source": "batch_result_error"
+      },
+      "value": 2.0
+    },
+    {
+      "phase": "first-measured",
+      "node": 2,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "2",
+        "node_name": "node-2",
+        "outcome": "ok",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 1000.0
+    },
+    {
+      "phase": "first-measured",
+      "node": 2,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "2",
+        "node_name": "node-2",
+        "outcome": "ok",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 1698.0
+    },
+    {
+      "phase": "first-measured",
+      "node": 3,
+      "name": "wukongim_gateway_sendacks_total",
+      "labels": {
+        "class": "none",
+        "node_id": "3",
+        "node_name": "node-3",
+        "reason": "success",
+        "source": "batch_result"
+      },
+      "value": 3225.0
+    },
+    {
+      "phase": "first-measured",
+      "node": 3,
+      "name": "wukongim_gateway_sendacks_total",
+      "labels": {
+        "class": "route_not_ready",
+        "node_id": "3",
+        "node_name": "node-3",
+        "reason": "unknown",
+        "source": "batch_result_error"
+      },
+      "value": 18.0
+    },
+    {
+      "phase": "first-measured",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "ok",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 980.0
+    },
+    {
+      "phase": "first-measured",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "ok",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 1712.0
+    },
+    {
+      "phase": "terminal",
+      "node": 1,
+      "name": "wukongim_delivery_errors_total",
+      "labels": {
+        "class": "deadline",
+        "node_id": "1",
+        "node_name": "node-1"
+      },
+      "value": 83.0
+    },
+    {
+      "phase": "terminal",
+      "node": 1,
+      "name": "wukongim_gateway_sendacks_total",
+      "labels": {
+        "class": "none",
+        "node_id": "1",
+        "node_name": "node-1",
+        "reason": "success",
+        "source": "batch_result"
+      },
+      "value": 4185.0
+    },
+    {
+      "phase": "terminal",
+      "node": 1,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "1",
+        "node_name": "node-1",
+        "outcome": "deadline",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 14.0
+    },
+    {
+      "phase": "terminal",
+      "node": 1,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "1",
+        "node_name": "node-1",
+        "outcome": "deadline",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 109.0
+    },
+    {
+      "phase": "terminal",
+      "node": 1,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "1",
+        "node_name": "node-1",
+        "outcome": "ok",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 2451.0
+    },
+    {
+      "phase": "terminal",
+      "node": 1,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "1",
+        "node_name": "node-1",
+        "outcome": "ok",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 5107.0
+    },
+    {
+      "phase": "terminal",
+      "node": 1,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "1",
+        "node_name": "node-1",
+        "outcome": "ok",
+        "path": "remote_bulk",
+        "stale_retry": "true"
+      },
+      "value": 2.0
+    },
+    {
+      "phase": "terminal",
+      "node": 1,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "1",
+        "node_name": "node-1",
+        "outcome": "partial",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 33.0
+    },
+    {
+      "phase": "terminal",
+      "node": 1,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "1",
+        "node_name": "node-1",
+        "outcome": "partial",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 2.0
+    },
+    {
+      "phase": "terminal",
+      "node": 2,
+      "name": "wukongim_delivery_errors_total",
+      "labels": {
+        "class": "deadline",
+        "node_id": "2",
+        "node_name": "node-2"
+      },
+      "value": 90.0
+    },
+    {
+      "phase": "terminal",
+      "node": 2,
+      "name": "wukongim_gateway_sendacks_total",
+      "labels": {
+        "class": "none",
+        "node_id": "2",
+        "node_name": "node-2",
+        "reason": "success",
+        "source": "batch_result"
+      },
+      "value": 4188.0
+    },
+    {
+      "phase": "terminal",
+      "node": 2,
+      "name": "wukongim_gateway_sendacks_total",
+      "labels": {
+        "class": "route_not_ready",
+        "node_id": "2",
+        "node_name": "node-2",
+        "reason": "unknown",
+        "source": "batch_result_error"
+      },
+      "value": 14.0
+    },
+    {
+      "phase": "terminal",
+      "node": 2,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "2",
+        "node_name": "node-2",
+        "outcome": "deadline",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 16.0
+    },
+    {
+      "phase": "terminal",
+      "node": 2,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "2",
+        "node_name": "node-2",
+        "outcome": "deadline",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 116.0
+    },
+    {
+      "phase": "terminal",
+      "node": 2,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "2",
+        "node_name": "node-2",
+        "outcome": "ok",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 2543.0
+    },
+    {
+      "phase": "terminal",
+      "node": 2,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "2",
+        "node_name": "node-2",
+        "outcome": "ok",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 4940.0
+    },
+    {
+      "phase": "terminal",
+      "node": 2,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "2",
+        "node_name": "node-2",
+        "outcome": "ok",
+        "path": "remote_bulk",
+        "stale_retry": "true"
+      },
+      "value": 1.0
+    },
+    {
+      "phase": "terminal",
+      "node": 2,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "2",
+        "node_name": "node-2",
+        "outcome": "partial",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 44.0
+    },
+    {
+      "phase": "terminal",
+      "node": 2,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "2",
+        "node_name": "node-2",
+        "outcome": "route_not_ready",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 1.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_delivery_errors_total",
+      "labels": {
+        "class": "deadline",
+        "node_id": "3",
+        "node_name": "node-3"
+      },
+      "value": 87.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_gateway_sendacks_total",
+      "labels": {
+        "class": "none",
+        "node_id": "3",
+        "node_name": "node-3",
+        "reason": "success",
+        "source": "batch_result"
+      },
+      "value": 4184.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_gateway_sendacks_total",
+      "labels": {
+        "class": "route_not_ready",
+        "node_id": "3",
+        "node_name": "node-3",
+        "reason": "unknown",
+        "source": "batch_result_error"
+      },
+      "value": 18.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "deadline",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 18.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "deadline",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 97.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "ok",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 2627.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "ok",
+        "path": "local_bulk",
+        "stale_retry": "true"
+      },
+      "value": 9.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "ok",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 5158.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "ok",
+        "path": "remote_bulk",
+        "stale_retry": "true"
+      },
+      "value": 13.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "partial",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 52.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "partial",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 12.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "route_not_ready",
+        "path": "local_bulk",
+        "stale_retry": "false"
+      },
+      "value": 1.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "route_not_ready",
+        "path": "local_bulk",
+        "stale_retry": "true"
+      },
+      "value": 1.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "route_not_ready",
+        "path": "remote_bulk",
+        "stale_retry": "false"
+      },
+      "value": 1.0
+    },
+    {
+      "phase": "terminal",
+      "node": 3,
+      "name": "wukongim_presence_endpoint_lookup_total",
+      "labels": {
+        "node_id": "3",
+        "node_name": "node-3",
+        "outcome": "route_not_ready",
+        "path": "remote_bulk",
+        "stale_retry": "true"
+      },
+      "value": 3.0
+    }
+  ],
+  "cleanup": {
+    "at_utc": "2026-10-22T19:03:16.235699+00:00",
+    "owned_pgid": 73277,
+    "remaining_processes": [],
+    "remaining_listeners": [],
+    "tested_ports": [
+      25000,
+      25001,
+      25002,
+      25003,
+      25004,
+      25005,
+      25006,
+      25007,
+      25008,
+      25009,
+      25010,
+      25011,
+      25012,
+      25013,
+      25014,
+      25015,
+      25016,
+      25017,
+      25018,
+      25019,
+      25020,
+      25021,
+      25022,
+      25023,
+      25024,
+      25025,
+      25026,
+      25027,
+      25028,
+      25029,
+      25030,
+      25031,
+      25032,
+      25033,
+      25034,
+      25035,
+      25036,
+      25037,
+      25038,
+      25039,
+      25040,
+      25041,
+      25042,
+      25043,
+      25044,
+      25045,
+      25046,
+      25047,
+      25048,
+      25049,
+      25050,
+      25051,
+      25052,
+      25053,
+      25054,
+      25055,
+      25056,
+      25057,
+      25058,
+      25059,
+      25060,
+      25061,
+      25062,
+      25063
+    ],
+    "complete": true,
+    "elapsed_seconds": 364.12071950000245
+  },
+  "known_gaps": [
+    "During context compaction the pre-reserved 90s live diagnosis hold elapsed; no three-Manager history calls were performed. Do not present later offline persistence reads as historical online delivery evidence.",
+    "No exact expired sample MessageID/seq or expected receiver UID in retained worker evidence.",
+    "13.33s includes stop/drain; no sustained 120s performance acceptance.",
+    "Same roster-group presence timeout does not uniquely join a SEND message."
+  ],
+  "product_source_changed": false,
+  "new_fault_injection": false,
+  "next_allowed_work": "offline retained evidence only; no third full replay"
+}

@@ -1,0 +1,86 @@
+{
+  "test_only": true,
+  "native_fixture_success_claimed": false,
+  "filesystem": "Linux container tmpfs",
+  "cases": [
+    {
+      "case": "cross_uid",
+      "producer": {
+        "uid": 65532,
+        "gid": 65532,
+        "paths": [
+          {
+            "name": "resolved-A",
+            "uid": 65532,
+            "gid": 65532,
+            "mode": "0o700"
+          },
+          {
+            "name": "resolved-A/bundle-input.json",
+            "uid": 65532,
+            "gid": 65532,
+            "mode": "0o644"
+          },
+          {
+            "name": "A",
+            "uid": 65532,
+            "gid": 65532,
+            "mode": "0o755"
+          },
+          {
+            "name": "A/delivery.json",
+            "uid": 65532,
+            "gid": 65532,
+            "mode": "0o644"
+          }
+        ]
+      },
+      "consumer": {
+        "uid": 1001,
+        "gid": 1001,
+        "read_error": "PermissionError",
+        "cleanup_error": "PermissionError",
+        "removed": false
+      }
+    },
+    {
+      "case": "same_uid",
+      "producer": {
+        "uid": 1001,
+        "gid": 1001,
+        "paths": [
+          {
+            "name": "resolved-A",
+            "uid": 1001,
+            "gid": 1001,
+            "mode": "0o700"
+          },
+          {
+            "name": "resolved-A/bundle-input.json",
+            "uid": 1001,
+            "gid": 1001,
+            "mode": "0o644"
+          },
+          {
+            "name": "A",
+            "uid": 1001,
+            "gid": 1001,
+            "mode": "0o755"
+          },
+          {
+            "name": "A/delivery.json",
+            "uid": 1001,
+            "gid": 1001,
+            "mode": "0o644"
+          }
+        ]
+      },
+      "consumer": {
+        "uid": 1001,
+        "gid": 1001,
+        "read": "{}",
+        "removed": true
+      }
+    }
+  ]
+}

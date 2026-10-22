@@ -1,0 +1,66 @@
+{
+  "schema": "wukongim/offline-roster-warning-timing/v1",
+  "rows": [
+    {
+      "group_index": 1731,
+      "fingerprint": "2efcbfa3df411300591fa4d22a48638c",
+      "message_id_decimal": "2113345018189058060",
+      "message_seq_decimal": "1",
+      "message_server_timestamp_ms": 1792695691011,
+      "warning_timestamp_as_logged": "2026-10-23 03:01:36.212",
+      "warning_timezone_assumption": "host Asia/Shanghai +08:00; log itself omits offset",
+      "warning_minus_message_server_timestamp_seconds": 5.201,
+      "warning_recipient_count": 465,
+      "warning_owner_node_id": 0,
+      "complete_replica_scan_rows": [
+        1,
+        1,
+        1
+      ],
+      "causality": "same-roster association, not exact-message log linkage; server timestamp is not a measured plan enqueue or commit time"
+    },
+    {
+      "group_index": 1766,
+      "fingerprint": "8ea8b0568129e91f2e24921fca3fcb07",
+      "message_id_decimal": "2113345018482667535",
+      "message_seq_decimal": "1",
+      "message_server_timestamp_ms": 1792695691081,
+      "warning_timestamp_as_logged": "2026-10-23 03:01:36.429",
+      "warning_timezone_assumption": "host Asia/Shanghai +08:00; log itself omits offset",
+      "warning_minus_message_server_timestamp_seconds": 5.348,
+      "warning_recipient_count": 199,
+      "warning_owner_node_id": 0,
+      "complete_replica_scan_rows": [
+        1,
+        1,
+        1
+      ],
+      "causality": "same-roster association, not exact-message log linkage; server timestamp is not a measured plan enqueue or commit time"
+    },
+    {
+      "group_index": 1646,
+      "fingerprint": "0db0904a5c1178a44b1596dfd762770d",
+      "message_id_decimal": "2113345030629367810",
+      "message_seq_decimal": "1",
+      "message_server_timestamp_ms": 1792695693977,
+      "warning_timestamp_as_logged": "2026-10-23 03:01:39.136",
+      "warning_timezone_assumption": "host Asia/Shanghai +08:00; log itself omits offset",
+      "warning_minus_message_server_timestamp_seconds": 5.159,
+      "warning_recipient_count": 177,
+      "warning_owner_node_id": 0,
+      "complete_replica_scan_rows": [
+        2,
+        2,
+        2
+      ],
+      "causality": "same-roster association, not exact-message log linkage; server timestamp is not a measured plan enqueue or commit time"
+    }
+  ],
+  "runtime_default_plan_timeout_seconds": 5,
+  "source": "internal/runtime/delivery/runtime.go:17,504",
+  "limits": [
+    "Same roster relation cannot uniquely establish exact failed SEND or target recipient.",
+    "Server-assigned timestamp does not prove append, enqueue, or positive ACK time.",
+    "Group1646 replica scan contains2 rows; the other2 groups contain1 row, all9 complete scans."
+  ]
+}

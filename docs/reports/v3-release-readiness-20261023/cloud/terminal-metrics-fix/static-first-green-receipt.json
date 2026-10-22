@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests",
+    "-v"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 0.071
+}

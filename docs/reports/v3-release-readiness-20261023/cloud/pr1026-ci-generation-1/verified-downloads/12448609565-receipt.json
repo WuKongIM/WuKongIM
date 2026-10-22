@@ -1,0 +1,130 @@
+{
+  "id": 12448609565,
+  "name": "500qps-channel-append-2f7e1df8492c98255092ae69c813def0c5703fe1-1",
+  "state": "verified",
+  "zip_bytes": 25140,
+  "zip_sha256": "d96eb02460bead080fe1395e54013775ded004f7957ac7c3b8ab347505f2dd01",
+  "declared_digest": "sha256:d96eb02460bead080fe1395e54013775ded004f7957ac7c3b8ab347505f2dd01",
+  "full_size_sha_crc_valid": true,
+  "members": [
+    {
+      "path": "arrival.json",
+      "bytes": 57426,
+      "compressed_bytes": 3316,
+      "crc32": "32e6a97f",
+      "sha256": "4c356e76358eace998ac4503b749aa1e0125e2849950dcda260b70cbcd907b76"
+    },
+    {
+      "path": "arrival.warmup.json",
+      "bytes": 19231,
+      "compressed_bytes": 1253,
+      "crc32": "573b250c",
+      "sha256": "cc6eb8a90a773efe737608bec7df5e3d58ff3e1cadaa6e2af995fa2eb14a7fa2"
+    },
+    {
+      "path": "benchmark.txt",
+      "bytes": 2361,
+      "compressed_bytes": 836,
+      "crc32": "ceb3fdd0",
+      "sha256": "bbe110aa2634710c26b78f95da1cea4958b8e428d9e2e5d61d4903dd9fb40f80"
+    },
+    {
+      "path": "binary.sha256",
+      "bytes": 127,
+      "compressed_bytes": 109,
+      "crc32": "169500e8",
+      "sha256": "01763e40ea9953b19666552a582ec78cc7a9ed16181bd737549fe536efa547e2"
+    },
+    {
+      "path": "counters/after.json",
+      "bytes": 50627,
+      "compressed_bytes": 4184,
+      "crc32": "3c2fe895",
+      "sha256": "4b0face7c4ca67c836610241056fa6959774a04c0a74234d284fb10c4f39b98b"
+    },
+    {
+      "path": "counters/before.json",
+      "bytes": 50380,
+      "compressed_bytes": 4021,
+      "crc32": "a141f3c0",
+      "sha256": "c110016ea7261befffdeb9732882b5dff97f7d29cb7e4aa09b244197379ce03f"
+    },
+    {
+      "path": "counters/window.json",
+      "bytes": 575,
+      "compressed_bytes": 353,
+      "crc32": "2b205e32",
+      "sha256": "07d07bcdd594603b74db9b5d65364ad5fc496f49bbdebffff819f2abcd5fd70e"
+    },
+    {
+      "path": "counters.warmup/after.json",
+      "bytes": 50380,
+      "compressed_bytes": 4017,
+      "crc32": "0b7dcf12",
+      "sha256": "c006a99a983a2c0fb92a7baa88e9dc1de965ce15f3a2f7b8a069d2ef2922d7d2"
+    },
+    {
+      "path": "counters.warmup/before.json",
+      "bytes": 21530,
+      "compressed_bytes": 2919,
+      "crc32": "32001ad2",
+      "sha256": "2411589373f792755e2b573a5e641ddb1b1c9e464c05d3d2e4b831bae30de6bb"
+    },
+    {
+      "path": "counters.warmup/window.json",
+      "bytes": 504,
+      "compressed_bytes": 312,
+      "crc32": "4bd3f4f6",
+      "sha256": "bd276077bf78c4f38856ba1390754d98782921736440d0600f0dab7ed0ee7715"
+    },
+    {
+      "path": "data-filesystem.json",
+      "bytes": 244,
+      "compressed_bytes": 159,
+      "crc32": "77ec143c",
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+    },
+    {
+      "path": "filesystem-preflight.txt",
+      "bytes": 123,
+      "compressed_bytes": 109,
+      "crc32": "9f305411",
+      "sha256": "0feed51201d87dd838f0c7972de244acad8e6d9890c2a788be01e1247069aca5"
+    },
+    {
+      "path": "go-version.txt",
+      "bytes": 33,
+      "compressed_bytes": 35,
+      "crc32": "dd48af92",
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "host.json",
+      "bytes": 4484,
+      "compressed_bytes": 1181,
+      "crc32": "631e8f32",
+      "sha256": "578ae8da7371c92fb4efbc0f507a034c4327fc57a8a6eb98d7882de2c1a11994"
+    },
+    {
+      "path": "kernel.txt",
+      "bytes": 113,
+      "compressed_bytes": 100,
+      "crc32": "5f528912",
+      "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+    },
+    {
+      "path": "result.json",
+      "bytes": 18,
+      "compressed_bytes": 20,
+      "crc32": "81529131",
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "source.sha",
+      "bytes": 41,
+      "compressed_bytes": 42,
+      "crc32": "d95fd407",
+      "sha256": "3c3063f13a47d9773696737fc1a3960acb9fe5f5d871bb06c702a5ef8f974aa0"
+    }
+  ]
+}

@@ -1,0 +1,1285 @@
+{
+  "actual_slot_leaders": [
+    {
+      "SlotID": 1,
+      "LeaderID": 2
+    },
+    {
+      "SlotID": 2,
+      "LeaderID": 1
+    },
+    {
+      "SlotID": 3,
+      "LeaderID": 3
+    },
+    {
+      "SlotID": 4,
+      "LeaderID": 2
+    },
+    {
+      "SlotID": 5,
+      "LeaderID": 1
+    },
+    {
+      "SlotID": 6,
+      "LeaderID": 3
+    },
+    {
+      "SlotID": 7,
+      "LeaderID": 2
+    },
+    {
+      "SlotID": 8,
+      "LeaderID": 1
+    },
+    {
+      "SlotID": 9,
+      "LeaderID": 3
+    },
+    {
+      "SlotID": 10,
+      "LeaderID": 2
+    },
+    {
+      "SlotID": 11,
+      "LeaderID": 1
+    },
+    {
+      "SlotID": 12,
+      "LeaderID": 3
+    }
+  ],
+  "append_workers": 128,
+  "arch": "arm64",
+  "binary_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+  "cleanup_joined": true,
+  "cloud_capacity_qualified": false,
+  "complete_histories": [
+    {
+      "body_sha256": "1dfe1789f9a3287edafbe28cce5e291406d3f986089bdfb5cdbb09a95669a8a0",
+      "cuts": [
+        {
+          "body_sha256": "1dfe1789f9a3287edafbe28cce5e291406d3f986089bdfb5cdbb09a95669a8a0",
+          "elapsed_ns": 57018941333,
+          "has_more": false,
+          "items": 7
+        }
+      ],
+      "has_more": false,
+      "items": 7,
+      "node": 1
+    },
+    {
+      "body_sha256": "1dfe1789f9a3287edafbe28cce5e291406d3f986089bdfb5cdbb09a95669a8a0",
+      "cuts": [
+        {
+          "body_sha256": "1e2ad47266ebcf1cabcc08765f5230b115f9d8a4ccf75358036271323543570e",
+          "elapsed_ns": 57019385125,
+          "has_more": false,
+          "items": 6
+        },
+        {
+          "body_sha256": "1dfe1789f9a3287edafbe28cce5e291406d3f986089bdfb5cdbb09a95669a8a0",
+          "elapsed_ns": 57120630375,
+          "has_more": false,
+          "items": 7
+        }
+      ],
+      "has_more": false,
+      "items": 7,
+      "node": 2
+    },
+    {
+      "body_sha256": "1dfe1789f9a3287edafbe28cce5e291406d3f986089bdfb5cdbb09a95669a8a0",
+      "cuts": [
+        {
+          "body_sha256": "1dfe1789f9a3287edafbe28cce5e291406d3f986089bdfb5cdbb09a95669a8a0",
+          "elapsed_ns": 57121181875,
+          "has_more": false,
+          "items": 7
+        }
+      ],
+      "has_more": false,
+      "items": 7,
+      "node": 3
+    }
+  ],
+  "config_sha256": {
+    "1": "b152d5b4fed24fed24098c32e322384229f0f459e2e2e80d71689d43bf805f1d",
+    "2": "3ff75e5e337d1ad9206048038e543f1616fa19205b8c1aecbbaa43366251a0e5",
+    "3": "757b203cfe987585eb709f7c5b5b94b58db1c140c022d86f00b80a8fa99a0d23"
+  },
+  "driver_gomaxprocs": 2,
+  "fault_injection": false,
+  "finished_at_utc": "2026-10-22T18:42:04.49778Z",
+  "group_index": 1730,
+  "group_members": 435,
+  "hash_slots": 256,
+  "history_progress": [
+    {
+      "body_sha256": "1dfe1789f9a3287edafbe28cce5e291406d3f986089bdfb5cdbb09a95669a8a0",
+      "cuts": [
+        {
+          "body_sha256": "1dfe1789f9a3287edafbe28cce5e291406d3f986089bdfb5cdbb09a95669a8a0",
+          "elapsed_ns": 57018941333,
+          "has_more": false,
+          "items": 7
+        }
+      ],
+      "has_more": false,
+      "items": 7,
+      "node": 1
+    },
+    {
+      "body_sha256": "1dfe1789f9a3287edafbe28cce5e291406d3f986089bdfb5cdbb09a95669a8a0",
+      "cuts": [
+        {
+          "body_sha256": "1e2ad47266ebcf1cabcc08765f5230b115f9d8a4ccf75358036271323543570e",
+          "elapsed_ns": 57019385125,
+          "has_more": false,
+          "items": 6
+        },
+        {
+          "body_sha256": "1dfe1789f9a3287edafbe28cce5e291406d3f986089bdfb5cdbb09a95669a8a0",
+          "elapsed_ns": 57120630375,
+          "has_more": false,
+          "items": 7
+        }
+      ],
+      "has_more": false,
+      "items": 7,
+      "node": 2
+    },
+    {
+      "body_sha256": "1dfe1789f9a3287edafbe28cce5e291406d3f986089bdfb5cdbb09a95669a8a0",
+      "cuts": [
+        {
+          "body_sha256": "1dfe1789f9a3287edafbe28cce5e291406d3f986089bdfb5cdbb09a95669a8a0",
+          "elapsed_ns": 57121181875,
+          "has_more": false,
+          "items": 7
+        }
+      ],
+      "has_more": false,
+      "items": 7,
+      "node": 3
+    }
+  ],
+  "host_cpu_count": 10,
+  "known_sender_held_constant": true,
+  "logical_slot_groups": 12,
+  "messages": [
+    {
+      "ack_message_id": 2113339945253875712,
+      "ack_message_seq": 1,
+      "fingerprint": "05082c2be286272910fb5899086b149f",
+      "nominal_second": 15,
+      "ordinal": 3116,
+      "payload_bytes": 1024,
+      "receives": [
+        {
+          "ack_to_recv_ns": 25578208,
+          "consumed_elapsed_ns": 15107439500,
+          "physical_recv_elapsed_ns": 15106039500,
+          "recipient_index": 3730
+        },
+        {
+          "ack_to_recv_ns": 25574458,
+          "consumed_elapsed_ns": 15108308375,
+          "physical_recv_elapsed_ns": 15106035750,
+          "recipient_index": 5730
+        },
+        {
+          "ack_to_recv_ns": 3798375,
+          "consumed_elapsed_ns": 15109081250,
+          "physical_recv_elapsed_ns": 15084259667,
+          "recipient_index": 7730
+        },
+        {
+          "ack_to_recv_ns": 25622125,
+          "consumed_elapsed_ns": 15109838417,
+          "physical_recv_elapsed_ns": 15106083417,
+          "recipient_index": 9730
+        }
+      ],
+      "sample_index": 9223380832947801132,
+      "send_elapsed_ns": 15001098208,
+      "wire_ack_elapsed_ns": 15080461292
+    },
+    {
+      "ack_message_id": 2113339991143755776,
+      "ack_message_seq": 2,
+      "fingerprint": "72c5286e7ec7383b66d45a5b1eba4251",
+      "nominal_second": 26,
+      "ordinal": 5216,
+      "payload_bytes": 1024,
+      "receives": [
+        {
+          "ack_to_recv_ns": 938750,
+          "consumed_elapsed_ns": 26019854500,
+          "physical_recv_elapsed_ns": 26018421583,
+          "recipient_index": 3730
+        },
+        {
+          "ack_to_recv_ns": 983417,
+          "consumed_elapsed_ns": 26020659333,
+          "physical_recv_elapsed_ns": 26018466250,
+          "recipient_index": 5730
+        },
+        {
+          "ack_to_recv_ns": 1037167,
+          "consumed_elapsed_ns": 26021473083,
+          "physical_recv_elapsed_ns": 26018520000,
+          "recipient_index": 7730
+        },
+        {
+          "ack_to_recv_ns": 1019500,
+          "consumed_elapsed_ns": 26022319875,
+          "physical_recv_elapsed_ns": 26018502333,
+          "recipient_index": 9730
+        }
+      ],
+      "sample_index": 9223380832947803232,
+      "send_elapsed_ns": 26001123792,
+      "wire_ack_elapsed_ns": 26017482833
+    },
+    {
+      "ack_message_id": 2113339999603666944,
+      "ack_message_seq": 3,
+      "fingerprint": "08fbb3a72d6a72e7da25d1394ad3f96c",
+      "nominal_second": 28,
+      "ordinal": 5711,
+      "payload_bytes": 256,
+      "receives": [
+        {
+          "ack_to_recv_ns": 881167,
+          "consumed_elapsed_ns": 28035061375,
+          "physical_recv_elapsed_ns": 28033956667,
+          "recipient_index": 3730
+        },
+        {
+          "ack_to_recv_ns": 864792,
+          "consumed_elapsed_ns": 28035807958,
+          "physical_recv_elapsed_ns": 28033940292,
+          "recipient_index": 5730
+        },
+        {
+          "ack_to_recv_ns": 818792,
+          "consumed_elapsed_ns": 28036469375,
+          "physical_recv_elapsed_ns": 28033894292,
+          "recipient_index": 7730
+        },
+        {
+          "ack_to_recv_ns": 895792,
+          "consumed_elapsed_ns": 28037205375,
+          "physical_recv_elapsed_ns": 28033971292,
+          "recipient_index": 9730
+        }
+      ],
+      "sample_index": 9223380832947803727,
+      "send_elapsed_ns": 28001092917,
+      "wire_ack_elapsed_ns": 28033075500
+    },
+    {
+      "ack_message_id": 2113340024693993472,
+      "ack_message_seq": 4,
+      "fingerprint": "2cb134c84a3c47f6440305194dd569dc",
+      "nominal_second": 34,
+      "ordinal": 6818,
+      "payload_bytes": 1024,
+      "receives": [
+        {
+          "ack_to_recv_ns": 905375,
+          "consumed_elapsed_ns": 34013421458,
+          "physical_recv_elapsed_ns": 34012329083,
+          "recipient_index": 3730
+        },
+        {
+          "ack_to_recv_ns": 974417,
+          "consumed_elapsed_ns": 34014260125,
+          "physical_recv_elapsed_ns": 34012398125,
+          "recipient_index": 5730
+        },
+        {
+          "ack_to_recv_ns": 951792,
+          "consumed_elapsed_ns": 34014977708,
+          "physical_recv_elapsed_ns": 34012375500,
+          "recipient_index": 7730
+        },
+        {
+          "ack_to_recv_ns": 1007292,
+          "consumed_elapsed_ns": 34015789125,
+          "physical_recv_elapsed_ns": 34012431000,
+          "recipient_index": 9730
+        }
+      ],
+      "sample_index": 9223380832947804834,
+      "send_elapsed_ns": 34000589500,
+      "wire_ack_elapsed_ns": 34011423708
+    },
+    {
+      "ack_message_id": 2113340070831337472,
+      "ack_message_seq": 5,
+      "fingerprint": "dd2ac72c40e88775085c2847098368e0",
+      "nominal_second": 45,
+      "ordinal": 9014,
+      "payload_bytes": 256,
+      "receives": [
+        {
+          "ack_to_recv_ns": 355208,
+          "consumed_elapsed_ns": 45016540708,
+          "physical_recv_elapsed_ns": 45016224375,
+          "recipient_index": 3730
+        },
+        {
+          "ack_to_recv_ns": 347500,
+          "consumed_elapsed_ns": 45016851542,
+          "physical_recv_elapsed_ns": 45016216667,
+          "recipient_index": 5730
+        },
+        {
+          "ack_to_recv_ns": 337958,
+          "consumed_elapsed_ns": 45017150750,
+          "physical_recv_elapsed_ns": 45016207125,
+          "recipient_index": 7730
+        },
+        {
+          "ack_to_recv_ns": 351625,
+          "consumed_elapsed_ns": 45017441375,
+          "physical_recv_elapsed_ns": 45016220792,
+          "recipient_index": 9730
+        }
+      ],
+      "sample_index": 9223380832947807030,
+      "send_elapsed_ns": 45000617375,
+      "wire_ack_elapsed_ns": 45015869167
+    },
+    {
+      "ack_message_id": 2113340087608553472,
+      "ack_message_seq": 6,
+      "fingerprint": "f6c4b36a430c9fcb617a90d040154385",
+      "nominal_second": 49,
+      "ordinal": 9818,
+      "payload_bytes": 1024,
+      "receives": [
+        {
+          "ack_to_recv_ns": 411958,
+          "consumed_elapsed_ns": 49015135375,
+          "physical_recv_elapsed_ns": 49014736500,
+          "recipient_index": 3730
+        },
+        {
+          "ack_to_recv_ns": 390125,
+          "consumed_elapsed_ns": 49015497667,
+          "physical_recv_elapsed_ns": 49014714667,
+          "recipient_index": 5730
+        },
+        {
+          "ack_to_recv_ns": 365958,
+          "consumed_elapsed_ns": 49015834042,
+          "physical_recv_elapsed_ns": 49014690500,
+          "recipient_index": 7730
+        },
+        {
+          "ack_to_recv_ns": 379708,
+          "consumed_elapsed_ns": 49016170292,
+          "physical_recv_elapsed_ns": 49014704250,
+          "recipient_index": 9730
+        }
+      ],
+      "sample_index": 9223380832947807834,
+      "send_elapsed_ns": 49001079792,
+      "wire_ack_elapsed_ns": 49014324542
+    },
+    {
+      "ack_message_id": 2113340121167179776,
+      "ack_message_seq": 7,
+      "fingerprint": "8e4ef748fb0562e79d2ec8196f51880e",
+      "nominal_second": 57,
+      "ordinal": 11405,
+      "payload_bytes": 256,
+      "receives": [
+        {
+          "ack_to_recv_ns": 713041,
+          "consumed_elapsed_ns": 57016048000,
+          "physical_recv_elapsed_ns": 57014843958,
+          "recipient_index": 3730
+        },
+        {
+          "ack_to_recv_ns": 692291,
+          "consumed_elapsed_ns": 57016739125,
+          "physical_recv_elapsed_ns": 57014823208,
+          "recipient_index": 5730
+        },
+        {
+          "ack_to_recv_ns": 642208,
+          "consumed_elapsed_ns": 57017390583,
+          "physical_recv_elapsed_ns": 57014773125,
+          "recipient_index": 7730
+        },
+        {
+          "ack_to_recv_ns": 704750,
+          "consumed_elapsed_ns": 57018050917,
+          "physical_recv_elapsed_ns": 57014835667,
+          "recipient_index": 9730
+        }
+      ],
+      "sample_index": 9223380832947809421,
+      "send_elapsed_ns": 57001103292,
+      "wire_ack_elapsed_ns": 57014130917
+    }
+  ],
+  "metrics_after": [
+    {
+      "missing_metric_families": [
+        "process_cpu_seconds_total",
+        "process_resident_memory_bytes",
+        "wukongim_delivery_errors_total"
+      ],
+      "node": 1,
+      "receipt": {
+        "status_code": 200,
+        "requested_encoding": "identity",
+        "received_encoding": "identity",
+        "body_bytes": 572062,
+        "body_sha256": "808416c39948e850481c48741d995f5c79b7cd77b61cedbe4c80f27297be7ad7",
+        "started_at": "2026-10-22T18:42:03.621072Z",
+        "finished_at": "2026-10-22T18:42:03.630284Z",
+        "duration_ns": 9212000
+      },
+      "samples": [
+        {
+          "Name": "go_gc_duration_seconds_count",
+          "Labels": {},
+          "Value": 9
+        },
+        {
+          "Name": "go_goroutines",
+          "Labels": {},
+          "Value": 1711
+        },
+        {
+          "Name": "go_memstats_heap_alloc_bytes",
+          "Labels": {},
+          "Value": 84404656
+        },
+        {
+          "Name": "wukongim_delivery_ack_bindings",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_inflight",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "canceled"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "error"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "ok"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "panic"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "retry_exhausted"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "timeout"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "unknown"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_queue_depth",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_node_cpu_percent",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1"
+          },
+          "Value": 4.874004502382364
+        },
+        {
+          "Name": "wukongim_node_memory_rss_bytes",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1"
+          },
+          "Value": 182255616
+        }
+      ]
+    },
+    {
+      "missing_metric_families": [
+        "process_cpu_seconds_total",
+        "process_resident_memory_bytes",
+        "wukongim_delivery_errors_total"
+      ],
+      "node": 2,
+      "receipt": {
+        "status_code": 200,
+        "requested_encoding": "identity",
+        "received_encoding": "identity",
+        "body_bytes": 532725,
+        "body_sha256": "a3f9293bdbb59845573c1230b691773d9d5ee2eacf2a6d994048d2f70473b707",
+        "started_at": "2026-10-22T18:42:03.630335Z",
+        "finished_at": "2026-10-22T18:42:03.637573Z",
+        "duration_ns": 7238125
+      },
+      "samples": [
+        {
+          "Name": "go_gc_duration_seconds_count",
+          "Labels": {},
+          "Value": 8
+        },
+        {
+          "Name": "go_goroutines",
+          "Labels": {},
+          "Value": 1691
+        },
+        {
+          "Name": "go_memstats_heap_alloc_bytes",
+          "Labels": {},
+          "Value": 119707688
+        },
+        {
+          "Name": "wukongim_delivery_ack_bindings",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_inflight",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "canceled"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "error"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "ok"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "panic"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "retry_exhausted"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "timeout"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "unknown"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_queue_depth",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_node_cpu_percent",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2"
+          },
+          "Value": 4.431712805491045
+        },
+        {
+          "Name": "wukongim_node_memory_rss_bytes",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2"
+          },
+          "Value": 180862976
+        }
+      ]
+    },
+    {
+      "missing_metric_families": [
+        "process_cpu_seconds_total",
+        "process_resident_memory_bytes",
+        "wukongim_delivery_errors_total"
+      ],
+      "node": 3,
+      "receipt": {
+        "status_code": 200,
+        "requested_encoding": "identity",
+        "received_encoding": "identity",
+        "body_bytes": 818697,
+        "body_sha256": "1ebd11d0d30b768ac0a04991cc080fc49848ed96c18588d0c9a9dc4f90d085e7",
+        "started_at": "2026-10-22T18:42:03.637616Z",
+        "finished_at": "2026-10-22T18:42:03.646793Z",
+        "duration_ns": 9176375
+      },
+      "samples": [
+        {
+          "Name": "go_gc_duration_seconds_count",
+          "Labels": {},
+          "Value": 8
+        },
+        {
+          "Name": "go_goroutines",
+          "Labels": {},
+          "Value": 1713
+        },
+        {
+          "Name": "go_memstats_heap_alloc_bytes",
+          "Labels": {},
+          "Value": 119511400
+        },
+        {
+          "Name": "wukongim_delivery_ack_bindings",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_inflight",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "canceled"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "error"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "ok"
+          },
+          "Value": 7
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "panic"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "retry_exhausted"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "timeout"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "unknown"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_queue_depth",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_node_cpu_percent",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3"
+          },
+          "Value": 4.63462888314249
+        },
+        {
+          "Name": "wukongim_node_memory_rss_bytes",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3"
+          },
+          "Value": 182435840
+        }
+      ]
+    }
+  ],
+  "metrics_before": [
+    {
+      "missing_metric_families": [
+        "process_cpu_seconds_total",
+        "process_resident_memory_bytes",
+        "wukongim_delivery_errors_total"
+      ],
+      "node": 1,
+      "receipt": {
+        "status_code": 200,
+        "requested_encoding": "identity",
+        "received_encoding": "identity",
+        "body_bytes": 486083,
+        "body_sha256": "c992d866c1044c31c47056d1d1573351ac8051d855e832dccf3c0269f409591a",
+        "started_at": "2026-10-22T18:41:06.465651Z",
+        "finished_at": "2026-10-22T18:41:06.478877Z",
+        "duration_ns": 13225292
+      },
+      "samples": [
+        {
+          "Name": "go_gc_duration_seconds_count",
+          "Labels": {},
+          "Value": 6
+        },
+        {
+          "Name": "go_goroutines",
+          "Labels": {},
+          "Value": 1704
+        },
+        {
+          "Name": "go_memstats_heap_alloc_bytes",
+          "Labels": {},
+          "Value": 85058696
+        },
+        {
+          "Name": "wukongim_delivery_ack_bindings",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_inflight",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "canceled"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "error"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "ok"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "panic"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "retry_exhausted"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "timeout"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1",
+            "result": "unknown"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_queue_depth",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_node_cpu_percent",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1"
+          },
+          "Value": 7.275673162143226
+        },
+        {
+          "Name": "wukongim_node_memory_rss_bytes",
+          "Labels": {
+            "node_id": "1",
+            "node_name": "node-1"
+          },
+          "Value": 147603456
+        }
+      ]
+    },
+    {
+      "missing_metric_families": [
+        "process_cpu_seconds_total",
+        "process_resident_memory_bytes",
+        "wukongim_delivery_errors_total"
+      ],
+      "node": 2,
+      "receipt": {
+        "status_code": 200,
+        "requested_encoding": "identity",
+        "received_encoding": "identity",
+        "body_bytes": 446746,
+        "body_sha256": "2b2960efd675f128f1e94fc4f4ec60f315c0891a44e0408437ef7141d57768a2",
+        "started_at": "2026-10-22T18:41:06.479008Z",
+        "finished_at": "2026-10-22T18:41:06.490107Z",
+        "duration_ns": 11099250
+      },
+      "samples": [
+        {
+          "Name": "go_gc_duration_seconds_count",
+          "Labels": {},
+          "Value": 6
+        },
+        {
+          "Name": "go_goroutines",
+          "Labels": {},
+          "Value": 1684
+        },
+        {
+          "Name": "go_memstats_heap_alloc_bytes",
+          "Labels": {},
+          "Value": 77065888
+        },
+        {
+          "Name": "wukongim_delivery_ack_bindings",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_inflight",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "canceled"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "error"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "ok"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "panic"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "retry_exhausted"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "timeout"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2",
+            "result": "unknown"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_queue_depth",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_node_cpu_percent",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2"
+          },
+          "Value": 9.602950637187407
+        },
+        {
+          "Name": "wukongim_node_memory_rss_bytes",
+          "Labels": {
+            "node_id": "2",
+            "node_name": "node-2"
+          },
+          "Value": 147898368
+        }
+      ]
+    },
+    {
+      "missing_metric_families": [
+        "process_cpu_seconds_total",
+        "process_resident_memory_bytes",
+        "wukongim_delivery_errors_total"
+      ],
+      "node": 3,
+      "receipt": {
+        "status_code": 200,
+        "requested_encoding": "identity",
+        "received_encoding": "identity",
+        "body_bytes": 489046,
+        "body_sha256": "c6a89a58ce3fc5ff9a068466e3b098f859315afffb7ac6c378d8ec2e6bf4583a",
+        "started_at": "2026-10-22T18:41:06.490162Z",
+        "finished_at": "2026-10-22T18:41:06.498716Z",
+        "duration_ns": 8554250
+      },
+      "samples": [
+        {
+          "Name": "go_gc_duration_seconds_count",
+          "Labels": {},
+          "Value": 6
+        },
+        {
+          "Name": "go_goroutines",
+          "Labels": {},
+          "Value": 1692
+        },
+        {
+          "Name": "go_memstats_heap_alloc_bytes",
+          "Labels": {},
+          "Value": 75722272
+        },
+        {
+          "Name": "wukongim_delivery_ack_bindings",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_inflight",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "canceled"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "error"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "ok"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "panic"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "retry_exhausted"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "timeout"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_process_total",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3",
+            "result": "unknown"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_delivery_recipient_worker_queue_depth",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3"
+          },
+          "Value": 0
+        },
+        {
+          "Name": "wukongim_node_cpu_percent",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3"
+          },
+          "Value": 7.222945580149745
+        },
+        {
+          "Name": "wukongim_node_memory_rss_bytes",
+          "Labels": {
+            "node_id": "3",
+            "node_name": "node-3"
+          },
+          "Value": 148258816
+        }
+      ]
+    }
+  ],
+  "node_gomaxprocs": 2,
+  "online_member_owner_nodes": {
+    "1730": 3,
+    "3730": 2,
+    "5730": 1,
+    "7730": 3,
+    "9730": 2
+  },
+  "online_members": 5,
+  "original_cloud_failure_reproduced": false,
+  "original_workload_pressure": false,
+  "os": "darwin",
+  "passed": true,
+  "presence_converged": true,
+  "process_continuous": true,
+  "replicas": 3,
+  "sample_recipient_index": 7730,
+  "schema": "wukongim/ordinary-group-natural-diagnostic/v1",
+  "seed": 1,
+  "started_at_utc": "2026-10-22T18:40:46.240719Z",
+  "traffic_elapsed_ns": 57018069500
+}

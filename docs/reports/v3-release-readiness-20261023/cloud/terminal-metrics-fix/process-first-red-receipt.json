@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "single-process-test-runner.py"
+  ],
+  "exit_code": 1,
+  "elapsed_seconds": 1.065,
+  "quiet_authorization": "loss_local_reproduction reports owned product PID/port zero and joined cleanup",
+  "helper_sha256": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a",
+  "implementation_not_yet_changed": true
+}

@@ -1,0 +1,6 @@
+test_registered_resource_families_survive_the_real_collector (fixture.CollectorTests.test_registered_resource_families_survive_the_real_collector) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.615s
+
+OK

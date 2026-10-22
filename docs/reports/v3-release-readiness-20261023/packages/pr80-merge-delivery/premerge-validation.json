@@ -1,0 +1,39 @@
+{
+  "observed_at_utc": "2026-10-22T18:59:31.330851+00:00",
+  "reviewed_head": "b8fc6d5e384630ef1d4c0f00281a836d115456e8",
+  "main": "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+  "controls": [
+    ".github/workflows/native-package-audit-bind.yml",
+    ".github/workflows/native-package-audit-draft.yml",
+    ".github/workflows/native-package-immutable-public-reverify.yml",
+    ".github/workflows/native-package-publish.yml",
+    ".github/workflows/pages.yml"
+  ],
+  "all_five_active_statuses_fully_paginated": {
+    "queued": {
+      "total": 0,
+      "pages": 1
+    },
+    "in_progress": {
+      "total": 0,
+      "pages": 1
+    },
+    "waiting": {
+      "total": 0,
+      "pages": 1
+    },
+    "requested": {
+      "total": 0,
+      "pages": 1
+    },
+    "pending": {
+      "total": 0,
+      "pages": 1
+    }
+  },
+  "active_control_runs": [],
+  "checks_success": 4,
+  "conditional_skips": 1,
+  "merge_state": "CLEAN",
+  "method_required": "ordinary rebase to preserve required linear history; exact head fence; no admin override"
+}

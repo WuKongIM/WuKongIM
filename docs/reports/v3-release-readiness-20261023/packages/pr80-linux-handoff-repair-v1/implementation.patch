@@ -1,0 +1,118 @@
+diff --git a/.github/workflows/native-package-repository-drill.yml b/.github/workflows/native-package-repository-drill.yml
+index f45b022..867e0ec 100644
+--- a/.github/workflows/native-package-repository-drill.yml
++++ b/.github/workflows/native-package-repository-drill.yml
+@@ -246,15 +246,19 @@ jobs:
+           fixture_output="$RUNNER_TEMP/native-delivery-fixture"
+           sdk_work="$RUNNER_TEMP/native-sdk-work"
+           sdk_evidence="$RUNNER_TEMP/native-sdk-evidence"
+-          mkdir "$sdk_work" "$sdk_evidence"
+-          chmod 0777 "$sdk_work" "$sdk_evidence"
++          # Preserve private native scratch across the container-to-host handoff.
++          sdk_uid="$(id -u)"
++          sdk_gid="$(id -g)"
++          [[ "$sdk_uid" =~ ^[1-9][0-9]*$ ]] || exit 1
++          [[ "$sdk_gid" =~ ^[1-9][0-9]*$ ]] || exit 1
++          mkdir -m 0700 "$sdk_work" "$sdk_evidence"
+           container="wk-native-sdk-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+           trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
+           trap 'exit 130' INT
+           trap 'exit 143' TERM
+           timeout --signal=TERM --kill-after=10s 15m docker run --rm --name "$container" \
+             --platform linux/amd64 --init --network none --read-only --cap-drop ALL \
+-            --security-opt no-new-privileges --user 65532:65532 \
++            --security-opt no-new-privileges --user "$sdk_uid:$sdk_gid" \
+             --cpus 1 --memory 512m --pids-limit 128 \
+             --tmpfs /tmp:rw,nosuid,nodev,size=536870912 \
+             --volume "$GITHUB_WORKSPACE:/control:ro" \
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 8177481..72af558 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -8,6 +8,8 @@
+ - Verify complete native delivery fixtures through the official SDK without cloud
+   access, and validate exact File refresh coverage across aggregated task IDs.
+   Keep bounded public SDK responses and preserve failures through cleanup.
++  Match the native preparation user to the Linux runner so private inputs remain
++  readable and owned scratch can be removed after the SDK check.
+   Production authentication, public-client acceptance and activation remain unverified.
+ 
+ - Compile larger finite native route tables into bounded offline CDN candidates
+diff --git a/docs/object-storage-delivery.md b/docs/object-storage-delivery.md
+index f4ddc99..79d9913 100644
+--- a/docs/object-storage-delivery.md
++++ b/docs/object-storage-delivery.md
+@@ -328,7 +328,14 @@ entrypoints still refuse. These data-only packages do not prove installed CLI
+ acceptance. Existing 29/31/49 native suites keep their original commands.
+ 
+ The native preparation keeps the M1 container's init, network isolation,
+-1 CPU/512 MiB/128 PID/512 MiB tmpfs and 15-minute limit. A separate host SDK phase
++1 CPU/512 MiB/128 PID/512 MiB tmpfs and 15-minute limit. This new prepare step
++uses the host runner's explicit nonzero UID/GID, matching the following SDK and
++cleanup steps. The original fixed UID 65532 plan failed on Linux: resolved audit
++directories remain mode 0700, and another host UID can neither consume those
++inputs nor remove the owned output tree. Identity alignment preserves those
++private modes; it does not use root, chown or widen native input permissions.
++Both owned handoff directories start at mode 0700. Existing native workflow
++steps retain their original user. A separate host SDK phase
+ installs the existing hash lock within 240 seconds and runs within 300 seconds;
+ it has no claimed container cgroup limit. Fixed input/file counts and 64 MiB
+ fixture/8 MiB receipt limits bound its work. Always-run cleanup removes owned
+diff --git a/tests/test_object_storage_delivery_inputs.py b/tests/test_object_storage_delivery_inputs.py
+index bb6c3ba..f1a84f7 100644
+--- a/tests/test_object_storage_delivery_inputs.py
++++ b/tests/test_object_storage_delivery_inputs.py
+@@ -222,7 +222,7 @@ class NativeSdkWorkflowContract(unittest.TestCase):
+         block=text[start:end]
+         self.assertLess(text.index('native_object_delivery_fixture_drill.py'),start)
+         for required in ('native_object_delivery_sdk_drill.py prepare','native_object_delivery_sdk_drill.py sdk',
+-                         '--init','--network none','--read-only','--user 65532:65532','--cpus 1 --memory 512m --pids-limit 128',
++                         '--init','--network none','--read-only','--user "$sdk_uid:$sdk_gid"','--cpus 1 --memory 512m --pids-limit 128',
+                          'size=536870912','15m docker run','timeout 240','--require-hashes','timeout 300',
+                          '--expected-export-source "$GITHUB_SHA"','--bundle-sha256','--source-sha "$GITHUB_SHA"',
+                          'native-delivery-fixture','native-sdk-result.json','if: always()',
+@@ -232,6 +232,44 @@ class NativeSdkWorkflowContract(unittest.TestCase):
+             self.assertNotIn(forbidden,block)
+         self.assertIn('timeout-minutes: 60',text)
+ 
++    def test_native_sdk_prepare_uses_the_host_nonroot_identity_without_widening_scratch(self):
++        result, invocation, permissions = self.native_sdk_prepare_identity('1001', '1002')
++        self.assertEqual(result.returncode, 0, result.stderr)
++        self.assertEqual(invocation[invocation.index('--user')+1], '1001:1002')
++        self.assertEqual(permissions, {'native-sdk-work': 0o700, 'native-sdk-evidence': 0o700})
++        self.assertNotIn('sudo', invocation)
++
++    def test_native_sdk_prepare_refuses_invalid_or_root_identity_before_docker(self):
++        for uid,gid in (('0','1001'),('1001','0'),('','1001'),('-1','1001'),('1001','bad'),('1001','')):
++            with self.subTest(uid=uid,gid=gid):
++                result, invocation, _ = self.native_sdk_prepare_identity(uid,gid)
++                self.assertNotEqual(result.returncode,0)
++                self.assertIsNone(invocation)
++
++    def native_sdk_prepare_identity(self,uid,gid):
++        """Run the real prepare shell with an inert Docker boundary, never a daemon."""
++        import os
++        import stat
++        import subprocess
++        import sys
++        text=(ROOT/'.github/workflows/native-package-repository-drill.yml').read_text()
++        start=text.index('      - name: Prepare verified native SDK object fixtures')
++        end=text.index('      - name:',start+10)
++        body=text[start:end].split('        run: |\n',1)[1]
++        script='\n'.join(line[10:] for line in body.splitlines() if line.startswith('          '))
++        with tempfile.TemporaryDirectory() as temp:
++            root=Path(temp);binary=root/'bin';binary.mkdir();log=root/'docker.json'
++            identity=binary/'id';identity.write_text('#!/bin/sh\ncase "$1" in -u) printf "%s\\n" "$TEST_UID";; -g) printf "%s\\n" "$TEST_GID";; *) exit 42;; esac\n');identity.chmod(0o755)
++            timeout=binary/'timeout';timeout.write_text('#!/bin/sh\nshift 3\nexec "$@"\n');timeout.chmod(0o755)
++            docker=binary/'docker';docker.write_text('#!'+sys.executable+'\nimport json,os,sys\nfrom pathlib import Path\nif sys.argv[1:3]==["rm","--force"]: raise SystemExit(0)\nPath(os.environ["TEST_DOCKER_LOG"]).write_text(json.dumps(sys.argv[1:]))\nout=Path(sys.argv[sys.argv.index("--output")+1]);out.write_text(json.dumps({"passed":True,"source_sha":os.environ["GITHUB_SHA"],"state":"native_prepared","cases":[{},{}]}))\n');docker.chmod(0o755)
++            env={**os.environ,'PATH':str(binary)+':'+os.environ['PATH'],'RUNNER_TEMP':str(root),
++                 'GITHUB_WORKSPACE':str(ROOT),'GITHUB_RUN_ID':'fixture','GITHUB_RUN_ATTEMPT':'1','GITHUB_SHA':HEAD,
++                 'TEST_UID':uid,'TEST_GID':gid,'TEST_DOCKER_LOG':str(log)}
++            result=subprocess.run(['bash','-c',script],env=env,capture_output=True,text=True,timeout=10,cwd=ROOT)
++            invocation=json.loads(log.read_bytes()) if log.exists() else None
++            permissions={name:stat.S_IMODE((root/name).stat().st_mode) for name in ('native-sdk-work','native-sdk-evidence') if (root/name).exists()}
++            return result,invocation,permissions
++
+     def test_native_sdk_cleanup_rejects_docker_observation_failure(self):
+         import os
+         import subprocess

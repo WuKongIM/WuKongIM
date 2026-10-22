@@ -1,0 +1,17 @@
+{
+  "head": "b8fc6d5e384630ef1d4c0f00281a836d115456e8",
+  "head_tree": "05fe9cc3727ad49b41e8b197adc8eb0fb99e54d5",
+  "base": "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+  "run_ids": [
+    39833326934,
+    39833326866,
+    39833326936
+  ],
+  "all_attempt": 1,
+  "previous_generation_manifest_sha256": "cd5129184e1d41a7bc5d7c83f82ca74e267855d291defd3b326f155c7cdd88de",
+  "previous_generation_archive_summary_sha256": "8436708fecdc95c5672867f0ca8b78b5337e240dac0ff53342294349184bbdf0",
+  "read_only_monitor": true,
+  "reruns_dispatched": 0,
+  "source_mutations": 0,
+  "cloud_operations": 0
+}

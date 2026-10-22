@@ -1,0 +1,26 @@
+{
+  "schema": "wukongim/runtime-config-comparison-refinements/v1",
+  "base_comparison_sha256": "88c408b91c282fdfc6690562d483f01f08fdaab912fd2e3acbd553ca4c9fe339",
+  "corrections": [
+    {
+      "field": "replication_runtime.max_channels",
+      "base_value": 100000,
+      "local_effective": 50000,
+      "cloud_template_plus_source_default": 50000,
+      "reason": "Bare replication default is overridden by product Node wiring with configured channel max50000.",
+      "source": "pkg/cluster/node_defaults.go:111-114",
+      "source_sha256": "8299936cc45ae6647321e5391c54765ccd8d319a110da24805c554ca59cc02e9"
+    },
+    {
+      "field": "gateway.send_timeout_ms",
+      "value_unchanged": 5000,
+      "source_correction": "internal/access/gateway/handler.go:43-46,123-124; internal/config/document.go:31-32",
+      "reason": "Earlier basis pointed to unrelated gateway normalization; value5s is source-confirmed by handler/loader.",
+      "source_sha256": {
+        "internal/access/gateway/handler.go": "08620f1fa8fcb80166d01e95fdd43d54f76ade4b4518f5114dbcefe8709e818b",
+        "internal/config/document.go": "b9616cfa333d8d3e10b621f786ac10f5ead61beba5eb73f72633201428cf5880"
+      }
+    }
+  ],
+  "scope": "Value refinement for exact product wiring; does not change confirmed configuration differences or experiment proposal."
+}

@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/probe.py", line 46, in <module>
+    assert len(rows)==2 and all(row['prepare_exit']==0 for row in rows)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

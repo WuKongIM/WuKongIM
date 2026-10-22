@@ -1,0 +1,5 @@
+{
+  "exit_code": 1,
+  "command": "python3 -m unittest discover -s tests -p test_object_storage_delivery_inputs.py -v",
+  "harness_correction": "macOS lacks timeout; inert boundary wrapper is bounded by outer subprocess 10s timeout; initial harness failure preserved"
+}

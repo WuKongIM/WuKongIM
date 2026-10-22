@@ -1,0 +1,14 @@
+{
+  "pr": 80,
+  "reviewed_head": "b8fc6d5e384630ef1d4c0f00281a836d115456e8",
+  "merge_commit": "e0982275c158b5bd69520c42719ce6f833ee63bc",
+  "merged_at": "2026-10-22T18:59:40Z",
+  "tree": "05fe9cc3727ad49b41e8b197adc8eb0fb99e54d5",
+  "exact_reviewed_tree_equal": true,
+  "target_contains_original_tip": false,
+  "compare_behind_by": 2,
+  "protection_unchanged": true,
+  "original_worktree_clean": true,
+  "method": "ordinary exact-head GitHub rebase; required linear history preserved; no admin override",
+  "cleanup": "Preserve clean original worktree/branch because the reviewed original tip is not an ancestor of rebased target; no force delete."
+}

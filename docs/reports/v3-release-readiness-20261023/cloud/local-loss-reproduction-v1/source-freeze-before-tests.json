@@ -1,0 +1,26 @@
+{
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "source_clean_before_test": true,
+  "at_utc": "2026-10-22T18:19:41.777845+00:00",
+  "files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "test/e2e/AGENTS.md": "d748b2df46e5214b5735aec2f0cd53eaa68fad8deff735ad19193d026af93603",
+    "test/e2e/message/AGENTS.md": "10ede99d4fe8ef4a6a946d058f58df1bec251141ba1f8b2a617da3a6b51c0e72",
+    "test/e2e/suite/FLOW.md": "df0e9c970f6ee56d573407fb99d80b9ca620b6387a619bbadc66c82ef8222887",
+    "internal/bench/FLOW.md": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+    "internal/bench/chatlifecycle/FLOW.md": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+    "internal/runtime/delivery/FLOW.md": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+    "internal/infra/delivery/FLOW.md": "060a4a2e615f43bc0178d70aa5f069221ec1552379744dcee07c3462b2cd8363",
+    "internal/infra/cluster/FLOW.md": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+    "internal/usecase/presence/FLOW.md": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2",
+    "internal/runtime/presence/FLOW.md": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+    "internal/contracts/onlinedelivery/FLOW.md": "2cc41f85c4c704d69cd888115356a44ef9aab3265a1c72dd0abaef1f62c7b8de",
+    "internal/bench/chatlifecycle/identity.go": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+    "internal/bench/chatlifecycle/groups.go": "b94b7a3a107e9b7470603051a15ffba073de718d2ca01dd0ca183fb61727f047",
+    "internal/bench/chatlifecycle/payload.go": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+    "internal/bench/chatlifecycle/traffic.go": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+    "internal/runtime/delivery/runtime.go": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b",
+    "internal/infra/cluster/presence.go": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+    "test/e2e/message/chat_lifecycle/chat_lifecycle_test.go": "e0277b51f65a9e939d3f30389b09a4c199ee4da2ddd4a2578f68d2786af57199"
+  }
+}

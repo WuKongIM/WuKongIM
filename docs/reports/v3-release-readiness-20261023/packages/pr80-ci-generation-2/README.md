@@ -1,0 +1,13 @@
+# packages PR #80 Linux CI after UID handoff repair
+
+This archive freezes the first CI generation for reviewed head b8fc6d5e384630ef1d4c0f00281a836d115456e8, base 721712e6d77c5f159fff94dcdb2bd1fb84ad464c. Actual PR checkout 7bb52a0d677c5349453c0004d73ffecf09ad47d6 has the identical tree 05fe9cc3727ad49b41e8b197adc8eb0fb99e54d5, verified through GitHub Git commit APIs and all four job logs. All three workflows are attempt 1; all jobs are terminal. Four checks passed and the conditional PR Pages deployment was skipped. No rerun, dispatch, source edit, push or merge was performed by this collector.
+
+The Linux default suite passed 595 tests in 133.053 seconds, zero skips, plus four repository contracts. The official SDK suite passed 49 tests and input regressions passed 18 tests, zero skips. Existing native metadata/local-signing/bootstrap/candidate/delivery/stable-client suites passed 7/10/6/31/29/49 cases.
+
+The new native SDK preparation passed both cases. Its official locked SDK fixture completed all 20 named scenarios, recorded fixture_complete, a one-attempt network-guard self-check with zero unexpected connections, and successful owned scratch removal. The separate workflow cleanup.json confirms owned work and container removal. A/B each exercised all 153 objects and 178 routes; both configurations contained 17 rules. All production, cloud, publication, source-authentication and live-equivalence verification flags remain false.
+
+The unsigned package build and full signed-repository container installation really executed and passed: the full job log retains unsigned creation, signed creation, signature/metadata closure and final signed-repository validation markers. Independently, the stable four-client receipt passed all 49 cases with eight exact installed CLI identities across A=3.0.0 and B=3.0.1, Ubuntu/Debian/Rocky/AlmaLinux and fixed product source fc18221282f289088ec9b4282fda8e0bfc67a3b8. Its named owned containers/networks and four caches were observed removed.
+
+All eight small public TEST ONLY artifact ZIPs were fully downloaded, compared against API SHA-256 and ZIP/member sizes, CRC-verified, and every member hashed. Command-output coverage distinguishes complete recomputed merged bytes from bounded tails or hash-only streams. The prior generation's manifest and all retained members were independently revalidated unchanged. That original PermissionError failure is not overwritten or relabelled as infrastructure.
+
+These results do not establish production signing, cloud readiness, live CDN equivalence, public installed-client publication or v3 GA release. Merge is left to the root operator's fresh five-workflow production-control quiet gate.

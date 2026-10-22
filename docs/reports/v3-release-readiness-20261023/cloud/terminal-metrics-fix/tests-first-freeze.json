@@ -1,0 +1,6 @@
+{
+  "test_file_sha256": "5119e738b84f67b398a590ac65375d48919263a18c66cdb807a9dc967e879bb4",
+  "helper_sha256": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a",
+  "helper_equals_79a": true,
+  "tests_written_before_implementation": true
+}

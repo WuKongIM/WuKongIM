@@ -1,0 +1,20 @@
+{
+  "head": "4d868f264fb4758f7451c058dd329a06ad460449",
+  "base": "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+  "patch_sha256": "917398282c69ebb4800e46b98bed98c3772bec6f7fa892ebf531f5a17f579561",
+  "files": {
+    ".github/workflows/native-package-repository-drill.yml": "01a6f86b4ca7b5551d03a17b0d5d362c2fbec1d670a7a710021b2f3d46bc6caf",
+    "CHANGELOG.md": "6b6618938faf5009c0e521369c317656c4fd9c81bd17890955549605762ca3aa",
+    "docs/object-storage-delivery.md": "4d012ab8e4f66b3692f8128db3a40a48853aeaad62cdb45bd41793d83345a3e5",
+    "tests/test_object_storage_delivery_inputs.py": "7a1d799c76d1efb9cfd95b48b27d575f68b7fac2222357198a07047b7d3f86a1"
+  },
+  "changed_files_exact": [
+    ".github/workflows/native-package-repository-drill.yml",
+    "CHANGELOG.md",
+    "docs/object-storage-delivery.md",
+    "tests/test_object_storage_delivery_inputs.py"
+  ],
+  "index_unchanged": true,
+  "no_commit_push_ci_dispatch": true,
+  "upstream_first_ci_failure_preserved": true
+}

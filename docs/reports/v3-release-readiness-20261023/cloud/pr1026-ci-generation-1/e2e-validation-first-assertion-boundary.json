@@ -1,0 +1,121 @@
+{
+  "collector_assertion": "Expected no E2E skip events; actual existing helper skips require explicit preservation, not changing CI verdict",
+  "observations": {
+    "build": {
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 2507,
+        "output_bytes": 5051,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 2507,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 106.145
+      },
+      "skip": [],
+      "fail": [],
+      "pass_names": []
+    },
+    "ordinary_history": {
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 7937,
+        "output_bytes": 27567,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 7937,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 111.668
+      },
+      "skip": [],
+      "fail": [],
+      "pass_names": [
+        "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+        "TestOriginalOrdinaryHistoryTopology"
+      ]
+    },
+    "cross_node_delivery": {
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 13856,
+        "output_bytes": 8448,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 13856,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 45.591
+      },
+      "skip": [
+        {
+          "Time": "2026-10-22T18:45:52.951825355Z",
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+          "Elapsed": 0
+        }
+      ],
+      "fail": [],
+      "pass_names": [
+        "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+        "TestThreeNodeReplicaTwoClusterConvergesSlotTopology",
+        "TestThreeNodeReplicaThreeClusterConvergesSlotTopology",
+        "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel"
+      ]
+    },
+    "self_chat": {
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 14169,
+        "output_bytes": 3700,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 14169,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 38.086
+      },
+      "skip": [],
+      "fail": [],
+      "pass_names": [
+        "TestSelfChatPersistsAcrossClusterRestart/1-node-cluster",
+        "TestSelfChatPersistsAcrossClusterRestart/3-node-cluster",
+        "TestSelfChatPersistsAcrossClusterRestart"
+      ]
+    }
+  }
+}

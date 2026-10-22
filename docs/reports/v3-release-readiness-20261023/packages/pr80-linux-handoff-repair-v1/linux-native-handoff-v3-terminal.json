@@ -1,0 +1,5 @@
+{
+  "exit_code": 0,
+  "elapsed_seconds": 68.131,
+  "harness_correction": "metadata observation now runs as native producer UID; root without DAC override correctly cannot traverse same-UID 0700 scratch"
+}

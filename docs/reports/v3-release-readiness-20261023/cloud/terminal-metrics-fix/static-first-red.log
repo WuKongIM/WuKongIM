@@ -1,0 +1,317 @@
+test_diagnostic_metric_names_are_exact_and_disjoint (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_diagnostic_metric_names_are_exact_and_disjoint) ... ok
+test_metric_deadline_stops_requests_and_retains_first_partition (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_metric_deadline_stops_requests_and_retains_first_partition) ... ok
+test_metric_total_transfer_budget_is_shared (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_metric_total_transfer_budget_is_shared) ... ok
+test_registered_counter_names_follow_exported_aliases (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_registered_counter_names_follow_exported_aliases) ... FAIL
+test_registered_resource_matrices_retain_exact_bytes_without_extra_queries (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_registered_resource_matrices_retain_exact_bytes_without_extra_queries) ... 
+  test_registered_resource_matrices_retain_exact_bytes_without_extra_queries (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_registered_resource_matrices_retain_exact_bytes_without_extra_queries) (family='process') ... FAIL
+  test_registered_resource_matrices_retain_exact_bytes_without_extra_queries (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_registered_resource_matrices_retain_exact_bytes_without_extra_queries) (family='counters') ... FAIL
+  test_registered_resource_matrices_retain_exact_bytes_without_extra_queries (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_registered_resource_matrices_retain_exact_bytes_without_extra_queries) (family='go') ... FAIL
+test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) ... 
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='process_cpu_seconds_total') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='process_start_time_seconds') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='process_resident_memory_bytes') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='wukongim_channel_meta_created_total') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='wukongim_channelv2_meta_created_total') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='wukongim_channel_activation_rejected_total') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='wukongim_channelv2_activation_rejected_total') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='go_goroutines') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='go_memstats_heap_alloc_bytes') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='go_gc_duration_seconds_count') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='go_sched_latencies_seconds_bucket') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='go_sched_latencies_seconds_sum') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='go_sched_latencies_seconds_count') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (excluded='wukongim_metadata_create_total') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (excluded='wukongim_activation_rejected_total') ... FAIL
+  test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (excluded='wukongim_go_heap') ... FAIL
+
+======================================================================
+FAIL: test_registered_counter_names_follow_exported_aliases (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_registered_counter_names_follow_exported_aliases)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 447, in test_registered_counter_names_follow_exported_aliases
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,metric)],['counters'],metric)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['counters']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'counters'
+
+- []
++ ['counters'] : wukongim_channel_activation_rejected_total
+
+======================================================================
+FAIL: test_registered_resource_matrices_retain_exact_bytes_without_extra_queries (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_registered_resource_matrices_retain_exact_bytes_without_extra_queries) (family='process')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 430, in test_registered_resource_matrices_retain_exact_bytes_without_extra_queries
+    self.assertEqual(row['state'],'collected')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'invalid' != 'collected'
+- invalid
++ collected
+
+
+======================================================================
+FAIL: test_registered_resource_matrices_retain_exact_bytes_without_extra_queries (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_registered_resource_matrices_retain_exact_bytes_without_extra_queries) (family='counters')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 430, in test_registered_resource_matrices_retain_exact_bytes_without_extra_queries
+    self.assertEqual(row['state'],'collected')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'invalid' != 'collected'
+- invalid
++ collected
+
+
+======================================================================
+FAIL: test_registered_resource_matrices_retain_exact_bytes_without_extra_queries (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_registered_resource_matrices_retain_exact_bytes_without_extra_queries) (family='go')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 430, in test_registered_resource_matrices_retain_exact_bytes_without_extra_queries
+    self.assertEqual(row['state'],'collected')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'invalid' != 'collected'
+- invalid
++ collected
+
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='process_cpu_seconds_total')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['process']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'process'
+
+- []
++ ['process']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='process_start_time_seconds')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['process']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'process'
+
+- []
++ ['process']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='process_resident_memory_bytes')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['process']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'process'
+
+- []
++ ['process']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='wukongim_channel_meta_created_total')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['counters']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'counters'
+
+- []
++ ['counters']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='wukongim_channelv2_meta_created_total')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['counters']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'counters'
+
+- []
++ ['counters']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='wukongim_channel_activation_rejected_total')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['counters']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'counters'
+
+- []
++ ['counters']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='wukongim_channelv2_activation_rejected_total')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['counters']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'counters'
+
+- []
++ ['counters']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='go_goroutines')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['go']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'go'
+
+- []
++ ['go']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='go_memstats_heap_alloc_bytes')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['go']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'go'
+
+- []
++ ['go']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='go_gc_duration_seconds_count')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['go']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'go'
+
+- []
++ ['go']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='go_sched_latencies_seconds_bucket')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['go']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'go'
+
+- []
++ ['go']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='go_sched_latencies_seconds_sum')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['go']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'go'
+
+- []
++ ['go']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (metric='go_sched_latencies_seconds_count')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 399, in test_selector_partition_is_disjoint_and_complete
+    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['go']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'go'
+
+- []
++ ['go']
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (excluded='wukongim_metadata_create_total')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 404, in test_selector_partition_is_disjoint_and_complete
+    self.assertFalse(any(re.fullmatch(pattern,name) for _,pattern in h.METRIC_PARTITIONS))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (excluded='wukongim_activation_rejected_total')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 404, in test_selector_partition_is_disjoint_and_complete
+    self.assertFalse(any(re.fullmatch(pattern,name) for _,pattern in h.METRIC_PARTITIONS))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_selector_partition_is_disjoint_and_complete (scripts.testdata.chat_lifecycle_terminal_evidence_test.HelperBoundsTests.test_selector_partition_is_disjoint_and_complete) (excluded='wukongim_go_heap')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-terminal-metrics/scripts/testdata/chat_lifecycle_terminal_evidence_test.py", line 404, in test_selector_partition_is_disjoint_and_complete
+    self.assertFalse(any(re.fullmatch(pattern,name) for _,pattern in h.METRIC_PARTITIONS))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.012s
+
+FAILED (failures=20)

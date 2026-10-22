@@ -1,0 +1,11 @@
+--- frozen-reviewed-functions
++++ local-fixed-GOMAXPROCS-functions
+@@ -189,7 +189,7 @@
+   local node="$1" gateway_listeners pid
+   # Bash 3.2 treats an empty-array expansion as unbound under set -u. Keep the
+   # common node identity in the array so product-default mode remains portable.
+-  local -a service_environment=("WK_NODE_ID=$node")
++  local -a service_environment=("WK_NODE_ID=$node" "GOMAXPROCS=2")
+   gateway_listeners="[{\"name\":\"tcp-wkproto\",\"network\":\"tcp\",\"address\":\"127.0.0.1:$(gateway_port "$node")\",\"transport\":\"gnet\",\"protocol\":\"wkproto\"},{\"name\":\"ws-gateway\",\"network\":\"websocket\",\"address\":\"127.0.0.1:$(ws_port "$node")\",\"transport\":\"gnet\",\"protocol\":\"wsmux\"}]"
+   if (( RUNTIME_DEFAULTS == 0 )); then
+     service_environment+=(

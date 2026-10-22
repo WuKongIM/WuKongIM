@@ -1,0 +1,393 @@
+{
+  "actions": {
+    "builds": 0,
+    "network_calls": 0,
+    "source_changes": 0,
+    "tests": 0,
+    "workload_starts": 0
+  },
+  "at_utc": "2026-10-22T19:18:52.630087+00:00",
+  "channel_append": {
+    "source": [
+      {
+        "end_line": 687,
+        "line": 657,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+      },
+      {
+        "end_line": 421,
+        "line": 411,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+      },
+      {
+        "end_line": 453,
+        "line": 452,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+      },
+      {
+        "end_line": 40,
+        "line": 8,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go"
+      }
+    ],
+    "status": "source_confirmed_default_when_not_overridden",
+    "values": {
+      "advance_pool_size": 500,
+      "authority_shards_formula": "max(4,GOMAXPROCS)",
+      "effect_pool_size": 2000,
+      "reactor_append_batch_bytes": 262144,
+      "reactor_append_batch_records": 128,
+      "reactor_append_batch_wait_us": 1000,
+      "reactor_append_queue_bytes": 4194304,
+      "reactor_append_queue_requests": 1024,
+      "reactor_append_store_retry_backoff_us": 1000,
+      "reactor_count_formula": "max(4,GOMAXPROCS)",
+      "reactor_mailbox_items": 1024,
+      "reactor_tick_ms": 50,
+      "recipient_authority_dispatch_concurrency": 100
+    }
+  },
+  "channel_blocking_workers": {
+    "source": [
+      {
+        "end_line": 36,
+        "line": 15,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go"
+      },
+      {
+        "end_line": 472,
+        "line": 450,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go"
+      },
+      {
+        "end_line": 424,
+        "line": 417,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+      }
+    ],
+    "status": "source_confirmed_default_when_not_overridden",
+    "values": {
+      "rpc_batch_items": 8,
+      "rpc_batch_wait_us": 250,
+      "rpc_workers": 96,
+      "store_append_batch_items": 64,
+      "store_append_batch_wait_us": 250,
+      "store_append_workers": 128,
+      "store_apply_batch_items": 64,
+      "store_apply_batch_wait_us": 250,
+      "store_apply_workers": 8,
+      "store_read_workers_formula": "max(1,ReactorCount)",
+      "worker_queue_items_from_default_mailbox": 1024
+    }
+  },
+  "cluster_transport_rpc": {
+    "note": "Cluster peer pool16 overrides generic transport client pool4. Foreground mutation512 applies only listed services. These are fixed constants, independent of GOMAXPROCS.",
+    "source": [
+      {
+        "end_line": 20,
+        "line": 13,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+      },
+      {
+        "end_line": 376,
+        "line": 322,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+      },
+      {
+        "end_line": 431,
+        "line": 416,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go"
+      },
+      {
+        "end_line": 64,
+        "line": 53,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go"
+      }
+    ],
+    "status": "source_confirmed_default_when_not_overridden",
+    "values": {
+      "dial_failure_cooldown_ms": 50,
+      "dial_timeout_ms": 5000,
+      "foreground_channel_mutation_concurrency": 512,
+      "frame_body_max_bytes": 67108864,
+      "ordered_raft_service_concurrency": 1,
+      "peer_connection_pool": 16,
+      "per_service_queue_bytes": 67108864,
+      "per_service_queue_items": 4096,
+      "queued_bytes_per_connection": 67108864,
+      "queued_items_per_connection": 4096,
+      "service_default_concurrency": 128,
+      "service_default_execution_timeout_ms": 30000,
+      "service_queue_timeout_ms": 5000,
+      "write_batch_max_bytes": 1048576,
+      "write_batch_max_frames": 64,
+      "write_batch_wait_ms": 0,
+      "write_timeout_ms": 5000
+    }
+  },
+  "cpu_comparison": {
+    "derivations": {
+      "append_authority_shards": {
+        "cloud_conditional": 4,
+        "local": 4
+      },
+      "channel_reactors": {
+        "cloud_conditional": 4,
+        "local": 4
+      },
+      "gnet_actor_shards": {
+        "cloud_conditional": 4,
+        "local": 2
+      },
+      "product_gnet_event_loops_when_no_override": {
+        "cloud_conditional": 4,
+        "local": 4
+      },
+      "product_gnet_multicore": 1,
+      "product_gnet_reuse_port": 1,
+      "store_read_workers": {
+        "cloud_conditional": 4,
+        "local": 4
+      }
+    },
+    "inputs": {
+      "cloud_gomaxprocs_if_host_effective_default_is4": 4,
+      "local_gomaxprocs": 2
+    },
+    "source": [
+      {
+        "end_line": 453,
+        "line": 452,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go"
+      },
+      {
+        "end_line": 674,
+        "line": 673,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+      },
+      {
+        "end_line": 44,
+        "line": 39,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/transport/gnet/actor.go"
+      },
+      {
+        "line": 310,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/transport/gnet/group.go"
+      },
+      {
+        "end_line": 1337,
+        "line": 1332,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/config/build.go"
+      },
+      {
+        "end_line": 92,
+        "line": 80,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/transport/gnet/factory.go"
+      },
+      {
+        "end_line": 135,
+        "line": 128,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/gateway.go"
+      }
+    ],
+    "status": "conditional_source_derivation",
+    "unknown": [
+      "Cloud effective GOMAXPROCS not measured here. An unset environment variable and 4-vCPU host alone are inference, not runtime proof; Go version, affinity, cgroup quota and runtime adjustments may alter it.",
+      "Actual file/env overrides and binary build/runtime settings belong to parent comparison.",
+      "Performance consequence of actor2 versus4 and OS CPU scheduling is unmeasured; no causal claim."
+    ]
+  },
+  "delivery": {
+    "note": "Product wiring overrides library defaults: runtime bare defaults workers1/push256/retry5..100ms; product uses workers320/push512/fixed10ms. OwnerConcurrency and PlanTimeout omitted by product wiring, so runtime4/5s apply. Retry targets only retryable routes; all work bounded by same plan context.",
+    "source": [
+      {
+        "line": 34,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+      },
+      {
+        "end_line": 614,
+        "line": 595,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go"
+      },
+      {
+        "end_line": 46,
+        "line": 29,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go"
+      },
+      {
+        "end_line": 16,
+        "line": 15,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go"
+      },
+      {
+        "end_line": 23,
+        "line": 15,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+      },
+      {
+        "end_line": 198,
+        "line": 184,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+      },
+      {
+        "end_line": 690,
+        "line": 660,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go"
+      }
+    ],
+    "status": "source_confirmed_default_when_not_overridden",
+    "values": {
+      "owner_push_batch_routes": 512,
+      "owner_push_concurrency_per_plan": 4,
+      "pending_ack_max_per_session": 1024,
+      "pending_ack_ttl_ms": 30000,
+      "plan_recipients": 512,
+      "plan_timeout_ms": 5000,
+      "queue_plans": 1024,
+      "recipient_workers": 320,
+      "retry_initial_ms": 10,
+      "retry_max_ms": 10,
+      "retry_total_attempts": 3
+    }
+  },
+  "person_directory": {
+    "source": [
+      {
+        "end_line": 20,
+        "line": 15,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/persondirectory/projector.go"
+      },
+      {
+        "end_line": 325,
+        "line": 308,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/wiring.go"
+      }
+    ],
+    "status": "source_confirmed_default_when_not_overridden",
+    "values": {
+      "attempt_timeout_ms": 4000,
+      "page_size": 64,
+      "queue_tasks": 512,
+      "repair_interval_ms": 1000,
+      "workers": 8
+    }
+  },
+  "physical_commit": {
+    "note": "Positive configuration overrides impose cohort caps; absent positive caps retain bounded queue snapshot semantics, rather than infinite cohort collection.",
+    "source": [
+      {
+        "end_line": 21,
+        "line": 20,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/store/channel_adapter.go"
+      },
+      {
+        "end_line": 13,
+        "line": 8,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/options.go"
+      },
+      {
+        "end_line": 31,
+        "line": 25,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/message/compat.go"
+      },
+      {
+        "end_line": 775,
+        "line": 764,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/internal/commit/coordinator.go"
+      }
+    ],
+    "status": "source_confirmed_default_when_not_overridden",
+    "values": {
+      "flush_window_us": 500,
+      "max_bytes_zero_means_no_positive_limit": 0,
+      "max_records_zero_means_no_positive_limit": 0,
+      "max_requests_zero_means_no_positive_limit": 0,
+      "queue_requests": 1024,
+      "shards": 1
+    }
+  },
+  "replication_runtime": {
+    "note": "Fixed defaults; no CPU-derived sizing in listed configuration.",
+    "source": [
+      {
+        "end_line": 31,
+        "line": 15,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+      },
+      {
+        "end_line": 352,
+        "line": 300,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go"
+      },
+      {
+        "end_line": 14,
+        "line": 13,
+        "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go"
+      }
+    ],
+    "status": "source_confirmed_default_when_not_overridden",
+    "values": {
+      "batch_bytes": 4194304,
+      "batch_items": 256,
+      "close_timeout_ms": 5000,
+      "exchange_timeout_ms": 5000,
+      "local_timeout_ms": 5000,
+      "local_workers": 32,
+      "max_channels": 100000,
+      "max_voters": 3,
+      "peer_workers": 32,
+      "per_target_inflight": 16,
+      "per_target_queue_bytes": 67108864,
+      "per_target_queue_items": 2048,
+      "queue_bytes": 268435456,
+      "queue_items": 8192,
+      "recovery_page_bytes": 1048576,
+      "recovery_timeout_ms": 15000,
+      "repair_retry_ms": 10,
+      "repair_workers": 8,
+      "replica_hedge_delay_ms": 25,
+      "retained_commands": 64,
+      "trailing_flush_ms": 100
+    }
+  },
+  "schema": "wukongim/frozen-source-defaults-comparison/v1",
+  "scope": "frozen79a source only; actual TOML/environment/cloud bundle compared separately by parent",
+  "source_branch_ref": "refs/heads/codex/v3-rc-loss-diagnosis",
+  "source_head": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "source_sha256": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/FLOW.md": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/config.go": "abce8a6edbbb55f7b3c46a2a0957400c94cc47221b7b796f1d74727edfdc9c2a",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery.go": "b75f577a779f35a430b647aebf60c737f87a1eb1a966cc1c2825b11e584a4097",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/delivery_wiring.go": "67c219633b1c65ba9062c03685768dfc993358c35ea0bd977ecab27000ff788b",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/app/wiring.go": "e80b950481e6d05ec100616cc7a8db35cc785b42d630a89bbe145c0c81cebc34",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/config/build.go": "02ebac6d9b365b3ce453aeea2748bd0bfa4391a82c9731f601aa8aba5d6baf13",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/infra/delivery/FLOW.md": "060a4a2e615f43bc0178d70aa5f069221ec1552379744dcee07c3462b2cd8363",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/FLOW.md": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/delivery/runtime.go": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/runtime/persondirectory/projector.go": "5d027b97b9c707c3eade2ee620479da1778b4fdf6e585fc2ba6078d7e735b4f5",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/FLOW.md": "b98b0e39eb634ae05a723c6c1990a8fcfd1058f2440373b17867e73d92a7a259",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/FLOW.md": "00c68c4f2d9f0fbee08b9c4f1d21f35d40e183700afcab3b06a48be060030f4b",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/group.go": "65873849f0f41055d64128bcdd721d8f190fb7625b3803250f2ba61b53333964",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/reactor/reactor_config.go": "4bee16a89752c788a3c7eef1924975de229eb73deaa44493b36f4c87eb07d390",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/codec.go": "ae2de28df21eef6bd1c53e228c617e48757b836360f161f5f1320ba9a3cdaf81",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/runtime.go": "fc78609cce23a75cf9f4bf77b7f9501800840e1c8d6e7d3faee69f75535f4712",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/store/channel_adapter.go": "41e571d9049cc4a078e5e06c4b7511502cc1664e1a39d9da64a2acb88cbb8f1d",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/FLOW.md": "958d66cc12cd6b12b1f35acf4011484ee38e5eb1bf1e6a84f27d15a5e570b6e1",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/worker/pool.go": "c90ecd475c434b712eac72e27e59b9d9f3a9ee065c7f719ff0219cb72797c60c",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/FLOW.md": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/config.go": "01d679e8ab42610fec6166841341b5da2a3d0bac620d0b7d828281563de477a3",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/cluster/net/transport.go": "d0a3d07ecf1220069b9c374af65eaa4ee0b400312da6cfb730391c91be8b9be9",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/FLOW.md": "57578a266e60e804ee46f71205b92c7d64df00e0df6e6f9120cc0e1937334017",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/internal/commit/coordinator.go": "0d15993e76046d5c2da5515f8f980ee87a3ac859950f0918fd694f53caf4becc",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/message/FLOW.md": "32732f4f0df214406ff53467a8396275c189404b147ae1ad353eda4c397c6e09",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/message/compat.go": "1683a040fa6b9cb5781e4687f6f12824fa931cab957184c5c5ef04cbb9df4707",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/db/options.go": "64dc4ac6f2e453f19bde49c0ee9b5d1265b0c36b117b554f5631bc49f20853b8",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/FLOW.md": "f51d6d3c6d00b7be5eaab9e44e6bc84c3274c056bf2b991ccbd08f643243b66c",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/gateway.go": "950faf77e9cadcaed6451e5ecf3f500794bf425fc8e0cfe8aa45ecc11947aa92",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/transport/gnet/actor.go": "44d780d4342fbb719a319db992b207be393dd783678f2a830a016f0f10c57438",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/transport/gnet/factory.go": "0326dfe0476590212a3d3ad79ddcc48600c32e5858a8e419e1ba164c29bae381",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/gateway/transport/gnet/group.go": "59cc78f4b98b35240e3d171f334a4636ea0141cceec8622cd8946b1ada5fc06b",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/transport/config.go": "e626d0dba425abd057caa17f711fd4e1e1fea75bb42fc814564e9d331de3d79f"
+  }
+}

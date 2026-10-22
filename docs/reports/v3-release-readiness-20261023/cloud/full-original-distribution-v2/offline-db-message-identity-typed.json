@@ -1,0 +1,389 @@
+{
+  "schema": "wukongim/stopped-local-offline-message-inspection-typed/v1",
+  "started_at_utc": "2026-10-22T19:09:59.462580+00:00",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "semantics": "Only stopped-run durable message persistence; does not establish historical online delivery or contemporaneous Manager visibility.",
+  "original_databases_opened": false,
+  "copied_database_mode": "existing wkcli db query / inspect.OpenStore / engine.Options{ReadOnly:true}",
+  "query_projection": [
+    "message_id",
+    "message_seq",
+    "client_msg_no",
+    "server_timestamp_ms",
+    "payload_hash",
+    "payload_size"
+  ],
+  "bounded_commands_max": 9,
+  "per_command_timeout_seconds": 10,
+  "overall_bound_seconds": 120,
+  "binary_sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+  "source_sha256": {
+    "cmd/wkcli/internal/database/main.go": "d610dacd439e5e2263a6a4719e602bf7fa492901172fe67cd8f122afd265677f",
+    "pkg/db/inspect/store.go": "298ff49355c859c6e7051c7071cd7f3832eea42937f740e38ebf508b186d5f2c",
+    "pkg/db/internal/engine/db.go": "a5544110e6ef740a3dc70add13c716d3df8eec3a6a00131078f20c2355e47ec5",
+    "pkg/db/inspect/execute.go": "f5ec9fd47138bee8d4789f7968d8c65e7cfbe730c46fc506c715f41b3148d258",
+    "pkg/db/message/inspect.go": "1c75aba8520b8e0ad88e18c79c5167b6c4860bb1ea5fae488ac16bc0dd1a2db6",
+    "pkg/channel/types.go": "b53a5ad011f1d8c1b2687c87763afbdda9a9a96ee97f4a5d47f51b6daad560ca"
+  },
+  "node_data_formats": {
+    "1": {
+      "format": "wukongim-v3",
+      "format_version": 2,
+      "created_by": {
+        "program": "wukongim",
+        "version": "dev",
+        "commit": "unknown",
+        "build_source": "source"
+      },
+      "created_at": "2026-10-22T18:57:18.237207Z"
+    },
+    "2": {
+      "format": "wukongim-v3",
+      "format_version": 2,
+      "created_by": {
+        "program": "wukongim",
+        "version": "dev",
+        "commit": "unknown",
+        "build_source": "source"
+      },
+      "created_at": "2026-10-22T18:57:18.239026Z"
+    },
+    "3": {
+      "format": "wukongim-v3",
+      "format_version": 2,
+      "created_by": {
+        "program": "wukongim",
+        "version": "dev",
+        "commit": "unknown",
+        "build_source": "source"
+      },
+      "created_at": "2026-10-22T18:57:18.237207Z"
+    }
+  },
+  "results": [
+    {
+      "worker_id": 0,
+      "sample_index": 9223380832947798130,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 114
+      },
+      "fingerprint": "2efcbfa3df411300591fa4d22a48638c",
+      "target_group_index": 1731,
+      "client_msg_no_sha256": "653117e232b9f7c32e7179caa2706dd038c53e97b698966a061f6f9b10de8a2e",
+      "nodes": [
+        {
+          "node_id": 1,
+          "database": "message",
+          "opened_copy": true,
+          "at_utc": "2026-10-22T19:09:59.490464+00:00",
+          "elapsed_seconds": 0.04785354190971702,
+          "exit_code": 0,
+          "stdout_bytes": 451,
+          "stdout_sha256": "76ef3bf790058420ffcfb8e98802d0698198b5c9860157efafe892f646da29b3",
+          "stderr_bytes": 3408,
+          "stderr_sha256": "5f0ad5a2743d3c2a7402c0d305fa8beb00493f720601ace03790b0939497597c",
+          "matching_messages": [
+            {
+              "message_id": "2113345018189058060",
+              "message_seq": "1",
+              "server_timestamp_ms": 1792695691011,
+              "payload_hash": "2035732123697328580",
+              "payload_size": 256
+            }
+          ],
+          "stats": {
+            "scan_mode": "message-channel",
+            "scanned_hash_slots": null,
+            "scanned_rows": 1,
+            "returned_rows": 1,
+            "has_more": false,
+            "next_cursor": ""
+          },
+          "status": "complete"
+        },
+        {
+          "node_id": 2,
+          "database": "message",
+          "opened_copy": true,
+          "at_utc": "2026-10-22T19:09:59.538374+00:00",
+          "elapsed_seconds": 0.04666049999650568,
+          "exit_code": 0,
+          "stdout_bytes": 451,
+          "stdout_sha256": "76ef3bf790058420ffcfb8e98802d0698198b5c9860157efafe892f646da29b3",
+          "stderr_bytes": 3408,
+          "stderr_sha256": "96b9f5a259da85e87583599d43d0410d198509af296390c4cb929a92bfd86e46",
+          "matching_messages": [
+            {
+              "message_id": "2113345018189058060",
+              "message_seq": "1",
+              "server_timestamp_ms": 1792695691011,
+              "payload_hash": "2035732123697328580",
+              "payload_size": 256
+            }
+          ],
+          "stats": {
+            "scan_mode": "message-channel",
+            "scanned_hash_slots": null,
+            "scanned_rows": 1,
+            "returned_rows": 1,
+            "has_more": false,
+            "next_cursor": ""
+          },
+          "status": "complete"
+        },
+        {
+          "node_id": 3,
+          "database": "message",
+          "opened_copy": true,
+          "at_utc": "2026-10-22T19:09:59.585087+00:00",
+          "elapsed_seconds": 0.04520716692786664,
+          "exit_code": 0,
+          "stdout_bytes": 451,
+          "stdout_sha256": "76ef3bf790058420ffcfb8e98802d0698198b5c9860157efafe892f646da29b3",
+          "stderr_bytes": 2930,
+          "stderr_sha256": "a6aac203cffdec5365418639751ef4f3ecd50ba211c2a429831122eca1e67ec9",
+          "matching_messages": [
+            {
+              "message_id": "2113345018189058060",
+              "message_seq": "1",
+              "server_timestamp_ms": 1792695691011,
+              "payload_hash": "2035732123697328580",
+              "payload_size": 256
+            }
+          ],
+          "stats": {
+            "scan_mode": "message-channel",
+            "scanned_hash_slots": null,
+            "scanned_rows": 1,
+            "returned_rows": 1,
+            "has_more": false,
+            "next_cursor": ""
+          },
+          "status": "complete"
+        }
+      ]
+    },
+    {
+      "worker_id": 2,
+      "sample_index": 9223380832947798030,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 14
+      },
+      "fingerprint": "8ea8b0568129e91f2e24921fca3fcb07",
+      "target_group_index": 1766,
+      "client_msg_no_sha256": "6453de7e1998d25ca105ecdc213b6049e620c57e2886f0755c5a2aac76fd77a0",
+      "nodes": [
+        {
+          "node_id": 1,
+          "database": "message",
+          "opened_copy": true,
+          "at_utc": "2026-10-22T19:09:59.630469+00:00",
+          "elapsed_seconds": 0.045457958010956645,
+          "exit_code": 0,
+          "stdout_bytes": 452,
+          "stdout_sha256": "b40afc1a8aa97b740e096c137fcf0520c93febb760cbf91d20b890616c4c666c",
+          "stderr_bytes": 3408,
+          "stderr_sha256": "5f0ad5a2743d3c2a7402c0d305fa8beb00493f720601ace03790b0939497597c",
+          "matching_messages": [
+            {
+              "message_id": "2113345018482667535",
+              "message_seq": "1",
+              "server_timestamp_ms": 1792695691081,
+              "payload_hash": "17541342976227699352",
+              "payload_size": 256
+            }
+          ],
+          "stats": {
+            "scan_mode": "message-channel",
+            "scanned_hash_slots": null,
+            "scanned_rows": 1,
+            "returned_rows": 1,
+            "has_more": false,
+            "next_cursor": ""
+          },
+          "status": "complete"
+        },
+        {
+          "node_id": 2,
+          "database": "message",
+          "opened_copy": true,
+          "at_utc": "2026-10-22T19:09:59.675978+00:00",
+          "elapsed_seconds": 0.04599254101049155,
+          "exit_code": 0,
+          "stdout_bytes": 452,
+          "stdout_sha256": "b40afc1a8aa97b740e096c137fcf0520c93febb760cbf91d20b890616c4c666c",
+          "stderr_bytes": 3408,
+          "stderr_sha256": "96b9f5a259da85e87583599d43d0410d198509af296390c4cb929a92bfd86e46",
+          "matching_messages": [
+            {
+              "message_id": "2113345018482667535",
+              "message_seq": "1",
+              "server_timestamp_ms": 1792695691081,
+              "payload_hash": "17541342976227699352",
+              "payload_size": 256
+            }
+          ],
+          "stats": {
+            "scan_mode": "message-channel",
+            "scanned_hash_slots": null,
+            "scanned_rows": 1,
+            "returned_rows": 1,
+            "has_more": false,
+            "next_cursor": ""
+          },
+          "status": "complete"
+        },
+        {
+          "node_id": 3,
+          "database": "message",
+          "opened_copy": true,
+          "at_utc": "2026-10-22T19:09:59.722034+00:00",
+          "elapsed_seconds": 0.04577762505505234,
+          "exit_code": 0,
+          "stdout_bytes": 452,
+          "stdout_sha256": "b40afc1a8aa97b740e096c137fcf0520c93febb760cbf91d20b890616c4c666c",
+          "stderr_bytes": 2930,
+          "stderr_sha256": "a6aac203cffdec5365418639751ef4f3ecd50ba211c2a429831122eca1e67ec9",
+          "matching_messages": [
+            {
+              "message_id": "2113345018482667535",
+              "message_seq": "1",
+              "server_timestamp_ms": 1792695691081,
+              "payload_hash": "17541342976227699352",
+              "payload_size": 256
+            }
+          ],
+          "stats": {
+            "scan_mode": "message-channel",
+            "scanned_hash_slots": null,
+            "scanned_rows": 1,
+            "returned_rows": 1,
+            "has_more": false,
+            "next_cursor": ""
+          },
+          "status": "complete"
+        }
+      ]
+    },
+    {
+      "worker_id": 2,
+      "sample_index": 9223380832947798330,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 314
+      },
+      "fingerprint": "0db0904a5c1178a44b1596dfd762770d",
+      "target_group_index": 1646,
+      "client_msg_no_sha256": "b1054e6d19e59521106cfc0157336b9a1fd4dcbb5b0153cf363baefae7494c05",
+      "nodes": [
+        {
+          "node_id": 1,
+          "database": "message",
+          "opened_copy": true,
+          "at_utc": "2026-10-22T19:09:59.767984+00:00",
+          "elapsed_seconds": 0.045891999965533614,
+          "exit_code": 0,
+          "stdout_bytes": 452,
+          "stdout_sha256": "a3e4e87d28806528c745b7138fdc86c8c710ba0b2fdb0db720e6b3f6a7a5d9dc",
+          "stderr_bytes": 3408,
+          "stderr_sha256": "5f0ad5a2743d3c2a7402c0d305fa8beb00493f720601ace03790b0939497597c",
+          "matching_messages": [
+            {
+              "message_id": "2113345030629367810",
+              "message_seq": "1",
+              "server_timestamp_ms": 1792695693977,
+              "payload_hash": "14872681995912672518",
+              "payload_size": 256
+            }
+          ],
+          "stats": {
+            "scan_mode": "message-channel",
+            "scanned_hash_slots": null,
+            "scanned_rows": 2,
+            "returned_rows": 1,
+            "has_more": false,
+            "next_cursor": ""
+          },
+          "status": "complete"
+        },
+        {
+          "node_id": 2,
+          "database": "message",
+          "opened_copy": true,
+          "at_utc": "2026-10-22T19:09:59.813930+00:00",
+          "elapsed_seconds": 0.04648241598624736,
+          "exit_code": 0,
+          "stdout_bytes": 452,
+          "stdout_sha256": "a3e4e87d28806528c745b7138fdc86c8c710ba0b2fdb0db720e6b3f6a7a5d9dc",
+          "stderr_bytes": 3408,
+          "stderr_sha256": "96b9f5a259da85e87583599d43d0410d198509af296390c4cb929a92bfd86e46",
+          "matching_messages": [
+            {
+              "message_id": "2113345030629367810",
+              "message_seq": "1",
+              "server_timestamp_ms": 1792695693977,
+              "payload_hash": "14872681995912672518",
+              "payload_size": 256
+            }
+          ],
+          "stats": {
+            "scan_mode": "message-channel",
+            "scanned_hash_slots": null,
+            "scanned_rows": 2,
+            "returned_rows": 1,
+            "has_more": false,
+            "next_cursor": ""
+          },
+          "status": "complete"
+        },
+        {
+          "node_id": 3,
+          "database": "message",
+          "opened_copy": true,
+          "at_utc": "2026-10-22T19:09:59.860460+00:00",
+          "elapsed_seconds": 0.046303957933560014,
+          "exit_code": 0,
+          "stdout_bytes": 452,
+          "stdout_sha256": "a3e4e87d28806528c745b7138fdc86c8c710ba0b2fdb0db720e6b3f6a7a5d9dc",
+          "stderr_bytes": 2930,
+          "stderr_sha256": "a6aac203cffdec5365418639751ef4f3ecd50ba211c2a429831122eca1e67ec9",
+          "matching_messages": [
+            {
+              "message_id": "2113345030629367810",
+              "message_seq": "1",
+              "server_timestamp_ms": 1792695693977,
+              "payload_hash": "14872681995912672518",
+              "payload_size": 256
+            }
+          ],
+          "stats": {
+            "scan_mode": "message-channel",
+            "scanned_hash_slots": null,
+            "scanned_rows": 2,
+            "returned_rows": 1,
+            "has_more": false,
+            "next_cursor": ""
+          },
+          "status": "complete"
+        }
+      ]
+    }
+  ],
+  "finished_at_utc": "2026-10-22T19:09:59.941140+00:00",
+  "elapsed_seconds": 0.5780616670381278,
+  "original_message_file_count": 35,
+  "original_message_bytes": 76564416,
+  "original_message_bytes_and_mtime_unchanged": true,
+  "original_before_inventory_sha256": "d59bf26067e653c96c655a0d0c3d94af188128632da72bbaa35f568b5b3354b1",
+  "original_after_inventory_sha256": "d59bf26067e653c96c655a0d0c3d94af188128632da72bbaa35f568b5b3354b1",
+  "uint64_json_representation": "decimal strings for message_id,message_seq,payload_hash",
+  "source_inspection_sha256": "940fd00dbd20e3ac5bc8020ed581d72dcd71dde2374f15cec5a25f503e80837b"
+}

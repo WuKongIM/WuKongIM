@@ -1,0 +1,80 @@
+[
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747798/job/120015775680",
+    "name": "PR three-node regression",
+    "state": "SUCCESS",
+    "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+  },
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747504/job/120015660318",
+    "name": "Candidate migration and messaging E2E",
+    "state": "SUCCESS",
+    "workflow": "Safety Automation - V3 Candidate Regression"
+  },
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747798/job/120013054533",
+    "name": "PR 500 QPS / channel-append",
+    "state": "SUCCESS",
+    "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+  },
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747798/job/120013053743",
+    "name": "PR 500 QPS / mixed-send",
+    "state": "SUCCESS",
+    "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+  },
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747798/job/120013053755",
+    "name": "PR 500 QPS / tcp-sendack",
+    "state": "SUCCESS",
+    "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+  },
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747798/job/120012914199",
+    "name": "PR three-node correctness",
+    "state": "SUCCESS",
+    "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+  },
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747504/job/120012910672",
+    "name": "Candidate scripts integration",
+    "state": "SUCCESS",
+    "workflow": "Safety Automation - V3 Candidate Regression"
+  },
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747798/job/120012914646",
+    "name": "PR messaging unit and race",
+    "state": "SUCCESS",
+    "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+  },
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747798/job/120012914759",
+    "name": "PR performance baseline evidence",
+    "state": "SUCCESS",
+    "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+  },
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747504/job/120012911009",
+    "name": "Candidate default suite (go-unit)",
+    "state": "SUCCESS",
+    "workflow": "Safety Automation - V3 Candidate Regression"
+  },
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747456/job/120012908603",
+    "name": "Emit credential-free wake-up",
+    "state": "SUCCESS",
+    "workflow": "Safety Automation - Issue Agent PR Signal"
+  },
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747798/job/120012916462",
+    "name": "Nightly direct 500 QPS qualification",
+    "state": "SKIPPED",
+    "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+  },
+  {
+    "link": "https://github.com/WuKongIM/WuKongIM/actions/runs/39832747798/job/120012916266",
+    "name": "Fixed Linux SEND diagnosis",
+    "state": "SKIPPED",
+    "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+  }
+]

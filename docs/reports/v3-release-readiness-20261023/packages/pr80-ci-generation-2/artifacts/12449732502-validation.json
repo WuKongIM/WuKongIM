@@ -1,0 +1,47 @@
+{
+  "artifact_api": {
+    "id": 12449732502,
+    "node_id": "MDg6QXJ0aWZhY3QxMjQ0OTczMjUwMg==",
+    "name": "native-object-delivery-sdk-test-only",
+    "size_in_bytes": 89259,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12449732502",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12449732502/zip",
+    "expired": false,
+    "digest": "sha256:42bcb8fc15bf311340e87319e587b53466a7935917824b4ace37c635b8f3475a",
+    "created_at": "2026-10-22T18:41:47Z",
+    "updated_at": "2026-10-22T18:41:47Z",
+    "expires_at": "2026-10-29T18:41:46Z",
+    "workflow_run": {
+      "id": 39833326934,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/native-delivery-sdk",
+      "head_sha": "b8fc6d5e384630ef1d4c0f00281a836d115456e8"
+    }
+  },
+  "downloaded_at_utc": "2026-10-22T18:42:05.525554+00:00",
+  "downloaded_bytes": 89259,
+  "local_sha256": "42bcb8fc15bf311340e87319e587b53466a7935917824b4ace37c635b8f3475a",
+  "api_sha256_matched": true,
+  "zip_crc_verified": true,
+  "members": [
+    {
+      "name": "native-preparation.json",
+      "bytes": 19173,
+      "sha256": "19b7c9c96da412424633b8d56df2b2f543faa61101d1f5ff3c2cd2be3f7d0764",
+      "crc32": "f0f48653"
+    },
+    {
+      "name": "native-sdk-result.json",
+      "bytes": 2171199,
+      "sha256": "1cebaef0a83911eb69e16e1affa84e415eb28ede715d6643a1e5cf29f9432f8e",
+      "crc32": "2a2c302d"
+    },
+    {
+      "name": "cleanup.json",
+      "bytes": 59,
+      "sha256": "a93b20e81b9476fd7f1959b11874e11e12fc4056da67bb62290fef576ec32be1",
+      "crc32": "6f70e77a"
+    }
+  ]
+}

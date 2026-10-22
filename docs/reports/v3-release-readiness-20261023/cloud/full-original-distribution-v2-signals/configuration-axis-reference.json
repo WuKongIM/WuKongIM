@@ -1,0 +1,92 @@
+{
+  "source_public_document": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/config-comparison-addendum/runtime-config-comparison.json",
+  "source_sha256": "88c408b91c282fdfc6690562d483f01f08fdaab912fd2e3acbd553ca4c9fe339",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "scope": "Independent configuration axis; template/source-default evidence is not a measurement of live cloud runtime.",
+  "selected_comparison": [
+    {
+      "field": "process.GOMAXPROCS",
+      "local_effective": [
+        2,
+        2,
+        2
+      ],
+      "cloud_template_plus_source_default": "unset in systemd/template; actual runtime unknown",
+      "comparison": "different_or_unknown",
+      "basis": [
+        {
+          "path": "launcher.sh",
+          "line": 216
+        },
+        {
+          "path": "supervise.py",
+          "line": 163
+        },
+        {
+          "path": "metrics-terminal-node{1,2,3}.prom",
+          "metric": "go_sched_gomaxprocs_threads"
+        }
+      ],
+      "note": "Cloud range-go retained result is empty; host4vCPU is not runtime proof."
+    },
+    {
+      "field": "gateway.session_batch_max_records",
+      "local_effective": 1,
+      "cloud_template_plus_source_default": 128,
+      "comparison": "confirmed_configuration_difference",
+      "basis": [
+        {
+          "path": "launcher.sh",
+          "line": 234
+        },
+        {
+          "path": "pkg/gateway/types/options.go",
+          "line": 105
+        }
+      ],
+      "note": "Local explicit TOML and environment set1; cloud template omits the field and uses production default128."
+    },
+    {
+      "field": "slot.compaction_trigger_entries",
+      "local_effective": 1000,
+      "cloud_template_plus_source_default": 10000,
+      "comparison": "confirmed_configuration_difference",
+      "basis": [
+        {
+          "path": "config/node{1,2,3}.toml",
+          "field": "cluster.slot_log_compaction_trigger_entries"
+        },
+        {
+          "path": "pkg/slot/multiraft/config.go",
+          "line": 9
+        }
+      ],
+      "note": ""
+    },
+    {
+      "field": "slot.compaction_check_interval_ms",
+      "local_effective": 5000,
+      "cloud_template_plus_source_default": 30000,
+      "comparison": "confirmed_configuration_difference",
+      "basis": [
+        {
+          "path": "config/node{1,2,3}.toml",
+          "field": "cluster.slot_log_compaction_check_interval"
+        },
+        {
+          "path": "pkg/slot/multiraft/config.go",
+          "line": 10
+        }
+      ],
+      "note": ""
+    }
+  ],
+  "cloud_runtime_gomaxprocs": "unknown: no explicit environment in bundle unit, node.env generator sets only manager auth and bench token, retained range-go result has zero series",
+  "independent_axis_confirmed_differences": [
+    "local session gateway batch max records1 versus cloud default128",
+    "local Slot compaction trigger1000/check5s versus cloud default10000/check30s",
+    "local measured GOMAXPROCS2 versus cloud actual unknown; potential actor shard difference",
+    "Darwin engine BytesPerSync input16MiB versus Linux library default argument0",
+    "3services+load share one physicalMac/disk vs cloud4hosts and separatedisks"
+  ]
+}

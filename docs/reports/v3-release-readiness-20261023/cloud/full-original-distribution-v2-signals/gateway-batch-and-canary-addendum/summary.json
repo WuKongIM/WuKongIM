@@ -1,0 +1,383 @@
+{
+  "local_actual_batches": [
+    {
+      "node": 1,
+      "cut": "first-measured",
+      "batch_records": {
+        "le_1": 3533.0,
+        "le_2": 3533.0,
+        "le_4": 3533.0,
+        "le_8": 3533.0,
+        "le_16": 3533.0,
+        "le_32": 3533.0,
+        "le_64": 3533.0,
+        "le_128": 3533.0,
+        "le_256": 3533.0,
+        "le_512": 3533.0,
+        "le_1024": 3533.0,
+        "le_+Inf": 3533.0,
+        "sum": 3533.0,
+        "count": 3533.0
+      },
+      "actual_mean_batch_records": 1.0,
+      "all_observed_batches_le_one": true,
+      "permission_cohort_counters": {
+        "cohort_facts": 11928.0,
+        "cohort_requests": 3520.0,
+        "cohorts": 562.0
+      },
+      "accepted_requests_per_cohort": 6.263345195729538,
+      "facts_per_cohort": 21.224199288256226
+    },
+    {
+      "node": 1,
+      "cut": "terminal",
+      "batch_records": {
+        "le_1": 4185.0,
+        "le_2": 4185.0,
+        "le_4": 4185.0,
+        "le_8": 4185.0,
+        "le_16": 4185.0,
+        "le_32": 4185.0,
+        "le_64": 4185.0,
+        "le_128": 4185.0,
+        "le_256": 4185.0,
+        "le_512": 4185.0,
+        "le_1024": 4185.0,
+        "le_+Inf": 4185.0,
+        "sum": 4185.0,
+        "count": 4185.0
+      },
+      "actual_mean_batch_records": 1.0,
+      "all_observed_batches_le_one": true,
+      "permission_cohort_counters": {
+        "cohort_facts": 14301.0,
+        "cohort_requests": 4185.0,
+        "cohorts": 693.0
+      },
+      "accepted_requests_per_cohort": 6.038961038961039,
+      "facts_per_cohort": 20.636363636363637
+    },
+    {
+      "node": 2,
+      "cut": "first-measured",
+      "batch_records": {
+        "le_1": 3583.0,
+        "le_2": 3583.0,
+        "le_4": 3583.0,
+        "le_8": 3583.0,
+        "le_16": 3583.0,
+        "le_32": 3583.0,
+        "le_64": 3583.0,
+        "le_128": 3583.0,
+        "le_256": 3583.0,
+        "le_512": 3583.0,
+        "le_1024": 3583.0,
+        "le_+Inf": 3583.0,
+        "sum": 3583.0,
+        "count": 3583.0
+      },
+      "actual_mean_batch_records": 1.0,
+      "all_observed_batches_le_one": true,
+      "permission_cohort_counters": {
+        "cohort_busy": 2.0,
+        "cohort_facts": 12141.0,
+        "cohort_requests": 3576.0,
+        "cohorts": 577.0
+      },
+      "accepted_requests_per_cohort": 6.197573656845754,
+      "facts_per_cohort": 21.04159445407279
+    },
+    {
+      "node": 2,
+      "cut": "terminal",
+      "batch_records": {
+        "le_1": 4202.0,
+        "le_2": 4202.0,
+        "le_4": 4202.0,
+        "le_8": 4202.0,
+        "le_16": 4202.0,
+        "le_32": 4202.0,
+        "le_64": 4202.0,
+        "le_128": 4202.0,
+        "le_256": 4202.0,
+        "le_512": 4202.0,
+        "le_1024": 4202.0,
+        "le_+Inf": 4202.0,
+        "sum": 4202.0,
+        "count": 4202.0
+      },
+      "actual_mean_batch_records": 1.0,
+      "all_observed_batches_le_one": true,
+      "permission_cohort_counters": {
+        "cohort_busy": 14.0,
+        "cohort_facts": 14322.0,
+        "cohort_requests": 4188.0,
+        "cohorts": 698.0
+      },
+      "accepted_requests_per_cohort": 6.0,
+      "facts_per_cohort": 20.51862464183381
+    },
+    {
+      "node": 3,
+      "cut": "first-measured",
+      "batch_records": {
+        "le_1": 3697.0,
+        "le_2": 3697.0,
+        "le_4": 3697.0,
+        "le_8": 3697.0,
+        "le_16": 3697.0,
+        "le_32": 3697.0,
+        "le_64": 3697.0,
+        "le_128": 3697.0,
+        "le_256": 3697.0,
+        "le_512": 3697.0,
+        "le_1024": 3697.0,
+        "le_+Inf": 3697.0,
+        "sum": 3697.0,
+        "count": 3697.0
+      },
+      "actual_mean_batch_records": 1.0,
+      "all_observed_batches_le_one": true,
+      "permission_cohort_counters": {
+        "cohort_busy": 18.0,
+        "cohort_facts": 12502.0,
+        "cohort_requests": 3686.0,
+        "cohorts": 588.0
+      },
+      "accepted_requests_per_cohort": 6.2687074829931975,
+      "facts_per_cohort": 21.261904761904763
+    },
+    {
+      "node": 3,
+      "cut": "terminal",
+      "batch_records": {
+        "le_1": 4202.0,
+        "le_2": 4202.0,
+        "le_4": 4202.0,
+        "le_8": 4202.0,
+        "le_16": 4202.0,
+        "le_32": 4202.0,
+        "le_64": 4202.0,
+        "le_128": 4202.0,
+        "le_256": 4202.0,
+        "le_512": 4202.0,
+        "le_1024": 4202.0,
+        "le_+Inf": 4202.0,
+        "sum": 4202.0,
+        "count": 4202.0
+      },
+      "actual_mean_batch_records": 1.0,
+      "all_observed_batches_le_one": true,
+      "permission_cohort_counters": {
+        "cohort_busy": 18.0,
+        "cohort_facts": 14287.0,
+        "cohort_requests": 4184.0,
+        "cohorts": 703.0
+      },
+      "accepted_requests_per_cohort": 5.951635846372689,
+      "facts_per_cohort": 20.32290184921764
+    }
+  ],
+  "cloud_batch_coverage": [
+    {
+      "partition": "presence",
+      "query": "{__name__=~\"wukongim_presence_endpoint_lookup_(total|items_total|groups_total|duration_seconds_(bucket|sum|count))\"}",
+      "total_series": 680,
+      "gateway_batch_or_permission_cohort_series": 0
+    },
+    {
+      "partition": "delivery",
+      "query": "{__name__=~\"wukongim_delivery_(recipient_worker_(queue_depth|queue_capacity|inflight|capacity|admission_total|admission_wait_seconds_(bucket|sum|count)|process_total|process_duration_seconds_(bucket|sum|count)|process_recipients_(bucket|sum|count))|recipient_authority_resolve_(total|items_total|targets_total|duration_seconds_(bucket|sum|count))|push_rpc_(total|routes_total|duration_seconds_(bucket|sum|count)))\"}",
+      "total_series": 567,
+      "gateway_batch_or_permission_cohort_series": 0
+    },
+    {
+      "partition": "up",
+      "query": "up",
+      "total_series": 7,
+      "gateway_batch_or_permission_cohort_series": 0
+    },
+    {
+      "partition": "runtime",
+      "query": "{__name__=~\"wukongim_runtime_.*\"}",
+      "total_series": 3425,
+      "gateway_batch_or_permission_cohort_series": 0
+    },
+    {
+      "partition": "channel_worker",
+      "query": "{__name__=~\"wukongim_channel_worker_.*\"}",
+      "total_series": 207,
+      "gateway_batch_or_permission_cohort_series": 0
+    },
+    {
+      "partition": "process",
+      "query": "{__name__=~\"wukongim_process_.*\"}",
+      "total_series": 188,
+      "gateway_batch_or_permission_cohort_series": 0
+    },
+    {
+      "partition": "counters",
+      "query": "{__name__=~\"wukongim_(metadata_create_total|activation_rejected_total)\"}",
+      "total_series": 0,
+      "gateway_batch_or_permission_cohort_series": 0
+    },
+    {
+      "partition": "go",
+      "query": "{__name__=~\"wukongim_go_.*\"}",
+      "total_series": 0,
+      "gateway_batch_or_permission_cohort_series": 0
+    }
+  ],
+  "canary": {
+    "configured_group_count": 1,
+    "configured_fixed_members": 100000,
+    "configured_cadence_seconds": 60,
+    "local_final_primary_generated": 12000,
+    "local_final_canary_generated": 1,
+    "local_final_logical_sent": 12001,
+    "local_final_logical_acknowledged": 12001,
+    "aggregate_canary_success_inference": "primary12000+canary1=sent=ACK12001; no per-canary packet timestamp retained",
+    "canary_clock_source": "TrafficGenerator constructor/reset anchors nextCanary to engine-generation start + cadence, not explicitly to final.report.window.start; exact emitted/ACK/recipient-delivery time is missing",
+    "first_canary_send_time": null,
+    "first_canary_ack_time": null,
+    "canary_presence_cold_reconstruction_duration": null,
+    "expired_sample_decoded_domains": {
+      "ordinary_group": 3
+    },
+    "delivery_failure_logged_field": "Failure.RecipientUID (not sender or channel identity)",
+    "delivery_failure_recipient_roster_counts": {
+      "other_fixed_roster": 256
+    },
+    "delivery_failure_phases": {
+      "presence": 254,
+      "owner_push": 2
+    },
+    "very_large_roster_failure_examples_sanitized": [],
+    "interpretation": "No logged incomplete-plan RecipientUID belongs to fixed very-large roster. This weakens direct-canary-timeout attribution, but cannot exclude indirect fanout/cache/route pressure. Roster membership is not a per-message causal join."
+  },
+  "input_bindings": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/evidence/metrics-first-measured-node1.prom",
+      "bytes": 1020117,
+      "sha256": "e7caa5ed72636edc9ef3c7fd64c1e2a81468c87502bfd9a7548e65c378a1e5b9"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/evidence/metrics-terminal-node1.prom",
+      "bytes": 1053900,
+      "sha256": "25e3b9797f9c6a2799b91c6bcf65c4fde4be7166efdd54191acb0120e659eef0"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/evidence/metrics-first-measured-node2.prom",
+      "bytes": 1018202,
+      "sha256": "bd9192220a3438047209a1da188a0ddc885982fae5137b4d1f039721ed8924b5"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/evidence/metrics-terminal-node2.prom",
+      "bytes": 1040544,
+      "sha256": "ca3f87410eadc87d02e8a1dde2f0f36403ed16f593e777ce9231221ab623251f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/evidence/metrics-first-measured-node3.prom",
+      "bytes": 990448,
+      "sha256": "904b245e2d4a15f0649a7339a6b5583710129010cbffae966f6e451375a49af2"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/evidence/metrics-terminal-node3.prom",
+      "bytes": 1042773,
+      "sha256": "74bafb7247dc1cc9c198df87e379952c601fcf1ec3b44582ea7c440555c42b21"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/manifest.json",
+      "bytes": 10020,
+      "sha256": "4ad8455d66aaec35c0e340e0d95e28204fd4f503a57913373bd7c68d27e63337"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-presence.json",
+      "bytes": 220602,
+      "sha256": "ba10c5ec5107d348db49f5d9e17be23e3e33a966acb0b95a50e7b10d395962f8"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-delivery.json",
+      "bytes": 177704,
+      "sha256": "43706ff0bda79e82635dc8d754d86666d55b5853c526008cf31b2485c40e56ea"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-up.json",
+      "bytes": 3807,
+      "sha256": "5289109d6f94f1fe39385fc78db99e35b618fc9713104b048b700d9aca6d2f05"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-runtime.json",
+      "bytes": 1878373,
+      "sha256": "42df3dcd0f73014d940c13c45e85305c5f543f94a6b40b0869d92d638a6a403f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-channel_worker.json",
+      "bytes": 79450,
+      "sha256": "1b61cf69e15000d095d48744c177648ad9877673a0d5ce4d838064f158c17d3d"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-process.json",
+      "bytes": 117934,
+      "sha256": "f0bde518bff43b8249bf441782b8bc2fe23bb71a36492687ae9e32d8146dd4c0"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-counters.json",
+      "bytes": 63,
+      "sha256": "5270461ec81028d05a5dc2cd726f822921a8aacd21927e829d8895b3d662f0cc"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-go.json",
+      "bytes": 63,
+      "sha256": "5270461ec81028d05a5dc2cd726f822921a8aacd21927e829d8895b3d662f0cc"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/report/final.json",
+      "bytes": 23630,
+      "sha256": "48bc2327163c73a5c446c6bc69475ea728132396dbe14a3f1024cc5e7e901260"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/report/worker-evidence.json",
+      "bytes": 2739,
+      "sha256": "5bd9e723db6b6ab9b0802fbba79974ab14d8c852fa7140059d92db30ab70758f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/logs/service-1.log",
+      "bytes": 41285,
+      "sha256": "49888049c26a223ad9d8b36e2b60fe0bbac5918be1bf2fe49c7a053171b6d87a"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/logs/service-2.log",
+      "bytes": 51528,
+      "sha256": "6b9735b4a16beb0a92fc53c1c39e7e565f40cc559b34e8b19ead64d0d1c54fcd"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/logs/service-3.log",
+      "bytes": 51021,
+      "sha256": "5cb9f92ce7db23862240c8bc0a47023221661fda4a6f779ecff26f017c91c63c"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/identity-helper-summary.json",
+      "bytes": 4472,
+      "sha256": "f3337cfeb8bb378bb24d12957fce56a06e9df2a69b56015077b794e7e181df7a"
+    }
+  ],
+  "source_sha256": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "internal/bench/FLOW.md": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+    "internal/bench/chatlifecycle/FLOW.md": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+    "internal/app/FLOW.md": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+    "internal/bench/chatlifecycle/traffic.go": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+    "internal/bench/chatlifecycle/groups.go": "b94b7a3a107e9b7470603051a15ffba073de718d2ca01dd0ca183fb61727f047",
+    "internal/bench/chatlifecycle/identity.go": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+    "internal/app/online_delivery.go": "1ff79492cc87ede7d006300f8866544e55d3a77530f560f979b2cb0acf74fc1a"
+  },
+  "scope": {
+    "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+    "offline_only": true,
+    "product_or_profile_or_network_started": false,
+    "original_signals_manifest_unchanged": true,
+    "raw_identities_or_logs_copied_publicly": false
+  }
+}

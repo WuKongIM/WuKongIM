@@ -1,0 +1,112 @@
+{
+  "test_only": true,
+  "filesystem": "Linux tmpfs",
+  "source_sha": "4d868f264fb4758f7451c058dd329a06ad460449",
+  "export_source_sha": "be32eb375e3c77dc5b3d1070fd798c281ae2d3bc",
+  "sdk_20_cases_claimed": false,
+  "cases": [
+    {
+      "case": "cross_uid",
+      "producer_uid": 65532,
+      "consumer_uid": 1001,
+      "prepare_exit": 1,
+      "elapsed_seconds": 2.496,
+      "prepare_stdout": "{\"passed\": false, \"state\": \"incomplete\", \"stage\": \"prepare\", \"error_type\": \"RuntimeError\", \"bundle_sha256\": null, \"scratch_removed\": false}\n",
+      "prepare_stderr": "",
+      "preparation": {
+        "cases": [
+          {
+            "case": "native-public-binding",
+            "passed": true
+          }
+        ],
+        "commands": [
+          {
+            "command": [
+              "/usr/bin/python3",
+              "-B",
+              "/control/scripts/verify-production-package-site.py",
+              "--site-root",
+              "/tmp/native-uid-probe/cross_uid/native-sdk-work/prepared/preview-extracted/site",
+              "--snapshot",
+              "/tmp/native-uid-probe/cross_uid/native-sdk-work/prepared/preview-extracted/audit/snapshot.json",
+              "--channels",
+              "/tmp/native-uid-probe/public/fixtures/preview/control/manifests/channels.json",
+              "--signing",
+              "/tmp/native-uid-probe/public/fixtures/preview/control/manifests/preview-signing.json",
+              "--apt-public-cert",
+              "/tmp/native-uid-probe/public/fixtures/preview/control/keys/apt-preview.asc",
+              "--rpm-public-cert",
+              "/tmp/native-uid-probe/public/fixtures/preview/control/keys/rpm-preview.asc"
+            ],
+            "elapsed_seconds": 2.023,
+            "exit_code": 0,
+            "output_limit": false,
+            "output_sha256": "7d798e04e1873d82b99e13c9081ddf0db745eaec4ad1cb54e3bd76388a73e6b2",
+            "output_size": 399,
+            "output_tail": "{\"apt_release_signing_fingerprint\":\"68811B40F31333F7B2F9838DF4BE413F3FDC3284\",\"audit_release_id\":10,\"control_sha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"operation\":\"add_release\",\"rpm_repository_signing_fingerprint\":\"6DE5E8A53C5D2048FF389EB1375085D8F1169D5F\",\"schema\":\"wukongim/production-package-site-verification/v1\",\"site_file_count\":25,\"site_size_bytes\":62574,\"target_version\":\"3.1.0-rc.1\"}\n",
+            "stage": "native-preview",
+            "timed_out": false
+          },
+          {
+            "command": [
+              "/usr/bin/python3",
+              "-B",
+              "/control/scripts/bind-audit-release.py",
+              "--channel",
+              "stable",
+              "--test-only",
+              "--release-id",
+              "4242",
+              "--expected-control-sha",
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "--api-base-url",
+              "http://127.0.0.1:43561",
+              "--token-env",
+              "WK_TEST_AUDIT_TOKEN",
+              "--candidate-plan",
+              "/tmp/native-uid-probe/public/fixtures/A/plan.json",
+              "--expected-previous-control-sha",
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "--control-root",
+              "/tmp/native-uid-probe/public/fixtures/A/control"
+            ],
+            "elapsed_seconds": 0.208,
+            "exit_code": 1,
+            "output_limit": false,
+            "output_sha256": "65128611d681c9f43fcf104a75e9ca4a831e9f5cfe502cf39224e00e97e86990",
+            "output_size": 102,
+            "output_tail": "audit Release binding failed: local reviewed producer bytes differ: verify-production-package-site.py\n",
+            "stage": "A-bind-audit-release.py",
+            "timed_out": false
+          }
+        ],
+        "error": "TEST ONLY fixture operation failed; stage identifies boundary",
+        "error_type": "RuntimeError",
+        "failure_location": {
+          "file": "native_stable_clients_drill.py",
+          "function": "require",
+          "line": 52
+        },
+        "passed": false,
+        "schema": "wukongim.native_sdk_drill/v1",
+        "scratch_removed": false,
+        "skips": 0,
+        "source_sha": "4d868f264fb4758f7451c058dd329a06ad460449",
+        "stage": "prepare",
+        "state": "incomplete",
+        "test_only": true,
+        "verification": {
+          "activation_authorized": false,
+          "cloud_verified": false,
+          "fresh_production_auth_verified": false,
+          "github_provenance_verified": false,
+          "production_enabled": false,
+          "public_clients_verified": false,
+          "publication_verified": false,
+          "wire_equivalence_verified": false
+        }
+      }
+    }
+  ]
+}

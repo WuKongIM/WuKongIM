@@ -1,0 +1,35 @@
+{
+  "sha": "23cf3f8764c2b841128b1a80d79ba9f49f447549",
+  "node_id": "C_kwDOJgfwydoAKDIzY2YzZjg3NjRjMmI4NDExMjhiMWE4MGQ3OWJhOWY0OWY0NDc1NDk",
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/23cf3f8764c2b841128b1a80d79ba9f49f447549",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/commit/23cf3f8764c2b841128b1a80d79ba9f49f447549",
+  "author": {
+    "name": "tt",
+    "email": "tangtaoit@githubim.com",
+    "date": "2026-10-22T18:34:55Z"
+  },
+  "committer": {
+    "name": "tt",
+    "email": "tangtaoit@githubim.com",
+    "date": "2026-10-22T18:34:55Z"
+  },
+  "tree": {
+    "sha": "89011038f444c5e9c8bd95f4a6814868676b4501",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/89011038f444c5e9c8bd95f4a6814868676b4501"
+  },
+  "message": "fix: collect registered terminal metrics",
+  "parents": [
+    {
+      "sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/79a7177032a6ae1ec7015cefe0e6f94eb0f19f06"
+    }
+  ],
+  "verification": {
+    "verified": false,
+    "reason": "unsigned",
+    "signature": null,
+    "payload": null,
+    "verified_at": null
+  }
+}

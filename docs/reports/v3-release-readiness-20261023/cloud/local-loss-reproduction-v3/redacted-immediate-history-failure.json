@@ -1,0 +1,41 @@
+{
+  "source_test_log_sha256": "99fc3791d9044cfb9b4815c5d06218c21abd5ef9b0e0859ddfce3445671b256f",
+  "original_e2e_passed": false,
+  "actual_matched_ACKs": 7,
+  "actual_matched_RECVs": 28,
+  "immediate_history_count": 6,
+  "typed_rows_from_private_assertion": [
+    {
+      "fingerprint": "f6c4b36a430c9fcb617a90d040154385",
+      "message_id": "2113339297611395072",
+      "message_seq": 6
+    },
+    {
+      "fingerprint": "dd2ac72c40e88775085c2847098368e0",
+      "message_id": "2113339280838373376",
+      "message_seq": 5
+    },
+    {
+      "fingerprint": "2cb134c84a3c47f6440305194dd569dc",
+      "message_id": "2113339234696835072",
+      "message_seq": 4
+    },
+    {
+      "fingerprint": "08fbb3a72d6a72e7da25d1394ad3f96c",
+      "message_id": "2113339209531011072",
+      "message_seq": 3
+    },
+    {
+      "fingerprint": "72c5286e7ec7383b66d45a5b1eba4251",
+      "message_id": "2113339201138208768",
+      "message_seq": 2
+    },
+    {
+      "fingerprint": "05082c2be286272910fb5899086b149f",
+      "message_id": "2113339155244134400",
+      "message_seq": 1
+    }
+  ],
+  "later_convergence_observed_in_this_attempt": false,
+  "product_cause_not_established": true
+}

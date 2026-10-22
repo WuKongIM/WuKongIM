@@ -1,0 +1,8 @@
+[
+  {
+    "event": "supervisor_error",
+    "elapsed_seconds": 12.182915916957427,
+    "at_utc": "2026-10-22T18:52:04.500661+00:00",
+    "error_class": "AssertionError"
+  }
+]
