@@ -2,7 +2,7 @@ package presence
 
 import (
 	"context"
-	"errors"
+	"sync"
 
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 )
@@ -21,21 +21,27 @@ type RecoveryOwners interface {
 }
 
 // AuthorityRecovery reconstructs requested UIDs with bounded owner queries.
-// Fixed admission lanes coalesce overlapping lookups without per-UID goroutines
-// or an unbounded in-flight map. Directory ownership fences every completion.
+// Bounded UID flights coalesce overlapping proofs without per-UID goroutines.
+// Directory ownership fences every completion.
 type AuthorityRecovery struct {
 	directory RecoveryDirectory
 	owners    RecoveryOwners
-	lanes     [32]chan struct{}
+	// mu protects admission accounting only; it never spans owner I/O or waits.
+	mu sync.Mutex
+	// inFlight retains only admitted UID identities and completion status.
+	inFlight map[recoveryUIDKey]*recoveryUIDFlight
+	// ownedUIDBytes counts exact UID clones retained by admitted leaders only.
+	ownedUIDBytes int
+	// cohorts bounds caller-executed owner rounds, including downstream admission.
+	cohorts int
+	// changed wakes quota waiters without retaining a per-waiter queue.
+	changed chan struct{}
 }
 
-// NewAuthorityRecovery allocates fixed admission lanes for owner reconstruction.
+// NewAuthorityRecovery creates bounded UID proof admission for owner reconstruction.
 func NewAuthorityRecovery(directory RecoveryDirectory, owners RecoveryOwners) *AuthorityRecovery {
-	r := &AuthorityRecovery{directory: directory, owners: owners}
-	for i := range r.lanes {
-		r.lanes[i] = make(chan struct{}, 1)
-	}
-	return r
+	return &AuthorityRecovery{directory: directory, owners: owners,
+		inFlight: make(map[recoveryUIDKey]*recoveryUIDFlight), changed: make(chan struct{})}
 }
 
 // RecoveryBatchOwners returns aligned proofs while sharing each owner read
@@ -51,7 +57,7 @@ func (r *AuthorityRecovery) Endpoints(ctx context.Context, target RouteTarget, u
 }
 
 // EndpointsByTargets packs at most 512 UIDs and 256 targets per owner round.
-// A cold page shares the unavailable-owner timeout across all its Hash Slots.
+// Newly owned proofs share one bounded owner round; matching UIDs coalesce.
 // Proven lookups stay outside recovery admission; failed groups remain aligned.
 func (r *AuthorityRecovery) EndpointsByTargets(ctx context.Context, groups []EndpointLookupGroup) []EndpointLookupResult {
 	results := make([]EndpointLookupResult, len(groups))
@@ -92,100 +98,6 @@ func (r *AuthorityRecovery) EndpointsByTargets(ctx context.Context, groups []End
 	}
 	if len(page) != 0 {
 		flush()
-	}
-	return results
-}
-
-// recoverPage locks distinct cold lanes in a fixed order and rechecks proofs
-// after admission, coalescing concurrent reconstructions without lock cycles.
-func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLookupGroup) []EndpointLookupResult {
-	results := make([]EndpointLookupResult, len(groups))
-	fail := func(err error) []EndpointLookupResult {
-		for i := range results {
-			results[i] = EndpointLookupResult{Err: err}
-		}
-		return results
-	}
-	if r == nil || r.directory == nil || r.owners == nil {
-		return fail(authority.ErrRouteNotReady)
-	}
-	if err := ctx.Err(); err != nil {
-		return fail(err)
-	}
-	var lanes [32]bool
-	for i, group := range groups {
-		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(group.Target, group.UIDs)
-		if errors.Is(results[i].Err, authority.ErrRouteNotReady) {
-			lanes[int(group.Target.HashSlot)%len(r.lanes)] = true
-		}
-	}
-	locked := make([]int, 0, len(lanes))
-	defer func() {
-		for _, i := range locked {
-			<-r.lanes[i]
-		}
-	}()
-	for i, needed := range lanes {
-		if !needed {
-			continue
-		}
-		select {
-		case r.lanes[i] <- struct{}{}:
-			locked = append(locked, i)
-		case <-ctx.Done():
-			for j := range results {
-				if errors.Is(results[j].Err, authority.ErrRouteNotReady) {
-					results[j].Err = ctx.Err()
-				}
-			}
-			return results
-		}
-	}
-	missing := make([]EndpointLookupGroup, 0, len(groups))
-	indexes := make([]int, 0, len(groups))
-	for i, group := range groups {
-		if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
-			continue
-		}
-		uids, err := r.directory.RecoveryUIDs(group.Target, group.UIDs)
-		if err != nil {
-			results[i].Err = err
-			continue
-		}
-		if len(uids) == 0 {
-			results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(group.Target, group.UIDs)
-			continue
-		}
-		missing = append(missing, EndpointLookupGroup{Target: group.Target, UIDs: uids})
-		indexes = append(indexes, i)
-	}
-	if len(missing) == 0 {
-		return results
-	}
-	recovered := make([]EndpointLookupResult, len(missing))
-	if batch, ok := r.owners.(RecoveryBatchOwners); ok {
-		recovered = batch.RecoverRoutesByTargets(ctx, missing)
-	} else {
-		// Limited in-process compatibility implementations retain the single-target
-		// port. Production uses the batch port and never retries unsupported RPCs serially.
-		for i, group := range missing {
-			recovered[i].Routes, recovered[i].Err = r.owners.RecoverRoutes(ctx, group.Target, group.UIDs)
-		}
-	}
-	for j, i := range indexes {
-		if len(recovered) != len(missing) {
-			results[i].Err = authority.ErrRouteNotReady
-			continue
-		}
-		if recovered[j].Err != nil {
-			results[i].Err = recovered[j].Err
-			continue
-		}
-		if err := r.directory.InstallRecoveredRoutes(missing[j].Target, missing[j].UIDs, recovered[j].Routes); err != nil {
-			results[i].Err = err
-			continue
-		}
-		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(groups[i].Target, groups[i].UIDs)
 	}
 	return results
 }
