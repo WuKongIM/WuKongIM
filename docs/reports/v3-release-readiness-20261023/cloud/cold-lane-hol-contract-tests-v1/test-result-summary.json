@@ -1,0 +1,26 @@
+{
+  "source_head": "2ab3e1a8bd95670603bc38314036c797a5124682",
+  "passed_tests": [
+    "TestAuthorityRecoveryProvenLookupDoesNotWaitForColdLane",
+    "TestAuthorityRecoveryRequiresCompleteOwnersAndRejectsOldCompletion",
+    "TestAuthorityRecoveryCancellationDoesNotWaitForBusyLane",
+    "TestAuthorityRecoveryBatchesColdTargetsAndPreservesSiblingResults",
+    "TestAuthorityRecoveryPagesLargeTargetWithoutDiscardingEarlierResults",
+    "TestAuthorityRecoveryColdUIDIsolation_NonConflictingTargetProgresses",
+    "TestAuthorityRecoveryColdUIDIsolation_SameUIDSharesOwnerProof",
+    "TestAuthorityRecoveryColdUIDIsolation_CanceledWaiterDoesNotCancelOwner"
+  ],
+  "failed_tests": [
+    "TestAuthorityRecoveryColdUIDIsolation_IndependentUIDWhilePagePaused"
+  ],
+  "intentional_red_only": true,
+  "exit_code": 1,
+  "elapsed_seconds_including_compile": 4.597447916050442,
+  "package_elapsed_seconds": 0.826,
+  "new_controls_passed": 3,
+  "existing_contract_tests_passed": 5,
+  "new_lookup_cleanup_joined": 8,
+  "outer_bound_seconds": 120,
+  "go_timeout_seconds": 90,
+  "interpretation": "Coarse cold-lane admission creates head-of-line waiting for another UID. Independent cold-UID latency is a proposed contract, not an existing promise. This isolated test does not establish cloud root cause."
+}

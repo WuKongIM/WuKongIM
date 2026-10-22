@@ -1,0 +1,30 @@
+=== RUN   TestAuthorityRecoveryProvenLookupDoesNotWaitForColdLane
+--- PASS: TestAuthorityRecoveryProvenLookupDoesNotWaitForColdLane (0.00s)
+=== RUN   TestAuthorityRecoveryRequiresCompleteOwnersAndRejectsOldCompletion
+--- PASS: TestAuthorityRecoveryRequiresCompleteOwnersAndRejectsOldCompletion (0.00s)
+=== RUN   TestAuthorityRecoveryCancellationDoesNotWaitForBusyLane
+--- PASS: TestAuthorityRecoveryCancellationDoesNotWaitForBusyLane (0.00s)
+=== RUN   TestAuthorityRecoveryBatchesColdTargetsAndPreservesSiblingResults
+--- PASS: TestAuthorityRecoveryBatchesColdTargetsAndPreservesSiblingResults (0.00s)
+=== RUN   TestAuthorityRecoveryPagesLargeTargetWithoutDiscardingEarlierResults
+--- PASS: TestAuthorityRecoveryPagesLargeTargetWithoutDiscardingEarlierResults (0.00s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_IndependentUIDWhilePagePaused
+    cold_uid_isolation_integration_test.go:177: proposed isolation failed before A release: B results=[{[] context deadline exceeded}]; A owner calls=1 peak owner calls=1
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- FAIL: TestAuthorityRecoveryColdUIDIsolation_IndependentUIDWhilePagePaused (0.25s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_NonConflictingTargetProgresses
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_NonConflictingTargetProgresses (0.00s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_SameUIDSharesOwnerProof
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_SameUIDSharesOwnerProof (0.04s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_CanceledWaiterDoesNotCancelOwner
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_CanceledWaiterDoesNotCancelOwner (0.04s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/internal/usecase/presence	0.826s
+FAIL

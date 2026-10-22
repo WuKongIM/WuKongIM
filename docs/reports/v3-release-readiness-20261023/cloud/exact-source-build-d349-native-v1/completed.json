@@ -1,0 +1,11 @@
+{
+  "at_utc": "2026-10-22T21:30:58.385397Z",
+  "source_clean": true,
+  "binary_count": 2,
+  "tracked_embedded_assets_equal": 76,
+  "runtime_started": false,
+  "source_revision": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "source_tree": "763f8432135e6b94df28451a43a4a635c7aba2a0",
+  "cloud_binary_byte_equality_claimed": false,
+  "scope": "new d349 native diagnostics binaries; same flags/assets, not a product fix or Linux performance environment"
+}

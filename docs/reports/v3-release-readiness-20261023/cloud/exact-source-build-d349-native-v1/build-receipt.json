@@ -1,0 +1,72 @@
+{
+  "source": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-d349-diagnostics",
+  "revision": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "tree": "763f8432135e6b94df28451a43a4a635c7aba2a0",
+  "compiler": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+  "compiler_version": "go version go1.25.11 darwin/arm64",
+  "environment": {
+    "GOOS": "darwin",
+    "GOARCH": "arm64",
+    "CGO_ENABLED": "0",
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "1",
+    "GOFLAGS": "",
+    "GOENV": "off",
+    "GOEXPERIMENT": ""
+  },
+  "started_at": "2026-10-22T21:30:47.407033Z",
+  "clean_before": true,
+  "builds": [
+    {
+      "name": "wukongim",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "build",
+        "-p=1",
+        "-trimpath",
+        "-buildvcs=true",
+        "-mod=readonly",
+        "-ldflags=-s -w -buildid=",
+        "-o",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/darwin-arm64/wukongim",
+        "./cmd/wukongim"
+      ],
+      "started_at": "2026-10-22T21:30:47.407267Z",
+      "exit_code": 0,
+      "finished_at": "2026-10-22T21:30:55.258306Z",
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/darwin-arm64/wukongim",
+      "sha256": "6b088040a02c360c3f7ad4dc1899f487985f2fb64dd3cef10b2875492b42e2af",
+      "bytes": 64584930,
+      "buildinfo_sha256": "c9f6e86073dbc7ebb8eff3a1988007871a038134e66380279dddaaf96acf2232"
+    },
+    {
+      "name": "wkcli",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "build",
+        "-p=1",
+        "-trimpath",
+        "-buildvcs=true",
+        "-mod=readonly",
+        "-ldflags=-s -w -buildid=",
+        "-o",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/darwin-arm64/wkcli",
+        "./cmd/wkcli"
+      ],
+      "started_at": "2026-10-22T21:30:55.294155Z",
+      "exit_code": 0,
+      "finished_at": "2026-10-22T21:30:58.360837Z",
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/darwin-arm64/wkcli",
+      "sha256": "53e603d9549f7cc0351f46797d3fcdaa717512d07c80e77d9f8f9ade7826e7cc",
+      "bytes": 41042866,
+      "buildinfo_sha256": "2cdce245f485fbd944b933fc847aafda451a45daf1f7205783da86b2219e34d5"
+    }
+  ],
+  "finished_at": "2026-10-22T21:30:58.385397Z",
+  "elapsed_seconds": 10.978171750088222,
+  "clean_after": true,
+  "source_revision_after": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e"
+}

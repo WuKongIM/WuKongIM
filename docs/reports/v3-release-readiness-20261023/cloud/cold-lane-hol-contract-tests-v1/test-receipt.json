@@ -1,0 +1,10 @@
+{
+  "started_utc": "2026-10-22T21:32:15.206398+00:00",
+  "finished_utc": "2026-10-22T21:32:19.803978+00:00",
+  "elapsed_seconds": 4.597447916050442,
+  "exit_code": 1,
+  "outer_timeout": false,
+  "child_joined": true,
+  "pid": 26307,
+  "process_group": 26307
+}

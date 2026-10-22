@@ -1,0 +1,40 @@
+{
+  "source_head": "2ab3e1a8bd95670603bc38314036c797a5124682",
+  "source_tree": "0f24d5dfbdb8de60789fbf8760d5c3a1b3c33344",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-cold-lane-hol-contract",
+  "branch": "codex/v3-cold-lane-hol-contract",
+  "status_before": "",
+  "source_and_rule_digests": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2"
+    },
+    {
+      "path": "internal/runtime/presence/FLOW.md",
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee"
+    },
+    {
+      "path": "internal/usecase/presence/recovery.go",
+      "sha256": "dbbdc02e4922c1faef9aa81084ab06dd404be7f2a394a1fe4e4ff238e91542fb"
+    },
+    {
+      "path": "internal/runtime/presence/recovery.go",
+      "sha256": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_test.go",
+      "sha256": "b98ebb6ea7e0304b180503353aadfc82258ada689ffe21ed696bf59e7d6773ef"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_integration_test.go",
+      "sha256": "f7b6c909e2d51668232878b8d17019807de9ebb1acce220ce9be637cacf29f53"
+    }
+  ],
+  "approved_seam": "Exported NewAuthorityRecovery(...).EndpointsByTargets with real Directory and RecoveryBatchOwners test boundary; no private lanes/fields accessed.",
+  "scope": "tests-only diagnostic branch; no production implementation or primary server build; test process total bound120s",
+  "recorded_before_writing_test": "2026-10-22T21:28:10.489415+00:00"
+}

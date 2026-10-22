@@ -1,0 +1,12 @@
+{
+  "checked_utc": "2026-10-22T21:33:19.591097+00:00",
+  "owned_test_process_group": 26307,
+  "remaining_process_count": 0,
+  "remaining_processes": [],
+  "new_public_lookup_calls": 8,
+  "joined_public_lookup_calls": 8,
+  "service_process_started": false,
+  "tcp_listener_opened_by_scenario": false,
+  "worktree_retained_for_review": true,
+  "no_commit_push_or_pr": true
+}

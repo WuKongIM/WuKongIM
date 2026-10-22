@@ -1,0 +1,96 @@
+{
+  "schema": "wukongim/d349-planner-config-byte-equivalence/v1",
+  "baseline_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "new_revision": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "comparisons": [
+    {
+      "path": "internal/bench/chatlifecycle/io.go",
+      "scope": "whole file",
+      "old_sha256": "1c24ae291bbad7e71238af96dcfb87d6e64f9727c9c7d9d491f8dca3f387b343",
+      "new_sha256": "1c24ae291bbad7e71238af96dcfb87d6e64f9727c9c7d9d491f8dca3f387b343",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/config.go",
+      "scope": "whole file",
+      "old_sha256": "ca7a92060eb984f3ab4fa55a58353e802f41999c8cc53b1ba0f1c0dd596b7289",
+      "new_sha256": "ca7a92060eb984f3ab4fa55a58353e802f41999c8cc53b1ba0f1c0dd596b7289",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/types.go",
+      "scope": "whole file",
+      "old_sha256": "bb21602adf6597e6e839044a2691e28d0c7cc6bee76fc7cd6acb5f80e8085eac",
+      "new_sha256": "bb21602adf6597e6e839044a2691e28d0c7cc6bee76fc7cd6acb5f80e8085eac",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/report.go",
+      "scope": "whole file",
+      "old_sha256": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+      "new_sha256": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+      "byte_equal": true
+    },
+    {
+      "path": "scripts/wukongim/wukongim-node1.toml",
+      "scope": "whole file",
+      "old_sha256": "3cbe215c8564808fc61b06e91f80f5a6c70e29aa107482f32531c56923129d21",
+      "new_sha256": "3cbe215c8564808fc61b06e91f80f5a6c70e29aa107482f32531c56923129d21",
+      "byte_equal": true
+    },
+    {
+      "path": "scripts/wukongim/wukongim-node2.toml",
+      "scope": "whole file",
+      "old_sha256": "6f485b514ca36570e75ee021889ed0f63c1da0cec1650743cde88b6bde9cfad3",
+      "new_sha256": "6f485b514ca36570e75ee021889ed0f63c1da0cec1650743cde88b6bde9cfad3",
+      "byte_equal": true
+    },
+    {
+      "path": "scripts/wukongim/wukongim-node3.toml",
+      "scope": "whole file",
+      "old_sha256": "965c6a5a4d3f72614792c9a8b29cf9fb3a7f179af00232139f8273d80b78ecc0",
+      "new_sha256": "965c6a5a4d3f72614792c9a8b29cf9fb3a7f179af00232139f8273d80b78ecc0",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "scope": "function BuildCoordinatorAssignments",
+      "old_sha256": "b8560a755f8779566bc7e353426f0542e62e722b738a22936a30b5db44ce5849",
+      "new_sha256": "b8560a755f8779566bc7e353426f0542e62e722b738a22936a30b5db44ce5849",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "scope": "function coordinatorAssignmentID",
+      "old_sha256": "1d576239837358982dd14f3cb5783225bc68068bb963b04f87100b7f36d3dc2b",
+      "new_sha256": "1d576239837358982dd14f3cb5783225bc68068bb963b04f87100b7f36d3dc2b",
+      "byte_equal": true
+    }
+  ],
+  "changed_path_count": 20,
+  "exact_changed_paths": [
+    "CHANGELOG.md",
+    "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+    "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "internal/app/composition_classification_contract_test.go",
+    "internal/app/observability.go",
+    "internal/app/observability_test.go",
+    "internal/app/online_delivery.go",
+    "internal/app/online_delivery_test.go",
+    "internal/bench/chatlifecycle/checkpoint.go",
+    "internal/bench/chatlifecycle/coordinator.go",
+    "internal/bench/chatlifecycle/finalize_diagnostics_test.go",
+    "internal/bench/chatlifecycle/production_controller.go",
+    "internal/runtime/delivery/runtime.go",
+    "internal/runtime/delivery/runtime_ports.go",
+    "internal/runtime/delivery/runtime_test.go",
+    "pkg/metrics/gateway.go",
+    "pkg/metrics/registry_test.go",
+    "scripts/chat-lifecycle/terminal-evidence.py",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py"
+  ],
+  "identity_reuse_basis": "earlier actual LoadConfig+BuildCoordinatorAssignments receipt plus identical config bytes, identical loader/config/types/report hash code and both assignment functions; new source strict loader remains mandatory at real soak entry",
+  "new_identity_fabricated": false,
+  "new_compilation_for_identity": false
+}

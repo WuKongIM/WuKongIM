@@ -1,0 +1,14 @@
+{
+  "source_revision": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "source_tree": "763f8432135e6b94df28451a43a4a635c7aba2a0",
+  "sha256": "53e603d9549f7cc0351f46797d3fcdaa717512d07c80e77d9f8f9ade7826e7cc",
+  "bytes": 41042866,
+  "compiler": "go1.25.11",
+  "GOOS": "darwin",
+  "GOARCH": "arm64",
+  "CGO_ENABLED": 0,
+  "trimpath": true,
+  "linkflags": "-s -w -buildid=",
+  "vcs_modified": false,
+  "runtime_started": false
+}

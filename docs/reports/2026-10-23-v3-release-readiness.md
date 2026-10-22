@@ -69,7 +69,15 @@
 
 离线补充只读取既有证据：五个过期样本均唯一对应原分布中的普通群；三个 canonical service 日志在 first grant 至终态 worker 切面之间共有 **207** 次 presence deadline 失败，owner push 为 0。该汇总没有精确 MessageID 关联，不能将五个样本逐一归到这些警告。node 2 首个保留指标切面 queue **14/1,024**、inflight **40/320**，并未在该点占满；切面仍不覆盖整个窗口。
 
-已有 goroutine 捕获的离线互斥分类显示：**UTC 21:09:03.284063**，node 2 的 **320** 个 delivery worker 中 **291 空闲、12 等冷 presence lane、9 等 leader join、3 远端 authority、1 owner recovery、4 owner push**。全体 47 个 `recoverPage` 调用中 45 个等 lane、2 个持 lane 等 owner RPC。这让跨 owner I/O 持有多个 lane 导致无关冷 UID 排队的机制值得受控检验；数量不证明等待时长、五个过期样本经过该处、owner 未响应原因或原云端根因。下一步先在公开 recovery 边界保留受控失败，再决定产品修复；不新增一层重试、不放宽 expiry 或验收门禁。原始 profiles、运行身份和配置仍不入库。
+已有 goroutine 捕获的离线互斥分类显示：**UTC 21:09:03.284063**，node 2 的 **320** 个 delivery worker 中 **291 空闲、12 等冷 presence lane、9 等 leader join、3 远端 authority、1 owner recovery、4 owner push**。全体 47 个 `recoverPage` 调用中 45 个等 lane、2 个持 lane 等 owner RPC。这让跨 owner I/O 持有多个 lane 导致无关冷 UID 排队的机制值得受控检验；数量不证明等待时长、五个过期样本经过该处、owner 未响应原因或原云端根因。下述受控 recovery 边界失败现已保留，仍需结合实际样本关联再决定产品修复；不新增一层重试、不放宽 expiry 或验收门禁。原始 profiles、运行身份和配置仍不入库。
+
+已另从具有真实 `.git` 目录的精确 clean `d349a7bd` clone 构建新 native server/CLI，固定 Go 1.25.11、CGO=0、trimpath 和原云链接参数，76 个嵌入资源与既有来源一致。79a→d349 的 20 个变动路径及生产 diff 已独立核对；变化只补观测和收尾诊断，未包含 presence 投递修复。native server `6b088040…42e2af`、CLI `53e603d9…826e7cc` 的构建绑定不等于 Linux 执行或云 ELF 相等。
+
+在配置与前次 500 诊断逐字节相同的对照中，新 d349 产物于 **UTC 21:39:44.005837（北京 10 月 23 日 05:39:44.005837）** 进入 first grant。约 +15.034 秒的保留切面为 **SEND 7,501、ACK 7,204、首尝试失败 0、1 个过期**；终态保留切面为 **SEND=ACK 8,001、首尝试失败 0、拒绝 0、RECV 9,458、5 个过期**。#1028 首次把收尾失败定位到 **`finalize / meta_checkpoint / invalid`**；冻结的产品观察保留 **`product_failure / message_loss / terminal=true`**，CLI 仍为 **`harness_invalid / invalid_observation`、exit 8**，`final.json` 依然缺失。这区分了保留的产品失败观察与完整报告不可用，未确定 metadata 的内层不变量或投递根因，也不是完整 120 秒或正式性能验收。CPU/goroutine 采集完成只表示捕获有效；本批未包含其后续分析。于 **UTC 21:40:08.573206（北京 05:40:08.573206）**、监督启动后 **284.852 秒**，所属 PGID 30175 及 64 端口均已清零，并作第二次只读核对。
+
+公开 `AuthorityRecovery.EndpointsByTargets` 的 tests-only 受控实验已在精确 `2ab3e1a8` 来源保留 **1 个 intentional RED、8 个 PASS**。A 用每个 lane 一个冷 target 占住全部 32 lanes，并暂停在可控 owner 端口；B 查询同 target 下另一个冷 UID，owner 本可立即响应，却在 A 释放前于 250 毫秒截止，owner 调用数仍为 1。非冲突 lane、同 UID 证明复用、取消 waiter 隔离及五项既有合同均通过，全部新调用 joined、所属进程组清零。生产与规则文件未变，该分支仍未提交且不可合并。
+
+该 RED 证明粗粒度 admission 的 head-of-line 机制，并提出独立冷 UID 隔离性质；现有注释本来就描述固定 lanes 和页共享 timeout，因此它本身不能升级为正确性缺陷或原云根因。独立静态挑战要求保留成功 siblings、fence/tombstone、FIFO 淘汰后重读、取消语义及有界数据所有权，并强调 fake owner 可用与生产 owner 全局不可用之间的区别。后续 full distributed target+UID flight 目前只有私有机制设计和 **19 项实现前失败矩阵**；当前保守设计为 **4 cohorts、2,048 keys、4 MiB owned UID bytes，并限制每个不可拆分页不超过 1 MiB**；其中字节预算是待冻结、评审和验证的新内部预算，并非既有 RPC 上限或已批准生产默认值。**尚无生产实现、GREEN 或性能收益证明**。本批封存边界未包含后续 sample exact join；owner 等待区间、因果关联及同条件前后对照仍缺；不能把无关 UID 的 RED 或单点栈数量当作五个过期样本的因果闭环。
 
 ## 包交付实现
 
@@ -95,7 +103,7 @@
 
 ## 继续处理的条件
 
-1. 清洁来源构建及精确产物绑定已完成，新 native 原分布诊断仍失败；继续解释已保留的 CPU/goroutine 和固定指标，确认群投递超时与过期关联根因。需要产品修复时先保留可重复失败再实现并独立复核。指标名错配、#1027 观测缺口及 #1028 收尾诊断均已修复合并并完成首次 Linux CI；旧 batch128 和本次 500 诊断实际内层失败分支仍未知。500 诊断保留零首尝试失败下的接收过期，但缺最终报告；先做受控 cold-lane 失败检验，不能把单点栈推断当作产品根因。修复后重新评估所需 RC，付费启动另按明确授权办理。
+1. 清洁来源构建及精确产物绑定已完成，新 native 原分布诊断仍失败；继续解释已保留的 CPU/goroutine 和固定指标，确认群投递超时与过期关联根因。需要产品修复时先保留可重复失败再实现并独立复核。指标名错配、#1027 观测缺口及 #1028 收尾诊断均已修复合并并完成首次 Linux CI；旧 batch128 和 79a 的 500 诊断内层失败分支仍未知；新 d349 已定位 `meta_checkpoint/invalid`，该层具体不变量仍待核对。两次 500 诊断保留零首尝试失败下的接收过期，但均缺最终报告。受控 cold-lane RED 与独立静态挑战已完成，UID-flight 仅设计，尚未实现；继续实际样本关联与 tests-first 验证，不能把单点栈或 proposed 隔离性质当作原云产品根因。修复后重新评估所需 RC，付费启动另按明确授权办理。
 2. #80 权限/清理修复及 Linux CI 已完成并合并，后续以该精确来源接续生产上传/激活入口。
 3. 完成真实 OSS/CDN、TLS、精确运行身份与权限接入、生产候选来源/签名/审计和版本公网验收。当前 ECS 授权不扩展为包分发资源采购或正式发布授权；具体实现与报价准备完成后再处理所需的最后授权。
 4. 满足前述条件后，冻结正式目标版本和 CHANGELOG，执行最终 tag 对应的发布门禁，并完成适用 signed native channel 的公开 APT/RPM 精确版本安装验证。

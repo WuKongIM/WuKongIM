@@ -1,0 +1,1751 @@
+{
+  "schema": "wukongim/readiness-public-archive-copy-batch/v1",
+  "batch": 12,
+  "status": "copied_and_verified_before_exact_staging",
+  "started_at_utc": "2026-10-22T21:48:22.076508+00:00",
+  "finished_at_utc": "2026-10-22T21:48:22.166849+00:00",
+  "authorization_plan": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/archive-batch12-preflight/plan-v3.json",
+    "bytes": 75666,
+    "sha256": "aa99d55b51d61034131a1f6a8a7509e3808392c15f0c2c5eeeadcaa5626404ec"
+  },
+  "authorization": "Root reviewed all74 source bytes and six source manifests, corrected report design envelope to4/2048/4MiB, then explicitly approved exact v3 finite apply/stage/commit/push.",
+  "source_files": 74,
+  "source_bytes": 228788,
+  "source_groups": [
+    {
+      "name": "exact-source-build-d349-native-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 1662,
+        "sha256": "0fab442b68972de39dbaf2fa50141c26c303d8170bbfb26ba65dbf8d94fb8200"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 408,
+        "sha256": "a8b41c974d74ed65c312686f9526044daf9b016450b1d5a086b9ef808aac4d5a"
+      },
+      "source_allowlist_entries": 19,
+      "source_manifest_entries_verified": 19,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 21,
+      "selected_bytes": 71857,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "profile-rate500-d349-proposal-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 1205,
+        "sha256": "dad20d4ae54fb95933212b1b887098ed5825d88dff8d5b4da28d0a30d4f32010"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 347,
+        "sha256": "19bb1e76ec47093adcf900ad8cd8c83bbad17cfc3eff973f8485df3647f6331f"
+      },
+      "source_allowlist_entries": 13,
+      "source_manifest_entries_verified": 13,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 15,
+      "selected_bytes": 62558,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "cold-lane-hol-contract-tests-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 1120,
+        "sha256": "0e42e9b9f9fbc6b61b703b564ae5ac1ae8ef77512b0a0ab31456bf1760ee97ae"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 245,
+        "sha256": "5c71428add50e47a04c648a3a715bed93672a9ee696b133dbf8f5ed196635f4b"
+      },
+      "source_allowlist_entries": 12,
+      "source_manifest_entries_verified": 13,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": true,
+      "selected_files": 14,
+      "selected_bytes": 33988,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "cold-lane-hol-static-challenge-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-static-challenge-v1",
+      "source_manifest": {
+        "path": "SHA256SUMS",
+        "bytes": 254,
+        "sha256": "16e486c7cf8982a78844b4caa2e110328adb744745a7af98c8335acfdcc1cd6e"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST.txt",
+        "bytes": 35,
+        "sha256": "c2872bbb53c18cd7bf65ad2d8d12b30a614f51e4075bde805094ce2ddf20a278"
+      },
+      "source_allowlist_entries": 2,
+      "source_manifest_entries_verified": 3,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": true,
+      "selected_files": 4,
+      "selected_bytes": 9230,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "cold-lane-uid-flight-design-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-uid-flight-design-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 433,
+        "sha256": "1d6104619e5eb01f6974c9a774493d0ef796ed9644ab1f3aa227ab36fb98ceec"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 86,
+        "sha256": "07b4d2b21ffcffa6ecdf66de449e484e55ee471cd4cfbdf2648ca777943c8289"
+      },
+      "source_allowlist_entries": 4,
+      "source_manifest_entries_verified": 5,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": true,
+      "selected_files": 6,
+      "selected_bytes": 18007,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "full-original-distribution-d349-rate500-profile-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 1136,
+        "sha256": "80e51fd185c46554cff6f4de4a49f6a48f74670a7b92cfcd5387ab97bd7cca55"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 344,
+        "sha256": "2eafa5ea593c8087473dcd551c16a234c57c90eeb075db8b0968e0531da76ec8"
+      },
+      "source_allowlist_entries": 12,
+      "source_manifest_entries_verified": 12,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 14,
+      "selected_bytes": 33148,
+      "recursive_inclusion": false
+    }
+  ],
+  "copied": [
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/README.md",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/README.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/README.md",
+      "bytes": 1176,
+      "sha256": "3af20e30e4a6c9ad3318f7bf099eb145c3c4f7ff0157b1c3c4e8f9fd9c86bfb9"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/build-receipt.json",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/build-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/build-receipt.json",
+      "bytes": 2680,
+      "sha256": "a249010b024c4dc3d0b56cc3d1d336e8b14ead8e1b697778fb5b85c7d1704e66"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/checkout.stderr",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/checkout.stderr",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/checkout.stderr",
+      "bytes": 94,
+      "sha256": "bf03f9b998086d29f079957130e485f8561aa0aa95cffd563fe03ebbc5a48ee2"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/checkout.stdout",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/checkout.stdout",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/checkout.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/clone.stderr",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/clone.stderr",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/clone.stderr",
+      "bytes": 118,
+      "sha256": "7a09ff1877583e8a664b7e809933dc2f5f08613257b36e18fdae79b69f5d4d80"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/clone.stdout",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/clone.stdout",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/clone.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/completed.json",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/completed.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/completed.json",
+      "bytes": 453,
+      "sha256": "3a50592297da70d815bc1cc95f00122060e0622c5dc35a7d306f2e4f03a81cf1"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/darwin-arm64-wkcli-identity.json",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/darwin-arm64-wkcli-identity.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/darwin-arm64-wkcli-identity.json",
+      "bytes": 425,
+      "sha256": "e620d1124c64a1cf00a2a08d5ffec3b0e6aa51673ddc85a73c002814464bf2a5"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/darwin-arm64-wukongim-identity.json",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/darwin-arm64-wukongim-identity.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/darwin-arm64-wukongim-identity.json",
+      "bytes": 425,
+      "sha256": "edb711764f9bf87507ab060427306b2429584e075544bf167a333f49e987c1d2"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "bytes": 17910,
+      "sha256": "e510593de95a9b78eb24272049d891c5691b752bec8ea8c6e10062798204a38d"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/instructions-freeze.json",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/instructions-freeze.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/instructions-freeze.json",
+      "bytes": 775,
+      "sha256": "6c9b575572cdab1478f598b1d526b2d47cf6d5a5a6b0ff78600b97d883431144"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/production-diagnostics-only.diff",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/production-diagnostics-only.diff",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/production-diagnostics-only.diff",
+      "bytes": 25285,
+      "sha256": "85202601e20ad97b0771d455b1ac590cacf8c793e2f072c92e60e0338388f44a"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/source-selection.json",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/source-selection.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/source-selection.json",
+      "bytes": 2026,
+      "sha256": "fee7559d251a0a944bb33a7a14b1548c8a13ca6f207768b8dbfbb1bbba2ed785"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/wkcli-build.stderr",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/wkcli-build.stderr",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/wkcli-build.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/wkcli-build.stdout",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/wkcli-build.stdout",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/wkcli-build.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/wkcli-buildinfo.txt",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/wkcli-buildinfo.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/wkcli-buildinfo.txt",
+      "bytes": 9589,
+      "sha256": "2cdce245f485fbd944b933fc847aafda451a45daf1f7205783da86b2219e34d5"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/wukongim-build.stderr",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/wukongim-build.stderr",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/wukongim-build.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/wukongim-build.stdout",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/wukongim-build.stdout",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/wukongim-build.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/wukongim-buildinfo.txt",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/wukongim-buildinfo.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/wukongim-buildinfo.txt",
+      "bytes": 8831,
+      "sha256": "c9f6e86073dbc7ebb8eff3a1988007871a038134e66380279dddaaf96acf2232"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/PUBLIC_ALLOWLIST",
+      "bytes": 408,
+      "sha256": "a8b41c974d74ed65c312686f9526044daf9b016450b1d5a086b9ef808aac4d5a"
+    },
+    {
+      "group": "exact-source-build-d349-native-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/exact-source-build-d349-native-v1/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact-source-build-d349-native-v1/PUBLIC_SHA256SUMS",
+      "bytes": 1662,
+      "sha256": "0fab442b68972de39dbaf2fa50141c26c303d8170bbfb26ba65dbf8d94fb8200"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/README.md",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/README.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/README.md",
+      "bytes": 2745,
+      "sha256": "cdac7e2d8a76f4e51dd0e1e15b19318aa37e0deb7f9d3d08b89efed08779cb0d"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/exact_build_guard-vs-rate500-79a.diff",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/exact_build_guard-vs-rate500-79a.diff",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/exact_build_guard-vs-rate500-79a.diff",
+      "bytes": 6063,
+      "sha256": "6df20b572c47f6aadd90e486f9d413b7bc60a4d02bbb5d562223f55a6d63ab95"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/exact_build_guard.proposed.py",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/exact_build_guard.proposed.py",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/exact_build_guard.proposed.py",
+      "bytes": 4068,
+      "sha256": "b4144b8d484d6e7385f343d1658ed5bcffbab5a80ab67e5164ee15b2750fe6d1"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/failure-matrix.md",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/failure-matrix.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/failure-matrix.md",
+      "bytes": 1307,
+      "sha256": "1a25563f3f7b2957f84301dafadce2532df14c303f01d7537db3ad0972e85114"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/final-preflight.json",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/final-preflight.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/final-preflight.json",
+      "bytes": 1996,
+      "sha256": "389b1bd565bb3f81ee680a56bf0c2eae5374b6a2656ba97a19446e38d02e4897"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/launcher.proposed.sh",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/launcher.proposed.sh",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/launcher.proposed.sh",
+      "bytes": 15258,
+      "sha256": "e72a69ae49e7fa50d2a00a31c949b98585ba3b250ffc7035ae7197e39557caba"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/launcher.sh-vs-rate500-79a.diff",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/launcher.sh-vs-rate500-79a.diff",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/launcher.sh-vs-rate500-79a.diff",
+      "bytes": 3765,
+      "sha256": "4d147a56cf619bbcbb06ce8e9918773d8cd3a85751fdb10d525728406d68d87f"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/materialization-receipt.json",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/materialization-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/materialization-receipt.json",
+      "bytes": 3261,
+      "sha256": "45968c37fc028285387f138f07235987a7379be372264d19467a17f2a37fce3e"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/planner-config-equivalence.json",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/planner-config-equivalence.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/planner-config-equivalence.json",
+      "bytes": 4320,
+      "sha256": "d7078b43177e7ebfac5d1911467ea536fbc56e3c43b11ae3822b4fe65d91e248"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/safe-planner-identity.json",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/safe-planner-identity.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/safe-planner-identity.json",
+      "bytes": 646,
+      "sha256": "0e9fec715813f121fae6afc58b27cb095d9731c6cb59d3ea5a0306b6dd0ed3e9"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/static-exact-build-preflight.json",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/static-exact-build-preflight.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/static-exact-build-preflight.json",
+      "bytes": 1900,
+      "sha256": "e4a2003e30256afaeed561a750f815551dca865a8a3de19da3a4f4e6032c90ba"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/supervise.proposed.py",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/supervise.proposed.py",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/supervise.proposed.py",
+      "bytes": 14105,
+      "sha256": "76b2043ebb8cbc31b21e4e76be9b70f779af80820a64b6e98ebca7dd578d9228"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/supervise.py-vs-rate500-79a.diff",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/supervise.py-vs-rate500-79a.diff",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/supervise.py-vs-rate500-79a.diff",
+      "bytes": 1572,
+      "sha256": "07990930bc94695e44d356d5a4be5d359e6f99683c9c92176267e6924bdf4601"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/PUBLIC_ALLOWLIST",
+      "bytes": 347,
+      "sha256": "19bb1e76ec47093adcf900ad8cd8c83bbad17cfc3eff973f8485df3647f6331f"
+    },
+    {
+      "group": "profile-rate500-d349-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/profile-rate500-d349-proposal-v1/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-d349-proposal-v1/PUBLIC_SHA256SUMS",
+      "bytes": 1205,
+      "sha256": "dad20d4ae54fb95933212b1b887098ed5825d88dff8d5b4da28d0a30d4f32010"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/cleanup.json",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/cleanup.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/cleanup.json",
+      "bytes": 373,
+      "sha256": "e4b49db89e68d909b77361c40e359006f1a0294d7fde575576d01b708488244a"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/cold_uid_isolation_integration_test.go",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/cold_uid_isolation_integration_test.go",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/cold_uid_isolation_integration_test.go",
+      "bytes": 8384,
+      "sha256": "8b0a6940bf3132ccf5aa29625985a4a00750827bae2d1a9be4d717fa5d7527fe"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/failure-matrix.md",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/failure-matrix.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/failure-matrix.md",
+      "bytes": 3148,
+      "sha256": "5942b0c2d6806c5ffd68c1070de00249e8a4127fa23c4e203b688f7a4c3964eb"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/report.md",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/report.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/report.md",
+      "bytes": 3867,
+      "sha256": "901057c53fd267702d278c16a5d32580e4a64087280c73619504a67929830f32"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/source-binding-after.json",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/source-binding-after.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/source-binding-after.json",
+      "bytes": 1727,
+      "sha256": "72f09f986dd0a1a63e249967f37781dbc186d2e5d32decaf155bf4ce3b998efe"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/source-binding-before.json",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/source-binding-before.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/source-binding-before.json",
+      "bytes": 1740,
+      "sha256": "34f5e5f8bf7fc5b4cc8a2fbe45f53f3a657b6eb9ff23af2914ddeb80f66a66fb"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/test-invocation.json",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/test-invocation.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/test-invocation.json",
+      "bytes": 648,
+      "sha256": "00468a4c5d9b30c0c29314c9b74bc9c94c432e3ea95d41c6a83ed054b0186636"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/test-only.patch",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/test-only.patch",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/test-only.patch",
+      "bytes": 8916,
+      "sha256": "2cade79c5be2375a3361b3e09cdbc2d736b25469ca20c42f04134fdd29c9960f"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/test-receipt.json",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/test-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/test-receipt.json",
+      "bytes": 260,
+      "sha256": "b53598d2ccf1efa006ddeacb9452be9e7379fe7c08a3e181cf3fd5cb3ac1e9c0"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/test-result-summary.json",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/test-result-summary.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/test-result-summary.json",
+      "bytes": 1292,
+      "sha256": "f6f80d30a6c780322bebf6cba4dadb7a3ed4a2992522403dcb0c3c0763edc40e"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/test-stderr.txt",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/test-stderr.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/test-stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/test-stdout.txt",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/test-stdout.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/test-stdout.txt",
+      "bytes": 2268,
+      "sha256": "9257387504e3850a0652556b336f01d1cd2406d77455191772c3781610b91e40"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/PUBLIC_ALLOWLIST",
+      "bytes": 245,
+      "sha256": "5c71428add50e47a04c648a3a715bed93672a9ee696b133dbf8f5ed196635f4b"
+    },
+    {
+      "group": "cold-lane-hol-contract-tests-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/cold-lane-hol-contract-tests-v1/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/PUBLIC_SHA256SUMS",
+      "bytes": 1120,
+      "sha256": "0e42e9b9f9fbc6b61b703b564ae5ac1ae8ef77512b0a0ab31456bf1760ee97ae"
+    },
+    {
+      "group": "cold-lane-hol-static-challenge-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-static-challenge-v1/report.md",
+      "target_relative": "cloud/cold-lane-hol-static-challenge-v1/report.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-static-challenge-v1/report.md",
+      "bytes": 4977,
+      "sha256": "7bf15f8b17ab8e1db78688005c6387608c365c96dab5c2ff6f4322887108fdee"
+    },
+    {
+      "group": "cold-lane-hol-static-challenge-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "target_relative": "cloud/cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "bytes": 3964,
+      "sha256": "c12ee141852124a042eb60c60ed9fe36192c2971a15d5f54b97598c07a0f915a"
+    },
+    {
+      "group": "cold-lane-hol-static-challenge-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-static-challenge-v1/PUBLIC_ALLOWLIST.txt",
+      "target_relative": "cloud/cold-lane-hol-static-challenge-v1/PUBLIC_ALLOWLIST.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-static-challenge-v1/PUBLIC_ALLOWLIST.txt",
+      "bytes": 35,
+      "sha256": "c2872bbb53c18cd7bf65ad2d8d12b30a614f51e4075bde805094ce2ddf20a278"
+    },
+    {
+      "group": "cold-lane-hol-static-challenge-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-static-challenge-v1/SHA256SUMS",
+      "target_relative": "cloud/cold-lane-hol-static-challenge-v1/SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-hol-static-challenge-v1/SHA256SUMS",
+      "bytes": 254,
+      "sha256": "16e486c7cf8982a78844b4caa2e110328adb744745a7af98c8335acfdcc1cd6e"
+    },
+    {
+      "group": "cold-lane-uid-flight-design-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-uid-flight-design-v1/design.md",
+      "target_relative": "cloud/cold-lane-uid-flight-design-v1/design.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-uid-flight-design-v1/design.md",
+      "bytes": 5938,
+      "sha256": "c08f992816c054c23523aaeb97a289f0005d4b76d4de33f4cd4ce8adf4f91ae3"
+    },
+    {
+      "group": "cold-lane-uid-flight-design-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-uid-flight-design-v1/failure-matrix-before-implementation.md",
+      "target_relative": "cloud/cold-lane-uid-flight-design-v1/failure-matrix-before-implementation.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-uid-flight-design-v1/failure-matrix-before-implementation.md",
+      "bytes": 8558,
+      "sha256": "3bc0ffd2bc4c8797d4657075c1460b98c35531e8b324dc9c58d45645cf6b3408"
+    },
+    {
+      "group": "cold-lane-uid-flight-design-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-uid-flight-design-v1/source-binding.json",
+      "target_relative": "cloud/cold-lane-uid-flight-design-v1/source-binding.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-uid-flight-design-v1/source-binding.json",
+      "bytes": 2530,
+      "sha256": "22eb735ff4ca40a740eac6a78d4908d85648ccb7a6294673495f8f9fb381624c"
+    },
+    {
+      "group": "cold-lane-uid-flight-design-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-uid-flight-design-v1/validation.json",
+      "target_relative": "cloud/cold-lane-uid-flight-design-v1/validation.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-uid-flight-design-v1/validation.json",
+      "bytes": 462,
+      "sha256": "60a2e12f59d7d4d38b23aa1ee83e52ba9977f287313cf825b56d39ea7bc79097"
+    },
+    {
+      "group": "cold-lane-uid-flight-design-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-uid-flight-design-v1/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/cold-lane-uid-flight-design-v1/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-uid-flight-design-v1/PUBLIC_ALLOWLIST",
+      "bytes": 86,
+      "sha256": "07b4d2b21ffcffa6ecdf66de449e484e55ee471cd4cfbdf2648ca777943c8289"
+    },
+    {
+      "group": "cold-lane-uid-flight-design-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-uid-flight-design-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/cold-lane-uid-flight-design-v1/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/cold-lane-uid-flight-design-v1/PUBLIC_SHA256SUMS",
+      "bytes": 433,
+      "sha256": "1d6104619e5eb01f6974c9a774493d0ef796ed9644ab1f3aa227ab36fb98ceec"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/diagnostic-conclusion.md",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/diagnostic-conclusion.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/diagnostic-conclusion.md",
+      "bytes": 1731,
+      "sha256": "5c612048821e353eb0b1a77f93eac112ac780aaee07268674b2792a7d5504549"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/safe-final-evidence-snapshot.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/safe-final-evidence-snapshot.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/safe-final-evidence-snapshot.json",
+      "bytes": 12573,
+      "sha256": "ea23cd18011b0e8b1e5808b8abb49cf5c599afe47f13dffd2e5ce69e31dd2f35"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/safe-retained-worker-cuts.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/safe-retained-worker-cuts.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/safe-retained-worker-cuts.json",
+      "bytes": 8560,
+      "sha256": "8a3ad660321d16709a0b55d8251714b9e042aa39b2aaa66127b7e9db4cda92c4"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/input-integrity.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/input-integrity.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/input-integrity.json",
+      "bytes": 2297,
+      "sha256": "d81456624a6dfc00d05a55e11b65d3247ebc847664ccf6f783736b423d6c8c09"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/cleanup-receipt.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/cleanup-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/cleanup-receipt.json",
+      "bytes": 920,
+      "sha256": "385aaf10f398376d9841013d28099e964bd49d1c5ce7f76a22620b856fc23ee3"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/final-zero-recheck.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/final-zero-recheck.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/final-zero-recheck.json",
+      "bytes": 348,
+      "sha256": "42f1fd7b98910d576c933b14012ccda44c6545ca88efe708837643fd0272e666"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/diagnostic-result.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/diagnostic-result.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/diagnostic-result.json",
+      "bytes": 1942,
+      "sha256": "aee07cab7e1be6e65fd16da186c9926fbad0f6e10c65ed8fd4a4f8f7a79f9e7f"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/supervisor-events.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/supervisor-events.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/supervisor-events.json",
+      "bytes": 558,
+      "sha256": "5d3a344ea342547c2af73e71c527e96b23188dc71fbc7feaf3216065bf7918c1"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/profile-driver-status.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/profile-driver-status.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/profile-driver-status.json",
+      "bytes": 1784,
+      "sha256": "9f09aa88e8dbfdab2f5bf11f1cfaf082cbef107aecf6617d8ae3d028f2ab50ef"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/profiles-node2/metadata.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/profiles-node2/metadata.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/profiles-node2/metadata.json",
+      "bytes": 569,
+      "sha256": "b88f0b036fcfdfa26d64dd541aa4b6dbd76369199644db06b33abab4eeb711e8"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/profiles-node2/requests/node-2-cpu.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/profiles-node2/requests/node-2-cpu.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/profiles-node2/requests/node-2-cpu.json",
+      "bytes": 190,
+      "sha256": "5c1753140ce66fcd146845beba0476742f978749d69d4af18776cb7dac60f5a9"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/profiles-node2/requests/node-2-goroutine.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/profiles-node2/requests/node-2-goroutine.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/profiles-node2/requests/node-2-goroutine.json",
+      "bytes": 196,
+      "sha256": "46c449ab4946d2a8e3406e2e85677f90f4af8234cc4bd70d34295ce5a64e9ce1"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/PUBLIC_ALLOWLIST",
+      "bytes": 344,
+      "sha256": "2eafa5ea593c8087473dcd551c16a234c57c90eeb075db8b0968e0531da76ec8"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/PUBLIC_SHA256SUMS",
+      "bytes": 1136,
+      "sha256": "80e51fd185c46554cff6f4de4a49f6a48f74670a7b92cfcd5387ab97bd7cca55"
+    }
+  ],
+  "scope_semantics": "Six independently bound finite scopes only; no recursive directory inclusion. d349 actual run parent does not include its later first-expired addendum.",
+  "sensitivity": {
+    "all_selected_bytes_utf8": true,
+    "raw_profile_or_executable_magic_hits": 0,
+    "private_key_or_cloud_access_key_literals": 0,
+    "credential_literal_hits": 0,
+    "credential_syntax_classifications": [
+      {
+        "group": "profile-rate500-d349-proposal-v1",
+        "path": "launcher.proposed.sh",
+        "classification": "Shell Authorization Bearer $token parameter reference; no token value included"
+      }
+    ],
+    "raw_identity_body_payload_json_fields": 0,
+    "parsed_json_files": [
+      "exact-source-build-d349-native-v1/build-receipt.json",
+      "exact-source-build-d349-native-v1/completed.json",
+      "exact-source-build-d349-native-v1/darwin-arm64-wkcli-identity.json",
+      "exact-source-build-d349-native-v1/darwin-arm64-wukongim-identity.json",
+      "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "exact-source-build-d349-native-v1/instructions-freeze.json",
+      "exact-source-build-d349-native-v1/source-selection.json",
+      "profile-rate500-d349-proposal-v1/final-preflight.json",
+      "profile-rate500-d349-proposal-v1/materialization-receipt.json",
+      "profile-rate500-d349-proposal-v1/planner-config-equivalence.json",
+      "profile-rate500-d349-proposal-v1/safe-planner-identity.json",
+      "profile-rate500-d349-proposal-v1/static-exact-build-preflight.json",
+      "cold-lane-hol-contract-tests-v1/cleanup.json",
+      "cold-lane-hol-contract-tests-v1/source-binding-after.json",
+      "cold-lane-hol-contract-tests-v1/source-binding-before.json",
+      "cold-lane-hol-contract-tests-v1/test-invocation.json",
+      "cold-lane-hol-contract-tests-v1/test-receipt.json",
+      "cold-lane-hol-contract-tests-v1/test-result-summary.json",
+      "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "cold-lane-uid-flight-design-v1/source-binding.json",
+      "cold-lane-uid-flight-design-v1/validation.json",
+      "full-original-distribution-d349-rate500-profile-v1/safe-final-evidence-snapshot.json",
+      "full-original-distribution-d349-rate500-profile-v1/safe-retained-worker-cuts.json",
+      "full-original-distribution-d349-rate500-profile-v1/input-integrity.json",
+      "full-original-distribution-d349-rate500-profile-v1/cleanup-receipt.json",
+      "full-original-distribution-d349-rate500-profile-v1/final-zero-recheck.json",
+      "full-original-distribution-d349-rate500-profile-v1/diagnostic-result.json",
+      "full-original-distribution-d349-rate500-profile-v1/supervisor-events.json",
+      "full-original-distribution-d349-rate500-profile-v1/profile-driver-status.json",
+      "full-original-distribution-d349-rate500-profile-v1/profiles-node2/metadata.json",
+      "full-original-distribution-d349-rate500-profile-v1/profiles-node2/requests/node-2-cpu.json",
+      "full-original-distribution-d349-rate500-profile-v1/profiles-node2/requests/node-2-goroutine.json"
+    ],
+    "test_output_classification": "One finite tests-only integration output from source-controlled fixed synthetic fixtures, plus new test source and patch. Intentional RED and eight PASS retained. No Go test JSONL or real-run worker identity/log stream selected.",
+    "excluded_scopes": [
+      "All raw profiles, binaries, actual configs, DBs, worker/runtime logs, real UID/channel/client/body/MessageID data",
+      "Unsealed d349 retained-loss addendum and all later metadata/root sample join or harness diagnosis",
+      "All unlisted nested directories, new implementation or post-design tests; UID-flight scope is design only",
+      "No cloud operation, service probe, build, workload or test performed by this archive task"
+    ]
+  },
+  "source_git_object_references_verified": [
+    {
+      "origin": "exact-source-build-d349-native-v1/instructions-freeze.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/instructions-freeze.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/app/FLOW.md",
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "bytes": 12335
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/instructions-freeze.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/runtime/delivery/FLOW.md",
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+      "bytes": 3273
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/instructions-freeze.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/FLOW.md",
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "bytes": 6617
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/instructions-freeze.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "bytes": 6514
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-before.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-before.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/FLOW.md",
+      "sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2",
+      "bytes": 2626
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-before.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/FLOW.md",
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "bytes": 2490
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-before.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/recovery.go",
+      "sha256": "dbbdc02e4922c1faef9aa81084ab06dd404be7f2a394a1fe4e4ff238e91542fb",
+      "bytes": 6242
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-before.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/recovery.go",
+      "sha256": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83",
+      "bytes": 2712
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-before.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/recovery_test.go",
+      "sha256": "b98ebb6ea7e0304b180503353aadfc82258ada689ffe21ed696bf59e7d6773ef",
+      "bytes": 6521
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-before.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/recovery_integration_test.go",
+      "sha256": "f7b6c909e2d51668232878b8d17019807de9ebb1acce220ce9be637cacf29f53",
+      "bytes": 1192
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-after.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-after.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/FLOW.md",
+      "sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2",
+      "bytes": 2626
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-after.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/FLOW.md",
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "bytes": 2490
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-after.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/recovery.go",
+      "sha256": "dbbdc02e4922c1faef9aa81084ab06dd404be7f2a394a1fe4e4ff238e91542fb",
+      "bytes": 6242
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-after.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/recovery.go",
+      "sha256": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83",
+      "bytes": 2712
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-after.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/recovery_test.go",
+      "sha256": "b98ebb6ea7e0304b180503353aadfc82258ada689ffe21ed696bf59e7d6773ef",
+      "bytes": 6521
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-after.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/recovery_integration_test.go",
+      "sha256": "f7b6c909e2d51668232878b8d17019807de9ebb1acce220ce9be637cacf29f53",
+      "bytes": 1192
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/FLOW.md",
+      "sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2",
+      "bytes": 2626
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/FLOW.md",
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "bytes": 2490
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+      "bytes": 8612
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/recovery.go",
+      "sha256": "dbbdc02e4922c1faef9aa81084ab06dd404be7f2a394a1fe4e4ff238e91542fb",
+      "bytes": 6242
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/owner_recovery.go",
+      "sha256": "d2c49e662a578ab380bccc2b594e9f4b100558137c007078ab4694e5d32e6717",
+      "bytes": 4604
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/recovery_test.go",
+      "sha256": "b98ebb6ea7e0304b180503353aadfc82258ada689ffe21ed696bf59e7d6773ef",
+      "bytes": 6521
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/recovery_integration_test.go",
+      "sha256": "f7b6c909e2d51668232878b8d17019807de9ebb1acce220ce9be637cacf29f53",
+      "bytes": 1192
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/types.go",
+      "sha256": "1c8e8bdb35c6bdcacf362ad65c4355cb634e8f0641a32003e0ab92f7c4f74798",
+      "bytes": 6102
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/directory.go",
+      "sha256": "b9ad257b4a6e231416d7813639e6225694a126b4d4953e191985171ddcd27900",
+      "bytes": 19192
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/recovery.go",
+      "sha256": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83",
+      "bytes": 2712
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/recovery_test.go",
+      "sha256": "46fcf7ab35eba207b2c7e9ef5e1b4ae602c0af651fa9d56d9dd613dcbc4b5e19",
+      "bytes": 3569
+    },
+    {
+      "origin": "cold-lane-uid-flight-design-v1/source-binding.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/infra/cluster/presence_recovery.go",
+      "sha256": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55",
+      "bytes": 8454
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/FLOW.md",
+      "sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2",
+      "bytes": 2626
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/FLOW.md",
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "bytes": 2490
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+      "bytes": 8612
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/recovery.go",
+      "sha256": "dbbdc02e4922c1faef9aa81084ab06dd404be7f2a394a1fe4e4ff238e91542fb",
+      "bytes": 6242
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/owner_recovery.go",
+      "sha256": "d2c49e662a578ab380bccc2b594e9f4b100558137c007078ab4694e5d32e6717",
+      "bytes": 4604
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/usecase/presence/recovery_test.go",
+      "sha256": "b98ebb6ea7e0304b180503353aadfc82258ada689ffe21ed696bf59e7d6773ef",
+      "bytes": 6521
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/recovery.go",
+      "sha256": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83",
+      "bytes": 2712
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/directory.go",
+      "sha256": "b9ad257b4a6e231416d7813639e6225694a126b4d4953e191985171ddcd27900",
+      "bytes": 19192
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/types.go",
+      "sha256": "1c8e8bdb35c6bdcacf362ad65c4355cb634e8f0641a32003e0ab92f7c4f74798",
+      "bytes": 6102
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/runtime/presence/recovery_test.go",
+      "sha256": "46fcf7ab35eba207b2c7e9ef5e1b4ae602c0af651fa9d56d9dd613dcbc4b5e19",
+      "bytes": 3569
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/infra/cluster/presence_recovery.go",
+      "sha256": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55",
+      "bytes": 8454
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+      "path": "internal/infra/cluster/presence_recovery_test.go",
+      "sha256": "883c2d3c10b9a0972644bcb9d547fa32f1336b7b461e8565a1d6860bfd940884",
+      "bytes": 6848
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/api/demoui/dist/assets/Chat-0bd26d92.js",
+      "sha256": "c9ecd5e1b95ce54e6b94114569dc77c0dce7d0556dc6e6e04916cb15d0eb5943",
+      "bytes": 25346
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/api/demoui/dist/assets/Chat-e2f023a7.css",
+      "sha256": "e2f023a7326d2750d102dd05109d4a04c949d8939e4440915472746cb0b026f9",
+      "bytes": 10923
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/api/demoui/dist/assets/Login-68a64955.css",
+      "sha256": "68a6495555f231b61a03a2123706ed9ce71ae91b9770552770439052f29afe1e",
+      "bytes": 1881
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/api/demoui/dist/assets/Login-fc1be1af.js",
+      "sha256": "1aa46233de46c6cb2b58508c7df7bbacb06e6d7b866d85d4675591fb4081e80e",
+      "bytes": 3053
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/api/demoui/dist/assets/assets-056547b1.css",
+      "sha256": "056547b16dd762cfb0ad89df6346f0b7248b4704b09484a64076be85fc69dcbf",
+      "bytes": 516
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/api/demoui/dist/assets/assets-48a13729.js",
+      "sha256": "f2a2242ef90f91f0793e8b4e99999907009c158a4a889253ec706dbac31d3fce",
+      "bytes": 1347
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/api/demoui/dist/assets/index-00c11449.css",
+      "sha256": "00c11449c7702d0585031f525c4b01e84f62bc915a3397cfd73ca7422da42933",
+      "bytes": 1844
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/api/demoui/dist/assets/index-0c1748c5.js",
+      "sha256": "2407cb08b3de229aec3b1f7c7e0dfa81cabc4c6e3e88de99dc84d27fec4eee36",
+      "bytes": 376546
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/api/demoui/dist/index.html",
+      "sha256": "8640276b6ae1c9cab902716fa6c7611407ed00075a4ba09b7998b2f02c32c5c3",
+      "bytes": 441
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/api/demoui/dist/logo.png",
+      "sha256": "c1433cb94a2f05bf11e5ba3a04be9a531f7ed0a4957b1851cd3c97f064391eef",
+      "bytes": 6085
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/action-form-dialog-Dgf3eh7Z.js",
+      "sha256": "69f24004e928e9cc669fcd5e13df23a27d663ba62590acf2feaa53e4b65b5246",
+      "bytes": 1511
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/arrow-down-BDjUkTdf.js",
+      "sha256": "2893650e4cae8514fad5cd4b806f7eb7185caccfaa1dea5b9753011309abd894",
+      "bytes": 154
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/circle-question-mark-Pbkj54ja.js",
+      "sha256": "837be1a25e6ff5602f9a2cf76df6cdb8c748baaa141a715257e743f198805d01",
+      "bytes": 237
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/confirm-dialog-BlfIIUEM.js",
+      "sha256": "27ea38a136070012985175af484f2d363535928117d74531e74f72cd06cef8f6",
+      "bytes": 1453
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/copy-DK6llW26.js",
+      "sha256": "75088080963263ea54310c6d6c5356d5af1d7b05b741b0a9bb2479b4f369076c",
+      "bytes": 225
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/detail-sheet-DmHgWO7L.js",
+      "sha256": "8e368b264d994072f43c351a7f90d7281d027f1ae15cf570b0053b2d9fd7572e",
+      "bytes": 1366
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/geist-cyrillic-wght-normal-CHSlOQsW.woff2",
+      "sha256": "33d7ab460dff4e1fc586738d5d50e3e04bcb48e9bef7b94154cc7e07aeed6b66",
+      "bytes": 14692
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/geist-latin-ext-wght-normal-DMtmJ5ZE.woff2",
+      "sha256": "3640f9351b2a4631515dffea38092c24e70db9df2ef1e97c10cbdeb4163e6186",
+      "bytes": 15308
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/geist-latin-wght-normal-Dm3htQBi.woff2",
+      "sha256": "0cbbe6286a00f356e98980783cc950a9b693751e04aedfb97d9526ff6dc2b316",
+      "bytes": 28400
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/geist-mono-cyrillic-wght-normal-BZdD_g9V.woff2",
+      "sha256": "a5e8e11f202b076d7640113f3dd28853f90a45991ff4e61a2262f1527c6e17ea",
+      "bytes": 12616
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/geist-mono-latin-ext-wght-normal-b6lpi8_2.woff2",
+      "sha256": "6aadc1c180fd799413a0f225ffc68356d6ed33d2d867d2899322b1c9530ed5e7",
+      "bytes": 13044
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/geist-mono-latin-wght-normal-Cjtb1TV-.woff2",
+      "sha256": "e9fb088eeacced307860d82ceedb0ae9ad2ebfa07a7c0a7279c8c961dd9d5fd3",
+      "bytes": 31368
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/icons-BRtHMaym.js",
+      "sha256": "67eed46ee8cdc30807dee9b80128d3eaaab80a00e7b76c0e6dc6784a50dde129",
+      "bytes": 8995
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/index-8UIgC_rj.js",
+      "sha256": "bf73a06ada60bfa2d047fb61a0c54be652718c2fc8dface6a7f87037d6e9b6a7",
+      "bytes": 337464
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/index-Du3-0AeG.css",
+      "sha256": "e74c22a27a0f7b07da1dcc11339829229c211e371f206837297939d92145e194",
+      "bytes": 94600
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/internationalization-CkLnavra.js",
+      "sha256": "e8c05f3263e19af268f1e1dff00798c3e11a16ca49bf0a253e0a3dcbcdc578b0",
+      "bytes": 49879
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/key-value-list-C1OdtMlN.js",
+      "sha256": "b43fd381d3fcbbc889efe4d3c8b08f45751d086bd4fa1b9a590f92729d4f02f8",
+      "bytes": 467
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/manager-message-payload-CrO-Bdz8.js",
+      "sha256": "2cad4205eae3b415da1477242d5d986c9380973e95296a924461700efd35ec3d",
+      "bytes": 316
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/monitor-node-selector-B2aKocIr.js",
+      "sha256": "1e859f1e67f4a6fe5c8666f7dfb59300fe3040c1884de550bb4c365ad38bbb7e",
+      "bytes": 1141
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/node-config-i18n-BQPjZY_d.js",
+      "sha256": "a99933eae7a9f6ef109e9f25729ad24b7176fcfaf57a45762d76096edb22c134",
+      "bytes": 5602
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/node-filter-D2TXFXyN.js",
+      "sha256": "a4e6678f2bbed1ffa17e021d7c171a66261fb139983cc0de8d8a5d3512e7b93a",
+      "bytes": 1147
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-1k_kcmBA.js",
+      "sha256": "11852b213a4fbcd69dcbe7e7e565a55924005ac1a7ff4fd1f12baf1219aeee27",
+      "bytes": 11276
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-7p3guEEA.js",
+      "sha256": "9887d050be435cb6443ce130d6cd5ffb99ff1d600f187dc7d4703fb5de8a6e84",
+      "bytes": 25156
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-BBiOqBGB.js",
+      "sha256": "725253b137b9d0f88f6af35eaec4114216879f0a9c05b8acd9df9941a342e6f1",
+      "bytes": 27162
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-BDgAnElw.js",
+      "sha256": "079adbc7f9ef556f764988dfd66bf6f6501f3f630ecd4b54e131bd22287404be",
+      "bytes": 30060
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-BbJU6hm0.js",
+      "sha256": "c8bef22d4fd869d929efe692a550769f74d42fdcf7ccba5fca0a21ef79d106f9",
+      "bytes": 16794
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-BrhUw6uI.js",
+      "sha256": "eb6f7056312268469d17b7e50e47d9254fdd56994270fedf99465296a9a55a76",
+      "bytes": 66393
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-C5sgfBV2.js",
+      "sha256": "aaf05a127e335771c62db0930d5573c371676746ea9149b44803a36dc6974fdc",
+      "bytes": 10574
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-CIj-iC5S.js",
+      "sha256": "11bb7cd36ec1ee47bbee154ae63dc06e432c30575f0dbecdee3ccd92e57fdfa8",
+      "bytes": 14313
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-D-RCbGIo.js",
+      "sha256": "bafdfe77818736afbd870ec64d019b12015f36d9908e779cd6ec2c2ae839bcf9",
+      "bytes": 15456
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-DBK7ZUys.js",
+      "sha256": "d0be211e0405f3339e1ca48484f1641bf13ac4f73e86c04f27af7093d0041bea",
+      "bytes": 29671
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-Dd_mZDcH2.js",
+      "sha256": "d81a726653982c13e7c1075d9564593a6f1b38e26206bb6278f6c7910a767395",
+      "bytes": 6286
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-DqaUIKIG.js",
+      "sha256": "698152fa16b34bde662ea0def0da2282809603c0a07aaf2ba699816c5ab906bb",
+      "bytes": 28881
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-DrlhDoPP.js",
+      "sha256": "b4a3ba7a9ee40faf2d094ab3b4fc90441c5535709fe9612c995b6279958bec31",
+      "bytes": 7449
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-GuLuWAJb.js",
+      "sha256": "8a83eacc9ef8eebfc88a3941e386a50a42db9a52645a476a7ec2f349ddb25b15",
+      "bytes": 11073
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-QpXZf7HB.js",
+      "sha256": "ea7dafaeb130f89b73bf47e387b0fc5a1c49b3aa8be452f5995c298e7c965c31",
+      "bytes": 5440
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-Uhs5_TPd.js",
+      "sha256": "6ba8885e8937b92cf34c356db0227ddf7bcf5cda1362ec4ae890239e165a4a44",
+      "bytes": 17742
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-Vd9yu4UC.js",
+      "sha256": "f6bdf8a0841713678af9e423549289fab7e0e5f6222fa68f0ced240c12abf626",
+      "bytes": 8316
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-Yk4VAldT.js",
+      "sha256": "9e592ec54f3b0dedd4741cfc98712b040ea612a2bf1ed2cf4dd10b7cfe377e9d",
+      "bytes": 8744
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-gj0YRSeA.js",
+      "sha256": "c694e0c2f1aff3a657f564eb805af595d93020aa71d75a7859b19b842b4907af",
+      "bytes": 11898
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-header-DycBClwF.js",
+      "sha256": "82bfa0a13cabd20e02cf463c243ec06fcbb4f46289b98bc7e25b2ea9056a117f",
+      "bytes": 1319
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-kSwBta5d.js",
+      "sha256": "72ef650bfd91256fd8ceb1c2038780ea026ddb92f640659c2637f625c708393e",
+      "bytes": 388798
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-ksAYZ6SJ.js",
+      "sha256": "45f0d4fb6365e319d1d3d89148cd844a864d4e6a02580ffd85a6a79014f3d097",
+      "bytes": 24090
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/page-tabs-tnEB8CKB.js",
+      "sha256": "f0ac82f44a090fc39150ab46e1c87e5583367f4654919118efc82487882310b8",
+      "bytes": 639
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/pause-C-qiB3dF.js",
+      "sha256": "4795f144ba352d438c76e88bc9fc31b988e8f1311c517edf2d9da9c30c9fbaeb",
+      "bytes": 200
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/permissions-DlVU-3ev.js",
+      "sha256": "f4f61367a906965f3f5427492ffd9e89169943ebf7cdca759d0b05b5ff58ecf5",
+      "bytes": 134
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/play-BkkcuACI.js",
+      "sha256": "ad825dedea78247d819d7e1b288eb24357cd29f0d894832271af894c2d0005db",
+      "bytes": 179
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/protected-app-shell-fxcDvw7h.js",
+      "sha256": "4fd5a38e1043701e686e5187496877f7f6d25ed392a3c61c0e73bfa87c719b13",
+      "bytes": 12723
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/react-core-C41Lr-7s.js",
+      "sha256": "1248d9a8c645c2ef87e0e8e0a18753933eaa16b034fdc30021b4cb8fdbd93731",
+      "bytes": 189644
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/refresh-cw-CwhT7J6N.js",
+      "sha256": "d1526a5221bd5f2dfc5902d4e5ef9bb742f80f96abd3d5c6a7d866427456d199",
+      "bytes": 310
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/resource-state-C0zNLkrh.js",
+      "sha256": "cfa48767f5c0e2a59a205f90ae90ac937573528e198375c9f2ec6b46e78d9c07",
+      "bytes": 1091
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/rolldown-runtime-S-ySWqyJ.js",
+      "sha256": "5db5ba82eef00d1dee7e86e663098c9427d01183a88d357437daff295aec3e75",
+      "bytes": 694
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/router-CUwpFhXQ.js",
+      "sha256": "a285c97fe0c4d0dd4c8e0beaa2acfb191b288cd2b053c0fc0f2042214464e7c4",
+      "bytes": 93567
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/search-BUeC82_e.js",
+      "sha256": "a382287b8772d4392bcbbea5210f351ec9ef05aa7b69205bda0697645e24788e",
+      "bytes": 163
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/section-card-CHWGwIZX.js",
+      "sha256": "b82d35f18ca2328fbadfcf1e3e16e48f462117691d863ce0efe49dba557fa182",
+      "bytes": 2141
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/sheet-BCkYM0TR.js",
+      "sha256": "370bc56ec46fa95b83ac77f215cbd41289119bcece846d4c69226fb791def738",
+      "bytes": 24008
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/status-badge-rscIRwaF.js",
+      "sha256": "6f10686725a7c6d072e93fadfffc477eed98f5191dd8dcb37c0851928598aaa4",
+      "bytes": 773
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/status-labels-D5vbD6Hp.js",
+      "sha256": "7c0b7f2227b7f9b3cfee25059e1a206afd1934d2fb25fec4b9b23f34189efc92",
+      "bytes": 3368
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/ui-primitives-BB9hC0a6.js",
+      "sha256": "083eec62cfb1c537adfefd67ec1a3d14080f671275705c028ce1508c363cc418",
+      "bytes": 44904
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/use-modal-focus-CZQjdk0o.js",
+      "sha256": "228e761ec4e215377f472c090ca70db9504aaa6aa2ac9a663b1882a8ede7bbed",
+      "bytes": 1032
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/utilities-DqAjjHqi.js",
+      "sha256": "cb0daa33896f32c27b6d231af9bf31ec78632be5bc8bfba14ba0963f06b66d2c",
+      "bytes": 27692
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/assets/utils-BMh8XdsE.js",
+      "sha256": "66f7088025f146426697d68449c998e885fa2260e3903326431594dadcbeaf60",
+      "bytes": 18708
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/favicon.svg",
+      "sha256": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+      "bytes": 9522
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/icons.svg",
+      "sha256": "b45fa506195cfcdef406ba9f0c77b36ddc1a7c224040926ec70abc2fdea7b93a",
+      "bytes": 5031
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/index.html",
+      "sha256": "5fbc247869ad4c0194ba6ce79a981ae836559c675e64b018988802b58cc41e28",
+      "bytes": 1688
+    },
+    {
+      "origin": "exact-source-build-d349-native-v1/embedded-assets-comparison.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/access/manager/webui/dist/logo.png",
+      "sha256": "f14a73f7beed1c11f1c152b8b42f1c632136cba59917c86132b483bba8c7c2a7",
+      "bytes": 21203
+    }
+  ],
+  "non_git_frozen_reference_hashes_verified": [
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "frozen_source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/cold_uid_isolation_integration_test.go",
+      "bytes": 8384,
+      "sha256": "8b0a6940bf3132ccf5aa29625985a4a00750827bae2d1a9be4d717fa5d7527fe"
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "frozen_source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/report.md",
+      "bytes": 3867,
+      "sha256": "901057c53fd267702d278c16a5d32580e4a64087280c73619504a67929830f32"
+    },
+    {
+      "origin": "cold-lane-hol-static-challenge-v1/source-input-hashes.json",
+      "frozen_source": "/tmp/wukongim-v3-readiness-20261023/cloud/rate500-offline-profiles-v1/report.md",
+      "bytes": 2460,
+      "sha256": "0d99e6b020b3cf90db4a0066eea19ff12608c687c53dfeb1f1aaa7a36d28938a"
+    },
+    {
+      "origin": "cold-lane-hol-contract-tests-v1/source-binding-after.json",
+      "frozen_source": "/tmp/wukongim-v3-readiness-20261023/cloud/cold-lane-hol-contract-tests-v1/cold_uid_isolation_integration_test.go",
+      "bytes": 8384,
+      "sha256": "8b0a6940bf3132ccf5aa29625985a4a00750827bae2d1a9be4d717fa5d7527fe"
+    }
+  ],
+  "additional_source_selection_verified": {
+    "exact_changed_paths": [
+      "CHANGELOG.md",
+      "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+      "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "docs/development/PROJECT_KNOWLEDGE.md",
+      "internal/app/composition_classification_contract_test.go",
+      "internal/app/observability.go",
+      "internal/app/observability_test.go",
+      "internal/app/online_delivery.go",
+      "internal/app/online_delivery_test.go",
+      "internal/bench/chatlifecycle/checkpoint.go",
+      "internal/bench/chatlifecycle/coordinator.go",
+      "internal/bench/chatlifecycle/finalize_diagnostics_test.go",
+      "internal/bench/chatlifecycle/production_controller.go",
+      "internal/runtime/delivery/runtime.go",
+      "internal/runtime/delivery/runtime_ports.go",
+      "internal/runtime/delivery/runtime_test.go",
+      "pkg/metrics/gateway.go",
+      "pkg/metrics/registry_test.go",
+      "scripts/chat-lifecycle/terminal-evidence.py",
+      "scripts/testdata/chat_lifecycle_terminal_evidence_test.py"
+    ],
+    "production_patch_paths": [
+      "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "internal/app/observability.go",
+      "internal/app/online_delivery.go",
+      "internal/bench/chatlifecycle/checkpoint.go",
+      "internal/bench/chatlifecycle/coordinator.go",
+      "internal/bench/chatlifecycle/production_controller.go",
+      "internal/runtime/delivery/runtime.go",
+      "internal/runtime/delivery/runtime_ports.go",
+      "pkg/metrics/gateway.go"
+    ],
+    "production_patch_byte_equal_git_diff": true,
+    "76_assets_exact_git_objects": true
+  },
+  "interpretation": [
+    "Exact d349 native build is diagnostic source/binary binding only, not Linux execution or original cloud root cause.",
+    "Latest500 retained cut has8001SEND/ACK,zero first-attempt failure/rejection and5expired; #1028 exposes meta_checkpoint/invalid with frozen product_failure/message_loss/true, while CLI stays harness_invalid and final.json is absent. Not complete acceptance.",
+    "HOL controlled RED proves coarse admission mechanism under available fake owner and proposes new independent cold-UID contract; existing fixed lanes are documented. It does not alone establish a production correctness defect or five sample/cloud causal join.",
+    "UID-flight has only design,19-case preimplementation matrix and static review. No production implementation or green fix yet.",
+    "Owned cloud and local run resources zero; NO-GO continues. No paid restart or stable publication inferred."
+  ],
+  "mutable_report_observation_boundary": [
+    {
+      "target_relative": "docs/reports/2026-10-23-v3-release-readiness.md",
+      "old": {
+        "bytes": 26423,
+        "sha256": "9f6a9553a4ba9dfe8335835dff4f8026be7c4705dc85eb99c7b574d38b54bb57"
+      },
+      "draft_path": "/tmp/wukongim-v3-readiness-20261023/archive-batch12-preflight/report.proposed-v3.md",
+      "draft": {
+        "bytes": 29800,
+        "sha256": "812c53d4d0960ecde22a61c4025be4a500367d0336f2966e70ddfc5fd6d9515e"
+      },
+      "unified_diff_path": "/tmp/wukongim-v3-readiness-20261023/archive-batch12-preflight/report.proposed-v3.md.diff"
+    },
+    {
+      "target_relative": "docs/reports/v3-release-readiness-20261023/README.md",
+      "old": {
+        "bytes": 6260,
+        "sha256": "fcdd262e5fa1d1b0eaf1b7125ae8b8b2b32f2b7b539d0826c7c4b77dceb67f73"
+      },
+      "draft_path": "/tmp/wukongim-v3-readiness-20261023/archive-batch12-preflight/archive-readme.proposed.md",
+      "draft": {
+        "bytes": 7022,
+        "sha256": "1b446ad482bb486e331a7d90dcba171b6e484951b93345fc83b89935abf3be43"
+      },
+      "unified_diff_path": "/tmp/wukongim-v3-readiness-20261023/archive-batch12-preflight/archive-readme.proposed.md.diff"
+    }
+  ],
+  "preservation": {
+    "previous_checkpoint_entries": 2725,
+    "previous_checkpoint_sha256": "3be140aaaa135d583cc9ef2ba9e536b20d50bfe853128dd56a37aecb6a328802",
+    "only_old_payload_paths_allowed_to_change": [
+      "docs/reports/2026-10-23-v3-release-readiness.md",
+      "docs/reports/v3-release-readiness-20261023/README.md"
+    ],
+    "all_other_old_payloads_remain_byte_equal": true,
+    "original_source_payloads_copied_byte_equal": true,
+    "no_later_addendum_or_UID_candidate_implementation_added": true
+  }
+}

@@ -1,0 +1,12 @@
+cleanup.json
+cold_uid_isolation_integration_test.go
+failure-matrix.md
+report.md
+source-binding-after.json
+source-binding-before.json
+test-invocation.json
+test-only.patch
+test-receipt.json
+test-result-summary.json
+test-stderr.txt
+test-stdout.txt

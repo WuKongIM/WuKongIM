@@ -1,0 +1,23 @@
+--- baseline/supervise.py
++++ proposed/supervise.py
+@@ -13,9 +13,9 @@
+ import urllib.request
+ from exact_build_guard import verify_exact_build, PRODUCT_BINARIES
+ 
+-ROOT = Path("/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a")
++ROOT = Path("/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-d349-diagnostics")
+ OUT = Path(__file__).resolve().parent
+-SOURCE = "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06"
++SOURCE = "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e"
+ RUN_ID = "chat-20261021T214505Z-00299e37-rehearsal-1"
+ BASE = 25000
+ TOTAL_SECONDS = 600
+@@ -280,7 +280,7 @@
+         "measured_barrier_reached": barrier is not None, "requested_traffic_seconds": TRAFFIC_SECONDS,
+         "observed_traffic_seconds": None if final is None else final.get("window", {}).get("elapsed", 0) / 1e9,
+         "supervisor_stop_requested_after_barrier_seconds": None if barrier is None or stop_at is None else max(0, stop_at - barrier),
+-        "local_profile_only": True, "cloud_capacity_qualified": False, "product_source_changed": False,
++        "local_profile_only": True, "cloud_capacity_qualified": False, "product_source_changed": True,
+         "controlled_send_rate_per_second": 500, "derived_max_global_burst": 1000, "formal_or_performance_acceptance": False,
+         "final_report_present": final is not None, "original_verdict": None if final is None else final.get("verdict"),
+         "messages": None if final is None else final.get("messages"), "correlation": None if final is None else final.get("correlation"),

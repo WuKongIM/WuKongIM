@@ -1,0 +1,79 @@
+{
+  "schema": "wukongim/d349-rate500-offline-preflight/v1",
+  "at_utc": "2026-10-22T21:34:04.776418+00:00",
+  "product_started": false,
+  "workload_started": false,
+  "checks": [
+    {
+      "check": "ast_parse",
+      "file": "supervise.py",
+      "passed": true
+    },
+    {
+      "check": "ast_parse",
+      "file": "exact_build_guard.py",
+      "passed": true
+    },
+    {
+      "check": "ast_parse",
+      "file": "watchdog.py",
+      "passed": true
+    },
+    {
+      "check": "ast_parse",
+      "file": "verify-slots.py",
+      "passed": true
+    },
+    {
+      "check": "bash-n",
+      "passed": true,
+      "stderr": ""
+    },
+    {
+      "check": "inmemory_negative_SOURCE",
+      "expected_error": "source_revision_mismatch",
+      "passed": true
+    },
+    {
+      "check": "inmemory_negative_EXACT_SERVER_SHA",
+      "expected_error": "exact_binary_mismatch",
+      "passed": true
+    }
+  ],
+  "old_pgid": 18742,
+  "old_pgid_members": [],
+  "other_wukongim_processes": [],
+  "selected_ports": [
+    25000,
+    25063
+  ],
+  "listeners": [],
+  "runtime_state_directories": {
+    "data": false,
+    "pids": false,
+    "workers": false,
+    "report": false,
+    "config": false,
+    "profiles-node2": false
+  },
+  "config_sha256": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+  "typed_config_diff_vs_last500": [],
+  "identity": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc",
+    "assignment_count": 3,
+    "generation": 1
+  },
+  "sampler_exact_bytes_unchanged": true,
+  "limits_unchanged": {
+    "total_seconds": 600,
+    "watchdog_TERM": 570,
+    "watchdog_KILL_after": 5,
+    "startup_seconds": 360,
+    "target_traffic_seconds": 120,
+    "lateststop_seconds": 480,
+    "exit7hold_seconds": 90
+  },
+  "source_change": "exact d349 diagnostics-only main, not presence fix",
+  "actual_run_requires_root_approval": true
+}

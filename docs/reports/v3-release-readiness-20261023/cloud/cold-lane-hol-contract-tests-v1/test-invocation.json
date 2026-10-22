@@ -1,0 +1,26 @@
+{
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-cold-lane-hol-contract",
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "-trimpath",
+    "-p=1",
+    "-tags=integration",
+    "./internal/usecase/presence",
+    "-run",
+    "^TestAuthorityRecovery",
+    "-count=1",
+    "-timeout=90s",
+    "-v"
+  ],
+  "environment_overrides": {
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOWORK": "off",
+    "CGO_ENABLED": "0",
+    "GOMAXPROCS": "1"
+  },
+  "outer_timeout_seconds": 120,
+  "started_utc": "2026-10-22T21:32:15.206398+00:00"
+}

@@ -1,0 +1,11 @@
+{
+  "recorded_utc": "2026-10-22T21:40:36.726294+00:00",
+  "source_rules_unchanged": true,
+  "worktree_status": "?? internal/usecase/presence/cold_uid_isolation_integration_test.go\n",
+  "new_production_code": false,
+  "new_test_code_since_frozen_hol_run": false,
+  "new_test_build_or_load": false,
+  "design_caps_are_provisional_not_existing_rpc_limits": true,
+  "failure_matrix_cases": 19,
+  "reviewer_completion_before_join_and_fifo_controls_included": true
+}

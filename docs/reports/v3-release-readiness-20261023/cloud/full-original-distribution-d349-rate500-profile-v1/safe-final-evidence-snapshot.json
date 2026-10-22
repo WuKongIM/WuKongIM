@@ -1,0 +1,429 @@
+{
+  "schema": "wukongim/local500-d349-safe-diagnostic-snapshot/v1",
+  "source_revision": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "native_product_and_CLI_SHA": {
+    "wukongim": "6b088040a02c360c3f7ad4dc1899f487985f2fb64dd3cef10b2875492b42e2af",
+    "wkcli": "53e603d9549f7cc0351f46797d3fcdaa717512d07c80e77d9f8f9ade7826e7cc"
+  },
+  "control": {
+    "send_rate_per_second": 500,
+    "required_derived_max_global_burst": 1000,
+    "burst_credit_seconds": 2,
+    "config_sha256": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+    "typed_config_diff_vs_last500": [],
+    "formal_or_performance_acceptance": false
+  },
+  "started_at_utc": "2026-10-22T21:35:23.727262+00:00",
+  "finished_at_utc": "2026-10-22T21:40:08.573560+00:00",
+  "launcher_exit_status": 8,
+  "final_report_present": false,
+  "final_verdict": null,
+  "CLI_result_summary_closed_fields": {
+    "outcome": "harness_invalid",
+    "cause": "invalid_observation",
+    "coordinator_code": "finalize",
+    "grant_failure_code": "",
+    "worker_runtime_code": "",
+    "observer_code": "",
+    "preflight_code": "",
+    "finalization_stage": "meta_checkpoint",
+    "finalization_reason": "invalid",
+    "observed_decision": "product_failure",
+    "observed_outcome": "product_failure",
+    "observed_cause": "message_loss",
+    "observed_terminal": "true"
+  },
+  "finalization_diagnostic_records": [
+    {
+      "event": "wkbench.chat_lifecycle.controller_failure",
+      "at": "2026-10-23T05:40:06.038546+08:00",
+      "cut": "terminal",
+      "phase": "finalize",
+      "stage": "meta_checkpoint",
+      "reason": "invalid",
+      "observed_outcome": "product_failure",
+      "observed_cause": "message_loss",
+      "observed_terminal": true
+    }
+  ],
+  "observed_traffic_seconds": "unknown because finalreport absent",
+  "run_start": {
+    "schema": "wukongim.chat_lifecycle.run_start/v1",
+    "stage": "shakeout",
+    "started_at": "2026-10-23T05:39:44.005837+08:00",
+    "expected_end_at": "2026-10-26T05:39:44.005837+08:00",
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc",
+    "generation": 1
+  },
+  "first_retained_loss_observation": {
+    "event": "wkbench.chat_lifecycle.worker_status_cut",
+    "at": "2026-10-23T05:39:59.039538875+08:00",
+    "cut": "periodic",
+    "totals": {
+      "target": 10000,
+      "online": 10000,
+      "starting": 0,
+      "closing": 0,
+      "traffic_ready": 10000
+    },
+    "close_reasons": {
+      "expired": 0,
+      "heartbeat_failed": 0,
+      "remote_terminal": 0,
+      "read_failed": 0,
+      "generation_stop": 0,
+      "explicit_logout": 0,
+      "transport_close_failed": 0
+    },
+    "messages": {
+      "sent": 7501,
+      "send_attempts": 7620,
+      "first_attempts": 7501,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 7204,
+      "send_rejected": 0,
+      "received": 7770,
+      "receive_acknowledged": 7770,
+      "receive_ack_failures": 0,
+      "retry_attempts": 119,
+      "terminal": 0,
+      "terminal_reasons": {
+        "retry_exhausted": {
+          "total": 0,
+          "attempt_timeout": 0,
+          "local_admission": 0,
+          "transport_error": 0,
+          "retryable_sendack": 0,
+          "unclassified": 0
+        },
+        "non_retriable": 0,
+        "session_closed": 0
+      },
+      "losses": 1,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "hot_latency": {
+      "limit_nanos": 400000000,
+      "count": 1425,
+      "above_limit": 1271
+    },
+    "harness": {
+      "classification": "product_failure",
+      "failures": 0,
+      "command_saturation": 0,
+      "offered_underdelivery": 0,
+      "planned_cancellations": 0,
+      "lifecycle_approval_rejections": {
+        "missing_timer": 0,
+        "invalid_shape": 0,
+        "timer_fence": 0,
+        "activity_fence": 0,
+        "invalidated": 0,
+        "fence_exhausted": 0,
+        "deadline": 0,
+        "replay_expired": 0,
+        "replay_mismatch": 0
+      },
+      "drain_timed_out": false,
+      "unexpected_exit": false
+    },
+    "seconds_since_first_grant": 15.033701
+  },
+  "terminal_retained_worker_cut": {
+    "event": "wkbench.chat_lifecycle.worker_status_cut",
+    "at": "2026-10-23T05:40:06.038546+08:00",
+    "cut": "terminal",
+    "totals": {
+      "target": 10000,
+      "online": 0,
+      "starting": 0,
+      "closing": 0,
+      "traffic_ready": 0
+    },
+    "close_reasons": {
+      "expired": 0,
+      "heartbeat_failed": 0,
+      "remote_terminal": 0,
+      "read_failed": 0,
+      "generation_stop": 10000,
+      "explicit_logout": 0,
+      "transport_close_failed": 0
+    },
+    "messages": {
+      "sent": 8001,
+      "send_attempts": 8127,
+      "first_attempts": 8001,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 8001,
+      "send_rejected": 0,
+      "received": 9458,
+      "receive_acknowledged": 9458,
+      "receive_ack_failures": 0,
+      "retry_attempts": 126,
+      "terminal": 0,
+      "terminal_reasons": {
+        "retry_exhausted": {
+          "total": 0,
+          "attempt_timeout": 0,
+          "local_admission": 0,
+          "transport_error": 0,
+          "retryable_sendack": 0,
+          "unclassified": 0
+        },
+        "non_retriable": 0,
+        "session_closed": 0
+      },
+      "losses": 5,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "hot_latency": {
+      "limit_nanos": 400000000,
+      "count": 1608,
+      "above_limit": 1439
+    },
+    "harness": {
+      "classification": "product_failure",
+      "failures": 0,
+      "command_saturation": 0,
+      "offered_underdelivery": 0,
+      "planned_cancellations": 193505,
+      "lifecycle_approval_rejections": {
+        "missing_timer": 0,
+        "invalid_shape": 0,
+        "timer_fence": 0,
+        "activity_fence": 0,
+        "invalidated": 0,
+        "fence_exhausted": 0,
+        "deadline": 0,
+        "replay_expired": 0,
+        "replay_mismatch": 0
+      },
+      "drain_timed_out": false,
+      "unexpected_exit": false
+    },
+    "seconds_since_first_grant": 22.032709
+  },
+  "profile_collection": {
+    "metadata": {
+      "schema": "wukongim.local_first_grant_profile/v2",
+      "trigger": {
+        "kind": "first_grant_receipt",
+        "observed_phase": "measurement",
+        "previous_utc": "2026-10-22T21:39:44.005837Z",
+        "current_utc": "2026-10-22T21:39:44.068541Z"
+      },
+      "capture": {
+        "status": "complete",
+        "valid": true,
+        "reason": "ok",
+        "start_phase": "measurement",
+        "end_phase": "measurement",
+        "started_at_utc": "2026-10-22T21:39:44Z",
+        "completed_at_utc": "2026-10-22T21:39:54Z",
+        "cpu_seconds": 10
+      },
+      "nodes": [
+        {
+          "node": "node-2",
+          "cpu": "complete",
+          "heap": "not_requested",
+          "goroutine": "complete"
+        }
+      ]
+    },
+    "requests": {
+      "cpu": {
+        "schema": "wukongim/local-profile-request-status/v1",
+        "node_id": 2,
+        "kind": "cpu",
+        "curl_exit_code": 0,
+        "http_status": "200",
+        "error_class": "none",
+        "retained_body_bytes": 26149,
+        "max_bytes": 8388608
+      },
+      "goroutine": {
+        "schema": "wukongim/local-profile-request-status/v1",
+        "node_id": 2,
+        "kind": "goroutine",
+        "curl_exit_code": 0,
+        "http_status": "200",
+        "error_class": "none",
+        "retained_body_bytes": 24712,
+        "max_bytes": 4194304
+      }
+    },
+    "capture_joined": true,
+    "kill_escalated": false,
+    "helper_launch_parent_observed_at": "2026-10-22T21:39:44.068964+00:00"
+  },
+  "cleanup": {
+    "at_utc": "2026-10-22T21:40:08.573206+00:00",
+    "owned_pgid": 30175,
+    "remaining_processes": [],
+    "remaining_listeners": [],
+    "tested_ports": [
+      25000,
+      25001,
+      25002,
+      25003,
+      25004,
+      25005,
+      25006,
+      25007,
+      25008,
+      25009,
+      25010,
+      25011,
+      25012,
+      25013,
+      25014,
+      25015,
+      25016,
+      25017,
+      25018,
+      25019,
+      25020,
+      25021,
+      25022,
+      25023,
+      25024,
+      25025,
+      25026,
+      25027,
+      25028,
+      25029,
+      25030,
+      25031,
+      25032,
+      25033,
+      25034,
+      25035,
+      25036,
+      25037,
+      25038,
+      25039,
+      25040,
+      25041,
+      25042,
+      25043,
+      25044,
+      25045,
+      25046,
+      25047,
+      25048,
+      25049,
+      25050,
+      25051,
+      25052,
+      25053,
+      25054,
+      25055,
+      25056,
+      25057,
+      25058,
+      25059,
+      25060,
+      25061,
+      25062,
+      25063
+    ],
+    "complete": true,
+    "elapsed_seconds": 284.8521311250515
+  },
+  "retained_private_evidence": {
+    "report/worker-evidence.json": {
+      "bytes": 4114,
+      "sha256": "c653103aae6757d9c06525c556dec214bba81a4c7c80cc4cedf2853fe1ea8a2f",
+      "mtime_ns": 1792705206047832483
+    },
+    "report/diagnostic-status.json": {
+      "bytes": 9062,
+      "sha256": "60f85a0fbfbd76846e46952b94d0f7ab423c05e21a9aacd4f87e5583c49c98a7",
+      "mtime_ns": 1792705206038743856
+    },
+    "report/run-start.json": {
+      "bytes": 391,
+      "sha256": "3540112e434d0204b13ceec0994835b33d83ab0c04aff7edf67c69c70352de77",
+      "mtime_ns": 1792705184031375564
+    },
+    "diagnostic-cuts.jsonl": {
+      "bytes": 19128,
+      "sha256": "15a4a6aa4c9068a11848efd25679ae84e514492b9e6d534582f1ac12eb460bf9",
+      "mtime_ns": 1792705206103181868
+    },
+    "host-process-samples.jsonl": {
+      "bytes": 75324,
+      "sha256": "1e0da13e9391c7fbfb0d427dab3edf3de998574844ce06520469b3d84582a88d",
+      "mtime_ns": 1792705207661232165
+    },
+    "logs/coordinator.log": {
+      "bytes": 5961,
+      "sha256": "af18792e118ecf3267b1cab7b1c92b7c1aba94d6d5f6684ee94696e80dceace5",
+      "mtime_ns": 1792705206148669751
+    },
+    "evidence/metrics-first-measured-node1.prom": {
+      "bytes": 1004626,
+      "sha256": "dfb00041de85c70daf53f8ea0e429a184a303ec43798fadc17a902ccc6d8daa1",
+      "mtime_ns": 1792705189376498698
+    },
+    "evidence/metrics-first-measured-node2.prom": {
+      "bytes": 979300,
+      "sha256": "325a844461ad6e61e230afe489bc8d0c2fa448454254a7ed58908227890f5b10",
+      "mtime_ns": 1792705189548978513
+    },
+    "evidence/metrics-first-measured-node3.prom": {
+      "bytes": 991587,
+      "sha256": "ecd8f7bf251016181ba1829567eadf6620e4d3851fce901dfda3029d34e59a8c",
+      "mtime_ns": 1792705189625836403
+    },
+    "evidence/metrics-terminal-node1.prom": {
+      "bytes": 1025800,
+      "sha256": "29f092a8757744440baa09d69d3a3de3338e2f8439a58cfaa21ed8c24e593578",
+      "mtime_ns": 1792705206358874581
+    },
+    "evidence/metrics-terminal-node2.prom": {
+      "bytes": 1011183,
+      "sha256": "6b4fc691c1c682d0eb75847a481c85d611fd539763dd092b0380d6ed683a0002",
+      "mtime_ns": 1792705206363674790
+    },
+    "evidence/metrics-terminal-node3.prom": {
+      "bytes": 1026703,
+      "sha256": "11133bc8efd5f4b1f5fab33f4ca5b5f54a8d5e5e3eb878036be1509d5e6f477c",
+      "mtime_ns": 1792705206368670166
+    },
+    "evidence/metrics-first-measured-receipt.json": {
+      "bytes": 448,
+      "sha256": "512a41c1c395e59914f997e1fe85bd69728693e7dbf92dd4f2c9320196577c88",
+      "mtime_ns": 1792705189650601144
+    },
+    "evidence/metrics-terminal-receipt.json": {
+      "bytes": 450,
+      "sha256": "ed1be653498921b985ef79422255207e817f0022d77fffd7d5008f1d6420f585",
+      "mtime_ns": 1792705206369183957
+    },
+    "profiles-node2/profiles/node-2-cpu.pb.gz": {
+      "bytes": 26149,
+      "sha256": "5a579ab710799d408f5280029b789b51df1576c5314171ec894a65f938f3c32f",
+      "mtime_ns": 1792705194429756699
+    },
+    "profiles-node2/profiles/node-2-goroutine.pb.gz": {
+      "bytes": 24712,
+      "sha256": "9b93555a406e85662a996b50aaa83cc0a4bd30e00c17a52e5606a69dba69b55f",
+      "mtime_ns": 1792705189321919009
+    }
+  },
+  "limits": [
+    "No rerun, no new probe/DB/pprof/product request/Go build",
+    "Observed terminal product_failure/message_loss is prior observation, not a valid final verdict",
+    "meta_checkpoint/invalid identifies rejecting stage, not yet precise inner invariant or product root cause",
+    "Five cumulative losses and firstattemptfailure0 are retained cuts, not exact MessageID joins",
+    "Native Macarm64 shared host and sampling are not Linux/formal performance acceptance",
+    "RealGORoffset and activeSENDend are not independently observed; sampling may mix active/drain"
+  ]
+}

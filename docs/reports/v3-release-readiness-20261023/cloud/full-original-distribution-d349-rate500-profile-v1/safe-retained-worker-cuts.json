@@ -1,0 +1,309 @@
+{
+  "schema": "wukongim/local500-d349-retained-worker-cuts/v1",
+  "source": "existing coordinator JSON log; cumulative cuts, not a validated final report",
+  "source_sha256": "af18792e118ecf3267b1cab7b1c92b7c1aba94d6d5f6684ee94696e80dceace5",
+  "cuts": [
+    {
+      "event": "wkbench.chat_lifecycle.worker_status_cut",
+      "at": "2026-10-23T05:39:49.039532167+08:00",
+      "cut": "periodic",
+      "totals": {
+        "target": 10000,
+        "online": 10000,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 10000
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "messages": {
+        "sent": 2499,
+        "send_attempts": 2524,
+        "first_attempts": 2499,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 1972,
+        "send_rejected": 0,
+        "received": 2213,
+        "receive_acknowledged": 2213,
+        "receive_ack_failures": 0,
+        "retry_attempts": 25,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 300,
+        "above_limit": 252
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "seconds_since_first_grant": 5.033695
+    },
+    {
+      "event": "wkbench.chat_lifecycle.worker_status_cut",
+      "at": "2026-10-23T05:39:54.03953475+08:00",
+      "cut": "periodic",
+      "totals": {
+        "target": 10000,
+        "online": 10000,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 10000
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "messages": {
+        "sent": 4996,
+        "send_attempts": 5081,
+        "first_attempts": 4996,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 4651,
+        "send_rejected": 0,
+        "received": 5206,
+        "receive_acknowledged": 5206,
+        "receive_ack_failures": 0,
+        "retry_attempts": 85,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 861,
+        "above_limit": 763
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "seconds_since_first_grant": 10.033697
+    },
+    {
+      "event": "wkbench.chat_lifecycle.worker_status_cut",
+      "at": "2026-10-23T05:39:59.039538875+08:00",
+      "cut": "periodic",
+      "totals": {
+        "target": 10000,
+        "online": 10000,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 10000
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "messages": {
+        "sent": 7501,
+        "send_attempts": 7620,
+        "first_attempts": 7501,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 7204,
+        "send_rejected": 0,
+        "received": 7770,
+        "receive_acknowledged": 7770,
+        "receive_ack_failures": 0,
+        "retry_attempts": 119,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 1,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 1425,
+        "above_limit": 1271
+      },
+      "harness": {
+        "classification": "product_failure",
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "seconds_since_first_grant": 15.033701
+    },
+    {
+      "event": "wkbench.chat_lifecycle.worker_status_cut",
+      "at": "2026-10-23T05:40:06.038546+08:00",
+      "cut": "terminal",
+      "totals": {
+        "target": 10000,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 10000,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "messages": {
+        "sent": 8001,
+        "send_attempts": 8127,
+        "first_attempts": 8001,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 8001,
+        "send_rejected": 0,
+        "received": 9458,
+        "receive_acknowledged": 9458,
+        "receive_ack_failures": 0,
+        "retry_attempts": 126,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 5,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 1608,
+        "above_limit": 1439
+      },
+      "harness": {
+        "classification": "product_failure",
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 193505,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "seconds_since_first_grant": 22.032709
+    }
+  ]
+}

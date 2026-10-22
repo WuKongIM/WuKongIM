@@ -1,0 +1,242 @@
+diff --git a/internal/usecase/presence/cold_uid_isolation_integration_test.go b/internal/usecase/presence/cold_uid_isolation_integration_test.go
+new file mode 100644
+index 000000000..08306dfd8
+--- /dev/null
++++ b/internal/usecase/presence/cold_uid_isolation_integration_test.go
+@@ -0,0 +1,236 @@
++//go:build integration
++
++package presence_test
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"sync"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
++	presence "github.com/WuKongIM/WuKongIM/internal/usecase/presence"
++)
++
++// coldOwnerGate pauses only the selected owner's read. Independent requests
++// remain immediately serviceable, so admission at this boundary is not full.
++type coldOwnerGate struct {
++	entered      chan struct{}
++	release      chan struct{}
++	canceled     chan struct{}
++	enterOnce    sync.Once
++	releaseOnce  sync.Once
++	cancelOnce   sync.Once
++	blockedCalls atomic.Int32
++	active       atomic.Int32
++	peak         atomic.Int32
++}
++
++func newColdOwnerGate() *coldOwnerGate {
++	return &coldOwnerGate{entered: make(chan struct{}), release: make(chan struct{}), canceled: make(chan struct{})}
++}
++
++func (g *coldOwnerGate) RecoverRoutes(ctx context.Context, target presence.RouteTarget, uids []string) ([]presence.Route, error) {
++	result := g.RecoverRoutesByTargets(ctx, []presence.EndpointLookupGroup{{Target: target, UIDs: uids}})[0]
++	return result.Routes, result.Err
++}
++
++func (g *coldOwnerGate) RecoverRoutesByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++	active := g.active.Add(1)
++	defer g.active.Add(-1)
++	for old := g.peak.Load(); active > old && !g.peak.CompareAndSwap(old, active); old = g.peak.Load() {
++	}
++	blocked := false
++	for _, group := range groups {
++		for _, uid := range group.UIDs {
++			blocked = blocked || uid == "cold-a-0"
++		}
++	}
++	if blocked {
++		g.blockedCalls.Add(1)
++		g.enterOnce.Do(func() { close(g.entered) })
++		select {
++		case <-g.release:
++		case <-ctx.Done():
++			g.cancelOnce.Do(func() { close(g.canceled) })
++			results := make([]presence.EndpointLookupResult, len(groups))
++			for i := range results {
++				results[i].Err = ctx.Err()
++			}
++			return results
++		}
++	}
++	results := make([]presence.EndpointLookupResult, len(groups))
++	for i, group := range groups {
++		for _, uid := range group.UIDs {
++			results[i].Routes = append(results[i].Routes, presence.Route{UID: uid, OwnerNodeID: 2, OwnerBootID: 22, OwnerSeq: 1, SessionID: 1})
++		}
++	}
++	return results
++}
++
++func (g *coldOwnerGate) unblock() { g.releaseOnce.Do(func() { close(g.release) }) }
++
++// coldLookup owns its goroutine until the result is joined, including failed
++// assertions. Its deadline is a test watchdog, never a production setting.
++type coldLookup struct {
++	done   chan []presence.EndpointLookupResult
++	cancel context.CancelFunc
++	result []presence.EndpointLookupResult
++	joined bool
++}
++
++func startColdLookup(t *testing.T, recovery *presence.AuthorityRecovery, groups []presence.EndpointLookupGroup, budget time.Duration) *coldLookup {
++	t.Helper()
++	ctx, cancel := context.WithTimeout(context.Background(), budget)
++	call := &coldLookup{done: make(chan []presence.EndpointLookupResult, 1), cancel: cancel}
++	go func() { call.done <- recovery.EndpointsByTargets(ctx, groups) }()
++	t.Cleanup(func() {
++		cancel()
++		if !call.joined {
++			timer := time.NewTimer(time.Second)
++			defer timer.Stop()
++			select {
++			case call.result = <-call.done:
++				call.joined = true
++			case <-timer.C:
++				t.Error("lookup cleanup did not join")
++			}
++		}
++		t.Logf("lookup cleanup joined=%t", call.joined)
++	})
++	return call
++}
++
++func (c *coldLookup) await(t *testing.T) []presence.EndpointLookupResult {
++	t.Helper()
++	if !c.joined {
++		timer := time.NewTimer(time.Second)
++		defer timer.Stop()
++		select {
++		case c.result = <-c.done:
++			c.joined = true
++		case <-timer.C:
++			t.Fatal("public lookup did not return within watchdog")
++		}
++	}
++	return c.result
++}
++
++func startPausedColdPage(t *testing.T, targets int) (*presence.AuthorityRecovery, *coldOwnerGate, *coldLookup, []presence.EndpointLookupGroup) {
++	t.Helper()
++	directory := authority.NewDirectory(authority.DirectoryOptions{LocalNodeID: 1, RequireRecovery: true})
++	groups := make([]presence.EndpointLookupGroup, targets)
++	for i := range groups {
++		target := presence.RouteTarget{HashSlot: uint16(i), SlotID: uint32(i%12 + 1), LeaderNodeID: 1, LeaderTerm: 1, ConfigEpoch: 1}
++		directory.BecomeAuthority(target)
++		groups[i] = presence.EndpointLookupGroup{Target: target, UIDs: []string{fmt.Sprintf("cold-a-%d", i)}}
++	}
++	// The non-conflicting control can use this additional real authority.
++	if targets == 1 {
++		directory.BecomeAuthority(presence.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 1, ConfigEpoch: 1})
++	}
++	owners := newColdOwnerGate()
++	recovery := presence.NewAuthorityRecovery(directory, owners)
++	a := startColdLookup(t, recovery, groups, 3*time.Second)
++	// Registered after A's join cleanup so the gate opens before that join.
++	t.Cleanup(owners.unblock)
++	timer := time.NewTimer(time.Second)
++	defer timer.Stop()
++	select {
++	case <-owners.entered:
++	case <-timer.C:
++		t.Fatal("A did not reach the controlled owner boundary")
++	}
++	return recovery, owners, a, groups
++}
++
++func requireColdRoutes(t *testing.T, results []presence.EndpointLookupResult, groups []presence.EndpointLookupGroup) {
++	t.Helper()
++	if len(results) != len(groups) {
++		t.Fatalf("result groups=%d, want %d", len(results), len(groups))
++	}
++	for i, result := range results {
++		if result.Err != nil || len(result.Routes) != len(groups[i].UIDs) {
++			t.Fatalf("group %d routes=%d err=%v", i, len(result.Routes), result.Err)
++		}
++		for j, route := range result.Routes {
++			if route.UID != groups[i].UIDs[j] || route.OwnerNodeID != 2 || route.OwnerBootID != 22 || route.OwnerSeq != 1 || route.SessionID != 1 {
++				t.Fatalf("group %d route %d lost the expected owner proof", i, j)
++			}
++		}
++	}
++}
++
++// This is a proposed isolation property, not a claim that the current public
++// contract guarantees independent cold-UID latency. Its expected RED records
++// coarse admission HOL without labeling that existing policy a correctness bug.
++func TestAuthorityRecoveryColdUIDIsolation_IndependentUIDWhilePagePaused(t *testing.T) {
++	recovery, owners, a, groups := startPausedColdPage(t, 32)
++	bGroups := []presence.EndpointLookupGroup{{Target: groups[0].Target, UIDs: []string{"cold-b-independent"}}}
++	b := startColdLookup(t, recovery, bGroups, 250*time.Millisecond)
++	results := b.await(t)
++	if len(results) != 1 || results[0].Err != nil {
++		t.Fatalf("proposed isolation failed before A release: B results=%v; A owner calls=%d peak owner calls=%d", results, owners.blockedCalls.Load(), owners.peak.Load())
++	}
++	requireColdRoutes(t, results, bGroups)
++	owners.unblock()
++	requireColdRoutes(t, a.await(t), groups)
++}
++
++func TestAuthorityRecoveryColdUIDIsolation_NonConflictingTargetProgresses(t *testing.T) {
++	recovery, owners, a, groups := startPausedColdPage(t, 1)
++	target := presence.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 1, ConfigEpoch: 1}
++	bGroups := []presence.EndpointLookupGroup{{Target: target, UIDs: []string{"cold-b-independent"}}}
++	b := startColdLookup(t, recovery, bGroups, 250*time.Millisecond)
++	requireColdRoutes(t, b.await(t), bGroups)
++	owners.unblock()
++	requireColdRoutes(t, a.await(t), groups)
++}
++
++func TestAuthorityRecoveryColdUIDIsolation_SameUIDSharesOwnerProof(t *testing.T) {
++	recovery, owners, a, groups := startPausedColdPage(t, 1)
++	b := startColdLookup(t, recovery, groups, 2*time.Second)
++	guard := time.NewTimer(40 * time.Millisecond)
++	defer guard.Stop()
++	select {
++	case b.result = <-b.done:
++		b.joined = true
++		t.Fatal("same UID completed before the owner proof existed")
++	case <-guard.C:
++	}
++	owners.unblock()
++	requireColdRoutes(t, a.await(t), groups)
++	requireColdRoutes(t, b.await(t), groups)
++	if calls := owners.blockedCalls.Load(); calls != 1 {
++		t.Fatalf("same UID required %d owner reads, want one complete proof", calls)
++	}
++}
++
++func TestAuthorityRecoveryColdUIDIsolation_CanceledWaiterDoesNotCancelOwner(t *testing.T) {
++	recovery, owners, a, groups := startPausedColdPage(t, 1)
++	b := startColdLookup(t, recovery, groups, 2*time.Second)
++	guard := time.NewTimer(40 * time.Millisecond)
++	defer guard.Stop()
++	select {
++	case b.result = <-b.done:
++		b.joined = true
++		t.Fatal("same UID completed before the owner proof existed")
++	case <-guard.C:
++	}
++	b.cancel()
++	results := b.await(t)
++	if len(results) != 1 || !errors.Is(results[0].Err, context.Canceled) {
++		t.Fatalf("canceled waiter results=%v", results)
++	}
++	select {
++	case <-owners.canceled:
++		t.Fatal("canceling B canceled A's owner read")
++	default:
++	}
++	owners.unblock()
++	requireColdRoutes(t, a.await(t), groups)
++}

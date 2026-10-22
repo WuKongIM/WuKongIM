@@ -1,0 +1,15 @@
+{
+  "at_utc": "2026-10-22T21:41:44.193996+00:00",
+  "owned_pgid": 30175,
+  "remaining_owned_processes": [],
+  "other_wukongim_processes": [],
+  "tested_ports": [
+    25000,
+    25063
+  ],
+  "tested_port_count": 64,
+  "remaining_listeners": [],
+  "complete": true,
+  "profile_driver_capture_joined": true,
+  "profile_driver_kill_escalated": false
+}

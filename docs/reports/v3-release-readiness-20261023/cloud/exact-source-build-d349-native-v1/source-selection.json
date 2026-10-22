@@ -1,0 +1,58 @@
+{
+  "schema": "wukongim/d349-exact-source-selection/v1",
+  "at_utc": "2026-10-22T21:28:26.016157+00:00",
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-d349-diagnostics",
+  "head": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "tree": "763f8432135e6b94df28451a43a4a635c7aba2a0",
+  "real_git_directory": true,
+  "source_clean": true,
+  "source_changes_vs79a": [
+    "CHANGELOG.md",
+    "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+    "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "internal/app/composition_classification_contract_test.go",
+    "internal/app/observability.go",
+    "internal/app/observability_test.go",
+    "internal/app/online_delivery.go",
+    "internal/app/online_delivery_test.go",
+    "internal/bench/chatlifecycle/checkpoint.go",
+    "internal/bench/chatlifecycle/coordinator.go",
+    "internal/bench/chatlifecycle/finalize_diagnostics_test.go",
+    "internal/bench/chatlifecycle/production_controller.go",
+    "internal/runtime/delivery/runtime.go",
+    "internal/runtime/delivery/runtime_ports.go",
+    "internal/runtime/delivery/runtime_test.go",
+    "pkg/metrics/gateway.go",
+    "pkg/metrics/registry_test.go",
+    "scripts/chat-lifecycle/terminal-evidence.py",
+    "scripts/testdata/chat_lifecycle_terminal_evidence_test.py"
+  ],
+  "clone_commands": [
+    {
+      "name": "clone",
+      "argv": [
+        "git",
+        "clone",
+        "--shared",
+        "--no-checkout",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-d349-diagnostics"
+      ],
+      "exit_status": 0
+    },
+    {
+      "name": "checkout",
+      "argv": [
+        "git",
+        "checkout",
+        "--detach",
+        "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e"
+      ],
+      "exit_status": 0
+    }
+  ],
+  "assets76_equal_original_cloud": true,
+  "prior79a_clone_modified": false,
+  "build_started": false
+}

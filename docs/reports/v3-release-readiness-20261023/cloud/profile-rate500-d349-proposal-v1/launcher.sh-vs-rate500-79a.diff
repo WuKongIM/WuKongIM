@@ -1,0 +1,33 @@
+--- baseline/launcher.sh
++++ proposed/launcher.sh
+@@ -1,8 +1,8 @@
+ #!/bin/bash
+ set -euo pipefail
+ umask 077
+-ROOT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a
+-RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-rate500-profile-v2'
++ROOT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-d349-diagnostics
++RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1'
+ BASE_PORT=25000
+ READY_TIMEOUT=60
+ CLEANUP_TIMEOUT=15
+@@ -11,8 +11,8 @@
+ NAMES=()
+ PPROF_PID=""
+ WAIT_CHILD_STATUS=0
+-WUKONGIM_BIN=/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-cloud-flags-v1/darwin-arm64/wukongim
+-WK_CLI_BIN=/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-cloud-flags-v1/darwin-arm64/wkcli
++WUKONGIM_BIN=/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/darwin-arm64/wukongim
++WK_CLI_BIN=/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/darwin-arm64/wkcli
+ CONFIG_DIR="$RUN_DIR/config"
+ DATA_DIR="$RUN_DIR/data"
+ LOG_DIR="$RUN_DIR/logs"
+@@ -355,7 +355,7 @@
+ record_pid coordinator "$COORDINATOR_PID"
+ 
+ # One optional diagnostic in the same owned workload process group.
+-python3 /tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/watch-first-grant.py --run-dir /tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-rate500-profile-v2 --out-dir /tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-rate500-profile-v2/profiles-node2 --source-root /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a --source-revision 79a7177032a6ae1ec7015cefe0e6f94eb0f19f06 --binary /tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-cloud-flags-v1/darwin-arm64/wukongim --binary-sha256 5b30743481398ad8175476d18ffbc676c6da5288657919ae8e704324e67351ab --helper /tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/capture-first-grant-profiles.sh --helper-sha256 7b07cc119282fe0b1f263914d721bc86c60f0ca6cb1766ebbf60cb3c297e4ff9 --base-port 25000 --run-hash sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52 --assignment-hash sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc --generation 1 --owner-pgid "$$" --deadline-mono "$LOCAL_REPRO_DEADLINE_MONO" >"$LOG_DIR/profile-driver.log" 2>&1 &
++python3 /tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/watch-first-grant.py --run-dir /tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1 --out-dir /tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/profiles-node2 --source-root /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-d349-diagnostics --source-revision d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e --binary /tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-d349-native-v1/darwin-arm64/wukongim --binary-sha256 6b088040a02c360c3f7ad4dc1899f487985f2fb64dd3cef10b2875492b42e2af --helper /tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/capture-first-grant-profiles.sh --helper-sha256 7b07cc119282fe0b1f263914d721bc86c60f0ca6cb1766ebbf60cb3c297e4ff9 --base-port 25000 --run-hash sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52 --assignment-hash sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc --generation 1 --owner-pgid "$$" --deadline-mono "$LOCAL_REPRO_DEADLINE_MONO" >"$LOG_DIR/profile-driver.log" 2>&1 &
+ PROFILE_DRIVER_PID=$!
+ record_pid profile-driver "$PROFILE_DRIVER_PID"
+ start_process_metrics_collector

@@ -1,0 +1,13 @@
+# One bounded d349500QPS diagnostic proposal
+
+Prepared only; no service or workload started. Fresh scope: `full-original-distribution-d349-rate500-profile-v1`. Exact independent real.git source d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e/tree763f8432135e6b94df28451a43a4a635c7aba2a0. Two native binaries are bound to the19-member exact-source-build-d349-native-v1 receipt; old79a clone/build/run/proposals remain unchanged.
+
+Only source/build provenance is changed from the last500 run. The exact20 changed source paths cover #1026 collector SystemBusy, #1027 app/metrics classification + MessageID/seq warnings, #1028 bounded finalize-stage diagnostics; they are observation changes, not a presence/delivery repair. Four benchmark production files add finalization diagnostics while preserving report preference and verdict/gates. Service runtime code adds immutable identifiers to terminal observer/warnings and accepts system_busy metric labels. Build `-p1` concurrency affects construction only; runtime GOMAX settings unchanged.
+
+The500config is byte-identical (typed diff empty): 10000 online,2000 groups,seed1,3workers,500 SEND/s, required burst1000/credit2s,10s expiry/retry/gates/canary, batch1,compaction1000/5s,GOMAX2+1. Retained real LoadConfig/BuildCoordinatorAssignments identity is reused only after whole-file loader/config/types/report and the two assignment functions are shown byte-identical; actual soak command retains its strict loader. No formal validator is bypassed or spoofed.
+
+Launcher diff contains only source root,output,binary/provenance arguments. Supervisor changes only source root/revision and truthful product_source_changed metadata. Guard is adapted to the new two-binary construction receipt. Watchdog,slot-checker,sampler helper and watcher are exact prior bytes. Existing CPU10s plus nominal5s GOR(debug0 gzip,4MiB/5s), no additional request/retry. Helper-launch time is not CPU start; profile may mix active SEND and drain. Shared native Mac remains diagnostic, not Linux/formal capacity acceptance.
+
+Original bounds retained: total600s; independent TERM570s + KILL5s; startup360s; target120s; lateststop480s; natural exit7hold90s; first failure stops; ownedPGID and25000..25063 cleanup. No automatic retry, time extension or capacity/timeout/gate changes. Static preflight passed exact build guard,wrongrevision/wrongSHA fail-closed checks,AST/Bash checks,oldPGID18742 zero,64ports zero,no product process,empty runtime-state directories. These are prelaunch snapshots; supervisor repeats guards. Actual workload awaits root approval.
+
+Public finite payload excludes raw YAML,product/CLI binaries,credentials,raw identities/logs/data/profile bodies. Diffs contain code and loopback/provenance paths only.
