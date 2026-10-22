@@ -1,0 +1,39 @@
+{
+  "schema": "wukongim/exact79a-local-preparation-final-preflight/v1",
+  "at_utc": "2026-10-22T20:37:34.963725+00:00",
+  "product_started": false,
+  "real_profile_started": false,
+  "original_owned_pgids_and_fake_checked": [
+    7487,
+    7538,
+    7622,
+    7711,
+    7785,
+    7855,
+    73277,
+    82642,
+    95883
+  ],
+  "fake_count": 6,
+  "remaining_group_members": [],
+  "remaining_wk_processes": [],
+  "checked_port_range": [
+    25000,
+    25063
+  ],
+  "remaining_listeners": [],
+  "future_runtime_directories": {
+    "data": false,
+    "pids": false,
+    "workers": false,
+    "report": false
+  },
+  "quiet_status": "root reported construction and other agent builds stopped; root must recheck before authorizing the actual run",
+  "tests": {
+    "sampler_fake_methods": 2,
+    "sampler_fake_subcases": 6,
+    "sampler_fake_elapsed_seconds": 38.145,
+    "exact_guard_contract": "actual metadata accepted;wrongbinary/wrongsource/missingreceipt refused",
+    "source_build_or_product_execution": false
+  }
+}

@@ -1,0 +1,141 @@
+--- frozen-proposal-v1/helper
++++ proposal-v2/helper
+@@ -202,6 +202,7 @@
+ CLAIM_DIR="$OUT_DIR/.threshold-pprof.claim"
+ METADATA_FILE="$OUT_DIR/metadata.json"
+ PROFILE_DIR="$OUT_DIR/profiles"
++REQUEST_DIR="$OUT_DIR/requests"
+ if ! mkdir "$CLAIM_DIR" 2>/dev/null; then
+   # A concurrent or earlier caller owns the immutable first-trigger evidence.
+   # Briefly allow its initial metadata write to become visible, then return.
+@@ -213,12 +214,12 @@
+   exit 0
+ fi
+ 
+-if [[ -e "$METADATA_FILE" || -e "$PROFILE_DIR" || -L "$PROFILE_DIR" || -e "$OUT_DIR/context" || -L "$OUT_DIR/context" ]]; then
++if [[ -e "$REQUEST_DIR" || -L "$REQUEST_DIR" || -e "$METADATA_FILE" || -e "$PROFILE_DIR" || -L "$PROFILE_DIR" || -e "$OUT_DIR/context" || -L "$OUT_DIR/context" ]]; then
+   rmdir "$CLAIM_DIR" 2>/dev/null || true
+   printf '[local-threshold-pprof] ERROR: unclaimed output already contains threshold profile artifacts\n' >&2
+   exit 73
+ fi
+-if ! mkdir "$PROFILE_DIR" 2>/dev/null; then
++if ! mkdir "$PROFILE_DIR" "$REQUEST_DIR" 2>/dev/null; then
+   printf '[local-threshold-pprof] ERROR: cannot create profile directory\n' >&2
+   exit 73
+ fi
+@@ -251,6 +252,8 @@
+ CAPTURE_NODE_INDEXES=()
+ CAPTURE_KINDS=()
+ CAPTURE_STARTED=()
++CAPTURE_HTTP_FILES=()
++CAPTURE_RESULTS_RECORDED=()
+ START_PHASE="$(read_phase_state)"
+ END_PHASE="$START_PHASE"
+ STARTED_AT_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+@@ -266,7 +269,7 @@
+   local temporary="$METADATA_FILE.next.$$" node comma
+   if ! {
+     printf '{\n'
+-    printf '  "schema": "wukongim.local_first_grant_profile/v1",\n'
++    printf '  "schema": "wukongim.local_first_grant_profile/v2",\n'
+     printf '  "trigger": {"kind": "%s", "observed_phase": "%s", "previous_utc": "%s", "current_utc": "%s"},\n' \
+       "$TRIGGER_KIND" "$TRIGGER_OBSERVED_PHASE" "$PREVIOUS_UTC" "$CURRENT_UTC"
+     printf '  "capture": {"status": "%s", "valid": %s, "reason": "%s", "start_phase": "%s", "end_phase": "%s", "started_at_utc": "%s", "completed_at_utc": "%s", "cpu_seconds": %s},\n' \
+@@ -291,8 +294,31 @@
+   fi
+ }
+ 
++# Store only finite curl/HTTP evidence; raw URL, header and stderr are excluded.
++record_request_result() {
++  local index="$1" curl_code="$2" http_code http_json=null error_class=none bytes=0 limit=8388608
++  [[ "${CAPTURE_RESULTS_RECORDED[$index]}" == 0 ]] || return 0
++  http_code="$(LC_ALL=C head -c 4 "${CAPTURE_HTTP_FILES[$index]}" 2>/dev/null || true)"
++  if [[ "$http_code" =~ ^[0-9][0-9][0-9]$ ]]; then http_json="\"$http_code\""; else http_code=unknown; fi
++  if [[ -f "${CAPTURE_TMP_FILES[$index]}" ]]; then bytes="$(wc -c <"${CAPTURE_TMP_FILES[$index]}")"; fi
++  [[ "${CAPTURE_KINDS[$index]}" == goroutine ]] && limit=4194304
++  case "$curl_code" in
++    0) if [[ "$http_code" != 200 ]]; then error_class=http_status; elif (( bytes == 0 )); then error_class=empty_body; elif (( bytes > limit )); then error_class=max_filesize; fi ;;
++    22) error_class=http_error ;;
++    28) error_class=timeout ;;
++    63) error_class=max_filesize ;;
++    7) error_class=connect_error ;;
++    129|130|143) error_class=interrupted ;;
++    *) error_class=curl_error ;;
++  esac
++  printf '{"schema":"wukongim/local-profile-request-status/v1","node_id":2,"kind":"%s","curl_exit_code":%s,"http_status":%s,"error_class":"%s","retained_body_bytes":%s,"max_bytes":%s}\n' \
++    "${CAPTURE_KINDS[$index]}" "$curl_code" "$http_json" "$error_class" "$bytes" "$limit" \
++    >"$REQUEST_DIR/node-2-${CAPTURE_KINDS[$index]}.json"
++  CAPTURE_RESULTS_RECORDED[$index]=1
++}
++
+ terminate_children() {
+-  local pid
++  local pid index code
+   if [[ -n "$TIMER_PID" ]]; then
+     kill "$TIMER_PID" 2>/dev/null || true
+     wait "$TIMER_PID" 2>/dev/null || true
+@@ -304,9 +330,13 @@
+     [[ -n "$pid" ]] || continue
+     kill "$pid" 2>/dev/null || true
+   done
+-  for pid in "${CAPTURE_PIDS[@]}"; do
++  for index in "${!CAPTURE_PIDS[@]}"; do
++    pid="${CAPTURE_PIDS[$index]}"
+     [[ -n "$pid" ]] || continue
+-    wait "$pid" 2>/dev/null || true
++    code=0
++    wait "$pid" 2>/dev/null || code=$?
++    record_request_result "$index" "$code"
++    CAPTURE_PIDS[$index]=''
+   done
+ }
+ 
+@@ -383,17 +413,20 @@
+ start_profile_request() {
+   local node_index="$1" kind="$2" url="$3" destination="$4" max_time="$5"
+   local temporary="$destination.next.$$" max_bytes=8388608
++  local http_file="$REQUEST_DIR/node-2-$kind-http-code"
+   case "$kind" in heap) max_bytes=16777216 ;; goroutine|context-*) max_bytes=4194304 ;; esac
+   CAPTURE_STARTED+=("$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+   CAPTURE_REGISTERING=1
+   curl -fsS --connect-timeout "$CONNECT_TIMEOUT_SECONDS" --max-time "$max_time" --max-filesize "$max_bytes" \
+     --header @<(write_authorization_header) \
+-    -H 'X-WK-Bench-Evidence: local-threshold-pprof' "$url" >"$temporary" 2>/dev/null &
++    -H 'X-WK-Bench-Evidence: local-threshold-pprof' --output "$temporary" --write-out '%{http_code}' "$url" >"$http_file" 2>/dev/null &
+   CAPTURE_PIDS+=("$!")
+   CAPTURE_TMP_FILES+=("$temporary")
+   CAPTURE_FINAL_FILES+=("$destination")
+   CAPTURE_NODE_INDEXES+=("$node_index")
+   CAPTURE_KINDS+=("$kind")
++  CAPTURE_HTTP_FILES+=("$http_file")
++  CAPTURE_RESULTS_RECORDED+=(0)
+   CAPTURE_REGISTERING=0
+   if (( SIGNAL_PENDING == 1 )); then handle_signal; fi
+ }
+@@ -423,11 +456,15 @@
+ }
+ 
+ join_profile_requests() {
+-  local capture_index capture_status node_index
++  local capture_index capture_status node_index curl_code http_code
+   for capture_index in "${!CAPTURE_PIDS[@]}"; do
+     [[ -n "${CAPTURE_PIDS[$capture_index]}" ]] || continue
+     capture_status=missing
+-    if wait "${CAPTURE_PIDS[$capture_index]}" && [[ -s "${CAPTURE_TMP_FILES[$capture_index]}" ]]; then
++    curl_code=0
++    wait "${CAPTURE_PIDS[$capture_index]}" || curl_code=$?
++    record_request_result "$capture_index" "$curl_code"
++    http_code="$(LC_ALL=C head -c 4 "${CAPTURE_HTTP_FILES[$capture_index]}" 2>/dev/null || true)"
++    if [[ "$curl_code" -eq 0 && "$http_code" == 200 && -s "${CAPTURE_TMP_FILES[$capture_index]}" ]]; then
+       limit=8388608
+       [[ "${CAPTURE_KINDS[$capture_index]}" == goroutine ]] && limit=4194304
+       bytes="$(wc -c <"${CAPTURE_TMP_FILES[$capture_index]}")"
+@@ -467,7 +504,7 @@
+ if [[ "$(read_phase_state)" != measurement ]]; then
+   handle_signal
+ fi
+-start_profile_request "$index" goroutine   "${NODE_URLS[$index]}/debug/pprof/goroutine?debug=2"   "$PROFILE_DIR/node-2-goroutine.txt" "$SNAPSHOT_MAX_TIME_SECONDS"
++start_profile_request "$index" goroutine   "${NODE_URLS[$index]}/debug/pprof/goroutine?debug=0"   "$PROFILE_DIR/node-2-goroutine.pb.gz" "$SNAPSHOT_MAX_TIME_SECONDS"
+ 
+ join_profile_requests
+ if (( CAPTURE_CONTEXT == 1 )); then

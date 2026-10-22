@@ -1,0 +1,15 @@
+{
+	"CGO_ENABLED": "0",
+	"GOARCH": "arm64",
+	"GOCACHE": "/Users/tt/Library/Caches/go-build",
+	"GOFLAGS": "",
+	"GOMOD": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a/go.mod",
+	"GOMODCACHE": "/Users/tt/go/pkg/mod",
+	"GOOS": "darwin",
+	"GOPROXY": "off",
+	"GOROOT": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64",
+	"GOSUMDB": "off",
+	"GOTOOLCHAIN": "local",
+	"GOVERSION": "go1.25.11",
+	"GOWORK": "off"
+}

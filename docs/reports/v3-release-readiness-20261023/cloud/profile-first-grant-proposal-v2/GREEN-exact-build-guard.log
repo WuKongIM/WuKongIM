@@ -1,0 +1,6 @@
+test_exact_metadata_guard_and_source_receipt_hash_refusals (__main__.Contract.test_exact_metadata_guard_and_source_receipt_hash_refusals) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.348s
+
+OK

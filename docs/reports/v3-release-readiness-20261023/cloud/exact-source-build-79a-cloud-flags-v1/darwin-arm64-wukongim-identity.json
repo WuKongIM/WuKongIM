@@ -1,0 +1,11 @@
+{
+  "platform": "darwin-arm64",
+  "binary": "wukongim",
+  "sha256": "5b30743481398ad8175476d18ffbc676c6da5288657919ae8e704324e67351ab",
+  "bytes": 64584898,
+  "linkflags": "-s -w -buildid=",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "compiler": "go1.25.11",
+  "CGO_ENABLED": 0,
+  "trimpath": true
+}

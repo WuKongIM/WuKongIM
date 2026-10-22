@@ -1,0 +1,16 @@
+test_exact_metadata_guard_and_source_receipt_hash_refusals (__main__.Contract.test_exact_metadata_guard_and_source_receipt_hash_refusals) ... FAIL
+
+======================================================================
+FAIL: test_exact_metadata_guard_and_source_receipt_hash_refusals (__main__.Contract.test_exact_metadata_guard_and_source_receipt_hash_refusals)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/exact_guard_contract_test.py", line 8, in test_exact_metadata_guard_and_source_receipt_hash_refusals
+    self.assertEqual(result.returncode,0,result.stderr);self.assertTrue(json.loads(result.stdout)['verified']);self.assertFalse(json.loads(result.stdout)['product_started'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 0 : /opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/exact_build_guard.py': [Errno 2] No such file or directory
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.017s
+
+FAILED (failures=1)

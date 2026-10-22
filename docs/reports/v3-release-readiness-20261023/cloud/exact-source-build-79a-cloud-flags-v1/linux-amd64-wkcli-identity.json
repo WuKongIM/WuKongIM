@@ -1,0 +1,13 @@
+{
+  "platform": "linux-amd64",
+  "binary": "wkcli",
+  "sha256": "43dd65554569ef29596d5a21349f0a3e08c4093652413afbd2f654f1856c884b",
+  "bytes": 42950804,
+  "linkflags": "-s -w -buildid=",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "compiler": "go1.25.11",
+  "CGO_ENABLED": 0,
+  "trimpath": true,
+  "cloud_sha256": "43dd65554569ef29596d5a21349f0a3e08c4093652413afbd2f654f1856c884b",
+  "cloud_byte_equal": true
+}

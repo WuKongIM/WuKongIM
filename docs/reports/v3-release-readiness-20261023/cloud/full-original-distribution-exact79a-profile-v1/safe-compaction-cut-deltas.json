@@ -1,0 +1,885 @@
+{
+  "schema": "wukongim/retained-compaction-first-to-terminal-delta/v1",
+  "at_utc": "2026-10-22T20:44:10.948669+00:00",
+  "inputs": {
+    "evidence/metrics-first-measured-node1.prom": {
+      "bytes": 1027740,
+      "sha256": "d95b470b2919f3e4bbd3c4cfa1da5c15833f9054f62885b9be3fec20428de4e0"
+    },
+    "evidence/metrics-terminal-node1.prom": {
+      "bytes": 1066893,
+      "sha256": "ce02d13455c61f49866e27d354aa9ae590a69fd15c1b3ee912d2b7439e197fd2"
+    },
+    "evidence/metrics-first-measured-node2.prom": {
+      "bytes": 1008137,
+      "sha256": "cd590c0e6a15964c7cba118b15845e1e7e73f34f226c9b51712831cba98242ad"
+    },
+    "evidence/metrics-terminal-node2.prom": {
+      "bytes": 1040557,
+      "sha256": "d31aaad13b8ac043b13fc037a1122c60c643e6e2350ab51256ace8bfd242aa56"
+    },
+    "evidence/metrics-first-measured-node3.prom": {
+      "bytes": 1005648,
+      "sha256": "75dbe40ae5077524a3bd3e296e86e9c8e4bc4c76c4f9489376b6034accf03feb"
+    },
+    "evidence/metrics-terminal-node3.prom": {
+      "bytes": 1040222,
+      "sha256": "2560898700b8adef2e6dfb76fc4104cdee0777efba36f8d2efc299240749d7b7"
+    }
+  },
+  "collection": "existing first-measured and terminal PROM only; no new probe",
+  "metrics_present": [
+    "wukongim_storage_pebble_compaction_bytes_read",
+    "wukongim_storage_pebble_compaction_bytes_written",
+    "wukongim_storage_pebble_compaction_count",
+    "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+    "wukongim_storage_pebble_compaction_in_progress_bytes",
+    "wukongim_storage_pebble_compactions_in_progress"
+  ],
+  "count_metric": "wukongim_storage_pebble_compaction_count",
+  "count_summary": {
+    "series": 15,
+    "all_complete": true,
+    "sum_first_measured": "9",
+    "sum_terminal": "9",
+    "sum_delta": "0",
+    "raft_store_per_node": [
+      {
+        "node_id": 1,
+        "first_measured": "3",
+        "terminal": "3",
+        "delta": "0"
+      },
+      {
+        "node_id": 2,
+        "first_measured": "3",
+        "terminal": "3",
+        "delta": "0"
+      },
+      {
+        "node_id": 3,
+        "first_measured": "3",
+        "terminal": "3",
+        "delta": "0"
+      }
+    ]
+  },
+  "series": [
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "raft",
+      "first_measured": "10088437",
+      "terminal": "10088437",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "raft",
+      "first_measured": "5.52933E+6",
+      "terminal": "5.52933E+6",
+      "delta": "0E+1",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "raft",
+      "first_measured": "3",
+      "terminal": "3",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "raft",
+      "first_measured": "626042",
+      "terminal": "626042",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 1,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "raft",
+      "first_measured": "10106038",
+      "terminal": "10106038",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "raft",
+      "first_measured": "5.54038E+6",
+      "terminal": "5.54038E+6",
+      "delta": "0E+1",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "raft",
+      "first_measured": "3",
+      "terminal": "3",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "raft",
+      "first_measured": "628469",
+      "terminal": "628469",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 2,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_bytes_read",
+      "store": "raft",
+      "first_measured": "10099119",
+      "terminal": "10099119",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_bytes_written",
+      "store": "raft",
+      "first_measured": "5.54047E+6",
+      "terminal": "5.54047E+6",
+      "delta": "0E+1",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_count",
+      "store": "raft",
+      "first_measured": "3",
+      "terminal": "3",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+      "store": "raft",
+      "first_measured": "640237",
+      "terminal": "640237",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compaction_in_progress_bytes",
+      "store": "raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "channel_log",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "controller_meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "controller_raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "meta",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    },
+    {
+      "node_id": 3,
+      "metric": "wukongim_storage_pebble_compactions_in_progress",
+      "store": "raft",
+      "first_measured": "0",
+      "terminal": "0",
+      "delta": "0",
+      "status": "complete"
+    }
+  ],
+  "limits": [
+    "first-measured snapshots start about5s after first grant, so earlier0..5s activity is not covered by this delta",
+    "count/read/write endpoint equality cannot exclude compactions before first-measured or an unobserved concurrent activity",
+    "Pebble storage compaction metrics are not a measured count of physicalSlot log compaction unless source mapping separately proves it",
+    "Absent metric families remain unavailable; no zero inference from absence"
+  ]
+}

@@ -1,0 +1,63 @@
+--- A/supervise.py
++++ exact79a/supervise.py
+@@ -11,8 +11,9 @@
+ import sys
+ import time
+ import urllib.request
+-
+-ROOT = Path("/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis")
++from exact_build_guard import verify_exact_build, PRODUCT_BINARIES
++
++ROOT = Path("/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a")
+ OUT = Path(__file__).resolve().parent
+ SOURCE = "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06"
+ RUN_ID = "chat-20261021T214505Z-00299e37-rehearsal-1"
+@@ -82,6 +83,7 @@
+     if stop_sent:
+         return
+     reason, stop_sent, stop_at = code, True, time.monotonic()
++    (OUT / "evidence/profile-stop").write_text(code + "\n")
+     pid = coordinator_pid()
+     if pid is None:
+         os.killpg(owned.pid, signal.SIGTERM)
+@@ -139,11 +141,7 @@
+ 
+ 
+ try:
+-    assert subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip() == SOURCE
+-    frozen = json.loads((OUT.parent / "local-loss-reproduction-v1/source-freeze-before-tests.json").read_text())
+-    for path, expected in frozen["files"].items():
+-        if not path.startswith("test/") and path != "AGENTS.md":
+-            assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == expected
++    exact_build = verify_exact_build()
+     assert not any((OUT / name).exists() for name in ("data", "workers", "pids", "report"))
+     assert resource.getrlimit(resource.RLIMIT_NOFILE)[0] >= 30000
+     assert not check_ports()
+@@ -157,25 +155,17 @@
+     finally:
+         for listener in reservations:
+             listener.close()
+-    (OUT / "bin").mkdir(exist_ok=True)
+     (OUT / "evidence").mkdir(exist_ok=True)
+     (OUT / "logs").mkdir(exist_ok=True)
+     env = {key: value for key, value in os.environ.items() if not key.startswith("WK_") and key not in ("GOFAIL_HTTP", "GOFAIL_FAILPOINTS", "GOMAXPROCS", "GODEBUG")}
+     env.update({"GOWORK": "off", "GOMAXPROCS": "1"})
+-    source_binary = OUT.parent / "local-loss-reproduction-v1/bin/wukongim"
+-    (OUT / "bin/wukongim").write_bytes(source_binary.read_bytes())
+-    (OUT / "bin/wukongim").chmod(0o700)
+-    with (OUT / "logs/build-wkcli.log").open("w") as log:
+-        built = subprocess.run(["go", "build", "-o", str(OUT / "bin/wkcli"), "./cmd/wkcli"], cwd=ROOT, env=env,
+-            stdout=log, stderr=subprocess.STDOUT, timeout=max(1, 55 - (time.monotonic() - started_mono)))
+-    assert built.returncode == 0
+     assert time.monotonic() - started_mono <= 60
+     initial = samples()
+     assert not initial["other_wukongim_processes"]
+     preflight = {"at_utc": now().isoformat(), "source_revision": SOURCE, "os": sys.platform, "fd_limit": resource.getrlimit(resource.RLIMIT_NOFILE),
+-        "go_version": capture(["go", "version"]), "memory": capture(["memory_pressure", "-Q"]), "swap": capture(["sysctl", "vm.swapusage"]),
++        "exact_build": exact_build, "memory": capture(["memory_pressure", "-Q"]), "swap": capture(["sysctl", "vm.swapusage"]),
+         "capabilities": capture(["sysctl", "hw.memsize", "hw.ncpu", "hw.model"]), "disk": capture(["df", "-Pk", str(OUT)]),
+-        "binary_sha256": {name: hashlib.sha256((OUT / "bin" / name).read_bytes()).hexdigest() for name in ("wukongim", "wkcli")},
++        "binary_sha256": {name: hashlib.sha256(PRODUCT_BINARIES[name].read_bytes()).hexdigest() for name in ("wukongim", "wkcli")},
+         "run_id": RUN_ID, "profile": "local", "original_workload_unchanged": True, "cloud_capacity_qualified": False,
+         "service_gomaxprocs": 2, "worker_coordinator_observer_gomaxprocs": 1, "all_observers_share_one_host_and_disk": True}
+     write("preflight.json", preflight)

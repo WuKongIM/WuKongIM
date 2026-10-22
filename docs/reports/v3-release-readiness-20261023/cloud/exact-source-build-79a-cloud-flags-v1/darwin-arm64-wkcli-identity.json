@@ -1,0 +1,11 @@
+{
+  "platform": "darwin-arm64",
+  "binary": "wkcli",
+  "sha256": "081948b0b9e70f336d50fbfdb0d2943854ee69e42c7fd416d43534e82b46bdf5",
+  "bytes": 41009346,
+  "linkflags": "-s -w -buildid=",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "compiler": "go1.25.11",
+  "CGO_ENABLED": 0,
+  "trimpath": true
+}

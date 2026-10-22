@@ -1,0 +1,18 @@
+[
+  {
+    "binary": "wukongim",
+    "new_sha256": "8530b519e002b7a35731ec6791d0da34fabe36364c47fddb0220b039193ad7d8",
+    "cloud_sha256": "99469fc9ab58c6180c909ccef65b2fdb8ad8fc9f0b91161292bda9b69b0eed00",
+    "byte_equal": false,
+    "new_bytes": 94767363,
+    "cloud_bytes": 68186260
+  },
+  {
+    "binary": "wkcli",
+    "new_sha256": "53248071106d32a6488c4882d734ab0a776433fd800c0c002a96837dafce3a3d",
+    "cloud_sha256": "43dd65554569ef29596d5a21349f0a3e08c4093652413afbd2f654f1856c884b",
+    "byte_equal": false,
+    "new_bytes": 59650518,
+    "cloud_bytes": 42950804
+  }
+]

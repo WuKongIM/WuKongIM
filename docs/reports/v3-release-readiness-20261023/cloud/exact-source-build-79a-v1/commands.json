@@ -1,0 +1,327 @@
+[
+  {
+    "name": "clone",
+    "argv": [
+      "git",
+      "clone",
+      "--shared",
+      "--no-checkout",
+      "--no-tags",
+      "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+      "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+    "started_at": "2026-10-22T20:27:51.682329+00:00",
+    "finished_at": "2026-10-22T20:27:51.724943+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "checkout",
+    "argv": [
+      "git",
+      "checkout",
+      "--detach",
+      "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:27:51.725161+00:00",
+    "finished_at": "2026-10-22T20:27:52.566241+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "source-head",
+    "argv": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:27:52.566359+00:00",
+    "finished_at": "2026-10-22T20:27:52.578622+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "source-before",
+    "argv": [
+      "git",
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:27:52.578741+00:00",
+    "finished_at": "2026-10-22T20:27:52.696962+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "go-version",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "version"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:27:52.697089+00:00",
+    "finished_at": "2026-10-22T20:27:52.703910+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "go-env",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "env",
+      "-json",
+      "GOVERSION",
+      "GOROOT",
+      "GOMOD",
+      "GOWORK",
+      "GOFLAGS",
+      "GOCACHE",
+      "GOMODCACHE",
+      "GOTOOLCHAIN",
+      "GOPROXY",
+      "GOSUMDB",
+      "CGO_ENABLED",
+      "GOOS",
+      "GOARCH"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:27:52.704014+00:00",
+    "finished_at": "2026-10-22T20:27:52.710198+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "tracked-source-paths",
+    "argv": [
+      "git",
+      "ls-files",
+      "-z"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:27:52.710336+00:00",
+    "finished_at": "2026-10-22T20:27:52.722758+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "darwin-arm64-wukongim-build",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "build",
+      "-p=2",
+      "-trimpath",
+      "-buildvcs=true",
+      "-mod=readonly",
+      "-o",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/darwin-arm64/wukongim",
+      "./cmd/wukongim"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:27:52.811465+00:00",
+    "finished_at": "2026-10-22T20:28:18.982297+00:00",
+    "exit_status": 0,
+    "overrides": {
+      "GOOS": "darwin",
+      "GOARCH": "arm64"
+    }
+  },
+  {
+    "name": "darwin-arm64-wukongim-buildinfo",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "version",
+      "-m",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/darwin-arm64/wukongim"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:28:18.982476+00:00",
+    "finished_at": "2026-10-22T20:28:18.997417+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "darwin-arm64-wukongim-buildid",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "tool",
+      "buildid",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/darwin-arm64/wukongim"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:28:18.997579+00:00",
+    "finished_at": "2026-10-22T20:28:19.392092+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "darwin-arm64-wkcli-build",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "build",
+      "-p=2",
+      "-trimpath",
+      "-buildvcs=true",
+      "-mod=readonly",
+      "-o",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/darwin-arm64/wkcli",
+      "./cmd/wkcli"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:28:19.451357+00:00",
+    "finished_at": "2026-10-22T20:28:24.678490+00:00",
+    "exit_status": 0,
+    "overrides": {
+      "GOOS": "darwin",
+      "GOARCH": "arm64"
+    }
+  },
+  {
+    "name": "darwin-arm64-wkcli-buildinfo",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "version",
+      "-m",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/darwin-arm64/wkcli"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:28:24.678658+00:00",
+    "finished_at": "2026-10-22T20:28:24.690507+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "darwin-arm64-wkcli-buildid",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "tool",
+      "buildid",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/darwin-arm64/wkcli"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:28:24.690656+00:00",
+    "finished_at": "2026-10-22T20:28:24.882451+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "linux-amd64-wukongim-build",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "build",
+      "-p=2",
+      "-trimpath",
+      "-buildvcs=true",
+      "-mod=readonly",
+      "-o",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/linux-amd64/wukongim",
+      "./cmd/wukongim"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:28:24.922122+00:00",
+    "finished_at": "2026-10-22T20:28:53.061829+00:00",
+    "exit_status": 0,
+    "overrides": {
+      "GOOS": "linux",
+      "GOARCH": "amd64",
+      "GOAMD64": "v1"
+    }
+  },
+  {
+    "name": "linux-amd64-wukongim-buildinfo",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "version",
+      "-m",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/linux-amd64/wukongim"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:28:53.062042+00:00",
+    "finished_at": "2026-10-22T20:28:53.069593+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "linux-amd64-wukongim-buildid",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "tool",
+      "buildid",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/linux-amd64/wukongim"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:28:53.069752+00:00",
+    "finished_at": "2026-10-22T20:28:53.125354+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "linux-amd64-wkcli-build",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "build",
+      "-p=2",
+      "-trimpath",
+      "-buildvcs=true",
+      "-mod=readonly",
+      "-o",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/linux-amd64/wkcli",
+      "./cmd/wkcli"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:28:53.164541+00:00",
+    "finished_at": "2026-10-22T20:28:59.111318+00:00",
+    "exit_status": 0,
+    "overrides": {
+      "GOOS": "linux",
+      "GOARCH": "amd64",
+      "GOAMD64": "v1"
+    }
+  },
+  {
+    "name": "linux-amd64-wkcli-buildinfo",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "version",
+      "-m",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/linux-amd64/wkcli"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:28:59.111564+00:00",
+    "finished_at": "2026-10-22T20:28:59.120463+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "linux-amd64-wkcli-buildid",
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "tool",
+      "buildid",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/linux-amd64/wkcli"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:28:59.120665+00:00",
+    "finished_at": "2026-10-22T20:28:59.177463+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  },
+  {
+    "name": "source-after",
+    "argv": [
+      "git",
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all"
+    ],
+    "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+    "started_at": "2026-10-22T20:28:59.208408+00:00",
+    "finished_at": "2026-10-22T20:28:59.246363+00:00",
+    "exit_status": 0,
+    "overrides": {}
+  }
+]

@@ -1,0 +1,334 @@
+{
+  "schema": "wukongim/exact79a-controlled-local-profile-safe-snapshot/v1",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "source_and_build": "exact clean real.git source, embedded Go1.25.11/79a clean, CGO0/trimpath/cloud linkflags; inputs verified before/after",
+  "native_binary_sha256": {
+    "wukongim": "5b30743481398ad8175476d18ffbc676c6da5288657919ae8e704324e67351ab",
+    "wkcli": "081948b0b9e70f336d50fbfdb0d2943854ee69e42c7fd416d43534e82b46bdf5"
+  },
+  "started_at_utc": "2026-10-22T20:37:52.836441+00:00",
+  "finished_at_utc": "2026-10-22T20:43:49.818891+00:00",
+  "launcher_exit_status": 7,
+  "final_report_present": true,
+  "window": {
+    "start": "2026-10-23T04:42:06.5464+08:00",
+    "warmup_end": "2026-10-23T06:42:06.5464+08:00",
+    "qualification_at": "2026-10-24T04:42:06.5464+08:00",
+    "final_at": "2026-10-26T04:42:06.5464+08:00",
+    "end": "2026-10-23T04:42:17.288828+08:00",
+    "elapsed": 10742274875
+  },
+  "verdict": {
+    "outcome": "product_failure",
+    "cause": "overall_first_attempt_rate",
+    "terminal": true,
+    "cleanup_error_count": 0,
+    "latency_warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "latency_anomaly_count": 0,
+    "retention": {
+      "minute_samples": 1,
+      "minute_capacity": 16,
+      "latency_samples": [
+        0,
+        0,
+        0
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "messages": {
+    "sent": 12001,
+    "send_attempts": 12882,
+    "first_attempts": 12001,
+    "first_attempt_failures": 160,
+    "send_acknowledged": 12001,
+    "send_rejected": 172,
+    "received": 14433,
+    "receive_acknowledged": 14433,
+    "receive_ack_failures": 0,
+    "retry_attempts": 881,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 2,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "generated": {
+    "primary": 12000,
+    "person": 10800,
+    "group": 1200,
+    "canary": 1,
+    "payload_bytes": 9154560
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 102,
+    "delivered": 100,
+    "expired": 2,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "harness": {
+    "classification": "product_failure",
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 197874,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "profile_collection": {
+    "metadata": {
+      "schema": "wukongim.local_first_grant_profile/v2",
+      "trigger": {
+        "kind": "first_grant_receipt",
+        "observed_phase": "measurement",
+        "previous_utc": "2026-10-22T20:42:06.5464Z",
+        "current_utc": "2026-10-22T20:42:06.599756Z"
+      },
+      "capture": {
+        "status": "complete",
+        "valid": true,
+        "reason": "ok",
+        "start_phase": "measurement",
+        "end_phase": "measurement",
+        "started_at_utc": "2026-10-22T20:42:06Z",
+        "completed_at_utc": "2026-10-22T20:42:16Z",
+        "cpu_seconds": 10
+      },
+      "nodes": [
+        {
+          "node": "node-2",
+          "cpu": "complete",
+          "heap": "not_requested",
+          "goroutine": "complete"
+        }
+      ]
+    },
+    "requests": {
+      "cpu": {
+        "schema": "wukongim/local-profile-request-status/v1",
+        "node_id": 2,
+        "kind": "cpu",
+        "curl_exit_code": 0,
+        "http_status": "200",
+        "error_class": "none",
+        "retained_body_bytes": 42936,
+        "max_bytes": 8388608
+      },
+      "goroutine": {
+        "schema": "wukongim/local-profile-request-status/v1",
+        "node_id": 2,
+        "kind": "goroutine",
+        "curl_exit_code": 0,
+        "http_status": "200",
+        "error_class": "none",
+        "retained_body_bytes": 25282,
+        "max_bytes": 4194304
+      }
+    },
+    "watcher_joined": true,
+    "kill_escalated": false,
+    "receipt": {
+      "sha256": "987c8f14a0cb9e82af6f13aefc24bd238b606104d6f04599d67ca89234539606",
+      "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+      "assignment_hash": "sha256:f9814da7618b2c867b9e8b7e82745b2a5dd3de6cd0b04cf696f96bcc80bfcd8c",
+      "generation": 1,
+      "started_at": "2026-10-23T04:42:06.5464+08:00",
+      "seen_at": "2026-10-22T20:42:06.599756+00:00",
+      "detection_lag_seconds": 0.053356,
+      "publication_lag_limit": "receipt is written after first grant and dataset probe; exact sampling at first grant is impossible"
+    },
+    "helper_launch_parent_observed_at": "2026-10-22T20:42:06.600596+00:00"
+  },
+  "cleanup": {
+    "at_utc": "2026-10-22T20:43:49.817745+00:00",
+    "owned_pgid": 8675,
+    "remaining_processes": [],
+    "remaining_listeners": [],
+    "tested_ports": [
+      25000,
+      25001,
+      25002,
+      25003,
+      25004,
+      25005,
+      25006,
+      25007,
+      25008,
+      25009,
+      25010,
+      25011,
+      25012,
+      25013,
+      25014,
+      25015,
+      25016,
+      25017,
+      25018,
+      25019,
+      25020,
+      25021,
+      25022,
+      25023,
+      25024,
+      25025,
+      25026,
+      25027,
+      25028,
+      25029,
+      25030,
+      25031,
+      25032,
+      25033,
+      25034,
+      25035,
+      25036,
+      25037,
+      25038,
+      25039,
+      25040,
+      25041,
+      25042,
+      25043,
+      25044,
+      25045,
+      25046,
+      25047,
+      25048,
+      25049,
+      25050,
+      25051,
+      25052,
+      25053,
+      25054,
+      25055,
+      25056,
+      25057,
+      25058,
+      25059,
+      25060,
+      25061,
+      25062,
+      25063
+    ],
+    "complete": true,
+    "elapsed_seconds": 356.9762180419639
+  },
+  "retained_private_evidence": {
+    "report/final.json": {
+      "bytes": 23630,
+      "sha256": "7301ce8e67fc70dc7eb8b83dc093476e32e3148aef737212e6264123585c9796"
+    },
+    "report/worker-evidence.json": {
+      "bytes": 2149,
+      "sha256": "a640335c88fd054063becb58de2bd09c4767c78fa4342344468d4a7a497fc44a"
+    },
+    "report/diagnostic-status.json": {
+      "bytes": 9015,
+      "sha256": "914a8bf22f670d366c766381efd95d5ffc3f17eb352579a6de057558cc678458"
+    },
+    "diagnostic-cuts.jsonl": {
+      "bytes": 10656,
+      "sha256": "0f153ca6eb12a3caa69a3451eb7e8b10084e88b49688cf7a38c082118d72c312"
+    },
+    "host-process-samples.jsonl": {
+      "bytes": 94114,
+      "sha256": "d944772d99692c897ad83c596794c68fb6b5209882b693011534193ab560bbb3"
+    },
+    "logs/coordinator.log": {
+      "bytes": 2870,
+      "sha256": "943e3db52f41b8199b248bdfae2fdccb5e6d869531b2d3782a1409195acb8835"
+    },
+    "evidence/metrics-first-measured-node1.prom": {
+      "bytes": 1027740,
+      "sha256": "d95b470b2919f3e4bbd3c4cfa1da5c15833f9054f62885b9be3fec20428de4e0"
+    },
+    "evidence/metrics-first-measured-node2.prom": {
+      "bytes": 1008137,
+      "sha256": "cd590c0e6a15964c7cba118b15845e1e7e73f34f226c9b51712831cba98242ad"
+    },
+    "evidence/metrics-first-measured-node3.prom": {
+      "bytes": 1005648,
+      "sha256": "75dbe40ae5077524a3bd3e296e86e9c8e4bc4c76c4f9489376b6034accf03feb"
+    },
+    "evidence/metrics-terminal-node1.prom": {
+      "bytes": 1066893,
+      "sha256": "ce02d13455c61f49866e27d354aa9ae590a69fd15c1b3ee912d2b7439e197fd2"
+    },
+    "evidence/metrics-terminal-node2.prom": {
+      "bytes": 1040557,
+      "sha256": "d31aaad13b8ac043b13fc037a1122c60c643e6e2350ab51256ace8bfd242aa56"
+    },
+    "evidence/metrics-terminal-node3.prom": {
+      "bytes": 1040222,
+      "sha256": "2560898700b8adef2e6dfb76fc4104cdee0777efba36f8d2efc299240749d7b7"
+    },
+    "evidence/metrics-first-measured-receipt.json": {
+      "bytes": 450,
+      "sha256": "9a2a248b9f482688502c9dffdb6cb68115b558d2eba3ad0ea95e410ecf0d1c91"
+    },
+    "evidence/metrics-terminal-receipt.json": {
+      "bytes": 450,
+      "sha256": "9b91f5b31f7b2c8fe2217da0488fe92407b138bd61494063f74e1082a2c56ca0"
+    },
+    "profiles-node2/profiles/node-2-cpu.pb.gz": {
+      "bytes": 42936,
+      "sha256": "e0c3d01ea942953e3f7b84465cf52cd4783c3b5db47c237994522db29058af96"
+    },
+    "profiles-node2/profiles/node-2-goroutine.pb.gz": {
+      "bytes": 25282,
+      "sha256": "42c8ab9392acfce1b53dbbba0360ed298a68ee04e93d73abd4de4455aa78e697"
+    }
+  },
+  "limits": [
+    "One bounded diagnostic only; no auto retry,extra product request,DB query or pprof analysis in this agent",
+    "Collection valid does not prove full CPU window active SEND; natural admission-stop boundary and real GOR request offset are not independently observed by watcher",
+    "Sampling perturbs scheduling; native Macarm64/sharedhost is not cloud LinuxAMD64 capacity or Linux performance acceptance",
+    "Final window includes run/drain boundaries; do not compute offered QPS as final count/window and equate it with actual sending interval",
+    "2 expired delivery samples are bounded correctness observations, not a proven product mechanism or cloud root cause",
+    "No DB read in this run; persistence not reverified here",
+    "Other agent unit work resumed only after observed collection/terminal; later hold resource samples may include that documented interference"
+  ]
+}

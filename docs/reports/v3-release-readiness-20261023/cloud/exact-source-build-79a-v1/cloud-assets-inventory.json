@@ -1,0 +1,392 @@
+[
+  {
+    "path": "assets/demo/assets",
+    "bytes": 0,
+    "regular": false
+  },
+  {
+    "path": "assets/demo/assets/Chat-0bd26d92.js",
+    "bytes": 25346,
+    "regular": true
+  },
+  {
+    "path": "assets/demo/assets/Chat-e2f023a7.css",
+    "bytes": 10923,
+    "regular": true
+  },
+  {
+    "path": "assets/demo/assets/Login-68a64955.css",
+    "bytes": 1881,
+    "regular": true
+  },
+  {
+    "path": "assets/demo/assets/Login-fc1be1af.js",
+    "bytes": 3053,
+    "regular": true
+  },
+  {
+    "path": "assets/demo/assets/assets-056547b1.css",
+    "bytes": 516,
+    "regular": true
+  },
+  {
+    "path": "assets/demo/assets/assets-48a13729.js",
+    "bytes": 1347,
+    "regular": true
+  },
+  {
+    "path": "assets/demo/assets/index-00c11449.css",
+    "bytes": 1844,
+    "regular": true
+  },
+  {
+    "path": "assets/demo/assets/index-0c1748c5.js",
+    "bytes": 376546,
+    "regular": true
+  },
+  {
+    "path": "assets/demo/index.html",
+    "bytes": 441,
+    "regular": true
+  },
+  {
+    "path": "assets/demo/logo.png",
+    "bytes": 6085,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets",
+    "bytes": 0,
+    "regular": false
+  },
+  {
+    "path": "assets/manager/assets/action-form-dialog-Dgf3eh7Z.js",
+    "bytes": 1511,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/arrow-down-BDjUkTdf.js",
+    "bytes": 154,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/circle-question-mark-Pbkj54ja.js",
+    "bytes": 237,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/confirm-dialog-BlfIIUEM.js",
+    "bytes": 1453,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/copy-DK6llW26.js",
+    "bytes": 225,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/detail-sheet-DmHgWO7L.js",
+    "bytes": 1366,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/geist-cyrillic-wght-normal-CHSlOQsW.woff2",
+    "bytes": 14692,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/geist-latin-ext-wght-normal-DMtmJ5ZE.woff2",
+    "bytes": 15308,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/geist-latin-wght-normal-Dm3htQBi.woff2",
+    "bytes": 28400,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/geist-mono-cyrillic-wght-normal-BZdD_g9V.woff2",
+    "bytes": 12616,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/geist-mono-latin-ext-wght-normal-b6lpi8_2.woff2",
+    "bytes": 13044,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/geist-mono-latin-wght-normal-Cjtb1TV-.woff2",
+    "bytes": 31368,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/icons-BRtHMaym.js",
+    "bytes": 8995,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/index-8UIgC_rj.js",
+    "bytes": 337464,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/index-Du3-0AeG.css",
+    "bytes": 94600,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/internationalization-CkLnavra.js",
+    "bytes": 49879,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/key-value-list-C1OdtMlN.js",
+    "bytes": 467,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/manager-message-payload-CrO-Bdz8.js",
+    "bytes": 316,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/monitor-node-selector-B2aKocIr.js",
+    "bytes": 1141,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/node-config-i18n-BQPjZY_d.js",
+    "bytes": 5602,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/node-filter-D2TXFXyN.js",
+    "bytes": 1147,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-1k_kcmBA.js",
+    "bytes": 11276,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-7p3guEEA.js",
+    "bytes": 25156,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-BBiOqBGB.js",
+    "bytes": 27162,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-BDgAnElw.js",
+    "bytes": 30060,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-BbJU6hm0.js",
+    "bytes": 16794,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-BrhUw6uI.js",
+    "bytes": 66393,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-C5sgfBV2.js",
+    "bytes": 10574,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-CIj-iC5S.js",
+    "bytes": 14313,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-D-RCbGIo.js",
+    "bytes": 15456,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-DBK7ZUys.js",
+    "bytes": 29671,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-Dd_mZDcH2.js",
+    "bytes": 6286,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-DqaUIKIG.js",
+    "bytes": 28881,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-DrlhDoPP.js",
+    "bytes": 7449,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-GuLuWAJb.js",
+    "bytes": 11073,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-QpXZf7HB.js",
+    "bytes": 5440,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-Uhs5_TPd.js",
+    "bytes": 17742,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-Vd9yu4UC.js",
+    "bytes": 8316,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-Yk4VAldT.js",
+    "bytes": 8744,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-gj0YRSeA.js",
+    "bytes": 11898,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-header-DycBClwF.js",
+    "bytes": 1319,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-kSwBta5d.js",
+    "bytes": 388798,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-ksAYZ6SJ.js",
+    "bytes": 24090,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/page-tabs-tnEB8CKB.js",
+    "bytes": 639,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/pause-C-qiB3dF.js",
+    "bytes": 200,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/permissions-DlVU-3ev.js",
+    "bytes": 134,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/play-BkkcuACI.js",
+    "bytes": 179,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/protected-app-shell-fxcDvw7h.js",
+    "bytes": 12723,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/react-core-C41Lr-7s.js",
+    "bytes": 189644,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/refresh-cw-CwhT7J6N.js",
+    "bytes": 310,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/resource-state-C0zNLkrh.js",
+    "bytes": 1091,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/rolldown-runtime-S-ySWqyJ.js",
+    "bytes": 694,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/router-CUwpFhXQ.js",
+    "bytes": 93567,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/search-BUeC82_e.js",
+    "bytes": 163,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/section-card-CHWGwIZX.js",
+    "bytes": 2141,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/sheet-BCkYM0TR.js",
+    "bytes": 24008,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/status-badge-rscIRwaF.js",
+    "bytes": 773,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/status-labels-D5vbD6Hp.js",
+    "bytes": 3368,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/ui-primitives-BB9hC0a6.js",
+    "bytes": 44904,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/use-modal-focus-CZQjdk0o.js",
+    "bytes": 1032,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/utilities-DqAjjHqi.js",
+    "bytes": 27692,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/assets/utils-BMh8XdsE.js",
+    "bytes": 18708,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/favicon.svg",
+    "bytes": 9522,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/icons.svg",
+    "bytes": 5031,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/index.html",
+    "bytes": 1688,
+    "regular": true
+  },
+  {
+    "path": "assets/manager/logo.png",
+    "bytes": 21203,
+    "regular": true
+  }
+]

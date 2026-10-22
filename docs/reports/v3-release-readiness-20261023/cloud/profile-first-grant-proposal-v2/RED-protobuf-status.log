@@ -1,0 +1,71 @@
+test_protobuf_and_finite_status_contract (__main__.Contract.test_protobuf_and_finite_status_contract) ... 
+  test_protobuf_and_finite_status_contract (__main__.Contract.test_protobuf_and_finite_status_contract) (mode='normal') ... FAIL
+  test_protobuf_and_finite_status_contract (__main__.Contract.test_protobuf_and_finite_status_contract) (mode='http503') ... FAIL
+  test_protobuf_and_finite_status_contract (__main__.Contract.test_protobuf_and_finite_status_contract) (mode='http302') ... FAIL
+  test_protobuf_and_finite_status_contract (__main__.Contract.test_protobuf_and_finite_status_contract) (mode='gor_timeout') ... FAIL
+  test_protobuf_and_finite_status_contract (__main__.Contract.test_protobuf_and_finite_status_contract) (mode='oversize_gor') ... FAIL
+
+======================================================================
+FAIL: test_protobuf_and_finite_status_contract (__main__.Contract.test_protobuf_and_finite_status_contract) (mode='normal')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/driver_fixture_integration_test.py", line 76, in test_protobuf_and_finite_status_contract
+    f=self.fixture(mode=mode);r=f.wait();self.assertEqual(r['status'],status)
+                                ~~~~~~^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/driver_fixture_integration_test.py", line 54, in wait
+    assert self.process.returncode==0,(self.process.returncode,err.decode()[:300])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (2, "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/private/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/watch-first-grant.py': [Errno 2] No such file or directory\n")
+
+======================================================================
+FAIL: test_protobuf_and_finite_status_contract (__main__.Contract.test_protobuf_and_finite_status_contract) (mode='http503')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/driver_fixture_integration_test.py", line 76, in test_protobuf_and_finite_status_contract
+    f=self.fixture(mode=mode);r=f.wait();self.assertEqual(r['status'],status)
+                                ~~~~~~^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/driver_fixture_integration_test.py", line 54, in wait
+    assert self.process.returncode==0,(self.process.returncode,err.decode()[:300])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (2, "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/private/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/watch-first-grant.py': [Errno 2] No such file or directory\n")
+
+======================================================================
+FAIL: test_protobuf_and_finite_status_contract (__main__.Contract.test_protobuf_and_finite_status_contract) (mode='http302')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/driver_fixture_integration_test.py", line 76, in test_protobuf_and_finite_status_contract
+    f=self.fixture(mode=mode);r=f.wait();self.assertEqual(r['status'],status)
+                                ~~~~~~^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/driver_fixture_integration_test.py", line 54, in wait
+    assert self.process.returncode==0,(self.process.returncode,err.decode()[:300])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (2, "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/private/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/watch-first-grant.py': [Errno 2] No such file or directory\n")
+
+======================================================================
+FAIL: test_protobuf_and_finite_status_contract (__main__.Contract.test_protobuf_and_finite_status_contract) (mode='gor_timeout')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/driver_fixture_integration_test.py", line 76, in test_protobuf_and_finite_status_contract
+    f=self.fixture(mode=mode);r=f.wait();self.assertEqual(r['status'],status)
+                                ~~~~~~^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/driver_fixture_integration_test.py", line 54, in wait
+    assert self.process.returncode==0,(self.process.returncode,err.decode()[:300])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (2, "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/private/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/watch-first-grant.py': [Errno 2] No such file or directory\n")
+
+======================================================================
+FAIL: test_protobuf_and_finite_status_contract (__main__.Contract.test_protobuf_and_finite_status_contract) (mode='oversize_gor')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/driver_fixture_integration_test.py", line 76, in test_protobuf_and_finite_status_contract
+    f=self.fixture(mode=mode);r=f.wait();self.assertEqual(r['status'],status)
+                                ~~~~~~^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/driver_fixture_integration_test.py", line 54, in wait
+    assert self.process.returncode==0,(self.process.returncode,err.decode()[:300])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (2, "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/private/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/watch-first-grant.py': [Errno 2] No such file or directory\n")
+
+----------------------------------------------------------------------
+Ran 1 test in 2.561s
+
+FAILED (failures=5)

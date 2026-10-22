@@ -1,0 +1,13 @@
+{
+  "platform": "linux-amd64",
+  "binary": "wukongim",
+  "sha256": "99469fc9ab58c6180c909ccef65b2fdb8ad8fc9f0b91161292bda9b69b0eed00",
+  "bytes": 68186260,
+  "linkflags": "-s -w -buildid=",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "compiler": "go1.25.11",
+  "CGO_ENABLED": 0,
+  "trimpath": true,
+  "cloud_sha256": "99469fc9ab58c6180c909ccef65b2fdb8ad8fc9f0b91161292bda9b69b0eed00",
+  "cloud_byte_equal": true
+}
