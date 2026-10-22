@@ -1917,11 +1917,16 @@ specification, runbook, report, or module documentation; link to them when neede
   snapshot sequences and cut time to the final report. Aggregate loss counts alone
   cannot reconstruct an expired sample after Lease release. Metric collection uses
   the terminal report window rather than finalizer wall time: eight fixed queries
-  preserve the previous selector plus exact presence-endpoint and delivery-worker,
+  cover runtime pools, channel workers, exact presence-endpoint and delivery-worker,
   authority-resolution and push-RPC families, with a shared 24 MiB transfer budget
-  and 60-second deadline. Valid partitions survive sibling failures; empty families
-  have explicit zero coverage. Missing, malformed or oversized required evidence
-  stays incomplete and never replaces an earlier product failure. Query boundaries
+  and 60-second deadline. Resource queries use registered standard `go_*` and
+  `process_*` names alongside the independent `wukongim_process_*` collector;
+  Channel counters use `wukongim_channel(v2)?_meta_created_total` and
+  `wukongim_channel(v2)?_activation_rejected_total`. Legacy/promoted counter
+  families remain separate raw series and must not be summed as distinct events.
+  Valid partitions survive sibling failures; empty families have explicit zero
+  coverage and unknown values, never measured zero. Missing, malformed or oversized
+  required evidence stays incomplete and never replaces an earlier product failure. Query boundaries
   use Prometheus millisecond precision while retaining the report's nanosecond cut;
   only a legal terminal failure in formal soak with canonical not-attempted capacity
   evidence can exempt absent capacity documents. Passing outcomes still require

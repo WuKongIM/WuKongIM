@@ -18,7 +18,7 @@ import time
 MAX_FILE_BYTES = 4 << 20
 METRIC_TOTAL_BYTES = 24 << 20
 METRIC_DEADLINE_SECONDS = 60
-# Two exact diagnostic families precede the six disjoint factors of the old selector.
+# Exact diagnostic families precede bounded runtime and registered resource families.
 # This ordering preserves useful failure signals even when the shared budget expires.
 METRIC_PARTITIONS = (
     ("presence", r"wukongim_presence_endpoint_lookup_(total|items_total|groups_total|duration_seconds_(bucket|sum|count))"),
@@ -26,9 +26,9 @@ METRIC_PARTITIONS = (
     ("up", r"up"),
     ("runtime", r"wukongim_runtime_.*"),
     ("channel_worker", r"wukongim_channel_worker_.*"),
-    ("process", r"wukongim_process_.*"),
-    ("counters", r"wukongim_(metadata_create_total|activation_rejected_total)"),
-    ("go", r"wukongim_go_.*"),
+    ("process", r"(wukongim_)?process_.*"),
+    ("counters", r"wukongim_channel(v2)?_(meta_created|activation_rejected)_total"),
+    ("go", r"go_.*"),
 )
 
 

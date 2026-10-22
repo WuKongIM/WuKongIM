@@ -24,7 +24,12 @@ START = "2026-10-21T17:05:48.909224454Z"
 END = "2026-10-21T17:06:50.121277292Z"
 RUN = "terminal-fixture"
 FAMILIES = ["presence", "delivery", "up", "runtime", "channel_worker", "process", "counters", "go"]
-NAMES = {"up": "up", "runtime": "wukongim_runtime_queue", "channel_worker": "wukongim_channel_worker_busy", "process": "wukongim_process_cpu", "counters": "wukongim_metadata_create_total", "go": "wukongim_go_heap"}
+NAMES = {"up": "up", "runtime": "wukongim_runtime_pool_queue_depth", "channel_worker": "wukongim_channel_worker_queue_depth", "process": "wukongim_process_cpu_jiffies_total", "counters": "wukongim_channelv2_meta_created_total", "go": "go_goroutines"}
+REGISTERED_RESOURCES = {
+    "process": ["wukongim_process_cpu_jiffies_total", "process_cpu_seconds_total", "process_start_time_seconds", "process_resident_memory_bytes"],
+    "counters": ["wukongim_channelv2_meta_created_total", "wukongim_channel_meta_created_total", "wukongim_channelv2_activation_rejected_total", "wukongim_channel_activation_rejected_total"],
+    "go": ["go_goroutines", "go_memstats_heap_alloc_bytes", "go_gc_duration_seconds_count", "go_sched_latencies_seconds_bucket", "go_sched_latencies_seconds_sum", "go_sched_latencies_seconds_count"],
+}
 
 
 def report(stage="rehearsal"):
@@ -53,7 +58,7 @@ def status():
 def metric_family(query):
     if 'runtime_.*|channel_worker' in query:return 'combined'
     if query in ('up','{__name__="up"}'):return 'up'
-    for fragment,family in [('presence_endpoint_lookup_','presence'),('delivery_','delivery'),('runtime_','runtime'),('channel_worker_','channel_worker'),('process_','process'),('metadata_create_total','counters'),('go_','go')]:
+    for fragment,family in [('presence_endpoint_lookup_','presence'),('delivery_','delivery'),('runtime_','runtime'),('channel_worker_','channel_worker'),('process_','process'),('meta_created','counters'),('metadata_create_total','counters'),('go_','go')]:
         if fragment in query:return family
     raise AssertionError('unknown fixture metric query')
 
@@ -88,6 +93,8 @@ def prepare_ssh(directory, cfg, end):
         key='range-'+family;mode=modes.get(key,'normal')
         result={'metric':{'__name__':name},'values':[[1792602410,'1']]}
         data={'status':'success','data':{'resultType':'matrix','result':[result]}}
+        if mode=='registered':
+            data['data']['result']=[{'metric':{'__name__':metric,'job':'wukongim'},'values':[[1792602400,'1'],[1792602410,'2']]} for metric in REGISTERED_RESOURCES[family]]
         if mode in ('boundary-start','boundary-end','before-start','after-end','sub-millisecond'):
             # Independent fixture time plus exact actual-command matching prevents
             # a wrong query from receiving a conveniently prepared boundary value.
@@ -137,7 +144,7 @@ case "$command" in
    *runtime_*) kind=range-runtime ;;
    *channel_worker_*) kind=range-channel_worker ;;
    *process_*) kind=range-process ;;
-   *metadata_create_total*) kind=range-counters ;;
+   *meta_created*|*metadata_create_total*) kind=range-counters ;;
    *go_*) kind=range-go ;;
    *query=up*|*'__name__="up"'*) kind=range-up ;;
    *) exit 99 ;;
@@ -217,6 +224,28 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(self.capture(m,'capacity-documents')['state'],'not_applicable')
         self.assertFalse(any(c['kind'].startswith('capacity/') for c in calls))
         self.assertIn('workload/formal/worker-evidence.json',files)
+
+    def test_registered_resource_families_survive_the_real_collector(self):
+        rc,m,calls,files,_=self.run_case('registered-resource-families',metric_modes=dict.fromkeys(REGISTERED_RESOURCES,'registered'))
+        self.assertEqual(rc,0);self.assertTrue(m['complete'])
+        ranges=[c for c in calls if c['kind'].startswith('range-')]
+        self.assertEqual([c['kind'] for c in ranges],['range-'+x for x in FAMILIES])
+        for family,names in REGISTERED_RESOURCES.items():
+            with self.subTest(family=family):
+                row=self.capture(m,'range-'+family)
+                self.assertEqual(row['state'],'collected')
+                self.assertEqual(row['series_count'],len(names));self.assertEqual(row['sample_count'],2*len(names))
+                body=files['metrics/range-'+family+'.json']
+                self.assertEqual(row['sha256'],hashlib.sha256(body).hexdigest())
+                self.assertEqual([x['metric']['__name__'] for x in json.loads(body)['data']['result']],names)
+                query=next(c['query'] for c in ranges if c['kind']=='range-'+family)
+                pattern=re.fullmatch(r'\{__name__=~"([^"]+)"\}',query).group(1)
+                self.assertTrue(all(re.fullmatch(pattern,name) for name in names))
+                self.assertEqual(row['window']['epoch_start'],'1792601510.121');self.assertEqual(row['window']['epoch_end'],'1792602410.121')
+        self.assertEqual(m['metrics_budget']['max_requests'],8)
+        self.assertEqual(m['metrics_budget']['max_total_bytes'],24<<20)
+        self.assertEqual(m['metrics_budget']['deadline_seconds'],60)
+        self.assertTrue(all(c['step']=='15' for c in ranges))
 
     def test_prometheus_millisecond_closed_window_and_raw_anchor(self):
         for suffix in ['121277292','121777292','121500000','999777292']:
@@ -357,10 +386,11 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(m['metrics_budget']['retained_bytes'],total)
 
     def test_empty_optional_metric_family_has_explicit_zero_coverage(self):
-        rc,m,_,files,_=self.run_case('empty-go',metric_modes={'go':'empty'})
+        rc,m,_,files,_=self.run_case('empty-resources',metric_modes={'go':'empty','counters':'empty'})
         self.assertEqual(rc,0);self.assertTrue(m['complete'])
-        row=self.capture(m,'range-go');self.assertEqual(row['series_count'],0);self.assertEqual(row['sample_count'],0)
-        self.assertIsNone(row['observed_start']);self.assertIsNone(row['observed_end'])
+        for family in ['go','counters']:
+            row=self.capture(m,'range-'+family);self.assertEqual(row['series_count'],0);self.assertEqual(row['sample_count'],0)
+            self.assertIsNone(row['observed_start']);self.assertIsNone(row['observed_end'])
 
     def test_partial_metrics_keep_successful_siblings(self):
         for mode in ['oversized','unavailable','partial','timeout','malformed','wrong-type','wrong-family','error']:
@@ -381,14 +411,70 @@ class HelperBoundsTests(unittest.TestCase):
 
     def test_selector_partition_is_disjoint_and_complete(self):
         h=self.helper
-        original=re.compile(r'up|wukongim_(runtime_.*|channel_worker_.*|process_.*|metadata_create_total|activation_rejected_total|go_.*)')
-        # Algebraic factorization is checked with both prefixes and arbitrary suffixes;
-        # exact counters and exclusions also matter, not just common metric names.
-        for prefix in ['up','wukongim_runtime_','wukongim_channel_worker_','wukongim_process_','wukongim_metadata_create_total','wukongim_activation_rejected_total','wukongim_go_','node_','wukongim_other_']:
-            for suffix in ['', 'x','_bucket','_sum','_count','runtime_.*']:
-                name=prefix+suffix;matches=sum(bool(re.fullmatch(pattern,name)) for key,pattern in h.METRIC_PARTITIONS if key not in ('presence','delivery'))
-                self.assertEqual(matches,int(bool(original.fullmatch(name))),name)
-        self.assertEqual(len(h.METRIC_PARTITIONS),8)
+        # These names come from the registered exporters, not the selector being tested.
+        expected={
+            'up':['up'],
+            'runtime':['wukongim_runtime_pool_queue_depth'],
+            'channel_worker':['wukongim_channel_worker_inflight'],
+            'process':['wukongim_process_cpu_jiffies_total','wukongim_process_up',
+                       'process_cpu_seconds_total','process_start_time_seconds','process_resident_memory_bytes'],
+            'counters':['wukongim_channel_meta_created_total','wukongim_channelv2_meta_created_total',
+                        'wukongim_channel_activation_rejected_total','wukongim_channelv2_activation_rejected_total'],
+            'go':['go_goroutines','go_memstats_heap_alloc_bytes','go_gc_duration_seconds_count',
+                  'go_sched_latencies_seconds_bucket','go_sched_latencies_seconds_sum','go_sched_latencies_seconds_count'],
+        }
+        for family,names in expected.items():
+            for name in names:
+                with self.subTest(metric=name):
+                    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])
+        for name in ['wukongim_metadata_create_total','wukongim_activation_rejected_total','wukongim_go_heap',
+                     'wukongim_channel_meta_created_total_extra','wukongim_channelv2_activation_rejected_total_sum',
+                     'wukongim_channel_meta_create_queue_depth','node_cpu_seconds_total','wukongim_other_secret']:
+            with self.subTest(excluded=name):
+                self.assertFalse(any(re.fullmatch(pattern,name) for _,pattern in h.METRIC_PARTITIONS))
+        self.assertEqual([key for key,_ in h.METRIC_PARTITIONS],FAMILIES)
+
+    def test_registered_resource_matrices_retain_exact_bytes_without_extra_queries(self):
+        h=self.helper
+        exported={
+            'process':['wukongim_process_cpu_jiffies_total','process_cpu_seconds_total',
+                       'process_start_time_seconds','process_resident_memory_bytes'],
+            'counters':['wukongim_channelv2_meta_created_total','wukongim_channel_meta_created_total',
+                        'wukongim_channelv2_activation_rejected_total','wukongim_channel_activation_rejected_total'],
+            'go':['go_goroutines','go_memstats_heap_alloc_bytes','go_gc_duration_seconds_count',
+                  'go_sched_latencies_seconds_bucket','go_sched_latencies_seconds_sum','go_sched_latencies_seconds_count'],
+        }
+        bodies={family:json.dumps({'status':'success','data':{'resultType':'matrix','result':[
+            {'metric':{'__name__':name,'job':'wukongim'},'values':[[1792602400,'1'],[1792602410,'2']]}
+            for name in names]}}).encode() for family,names in exported.items()}
+        empty=b'{"status":"success","data":{"resultType":"matrix","result":[]}}'
+        calls=[]
+        def capture(name,query,start,end,timeout,cap):
+            calls.append((name,start,end,timeout,cap));return 'collected',bodies.get(name,empty)
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)
+            rows,budget=h.collect_ranges(output,{'end':END,'epoch_start':'1792601510.121','epoch_end':'1792602410.121','source':'rehearsal/final.json'},capture)
+            for family,names in exported.items():
+                with self.subTest(family=family):
+                    row=next(x for x in rows if x['name']=='range-'+family)
+                    self.assertEqual(row['state'],'collected')
+                    self.assertEqual(row['series_count'],len(names));self.assertEqual(row['sample_count'],2*len(names))
+                    self.assertEqual((output/row['path']).read_bytes(),bodies[family])
+                    self.assertEqual(row['sha256'],hashlib.sha256(bodies[family]).hexdigest())
+        self.assertEqual([x[0] for x in calls],FAMILIES)
+        self.assertTrue(all(x[1:3]==('1792601510.121','1792602410.121') and 0<x[3]<=30 and x[4]<=4<<20 for x in calls))
+        self.assertEqual(budget['max_requests'],8);self.assertEqual(budget['deadline_seconds'],60)
+        self.assertEqual(budget['max_total_bytes'],24<<20)
+
+    def test_registered_counter_names_follow_exported_aliases(self):
+        h=self.helper
+        for source in ['channel.go','channel_runtime.go']:
+            names=re.findall(r'Name:\s+"([^"]+)"',(ROOT/'pkg/metrics'/source).read_text())
+            for name in names:
+                if not name.endswith(('meta_created_total','activation_rejected_total')):continue
+                exported=[name,name.replace('wukongim_channelv2_','wukongim_channel_')]
+                for metric in set(exported):
+                    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,metric)],['counters'],metric)
 
     def test_diagnostic_metric_names_are_exact_and_disjoint(self):
         h=self.helper;patterns=dict(h.METRIC_PARTITIONS)
