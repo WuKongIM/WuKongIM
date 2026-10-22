@@ -42,6 +42,14 @@
 
 实际 TOML、执行脚本与冻结云 bundle 的对照发现两处明确差异：本地 gateway session batch limit 为 1，云模板使用源码默认 128；Slot compaction 本地为 1000 entries/5 秒，云模板默认 10000/30 秒。recipient、person-directory、RPC、append 等主要固定容量相同。本地三节点 GOMAXPROCS 实测均为 2，云端保留证据没有其实际值，不能以 4 核规格代替测量。两者配置及平台并不等价；后续先只对照 batch limit，不同时改并发、超时、队列或压测率。
 
+只改 batch limit 为 128 的单次对照也已结束，保留独立失败记录：实际 24,063 批中 702 批超过 1 条（2.917%，全部不超过 4 条），没有形成每批 128 条的负载。worker 最后切面保留 22,001 次逻辑发送、22,000 个成功 ACK、10 个普通群接收采样过期和 1 个发送重试耗尽；三个 recipient pool 仍满载或接近满载。两轮切面及暴露窗口不同，不能把累计数差异作为配对性能结论。
+
+该对照 coordinator 返回 exit 8，未生成 `final.json`；`harness_invalid / invalid_observation / coordinator_code=finalize` 是 CLI 通用映射，不证明指标本身损坏。收尾多个分支折叠了内层错误，现有证据无法唯一选择实际失败分支。因此保留 worker 观察，整轮仍属终态不完整，不能报告验收通过、批量调整改善或已确认的产品退化。**03:32:16.921200** 所属进程组及全部 64 端口已清零，没有自动重跑。
+
+基线实际 gateway batch 全部为 1，但 permission 自身已通过 cohort 约合并 6 个调用；旧云端八个指标分区没有批次或 permission cohort 信号，云实际形态为缺失。十万成员 canary 已生成且有聚合 ACK，但缺精确发送/投递/冷重建时间；本地失败的代表 recipient 均不属该大群，不能排除其间接压力，也不能直接归因为该群投递超时。
+
+两个确定的观测缺口已提交 [#1027](https://github.com/WuKongIM/WuKongIM/pull/1027)：在 app 和 metrics 两层保留现有 `system_busy` 分类；从 immutable plan 向同一终态回调传递两个 uint64，再写入原有失败 warning 的 MessageID/sequence。仅新增固定标签值和两个数值字段，不增加身份指标标签、payload、成功日志或业务重试。固定 head `a93837d3fb55369acfe2d131aff52914f55a867f` 的 671 项顶层相关测试（1,019 个通过事件）全绿，分阶段 RED、一次夹具修正和 GREEN 均保留；Standards/Spec 独审均零问题。首次 Linux CI 正在进行，尚未合并。这是诊断能力修复，不是原云端消息超时修复。
+
 ## 包交付实现
 
 新增 [packages #79](https://github.com/WuKongIM/packages/pull/79) 修复 RPM 验证器把路径文本当作签名状态的问题。相同已签 RPM 和公钥在 `good` 路径通过、在 `bad` 路径失败的独立对照已复现。修复分离精确路径标题与签名状态行，同时保留隔离候选证书、RSA/SHA256、完整签名者指纹及真实密码学校验。

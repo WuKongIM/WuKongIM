@@ -1,0 +1,7 @@
+# github.com/WuKongIM/WuKongIM/internal/runtime/delivery [github.com/WuKongIM/WuKongIM/internal/runtime/delivery.test]
+internal/runtime/delivery/runtime_test.go:979:13: event.MessageID undefined (type PlanTerminalEvent has no field or method MessageID)
+internal/runtime/delivery/runtime_test.go:979:56: event.MessageSeq undefined (type PlanTerminalEvent has no field or method MessageSeq)
+internal/runtime/delivery/runtime_test.go:980:76: event.MessageID undefined (type PlanTerminalEvent has no field or method MessageID)
+internal/runtime/delivery/runtime_test.go:980:93: event.MessageSeq undefined (type PlanTerminalEvent has no field or method MessageSeq)
+FAIL	github.com/WuKongIM/WuKongIM/internal/runtime/delivery [build failed]
+FAIL

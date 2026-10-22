@@ -1,0 +1,104 @@
+{
+  "schema": "wukongim/observability-gap-tests/v1",
+  "source_commit": "a93837d3fb55369acfe2d131aff52914f55a867f",
+  "command": "GOWORK=off go test -json ./internal/app ./internal/runtime/delivery ./pkg/metrics ./internal/access/gateway -count=1",
+  "exit_code": 0,
+  "packages": {
+    "github.com/WuKongIM/WuKongIM/internal/app": {
+      "top_level_pass": 501,
+      "all_pass_events": 824,
+      "fail_events": 0,
+      "skip_events": 0,
+      "package_result": "pass",
+      "elapsed_seconds": 3.193
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/delivery": {
+      "top_level_pass": 58,
+      "all_pass_events": 76,
+      "fail_events": 0,
+      "skip_events": 0,
+      "package_result": "pass",
+      "elapsed_seconds": 0.537
+    },
+    "github.com/WuKongIM/WuKongIM/pkg/metrics": {
+      "top_level_pass": 70,
+      "all_pass_events": 70,
+      "fail_events": 0,
+      "skip_events": 0,
+      "package_result": "pass",
+      "elapsed_seconds": 1.8719999999999999
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/gateway": {
+      "top_level_pass": 42,
+      "all_pass_events": 49,
+      "fail_events": 0,
+      "skip_events": 0,
+      "package_result": "pass",
+      "elapsed_seconds": 0.683
+    }
+  },
+  "total_pass_events": 1019,
+  "raw_private_evidence": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/10-related-unit-green.jsonl",
+    "bytes": 1089145,
+    "sha256": "2a65229164240dd2579cded7118968c554cdbb51fc476c0498123eb88723e5fe",
+    "included_in_public_allowlist": false
+  },
+  "tdd_stages": [
+    {
+      "log": "01-app-classifier-red.log",
+      "result": "assertion RED",
+      "expected": "ReasonSystemBusy classified unknown"
+    },
+    {
+      "log": "02-app-classifier-green.log",
+      "result": "GREEN",
+      "change": "app fixed busy taxonomy only"
+    },
+    {
+      "log": "03-busy-metric-red.log",
+      "result": "two assertion REDs",
+      "expected": "metrics normalization still rejected app busy label"
+    },
+    {
+      "log": "04-busy-metric-green.log",
+      "result": "GREEN",
+      "change": "metrics fixed allowlist gains system_busy"
+    },
+    {
+      "log": "05-runtime-identity-compile-red.log",
+      "result": "compile RED",
+      "expected": "PlanTerminalEvent lacks both identity fields"
+    },
+    {
+      "log": "06-runtime-identity-green.log",
+      "result": "GREEN",
+      "change": "two uint64 fields and existing terminal defer projection"
+    },
+    {
+      "log": "07-app-log-identity-red.log",
+      "result": "expected missing-field RED plus test fixture error",
+      "fixture_error": "Metric family pre-materializes seven closed terminal result series; initial test wrongly expected one. No product code changed for fixture correction."
+    },
+    {
+      "log": "08-app-log-identity-corrected-fixture-red.log",
+      "result": "missing log identity assertion RED only",
+      "change": "privacy test fixed to existing seven partitions; log mode regression assertion added before production log change"
+    },
+    {
+      "log": "09-app-log-identity-green.log",
+      "result": "GREEN",
+      "change": "existing one warning gains two typed uint64 fields"
+    },
+    {
+      "log": "11-diff-check.log",
+      "result": "GREEN",
+      "command": "git diff --check"
+    }
+  ],
+  "limitations": [
+    "RED stage source snapshots were not frozen individually; exact retained logs and the final source/test patch are provided. The single test fixture correction is explicitly recorded.",
+    "No pressured benchmark, E2E, paid cloud operation, or GA readiness assertion was performed.",
+    "Local unit results are Darwin arm64; final Linux CI is pending root review."
+  ]
+}

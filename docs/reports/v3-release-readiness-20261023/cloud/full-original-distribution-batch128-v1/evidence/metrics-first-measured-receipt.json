@@ -1,0 +1,20 @@
+[
+  {
+    "node": 1,
+    "complete": true,
+    "bytes": 1031057,
+    "sha256": "27713a5f58dfa66502b3a7e0afe6bc3da80730edadfb6f0e76451c4167b90fab"
+  },
+  {
+    "node": 2,
+    "complete": true,
+    "bytes": 1014600,
+    "sha256": "d4e7cef230e67557ad07e9ae2e8847ddab9e8498d83cc367cd40b4ea3ae127fb"
+  },
+  {
+    "node": 3,
+    "complete": true,
+    "bytes": 998554,
+    "sha256": "d62f93eccae1b5d15d6cd374e0c0c9fecafb5bdb989ccb0391336280b086d9a6"
+  }
+]

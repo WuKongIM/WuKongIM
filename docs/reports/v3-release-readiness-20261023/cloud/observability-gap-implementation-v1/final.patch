@@ -1,0 +1,403 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 3443ad00a..e964222a2 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Distinguish busy SEND acknowledgements in metrics and include exact message
++  identities in existing incomplete online-delivery warnings.
++  / 指标单独标识发送繁忙回执，在线投递未完成告警补充精确消息编号与序号。
++
+ - Capture registered Go, process and Channel counters in cloud terminal evidence,
+   so missing metric coverage remains distinguishable from a zero value.
+   / 云端终态诊断按实际导出名称收集 Go、进程和频道计数指标，明确区分缺失覆盖与零值。
+diff --git a/docs/development/PROJECT_KNOWLEDGE.md b/docs/development/PROJECT_KNOWLEDGE.md
+index 3452d5d4c..8cc688e73 100644
+--- a/docs/development/PROJECT_KNOWLEDGE.md
++++ b/docs/development/PROJECT_KNOWLEDGE.md
+@@ -1058,6 +1058,11 @@ specification, runbook, report, or module documentation; link to them when neede
+   asynchronous effects; its cursor is only a progress hint, and losing it may
+   duplicate replay. Delivery, RECVACK, webhook completion, and business execution
+   are not implied by SENDACK.
++- SENDACK metrics retain the fixed `system_busy` reason for bounded admission
++  pressure. Incomplete online-delivery warnings carry exact uint64 `messageID`
++  and `messageSeq` from the immutable plan; these identities never become metric
++  labels. A matched warning explains terminal delivery failure, not lost durable
++  storage or a confirmed root cause.
+ - Gateway receive ACK and session-close feedback use the Online Delivery
+   runtime FeedbackHandler directly. App binds the optional port; gateway owns
+   frame mapping and the runtime owns exact-session ACK cleanup. The temporary
+diff --git a/internal/app/composition_classification_contract_test.go b/internal/app/composition_classification_contract_test.go
+index f0a1d6ca0..4b97f2e74 100644
+--- a/internal/app/composition_classification_contract_test.go
++++ b/internal/app/composition_classification_contract_test.go
+@@ -36,6 +36,7 @@ func TestCompositionMetricClassifiersKeepBoundedStableTaxonomy(t *testing.T) {
+ 		{name: "channel banned", reason: messageusecase.ReasonBan, want: "ban"},
+ 		{name: "channel disbanded", reason: messageusecase.ReasonDisband, want: "disband"},
+ 		{name: "sender banned", reason: messageusecase.ReasonSendBan, want: "send_ban"},
++		{name: "system busy", reason: messageusecase.ReasonSystemBusy, want: "system_busy"},
+ 		{name: "system failure", reason: messageusecase.ReasonSystemError, want: "system_error"},
+ 		{name: "unsupported", reason: messageusecase.ReasonUnsupported, want: "unsupported"},
+ 		{name: "future reason", reason: messageusecase.Reason(255), want: "unknown"},
+diff --git a/internal/app/observability.go b/internal/app/observability.go
+index 96c4908bf..dade9272c 100644
+--- a/internal/app/observability.go
++++ b/internal/app/observability.go
+@@ -454,6 +454,8 @@ func gatewaySendackReasonLabel(reason messageusecase.Reason) string {
+ 		return "send_ban"
+ 	case messageusecase.ReasonSystemError:
+ 		return "system_error"
++	case messageusecase.ReasonSystemBusy:
++		return "system_busy"
+ 	case messageusecase.ReasonUnsupported:
+ 		return "unsupported"
+ 	default:
+diff --git a/internal/app/observability_test.go b/internal/app/observability_test.go
+index 4f94dabb3..da692653d 100644
+--- a/internal/app/observability_test.go
++++ b/internal/app/observability_test.go
+@@ -15,6 +15,7 @@ import (
+ 	"testing"
+ 	"time"
+ 
++	gatewayadapter "github.com/WuKongIM/WuKongIM/internal/access/gateway"
+ 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+ 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+ 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+@@ -41,6 +42,46 @@ import (
+ 	dto "github.com/prometheus/client_model/go"
+ )
+ 
++func TestGatewaySendackObserverPreservesBusyMetricReason(t *testing.T) {
++	reg := obsmetrics.New(1, "node-1")
++	observer := gatewayMetricsObserver{metrics: reg}
++	for _, event := range []gatewayadapter.SendackEvent{
++		{Reason: messageusecase.ReasonSystemBusy, Source: "batch_result_error", ErrorClass: "route_not_ready"},
++		{Reason: messageusecase.ReasonSuccess, Source: "single_result", ErrorClass: "none"},
++		{Reason: messageusecase.ReasonSystemError, Source: "single_error", ErrorClass: "other"},
++		{Reason: messageusecase.Reason(255), Source: "unbounded-source", ErrorClass: "unbounded-error"},
++	} {
++		observer.SendackWritten(event)
++	}
++	families, err := reg.Gather()
++	if err != nil {
++		t.Fatalf("Gather() error = %v", err)
++	}
++	acks := requireAppMetricFamily(t, families, "wukongim_gateway_sendacks_total")
++	if len(acks.Metric) != 4 {
++		t.Fatalf("SENDACK series = %d, want four fixed result partitions", len(acks.Metric))
++	}
++	for _, labels := range []map[string]string{
++		{"reason": "system_busy", "source": "batch_result_error", "class": "route_not_ready"},
++		{"reason": "success", "source": "single_result", "class": "none"},
++		{"reason": "system_error", "source": "single_error", "class": "other"},
++		{"reason": "unknown", "source": "unknown", "class": "unknown"},
++	} {
++		if got := findAppMetricByLabels(t, acks, labels).GetCounter().GetValue(); got != 1 {
++			t.Fatalf("SENDACK count for %v = %v, want 1", labels, got)
++		}
++	}
++	for _, metric := range acks.Metric {
++		for _, label := range metric.Label {
++			switch label.GetName() {
++			case "node_id", "node_name", "reason", "source", "class":
++			default:
++				t.Fatalf("unexpected SENDACK label %q", label.GetName())
++			}
++		}
++	}
++}
++
+ func TestChannelWorkerKindLabelIncludesMetaResolve(t *testing.T) {
+ 	if got := channelWorkerKindLabel(worker.TaskMetaResolve); got != "meta_resolve" {
+ 		t.Fatalf("channelWorkerKindLabel(TaskMetaResolve) = %q, want meta_resolve", got)
+diff --git a/internal/app/online_delivery.go b/internal/app/online_delivery.go
+index 0fca6d893..4f55667a2 100644
+--- a/internal/app/online_delivery.go
++++ b/internal/app/online_delivery.go
+@@ -61,6 +61,8 @@ func (o *onlineDeliveryObserver) ObservePlanTerminal(event runtimedelivery.PlanT
+ 			wklog.Result(string(event.Result)),
+ 			wklog.String("phase", string(event.Failure.Phase)),
+ 			wklog.String("mode", onlineDeliveryModeLabel(event.Mode)),
++			wklog.Uint64("messageID", event.MessageID),
++			wklog.MessageSeq(event.MessageSeq),
+ 			wklog.Int("recipients", event.Recipients),
+ 			wklog.UID(event.Failure.RecipientUID),
+ 			wklog.Uint64("ownerNodeID", event.Failure.OwnerNodeID),
+diff --git a/internal/app/online_delivery_test.go b/internal/app/online_delivery_test.go
+index 5916e35d1..7f1c280f2 100644
+--- a/internal/app/online_delivery_test.go
++++ b/internal/app/online_delivery_test.go
+@@ -6,11 +6,117 @@ import (
+ 	"testing"
+ 	"time"
+ 
++	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
+ 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+ 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+ 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
++	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+ )
+ 
++func TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity(t *testing.T) {
++	for _, tt := range []struct {
++		name   string
++		result runtimedelivery.ObservationResult
++		phase  runtimedelivery.PlanFailurePhase
++		mode   onlinedelivery.Mode
++		seq    uint64
++	}{
++		{name: "presence", result: runtimedelivery.ObservationResultError, phase: runtimedelivery.PlanFailurePhasePresence, mode: onlinedelivery.ModeDurable, seq: 9007199254740993},
++		{name: "owner push", result: runtimedelivery.ObservationResultRetryExhausted, phase: runtimedelivery.PlanFailurePhaseOwnerPush, mode: onlinedelivery.ModeDurable, seq: 9007199254740993},
++		{name: "canceled", result: runtimedelivery.ObservationResultCanceled, phase: runtimedelivery.PlanFailurePhaseContext, mode: onlinedelivery.ModeDurable, seq: 9007199254740993},
++		{name: "panic", result: runtimedelivery.ObservationResultPanic, phase: runtimedelivery.PlanFailurePhasePanic, mode: onlinedelivery.ModeDurable, seq: 9007199254740993},
++		{name: "transient zero sequence", result: runtimedelivery.ObservationResultError, phase: runtimedelivery.PlanFailurePhasePresence, mode: onlinedelivery.ModeTransient},
++		{name: "success remains quiet", result: runtimedelivery.ObservationResultOK, mode: onlinedelivery.ModeDurable, seq: 9007199254740993},
++	} {
++		t.Run(tt.name, func(t *testing.T) {
++			logger := &recordingAppLogger{}
++			observer := &onlineDeliveryObserver{app: &App{logger: logger}}
++			cause := errors.New("original failure")
++			observer.ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{
++				MessageID: 18446744073709551614, MessageSeq: tt.seq,
++				Result: tt.result, Mode: tt.mode, Recipients: 3,
++				Failure: runtimedelivery.PlanFailureSample{Phase: tt.phase, RecipientUID: "existing-recipient", OwnerNodeID: 2, Err: cause},
++			})
++			entries := appLogEntriesForEvent(logger, "WARN", "internal.app.delivery.plan_incomplete")
++			if tt.result == runtimedelivery.ObservationResultOK {
++				if len(logger.entriesSnapshot()) != 0 {
++					t.Fatal("successful terminal observation added a log record")
++				}
++				return
++			}
++			if len(entries) != 1 || len(logger.entriesSnapshot()) != 1 {
++				t.Fatalf("failed plan logs = %d/%d, want one existing warning", len(entries), len(logger.entriesSnapshot()))
++			}
++			entry := entries[0]
++			requireAppLogField(t, entry, "messageID", uint64(18446744073709551614))
++			requireAppLogField(t, entry, "messageSeq", tt.seq)
++			requireAppLogField(t, entry, "result", string(tt.result))
++			requireAppLogField(t, entry, "phase", string(tt.phase))
++			wantMode := "durable"
++			if tt.mode == onlinedelivery.ModeTransient {
++				wantMode = "transient"
++			}
++			requireAppLogField(t, entry, "mode", wantMode)
++			requireAppLogField(t, entry, "recipients", 3)
++			requireAppLogField(t, entry, "uid", "existing-recipient")
++			requireAppLogField(t, entry, "ownerNodeID", uint64(2))
++			requireAppLogField(t, entry, "error", cause)
++			if len(entry.fields) != 10 {
++				t.Fatalf("failure log fields = %d, want eight existing fields plus two scalar identities", len(entry.fields))
++			}
++			for _, field := range entry.fields {
++				switch field.Key {
++				case "messageID", "messageSeq":
++					if field.Type != wklog.Uint64Type {
++						t.Fatalf("identity %s type = %v, want uint64", field.Key, field.Type)
++					}
++				case "event", "result", "phase", "mode", "recipients", "uid", "ownerNodeID", "error":
++				default:
++					t.Fatalf("unexpected failure log field %q", field.Key)
++				}
++			}
++		})
++	}
++	var absent *onlineDeliveryObserver
++	absent.ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{})
++	(&onlineDeliveryObserver{}).ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{})
++	(&onlineDeliveryObserver{app: &App{}}).ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{})
++}
++
++func TestOnlineDeliveryTerminalIdentitiesDoNotCreateMetricSeries(t *testing.T) {
++	reg := obsmetrics.New(1, "node-1")
++	observer := &onlineDeliveryObserver{app: &App{metrics: reg}}
++	for _, identity := range []struct{ id, sequence uint64 }{{0, 0}, {18446744073709551614, 9007199254740993}} {
++		observer.ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{
++			MessageID: identity.id, MessageSeq: identity.sequence, Result: runtimedelivery.ObservationResultError,
++			Recipients: 3, Duration: time.Millisecond,
++		})
++	}
++	families, err := reg.Gather()
++	if err != nil {
++		t.Fatalf("Gather() error = %v", err)
++	}
++	process := requireAppMetricFamily(t, families, "wukongim_delivery_recipient_worker_process_total")
++	if len(process.Metric) != 7 {
++		t.Fatalf("process series = %d, want the seven existing terminal result partitions", len(process.Metric))
++	}
++	if got := findAppMetricByLabels(t, process, map[string]string{"result": "error"}).GetCounter().GetValue(); got != 2 {
++		t.Fatalf("error process count = %v, want both message identities in one result series", got)
++	}
++	for _, metric := range process.Metric {
++		if len(metric.Label) != 3 {
++			t.Fatalf("process labels = %#v, want only node_id/node_name/result", metric.Label)
++		}
++		for _, label := range metric.Label {
++			switch label.GetName() {
++			case "node_id", "node_name", "result":
++			default:
++				t.Fatalf("identity leaked into metric label %q", label.GetName())
++			}
++		}
++	}
++}
++
+ func TestOnlineDeliveryOfflineObserverPreservesOrdinaryCommitEligibility(t *testing.T) {
+ 	tests := []struct {
+ 		name  string
+diff --git a/internal/runtime/delivery/runtime.go b/internal/runtime/delivery/runtime.go
+index 88281d204..039ba1cec 100644
+--- a/internal/runtime/delivery/runtime.go
++++ b/internal/runtime/delivery/runtime.go
+@@ -497,6 +497,7 @@ func (r *Runtime) runPlan(runCtx context.Context, plan onlinedelivery.RecipientD
+ 		r.inflight.Add(-1)
+ 		r.observePressure()
+ 		r.observePlanTerminal(PlanTerminalEvent{
++			MessageID: plan.Event.MessageID, MessageSeq: plan.Event.MessageSeq,
+ 			Result: result, Mode: plan.Mode, Recipients: plan.RecipientCount(),
+ 			Duration: positiveRuntimeDuration(time.Since(started)), Failure: failure,
+ 		})
+diff --git a/internal/runtime/delivery/runtime_ports.go b/internal/runtime/delivery/runtime_ports.go
+index ff27d2dc9..be8471f71 100644
+--- a/internal/runtime/delivery/runtime_ports.go
++++ b/internal/runtime/delivery/runtime_ports.go
+@@ -162,6 +162,10 @@ const (
+ 
+ // PlanTerminalEvent describes terminal processing for accepted plan work.
+ type PlanTerminalEvent struct {
++	// MessageID identifies the plan's immutable message for logs, never metric labels.
++	MessageID uint64
++	// MessageSeq preserves the plan's sequence, including zero for transient delivery.
++	MessageSeq uint64
+ 	// Result is the bounded terminal outcome.
+ 	Result ObservationResult
+ 	// Mode preserves the plan's explicit Durable or Transient semantics.
+diff --git a/internal/runtime/delivery/runtime_test.go b/internal/runtime/delivery/runtime_test.go
+index 68d969918..fe3f1a404 100644
+--- a/internal/runtime/delivery/runtime_test.go
++++ b/internal/runtime/delivery/runtime_test.go
+@@ -909,6 +909,83 @@ func TestRuntimeOwnerGroupingKeepsBatchOrderAndBoundsConcurrency(t *testing.T) {
+ 	}
+ }
+ 
++func TestRuntimeTerminalObservationPreservesExactMessageIdentity(t *testing.T) {
++	presenceErr := errors.New("presence unavailable")
++	for _, tt := range []struct {
++		name       string
++		mode       onlinedelivery.Mode
++		sequence   uint64
++		presence   PlanPresenceResolver
++		context    func() context.Context
++		wantResult ObservationResult
++		wantPhase  PlanFailurePhase
++		wantErr    error
++		ownerError bool
++	}{
++		{name: "durable success", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993, wantResult: ObservationResultOK},
++		{name: "transient success", mode: onlinedelivery.ModeTransient, wantResult: ObservationResultOK},
++		{name: "presence failure", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,
++			presence: planPresenceResolverFunc(func(context.Context, []onlinedelivery.RecipientTargetBatch) []TargetPresenceResult {
++				return []TargetPresenceResult{{Err: presenceErr}}
++			}), wantResult: ObservationResultError, wantPhase: PlanFailurePhasePresence, wantErr: presenceErr},
++		{name: "canceled", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,
++			context:    func() context.Context { ctx, cancel := context.WithCancel(context.Background()); cancel(); return ctx },
++			wantResult: ObservationResultCanceled, wantPhase: PlanFailurePhaseContext, wantErr: context.Canceled},
++		{name: "expired deadline", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,
++			context: func() context.Context {
++				ctx, cancel := context.WithDeadline(context.Background(), time.Unix(0, 0))
++				cancel()
++				return ctx
++			},
++			wantResult: ObservationResultTimeout, wantPhase: PlanFailurePhaseContext, wantErr: context.DeadlineExceeded},
++		{name: "owner retry exhausted", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,
++			ownerError: true, wantResult: ObservationResultRetryExhausted, wantPhase: PlanFailurePhaseOwnerPush, wantErr: ErrOwnerPushRetryExhausted},
++		{name: "panic", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,
++			presence: planPresenceResolverFunc(func(context.Context, []onlinedelivery.RecipientTargetBatch) []TargetPresenceResult {
++				panic("presence failed")
++			}), wantResult: ObservationResultPanic, wantPhase: PlanFailurePhasePanic, wantErr: ErrPlanPanic},
++	} {
++		t.Run(tt.name, func(t *testing.T) {
++			observer := &recordingRuntimeObserver{}
++			presence := tt.presence
++			if presence == nil {
++				presence = planPresenceResolverFunc(func(context.Context, []onlinedelivery.RecipientTargetBatch) []TargetPresenceResult {
++					if tt.ownerError {
++						route := runtimeRouteForTest()
++						route.OwnerNodeID = 2
++						return []TargetPresenceResult{{Routes: []onlinedelivery.Route{route}}}
++					}
++					return []TargetPresenceResult{{}}
++				})
++			}
++			runtime := NewRuntime(RuntimeOptions{
++				LocalNodeID: 1, Presence: presence, Observer: observer, RetryMaxAttempts: 1,
++				RemoteOwnerPusher: remoteOwnerPusherFunc(func(context.Context, onlinedelivery.OwnerPush) (onlinedelivery.OwnerPushResult, error) {
++					return onlinedelivery.OwnerPushResult{}, errors.New("owner unavailable")
++				}),
++			})
++			plan := runtimePlanForTest(18446744073709551614)
++			plan.Event.MessageSeq = tt.sequence
++			plan.Mode = tt.mode
++			ctx := context.Background()
++			if tt.context != nil {
++				ctx = tt.context()
++			}
++			runtime.runPlan(ctx, plan)
++			if got := len(observer.terminalResults()); got != 1 {
++				t.Fatalf("terminal observations = %d, want exactly one", got)
++			}
++			event := observer.lastTerminal()
++			if event.MessageID != 18446744073709551614 || event.MessageSeq != tt.sequence {
++				t.Fatalf("terminal identity = %d/%d, want exact input identity", event.MessageID, event.MessageSeq)
++			}
++			if event.Mode != tt.mode || event.Recipients != 1 || event.Result != tt.wantResult || event.Failure.Phase != tt.wantPhase || !errors.Is(event.Failure.Err, tt.wantErr) {
++				t.Fatalf("terminal observation = %#v, want unchanged mode/count/result/failure", event)
++			}
++		})
++	}
++}
++
+ func TestRuntimeRetryExhaustionReportsBoundedTargetSample(t *testing.T) {
+ 	observer := &recordingRuntimeObserver{}
+ 	runtime := NewRuntime(RuntimeOptions{
+diff --git a/pkg/metrics/gateway.go b/pkg/metrics/gateway.go
+index 0626ca6ff..289f9aa83 100644
+--- a/pkg/metrics/gateway.go
++++ b/pkg/metrics/gateway.go
+@@ -278,6 +278,7 @@ func normalizeGatewaySendackReason(reason string) string {
+ 		"channel_not_exist",
+ 		"node_not_match",
+ 		"system_error",
++		"system_busy",
+ 		"unsupported":
+ 		return reason
+ 	default:
+diff --git a/pkg/metrics/registry_test.go b/pkg/metrics/registry_test.go
+index afc49d500..20496198b 100644
+--- a/pkg/metrics/registry_test.go
++++ b/pkg/metrics/registry_test.go
+@@ -66,6 +66,7 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
+ 	reg.Gateway.ObserveAsyncSendDispatchWait("wkproto", 2*time.Millisecond)
+ 	reg.Gateway.ObserveAsyncSendBatch(8, 256, 500*time.Microsecond)
+ 	reg.Gateway.Sendack("system_error", "batch_result_error", "timeout")
++	reg.Gateway.Sendack("system_busy", "batch_result_error", "route_not_ready")
+ 	reg.Gateway.Sendack("surprising raw reason", "uid-leaking source", "uid-leaking error")
+ 	reg.Gateway.ConnectionClosed("tcp")
+ 	reg.Gateway.ConnectionClosedReason("tcp", "peer_closed")
+@@ -188,6 +189,13 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
+ 	}).GetHistogram().GetSampleCount())
+ 
+ 	sendacks := requireMetricFamily(t, families, "wukongim_gateway_sendacks_total")
++	require.Equal(t, float64(1), findMetricByLabels(t, sendacks, map[string]string{
++		"node_id":   "1",
++		"node_name": "node-1",
++		"reason":    "system_busy",
++		"source":    "batch_result_error",
++		"class":     "route_not_ready",
++	}).GetCounter().GetValue())
+ 	require.Equal(t, float64(1), findMetricByLabels(t, sendacks, map[string]string{
+ 		"node_id":   "1",
+ 		"node_name": "node-1",

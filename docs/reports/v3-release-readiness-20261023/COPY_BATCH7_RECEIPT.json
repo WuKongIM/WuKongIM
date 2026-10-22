@@ -1,0 +1,518 @@
+{
+  "schema": "wukongim/readiness-public-archive-copy-batch/v1",
+  "batch": 7,
+  "status": "copied_and_verified_unstaged",
+  "started_at_utc": "2026-10-22T19:50:52.672266+00:00",
+  "finished_at_utc": "2026-10-22T19:50:52.751857+00:00",
+  "authorization_plan": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/archive-batch7-preflight/plan.json",
+    "bytes": 18224,
+    "sha256": "f8b1b04b34bd2345840e2ae755f318569005563bd45c63f39314f0d66e74970a"
+  },
+  "source_files": 42,
+  "source_bytes": 303022,
+  "source_groups": [
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 1134,
+        "sha256": "4f0c43d9275be09eb602cc068c8364a40e8008420e5dc5d999f997cd5b6310b6"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 342,
+        "sha256": "c6906ecada6931a66947f6e52198000f74e79ff94d7ae4d49f11a5fc645de3ca"
+      },
+      "source_manifest_entries_verified": 12,
+      "selected_files": 14,
+      "selected_bytes": 160905,
+      "selection_contract": null,
+      "source_allowlist_lists_itself": false,
+      "source_manifest_contains_allowlist": false
+    },
+    {
+      "group": "observability-gap-proposal",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-proposal",
+      "source_manifest": {
+        "path": "SHA256SUMS",
+        "bytes": 250,
+        "sha256": "e10b7628220b81deb7dbbe1e4fcd539453c0bd4fef9ad81228c4637c7b81599d"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST.txt",
+        "bytes": 31,
+        "sha256": "0505815723a7ed2d617311608a33cf0d9ddc722d19547cc2390cfbe6d818cba2"
+      },
+      "source_manifest_entries_verified": 3,
+      "selected_files": 4,
+      "selected_bytes": 20396,
+      "selection_contract": null,
+      "source_allowlist_lists_itself": false,
+      "source_manifest_contains_allowlist": true
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1",
+      "source_manifest": {
+        "path": "SHA256SUMS",
+        "bytes": 1760,
+        "sha256": "67daf2d70690eab429474fa72aa4d2a51a74f244289080a32d4317f1c6b830ef"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST.txt",
+        "bytes": 485,
+        "sha256": "56dc58ccfed8195a8dc98daa774e4c958be720091661d26847cc27e4221a0581"
+      },
+      "source_manifest_entries_verified": 19,
+      "selected_files": 20,
+      "selected_bytes": 99094,
+      "selection_contract": null,
+      "source_allowlist_lists_itself": false,
+      "source_manifest_contains_allowlist": true
+    },
+    {
+      "group": "loss-observability-review",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/loss-observability-review",
+      "source_manifest": null,
+      "source_allowlist": null,
+      "source_manifest_entries_verified": null,
+      "selected_files": 4,
+      "selected_bytes": 22627,
+      "selection_contract": "Exact four review files explicitly named by parent; no recursive discovery or additional metadata selected.",
+      "source_allowlist_lists_itself": null,
+      "source_manifest_contains_allowlist": null
+    }
+  ],
+  "copied": [
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/safe-failed-counterfactual.json",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/safe-failed-counterfactual.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/safe-failed-counterfactual.json",
+      "bytes": 143130,
+      "sha256": "5f736a65f8b326e647f43ff2f2bf83583f4e84baaf515183cb906954b451b9a4"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/diagnostic-conclusion.md",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/diagnostic-conclusion.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/diagnostic-conclusion.md",
+      "bytes": 3523,
+      "sha256": "205d74c9403027408e2fe1f437bbb089a36083e95aacafede9603095fa77f175"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/finalize-failure-matrix.md",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/finalize-failure-matrix.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/finalize-failure-matrix.md",
+      "bytes": 2942,
+      "sha256": "ad3a862713c1d418f2ee8a07250ce093a5ad864553cfbf4dc8c6ecbdf25a19d6"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/diagnostic-result.json",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/diagnostic-result.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/diagnostic-result.json",
+      "bytes": 1821,
+      "sha256": "6f0f9bc7409c17cf791d72c39b36571094769108d106037772eddd3f571b4923"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/cleanup-receipt.json",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/cleanup-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/cleanup-receipt.json",
+      "bytes": 921,
+      "sha256": "7786db4dfae08750f1e49207971ad541c3fd04d8f618e0243098a16161396a30"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/supervisor-events.json",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/supervisor-events.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/supervisor-events.json",
+      "bytes": 555,
+      "sha256": "4c580a294c478e74472073f6f3a18048b113cc438723b8a377c57219312a4b31"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/preflight.json",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/preflight.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/preflight.json",
+      "bytes": 1471,
+      "sha256": "15f298ca549902aa8f1c8b76064186124fb9d3e4995e9814eccc97f673f0857f"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/prior-cleanup-and-quiet-preflight.json",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/prior-cleanup-and-quiet-preflight.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/prior-cleanup-and-quiet-preflight.json",
+      "bytes": 1173,
+      "sha256": "11811ffa6bf1709554ffe6c7664717a7b9b72b865eadb81fdb3c888da14b56ce"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/input-and-source-recheck.json",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/input-and-source-recheck.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/input-and-source-recheck.json",
+      "bytes": 2887,
+      "sha256": "69ab83860b8edda202d80711487af4d8e85894d2041a86b5662001c93d3443f0"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/evidence/metrics-first-measured-receipt.json",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/evidence/metrics-first-measured-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/evidence/metrics-first-measured-receipt.json",
+      "bytes": 449,
+      "sha256": "a4a05297d10828859d91733ddff6322a86a6702e4c80df17a492c88fccae8bf5"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/evidence/metrics-terminal-receipt.json",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/evidence/metrics-terminal-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/evidence/metrics-terminal-receipt.json",
+      "bytes": 450,
+      "sha256": "a20cdf5ae2ba6574f2a5b1cfa251edf9ae0debff86933d0b712ee35be6a8d77b"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/evidence/watchdog.json",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/evidence/watchdog.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/evidence/watchdog.json",
+      "bytes": 107,
+      "sha256": "6104218c80386215c6cff83dbe8ae6e34e84f8741bf2404dd860e54db7b2ba37"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/PUBLIC_ALLOWLIST",
+      "bytes": 342,
+      "sha256": "c6906ecada6931a66947f6e52198000f74e79ff94d7ae4d49f11a5fc645de3ca"
+    },
+    {
+      "group": "full-original-distribution-batch128-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/full-original-distribution-batch128-v1/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-batch128-v1/PUBLIC_SHA256SUMS",
+      "bytes": 1134,
+      "sha256": "4f0c43d9275be09eb602cc068c8364a40e8008420e5dc5d999f997cd5b6310b6"
+    },
+    {
+      "group": "observability-gap-proposal",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-proposal/proposal.md",
+      "target_relative": "cloud/observability-gap-proposal/proposal.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-proposal/proposal.md",
+      "bytes": 10768,
+      "sha256": "e74d1eaf47a0edcc4043a4bdf43b3f52c5abe80e3c76be4bf0d7f6ef098c034f"
+    },
+    {
+      "group": "observability-gap-proposal",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-proposal/source-hashes.json",
+      "target_relative": "cloud/observability-gap-proposal/source-hashes.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-proposal/source-hashes.json",
+      "bytes": 9347,
+      "sha256": "4c96338e221f784aa4d0f35d08a00375b2f83187f61a192817bccdd4314dcfab"
+    },
+    {
+      "group": "observability-gap-proposal",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-proposal/PUBLIC_ALLOWLIST.txt",
+      "target_relative": "cloud/observability-gap-proposal/PUBLIC_ALLOWLIST.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-proposal/PUBLIC_ALLOWLIST.txt",
+      "bytes": 31,
+      "sha256": "0505815723a7ed2d617311608a33cf0d9ddc722d19547cc2390cfbe6d818cba2"
+    },
+    {
+      "group": "observability-gap-proposal",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-proposal/SHA256SUMS",
+      "target_relative": "cloud/observability-gap-proposal/SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-proposal/SHA256SUMS",
+      "bytes": 250,
+      "sha256": "e10b7628220b81deb7dbbe1e4fcd539453c0bd4fef9ad81228c4637c7b81599d"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/proposal-proposal.md",
+      "target_relative": "cloud/observability-gap-implementation-v1/proposal-proposal.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/proposal-proposal.md",
+      "bytes": 10768,
+      "sha256": "e74d1eaf47a0edcc4043a4bdf43b3f52c5abe80e3c76be4bf0d7f6ef098c034f"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/proposal-source-hashes.json",
+      "target_relative": "cloud/observability-gap-implementation-v1/proposal-source-hashes.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/proposal-source-hashes.json",
+      "bytes": 9347,
+      "sha256": "4c96338e221f784aa4d0f35d08a00375b2f83187f61a192817bccdd4314dcfab"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/instructions-freeze.json",
+      "target_relative": "cloud/observability-gap-implementation-v1/instructions-freeze.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/instructions-freeze.json",
+      "bytes": 1932,
+      "sha256": "0faf5a6cdec24f4054c2ebb183893d743ab6ec9f4fee995f08e6fd72deb2fba6"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/01-app-classifier-red.log",
+      "target_relative": "cloud/observability-gap-implementation-v1/01-app-classifier-red.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/01-app-classifier-red.log",
+      "bytes": 358,
+      "sha256": "4d729e7644d6b19b072eda5f2aca9f3ddbb0bbfbbffe03a847be43f5760000c4"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/02-app-classifier-green.log",
+      "target_relative": "cloud/observability-gap-implementation-v1/02-app-classifier-green.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/02-app-classifier-green.log",
+      "bytes": 54,
+      "sha256": "1c1a69acc1efe477f499a2084a8c46e4de178047923721de08050b2cde12bd26"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/03-busy-metric-red.log",
+      "target_relative": "cloud/observability-gap-implementation-v1/03-busy-metric-red.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/03-busy-metric-red.log",
+      "bytes": 621,
+      "sha256": "343b8d51a9df68990591857ada349cf2abfa8aacca71fd9f7cd537709de55628"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/04-busy-metric-green.log",
+      "target_relative": "cloud/observability-gap-implementation-v1/04-busy-metric-green.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/04-busy-metric-green.log",
+      "bytes": 107,
+      "sha256": "0e05165a46095903ecb9a4e9fe7382ae1eb5f36ac03f45d6c714ecda2daa5b64"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/05-runtime-identity-compile-red.log",
+      "target_relative": "cloud/observability-gap-implementation-v1/05-runtime-identity-compile-red.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/05-runtime-identity-compile-red.log",
+      "bytes": 739,
+      "sha256": "273c50633f99eb34d8bf2e6cf99483f1a6adda7c80183c2724bce3fd12851834"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/06-runtime-identity-green.log",
+      "target_relative": "cloud/observability-gap-implementation-v1/06-runtime-identity-green.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/06-runtime-identity-green.log",
+      "bytes": 67,
+      "sha256": "f419b28028f0c87d12202888e4e95fdc8c6286e22dfb81e4ba79111d9e2d35a3"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/07-app-log-identity-red.log",
+      "target_relative": "cloud/observability-gap-implementation-v1/07-app-log-identity-red.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/07-app-log-identity-red.log",
+      "bytes": 4188,
+      "sha256": "c8d268d256a3e9d12963580a8b13c27710d67d126a36838021a1e6a82b7ac8c6"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/08-app-log-identity-corrected-fixture-red.log",
+      "target_relative": "cloud/observability-gap-implementation-v1/08-app-log-identity-corrected-fixture-red.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/08-app-log-identity-corrected-fixture-red.log",
+      "bytes": 3416,
+      "sha256": "0a24a8922572490db331d98615084a030ddd2d0d28cca2a8b7bca05a18c7a491"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/09-app-log-identity-green.log",
+      "target_relative": "cloud/observability-gap-implementation-v1/09-app-log-identity-green.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/09-app-log-identity-green.log",
+      "bytes": 54,
+      "sha256": "92845df224fc5910856c58a116747330213422d784b56f9bb1136a28f248eb71"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/11-diff-check.log",
+      "target_relative": "cloud/observability-gap-implementation-v1/11-diff-check.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/11-diff-check.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/final.patch",
+      "target_relative": "cloud/observability-gap-implementation-v1/final.patch",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/final.patch",
+      "bytes": 20139,
+      "sha256": "7f14186fb691be9ee36d8c660b2d776a7d89137fee6a02f35c3428cb643e1da7"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/final-source-freeze.json",
+      "target_relative": "cloud/observability-gap-implementation-v1/final-source-freeze.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/final-source-freeze.json",
+      "bytes": 4762,
+      "sha256": "32e1e8abd47b9939f925b1eeb21c58eb121a08920f35877365de66a2473a5a87"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/test-results-summary.json",
+      "target_relative": "cloud/observability-gap-implementation-v1/test-results-summary.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/test-results-summary.json",
+      "bytes": 3699,
+      "sha256": "23d901657d667d30267bc624542ed99a4d5dd5d6794eda8c94bdf6edd617ef0d"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/public-focused-test-events.jsonl",
+      "target_relative": "cloud/observability-gap-implementation-v1/public-focused-test-events.jsonl",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/public-focused-test-events.jsonl",
+      "bytes": 33114,
+      "sha256": "50cb44b0fd9745255640dd2ed81284cf685eaefb11bc57f3bd2c16195d0a3c96"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/implementation-report.md",
+      "target_relative": "cloud/observability-gap-implementation-v1/implementation-report.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/implementation-report.md",
+      "bytes": 3484,
+      "sha256": "59461228367c8733ac32f3178dae4e1a3bf605be8bd9dde4be26a8a4c478ef2a"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/PUBLIC_ALLOWLIST.txt",
+      "target_relative": "cloud/observability-gap-implementation-v1/PUBLIC_ALLOWLIST.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/PUBLIC_ALLOWLIST.txt",
+      "bytes": 485,
+      "sha256": "56dc58ccfed8195a8dc98daa774e4c958be720091661d26847cc27e4221a0581"
+    },
+    {
+      "group": "observability-gap-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/SHA256SUMS",
+      "target_relative": "cloud/observability-gap-implementation-v1/SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/observability-gap-implementation-v1/SHA256SUMS",
+      "bytes": 1760,
+      "sha256": "67daf2d70690eab429474fa72aa4d2a51a74f244289080a32d4317f1c6b830ef"
+    },
+    {
+      "group": "loss-observability-review",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/loss-observability-review/standards/standards.md",
+      "target_relative": "cloud/loss-observability-review/standards/standards.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/loss-observability-review/standards/standards.md",
+      "bytes": 2632,
+      "sha256": "cf1bc50fc4aa04ec9123d41217aa2b632c0e51a43ba7392415b788f6789e0931"
+    },
+    {
+      "group": "loss-observability-review",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/loss-observability-review/standards/source-hashes.json",
+      "target_relative": "cloud/loss-observability-review/standards/source-hashes.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/loss-observability-review/standards/source-hashes.json",
+      "bytes": 9545,
+      "sha256": "dc80119cc1ab21c29eccdff1a06f70931847f9dfccf0e9c7ae649521f43732e1"
+    },
+    {
+      "group": "loss-observability-review",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/loss-observability-review/spec/spec.md",
+      "target_relative": "cloud/loss-observability-review/spec/spec.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/loss-observability-review/spec/spec.md",
+      "bytes": 2095,
+      "sha256": "ec27c2bdc74f4914ba281d49c7a2313a3bcefcffe22911a01a0d26da01939221"
+    },
+    {
+      "group": "loss-observability-review",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/loss-observability-review/spec/source-hashes.json",
+      "target_relative": "cloud/loss-observability-review/spec/source-hashes.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/loss-observability-review/spec/source-hashes.json",
+      "bytes": 8355,
+      "sha256": "6d152da5633efe6a5ea1d0f4d18fd5769bc4d18d6416cd57b89496c2d8571f92"
+    }
+  ],
+  "source_git_object_verification_from_approved_plan": {
+    "implementation_changed": 12,
+    "proposal_source": 34,
+    "standards_source": 26,
+    "spec_changed": 12,
+    "spec_context": 14
+  },
+  "reviewed_product_head": "a93837d3fb55369acfe2d131aff52914f55a867f",
+  "reviewed_product_tree": "0f24d5dfbdb8de60789fbf8760d5c3a1b3c33344",
+  "finite_scope_rules": {
+    "allowlist_semantics": "COPY_BATCH7_ALLOWLIST lists exactly the 42 copied targets. COPY_BATCH7_SHA256SUMS covers these 42 plus this allowlist and receipt, and excludes itself (44 entries).",
+    "source_schema_differences": "B128 source PUBLIC_SHA256SUMS covers its twelve payloads and excludes its allowlist. Proposal/implementation SHA256SUMS also hash their allowlist. Four review files are an exact parent-authorized list with per-file source/target hashes above and no invented source manifest.",
+    "controlled_test_fixture_vs_raw_runtime": "Source patch and RED test logs contain source-controlled synthetic fixture text (for example existing-recipient), test field descriptors and assertions. Those literals are retained as test evidence. Actual cloud/local workload identities, arbitrary original runtime body payloads, private raw JSONL and original runtime logs remain excluded. Public-focused-test-events.jsonl contains 152 events without Output fields.",
+    "private_raw_scope": "No actual raw runtime configuration, databases, private identity/body records, key material, binary profiles or original application logs copied. Excluded inputs are not claimed fully archived.",
+    "explicitly_excluded_finite_files": [
+      {
+        "source_group": "observability-gap-implementation-v1",
+        "path": "10-related-unit-green.jsonl",
+        "bytes": 1089145,
+        "sha256": "2a65229164240dd2579cded7118968c554cdbb51fc476c0498123eb88723e5fe",
+        "reason": "Not in approved source manifest/allowlist. Raw unit output stays private; public-focused-test-events.jsonl omits Output and is selected instead."
+      },
+      {
+        "source_group": "observability-gap-implementation-v1",
+        "path": "pr-body.md",
+        "bytes": 1253,
+        "sha256": "ec3aa7e68fdb2f031e3122c01d710314d6667cbfa877cd835aff072f6663d36c",
+        "reason": "Not in approved source manifest/allowlist; PR body or redundant source metadata remains in /tmp."
+      },
+      {
+        "source_group": "observability-gap-implementation-v1",
+        "path": "proposal-PUBLIC_ALLOWLIST.txt",
+        "bytes": 31,
+        "sha256": "0505815723a7ed2d617311608a33cf0d9ddc722d19547cc2390cfbe6d818cba2",
+        "reason": "Not in approved source manifest/allowlist; PR body or redundant source metadata remains in /tmp."
+      },
+      {
+        "source_group": "observability-gap-implementation-v1",
+        "path": "proposal-SHA256SUMS",
+        "bytes": 250,
+        "sha256": "e10b7628220b81deb7dbbe1e4fcd539453c0bd4fef9ad81228c4637c7b81599d",
+        "reason": "Not in approved source manifest/allowlist; PR body or redundant source metadata remains in /tmp."
+      }
+    ],
+    "unapproved_scopes_not_included": [
+      "CI directories still running/unsealed",
+      "B128 profile-proposal and any future profiled run",
+      "raw.jsonl or other arbitrary private JSONL outputs"
+    ]
+  },
+  "preservation": {
+    "head": "dd8edb435ca8840fb0caf475e0c7d36f4d6f8a3c",
+    "index_tree": "b4b7a359c6a0efca26734e690fe619e3c188b1fa",
+    "old_checkpoint_entries_checked": 1688,
+    "old_payloads_except_parent_owned_mutable_report_readme_unchanged": true,
+    "parent_edit_exceptions": [
+      "docs/reports/2026-10-23-v3-release-readiness.md",
+      "docs/reports/v3-release-readiness-20261023/README.md"
+    ],
+    "old_batch_metadata_preserved": {
+      "CHECKPOINT_SHA256SUMS": {
+        "bytes": 301154,
+        "sha256": "2261f0b55751b7fe39619634ff76efaff6a7bb7903f21ea792c8b87483d296da"
+      },
+      "COPY_BATCH5_ALLOWLIST": {
+        "bytes": 39998,
+        "sha256": "c1274d3490c47ada950cbc735c8202e02cf8d604b791c61bc899f47f07ba6107"
+      },
+      "COPY_BATCH5_RECEIPT.json": {
+        "bytes": 339993,
+        "sha256": "d07519ae25d00a4edfeceeab66834d5d5e5e7f6bf210eb35b25bff778a7c333f"
+      },
+      "COPY_BATCH5_SHA256SUMS": {
+        "bytes": 75817,
+        "sha256": "4db0a51b7d5a2997d95dbfdc7dc80dec5f0622582e55bd2427411ac16ab30dda"
+      },
+      "COPY_BATCH6_ALLOWLIST": {
+        "bytes": 6551,
+        "sha256": "f7e32d621bee2c480fb54188dce9991478ddd4de376ee7eb38a35b04605df73e"
+      },
+      "COPY_BATCH6_RECEIPT.json": {
+        "bytes": 73363,
+        "sha256": "247daef550f122117179d0145a074d294666ac51e72e03d47069734b7eb5b11d"
+      },
+      "COPY_BATCH6_SHA256SUMS": {
+        "bytes": 13594,
+        "sha256": "2472d68b4529d500e535e681b39303322a97a7567951c0a196bef81ca19c08ad"
+      }
+    },
+    "root_report_readme_or_global_checkpoint_written": false,
+    "stage_or_commit_performed": false
+  }
+}

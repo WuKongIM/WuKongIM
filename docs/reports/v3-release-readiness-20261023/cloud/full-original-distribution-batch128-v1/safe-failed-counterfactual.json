@@ -1,0 +1,4482 @@
+{
+  "schema": "wukongim/batch128-stopped-failed-diagnostic-safe/v1",
+  "at_utc": "2026-10-22T19:37:53.627185+00:00",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "scope": "single effective batch cap1to128 local diagnostic; no valid final report, no Linux or cloud acceptance",
+  "coordinator_exit": 8,
+  "coordinator_summary": "outcome=harness_invalid cause=invalid_observation coordinator_code=finalize report=unavailable",
+  "final_report_present": false,
+  "cause_label_semantics": "invalid_observation is default CLI mapping for CoordinatorHarnessInvalid; it does not uniquely establish malformed product/metrics observation",
+  "start": "2026-10-23T03:31:52.76825+08:00",
+  "last_worker_cut_at": "2026-10-23T03:32:10.448094+08:00",
+  "first_grant_to_terminal_worker_cut_seconds": 17.679844,
+  "requested_traffic_seconds": 120,
+  "worker_cuts": [
+    {
+      "event": "wkbench.chat_lifecycle.worker_status_cut",
+      "run_id": "chat-20261021T214505Z-00299e37-rehearsal-1",
+      "at": "2026-10-23T03:31:57.820407375+08:00",
+      "cut": "periodic",
+      "totals": {
+        "target": 10000,
+        "online": 10000,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 10000
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "messages": {
+        "sent": 10007,
+        "send_attempts": 11048,
+        "first_attempts": 10007,
+        "first_attempt_failures": 294,
+        "send_acknowledged": 7654,
+        "send_rejected": 325,
+        "received": 4331,
+        "receive_acknowledged": 4331,
+        "receive_ack_failures": 0,
+        "retry_attempts": 1041,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 2700,
+        "above_limit": 2682
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "seconds_since_first_grant": 5.052157,
+      "cumulative_rates_per_second": {
+        "sent": 1980.7381282885706,
+        "send_attempts": 2186.7887320207983,
+        "send_acknowledged": 1514.9964658659658,
+        "received": 857.2576030396522
+      }
+    },
+    {
+      "event": "wkbench.chat_lifecycle.worker_status_cut",
+      "run_id": "chat-20261021T214505Z-00299e37-rehearsal-1",
+      "at": "2026-10-23T03:32:02.820535834+08:00",
+      "cut": "periodic",
+      "totals": {
+        "target": 10000,
+        "online": 10000,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 10000
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 0,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "messages": {
+        "sent": 20008,
+        "send_attempts": 22314,
+        "first_attempts": 20008,
+        "first_attempt_failures": 512,
+        "send_acknowledged": 18029,
+        "send_rejected": 562,
+        "received": 5915,
+        "receive_acknowledged": 5915,
+        "receive_ack_failures": 0,
+        "retry_attempts": 2306,
+        "terminal": 1,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 1,
+            "attempt_timeout": 1,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 9918,
+        "above_limit": 9892
+      },
+      "harness": {
+        "classification": "product_failure",
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "seconds_since_first_grant": 10.052285,
+      "cumulative_rates_per_second": {
+        "sent": 1990.3932290021623,
+        "send_attempts": 2219.7938080744825,
+        "send_acknowledged": 1793.5225672570964,
+        "received": 588.4234281061471
+      }
+    },
+    {
+      "event": "wkbench.chat_lifecycle.worker_status_cut",
+      "run_id": "chat-20261021T214505Z-00299e37-rehearsal-1",
+      "at": "2026-10-23T03:32:10.448094+08:00",
+      "cut": "terminal",
+      "totals": {
+        "target": 10000,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "close_reasons": {
+        "expired": 0,
+        "heartbeat_failed": 0,
+        "remote_terminal": 0,
+        "read_failed": 0,
+        "generation_stop": 10000,
+        "explicit_logout": 0,
+        "transport_close_failed": 0
+      },
+      "messages": {
+        "sent": 22001,
+        "send_attempts": 24807,
+        "first_attempts": 22001,
+        "first_attempt_failures": 550,
+        "send_acknowledged": 22000,
+        "send_rejected": 605,
+        "received": 26791,
+        "receive_acknowledged": 26791,
+        "receive_ack_failures": 0,
+        "retry_attempts": 2806,
+        "terminal": 1,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 1,
+            "attempt_timeout": 1,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 10,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 12137,
+        "above_limit": 12109
+      },
+      "harness": {
+        "classification": "product_failure",
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 193805,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "seconds_since_first_grant": 17.679844,
+      "cumulative_rates_per_second": {
+        "sent": 1244.4114325895637,
+        "send_attempts": 1403.1232402276853,
+        "send_acknowledged": 1244.354871004518,
+        "received": 1515.3414249582745
+      }
+    }
+  ],
+  "worker_evidence_examples": [
+    {
+      "worker_id": 0,
+      "worker_generation": 1,
+      "class": 1,
+      "class_count": 1,
+      "stage": 1,
+      "code": 5,
+      "sample_index_decimal": "2305851805306723612",
+      "decoded_domain": 1,
+      "decoded_generation": 1,
+      "decoded_ordinal": 7452,
+      "fingerprint": "1943ea5f3fb2679da6434037e8a029c0",
+      "value": 1
+    },
+    {
+      "worker_id": 0,
+      "worker_generation": 1,
+      "class": 3,
+      "class_count": 3,
+      "stage": 5,
+      "code": 11,
+      "sample_index_decimal": "9223380832947798130",
+      "decoded_domain": 4,
+      "decoded_generation": 1,
+      "decoded_ordinal": 114,
+      "fingerprint": "2efcbfa3df411300591fa4d22a48638c",
+      "value": 10000000000
+    },
+    {
+      "worker_id": 0,
+      "worker_generation": 1,
+      "class": 3,
+      "class_count": 3,
+      "stage": 5,
+      "code": 11,
+      "sample_index_decimal": "9223380832947798430",
+      "decoded_domain": 4,
+      "decoded_generation": 1,
+      "decoded_ordinal": 414,
+      "fingerprint": "3276a62a15a9216f4683222b7751c108",
+      "value": 10000000000
+    },
+    {
+      "worker_id": 0,
+      "worker_generation": 1,
+      "class": 3,
+      "class_count": 3,
+      "stage": 5,
+      "code": 11,
+      "sample_index_decimal": "9223380832947798730",
+      "decoded_domain": 4,
+      "decoded_generation": 1,
+      "decoded_ordinal": 714,
+      "fingerprint": "959d866140319ee8df82f2dcd8a59214",
+      "value": 10000000000
+    },
+    {
+      "worker_id": 1,
+      "worker_generation": 1,
+      "class": 3,
+      "class_count": 3,
+      "stage": 5,
+      "code": 11,
+      "sample_index_decimal": "9223380832947798230",
+      "decoded_domain": 4,
+      "decoded_generation": 1,
+      "decoded_ordinal": 214,
+      "fingerprint": "562ccbccd13140cd9a4a1ca28610ea89",
+      "value": 10000000000
+    },
+    {
+      "worker_id": 1,
+      "worker_generation": 1,
+      "class": 3,
+      "class_count": 3,
+      "stage": 5,
+      "code": 11,
+      "sample_index_decimal": "9223380832947798530",
+      "decoded_domain": 4,
+      "decoded_generation": 1,
+      "decoded_ordinal": 514,
+      "fingerprint": "3e1a78cb539878dc6c90b460b9bf7398",
+      "value": 10000000000
+    },
+    {
+      "worker_id": 1,
+      "worker_generation": 1,
+      "class": 3,
+      "class_count": 3,
+      "stage": 5,
+      "code": 11,
+      "sample_index_decimal": "9223380832947798830",
+      "decoded_domain": 4,
+      "decoded_generation": 1,
+      "decoded_ordinal": 814,
+      "fingerprint": "85c2908413717011d3ed4fe34569f614",
+      "value": 10000000000
+    },
+    {
+      "worker_id": 2,
+      "worker_generation": 1,
+      "class": 3,
+      "class_count": 4,
+      "stage": 5,
+      "code": 11,
+      "sample_index_decimal": "9223380832947798030",
+      "decoded_domain": 4,
+      "decoded_generation": 1,
+      "decoded_ordinal": 14,
+      "fingerprint": "8ea8b0568129e91f2e24921fca3fcb07",
+      "value": 10000000000
+    },
+    {
+      "worker_id": 2,
+      "worker_generation": 1,
+      "class": 3,
+      "class_count": 4,
+      "stage": 5,
+      "code": 11,
+      "sample_index_decimal": "9223380832947798330",
+      "decoded_domain": 4,
+      "decoded_generation": 1,
+      "decoded_ordinal": 314,
+      "fingerprint": "0db0904a5c1178a44b1596dfd762770d",
+      "value": 10000000000
+    },
+    {
+      "worker_id": 2,
+      "worker_generation": 1,
+      "class": 3,
+      "class_count": 4,
+      "stage": 5,
+      "code": 11,
+      "sample_index_decimal": "9223380832947798630",
+      "decoded_domain": 4,
+      "decoded_generation": 1,
+      "decoded_ordinal": 614,
+      "fingerprint": "6ace0f238690e8a83297bb4f85632bc8",
+      "value": 10000000000
+    },
+    {
+      "worker_id": 2,
+      "worker_generation": 1,
+      "class": 3,
+      "class_count": 4,
+      "stage": 5,
+      "code": 11,
+      "sample_index_decimal": "9223380832947798930",
+      "decoded_domain": 4,
+      "decoded_generation": 1,
+      "decoded_ordinal": 914,
+      "fingerprint": "6ef3f437bc6efee2fc3bcc76b5d41886",
+      "value": 10000000000
+    }
+  ],
+  "worker_evidence_does_not_override_coordinator_validity": true,
+  "actual_metrics_comparison": {
+    "baseline_batch1": [
+      {
+        "phase": "first-measured",
+        "nodes": [
+          {
+            "node": 1,
+            "raw": {
+              "source": "evidence/metrics-first-measured-node1.prom",
+              "bytes": 1020117,
+              "sha256": "e7caa5ed72636edc9ef3c7fd64c1e2a81468c87502bfd9a7548e65c378a1e5b9",
+              "mtime_utc": "2026-10-22T19:01:36.105866+00:00",
+              "series": [
+                {
+                  "name": "go_sched_gomaxprocs_threads",
+                  "labels": {},
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_capacity",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_inflight",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_capacity",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_depth",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "1"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "2"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "4"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "8"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "16"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "32"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "64"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "128"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "256"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "512"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "1024"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "+Inf"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_sum",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_count",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "none",
+                    "node_id": "1",
+                    "reason": "success",
+                    "source": "batch_result"
+                  },
+                  "value": 3095.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_facts",
+                    "node_id": "1"
+                  },
+                  "value": 11928.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_requests",
+                    "node_id": "1"
+                  },
+                  "value": 3520.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohorts",
+                    "node_id": "1"
+                  },
+                  "value": 562.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_inflight",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory"
+                  },
+                  "value": 455.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_capacity",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_depth",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 455.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_workers",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory"
+                  },
+                  "value": 8.0
+                }
+              ]
+            },
+            "batch": {
+              "count": 3533.0,
+              "records": 3533.0,
+              "le1": 3533.0,
+              "le2": 3533.0,
+              "le4": 3533.0,
+              "multi_record_batches": 0.0,
+              "multi_record_fraction": 0.0,
+              "mean_records": 1.0
+            },
+            "permission": {
+              "cohort_busy": 0,
+              "cohort_requests": 3520.0,
+              "cohort_facts": 11928.0,
+              "cohorts": 562.0
+            },
+            "recipient_queue": {
+              "depth": 1024.0,
+              "capacity": 1024.0,
+              "inflight": 320.0,
+              "workers": 320.0
+            },
+            "server_sendack_counts": [
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "none",
+                  "node_id": "1",
+                  "reason": "success",
+                  "source": "batch_result"
+                },
+                "value": 3095.0
+              }
+            ]
+          },
+          {
+            "node": 2,
+            "raw": {
+              "source": "evidence/metrics-first-measured-node2.prom",
+              "bytes": 1018202,
+              "sha256": "bd9192220a3438047209a1da188a0ddc885982fae5137b4d1f039721ed8924b5",
+              "mtime_utc": "2026-10-22T19:01:36.252355+00:00",
+              "series": [
+                {
+                  "name": "go_sched_gomaxprocs_threads",
+                  "labels": {},
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_capacity",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_inflight",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_capacity",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_depth",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "1"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "2"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "4"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "8"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "16"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "32"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "64"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "128"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "256"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "512"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "1024"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "+Inf"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_sum",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_count",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 3583.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "none",
+                    "node_id": "2",
+                    "reason": "success",
+                    "source": "batch_result"
+                  },
+                  "value": 3122.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "route_not_ready",
+                    "node_id": "2",
+                    "reason": "unknown",
+                    "source": "batch_result_error"
+                  },
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_busy",
+                    "node_id": "2"
+                  },
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_facts",
+                    "node_id": "2"
+                  },
+                  "value": 12141.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_requests",
+                    "node_id": "2"
+                  },
+                  "value": 3576.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohorts",
+                    "node_id": "2"
+                  },
+                  "value": 577.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_inflight",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory"
+                  },
+                  "value": 467.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_capacity",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_depth",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 467.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_workers",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory"
+                  },
+                  "value": 8.0
+                }
+              ]
+            },
+            "batch": {
+              "count": 3583.0,
+              "records": 3583.0,
+              "le1": 3583.0,
+              "le2": 3583.0,
+              "le4": 3583.0,
+              "multi_record_batches": 0.0,
+              "multi_record_fraction": 0.0,
+              "mean_records": 1.0
+            },
+            "permission": {
+              "cohort_busy": 2.0,
+              "cohort_requests": 3576.0,
+              "cohort_facts": 12141.0,
+              "cohorts": 577.0
+            },
+            "recipient_queue": {
+              "depth": 1024.0,
+              "capacity": 1024.0,
+              "inflight": 320.0,
+              "workers": 320.0
+            },
+            "server_sendack_counts": [
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "none",
+                  "node_id": "2",
+                  "reason": "success",
+                  "source": "batch_result"
+                },
+                "value": 3122.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "route_not_ready",
+                  "node_id": "2",
+                  "reason": "unknown",
+                  "source": "batch_result_error"
+                },
+                "value": 2.0
+              }
+            ]
+          },
+          {
+            "node": 3,
+            "raw": {
+              "source": "evidence/metrics-first-measured-node3.prom",
+              "bytes": 990448,
+              "sha256": "904b245e2d4a15f0649a7339a6b5583710129010cbffae966f6e451375a49af2",
+              "mtime_utc": "2026-10-22T19:01:36.299920+00:00",
+              "series": [
+                {
+                  "name": "go_sched_gomaxprocs_threads",
+                  "labels": {},
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_capacity",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_inflight",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_capacity",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_depth",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "1"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "2"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "4"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "8"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "16"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "32"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "64"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "128"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "256"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "512"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "1024"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "+Inf"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_sum",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_count",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 3697.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "none",
+                    "node_id": "3",
+                    "reason": "success",
+                    "source": "batch_result"
+                  },
+                  "value": 3225.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "route_not_ready",
+                    "node_id": "3",
+                    "reason": "unknown",
+                    "source": "batch_result_error"
+                  },
+                  "value": 18.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_busy",
+                    "node_id": "3"
+                  },
+                  "value": 18.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_facts",
+                    "node_id": "3"
+                  },
+                  "value": 12502.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_requests",
+                    "node_id": "3"
+                  },
+                  "value": 3686.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohorts",
+                    "node_id": "3"
+                  },
+                  "value": 588.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_inflight",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory"
+                  },
+                  "value": 392.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_capacity",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_depth",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 392.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_workers",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory"
+                  },
+                  "value": 8.0
+                }
+              ]
+            },
+            "batch": {
+              "count": 3697.0,
+              "records": 3697.0,
+              "le1": 3697.0,
+              "le2": 3697.0,
+              "le4": 3697.0,
+              "multi_record_batches": 0.0,
+              "multi_record_fraction": 0.0,
+              "mean_records": 1.0
+            },
+            "permission": {
+              "cohort_busy": 18.0,
+              "cohort_requests": 3686.0,
+              "cohort_facts": 12502.0,
+              "cohorts": 588.0
+            },
+            "recipient_queue": {
+              "depth": 1024.0,
+              "capacity": 1024.0,
+              "inflight": 320.0,
+              "workers": 320.0
+            },
+            "server_sendack_counts": [
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "none",
+                  "node_id": "3",
+                  "reason": "success",
+                  "source": "batch_result"
+                },
+                "value": 3225.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "route_not_ready",
+                  "node_id": "3",
+                  "reason": "unknown",
+                  "source": "batch_result_error"
+                },
+                "value": 18.0
+              }
+            ]
+          }
+        ],
+        "sum_batch_count": 10813.0,
+        "sum_batch_records": 10813.0,
+        "sum_multi_record_batches": 0.0,
+        "sum_cohort_busy": 20.0
+      },
+      {
+        "phase": "terminal",
+        "nodes": [
+          {
+            "node": 1,
+            "raw": {
+              "source": "evidence/metrics-terminal-node1.prom",
+              "bytes": 1053900,
+              "sha256": "25e3b9797f9c6a2799b91c6bcf65c4fde4be7166efdd54191acb0120e659eef0",
+              "mtime_utc": "2026-10-22T19:01:44.507097+00:00",
+              "series": [
+                {
+                  "name": "go_sched_gomaxprocs_threads",
+                  "labels": {},
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_capacity",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_inflight",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_capacity",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_depth",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "1"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "2"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "4"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "8"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "16"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "32"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "64"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "128"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "256"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "512"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "1024"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "+Inf"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_sum",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_count",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "none",
+                    "node_id": "1",
+                    "reason": "success",
+                    "source": "batch_result"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_facts",
+                    "node_id": "1"
+                  },
+                  "value": 14301.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_requests",
+                    "node_id": "1"
+                  },
+                  "value": 4185.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohorts",
+                    "node_id": "1"
+                  },
+                  "value": 693.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_inflight",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_capacity",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_depth",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_workers",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory"
+                  },
+                  "value": 8.0
+                }
+              ]
+            },
+            "batch": {
+              "count": 4185.0,
+              "records": 4185.0,
+              "le1": 4185.0,
+              "le2": 4185.0,
+              "le4": 4185.0,
+              "multi_record_batches": 0.0,
+              "multi_record_fraction": 0.0,
+              "mean_records": 1.0
+            },
+            "permission": {
+              "cohort_busy": 0,
+              "cohort_requests": 4185.0,
+              "cohort_facts": 14301.0,
+              "cohorts": 693.0
+            },
+            "recipient_queue": {
+              "depth": 0.0,
+              "capacity": 1024.0,
+              "inflight": 0.0,
+              "workers": 320.0
+            },
+            "server_sendack_counts": [
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "none",
+                  "node_id": "1",
+                  "reason": "success",
+                  "source": "batch_result"
+                },
+                "value": 4185.0
+              }
+            ]
+          },
+          {
+            "node": 2,
+            "raw": {
+              "source": "evidence/metrics-terminal-node2.prom",
+              "bytes": 1040544,
+              "sha256": "ca3f87410eadc87d02e8a1dde2f0f36403ed16f593e777ce9231221ab623251f",
+              "mtime_utc": "2026-10-22T19:01:44.511828+00:00",
+              "series": [
+                {
+                  "name": "go_sched_gomaxprocs_threads",
+                  "labels": {},
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_capacity",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_inflight",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_capacity",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_depth",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "1"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "2"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "4"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "8"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "16"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "32"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "64"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "128"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "256"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "512"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "1024"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "+Inf"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_sum",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_count",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "none",
+                    "node_id": "2",
+                    "reason": "success",
+                    "source": "batch_result"
+                  },
+                  "value": 4188.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "route_not_ready",
+                    "node_id": "2",
+                    "reason": "unknown",
+                    "source": "batch_result_error"
+                  },
+                  "value": 14.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_busy",
+                    "node_id": "2"
+                  },
+                  "value": 14.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_facts",
+                    "node_id": "2"
+                  },
+                  "value": 14322.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_requests",
+                    "node_id": "2"
+                  },
+                  "value": 4188.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohorts",
+                    "node_id": "2"
+                  },
+                  "value": 698.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_inflight",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_capacity",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_depth",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_workers",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory"
+                  },
+                  "value": 8.0
+                }
+              ]
+            },
+            "batch": {
+              "count": 4202.0,
+              "records": 4202.0,
+              "le1": 4202.0,
+              "le2": 4202.0,
+              "le4": 4202.0,
+              "multi_record_batches": 0.0,
+              "multi_record_fraction": 0.0,
+              "mean_records": 1.0
+            },
+            "permission": {
+              "cohort_busy": 14.0,
+              "cohort_requests": 4188.0,
+              "cohort_facts": 14322.0,
+              "cohorts": 698.0
+            },
+            "recipient_queue": {
+              "depth": 0.0,
+              "capacity": 1024.0,
+              "inflight": 0.0,
+              "workers": 320.0
+            },
+            "server_sendack_counts": [
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "none",
+                  "node_id": "2",
+                  "reason": "success",
+                  "source": "batch_result"
+                },
+                "value": 4188.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "route_not_ready",
+                  "node_id": "2",
+                  "reason": "unknown",
+                  "source": "batch_result_error"
+                },
+                "value": 14.0
+              }
+            ]
+          },
+          {
+            "node": 3,
+            "raw": {
+              "source": "evidence/metrics-terminal-node3.prom",
+              "bytes": 1042773,
+              "sha256": "74bafb7247dc1cc9c198df87e379952c601fcf1ec3b44582ea7c440555c42b21",
+              "mtime_utc": "2026-10-22T19:01:44.516873+00:00",
+              "series": [
+                {
+                  "name": "go_sched_gomaxprocs_threads",
+                  "labels": {},
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_capacity",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_inflight",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_capacity",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_depth",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "1"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "2"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "4"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "8"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "16"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "32"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "64"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "128"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "256"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "512"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "1024"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "+Inf"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_sum",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_count",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 4202.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "none",
+                    "node_id": "3",
+                    "reason": "success",
+                    "source": "batch_result"
+                  },
+                  "value": 4184.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "route_not_ready",
+                    "node_id": "3",
+                    "reason": "unknown",
+                    "source": "batch_result_error"
+                  },
+                  "value": 18.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_busy",
+                    "node_id": "3"
+                  },
+                  "value": 18.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_facts",
+                    "node_id": "3"
+                  },
+                  "value": 14287.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_requests",
+                    "node_id": "3"
+                  },
+                  "value": 4184.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohorts",
+                    "node_id": "3"
+                  },
+                  "value": 703.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_inflight",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_capacity",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_depth",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_workers",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory"
+                  },
+                  "value": 8.0
+                }
+              ]
+            },
+            "batch": {
+              "count": 4202.0,
+              "records": 4202.0,
+              "le1": 4202.0,
+              "le2": 4202.0,
+              "le4": 4202.0,
+              "multi_record_batches": 0.0,
+              "multi_record_fraction": 0.0,
+              "mean_records": 1.0
+            },
+            "permission": {
+              "cohort_busy": 18.0,
+              "cohort_requests": 4184.0,
+              "cohort_facts": 14287.0,
+              "cohorts": 703.0
+            },
+            "recipient_queue": {
+              "depth": 0.0,
+              "capacity": 1024.0,
+              "inflight": 0.0,
+              "workers": 320.0
+            },
+            "server_sendack_counts": [
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "none",
+                  "node_id": "3",
+                  "reason": "success",
+                  "source": "batch_result"
+                },
+                "value": 4184.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "route_not_ready",
+                  "node_id": "3",
+                  "reason": "unknown",
+                  "source": "batch_result_error"
+                },
+                "value": 18.0
+              }
+            ]
+          }
+        ],
+        "sum_batch_count": 12589.0,
+        "sum_batch_records": 12589.0,
+        "sum_multi_record_batches": 0.0,
+        "sum_cohort_busy": 32.0
+      }
+    ],
+    "counterfactual_batch128": [
+      {
+        "phase": "first-measured",
+        "nodes": [
+          {
+            "node": 1,
+            "raw": {
+              "source": "evidence/metrics-first-measured-node1.prom",
+              "bytes": 1031057,
+              "sha256": "27713a5f58dfa66502b3a7e0afe6bc3da80730edadfb6f0e76451c4167b90fab",
+              "mtime_utc": "2026-10-22T19:31:57.947622+00:00",
+              "series": [
+                {
+                  "name": "go_sched_gomaxprocs_threads",
+                  "labels": {},
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_capacity",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_inflight",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_capacity",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_depth",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 1020.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "1"
+                  },
+                  "value": 3533.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "2"
+                  },
+                  "value": 3613.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "4"
+                  },
+                  "value": 3617.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "8"
+                  },
+                  "value": 3617.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "16"
+                  },
+                  "value": 3617.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "32"
+                  },
+                  "value": 3617.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "64"
+                  },
+                  "value": 3617.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "128"
+                  },
+                  "value": 3617.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "256"
+                  },
+                  "value": 3617.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "512"
+                  },
+                  "value": 3617.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "1024"
+                  },
+                  "value": 3617.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "+Inf"
+                  },
+                  "value": 3617.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_sum",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 3705.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_count",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 3617.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "none",
+                    "node_id": "1",
+                    "reason": "success",
+                    "source": "batch_result"
+                  },
+                  "value": 2769.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "route_not_ready",
+                    "node_id": "1",
+                    "reason": "unknown",
+                    "source": "batch_result_error"
+                  },
+                  "value": 106.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_busy",
+                    "node_id": "1"
+                  },
+                  "value": 111.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_facts",
+                    "node_id": "1"
+                  },
+                  "value": 12227.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_requests",
+                    "node_id": "1"
+                  },
+                  "value": 3510.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohorts",
+                    "node_id": "1"
+                  },
+                  "value": 548.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_inflight",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_capacity",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_depth",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_workers",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory"
+                  },
+                  "value": 8.0
+                }
+              ]
+            },
+            "batch": {
+              "count": 3617.0,
+              "records": 3705.0,
+              "le1": 3533.0,
+              "le2": 3613.0,
+              "le4": 3617.0,
+              "multi_record_batches": 84.0,
+              "multi_record_fraction": 0.023223666021564834,
+              "mean_records": 1.0243295548797346
+            },
+            "permission": {
+              "cohort_busy": 111.0,
+              "cohort_requests": 3510.0,
+              "cohort_facts": 12227.0,
+              "cohorts": 548.0
+            },
+            "recipient_queue": {
+              "depth": 1020.0,
+              "capacity": 1024.0,
+              "inflight": 320.0,
+              "workers": 320.0
+            },
+            "server_sendack_counts": [
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "none",
+                  "node_id": "1",
+                  "reason": "success",
+                  "source": "batch_result"
+                },
+                "value": 2769.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "route_not_ready",
+                  "node_id": "1",
+                  "reason": "unknown",
+                  "source": "batch_result_error"
+                },
+                "value": 106.0
+              }
+            ]
+          },
+          {
+            "node": 2,
+            "raw": {
+              "source": "evidence/metrics-first-measured-node2.prom",
+              "bytes": 1014600,
+              "sha256": "d4e7cef230e67557ad07e9ae2e8847ddab9e8498d83cc367cd40b4ea3ae127fb",
+              "mtime_utc": "2026-10-22T19:31:58.054652+00:00",
+              "series": [
+                {
+                  "name": "go_sched_gomaxprocs_threads",
+                  "labels": {},
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_capacity",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_inflight",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_capacity",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_depth",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "1"
+                  },
+                  "value": 3557.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "2"
+                  },
+                  "value": 3645.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "4"
+                  },
+                  "value": 3652.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "8"
+                  },
+                  "value": 3652.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "16"
+                  },
+                  "value": 3652.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "32"
+                  },
+                  "value": 3652.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "64"
+                  },
+                  "value": 3652.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "128"
+                  },
+                  "value": 3652.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "256"
+                  },
+                  "value": 3652.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "512"
+                  },
+                  "value": 3652.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "1024"
+                  },
+                  "value": 3652.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "+Inf"
+                  },
+                  "value": 3652.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_sum",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 3754.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_count",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 3652.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "none",
+                    "node_id": "2",
+                    "reason": "success",
+                    "source": "batch_result"
+                  },
+                  "value": 2862.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "route_not_ready",
+                    "node_id": "2",
+                    "reason": "unknown",
+                    "source": "batch_result_error"
+                  },
+                  "value": 144.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_busy",
+                    "node_id": "2"
+                  },
+                  "value": 148.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_facts",
+                    "node_id": "2"
+                  },
+                  "value": 12229.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_requests",
+                    "node_id": "2"
+                  },
+                  "value": 3501.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohorts",
+                    "node_id": "2"
+                  },
+                  "value": 597.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_inflight",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_capacity",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_depth",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_workers",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory"
+                  },
+                  "value": 8.0
+                }
+              ]
+            },
+            "batch": {
+              "count": 3652.0,
+              "records": 3754.0,
+              "le1": 3557.0,
+              "le2": 3645.0,
+              "le4": 3652.0,
+              "multi_record_batches": 95.0,
+              "multi_record_fraction": 0.026013143483023003,
+              "mean_records": 1.0279299014238774
+            },
+            "permission": {
+              "cohort_busy": 148.0,
+              "cohort_requests": 3501.0,
+              "cohort_facts": 12229.0,
+              "cohorts": 597.0
+            },
+            "recipient_queue": {
+              "depth": 1024.0,
+              "capacity": 1024.0,
+              "inflight": 320.0,
+              "workers": 320.0
+            },
+            "server_sendack_counts": [
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "none",
+                  "node_id": "2",
+                  "reason": "success",
+                  "source": "batch_result"
+                },
+                "value": 2862.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "route_not_ready",
+                  "node_id": "2",
+                  "reason": "unknown",
+                  "source": "batch_result_error"
+                },
+                "value": 144.0
+              }
+            ]
+          },
+          {
+            "node": 3,
+            "raw": {
+              "source": "evidence/metrics-first-measured-node3.prom",
+              "bytes": 998554,
+              "sha256": "d62f93eccae1b5d15d6cd374e0c0c9fecafb5bdb989ccb0391336280b086d9a6",
+              "mtime_utc": "2026-10-22T19:31:58.145491+00:00",
+              "series": [
+                {
+                  "name": "go_sched_gomaxprocs_threads",
+                  "labels": {},
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_capacity",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_inflight",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_capacity",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_depth",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "1"
+                  },
+                  "value": 3710.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "2"
+                  },
+                  "value": 3799.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "4"
+                  },
+                  "value": 3802.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "8"
+                  },
+                  "value": 3802.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "16"
+                  },
+                  "value": 3802.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "32"
+                  },
+                  "value": 3802.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "64"
+                  },
+                  "value": 3802.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "128"
+                  },
+                  "value": 3802.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "256"
+                  },
+                  "value": 3802.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "512"
+                  },
+                  "value": 3802.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "1024"
+                  },
+                  "value": 3802.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "+Inf"
+                  },
+                  "value": 3802.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_sum",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 3897.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_count",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 3802.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "none",
+                    "node_id": "3",
+                    "reason": "success",
+                    "source": "batch_result"
+                  },
+                  "value": 2950.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "route_not_ready",
+                    "node_id": "3",
+                    "reason": "unknown",
+                    "source": "batch_result_error"
+                  },
+                  "value": 114.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_busy",
+                    "node_id": "3"
+                  },
+                  "value": 120.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_facts",
+                    "node_id": "3"
+                  },
+                  "value": 12867.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_requests",
+                    "node_id": "3"
+                  },
+                  "value": 3682.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohorts",
+                    "node_id": "3"
+                  },
+                  "value": 597.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_inflight",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory"
+                  },
+                  "value": 451.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_capacity",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_depth",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 451.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_workers",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory"
+                  },
+                  "value": 8.0
+                }
+              ]
+            },
+            "batch": {
+              "count": 3802.0,
+              "records": 3897.0,
+              "le1": 3710.0,
+              "le2": 3799.0,
+              "le4": 3802.0,
+              "multi_record_batches": 92.0,
+              "multi_record_fraction": 0.0241977906365071,
+              "mean_records": 1.024986849026828
+            },
+            "permission": {
+              "cohort_busy": 120.0,
+              "cohort_requests": 3682.0,
+              "cohort_facts": 12867.0,
+              "cohorts": 597.0
+            },
+            "recipient_queue": {
+              "depth": 1024.0,
+              "capacity": 1024.0,
+              "inflight": 320.0,
+              "workers": 320.0
+            },
+            "server_sendack_counts": [
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "none",
+                  "node_id": "3",
+                  "reason": "success",
+                  "source": "batch_result"
+                },
+                "value": 2950.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "route_not_ready",
+                  "node_id": "3",
+                  "reason": "unknown",
+                  "source": "batch_result_error"
+                },
+                "value": 114.0
+              }
+            ]
+          }
+        ],
+        "sum_batch_count": 11071.0,
+        "sum_batch_records": 11356.0,
+        "sum_multi_record_batches": 271.0,
+        "sum_cohort_busy": 379.0
+      },
+      {
+        "phase": "terminal",
+        "nodes": [
+          {
+            "node": 1,
+            "raw": {
+              "source": "evidence/metrics-terminal-node1.prom",
+              "bytes": 1096599,
+              "sha256": "2ca078e5eb5437636e4cd2ca195caaf59e82d1a7535de4c06336529a8eb8f62a",
+              "mtime_utc": "2026-10-22T19:32:10.713358+00:00",
+              "series": [
+                {
+                  "name": "go_sched_gomaxprocs_threads",
+                  "labels": {},
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_capacity",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_inflight",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 13.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_capacity",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_depth",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 148.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "1"
+                  },
+                  "value": 7775.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "2"
+                  },
+                  "value": 7985.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "4"
+                  },
+                  "value": 8001.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "8"
+                  },
+                  "value": 8001.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "16"
+                  },
+                  "value": 8001.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "32"
+                  },
+                  "value": 8001.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "64"
+                  },
+                  "value": 8001.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "128"
+                  },
+                  "value": 8001.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "256"
+                  },
+                  "value": 8001.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "512"
+                  },
+                  "value": 8001.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "1024"
+                  },
+                  "value": 8001.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "1",
+                    "le": "+Inf"
+                  },
+                  "value": 8001.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_sum",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 8243.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_count",
+                  "labels": {
+                    "node_id": "1"
+                  },
+                  "value": 8001.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "none",
+                    "node_id": "1",
+                    "reason": "success",
+                    "source": "batch_result"
+                  },
+                  "value": 8099.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "route_not_ready",
+                    "node_id": "1",
+                    "reason": "unknown",
+                    "source": "batch_result_error"
+                  },
+                  "value": 134.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "timeout",
+                    "node_id": "1",
+                    "reason": "node_not_match",
+                    "source": "batch_result_error"
+                  },
+                  "value": 10.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_busy",
+                    "node_id": "1"
+                  },
+                  "value": 133.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_facts",
+                    "node_id": "1"
+                  },
+                  "value": 27712.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_requests",
+                    "node_id": "1"
+                  },
+                  "value": 7868.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohorts",
+                    "node_id": "1"
+                  },
+                  "value": 1451.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_inflight",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_capacity",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_depth",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_workers",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "1",
+                    "pool": "person_directory"
+                  },
+                  "value": 8.0
+                }
+              ]
+            },
+            "batch": {
+              "count": 8001.0,
+              "records": 8243.0,
+              "le1": 7775.0,
+              "le2": 7985.0,
+              "le4": 8001.0,
+              "multi_record_batches": 226.0,
+              "multi_record_fraction": 0.02824646919135108,
+              "mean_records": 1.0302462192225972
+            },
+            "permission": {
+              "cohort_busy": 133.0,
+              "cohort_requests": 7868.0,
+              "cohort_facts": 27712.0,
+              "cohorts": 1451.0
+            },
+            "recipient_queue": {
+              "depth": 148.0,
+              "capacity": 1024.0,
+              "inflight": 13.0,
+              "workers": 320.0
+            },
+            "server_sendack_counts": [
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "none",
+                  "node_id": "1",
+                  "reason": "success",
+                  "source": "batch_result"
+                },
+                "value": 8099.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "route_not_ready",
+                  "node_id": "1",
+                  "reason": "unknown",
+                  "source": "batch_result_error"
+                },
+                "value": 134.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "timeout",
+                  "node_id": "1",
+                  "reason": "node_not_match",
+                  "source": "batch_result_error"
+                },
+                "value": 10.0
+              }
+            ]
+          },
+          {
+            "node": 2,
+            "raw": {
+              "source": "evidence/metrics-terminal-node2.prom",
+              "bytes": 1101388,
+              "sha256": "4e33fc4255c27ef4c30e164288ef18ad896029345ec8896d44dff2c4a16eb418",
+              "mtime_utc": "2026-10-22T19:32:10.719285+00:00",
+              "series": [
+                {
+                  "name": "go_sched_gomaxprocs_threads",
+                  "labels": {},
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_capacity",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_inflight",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 10.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_capacity",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_depth",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 105.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "1"
+                  },
+                  "value": 7773.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "2"
+                  },
+                  "value": 8003.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "4"
+                  },
+                  "value": 8021.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "8"
+                  },
+                  "value": 8021.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "16"
+                  },
+                  "value": 8021.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "32"
+                  },
+                  "value": 8021.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "64"
+                  },
+                  "value": 8021.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "128"
+                  },
+                  "value": 8021.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "256"
+                  },
+                  "value": 8021.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "512"
+                  },
+                  "value": 8021.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "1024"
+                  },
+                  "value": 8021.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "2",
+                    "le": "+Inf"
+                  },
+                  "value": 8021.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_sum",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 8288.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_count",
+                  "labels": {
+                    "node_id": "2"
+                  },
+                  "value": 8021.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "none",
+                    "node_id": "2",
+                    "reason": "success",
+                    "source": "batch_result"
+                  },
+                  "value": 8028.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "route_not_ready",
+                    "node_id": "2",
+                    "reason": "unknown",
+                    "source": "batch_result_error"
+                  },
+                  "value": 250.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "timeout",
+                    "node_id": "2",
+                    "reason": "node_not_match",
+                    "source": "batch_result_error"
+                  },
+                  "value": 10.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_busy",
+                    "node_id": "2"
+                  },
+                  "value": 248.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_facts",
+                    "node_id": "2"
+                  },
+                  "value": 27400.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_requests",
+                    "node_id": "2"
+                  },
+                  "value": 7773.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohorts",
+                    "node_id": "2"
+                  },
+                  "value": 1474.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_inflight",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_capacity",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_depth",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_workers",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "2",
+                    "pool": "person_directory"
+                  },
+                  "value": 8.0
+                }
+              ]
+            },
+            "batch": {
+              "count": 8021.0,
+              "records": 8288.0,
+              "le1": 7773.0,
+              "le2": 8003.0,
+              "le4": 8021.0,
+              "multi_record_batches": 248.0,
+              "multi_record_fraction": 0.030918838050118438,
+              "mean_records": 1.0332876199975065
+            },
+            "permission": {
+              "cohort_busy": 248.0,
+              "cohort_requests": 7773.0,
+              "cohort_facts": 27400.0,
+              "cohorts": 1474.0
+            },
+            "recipient_queue": {
+              "depth": 105.0,
+              "capacity": 1024.0,
+              "inflight": 10.0,
+              "workers": 320.0
+            },
+            "server_sendack_counts": [
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "none",
+                  "node_id": "2",
+                  "reason": "success",
+                  "source": "batch_result"
+                },
+                "value": 8028.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "route_not_ready",
+                  "node_id": "2",
+                  "reason": "unknown",
+                  "source": "batch_result_error"
+                },
+                "value": 250.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "timeout",
+                  "node_id": "2",
+                  "reason": "node_not_match",
+                  "source": "batch_result_error"
+                },
+                "value": 10.0
+              }
+            ]
+          },
+          {
+            "node": 3,
+            "raw": {
+              "source": "evidence/metrics-terminal-node3.prom",
+              "bytes": 1078211,
+              "sha256": "458dc2b81941ba00e96ba6e7e0be826662910beccbbfceb8ba67e0b955837b14",
+              "mtime_utc": "2026-10-22T19:32:10.724906+00:00",
+              "series": [
+                {
+                  "name": "go_sched_gomaxprocs_threads",
+                  "labels": {},
+                  "value": 2.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_capacity",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 320.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_inflight",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 13.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_capacity",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 1024.0
+                },
+                {
+                  "name": "wukongim_delivery_recipient_worker_queue_depth",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 209.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "1"
+                  },
+                  "value": 7813.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "2"
+                  },
+                  "value": 8035.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "4"
+                  },
+                  "value": 8041.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "8"
+                  },
+                  "value": 8041.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "16"
+                  },
+                  "value": 8041.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "32"
+                  },
+                  "value": 8041.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "64"
+                  },
+                  "value": 8041.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "128"
+                  },
+                  "value": 8041.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "256"
+                  },
+                  "value": 8041.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "512"
+                  },
+                  "value": 8041.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "1024"
+                  },
+                  "value": 8041.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_bucket",
+                  "labels": {
+                    "node_id": "3",
+                    "le": "+Inf"
+                  },
+                  "value": 8041.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_sum",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 8275.0
+                },
+                {
+                  "name": "wukongim_gateway_async_send_batch_records_count",
+                  "labels": {
+                    "node_id": "3"
+                  },
+                  "value": 8041.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "none",
+                    "node_id": "3",
+                    "reason": "success",
+                    "source": "batch_result"
+                  },
+                  "value": 8056.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "route_not_ready",
+                    "node_id": "3",
+                    "reason": "unknown",
+                    "source": "batch_result_error"
+                  },
+                  "value": 211.0
+                },
+                {
+                  "name": "wukongim_gateway_sendacks_total",
+                  "labels": {
+                    "class": "timeout",
+                    "node_id": "3",
+                    "reason": "node_not_match",
+                    "source": "batch_result_error"
+                  },
+                  "value": 8.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_busy",
+                    "node_id": "3"
+                  },
+                  "value": 210.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_facts",
+                    "node_id": "3"
+                  },
+                  "value": 27546.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohort_requests",
+                    "node_id": "3"
+                  },
+                  "value": 7831.0
+                },
+                {
+                  "name": "wukongim_message_permission_counts_total",
+                  "labels": {
+                    "kind": "cohorts",
+                    "node_id": "3"
+                  },
+                  "value": 1470.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_inflight",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_capacity",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 512.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_queue_depth",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory",
+                    "priority": "none",
+                    "queue": "task"
+                  },
+                  "value": 0.0
+                },
+                {
+                  "name": "wukongim_runtime_pool_workers",
+                  "labels": {
+                    "component": "message",
+                    "node_id": "3",
+                    "pool": "person_directory"
+                  },
+                  "value": 8.0
+                }
+              ]
+            },
+            "batch": {
+              "count": 8041.0,
+              "records": 8275.0,
+              "le1": 7813.0,
+              "le2": 8035.0,
+              "le4": 8041.0,
+              "multi_record_batches": 228.0,
+              "multi_record_fraction": 0.028354682253451065,
+              "mean_records": 1.029100858102226
+            },
+            "permission": {
+              "cohort_busy": 210.0,
+              "cohort_requests": 7831.0,
+              "cohort_facts": 27546.0,
+              "cohorts": 1470.0
+            },
+            "recipient_queue": {
+              "depth": 209.0,
+              "capacity": 1024.0,
+              "inflight": 13.0,
+              "workers": 320.0
+            },
+            "server_sendack_counts": [
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "none",
+                  "node_id": "3",
+                  "reason": "success",
+                  "source": "batch_result"
+                },
+                "value": 8056.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "route_not_ready",
+                  "node_id": "3",
+                  "reason": "unknown",
+                  "source": "batch_result_error"
+                },
+                "value": 211.0
+              },
+              {
+                "name": "wukongim_gateway_sendacks_total",
+                "labels": {
+                  "class": "timeout",
+                  "node_id": "3",
+                  "reason": "node_not_match",
+                  "source": "batch_result_error"
+                },
+                "value": 8.0
+              }
+            ]
+          }
+        ],
+        "sum_batch_count": 24063.0,
+        "sum_batch_records": 24806.0,
+        "sum_multi_record_batches": 702.0,
+        "sum_cohort_busy": 591.0
+      }
+    ]
+  },
+  "measured_process_samples": [
+    {
+      "at_utc": "2026-10-22T19:31:53.840594+00:00",
+      "elapsed_seconds": 264.71668208402116,
+      "owned": [
+        {
+          "pid": 82642,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2146304
+        },
+        {
+          "pid": 82645,
+          "process": "Python",
+          "cpu_percent": 0.0,
+          "rss_bytes": 12304384
+        },
+        {
+          "pid": 82663,
+          "process": "wukongim",
+          "cpu_percent": 49.9,
+          "rss_bytes": 553271296
+        },
+        {
+          "pid": 82669,
+          "process": "wukongim",
+          "cpu_percent": 42.0,
+          "rss_bytes": 586448896
+        },
+        {
+          "pid": 82676,
+          "process": "wukongim",
+          "cpu_percent": 61.3,
+          "rss_bytes": 602832896
+        },
+        {
+          "pid": 82758,
+          "process": "wkcli",
+          "cpu_percent": 4.1,
+          "rss_bytes": 586334208
+        },
+        {
+          "pid": 82770,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26427392
+        },
+        {
+          "pid": 82788,
+          "process": "wkcli",
+          "cpu_percent": 4.4,
+          "rss_bytes": 591085568
+        },
+        {
+          "pid": 82800,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26165248
+        },
+        {
+          "pid": 82818,
+          "process": "wkcli",
+          "cpu_percent": 3.6,
+          "rss_bytes": 644317184
+        },
+        {
+          "pid": 82830,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26624000
+        },
+        {
+          "pid": 82873,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26394624
+        },
+        {
+          "pid": 82941,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 33603584
+        },
+        {
+          "pid": 83028,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2048000
+        },
+        {
+          "pid": 87399,
+          "process": "sleep",
+          "cpu_percent": 0.0,
+          "rss_bytes": 1064960
+        }
+      ],
+      "other_wukongim_processes": [],
+      "aggregate_process_cpu_percent": 183.1
+    },
+    {
+      "at_utc": "2026-10-22T19:31:58.987889+00:00",
+      "elapsed_seconds": 269.863837959012,
+      "owned": [
+        {
+          "pid": 82642,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2146304
+        },
+        {
+          "pid": 82645,
+          "process": "Python",
+          "cpu_percent": 0.0,
+          "rss_bytes": 12304384
+        },
+        {
+          "pid": 82663,
+          "process": "wukongim",
+          "cpu_percent": 48.8,
+          "rss_bytes": 767049728
+        },
+        {
+          "pid": 82669,
+          "process": "wukongim",
+          "cpu_percent": 45.3,
+          "rss_bytes": 746487808
+        },
+        {
+          "pid": 82676,
+          "process": "wukongim",
+          "cpu_percent": 48.9,
+          "rss_bytes": 775192576
+        },
+        {
+          "pid": 82758,
+          "process": "wkcli",
+          "cpu_percent": 6.0,
+          "rss_bytes": 597508096
+        },
+        {
+          "pid": 82770,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26443776
+        },
+        {
+          "pid": 82788,
+          "process": "wkcli",
+          "cpu_percent": 5.8,
+          "rss_bytes": 599638016
+        },
+        {
+          "pid": 82800,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26165248
+        },
+        {
+          "pid": 82818,
+          "process": "wkcli",
+          "cpu_percent": 6.2,
+          "rss_bytes": 669302784
+        },
+        {
+          "pid": 82830,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26673152
+        },
+        {
+          "pid": 82873,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26460160
+        },
+        {
+          "pid": 82941,
+          "process": "wkcli",
+          "cpu_percent": 0.1,
+          "rss_bytes": 37011456
+        },
+        {
+          "pid": 83028,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2048000
+        },
+        {
+          "pid": 87504,
+          "process": "sleep",
+          "cpu_percent": 0.0,
+          "rss_bytes": 1097728
+        }
+      ],
+      "other_wukongim_processes": [],
+      "aggregate_process_cpu_percent": 175.79999999999998
+    },
+    {
+      "at_utc": "2026-10-22T19:32:04.096741+00:00",
+      "elapsed_seconds": 274.9725561250234,
+      "owned": [
+        {
+          "pid": 82642,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2146304
+        },
+        {
+          "pid": 82645,
+          "process": "Python",
+          "cpu_percent": 0.0,
+          "rss_bytes": 12304384
+        },
+        {
+          "pid": 82663,
+          "process": "wukongim",
+          "cpu_percent": 45.7,
+          "rss_bytes": 978468864
+        },
+        {
+          "pid": 82669,
+          "process": "wukongim",
+          "cpu_percent": 43.7,
+          "rss_bytes": 984662016
+        },
+        {
+          "pid": 82676,
+          "process": "wukongim",
+          "cpu_percent": 55.2,
+          "rss_bytes": 991084544
+        },
+        {
+          "pid": 82758,
+          "process": "wkcli",
+          "cpu_percent": 4.5,
+          "rss_bytes": 632225792
+        },
+        {
+          "pid": 82770,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26443776
+        },
+        {
+          "pid": 82788,
+          "process": "wkcli",
+          "cpu_percent": 4.4,
+          "rss_bytes": 604274688
+        },
+        {
+          "pid": 82800,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26165248
+        },
+        {
+          "pid": 82818,
+          "process": "wkcli",
+          "cpu_percent": 4.1,
+          "rss_bytes": 671776768
+        },
+        {
+          "pid": 82830,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26673152
+        },
+        {
+          "pid": 82873,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 26476544
+        },
+        {
+          "pid": 82941,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 37863424
+        },
+        {
+          "pid": 83028,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2064384
+        },
+        {
+          "pid": 87593,
+          "process": "sleep",
+          "cpu_percent": 0.0,
+          "rss_bytes": 1097728
+        }
+      ],
+      "other_wukongim_processes": [],
+      "aggregate_process_cpu_percent": 180.3
+    },
+    {
+      "at_utc": "2026-10-22T19:32:09.192860+00:00",
+      "elapsed_seconds": 280.0685673339758,
+      "owned": [
+        {
+          "pid": 82642,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 1982464
+        },
+        {
+          "pid": 82645,
+          "process": "Python",
+          "cpu_percent": 0.0,
+          "rss_bytes": 12304384
+        },
+        {
+          "pid": 82663,
+          "process": "wukongim",
+          "cpu_percent": 88.3,
+          "rss_bytes": 994066432
+        },
+        {
+          "pid": 82669,
+          "process": "wukongim",
+          "cpu_percent": 102.4,
+          "rss_bytes": 1042120704
+        },
+        {
+          "pid": 82676,
+          "process": "wukongim",
+          "cpu_percent": 87.0,
+          "rss_bytes": 1046790144
+        },
+        {
+          "pid": 82758,
+          "process": "wkcli",
+          "cpu_percent": 16.2,
+          "rss_bytes": 680820736
+        },
+        {
+          "pid": 82770,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 25067520
+        },
+        {
+          "pid": 82788,
+          "process": "wkcli",
+          "cpu_percent": 16.3,
+          "rss_bytes": 653885440
+        },
+        {
+          "pid": 82800,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 24674304
+        },
+        {
+          "pid": 82818,
+          "process": "wkcli",
+          "cpu_percent": 16.6,
+          "rss_bytes": 679297024
+        },
+        {
+          "pid": 82830,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 25018368
+        },
+        {
+          "pid": 82873,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 24788992
+        },
+        {
+          "pid": 82941,
+          "process": "wkcli",
+          "cpu_percent": 0.0,
+          "rss_bytes": 37011456
+        },
+        {
+          "pid": 83028,
+          "process": "bash",
+          "cpu_percent": 0.0,
+          "rss_bytes": 2080768
+        },
+        {
+          "pid": 87680,
+          "process": "sleep",
+          "cpu_percent": 0.0,
+          "rss_bytes": 1064960
+        }
+      ],
+      "other_wukongim_processes": [],
+      "aggregate_process_cpu_percent": 346.30000000000007
+    }
+  ],
+  "resource_limits": {
+    "shared_mac_arm64": true,
+    "gomaxprocs": [
+      2,
+      2,
+      2
+    ],
+    "continuous_physical_headroom_unknown": true,
+    "other_wukongim_process_samples": 0
+  },
+  "original_finalizer_inner_failure": "not_retained; several Finalize branches collapse to errProductionController/CoordinatorCodeFinalize",
+  "known_gaps": [
+    "No final.json or full final WorkerSnapshots/meta accounting/checkpoint report retained.",
+    "CLI hides the finalizer inner error; exact rejecting branch cannot be selected from retained files.",
+    "Cumulative metrics cuts are asynchronous and collected after worker cut; gateway rejection totals cannot be joined one-to-one with consumed worker SENDACK counters.",
+    "Only one independent batch128 run; timing differs and finalization invalid, so no causal claim of improvement or regression."
+  ],
+  "cleanup": {
+    "at_utc": "2026-10-22T19:32:16.921200+00:00",
+    "owned_pgid": 82642,
+    "remaining_processes": [],
+    "remaining_listeners": [],
+    "tested_ports": [
+      25000,
+      25001,
+      25002,
+      25003,
+      25004,
+      25005,
+      25006,
+      25007,
+      25008,
+      25009,
+      25010,
+      25011,
+      25012,
+      25013,
+      25014,
+      25015,
+      25016,
+      25017,
+      25018,
+      25019,
+      25020,
+      25021,
+      25022,
+      25023,
+      25024,
+      25025,
+      25026,
+      25027,
+      25028,
+      25029,
+      25030,
+      25031,
+      25032,
+      25033,
+      25034,
+      25035,
+      25036,
+      25037,
+      25038,
+      25039,
+      25040,
+      25041,
+      25042,
+      25043,
+      25044,
+      25045,
+      25046,
+      25047,
+      25048,
+      25049,
+      25050,
+      25051,
+      25052,
+      25053,
+      25054,
+      25055,
+      25056,
+      25057,
+      25058,
+      25059,
+      25060,
+      25061,
+      25062,
+      25063
+    ],
+    "complete": true,
+    "elapsed_seconds": 287.79673675005324
+  },
+  "source_sha256": {
+    "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go": "abbfff7c6eb088c548896e4151103657327d95c92722faaff263647b25ffaa75",
+    "internal/bench/chatlifecycle/coordinator.go": "83e035c6120fff170d6ef798675792b8036a146b9586c2c1930c03117bf3a4d2",
+    "internal/bench/chatlifecycle/production_controller.go": "fef17bdf5ade437c5c68d58cfd9a9519a2a4a875bee2097ecb84f734ce7b4dba",
+    "internal/bench/chatlifecycle/checkpoint.go": "aea78c57780fa71013ddb27446c9ead3a528283e2b33633ee84f43c3e3aa8988",
+    "internal/bench/chatlifecycle/report.go": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+    "internal/bench/chatlifecycle/production_meta.go": "394d7ce3e937ff638d0890f9011a5fa31a6dd3a56e1133d8f7856ec3976a8e4c"
+  },
+  "source_evidence": {
+    "report/run-start.json": {
+      "bytes": 389,
+      "sha256": "fcbd7864ba6f71aba07840b5297a51f919fb2c8864f917c823842e4efb531979"
+    },
+    "report/diagnostic-status.json": {
+      "bytes": 9061,
+      "sha256": "f04f81f3377e81086538542a223b27920e5861ac4de8f5cdf3b5d0a250c0a38c"
+    },
+    "report/worker-evidence.json": {
+      "bytes": 7788,
+      "sha256": "f3c852a813f98ba4a99a7df2a9bc441f16394dde82fd9902b3d59dd38f730da9"
+    },
+    "logs/coordinator.log": {
+      "bytes": 4232,
+      "sha256": "fb82df1d6a30928e8c75e607d7cc8e4c6fd3939140a2b6a335caf460d730ee6b"
+    },
+    "diagnostic-result.json": {
+      "bytes": 1821,
+      "sha256": "6f0f9bc7409c17cf791d72c39b36571094769108d106037772eddd3f571b4923"
+    },
+    "cleanup-receipt.json": {
+      "bytes": 921,
+      "sha256": "7786db4dfae08750f1e49207971ad541c3fd04d8f618e0243098a16161396a30"
+    },
+    "supervisor-events.json": {
+      "bytes": 555,
+      "sha256": "4c580a294c478e74472073f6f3a18048b113cc438723b8a377c57219312a4b31"
+    },
+    "host-process-samples.jsonl": {
+      "bytes": 69949,
+      "sha256": "e068a79740b32fc449f6da5f835627f4a958b6a2cbf70d193cd02e8382228fbd"
+    },
+    "evidence/watchdog.json": {
+      "bytes": 107,
+      "sha256": "6104218c80386215c6cff83dbe8ae6e34e84f8741bf2404dd860e54db7b2ba37"
+    }
+  },
+  "product_source_changed": false,
+  "extra_profiles": false,
+  "extra_live_collectors": false,
+  "new_replay_planned": false
+}

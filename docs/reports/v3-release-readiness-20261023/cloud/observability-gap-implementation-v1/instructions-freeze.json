@@ -1,0 +1,57 @@
+{
+  "source_commit": "25a4765be7bed6696e1c9748142bdd61543b508c",
+  "created_at_utc": "2026-10-22T19:34:37.825495+00:00",
+  "instructions_and_context": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "bytes": 12160
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "bytes": 12335
+    },
+    {
+      "path": "internal/app/FLOW_PRODUCT_RUNTIME.md",
+      "sha256": "406381c752976427b313e6289183236da5afb64299865657546d1b26ba452b3d",
+      "bytes": 22320
+    },
+    {
+      "path": "internal/runtime/delivery/FLOW.md",
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+      "bytes": 3273
+    },
+    {
+      "path": "internal/contracts/onlinedelivery/FLOW.md",
+      "sha256": "2cc41f85c4c704d69cd888115356a44ef9aab3265a1c72dd0abaef1f62c7b8de",
+      "bytes": 1505
+    },
+    {
+      "path": "internal/contracts/channelappend/FLOW.md",
+      "sha256": "7b428a0ee4f2779c62f12afeb90f0d02ac844d5de13c7de34854c8580369f3f7",
+      "bytes": 2794
+    },
+    {
+      "path": "internal/usecase/message/FLOW.md",
+      "sha256": "e02fa0e23332e80174eb4ba4ee9cd4ed078a311d8f436ece35fb3b4f1f6f9348",
+      "bytes": 9514
+    },
+    {
+      "path": "internal/access/gateway/FLOW.md",
+      "sha256": "617a64aafd4d1e60aef670770f2ac22dd7cdfcd537f1f5cb3a00b98218eefb31",
+      "bytes": 4202
+    },
+    {
+      "path": "internal/log/FLOW.md",
+      "sha256": "6553111e60374135c039ab75d0036ab4c741d7970ee00e1080d53197d592f7a7",
+      "bytes": 2029
+    }
+  ],
+  "approved_test_seams": "Complete matrix in proposal-proposal.md; root explicit instruction following read-only proposal; no new seam requested."
+}

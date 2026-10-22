@@ -8,5 +8,6 @@
 - [第四批收据](COPY_BATCH4_RECEIPT.json)：按用户要求结束租约，独立 Release 于 **02:14:57.935** 证明 12 个资源范围零库存；同时保留 GitHub 阶段总状态陈旧的认证限制。见[清单](COPY_BATCH4_ALLOWLIST)和[校验表](COPY_BATCH4_SHA256SUMS)。
 - [第五批收据](COPY_BATCH5_RECEIPT.json)：#1026 指标采集修复、#80 Linux 权限交接修复的独立复核、首次 CI、普通合并及后续 main CI。含原始失败记录；self-chat 原始身份报告及其 ZIP 排除，仅保留有限安全摘要和完整性引用。见[清单](COPY_BATCH5_ALLOWLIST)和[校验表](COPY_BATCH5_SHA256SUMS)。
 - [第六批收据](COPY_BATCH6_RECEIPT.json)：四代小群本地实验、原分布本地预检失败和自然失败、只读三副本核对、配置差异及离线信号分析。配置 addendum 和批量对照提案是独立补充，尚不包含该对照的执行结果；原始配置、数据库和含身份日志不入库。见[清单](COPY_BATCH6_ALLOWLIST)和[校验表](COPY_BATCH6_SHA256SUMS)。
+- [第七批收据](COPY_BATCH7_RECEIPT.json)：单变量 batch128 对照的失败和终态缺口，以及 #1027 两项观测修复的测试先行、实现和双轴复核。该批未含 Linux CI 或新 profile；受控测试 fixture 与真实运行身份已在收据中区分。见[清单](COPY_BATCH7_ALLOWLIST)和[校验表](COPY_BATCH7_SHA256SUMS)。
 
 云 RC、实际生产来源/签名/审计、OSS/CDN 激活和公网客户端验收分别需要自己的实际收据。TEST ONLY、局域 TLS 或 SDK adapter 的成功不能代替这些结果。

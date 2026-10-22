@@ -1,0 +1,223 @@
+{
+  "schema": "wukongim/independent-spec-review/v1",
+  "created_at_utc": "2026-10-22T19:45:01.684223+00:00",
+  "axis": "Spec",
+  "review_findings": 0,
+  "base_commit": "25a4765be7bed6696e1c9748142bdd61543b508c",
+  "head_commit": "a93837d3fb55369acfe2d131aff52914f55a867f",
+  "head_tree": "0f24d5dfbdb8de60789fbf8760d5c3a1b3c33344",
+  "merge_base": "25a4765be7bed6696e1c9748142bdd61543b508c",
+  "worktree_clean": true,
+  "diff_command": "git diff 25a4765be7bed6696e1c9748142bdd61543b508c...a93837d3fb55369acfe2d131aff52914f55a867f",
+  "commits": [
+    "a93837d3fb55369acfe2d131aff52914f55a867f fix: retain exact online delivery failure observations"
+  ],
+  "spec": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-proposal/proposal.md",
+    "bytes": 10768,
+    "sha256": "e74d1eaf47a0edcc4043a4bdf43b3f52c5abe80e3c76be4bf0d7f6ef098c034f"
+  },
+  "changed_source": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 191734,
+      "head_sha256": "7ddf082b8a1560cef7e2f30a66a3e6876828538090cff72ccaca72343bff3903",
+      "base_sha256": "4324775eddc8ce4e77e5b0fede22ab958a87333b2c42efd6e26618fa369b84d8",
+      "matches_worktree": true
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 145865,
+      "head_sha256": "d8188e165a55d017b68f0d5c74ba5909b1fd04d3a415a3c4dabae332a797f7ef",
+      "base_sha256": "55180951c23da3c3f24295eb3702fae175f4030e7fb83814d8baa2b69d2fa5ca",
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/app/composition_classification_contract_test.go",
+      "bytes": 13012,
+      "head_sha256": "05094d38b4f2594b713e0b92afb518ab18120e29315c8ccf8d233a243a46dd31",
+      "base_sha256": "0fbd02fbbcc8c64e4b3a497f9785b31341af393b67465f9af91d853749e73802",
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/app/observability.go",
+      "bytes": 93080,
+      "head_sha256": "27eb7f43fc390a240988e56f92764929aee7432c594ef991d2515203718278b5",
+      "base_sha256": "7e2c7a2b0549e9425770dde0195bca07414daef50fd6c072c0d8a26fab5a48db",
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/app/observability_test.go",
+      "bytes": 113163,
+      "head_sha256": "d51dbfdffd3ba6e90dbbab2a44e83d60d31d52a1a5897c966801f8a4f7784008",
+      "base_sha256": "10cb9442d46319c319187c5c74471d1553670cfe2beb79ca74e886319994ebb8",
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/app/online_delivery.go",
+      "bytes": 5364,
+      "head_sha256": "d5e799fd95f18307e8c9c43b4851aeac6a6ef59fe8e8277a283a8375e0be5d7a",
+      "base_sha256": "1ff79492cc87ede7d006300f8866544e55d3a77530f560f979b2cb0acf74fc1a",
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/app/online_delivery_test.go",
+      "bytes": 8294,
+      "head_sha256": "60dac168416ea2f55b7e7dc4a071207b00c1ff4b7de65c86be464eb56bbefec6",
+      "base_sha256": "17fa27675d385f839812a4e329e9ace189bf26a3f7f864e521a8bc74a3b7c2fb",
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/runtime/delivery/runtime.go",
+      "bytes": 41825,
+      "head_sha256": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561",
+      "base_sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b",
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/runtime/delivery/runtime_ports.go",
+      "bytes": 9049,
+      "head_sha256": "dd3d45bd9c123691345dfd25e22abe967ae713837d38bd2b23f07716897ce2cc",
+      "base_sha256": "b4f8c7fc64b88b06b42e4f43da00d7d8f07cbdcf22339e4b77638d16025d8118",
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/runtime/delivery/runtime_test.go",
+      "bytes": 62361,
+      "head_sha256": "5096565557ef350e94a7d4204ef6f6f3f70cc60ecb3bd280b2a40aba122d0365",
+      "base_sha256": "11b9bfd65548a7f53be4b1678129173a92c14e52de0317404fcf32ac08bdc884",
+      "matches_worktree": true
+    },
+    {
+      "path": "pkg/metrics/gateway.go",
+      "bytes": 13435,
+      "head_sha256": "6eb278c3e9822675d8db6cabb88782526fb9e74f5716083526abdf023584f425",
+      "base_sha256": "427435ee53da8c20872998d96e327f2294f750d5cf3f0c992d41dcfd9aeb3bbd",
+      "matches_worktree": true
+    },
+    {
+      "path": "pkg/metrics/registry_test.go",
+      "bytes": 116028,
+      "head_sha256": "aa0b70afdeb291e70b9aece952d9a97b048e4eb43cac9611828db507fa78f54d",
+      "base_sha256": "0640e992631dcf4b68549ad326166c1d9ba5acb2266b42de1d2bc510144f2da4",
+      "matches_worktree": true
+    }
+  ],
+  "reviewed_context": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "matches_head": true
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "matches_head": true
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "bytes": 12335,
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "matches_head": true
+    },
+    {
+      "path": "internal/app/FLOW_PRODUCT_RUNTIME.md",
+      "bytes": 22320,
+      "sha256": "406381c752976427b313e6289183236da5afb64299865657546d1b26ba452b3d",
+      "matches_head": true
+    },
+    {
+      "path": "internal/runtime/delivery/FLOW.md",
+      "bytes": 3273,
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+      "matches_head": true
+    },
+    {
+      "path": "internal/contracts/onlinedelivery/FLOW.md",
+      "bytes": 1505,
+      "sha256": "2cc41f85c4c704d69cd888115356a44ef9aab3265a1c72dd0abaef1f62c7b8de",
+      "matches_head": true
+    },
+    {
+      "path": "internal/contracts/onlinedelivery/types.go",
+      "bytes": 4137,
+      "sha256": "6867d772c1d9d4c68bfe1052b7fbc5ff33703ca0c5a007f5ef2c8c8f4478b5b3",
+      "matches_head": true
+    },
+    {
+      "path": "internal/contracts/channelappend/FLOW.md",
+      "bytes": 2794,
+      "sha256": "7b428a0ee4f2779c62f12afeb90f0d02ac844d5de13c7de34854c8580369f3f7",
+      "matches_head": true
+    },
+    {
+      "path": "internal/contracts/channelappend/types.go",
+      "bytes": 16164,
+      "sha256": "621312256312018a63e7c9dd2e79c83dabe17010613826b1de4a541f92a7537b",
+      "matches_head": true
+    },
+    {
+      "path": "internal/log/FLOW.md",
+      "bytes": 2029,
+      "sha256": "6553111e60374135c039ab75d0036ab4c741d7970ee00e1080d53197d592f7a7",
+      "matches_head": true
+    },
+    {
+      "path": "internal/log/zap.go",
+      "bytes": 6417,
+      "sha256": "9748904ada62df60c56f61e3685c87b62b24427bfb174d79eb2769d64a7b53b2",
+      "matches_head": true
+    },
+    {
+      "path": "pkg/wklog/field.go",
+      "bytes": 2859,
+      "sha256": "dd37a16b79a3d83a352be209030fa46fcf9dd89a1269327547978894690fa43f",
+      "matches_head": true
+    },
+    {
+      "path": "internal/app/delivery.go",
+      "bytes": 7741,
+      "sha256": "b75f577a779f35a430b647aebf60c737f87a1eb1a966cc1c2825b11e584a4097",
+      "matches_head": true
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "bytes": 1615,
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+      "matches_head": true
+    }
+  ],
+  "implementation_manifest": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1/SHA256SUMS",
+    "sha256": "67daf2d70690eab429474fa72aa4d2a51a74f244289080a32d4317f1c6b830ef",
+    "entries_verified": 19,
+    "allowlist_set_matches_manifest_payload": true
+  },
+  "implementation_patch_sha256": "7f14186fb691be9ee36d8c660b2d776a7d89137fee6a02f35c3428cb643e1da7",
+  "independently_recounted_unit_evidence": {
+    "raw_sha256": "2a65229164240dd2579cded7118968c554cdbb51fc476c0498123eb88723e5fe",
+    "top_level_passes": 671,
+    "all_pass_events": 1019,
+    "fail_events": 0,
+    "skip_events": 0,
+    "package_results": {
+      "github.com/WuKongIM/WuKongIM/internal/runtime/delivery": "pass",
+      "github.com/WuKongIM/WuKongIM/internal/access/gateway": "pass",
+      "github.com/WuKongIM/WuKongIM/pkg/metrics": "pass",
+      "github.com/WuKongIM/WuKongIM/internal/app": "pass"
+    }
+  },
+  "reviewer_actions": {
+    "source_edits": false,
+    "tests_rerun": false,
+    "pressure_run": false,
+    "push_or_pr": false,
+    "other_axis_read": false
+  },
+  "report": {
+    "path": "spec.md",
+    "sha256": "ec27c2bdc74f4914ba281d49c7a2313a3bcefcffe22911a01a0d26da01939221"
+  }
+}

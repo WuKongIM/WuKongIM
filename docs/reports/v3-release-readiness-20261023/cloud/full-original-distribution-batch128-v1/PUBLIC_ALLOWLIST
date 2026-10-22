@@ -1,0 +1,12 @@
+safe-failed-counterfactual.json
+diagnostic-conclusion.md
+finalize-failure-matrix.md
+diagnostic-result.json
+cleanup-receipt.json
+supervisor-events.json
+preflight.json
+prior-cleanup-and-quiet-preflight.json
+input-and-source-recheck.json
+evidence/metrics-first-measured-receipt.json
+evidence/metrics-terminal-receipt.json
+evidence/watchdog.json

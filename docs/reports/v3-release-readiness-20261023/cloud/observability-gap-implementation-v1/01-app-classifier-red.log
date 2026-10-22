@@ -1,0 +1,6 @@
+--- FAIL: TestCompositionMetricClassifiersKeepBoundedStableTaxonomy (0.00s)
+    --- FAIL: TestCompositionMetricClassifiersKeepBoundedStableTaxonomy/sendack/system_busy (0.00s)
+        composition_classification_contract_test.go:46: gatewaySendackReasonLabel(14) = "unknown", want "system_busy"
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/internal/app	0.576s
+FAIL

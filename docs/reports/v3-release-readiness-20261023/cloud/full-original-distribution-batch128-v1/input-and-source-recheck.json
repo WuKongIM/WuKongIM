@@ -1,0 +1,70 @@
+{
+  "schema": "wukongim/counterfactual-input-and-source-recheck/v1",
+  "at_utc": "2026-10-22T19:40:57.306131+00:00",
+  "product_files": [
+    {
+      "path": "internal/bench/chatlifecycle/identity.go",
+      "expected_sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "actual_sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "unchanged": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/groups.go",
+      "expected_sha256": "b94b7a3a107e9b7470603051a15ffba073de718d2ca01dd0ca183fb61727f047",
+      "actual_sha256": "b94b7a3a107e9b7470603051a15ffba073de718d2ca01dd0ca183fb61727f047",
+      "unchanged": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/payload.go",
+      "expected_sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+      "actual_sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+      "unchanged": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/traffic.go",
+      "expected_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "actual_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "unchanged": true
+    },
+    {
+      "path": "internal/runtime/delivery/runtime.go",
+      "expected_sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b",
+      "actual_sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b",
+      "unchanged": true
+    },
+    {
+      "path": "internal/infra/cluster/presence.go",
+      "expected_sha256": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+      "actual_sha256": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+      "unchanged": true
+    }
+  ],
+  "all_frozen_product_files_unchanged": true,
+  "workload_yaml_sha256": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+  "workload_yaml_equals_baseline": true,
+  "node_toml_byte_identity_to_baseline": [
+    {
+      "node": 1,
+      "sha256": "ff5fe20ce9fb7942d7a7e59c9e5cc160388b6f4664e40d2da813c8e3a976b25d",
+      "equals_baseline": true
+    },
+    {
+      "node": 2,
+      "sha256": "de5adcfca4ae05293f05402974499e76558b470fee0a9431fa05905381bdde0e",
+      "equals_baseline": true
+    },
+    {
+      "node": 3,
+      "sha256": "0052bc446b21a56ae3eb02eede154b32e1df6c6beb15767c0baa27ff4006b305",
+      "equals_baseline": true
+    }
+  ],
+  "files_unchanged_to_baseline": {
+    "supervise.py": true,
+    "watchdog.py": true,
+    "verify-slots.py": true
+  },
+  "only_effective_change": "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS1to128; inheritedTOML1overridden",
+  "launcher_sha256": "f7f6f269c91a4178c7ee9737c883cbd17cccbfdb63c780212d86888ea49e628e",
+  "baseline_launcher_sha256": "232cb5a9e5ea8826d23c607f76dadb0dadf391345dc915eb43b64492782e0e3f"
+}

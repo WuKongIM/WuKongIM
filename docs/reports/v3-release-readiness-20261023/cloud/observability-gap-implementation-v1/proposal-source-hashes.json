@@ -1,0 +1,276 @@
+{
+  "schema": "wukongim/observability-gap-source-freeze/v1",
+  "created_at_utc": "2026-10-22T19:32:26.008529+00:00",
+  "source_commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "comparison_main_commit": "25a4765be7bed6696e1c9748142bdd61543b508c",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+  "scope": "read-only source inspection; no builds, tests, profiles, worktree creation, or source modification",
+  "source_files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "bytes": 12335,
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/app/FLOW_PRODUCT_RUNTIME.md",
+      "bytes": 22320,
+      "sha256": "406381c752976427b313e6289183236da5afb64299865657546d1b26ba452b3d",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/runtime/delivery/FLOW.md",
+      "bytes": 3273,
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/contracts/onlinedelivery/FLOW.md",
+      "bytes": 1505,
+      "sha256": "2cc41f85c4c704d69cd888115356a44ef9aab3265a1c72dd0abaef1f62c7b8de",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/contracts/channelappend/FLOW.md",
+      "bytes": 2794,
+      "sha256": "7b428a0ee4f2779c62f12afeb90f0d02ac844d5de13c7de34854c8580369f3f7",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/usecase/message/FLOW.md",
+      "bytes": 9514,
+      "sha256": "e02fa0e23332e80174eb4ba4ee9cd4ed078a311d8f436ece35fb3b4f1f6f9348",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/access/gateway/FLOW.md",
+      "bytes": 4202,
+      "sha256": "617a64aafd4d1e60aef670770f2ac22dd7cdfcd537f1f5cb3a00b98218eefb31",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/log/FLOW.md",
+      "bytes": 2029,
+      "sha256": "6553111e60374135c039ab75d0036ab4c741d7970ee00e1080d53197d592f7a7",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/app/observability.go",
+      "bytes": 93018,
+      "sha256": "7e2c7a2b0549e9425770dde0195bca07414daef50fd6c072c0d8a26fab5a48db",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/app/top_observer.go",
+      "bytes": 18228,
+      "sha256": "4a14137b231b333815cd8b98187010272877d0bad3494bb58ec1d555bb7f37c0",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/app/top_collector.go",
+      "bytes": 55341,
+      "sha256": "b0f9a26215250435e75b9eefb402faff7e1cb93ec8cb1848547f3f562eed3bce",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/app/composition_classification_contract_test.go",
+      "bytes": 12925,
+      "sha256": "0fbd02fbbcc8c64e4b3a497f9785b31341af393b67465f9af91d853749e73802",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/app/online_delivery.go",
+      "bytes": 5278,
+      "sha256": "1ff79492cc87ede7d006300f8866544e55d3a77530f560f979b2cb0acf74fc1a",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/app/online_delivery_test.go",
+      "bytes": 3023,
+      "sha256": "17fa27675d385f839812a4e329e9ace189bf26a3f7f864e521a8bc74a3b7c2fb",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/app/observability_test.go",
+      "bytes": 111409,
+      "sha256": "10cb9442d46319c319187c5c74471d1553670cfe2beb79ca74e886319994ebb8",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/app/app_test.go",
+      "bytes": 268526,
+      "sha256": "557bd64b037a72f09c8789dc42d33550c573ee62a5e7a1cba9a1a1dcb917d040",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/app/delivery.go",
+      "bytes": 7741,
+      "sha256": "b75f577a779f35a430b647aebf60c737f87a1eb1a966cc1c2825b11e584a4097",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/runtime/delivery/runtime_ports.go",
+      "bytes": 8842,
+      "sha256": "b4f8c7fc64b88b06b42e4f43da00d7d8f07cbdcf22339e4b77638d16025d8118",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/runtime/delivery/runtime.go",
+      "bytes": 41754,
+      "sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/runtime/delivery/runtime_test.go",
+      "bytes": 58420,
+      "sha256": "11b9bfd65548a7f53be4b1678129173a92c14e52de0317404fcf32ac08bdc884",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/contracts/onlinedelivery/types.go",
+      "bytes": 4137,
+      "sha256": "6867d772c1d9d4c68bfe1052b7fbc5ff33703ca0c5a007f5ef2c8c8f4478b5b3",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/contracts/channelappend/types.go",
+      "bytes": 16164,
+      "sha256": "621312256312018a63e7c9dd2e79c83dabe17010613826b1de4a541f92a7537b",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/usecase/message/types.go",
+      "bytes": 3028,
+      "sha256": "44804fbcbba7e31191e537b74be998d3f43dd48fd0f92f5f3c16d16dc62ae61d",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/access/gateway/error_map.go",
+      "bytes": 2879,
+      "sha256": "548e034c0079507095617e2a5c7ce83c6955a8cd29bc53402e6b407eb1cc98e4",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/access/gateway/observer.go",
+      "bytes": 5431,
+      "sha256": "ba90ed3e82aec7212869dd14833b6190844a1917ce90331a82eacdee24aac1b1",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "pkg/metrics/gateway.go",
+      "bytes": 13418,
+      "sha256": "427435ee53da8c20872998d96e327f2294f750d5cf3f0c992d41dcfd9aeb3bbd",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "pkg/metrics/registry_test.go",
+      "bytes": 115695,
+      "sha256": "0640e992631dcf4b68549ad326166c1d9ba5acb2266b42de1d2bc510144f2da4",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "pkg/wklog/field.go",
+      "bytes": 2859,
+      "sha256": "dd37a16b79a3d83a352be209030fa46fcf9dd89a1269327547978894690fa43f",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "pkg/wklog/logger.go",
+      "bytes": 703,
+      "sha256": "bd6100490760a8b5edf05a6ce4f1ea251235acd31d2ce00e86106002f4ae8fbe",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/log/config.go",
+      "bytes": 1863,
+      "sha256": "48e761dd91c721978607ec73401c9cebe1622d70523acc6117f1cb8b53293543",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "internal/log/zap.go",
+      "bytes": 6417,
+      "sha256": "9748904ada62df60c56f61e3685c87b62b24427bfb174d79eb2769d64a7b53b2",
+      "matches_source_commit": true,
+      "matches_origin_main": true
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 145107,
+      "sha256": "42aa7f2976b12fde7ccd135e5acbef69ee7cabbcaac25fb1d42b8284050c6a36",
+      "matches_source_commit": true,
+      "matches_origin_main": false
+    }
+  ],
+  "rules": {
+    "applicable_agents": [
+      "AGENTS.md"
+    ],
+    "applicable_valid_flows": [
+      "internal/app/FLOW.md",
+      "internal/runtime/delivery/FLOW.md",
+      "internal/contracts/onlinedelivery/FLOW.md",
+      "internal/contracts/channelappend/FLOW.md",
+      "internal/usecase/message/FLOW.md",
+      "internal/access/gateway/FLOW.md",
+      "internal/log/FLOW.md"
+    ],
+    "absent_parent_or_target_flows": [
+      "FLOW.md",
+      "internal/FLOW.md",
+      "pkg/FLOW.md",
+      "pkg/metrics/FLOW.md",
+      "pkg/wklog/FLOW.md"
+    ],
+    "absent_subtree_agents": [
+      "internal/app/AGENTS.md",
+      "internal/runtime/AGENTS.md",
+      "internal/runtime/delivery/AGENTS.md",
+      "pkg/metrics/AGENTS.md",
+      "pkg/wklog/AGENTS.md"
+    ]
+  }
+}

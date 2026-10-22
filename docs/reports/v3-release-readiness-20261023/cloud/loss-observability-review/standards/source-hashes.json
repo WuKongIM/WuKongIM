@@ -1,0 +1,282 @@
+{
+  "schema": "wukongim/independent-standards-review/v1",
+  "created_at_utc": "2026-10-22T19:44:07.883523+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-loss-observability",
+  "base_commit": "25a4765be7bed6696e1c9748142bdd61543b508c",
+  "merge_base": "25a4765be7bed6696e1c9748142bdd61543b508c",
+  "head_commit": "a93837d3fb55369acfe2d131aff52914f55a867f",
+  "head_tree": "0f24d5dfbdb8de60789fbf8760d5c3a1b3c33344",
+  "commit_list": [
+    "a93837d3fb55369acfe2d131aff52914f55a867f fix: retain exact online delivery failure observations"
+  ],
+  "diff_command": "git diff 25a4765be7bed6696e1c9748142bdd61543b508c...a93837d3fb55369acfe2d131aff52914f55a867f",
+  "worktree_clean": true,
+  "changed_file_count": 12,
+  "source_files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 191734,
+      "sha256": "7ddf082b8a1560cef7e2f30a66a3e6876828538090cff72ccaca72343bff3903"
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "bytes": 1615,
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 145865,
+      "sha256": "d8188e165a55d017b68f0d5c74ba5909b1fd04d3a415a3c4dabae332a797f7ef"
+    },
+    {
+      "path": "internal/access/gateway/FLOW.md",
+      "bytes": 4202,
+      "sha256": "617a64aafd4d1e60aef670770f2ac22dd7cdfcd537f1f5cb3a00b98218eefb31"
+    },
+    {
+      "path": "internal/access/gateway/error_map.go",
+      "bytes": 2879,
+      "sha256": "548e034c0079507095617e2a5c7ce83c6955a8cd29bc53402e6b407eb1cc98e4"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "bytes": 12335,
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289"
+    },
+    {
+      "path": "internal/app/FLOW_PRODUCT_RUNTIME.md",
+      "bytes": 22320,
+      "sha256": "406381c752976427b313e6289183236da5afb64299865657546d1b26ba452b3d"
+    },
+    {
+      "path": "internal/app/composition_classification_contract_test.go",
+      "bytes": 13012,
+      "sha256": "05094d38b4f2594b713e0b92afb518ab18120e29315c8ccf8d233a243a46dd31"
+    },
+    {
+      "path": "internal/app/observability.go",
+      "bytes": 93080,
+      "sha256": "27eb7f43fc390a240988e56f92764929aee7432c594ef991d2515203718278b5"
+    },
+    {
+      "path": "internal/app/observability_test.go",
+      "bytes": 113163,
+      "sha256": "d51dbfdffd3ba6e90dbbab2a44e83d60d31d52a1a5897c966801f8a4f7784008"
+    },
+    {
+      "path": "internal/app/online_delivery.go",
+      "bytes": 5364,
+      "sha256": "d5e799fd95f18307e8c9c43b4851aeac6a6ef59fe8e8277a283a8375e0be5d7a"
+    },
+    {
+      "path": "internal/app/online_delivery_test.go",
+      "bytes": 8294,
+      "sha256": "60dac168416ea2f55b7e7dc4a071207b00c1ff4b7de65c86be464eb56bbefec6"
+    },
+    {
+      "path": "internal/contracts/onlinedelivery/FLOW.md",
+      "bytes": 1505,
+      "sha256": "2cc41f85c4c704d69cd888115356a44ef9aab3265a1c72dd0abaef1f62c7b8de"
+    },
+    {
+      "path": "internal/contracts/onlinedelivery/types.go",
+      "bytes": 4137,
+      "sha256": "6867d772c1d9d4c68bfe1052b7fbc5ff33703ca0c5a007f5ef2c8c8f4478b5b3"
+    },
+    {
+      "path": "internal/log/FLOW.md",
+      "bytes": 2029,
+      "sha256": "6553111e60374135c039ab75d0036ab4c741d7970ee00e1080d53197d592f7a7"
+    },
+    {
+      "path": "internal/log/zap.go",
+      "bytes": 6417,
+      "sha256": "9748904ada62df60c56f61e3685c87b62b24427bfb174d79eb2769d64a7b53b2"
+    },
+    {
+      "path": "internal/runtime/delivery/FLOW.md",
+      "bytes": 3273,
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704"
+    },
+    {
+      "path": "internal/runtime/delivery/observability.go",
+      "bytes": 4278,
+      "sha256": "c73a693a619fd1a81084fcb7f59c4d40df189a256d004c0ad9f1214566a2a34b"
+    },
+    {
+      "path": "internal/runtime/delivery/runtime.go",
+      "bytes": 41825,
+      "sha256": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561"
+    },
+    {
+      "path": "internal/runtime/delivery/runtime_ports.go",
+      "bytes": 9049,
+      "sha256": "dd3d45bd9c123691345dfd25e22abe967ae713837d38bd2b23f07716897ce2cc"
+    },
+    {
+      "path": "internal/runtime/delivery/runtime_test.go",
+      "bytes": 62361,
+      "sha256": "5096565557ef350e94a7d4204ef6f6f3f70cc60ecb3bd280b2a40aba122d0365"
+    },
+    {
+      "path": "pkg/metrics/gateway.go",
+      "bytes": 13435,
+      "sha256": "6eb278c3e9822675d8db6cabb88782526fb9e74f5716083526abdf023584f425"
+    },
+    {
+      "path": "pkg/metrics/registry_test.go",
+      "bytes": 116028,
+      "sha256": "aa0b70afdeb291e70b9aece952d9a97b048e4eb43cac9611828db507fa78f54d"
+    },
+    {
+      "path": "pkg/wklog/field.go",
+      "bytes": 2859,
+      "sha256": "dd37a16b79a3d83a352be209030fa46fcf9dd89a1269327547978894690fa43f"
+    }
+  ],
+  "skill": {
+    "path": "/Users/tt/.agents/skills/code-review/SKILL.md",
+    "sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143"
+  },
+  "evidence_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/observability-gap-implementation-v1",
+  "evidence_manifest_sha256": "67daf2d70690eab429474fa72aa4d2a51a74f244289080a32d4317f1c6b830ef",
+  "verified_evidence": [
+    {
+      "path": "01-app-classifier-red.log",
+      "bytes": 358,
+      "sha256": "4d729e7644d6b19b072eda5f2aca9f3ddbb0bbfbbffe03a847be43f5760000c4"
+    },
+    {
+      "path": "02-app-classifier-green.log",
+      "bytes": 54,
+      "sha256": "1c1a69acc1efe477f499a2084a8c46e4de178047923721de08050b2cde12bd26"
+    },
+    {
+      "path": "03-busy-metric-red.log",
+      "bytes": 621,
+      "sha256": "343b8d51a9df68990591857ada349cf2abfa8aacca71fd9f7cd537709de55628"
+    },
+    {
+      "path": "04-busy-metric-green.log",
+      "bytes": 107,
+      "sha256": "0e05165a46095903ecb9a4e9fe7382ae1eb5f36ac03f45d6c714ecda2daa5b64"
+    },
+    {
+      "path": "05-runtime-identity-compile-red.log",
+      "bytes": 739,
+      "sha256": "273c50633f99eb34d8bf2e6cf99483f1a6adda7c80183c2724bce3fd12851834"
+    },
+    {
+      "path": "06-runtime-identity-green.log",
+      "bytes": 67,
+      "sha256": "f419b28028f0c87d12202888e4e95fdc8c6286e22dfb81e4ba79111d9e2d35a3"
+    },
+    {
+      "path": "07-app-log-identity-red.log",
+      "bytes": 4188,
+      "sha256": "c8d268d256a3e9d12963580a8b13c27710d67d126a36838021a1e6a82b7ac8c6"
+    },
+    {
+      "path": "08-app-log-identity-corrected-fixture-red.log",
+      "bytes": 3416,
+      "sha256": "0a24a8922572490db331d98615084a030ddd2d0d28cca2a8b7bca05a18c7a491"
+    },
+    {
+      "path": "09-app-log-identity-green.log",
+      "bytes": 54,
+      "sha256": "92845df224fc5910856c58a116747330213422d784b56f9bb1136a28f248eb71"
+    },
+    {
+      "path": "11-diff-check.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "PUBLIC_ALLOWLIST.txt",
+      "bytes": 485,
+      "sha256": "56dc58ccfed8195a8dc98daa774e4c958be720091661d26847cc27e4221a0581"
+    },
+    {
+      "path": "final-source-freeze.json",
+      "bytes": 4762,
+      "sha256": "32e1e8abd47b9939f925b1eeb21c58eb121a08920f35877365de66a2473a5a87"
+    },
+    {
+      "path": "final.patch",
+      "bytes": 20139,
+      "sha256": "7f14186fb691be9ee36d8c660b2d776a7d89137fee6a02f35c3428cb643e1da7"
+    },
+    {
+      "path": "implementation-report.md",
+      "bytes": 3484,
+      "sha256": "59461228367c8733ac32f3178dae4e1a3bf605be8bd9dde4be26a8a4c478ef2a"
+    },
+    {
+      "path": "instructions-freeze.json",
+      "bytes": 1932,
+      "sha256": "0faf5a6cdec24f4054c2ebb183893d743ab6ec9f4fee995f08e6fd72deb2fba6"
+    },
+    {
+      "path": "proposal-proposal.md",
+      "bytes": 10768,
+      "sha256": "e74d1eaf47a0edcc4043a4bdf43b3f52c5abe80e3c76be4bf0d7f6ef098c034f"
+    },
+    {
+      "path": "proposal-source-hashes.json",
+      "bytes": 9347,
+      "sha256": "4c96338e221f784aa4d0f35d08a00375b2f83187f61a192817bccdd4314dcfab"
+    },
+    {
+      "path": "public-focused-test-events.jsonl",
+      "bytes": 33114,
+      "sha256": "50cb44b0fd9745255640dd2ed81284cf685eaefb11bc57f3bd2c16195d0a3c96"
+    },
+    {
+      "path": "test-results-summary.json",
+      "bytes": 3699,
+      "sha256": "23d901657d667d30267bc624542ed99a4d5dd5d6794eda8c94bdf6edd617ef0d"
+    }
+  ],
+  "retained_test_counts": {
+    "github.com/WuKongIM/WuKongIM/pkg/metrics": {
+      "pass": 71,
+      "top_level_pass": 70,
+      "package_pass": 1
+    },
+    "github.com/WuKongIM/WuKongIM/internal/runtime/delivery": {
+      "pass": 77,
+      "top_level_pass": 58,
+      "package_pass": 1
+    },
+    "github.com/WuKongIM/WuKongIM/internal/access/gateway": {
+      "pass": 50,
+      "top_level_pass": 42,
+      "package_pass": 1
+    },
+    "github.com/WuKongIM/WuKongIM/internal/app": {
+      "pass": 825,
+      "top_level_pass": 501,
+      "package_pass": 1
+    }
+  },
+  "diff_check_exit": 0,
+  "new_tests_or_workloads_run": false,
+  "findings": {
+    "documented_standard_violations": 0,
+    "baseline_smells": 0
+  },
+  "limitations": [
+    "RED source stages were not individually frozen; retained sequential RED/GREEN logs and the final patch support, but cannot independently reconstruct, exact edit chronology.",
+    "Retained tests run on Darwin arm64; no Linux CI, pressured E2E, or release qualification claim."
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "at_utc": "2026-10-22T19:27:36.690217+00:00",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "os": "darwin",
+  "fd_limit": [
+    1048575,
+    9223372036854775807
+  ],
+  "go_version": {
+    "exit_status": 0,
+    "stdout": "go version go1.25.0 darwin/arm64\n",
+    "stderr": ""
+  },
+  "memory": {
+    "exit_status": 0,
+    "stdout": "The system has 34359738368 (2097152 pages with a page size of 16384).\nSystem-wide memory free percentage: 77%\n",
+    "stderr": ""
+  },
+  "swap": {
+    "exit_status": 0,
+    "stdout": "vm.swapusage: total = 1024.00M  used = 0.56M  free = 1023.44M  (encrypted)\n",
+    "stderr": ""
+  },
+  "capabilities": {
+    "exit_status": 0,
+    "stdout": "hw.memsize: 34359738368\nhw.ncpu: 10\nhw.model: Mac16,10\n",
+    "stderr": ""
+  },
+  "disk": {
+    "exit_status": 0,
+    "stdout": "Filesystem   1024-blocks      Used Available Capacity  Mounted on\n/dev/disk3s5   971350180 223943616 726874832    24%    /System/Volumes/Data\n",
+    "stderr": ""
+  },
+  "binary_sha256": {
+    "wukongim": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+    "wkcli": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62"
+  },
+  "run_id": "chat-20261021T214505Z-00299e37-rehearsal-1",
+  "profile": "local",
+  "original_workload_unchanged": true,
+  "cloud_capacity_qualified": false,
+  "service_gomaxprocs": 2,
+  "worker_coordinator_observer_gomaxprocs": 1,
+  "all_observers_share_one_host_and_disk": true
+}

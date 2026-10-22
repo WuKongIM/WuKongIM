@@ -1,0 +1,9 @@
+--- FAIL: TestGatewaySendackObserverPreservesBusyMetricReason (0.00s)
+    observability_test.go:70: metric family "wukongim_gateway_sendacks_total" with labels map[class:route_not_ready reason:system_busy source:batch_result_error] not found
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/internal/app	0.743s
+--- FAIL: TestGatewayMetricsTrackConnectionAndTraffic (0.00s)
+    registry_test.go:192: metric family "wukongim_gateway_sendacks_total" with labels map[class:route_not_ready node_id:1 node_name:node-1 reason:system_busy source:batch_result_error] not found
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/pkg/metrics	0.288s
+FAIL
