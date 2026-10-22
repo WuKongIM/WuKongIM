@@ -1,0 +1,97 @@
+{
+  "actual_worker_vectors_available": false,
+  "cuts": [
+    {
+      "cut": "first-measured",
+      "inputs": [
+        {
+          "name": "metrics-first-measured-node1.prom",
+          "bytes": 1004626,
+          "sha256": "dfb00041de85c70daf53f8ea0e429a184a303ec43798fadc17a902ccc6d8daa1",
+          "mtime_nanos": 1792705189376498698
+        },
+        {
+          "name": "metrics-first-measured-node2.prom",
+          "bytes": 979300,
+          "sha256": "325a844461ad6e61e230afe489bc8d0c2fa448454254a7ed58908227890f5b10",
+          "mtime_nanos": 1792705189548978513
+        },
+        {
+          "name": "metrics-first-measured-node3.prom",
+          "bytes": 991587,
+          "sha256": "ecd8f7bf251016181ba1829567eadf6620e4d3851fce901dfda3029d34e59a8c",
+          "mtime_nanos": 1792705189625836403
+        }
+      ],
+      "node_counts": [
+        {
+          "created": 690,
+          "already_existing": 0,
+          "errors": 0
+        },
+        {
+          "created": 690,
+          "already_existing": 0,
+          "errors": 0
+        },
+        {
+          "created": 726,
+          "already_existing": 0,
+          "errors": 0
+        }
+      ],
+      "accounting": "passed_with_explicit_synthetic_empty_vectors",
+      "controller": "passed_with_explicit_synthetic_final_worker_shapes",
+      "negative_guards": {
+        "invalid_worker_shape_fails_before_metrics": true,
+        "missing_result_stays_invalid_without_commit": true
+      }
+    },
+    {
+      "cut": "terminal",
+      "inputs": [
+        {
+          "name": "metrics-terminal-node1.prom",
+          "bytes": 1025800,
+          "sha256": "29f092a8757744440baa09d69d3a3de3338e2f8439a58cfaa21ed8c24e593578",
+          "mtime_nanos": 1792705206358874581
+        },
+        {
+          "name": "metrics-terminal-node2.prom",
+          "bytes": 1011183,
+          "sha256": "6b4fc691c1c682d0eb75847a481c85d611fd539763dd092b0380d6ed683a0002",
+          "mtime_nanos": 1792705206363674790
+        },
+        {
+          "name": "metrics-terminal-node3.prom",
+          "bytes": 1026703,
+          "sha256": "11133bc8efd5f4b1f5fab33f4ca5b5f54a8d5e5e3eb878036be1509d5e6f477c",
+          "mtime_nanos": 1792705206368670166
+        }
+      ],
+      "node_counts": [
+        {
+          "created": 1465,
+          "already_existing": 0,
+          "errors": 0
+        },
+        {
+          "created": 1447,
+          "already_existing": 0,
+          "errors": 0
+        },
+        {
+          "created": 1471,
+          "already_existing": 0,
+          "errors": 0
+        }
+      ],
+      "accounting": "passed_with_explicit_synthetic_empty_vectors",
+      "controller": "passed_with_explicit_synthetic_final_worker_shapes",
+      "negative_guards": {
+        "invalid_worker_shape_fails_before_metrics": true,
+        "missing_result_stays_invalid_without_commit": true
+      }
+    }
+  ]
+}

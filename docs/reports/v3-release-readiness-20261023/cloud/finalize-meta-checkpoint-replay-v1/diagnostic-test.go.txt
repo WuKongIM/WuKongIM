@@ -1,0 +1,143 @@
+package chatlifecycle
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/WuKongIM/WuKongIM/internal/bench/target"
+)
+
+// retainedD349RoundTrip returns retained metrics in memory; no network is opened.
+type retainedD349RoundTrip func(*http.Request) (*http.Response, error)
+
+func (f retainedD349RoundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// TestRetainedD349MetadataCheckpointStructure checks retained nearby scrapes and
+// explicitly synthetic worker vectors, not the unavailable actual final vectors.
+func TestRetainedD349MetadataCheckpointStructure(t *testing.T) {
+	root := os.Getenv("WK_META_REPLAY_ROOT")
+	if root == "" {
+		t.Skip("explicit retained private replay root required")
+	}
+	type input struct {
+		Name       string `json:"name"`
+		Bytes      int64  `json:"bytes"`
+		SHA256     string `json:"sha256"`
+		MtimeNanos int64  `json:"mtime_nanos"`
+	}
+	type counts struct {
+		Created uint64 `json:"created"`
+		Already uint64 `json:"already_existing"`
+		Errors  uint64 `json:"errors"`
+	}
+	type cut struct {
+		Cut            string          `json:"cut"`
+		Inputs         []input         `json:"inputs"`
+		NodeCounts     []counts        `json:"node_counts"`
+		Accounting     string          `json:"accounting"`
+		Controller     string          `json:"controller"`
+		NegativeGuards map[string]bool `json:"negative_guards"`
+	}
+	var receipt []cut
+	for _, label := range []string{"first-measured", "terminal"} {
+		t.Run(label, func(t *testing.T) {
+			var snapshots [coordinatorWorkerCount]target.MetricsSnapshot
+			result := cut{Cut: label, NegativeGuards: make(map[string]bool)}
+			for node := range snapshots {
+				name := fmt.Sprintf("metrics-%s-node%d.prom", label, node+1)
+				path := filepath.Join(root, "evidence", name)
+				before, err := os.Lstat(path)
+				if err != nil || !before.Mode().IsRegular() || before.Size() <= 0 || before.Size() > 2<<20 {
+					t.Fatalf("stage=input node=%d reason=invalid", node+1)
+				}
+				body, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("stage=input node=%d reason=read", node+1)
+				}
+				digest := sha256.Sum256(body)
+				client := target.NewClient(target.Config{
+					APIAddrs: []string{"http://retained.invalid"},
+					HTTPClient: &http.Client{Transport: retainedD349RoundTrip(func(r *http.Request) (*http.Response, error) {
+						if r.URL.Path != "/metrics" {
+							return nil, errors.New("unexpected replay path")
+						}
+						return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(body)), Request: r}, nil
+					})},
+				})
+				snapshots[node], err = client.Metrics(context.Background())
+				if err != nil {
+					t.Fatalf("stage=metrics_parse cut=%s node=%d reason=invalid", label, node+1)
+				}
+				result.Inputs = append(result.Inputs, input{Name: name, Bytes: before.Size(), SHA256: hex.EncodeToString(digest[:]), MtimeNanos: before.ModTime().UnixNano()})
+				result.NodeCounts = append(result.NodeCounts, counts{Created: uint64(snapshots[node].MetaCreatedTotal["created"]), Already: uint64(snapshots[node].MetaCreatedTotal["already_existing"]), Errors: uint64(snapshots[node].MetaCreatedTotal["error"])})
+				after, err := os.Stat(path)
+				again, readErr := os.ReadFile(path)
+				if err != nil || readErr != nil || after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) || sha256.Sum256(again) != digest {
+					t.Fatalf("stage=input node=%d reason=mutated", node+1)
+				}
+			}
+			assignment := productionMetaInitialAssignment(t)
+			accounting := NewMetaCreateAccounting()
+			if err := accounting.Checkpoint(MetaCreateHashSlotCounts{}, MetaCreateHashSlotCounts{}, assignment, snapshots, false); err != nil {
+				t.Fatalf("stage=retained_accounting cut=%s reason=invalid", label)
+			}
+			if accounting.Snapshot().Checkpoints != 1 {
+				t.Fatal("stage=retained_accounting reason=not_committed")
+			}
+			result.Accounting = "passed_with_explicit_synthetic_empty_vectors"
+			cfg := LocalConfig()
+			workers := productionMetaWorkerSnapshots(cfg)
+			for i := range workers {
+				workers[i].Phase = WorkerPhaseFinal
+				workers[i].SnapshotSequence = 4
+			}
+			sources := productionMetaSources(snapshots)
+			controller, err := NewProductionMetaController(ProductionMetaControllerOptions{Config: cfg, Metrics: sources, Accounting: NewMetaCreateAccounting()})
+			if err != nil || controller.Checkpoint(context.Background(), workers, assignment, false) != nil {
+				t.Fatalf("stage=synthetic_controller cut=%s reason=invalid", label)
+			}
+			result.Controller = "passed_with_explicit_synthetic_final_worker_shapes"
+			bad := snapshots
+			bad[0].MetaCreatedTotal = cloneFloatMap(bad[0].MetaCreatedTotal)
+			delete(bad[0].MetaCreatedTotal, "created")
+			badAccounting := NewMetaCreateAccounting()
+			if !errors.Is(badAccounting.Checkpoint(MetaCreateHashSlotCounts{}, MetaCreateHashSlotCounts{}, assignment, bad, false), ErrLifecycleHarnessInvalid) || badAccounting.Snapshot().Checkpoints != 0 {
+				t.Fatal("stage=negative_metric_guard reason=missing_result_accepted")
+			}
+			result.NegativeGuards["missing_result_stays_invalid_without_commit"] = true
+			badWorkers := append([]WorkerSnapshot(nil), workers...)
+			badWorkers[0].Phase = WorkerPhase("invalid")
+			badSources := productionMetaSources(snapshots)
+			badController, err := NewProductionMetaController(ProductionMetaControllerOptions{Config: cfg, Metrics: badSources, Accounting: NewMetaCreateAccounting()})
+			if err != nil || !errors.Is(badController.Checkpoint(context.Background(), badWorkers, assignment, false), ErrLifecycleHarnessInvalid) {
+				t.Fatal("stage=negative_worker_guard reason=invalid_shape_accepted")
+			}
+			for _, source := range badSources {
+				if source.(*recordingProductionMetaMetricsSource).calls != 0 {
+					t.Fatal("stage=negative_worker_guard reason=metrics_called")
+				}
+			}
+			result.NegativeGuards["invalid_worker_shape_fails_before_metrics"] = true
+			receipt = append(receipt, result)
+		})
+	}
+	if !t.Failed() {
+		body, err := json.MarshalIndent(struct {
+			ActualWorkerVectorsAvailable bool  `json:"actual_worker_vectors_available"`
+			Cuts                         []cut `json:"cuts"`
+		}{Cuts: receipt}, "", "  ")
+		if err != nil || os.WriteFile(os.Getenv("WK_META_REPLAY_RECEIPT"), append(body, '\n'), 0o600) != nil {
+			t.Fatal("stage=receipt reason=write_failed")
+		}
+	}
+}

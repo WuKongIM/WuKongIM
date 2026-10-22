@@ -1,0 +1,53 @@
+{
+  "source_revision": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "source_identity_files_79a_equal": [
+    {
+      "path": "internal/bench/chatlifecycle/identity.go",
+      "sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "old_new_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/payload.go",
+      "sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+      "old_new_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/traffic.go",
+      "sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "old_new_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/evidence.go",
+      "sha256": "3f630c9086b727ed7bab5b541c8ddab6fb7eca3fe89d06c32874f2983c12d852",
+      "old_new_equal": true
+    }
+  ],
+  "instructions_read_at_exact_revision": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "path": "pkg/db/FLOW.md",
+      "sha256": "57578a266e60e804ee46f71205b92c7d64df00e0df6e6f9120cc0e1937334017"
+    },
+    {
+      "path": "pkg/db/message/FLOW.md",
+      "sha256": "32732f4f0df214406ff53467a8396275c189404b147ae1ad353eda4c397c6e09"
+    }
+  ],
+  "identity_helper_sha256": "d3bae352b24c192fb41ae6013cf50b081a6e9ed9f6e9aef45707b51a6f86fe9e",
+  "offline_db_driver_sha256": "b6122135e2f8b52e58561a0221feca68872954891d6216fc4425e9ff35b750aa",
+  "adapted_from_identity_helper_sha256": "3e5f018b0beb3705ee67a25e65bc29686f9d8c86b8ea4491cbff0d8a2c97a861",
+  "adapted_from_db_driver_sha256": "5ac712b7bbf5981974ee78aa5bfdc18cdf08caba03fee1ba0ce0aae4b7c72793",
+  "adaptation_scope": "identity helper source-root metadata only; DB driver confines scope to first ordinal114 sample/3queries/newCLI/freshPRIVATEcopies and typeduint64 output",
+  "originals_ever_opened_by_db": false
+}

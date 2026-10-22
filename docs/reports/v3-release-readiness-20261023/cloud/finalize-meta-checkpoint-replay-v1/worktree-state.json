@@ -1,0 +1,9 @@
+{
+  "head": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "branch": "codex/v3-finalize-meta-replay",
+  "status_porcelain": "?? internal/bench/chatlifecycle/retained_d349_meta_replay_test.go\n",
+  "production_changes": false,
+  "worktree_preserved_unmerged": true,
+  "retained_scrape_bytes_and_mtime_unchanged": true,
+  "worker_snapshot_file_count": 0
+}

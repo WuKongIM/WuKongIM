@@ -1,0 +1,1 @@
+Initial ad-hoc safe deadline listing rejected optional null first/last array with TypeError. No file/data/query mutation occurred. Corrected to reuse existing helper (values or []) contract. No product operation/retry.

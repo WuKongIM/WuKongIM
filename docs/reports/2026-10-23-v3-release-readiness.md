@@ -77,7 +77,11 @@
 
 公开 `AuthorityRecovery.EndpointsByTargets` 的 tests-only 受控实验已在精确 `2ab3e1a8` 来源保留 **1 个 intentional RED、8 个 PASS**。A 用每个 lane 一个冷 target 占住全部 32 lanes，并暂停在可控 owner 端口；B 查询同 target 下另一个冷 UID，owner 本可立即响应，却在 A 释放前于 250 毫秒截止，owner 调用数仍为 1。非冲突 lane、同 UID 证明复用、取消 waiter 隔离及五项既有合同均通过，全部新调用 joined、所属进程组清零。生产与规则文件未变，该分支仍未提交且不可合并。
 
-该 RED 证明粗粒度 admission 的 head-of-line 机制，并提出独立冷 UID 隔离性质；现有注释本来就描述固定 lanes 和页共享 timeout，因此它本身不能升级为正确性缺陷或原云根因。独立静态挑战要求保留成功 siblings、fence/tombstone、FIFO 淘汰后重读、取消语义及有界数据所有权，并强调 fake owner 可用与生产 owner 全局不可用之间的区别。后续 full distributed target+UID flight 目前只有私有机制设计和 **19 项实现前失败矩阵**；当前保守设计为 **4 cohorts、2,048 keys、4 MiB owned UID bytes，并限制每个不可拆分页不超过 1 MiB**；其中字节预算是待冻结、评审和验证的新内部预算，并非既有 RPC 上限或已批准生产默认值。**尚无生产实现、GREEN 或性能收益证明**。本批封存边界未包含后续 sample exact join；owner 等待区间、因果关联及同条件前后对照仍缺；不能把无关 UID 的 RED 或单点栈数量当作五个过期样本的因果闭环。
+该 RED 证明粗粒度 admission 的 head-of-line 机制，并提出独立冷 UID 隔离性质；现有注释本来就描述固定 lanes 和页共享 timeout，因此它本身不能升级为正确性缺陷或原云根因。独立静态挑战要求保留成功 siblings、fence/tombstone、FIFO 淘汰后重读、取消语义及有界数据所有权，并强调 fake owner 可用与生产 owner 全局不可用之间的区别。后续 full distributed target+UID flight 目前只有私有机制设计和 **19 项实现前失败矩阵**；该批冻结的早期设计为 **4 cohorts、2,048 keys、4 MiB owned UID bytes，并限制每个不可拆分页不超过 1 MiB**；其中字节预算不是既有 RPC 上限或已批准生产默认值。后续实现前正在复核该字节上限与既有 UID/页 packing 的兼容性；早期设计原件保持不变，后续调整尚未纳入完成收据。**本次仍无完成的生产实现、GREEN 或性能收益证明**。owner 等待区间、因果关联及同条件前后对照仍缺；不能把无关 UID 的 RED 或单点栈数量当作五个过期样本的因果闭环。
+
+在独立封存的离线补充中，按 ordinal 排序选出的首个过期样本（worker 0、ordinal 114、普通群 index 1656）现已完成精确关联：三个停止后的只读副本各返回唯一完整行，均为 **MessageID `2113384847920603137` / seq `2`**，其 ClientMsgNo 指纹与过期样本一致。同次运行 node 2 于北京时间 **05:39:57.176** 恰有一条相同 MessageID/seq 的 **presence / timeout / durable / deadline_exceeded** 警告。它把该样本直接关联到 presence 阶段超时的投递 plan；仍不解释具体 lane/owner/底层超时来源，不独立证明当时的线上接收历史或原云端同根因，其余四个样本也未做 DB/MessageID 查询。三次有界查询均只打开私有只读副本并 joined，原 36 个文件、50,732,443 字节及原证据/日志的哈希与 mtime 均不变。原始身份、SQL、查询输出、DB 和运行日志继续私存，公开内容只含固定关联字段和完整性引用。
+
+另一次已封存的 metadata 结构重放在精确 d349 来源、Go 1.25.11 下首次单次通过（总 **8.223 秒**，测试包 **0.580 秒**）。六份既有 scrape 通过真实 `target.Client.Metrics` parser、`MetaCreateAccounting` 和 `ProductionMetaController`，但使用了明确 **synthetic 的空 expected vectors 和 final worker shapes**。这仅验证附近切面的解析及结构一致性；实际 terminal worker vectors 和发生失败的精确 metrics round 未保存，故无法识别原 `meta_checkpoint/invalid` 的 leaf，也不能宣称原 checkpoint 成功。首测 created 总数 690/690/726、保留 terminal 总数 1,465/1,447/1,471 不是实际 expectation 的替代物；负向守卫仍拒绝无效 worker/result，原报告 completeness 门禁保持。该重放只编译测试包、未启动服务或负载；其 leaf 诊断方案和 UID 隔离方案已获 tests-first 实现授权，但本批不包含未封存代码、后续实现或 GREEN，发布结论仍为 **NO-GO**。
 
 ## 包交付实现
 
@@ -103,7 +107,7 @@
 
 ## 继续处理的条件
 
-1. 清洁来源构建及精确产物绑定已完成，新 native 原分布诊断仍失败；继续解释已保留的 CPU/goroutine 和固定指标，确认群投递超时与过期关联根因。需要产品修复时先保留可重复失败再实现并独立复核。指标名错配、#1027 观测缺口及 #1028 收尾诊断均已修复合并并完成首次 Linux CI；旧 batch128 和 79a 的 500 诊断内层失败分支仍未知；新 d349 已定位 `meta_checkpoint/invalid`，该层具体不变量仍待核对。两次 500 诊断保留零首尝试失败下的接收过期，但均缺最终报告。受控 cold-lane RED 与独立静态挑战已完成，UID-flight 仅设计，尚未实现；继续实际样本关联与 tests-first 验证，不能把单点栈或 proposed 隔离性质当作原云产品根因。修复后重新评估所需 RC，付费启动另按明确授权办理。
+1. 清洁来源构建及精确产物绑定已完成，新 native 原分布诊断仍失败；继续解释已保留的 CPU/goroutine 和固定指标，确认群投递超时与过期关联根因。需要产品修复时先保留可重复失败再实现并独立复核。指标名错配、#1027 观测缺口及 #1028 收尾诊断均已修复合并并完成首次 Linux CI；旧 batch128 和 79a 的 500 诊断内层失败分支仍未知；新 d349 已定位 `meta_checkpoint/invalid`，该层具体不变量仍待核对。两次 500 诊断保留零首尝试失败下的接收过期，但均缺最终报告。受控 cold-lane RED 与独立静态挑战已完成，UID-flight 处于 tests-first 候选阶段，尚无完成的生产实现/验证收据；首个过期样本已关联到精确 MessageID/seq 的 presence timeout，具体等待来源及原云同因仍未证实。真实 parser 的 synthetic 结构重放未恢复实际 vectors/失败 round；继续 tests-first 候选验证与因果对照，不能把关联、单点栈或 proposed 隔离性质当作原云产品根因。修复后重新评估所需 RC，付费启动另按明确授权办理。
 2. #80 权限/清理修复及 Linux CI 已完成并合并，后续以该精确来源接续生产上传/激活入口。
 3. 完成真实 OSS/CDN、TLS、精确运行身份与权限接入、生产候选来源/签名/审计和版本公网验收。当前 ECS 授权不扩展为包分发资源采购或正式发布授权；具体实现与报价准备完成后再处理所需的最后授权。
 4. 满足前述条件后，冻结正式目标版本和 CHANGELOG，执行最终 tag 对应的发布门禁，并完成适用 signed native channel 的公开 APT/RPM 精确版本安装验证。

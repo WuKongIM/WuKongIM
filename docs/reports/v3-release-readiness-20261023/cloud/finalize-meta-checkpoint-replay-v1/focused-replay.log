@@ -1,0 +1,8 @@
+=== RUN   TestRetainedD349MetadataCheckpointStructure
+=== RUN   TestRetainedD349MetadataCheckpointStructure/first-measured
+=== RUN   TestRetainedD349MetadataCheckpointStructure/terminal
+--- PASS: TestRetainedD349MetadataCheckpointStructure (0.02s)
+    --- PASS: TestRetainedD349MetadataCheckpointStructure/first-measured (0.01s)
+    --- PASS: TestRetainedD349MetadataCheckpointStructure/terminal (0.01s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle	0.580s

@@ -1,0 +1,34 @@
+{
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "./internal/bench/chatlifecycle",
+    "-run",
+    "^TestRetainedD349MetadataCheckpointStructure$",
+    "-count=1",
+    "-timeout=90s",
+    "-v"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+  "started_at_utc": "2026-10-22T21:47:36.587314+00:00",
+  "elapsed_seconds": 8.223181665991433,
+  "outer_timeout_seconds": 120,
+  "go_timeout_seconds": 90,
+  "timed_out": false,
+  "exit_code": 0,
+  "environment_overrides": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOFLAGS": "-p=2",
+    "CGO_ENABLED": "0",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "WK_META_REPLAY_ROOT": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1",
+    "WK_META_REPLAY_RECEIPT": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/safe-replay-receipt.json"
+  },
+  "stdout_bytes": 479,
+  "stdout_sha256": "9774293ad83efb771f10c434b098ed4997eb9305340381a17f675562db3b066e",
+  "process_joined": true,
+  "test_source_only": true,
+  "product_service_binary_build": false
+}

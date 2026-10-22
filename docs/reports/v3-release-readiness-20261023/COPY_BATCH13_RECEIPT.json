@@ -1,0 +1,727 @@
+{
+  "schema": "wukongim/readiness-public-archive-copy-batch/v1",
+  "batch": 13,
+  "status": "copied_and_verified_before_exact_staging",
+  "started_at_utc": "2026-10-22T21:56:04.636621+00:00",
+  "finished_at_utc": "2026-10-22T21:56:04.711295+00:00",
+  "authorization_plan": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/archive-batch13-preflight/plan-v2.json",
+    "bytes": 29878,
+    "sha256": "03a537d5768a27e359f122d9ede6b84d9930326227f9aa8d035f726847b5b6fe"
+  },
+  "authorization": "Root independently reviewed26 source bytes/two manifests and both drafts; explicitly approved apply/stage/commit/push. Only one allowed mutable sentence now distinguishes tests-first work in progress from a completed implementation/validation receipt.",
+  "source_files": 26,
+  "source_bytes": 58714,
+  "source_groups": [
+    {
+      "name": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 1036,
+        "sha256": "389a4502ee3698302fde7e468c6be0a0c47557d240542cfff7b847f4e99585b4"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 310,
+        "sha256": "29a56e9b926d9c4cf54591789767bd88033ab5c09152bfec2820f5dfa97752f4"
+      },
+      "source_allowlist_entries": 11,
+      "source_manifest_entries_verified": 11,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 13,
+      "selected_bytes": 22324,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "finalize-meta-checkpoint-replay-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1",
+      "source_manifest": {
+        "path": "SHA256SUMS",
+        "bytes": 1034,
+        "sha256": "a50507b27039f32adb6f0db82e435fdf885c50ec4add28dcdd910943867298a2"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST.json",
+        "bytes": 1869,
+        "sha256": "6c2873e8282f04e6909119e114b332338d907c3751edefbe7e50a50d74794fdd"
+      },
+      "source_allowlist_format": "JSON payload records containing exact name/bytes/sha256",
+      "source_allowlist_entries": 11,
+      "source_manifest_entries_verified": 12,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": true,
+      "selected_files": 13,
+      "selected_bytes": 36390,
+      "recursive_inclusion": false
+    }
+  ],
+  "copied": [
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/README.md",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/README.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/README.md",
+      "bytes": 2380,
+      "sha256": "f85b5c26c09945e946d3410ca5e1f2a1f01c064127e6e2c31de309f2d144d82d"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/failure-matrix.md",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/failure-matrix.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/failure-matrix.md",
+      "bytes": 1288,
+      "sha256": "3a0d9bd7dd199ce03f9a8ca1ada8b085ccc5b340cf112a67d51c2bd38c4e8db8"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/offline-parser-first-error.txt",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/offline-parser-first-error.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/offline-parser-first-error.txt",
+      "bytes": 219,
+      "sha256": "a3cff07027bac8c0f61151fe878446523c4bdc59fb97e655141ea4430398391f"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/safe-expired-identities.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/safe-expired-identities.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/safe-expired-identities.json",
+      "bytes": 4160,
+      "sha256": "d097f33b700caff890f1b424838897d9c82bd2179a4b288b83259bbd0e56e10a"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/db-codec-source-equivalence.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/db-codec-source-equivalence.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/db-codec-source-equivalence.json",
+      "bytes": 1322,
+      "sha256": "410f203d8a33c426cf9e30fd506dbd895abc4dd9d96e408996b522a35973f9b0"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/source-instructions-binding.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/source-instructions-binding.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/source-instructions-binding.json",
+      "bytes": 2185,
+      "sha256": "6330108761a0b1ee4ca9640a6ed6d93d5aaa8237283b53ac75379a0194ea6ed5"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/safe-offline-db-message-identity.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/safe-offline-db-message-identity.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/safe-offline-db-message-identity.json",
+      "bytes": 4608,
+      "sha256": "c7df3253806eb56004f21d71055de5950bdf86607862316fcc6c33fb1abaca17"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/safe-exact-message-warning-join.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/safe-exact-message-warning-join.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/safe-exact-message-warning-join.json",
+      "bytes": 2742,
+      "sha256": "7ef21fc59f44903a8fe04f61705794f9e5bef6eefdca94a041e9f9a733ef8bae"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/input-inventory-before.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/input-inventory-before.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/input-inventory-before.json",
+      "bytes": 687,
+      "sha256": "0b28ee54602706f7168462ff3264f03c17ef89f7836deac9cc00a8b678d8d76f"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/input-inventory-after.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/input-inventory-after.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/input-inventory-after.json",
+      "bytes": 687,
+      "sha256": "0b28ee54602706f7168462ff3264f03c17ef89f7836deac9cc00a8b678d8d76f"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/immutability-receipt.json",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/immutability-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/immutability-receipt.json",
+      "bytes": 700,
+      "sha256": "e05e76b004483968c9539d042b26c6ab7703ec4c409bdb023e80a60834ebf192"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/PUBLIC_ALLOWLIST",
+      "bytes": 310,
+      "sha256": "29a56e9b926d9c4cf54591789767bd88033ab5c09152bfec2820f5dfa97752f4"
+    },
+    {
+      "group": "full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1/first-expired-offline-addendum-v1/PUBLIC_SHA256SUMS",
+      "bytes": 1036,
+      "sha256": "389a4502ee3698302fde7e468c6be0a0c47557d240542cfff7b847f4e99585b4"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/diagnostic-test.go.txt",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/diagnostic-test.go.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/diagnostic-test.go.txt",
+      "bytes": 6451,
+      "sha256": "defdf0fc7a77cba1c985c52e851020c65efc0fcaa1d9639bd7e49acee24bdb03"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/failure-matrix.md",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/failure-matrix.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/failure-matrix.md",
+      "bytes": 1975,
+      "sha256": "de202ef10aba78233a9b555952293b6d0278c16d811a38b70ff4b7fb6eac5879"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/focused-replay.log",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/focused-replay.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/focused-replay.log",
+      "bytes": 479,
+      "sha256": "9774293ad83efb771f10c434b098ed4997eb9305340381a17f675562db3b066e"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "bytes": 6862,
+      "sha256": "808da7ec49489aceec2a628b090db0a5b645cf34c395c0291a70a0e99a450ec6"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/leaf-diagnostic-design.md",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/leaf-diagnostic-design.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/leaf-diagnostic-design.md",
+      "bytes": 7902,
+      "sha256": "59f0725ef4dbb823829e52865dd11b774372a2afa70dac4832e639b4b7430543"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/report.md",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/report.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/report.md",
+      "bytes": 2845,
+      "sha256": "4c4e7e66420719dea83ebdfa835af5db08c898c61901e2413f17a645abe30e2e"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/safe-replay-receipt.json",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/safe-replay-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/safe-replay-receipt.json",
+      "bytes": 2868,
+      "sha256": "a35933734f268ee9e3c08bff4cfc97074a78843a01fe60504f7b21001eee6429"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/source-before-test.json",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/source-before-test.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/source-before-test.json",
+      "bytes": 2018,
+      "sha256": "47f795cd6cb7174b63daffb0bec5d740953cdcdbd5a950eb92ce0601d90fdc03"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/test-invocation.json",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/test-invocation.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/test-invocation.json",
+      "bytes": 1192,
+      "sha256": "bf6b6f3b0fc176d7d692ec9c6850ffe636274555fe37bfacd4127474b720d5ac"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/worktree-state.json",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/worktree-state.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/worktree-state.json",
+      "bytes": 353,
+      "sha256": "0b6a6a923a0dfd267532a66f3eb05f557962555dd38a7e6b25c6955883ff18db"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/validation.json",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/validation.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/validation.json",
+      "bytes": 542,
+      "sha256": "f439b59711317e1b9d17cce9b934060f31d2ae13739bc09e9da76be40ce43927"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/PUBLIC_ALLOWLIST.json",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/PUBLIC_ALLOWLIST.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/PUBLIC_ALLOWLIST.json",
+      "bytes": 1869,
+      "sha256": "6c2873e8282f04e6909119e114b332338d907c3751edefbe7e50a50d74794fdd"
+    },
+    {
+      "group": "finalize-meta-checkpoint-replay-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/SHA256SUMS",
+      "target_relative": "cloud/finalize-meta-checkpoint-replay-v1/SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/SHA256SUMS",
+      "bytes": 1034,
+      "sha256": "a50507b27039f32adb6f0db82e435fdf885c50ec4add28dcdd910943867298a2"
+    }
+  ],
+  "scope_semantics": "Two finite independently bound scopes; no recursive directory inclusion or unsealed candidate code.",
+  "sensitivity": {
+    "all_selected_bytes_utf8": true,
+    "raw_uid_channel_clientno_body_payload_json_fields": 0,
+    "private_key_or_cloud_access_key_literals": 0,
+    "public_message_identity_policy": "Only one server MessageID and seq as exact decimal strings, fingerprints and bounded population indexes; no rawUID/channel/ClientMsgNo/SQL/body/query output or DB copied. Root explicitly named this safe exact-ID correlation scope.",
+    "decimal_message_identity_fields": [
+      {
+        "field": "message_id",
+        "value": "2113384847920603137",
+        "type": "decimal_string"
+      },
+      {
+        "field": "message_seq",
+        "value": "2",
+        "type": "decimal_string"
+      },
+      {
+        "field": "message_id",
+        "value": "2113384847920603137",
+        "type": "decimal_string"
+      },
+      {
+        "field": "message_seq",
+        "value": "2",
+        "type": "decimal_string"
+      },
+      {
+        "field": "message_id",
+        "value": "2113384847920603137",
+        "type": "decimal_string"
+      },
+      {
+        "field": "message_seq",
+        "value": "2",
+        "type": "decimal_string"
+      },
+      {
+        "field": "message_id",
+        "value": "2113384847920603137",
+        "type": "decimal_string"
+      },
+      {
+        "field": "message_seq",
+        "value": "2",
+        "type": "decimal_string"
+      },
+      {
+        "field": "message_id",
+        "value": "2113384847920603137",
+        "type": "decimal_string"
+      },
+      {
+        "field": "message_seq",
+        "value": "2",
+        "type": "decimal_string"
+      }
+    ],
+    "excluded_scopes": [
+      "All actual DBs/copies/SQL/query stdout/stderr, raw worker/service logs, UIDs/channels/ClientMsgNo/body, binaries, profiles, config",
+      "Actual terminal worker metadata vectors and exact failed metrics round were not retained; not reconstructed",
+      "Any unsealed metadata leaf implementation or UID-flight candidate code/tests; no completed GREEN included",
+      "No apply/stage/commit/push, product service request, build, test or cloud operation by this archive task"
+    ],
+    "replay_scope_classification": "Finite controlled test source/text outputs and safe counters only. Real6 scrapes were previously parsed using in-memory RoundTripper; synthetic empty expectations and terminal worker shapes are explicit. Raw scrapes, logs, worker snapshots and IDs not copied."
+  },
+  "source_git_object_references_verified": [
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/identity.go",
+      "sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "bytes": 5843
+    },
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "internal/bench/chatlifecycle/identity.go",
+      "sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "bytes": 5843
+    },
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/payload.go",
+      "sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+      "bytes": 16825
+    },
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "internal/bench/chatlifecycle/payload.go",
+      "sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+      "bytes": 16825
+    },
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/traffic.go",
+      "sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "bytes": 21490
+    },
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "internal/bench/chatlifecycle/traffic.go",
+      "sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "bytes": 21490
+    },
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/evidence.go",
+      "sha256": "3f630c9086b727ed7bab5b541c8ddab6fb7eca3fe89d06c32874f2983c12d852",
+      "bytes": 9593
+    },
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "internal/bench/chatlifecycle/evidence.go",
+      "sha256": "3f630c9086b727ed7bab5b541c8ddab6fb7eca3fe89d06c32874f2983c12d852",
+      "bytes": 9593
+    },
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/FLOW.md",
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "bytes": 6617
+    },
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "bytes": 6514
+    },
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "pkg/db/FLOW.md",
+      "sha256": "57578a266e60e804ee46f71205b92c7d64df00e0df6e6f9120cc0e1937334017",
+      "bytes": 4313
+    },
+    {
+      "origin": "source-instructions-binding.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "pkg/db/message/FLOW.md",
+      "sha256": "32732f4f0df214406ff53467a8396275c189404b147ae1ad353eda4c397c6e09",
+      "bytes": 11975
+    },
+    {
+      "origin": "db-codec-source-equivalence.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "cmd/wkcli/internal/database/main.go",
+      "sha256": "d610dacd439e5e2263a6a4719e602bf7fa492901172fe67cd8f122afd265677f",
+      "bytes": 4797
+    },
+    {
+      "origin": "db-codec-source-equivalence.json",
+      "commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "cmd/wkcli/internal/database/main.go",
+      "sha256": "d610dacd439e5e2263a6a4719e602bf7fa492901172fe67cd8f122afd265677f",
+      "bytes": 4797
+    },
+    {
+      "origin": "db-codec-source-equivalence.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "pkg/db/inspect/store.go",
+      "sha256": "298ff49355c859c6e7051c7071cd7f3832eea42937f740e38ebf508b186d5f2c",
+      "bytes": 2072
+    },
+    {
+      "origin": "db-codec-source-equivalence.json",
+      "commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "pkg/db/inspect/store.go",
+      "sha256": "298ff49355c859c6e7051c7071cd7f3832eea42937f740e38ebf508b186d5f2c",
+      "bytes": 2072
+    },
+    {
+      "origin": "db-codec-source-equivalence.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "pkg/db/internal/engine/db.go",
+      "sha256": "a5544110e6ef740a3dc70add13c716d3df8eec3a6a00131078f20c2355e47ec5",
+      "bytes": 6921
+    },
+    {
+      "origin": "db-codec-source-equivalence.json",
+      "commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "pkg/db/internal/engine/db.go",
+      "sha256": "a5544110e6ef740a3dc70add13c716d3df8eec3a6a00131078f20c2355e47ec5",
+      "bytes": 6921
+    },
+    {
+      "origin": "db-codec-source-equivalence.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "pkg/db/inspect/execute.go",
+      "sha256": "f5ec9fd47138bee8d4789f7968d8c65e7cfbe730c46fc506c715f41b3148d258",
+      "bytes": 17404
+    },
+    {
+      "origin": "db-codec-source-equivalence.json",
+      "commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "pkg/db/inspect/execute.go",
+      "sha256": "f5ec9fd47138bee8d4789f7968d8c65e7cfbe730c46fc506c715f41b3148d258",
+      "bytes": 17404
+    },
+    {
+      "origin": "db-codec-source-equivalence.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "pkg/db/message/inspect.go",
+      "sha256": "1c75aba8520b8e0ad88e18c79c5167b6c4860bb1ea5fae488ac16bc0dd1a2db6",
+      "bytes": 7139
+    },
+    {
+      "origin": "db-codec-source-equivalence.json",
+      "commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "pkg/db/message/inspect.go",
+      "sha256": "1c75aba8520b8e0ad88e18c79c5167b6c4860bb1ea5fae488ac16bc0dd1a2db6",
+      "bytes": 7139
+    },
+    {
+      "origin": "db-codec-source-equivalence.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "pkg/channel/types.go",
+      "sha256": "b53a5ad011f1d8c1b2687c87763afbdda9a9a96ee97f4a5d47f51b6daad560ca",
+      "bytes": 9047
+    },
+    {
+      "origin": "db-codec-source-equivalence.json",
+      "commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "path": "pkg/channel/types.go",
+      "sha256": "b53a5ad011f1d8c1b2687c87763afbdda9a9a96ee97f4a5d47f51b6daad560ca",
+      "bytes": 9047
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "bytes": 33591,
+      "sha256": "8ed4d172ddadbc6dd3fb96134747921c563c86c38b513b92b7e73c1a245bfc42"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/production_meta.go",
+      "bytes": 10377,
+      "sha256": "394d7ce3e937ff638d0890f9011a5fa31a6dd3a56e1133d8f7856ec3976a8e4c"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/lifecycle_proof.go",
+      "bytes": 43754,
+      "sha256": "5ef8476104c3741089acbb74bfc6002e01badb1aab4316a4928299159601b8ce"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/production_meta_test.go",
+      "bytes": 14570,
+      "sha256": "c1dde724ad86cf8954d7402fa5d5521207f54ab8bbd408692536bd5f73f7a019"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/finalize_diagnostics_test.go",
+      "bytes": 22813,
+      "sha256": "2a27392c2f70d9315a5f3b7ed93a31ba5394f8f9229adc0d52526a0bdd768ae3"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/target/client.go",
+      "bytes": 52166,
+      "sha256": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/source-before-test.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/source-before-test.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/source-before-test.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/source-before-test.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/production_meta.go",
+      "bytes": 10377,
+      "sha256": "394d7ce3e937ff638d0890f9011a5fa31a6dd3a56e1133d8f7856ec3976a8e4c"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/source-before-test.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/chatlifecycle/lifecycle_proof.go",
+      "bytes": 43754,
+      "sha256": "5ef8476104c3741089acbb74bfc6002e01badb1aab4316a4928299159601b8ce"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/source-before-test.json",
+      "commit": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "path": "internal/bench/target/client.go",
+      "bytes": 52166,
+      "sha256": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762"
+    }
+  ],
+  "non_git_frozen_reference_hashes_verified": [
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/input-hashes.json",
+      "frozen_source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/diagnostic-test.go.txt",
+      "bytes": 6451,
+      "sha256": "defdf0fc7a77cba1c985c52e851020c65efc0fcaa1d9639bd7e49acee24bdb03"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/source-before-test.json",
+      "frozen_source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/diagnostic-test.go.txt",
+      "bytes": 6451,
+      "sha256": "defdf0fc7a77cba1c985c52e851020c65efc0fcaa1d9639bd7e49acee24bdb03"
+    },
+    {
+      "origin": "finalize-meta-checkpoint-replay-v1/source-before-test.json",
+      "frozen_source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/failure-matrix.md",
+      "bytes": 1975,
+      "sha256": "de202ef10aba78233a9b555952293b6d0278c16d811a38b70ff4b7fb6eac5879"
+    }
+  ],
+  "six_raw_scrape_metadata_crossbinding": [
+    {
+      "name": "metrics-first-measured-node1.prom",
+      "bytes": 1004626,
+      "sha256": "dfb00041de85c70daf53f8ea0e429a184a303ec43798fadc17a902ccc6d8daa1",
+      "mtime_nanos": 1792705189376498698,
+      "raw_bytes_not_read_or_copied_by_archive": true
+    },
+    {
+      "name": "metrics-first-measured-node2.prom",
+      "bytes": 979300,
+      "sha256": "325a844461ad6e61e230afe489bc8d0c2fa448454254a7ed58908227890f5b10",
+      "mtime_nanos": 1792705189548978513,
+      "raw_bytes_not_read_or_copied_by_archive": true
+    },
+    {
+      "name": "metrics-first-measured-node3.prom",
+      "bytes": 991587,
+      "sha256": "ecd8f7bf251016181ba1829567eadf6620e4d3851fce901dfda3029d34e59a8c",
+      "mtime_nanos": 1792705189625836403,
+      "raw_bytes_not_read_or_copied_by_archive": true
+    },
+    {
+      "name": "metrics-terminal-node1.prom",
+      "bytes": 1025800,
+      "sha256": "29f092a8757744440baa09d69d3a3de3338e2f8439a58cfaa21ed8c24e593578",
+      "mtime_nanos": 1792705206358874581,
+      "raw_bytes_not_read_or_copied_by_archive": true
+    },
+    {
+      "name": "metrics-terminal-node2.prom",
+      "bytes": 1011183,
+      "sha256": "6b4fc691c1c682d0eb75847a481c85d611fd539763dd092b0380d6ed683a0002",
+      "mtime_nanos": 1792705206363674790,
+      "raw_bytes_not_read_or_copied_by_archive": true
+    },
+    {
+      "name": "metrics-terminal-node3.prom",
+      "bytes": 1026703,
+      "sha256": "11133bc8efd5f4b1f5fab33f4ca5b5f54a8d5e5e3eb878036be1509d5e6f477c",
+      "mtime_nanos": 1792705206368670166,
+      "raw_bytes_not_read_or_copied_by_archive": true
+    }
+  ],
+  "interpretation": [
+    "One first ordered expired sample now has exact durable MessageID/seq across3 stopped replica copies and exactly one same-run node2 presence-timeout warning association.",
+    "First ordered ordinal114 does not reconstruct an exact expiry timestamp; raw uint64 precision is preserved by source JSON decimal strings.",
+    "This associates one expiry with a presence plan timeout; it does not identify the underlying timeout source, all5 sample causes, original cloud root cause or prove historical online receive state.",
+    "Original files/logs immutable per retained receipts; three read-only copy queries joined. Runtime final report still absent and NO-GO unchanged.",
+    "Metadata replay passed once in8.223s using real target parser/MetaCreateAccounting/controller but explicit synthetic expectations/worker shapes. It cannot prove original finalization success, expected-vector correctness or exact failed leaf.",
+    "Two tests-first candidates are now authorized but no completed implementation/GREEN receipt is included. Early4MiB design stays immutable; compatibility with existing UID/page packing is under implementation-before-review and no production defaults or new cap success is claimed."
+  ],
+  "mutable_report_observation_boundary": [
+    {
+      "target_relative": "docs/reports/2026-10-23-v3-release-readiness.md",
+      "approved_draft": {
+        "bytes": 32075,
+        "sha256": "22aff8211557523a7c27df0e1156ea194b09f07912c23b01f56eb940ae906d21"
+      },
+      "allowed_mutable_wording_updated_candidate_in_progress": true,
+      "actual": {
+        "bytes": 32125,
+        "sha256": "98c4b722c86d0a50a7249bdcd310805c3732b63c6e6878c2af1ee09391ea9d4a"
+      }
+    },
+    {
+      "target_relative": "docs/reports/v3-release-readiness-20261023/README.md",
+      "approved_draft": {
+        "bytes": 7701,
+        "sha256": "4994451992b497a64c9e4fc0e4a7955df5a29dd9b7d94b72d2801be152f934f3"
+      },
+      "allowed_mutable_wording_updated_candidate_in_progress": false,
+      "actual": {
+        "bytes": 7701,
+        "sha256": "4994451992b497a64c9e4fc0e4a7955df5a29dd9b7d94b72d2801be152f934f3"
+      }
+    }
+  ],
+  "preservation": {
+    "previous_checkpoint_entries": 2802,
+    "previous_checkpoint_sha256": "ddcec4c1a7c7d318721e0eb574749a9d4e9644b51ab947da1c21949df3550282",
+    "only_old_payload_paths_allowed_to_change": [
+      "docs/reports/2026-10-23-v3-release-readiness.md",
+      "docs/reports/v3-release-readiness-20261023/README.md"
+    ],
+    "all_other_old_payloads_remain_byte_equal": true,
+    "original_source_payloads_copied_byte_equal": true,
+    "no_unsealed_implementation_or_GREEN_added": true
+  }
+}

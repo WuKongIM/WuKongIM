@@ -1,0 +1,139 @@
+{
+  "schema": "wukongim/d349-safe-expired-identities/v1",
+  "source_evidence_sha256": "c653103aae6757d9c06525c556dec214bba81a4c7c80cc4cedf2853fe1ea8a2f",
+  "identity_source_revision": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "helper_source_sha256": "d3bae352b24c192fb41ae6013cf50b081a6e9ed9f6e9aef45707b51a6f86fe9e",
+  "helper_unchanged_algorithm": true,
+  "helper_adaptation": "source-root metadata only",
+  "helper_timing": {
+    "cpu_seconds": 0.05944699999999999,
+    "utc_end": "2026-10-22T21:43:06.691862+00:00",
+    "utc_start": "2026-10-22T21:43:06.631694+00:00",
+    "wall_seconds": 0.06000974995549768
+  },
+  "results": [
+    {
+      "attempted_candidates": 3335,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 114
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "73af27ef912febfe6a7b032d961122bb",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 7656,
+          "target_group_index": 1656
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798130,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 0
+    },
+    {
+      "attempted_candidates": 3335,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 414
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "3276a62a15a9216f4683222b7751c108",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1623,
+          "target_group_index": 1623
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798430,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 0
+    },
+    {
+      "attempted_candidates": 3335,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 214
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "562ccbccd13140cd9a4a1ca28610ea89",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1735,
+          "target_group_index": 1735
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798230,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 1
+    },
+    {
+      "attempted_candidates": 3335,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 514
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "3e1a78cb539878dc6c90b460b9bf7398",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1759,
+          "target_group_index": 1759
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798530,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 1
+    },
+    {
+      "attempted_candidates": 3330,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 314
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "0db0904a5c1178a44b1596dfd762770d",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1646,
+          "target_group_index": 1646
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798330,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 2
+    }
+  ],
+  "network_requests": 0,
+  "db_queries": 0,
+  "limitation": "same128bit fingerprint match under initial ordinary-group identity algorithm; not delivery root cause or DB MessageID association"
+}

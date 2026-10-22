@@ -1,0 +1,13 @@
+{
+  "evidence_and_canonical_logs_unchanged": true,
+  "before_inventory_sha256": "0b28ee54602706f7168462ff3264f03c17ef89f7836deac9cc00a8b678d8d76f",
+  "after_inventory_sha256": "0b28ee54602706f7168462ff3264f03c17ef89f7836deac9cc00a8b678d8d76f",
+  "original_database_bytes_mtime_unchanged": true,
+  "original_database_files": 36,
+  "original_database_bytes": 50732443,
+  "original_before_inventory_sha256": "0b67620b906d97cee32cf2cbadd95f74b981a2a056c9213a3fa922a6a3f16974",
+  "original_after_inventory_sha256": "0b67620b906d97cee32cf2cbadd95f74b981a2a056c9213a3fa922a6a3f16974",
+  "db_query_commands": 3,
+  "all_db_query_processes_joined": true,
+  "runtime12payload_manifest_sha256_unchanged": true
+}

@@ -17,6 +17,8 @@
 
 - [第十二批收据](COPY_BATCH12_RECEIPT.json)：精确 d349 native 构建、等配置 500 诊断的提案及一次实际运行，另含 cold-lane tests-only RED、独立静态挑战和 UID-flight 设计，共 6 个独立来源组。新诊断暴露 `meta_checkpoint/invalid`，保留 8,001 SEND/ACK、5 个过期和 frozen `product_failure/message_loss/true`，CLI 仍 exit 8 且无最终报告。受控 RED 证明粗 admission 机制，未证明原云或五个样本同根因；UID-flight 尚无生产实现或 GREEN。本批只复制有限公开文本及来源/完整性引用，不含原始 profiles、可执行文件、配置、DB、运行身份/日志或未封存 addendum。见[清单](COPY_BATCH12_ALLOWLIST)和[校验表](COPY_BATCH12_SHA256SUMS)。
 
+- [第十三批收据](COPY_BATCH13_RECEIPT.json)：独立封存的首个过期样本 exact MessageID/seq 三副本及一条 node 2 presence timeout 关联，以及 metadata 的真实 parser / synthetic expectations 结构重放，共 2 个有限来源组。关联未解释具体 lane/owner 等待根因；重放未恢复实际 terminal vectors 或失败 round，不能报告为原 checkpoint 成功。早期 UID-flight 预算原件保持，其兼容性仍待实现前核对；未封存候选和 GREEN 均未纳入。原始 UID/SQL/DB、profiles、配置、运行日志和 raw scrapes 继续排除。见[清单](COPY_BATCH13_ALLOWLIST)和[校验表](COPY_BATCH13_SHA256SUMS)。
+
 后续 #1027 已于北京时间 **04:01:25** 合并，首次 CI 为 17 项成功、2 项条件跳过。本地实验的来源声明、二进制嵌入 stamp 和实际编译内容必须分开核对：Go 1.25.11 在嵌套 worktree 的 Git 根查找可取外层 a804 标记，而反汇编已见 79a 工作树路径及新增分支；不能仅凭 stamp 判断执行了旧源码。最初产品 override 构建链仍不完整，不能由后续重建追溯认证。新的 clean 79a 构建在 `.worktrees` 下使用具有真实 `.git` 目录的独立本地 clone，已固定云编译器/链接参数并核对 76 个嵌入资源，Linux 两程序与原云 ELF 逐字节相同；新 native 诊断终态覆盖 10.742 秒窗口（含停止/收尾），首个失败原因为 `overall_first_attempt_rate`。该窗口不是已知 active SEND 时长，完整 CPU/goroutine 采集不等于性能验收。当前来源纠正及后续诊断见[复核报告](../2026-10-23-v3-release-readiness.md)；旧批次冻结材料中的初步解释保留原字节。
 
 云 RC、实际生产来源/签名/审计、OSS/CDN 激活和公网客户端验收分别需要自己的实际收据。TEST ONLY、局域 TLS 或 SDK adapter 的成功不能代替这些结果。

@@ -1,0 +1,150 @@
+{
+  "inputs": [
+    {
+      "name": "AGENTS.md",
+      "root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+      "classification": "exact_source_or_test",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "name": "internal/bench/FLOW.md",
+      "root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+      "classification": "exact_source_or_test",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/FLOW.md",
+      "root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+      "classification": "exact_source_or_test",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/production_controller.go",
+      "root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+      "classification": "exact_source_or_test",
+      "bytes": 33591,
+      "sha256": "8ed4d172ddadbc6dd3fb96134747921c563c86c38b513b92b7e73c1a245bfc42"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/production_meta.go",
+      "root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+      "classification": "exact_source_or_test",
+      "bytes": 10377,
+      "sha256": "394d7ce3e937ff638d0890f9011a5fa31a6dd3a56e1133d8f7856ec3976a8e4c"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/lifecycle_proof.go",
+      "root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+      "classification": "exact_source_or_test",
+      "bytes": 43754,
+      "sha256": "5ef8476104c3741089acbb74bfc6002e01badb1aab4316a4928299159601b8ce"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/production_meta_test.go",
+      "root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+      "classification": "exact_source_or_test",
+      "bytes": 14570,
+      "sha256": "c1dde724ad86cf8954d7402fa5d5521207f54ab8bbd408692536bd5f73f7a019"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/finalize_diagnostics_test.go",
+      "root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+      "classification": "exact_source_or_test",
+      "bytes": 22813,
+      "sha256": "2a27392c2f70d9315a5f3b7ed93a31ba5394f8f9229adc0d52526a0bdd768ae3"
+    },
+    {
+      "name": "internal/bench/target/client.go",
+      "root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+      "classification": "exact_source_or_test",
+      "bytes": 52166,
+      "sha256": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/retained_d349_meta_replay_test.go",
+      "root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+      "classification": "exact_source_or_test",
+      "bytes": 6451,
+      "sha256": "defdf0fc7a77cba1c985c52e851020c65efc0fcaa1d9639bd7e49acee24bdb03"
+    },
+    {
+      "name": "logs/coordinator.log",
+      "root": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1",
+      "classification": "private_original_not_copied",
+      "bytes": 5961,
+      "sha256": "af18792e118ecf3267b1cab7b1c92b7c1aba94d6d5f6684ee94696e80dceace5"
+    },
+    {
+      "name": "report/diagnostic-status.json",
+      "root": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1",
+      "classification": "private_original_not_copied",
+      "bytes": 9062,
+      "sha256": "60f85a0fbfbd76846e46952b94d0f7ab423c05e21a9aacd4f87e5583c49c98a7"
+    },
+    {
+      "name": "report/run-start.json",
+      "root": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1",
+      "classification": "private_original_not_copied",
+      "bytes": 391,
+      "sha256": "3540112e434d0204b13ceec0994835b33d83ab0c04aff7edf67c69c70352de77"
+    },
+    {
+      "name": "report/worker-evidence.json",
+      "root": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1",
+      "classification": "private_original_not_copied",
+      "bytes": 4114,
+      "sha256": "c653103aae6757d9c06525c556dec214bba81a4c7c80cc4cedf2853fe1ea8a2f"
+    },
+    {
+      "name": "evidence/metrics-first-measured-node1.prom",
+      "root": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1",
+      "classification": "private_original_not_copied",
+      "bytes": 1004626,
+      "sha256": "dfb00041de85c70daf53f8ea0e429a184a303ec43798fadc17a902ccc6d8daa1",
+      "mtime_nanos": 1792705189376498698
+    },
+    {
+      "name": "evidence/metrics-first-measured-node2.prom",
+      "root": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1",
+      "classification": "private_original_not_copied",
+      "bytes": 979300,
+      "sha256": "325a844461ad6e61e230afe489bc8d0c2fa448454254a7ed58908227890f5b10",
+      "mtime_nanos": 1792705189548978513
+    },
+    {
+      "name": "evidence/metrics-first-measured-node3.prom",
+      "root": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1",
+      "classification": "private_original_not_copied",
+      "bytes": 991587,
+      "sha256": "ecd8f7bf251016181ba1829567eadf6620e4d3851fce901dfda3029d34e59a8c",
+      "mtime_nanos": 1792705189625836403
+    },
+    {
+      "name": "evidence/metrics-terminal-node1.prom",
+      "root": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1",
+      "classification": "private_original_not_copied",
+      "bytes": 1025800,
+      "sha256": "29f092a8757744440baa09d69d3a3de3338e2f8439a58cfaa21ed8c24e593578",
+      "mtime_nanos": 1792705206358874581
+    },
+    {
+      "name": "evidence/metrics-terminal-node2.prom",
+      "root": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1",
+      "classification": "private_original_not_copied",
+      "bytes": 1011183,
+      "sha256": "6b4fc691c1c682d0eb75847a481c85d611fd539763dd092b0380d6ed683a0002",
+      "mtime_nanos": 1792705206363674790
+    },
+    {
+      "name": "evidence/metrics-terminal-node3.prom",
+      "root": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-d349-rate500-profile-v1",
+      "classification": "private_original_not_copied",
+      "bytes": 1026703,
+      "sha256": "11133bc8efd5f4b1f5fab33f4ca5b5f54a8d5e5e3eb878036be1509d5e6f477c",
+      "mtime_nanos": 1792705206368670166
+    }
+  ]
+}

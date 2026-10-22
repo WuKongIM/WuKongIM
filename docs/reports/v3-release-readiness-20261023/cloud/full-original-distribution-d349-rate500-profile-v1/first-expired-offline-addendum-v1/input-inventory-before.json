@@ -1,0 +1,22 @@
+{
+  "report/worker-evidence.json": {
+    "bytes": 4114,
+    "sha256": "c653103aae6757d9c06525c556dec214bba81a4c7c80cc4cedf2853fe1ea8a2f",
+    "mtime_ns": 1792705206047832483
+  },
+  "logs/service-1.log": {
+    "bytes": 45868,
+    "sha256": "9b40ac179b06e077519df2fa7d1d89635a3ef0b33aceb98c81a81a88a0bd1d5d",
+    "mtime_ns": 1792705201545386303
+  },
+  "logs/service-2.log": {
+    "bytes": 47535,
+    "sha256": "65faf440bd92e135f7a5a77323c8027bec5e884194558f48edac6559cd5df7de",
+    "mtime_ns": 1792705201325838261
+  },
+  "logs/service-3.log": {
+    "bytes": 47165,
+    "sha256": "d970fbe6c358acf945dc415040363d2782e91a90db3bbe0218a3534b2e0f2b35",
+    "mtime_ns": 1792705201500153411
+  }
+}

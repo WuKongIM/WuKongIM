@@ -1,0 +1,61 @@
+{
+  "scope": "finalize-meta-checkpoint-replay-v1",
+  "payloads": [
+    {
+      "name": "diagnostic-test.go.txt",
+      "bytes": 6451,
+      "sha256": "defdf0fc7a77cba1c985c52e851020c65efc0fcaa1d9639bd7e49acee24bdb03"
+    },
+    {
+      "name": "failure-matrix.md",
+      "bytes": 1975,
+      "sha256": "de202ef10aba78233a9b555952293b6d0278c16d811a38b70ff4b7fb6eac5879"
+    },
+    {
+      "name": "focused-replay.log",
+      "bytes": 479,
+      "sha256": "9774293ad83efb771f10c434b098ed4997eb9305340381a17f675562db3b066e"
+    },
+    {
+      "name": "input-hashes.json",
+      "bytes": 6862,
+      "sha256": "808da7ec49489aceec2a628b090db0a5b645cf34c395c0291a70a0e99a450ec6"
+    },
+    {
+      "name": "leaf-diagnostic-design.md",
+      "bytes": 7902,
+      "sha256": "59f0725ef4dbb823829e52865dd11b774372a2afa70dac4832e639b4b7430543"
+    },
+    {
+      "name": "report.md",
+      "bytes": 2845,
+      "sha256": "4c4e7e66420719dea83ebdfa835af5db08c898c61901e2413f17a645abe30e2e"
+    },
+    {
+      "name": "safe-replay-receipt.json",
+      "bytes": 2868,
+      "sha256": "a35933734f268ee9e3c08bff4cfc97074a78843a01fe60504f7b21001eee6429"
+    },
+    {
+      "name": "source-before-test.json",
+      "bytes": 2018,
+      "sha256": "47f795cd6cb7174b63daffb0bec5d740953cdcdbd5a950eb92ce0601d90fdc03"
+    },
+    {
+      "name": "test-invocation.json",
+      "bytes": 1192,
+      "sha256": "bf6b6f3b0fc176d7d692ec9c6850ffe636274555fe37bfacd4127474b720d5ac"
+    },
+    {
+      "name": "worktree-state.json",
+      "bytes": 353,
+      "sha256": "0b6a6a923a0dfd267532a66f3eb05f557962555dd38a7e6b25c6955883ff18db"
+    },
+    {
+      "name": "validation.json",
+      "bytes": 542,
+      "sha256": "f439b59711317e1b9d17cce9b934060f31d2ae13739bc09e9da76be40ce43927"
+    }
+  ],
+  "private_originals": "Referenced by finite hashes only; no raw metrics, logs or snapshots are copied."
+}

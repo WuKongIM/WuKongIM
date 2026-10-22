@@ -1,0 +1,90 @@
+{
+  "schema": "wukongim/d349-first-expired-exact-message-warning-join/v1",
+  "source_revision": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "selected_sample": {
+    "worker_id": 0,
+    "ordinal": 114,
+    "group_index": 1656,
+    "fingerprint": "73af27ef912febfe6a7b032d961122bb"
+  },
+  "unique_three_replica_message_identity": {
+    "message_id": "2113384847920603137",
+    "message_seq": "2",
+    "replicas_matching": 3,
+    "fingerprint_matches_reconstructed_ClientMsgNo": true
+  },
+  "window": {
+    "first_grant": "2026-10-23T05:39:44.005837+08:00",
+    "terminal_cut": "2026-10-23T05:40:06.038546+08:00",
+    "log_timezone": "prefix local wallclock interpreted as runreceipt UTC+08:00"
+  },
+  "canonical_service_log_nodes": [
+    {
+      "node_id": 1,
+      "within_window_count": 83,
+      "outside_window_count": 0,
+      "unparseable_candidate_lines": 0,
+      "by_phase_result_mode_reason": [
+        {
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "fixed_error_reason": "deadline_exceeded",
+          "count": 83
+        }
+      ]
+    },
+    {
+      "node_id": 2,
+      "within_window_count": 88,
+      "outside_window_count": 0,
+      "unparseable_candidate_lines": 0,
+      "by_phase_result_mode_reason": [
+        {
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "fixed_error_reason": "deadline_exceeded",
+          "count": 88
+        }
+      ]
+    },
+    {
+      "node_id": 3,
+      "within_window_count": 87,
+      "outside_window_count": 0,
+      "unparseable_candidate_lines": 0,
+      "by_phase_result_mode_reason": [
+        {
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "fixed_error_reason": "deadline_exceeded",
+          "count": 87
+        }
+      ]
+    }
+  ],
+  "total_in_window": 258,
+  "exact_message_warning_matches": [
+    {
+      "node_id": 2,
+      "at": "2026-10-23T05:39:57.176000+08:00",
+      "within_firstgrant_terminal_window": true,
+      "message_id": "2113384847920603137",
+      "message_seq": "2",
+      "phase": "presence",
+      "result": "timeout",
+      "mode": "durable",
+      "fixed_error_reason": "deadline_exceeded",
+      "exact_db_messageID_and_seq_match": true
+    }
+  ],
+  "exact_message_warning_match_count": 1,
+  "limits": [
+    "Only first expired sample queried across3 stopped replicas;4 other samples have no DB/MessageID join",
+    "Stored durable row does not establish historical online delivery",
+    "SameID+seq warning proves that plan terminal phase/result for this expired sample, not lower layer timeout origin",
+    "No product requests, DB originals opened, profiling, new load, or cloud calls"
+  ]
+}

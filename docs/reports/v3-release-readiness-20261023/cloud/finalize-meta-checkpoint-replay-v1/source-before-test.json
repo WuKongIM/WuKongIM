@@ -1,0 +1,38 @@
+{
+  "revision": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "production_implementation_changed": false,
+  "files": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay/AGENTS.md": {
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay/internal/bench/FLOW.md": {
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay/internal/bench/chatlifecycle/FLOW.md": {
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay/internal/bench/chatlifecycle/production_meta.go": {
+      "bytes": 10377,
+      "sha256": "394d7ce3e937ff638d0890f9011a5fa31a6dd3a56e1133d8f7856ec3976a8e4c"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay/internal/bench/chatlifecycle/lifecycle_proof.go": {
+      "bytes": 43754,
+      "sha256": "5ef8476104c3741089acbb74bfc6002e01badb1aab4316a4928299159601b8ce"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay/internal/bench/target/client.go": {
+      "bytes": 52166,
+      "sha256": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762"
+    },
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay/internal/bench/chatlifecycle/retained_d349_meta_replay_test.go": {
+      "bytes": 6451,
+      "sha256": "defdf0fc7a77cba1c985c52e851020c65efc0fcaa1d9639bd7e49acee24bdb03"
+    },
+    "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1/failure-matrix.md": {
+      "bytes": 1975,
+      "sha256": "de202ef10aba78233a9b555952293b6d0278c16d811a38b70ff4b7fb6eac5879"
+    }
+  }
+}

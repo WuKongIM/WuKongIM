@@ -1,0 +1,15 @@
+{
+  "result": "pass",
+  "test_invocations": 1,
+  "automatic_retries": 0,
+  "elapsed_seconds": 8.223181665991433,
+  "process_joined": true,
+  "input_hashes_verified": 20,
+  "raw_private_inputs_copied": false,
+  "actual_worker_snapshot_reconstructed": false,
+  "metadata_leaf_attribution": "unknown",
+  "production_implementation_changed": false,
+  "service_build_or_workload_or_cloud_operations": false,
+  "scope": "retained-nearby-scrape/synthetic-empty-vector structural replay and design only",
+  "unmerged_test_worktree_preserved": true
+}
