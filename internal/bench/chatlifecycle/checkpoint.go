@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -107,10 +106,10 @@ func (r *CheckpointRecorder) CaptureAndWrite(
 	outputs CheckpointOutputPaths,
 ) (Report, error) {
 	if r == nil {
-		return Report{}, ErrCheckpointConfig
+		return Report{}, newFinalizationError("checkpoint_sequence", "invalid", ErrCheckpointConfig)
 	}
 	if outputs.JSON == "" || outputs.Markdown == "" || filepath.Clean(outputs.JSON) == filepath.Clean(outputs.Markdown) {
-		return Report{}, ErrCheckpointOutput
+		return Report{}, newFinalizationError("write_json", "invalid_paths", ErrCheckpointOutput)
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -122,10 +121,10 @@ func (r *CheckpointRecorder) CaptureAndWrite(
 		return Report{}, err
 	}
 	if err := WriteReportAtomic(outputs.JSON, report, ReportFormatJSON); err != nil {
-		return Report{}, fmt.Errorf("%w: JSON: %v", ErrCheckpointOutput, err)
+		return Report{}, newFinalizationError("write_json", "output_failed", errors.Join(ErrCheckpointOutput, err))
 	}
 	if err := WriteReportAtomic(outputs.Markdown, report, ReportFormatMarkdown); err != nil {
-		return Report{}, fmt.Errorf("%w: Markdown: %v", ErrCheckpointOutput, err)
+		return Report{}, newFinalizationError("write_markdown", "output_failed", errors.Join(ErrCheckpointOutput, err))
 	}
 	r.aggregator = nextAggregator
 	r.datasetDigest = datasetDigest
@@ -143,12 +142,12 @@ func (r *CheckpointRecorder) prepareLocked(
 	at = at.Round(0)
 	if r.closed || at.IsZero() || processElapsed < 0 || !validCheckpointEvidence(evidence) {
 		if !validCheckpointEvidence(evidence) {
-			return Report{}, nil, "", false, false, ErrCheckpointEvidence
+			return Report{}, nil, "", false, false, newFinalizationError("checkpoint_evidence", "invalid_evidence", ErrCheckpointEvidence)
 		}
-		return Report{}, nil, "", false, false, ErrCheckpointSequence
+		return Report{}, nil, "", false, false, newFinalizationError("checkpoint_sequence", "invalid", ErrCheckpointSequence)
 	}
 	if r.datasetDigest != "" && evidence.DatasetDigest != r.datasetDigest {
-		return Report{}, nil, "", false, false, ErrCheckpointEvidence
+		return Report{}, nil, "", false, false, newFinalizationError("checkpoint_evidence", "dataset_mismatch", ErrCheckpointEvidence)
 	}
 
 	checkpointElapsed := r.cfg.Thresholds.Timeline.Checkpoint
@@ -156,7 +155,7 @@ func (r *CheckpointRecorder) prepareLocked(
 	kind := CheckpointQualification
 	terminal := evidence.Verdict.Terminal
 	if r.cfg.Mode == ModeSoak && terminal && successfulVerdict(evidence.Verdict) && processElapsed < finalElapsed {
-		return Report{}, nil, "", false, false, ErrCheckpointSequence
+		return Report{}, nil, "", false, false, newFinalizationError("checkpoint_sequence", "invalid", ErrCheckpointSequence)
 	}
 	switch {
 	case r.cfg.Mode == ModeCapacity && terminal:
@@ -165,11 +164,11 @@ func (r *CheckpointRecorder) prepareLocked(
 		kind = CheckpointFinal
 	case !r.qualificationCaptured:
 		if processElapsed < checkpointElapsed {
-			return Report{}, nil, "", false, false, ErrCheckpointSequence
+			return Report{}, nil, "", false, false, newFinalizationError("checkpoint_sequence", "invalid", ErrCheckpointSequence)
 		}
 		if processElapsed >= finalElapsed {
 			if !terminal || (r.cfg.Stage == StageFormal && evidence.Verdict.Outcome == VerdictPass) {
-				return Report{}, nil, "", false, false, ErrCheckpointSequence
+				return Report{}, nil, "", false, false, newFinalizationError("checkpoint_sequence", "invalid", ErrCheckpointSequence)
 			}
 			kind = CheckpointFinal
 		} else {
@@ -178,27 +177,27 @@ func (r *CheckpointRecorder) prepareLocked(
 	case terminal:
 		kind = CheckpointFinal
 	case processElapsed < finalElapsed:
-		return Report{}, nil, "", false, false, ErrCheckpointSequence
+		return Report{}, nil, "", false, false, newFinalizationError("checkpoint_sequence", "invalid", ErrCheckpointSequence)
 	default:
 		kind = CheckpointFinal
 	}
 	if kind == CheckpointFinal && !terminal {
-		return Report{}, nil, "", false, false, ErrCheckpointEvidence
+		return Report{}, nil, "", false, false, newFinalizationError("checkpoint_evidence", "invalid_evidence", ErrCheckpointEvidence)
 	}
 	if !validCheckpointSnapshotsForCut(
 		snapshots, processElapsed, kind, evidence.Verdict, evidence.Continuous && r.cfg.Mode == ModeSoak,
 	) {
-		return Report{}, nil, "", false, false, ErrCheckpointEvidence
+		return Report{}, nil, "", false, false, newFinalizationError("checkpoint_evidence", "invalid_snapshot_cut", ErrCheckpointEvidence)
 	}
 
 	nextAggregator := cloneCheckpointAggregator(r.aggregator)
 	aggregated, err := nextAggregator.Aggregate(snapshots)
 	if err != nil {
-		return Report{}, nil, "", false, false, err
+		return Report{}, nil, "", false, false, newFinalizationError("snapshot_aggregate", string(productionControllerSnapshotFailureReason(err)), err)
 	}
 	report := r.buildReport(kind, at, processElapsed, aggregated, evidence)
 	if err := validateReport(report); err != nil {
-		return Report{}, nil, "", false, false, ErrCheckpointEvidence
+		return Report{}, nil, "", false, false, newFinalizationError("report_validation", "invalid", errors.Join(ErrCheckpointEvidence, err))
 	}
 	qualificationCaptured := r.qualificationCaptured
 	closed := r.closed

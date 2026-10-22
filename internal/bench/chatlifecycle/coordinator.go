@@ -131,6 +131,9 @@ type CoordinatorResult struct {
 	// WorkerFailure retains the lowest-ID classified worker failure observed by
 	// a failed grant round. An empty RuntimeCode means no classification was available.
 	WorkerFailure CoordinatorWorkerFailure
+	// FinalizationFailure retains the rejecting stage and prior observations;
+	// it never substitutes for a valid final report or changes the outcome.
+	FinalizationFailure FinalizationFailure
 	// Continuation is an in-memory, process-local handoff available only after
 	// a passing formal Soak boundary. It is never report or restart state.
 	Continuation *CoordinatorContinuation
@@ -1671,7 +1674,7 @@ observationComplete:
 			cancelHook()
 			if hookErr != nil {
 				c.stopAfterFailure(fence, attempted)
-				result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeFinalize
+				result.failFinalization(hookErr, terminalDecision, "controller_unknown", "invalid")
 				return result
 			}
 		}
@@ -1686,7 +1689,7 @@ observationComplete:
 	}
 	final, err := c.stopAssignedSnapshots(fence, assigned)
 	if err != nil {
-		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeFinalize
+		result.failFinalization(err, terminalDecision, "worker_stop", "snapshot_unavailable")
 		return result
 	}
 	if c.hooks != nil {
@@ -1697,13 +1700,13 @@ observationComplete:
 		})
 		cancelHook()
 		if hookErr != nil {
-			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeFinalize
+			result.failFinalization(hookErr, terminalDecision, "controller_unknown", "invalid")
 			return result
 		}
 	}
 	aggregated, err := aggregator.Aggregate(final)
 	if err != nil {
-		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeFinalize
+		result.failFinalization(err, terminalDecision, "snapshot_aggregate", string(productionControllerSnapshotFailureReason(err)))
 		return result
 	}
 	result.Outcome, result.Snapshot = terminalDecision, aggregated
@@ -1716,6 +1719,15 @@ observationComplete:
 		result.Code = CoordinatorCodeObserver
 	}
 	return result
+}
+
+// failFinalization records diagnostics while preserving the existing fail-closed
+// orchestration result. The observed decision remains separate from the verdict.
+func (r *CoordinatorResult) failFinalization(err error, decision CoordinatorOutcome, stage, reason string) {
+	r.Outcome, r.Code = CoordinatorHarnessInvalid, CoordinatorCodeFinalize
+	r.FinalizationFailure = finalizationDiagnostic(err, stage, reason)
+	r.FinalizationFailure.ObservedDecision = decision
+	r.FinalizationFailure = r.FinalizationFailure.Bounded()
 }
 
 func lockCoordinatorTerminationReason(
@@ -2307,8 +2319,18 @@ func (c *Coordinator) stopAssignedSnapshots(fence WorkerFence, assigned [coordin
 	wait.Wait()
 	snapshots := make([]WorkerSnapshot, coordinatorWorkerCount)
 	for workerID, result := range results {
-		if !assigned[workerID] || result.err != nil {
-			return nil, ErrCoordinatorSnapshotCount
+		if !assigned[workerID] {
+			return nil, newFinalizationError("worker_stop", "snapshot_unavailable", ErrCoordinatorSnapshotCount)
+		}
+		if result.err != nil {
+			reason := "control_failed"
+			switch {
+			case errors.Is(result.err, context.DeadlineExceeded):
+				reason = "deadline"
+			case errors.Is(result.err, context.Canceled):
+				reason = "canceled"
+			}
+			return nil, newFinalizationError("worker_stop", reason, errors.Join(ErrCoordinatorSnapshotCount, result.err))
 		}
 		snapshots[workerID] = result.snapshot
 	}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -253,7 +254,10 @@ func (r *productionChatLifecycleRunner) Run(ctx context.Context) (chatLifecycleR
 		}
 		return chatLifecycleRunResult{
 			Verdict: verdict,
-			Summary: fmt.Sprintf("chat-lifecycle outcome=%s cause=%s report=%s\n", report.Verdict.Outcome, report.Verdict.Cause, finalPath),
+			Summary: chatLifecycleAppendFinalizationSummary(
+				fmt.Sprintf("chat-lifecycle outcome=%s cause=%s report=%s\n", report.Verdict.Outcome, report.Verdict.Cause, finalPath),
+				result.FinalizationFailure,
+			),
 		}, nil
 	}
 	verdict := chatLifecycleCoordinatorVerdict(result)
@@ -268,9 +272,22 @@ func chatLifecycleCoordinatorSummary(
 	result chatlifecycle.CoordinatorResult,
 	report string,
 ) string {
-	return fmt.Sprintf(
+	return chatLifecycleAppendFinalizationSummary(fmt.Sprintf(
 		"chat-lifecycle outcome=%s cause=%s coordinator_code=%s grant_failure_code=%s worker_runtime_code=%s observer_code=%s preflight_code=%s report=%s\n",
 		verdict.Outcome, verdict.Cause, result.Code, result.GrantFailure, result.WorkerFailure.RuntimeCode, result.ObserverCode, result.Preflight.Code, report,
+	), result.FinalizationFailure)
+}
+
+// chatLifecycleAppendFinalizationSummary adds observations to either existing
+// result path without replacing its report preference, verdict, or exit code.
+func chatLifecycleAppendFinalizationSummary(summary string, failure chatlifecycle.FinalizationFailure) string {
+	failure = failure.Bounded()
+	if failure.Stage == "" {
+		return summary
+	}
+	return strings.TrimSuffix(summary, "\n") + fmt.Sprintf(
+		" finalization_stage=%s finalization_reason=%s observed_decision=%s observed_outcome=%s observed_cause=%s observed_terminal=%t\n",
+		failure.Stage, failure.Reason, failure.ObservedDecision, failure.ObservedOutcome, failure.ObservedCause, failure.ObservedTerminal,
 	)
 }
 

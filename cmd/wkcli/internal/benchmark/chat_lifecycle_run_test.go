@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -58,6 +59,40 @@ func TestChatLifecycleUnavailableSummaryIncludesObserverCode(t *testing.T) {
 	const want = "chat-lifecycle outcome=product_failure cause=worker_product_failure coordinator_code=observer grant_failure_code=delivery worker_runtime_code=engine_cpu_saturated observer_code=cluster_health preflight_code= report=unavailable\n"
 	if got != want {
 		t.Fatalf("summary = %q, want %q", got, want)
+	}
+}
+
+func TestChatLifecycleFinalizationSummaryRetainsClosedBoundaryWithoutChangingVerdict(t *testing.T) {
+	result := chatlifecycle.CoordinatorResult{
+		Outcome: chatlifecycle.CoordinatorHarnessInvalid, Code: chatlifecycle.CoordinatorCodeFinalize,
+		FinalizationFailure: chatlifecycle.FinalizationFailure{
+			Stage: "meta_checkpoint", Reason: "invalid", ObservedDecision: chatlifecycle.CoordinatorProductFailure,
+			ObservedOutcome: chatlifecycle.VerdictProductFailure, ObservedCause: chatlifecycle.VerdictCauseMessageLoss, ObservedTerminal: true,
+		},
+	}
+	verdict := chatLifecycleCoordinatorVerdict(result)
+	if verdict.Outcome != chatlifecycle.VerdictHarnessInvalid || verdict.Cause != chatlifecycle.VerdictCauseInvalidObservation || chatLifecycleVerdictExitCode(verdict) != exitChatLifecycleHarness {
+		t.Fatalf("diagnostic observation replaced the failed finalization verdict: %+v", verdict)
+	}
+	got := chatLifecycleCoordinatorSummary(verdict, result, "unavailable")
+	for _, fragment := range []string{"finalization_stage=meta_checkpoint", "finalization_reason=invalid", "observed_decision=product_failure", "observed_outcome=product_failure", "observed_cause=message_loss", "observed_terminal=true", "report=unavailable"} {
+		if !strings.Contains(got, fragment) {
+			t.Errorf("summary %q misses %q", got, fragment)
+		}
+	}
+	// A report selected by the existing reader keeps its own verdict; the
+	// coordinator failure remains an additional diagnostic on that path.
+	chosenReportVerdict := chatlifecycle.VerdictSnapshot{Outcome: chatlifecycle.VerdictProductFailure, Cause: chatlifecycle.VerdictCauseTerminalSend, Terminal: true}
+	reported := chatLifecycleCoordinatorSummary(chosenReportVerdict, result, "existing-final.json")
+	if !strings.HasPrefix(reported, "chat-lifecycle outcome=product_failure cause=terminal_send ") || !strings.Contains(reported, "finalization_stage=meta_checkpoint") || chatLifecycleVerdictExitCode(chosenReportVerdict) != exitChatLifecycleProduct {
+		t.Fatalf("finalization diagnostics changed the selected report projection: %q", reported)
+	}
+	result.FinalizationFailure = chatlifecycle.FinalizationFailure{
+		Stage: "private-token-stage", Reason: "private-token-reason", ObservedOutcome: "private-token-outcome", ObservedCause: "private-token-cause", ObservedTerminal: true,
+	}
+	got = chatLifecycleCoordinatorSummary(verdict, result, "unavailable")
+	if strings.Contains(got, "private-token") || !strings.Contains(got, "finalization_stage=controller_unknown") || !strings.Contains(got, "observed_terminal=false") {
+		t.Fatalf("summary exposed unbounded finalization values: %q", got)
 	}
 }
 
