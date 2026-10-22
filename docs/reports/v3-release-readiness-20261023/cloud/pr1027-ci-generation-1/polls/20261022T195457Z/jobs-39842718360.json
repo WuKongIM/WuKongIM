@@ -1,0 +1,145 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 120047791220,
+      "run_id": 39842718360,
+      "workflow_name": "Manager Browser Smoke pull_request 1027 attempt 1",
+      "head_branch": "codex/v3-loss-observability",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39842718360",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAb82fsdA",
+      "head_sha": "a93837d3fb55369acfe2d131aff52914f55a867f",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/120047791220",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39842718360/job/120047791220",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T19:44:27Z",
+      "started_at": "2026-10-22T19:44:29Z",
+      "completed_at": "2026-10-22T19:54:56Z",
+      "name": "Real three-node Manager Chromium smoke",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-22T19:44:30Z",
+          "completed_at": "2026-10-22T19:44:33Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-22T19:44:33Z",
+          "completed_at": "2026-10-22T19:44:38Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-22T19:44:38Z",
+          "completed_at": "2026-10-22T19:44:53Z"
+        },
+        {
+          "name": "Set up Bun",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-22T19:44:53Z",
+          "completed_at": "2026-10-22T19:44:55Z"
+        },
+        {
+          "name": "Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-22T19:44:55Z",
+          "completed_at": "2026-10-22T19:45:10Z"
+        },
+        {
+          "name": "Install Chromium and build the production Manager bundle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-22T19:45:10Z",
+          "completed_at": "2026-10-22T19:54:05Z"
+        },
+        {
+          "name": "Run the real three-node browser matrix",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-22T19:54:05Z",
+          "completed_at": "2026-10-22T19:54:51Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-22T19:54:51Z",
+          "completed_at": "2026-10-22T19:54:51Z"
+        },
+        {
+          "name": "Upload browser failure evidence",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 9,
+          "started_at": "2026-10-22T19:54:51Z",
+          "completed_at": "2026-10-22T19:54:51Z"
+        },
+        {
+          "name": "Post Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-22T19:54:51Z",
+          "completed_at": "2026-10-22T19:54:52Z"
+        },
+        {
+          "name": "Post Set up Bun",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-22T19:54:52Z",
+          "completed_at": "2026-10-22T19:54:52Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-22T19:54:52Z",
+          "completed_at": "2026-10-22T19:54:52Z"
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-22T19:54:52Z",
+          "completed_at": "2026-10-22T19:54:52Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-22T19:54:52Z",
+          "completed_at": "2026-10-22T19:54:52Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/120047791220",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024663,
+      "runner_name": "GitHub Actions 1000024663",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

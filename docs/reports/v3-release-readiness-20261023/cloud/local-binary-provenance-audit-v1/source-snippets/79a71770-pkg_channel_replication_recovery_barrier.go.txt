@@ -1,0 +1,30 @@
+48: 	}
+49: 	proposal := durableProposal{
+50: 		first: recovered.LEO + 1, last: recovered.LEO + 1,
+51: 		channelKey: authority.Key, channelID: authority.ChannelID, leader: authority.Leader,
+52: 		manifest: manifest, records: []ch.Record{record}, committed: recovered.LEO,
+53: 	}
+54: 	result, err := runDurableRound(ctx, authority.Leader, authority.Voters, authority.WriteQuorum, proposal, dispatcher)
+55: 	if err != nil {
+56: 		// Only a durable local barrier with every missing vote accounted for by
+57: 		// this round's exact NeedFrom receipts is pending recovery. Unknown,
+58: 		// conflicting, backpressured, or locally non-durable outcomes stay closed.
+59: 		if err == errDurableQuorumUnavailable && result.localDurable &&
+60: 			result.durableVotes < authority.WriteQuorum &&
+61: 			result.durableVotes+len(result.repairs) == len(authority.Voters) {
+62: 			for _, repair := range result.repairs {
+63: 				if repair.needFrom == 0 || repair.needFrom > proposal.last {
+64: 					return recoveryBarrierResult{}, err
+65: 				}
+66: 			}
+67: 			return recoveryBarrierResult{}, errors.Join(ch.ErrNotReady, err)
+68: 		}
+69: 		return recoveryBarrierResult{}, err
+70: 	}
+71: 	if !result.localDurable || result.durableVotes < authority.WriteQuorum || !result.outcome.Durable() {
+72: 		return recoveryBarrierResult{}, errDurableQuorumUnavailable
+73: 	}
+74: 	return recoveryBarrierResult{State: ReplicaState{
+75: 		LEO: manifest.LastOffset, Committed: recovered.LEO, Manifest: manifest, TailIdentity: entries[0],
+76: 	}}, nil
+77: }

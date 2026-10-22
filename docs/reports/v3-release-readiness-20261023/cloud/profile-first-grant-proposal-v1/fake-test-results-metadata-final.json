@@ -1,0 +1,29 @@
+{
+  "fixture_only": true,
+  "cases": [
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-ms46tp88/run/profile-driver-status.json",
+      "driver_status": "complete",
+      "reason": "ok",
+      "requests": [
+        {
+          "kind": "cpu",
+          "at": 527570.224978125,
+          "path": "/debug/pprof/profile?seconds=10",
+          "auth_ok": true
+        },
+        {
+          "kind": "goroutine",
+          "at": 527575.265705833,
+          "path": "/debug/pprof/goroutine?debug=2",
+          "auth_ok": true
+        }
+      ],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-ms46tp88"
+    }
+  ],
+  "driver_sha256": "6bf22ebcf256c04e34f24c84a9e6f8217417295c23dfd57dcf48032c7f14e566",
+  "helper_sha256": "197b86be9f5f245a9b4c0dccc78b660094e2399cf19d1b9aba26b5e5ea319448"
+}

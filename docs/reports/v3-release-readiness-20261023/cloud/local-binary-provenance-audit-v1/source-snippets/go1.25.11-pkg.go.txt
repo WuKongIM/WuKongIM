@@ -1,0 +1,92 @@
+2496: 	var repoDir string
+2497: 	var vcsCmd *vcs.Cmd
+2498: 	var err error
+2499: 
+2500: 	wantVCS := false
+2501: 	switch cfg.BuildBuildvcs {
+2502: 	case "true":
+2503: 		wantVCS = true // Include VCS metadata even for tests if requested explicitly; see https://go.dev/issue/52648.
+2504: 	case "auto":
+2505: 		wantVCS = autoVCS && !p.IsTestOnly()
+2506: 	case "false":
+2507: 	default:
+2508: 		panic(fmt.Sprintf("unexpected value for cfg.BuildBuildvcs: %q", cfg.BuildBuildvcs))
+2509: 	}
+2510: 
+2511: 	if wantVCS && p.Module != nil && p.Module.Version == "" && !p.Standard {
+2512: 		if p.Module.Path == "bootstrap" && cfg.GOROOT == os.Getenv("GOROOT_BOOTSTRAP") {
+2513: 			// During bootstrapping, the bootstrap toolchain is built in module
+2514: 			// "bootstrap" (instead of "std"), with GOROOT set to GOROOT_BOOTSTRAP
+2515: 			// (so the bootstrap toolchain packages don't even appear to be in GOROOT).
+2516: 			goto omitVCS
+2517: 		}
+2518: 		repoDir, vcsCmd, err = vcs.FromDir(base.Cwd(), "")
+2519: 		if err != nil && !errors.Is(err, os.ErrNotExist) {
+2520: 			setVCSError(err)
+2521: 			return
+2522: 		}
+2523: 		if !str.HasFilePathPrefix(p.Module.Dir, repoDir) &&
+2524: 			!str.HasFilePathPrefix(repoDir, p.Module.Dir) {
+2525: 			// The module containing the main package does not overlap with the
+2526: 			// repository containing the working directory. Don't include VCS info.
+2527: 			// If the repo contains the module or vice versa, but they are not
+2528: 			// the same directory, it's likely an error (see below).
+2529: 			goto omitVCS
+2530: 		}
+2531: 		if cfg.BuildBuildvcs == "auto" && vcsCmd != nil && vcsCmd.Cmd != "" {
+2532: 			if _, err := pathcache.LookPath(vcsCmd.Cmd); err != nil {
+2533: 				// We fould a repository, but the required VCS tool is not present.
+2534: 				// "-buildvcs=auto" means that we should silently drop the VCS metadata.
+2535: 				goto omitVCS
+2536: 			}
+2537: 		}
+2538: 	}
+2539: 	if repoDir != "" && vcsCmd.Status != nil {
+2540: 		// Check that the current directory, package, and module are in the same
+2541: 		// repository. vcs.FromDir disallows nested VCS and multiple VCS in the
+2542: 		// same repository, unless the GODEBUG allowmultiplevcs is set. The
+2543: 		// current directory may be outside p.Module.Dir when a workspace is
+2544: 		// used.
+2545: 		pkgRepoDir, _, err := vcs.FromDir(p.Dir, "")
+2546: 		if err != nil {
+2547: 			setVCSError(err)
+2548: 			return
+2549: 		}
+2550: 		if pkgRepoDir != repoDir {
+2551: 			if cfg.BuildBuildvcs != "auto" {
+2552: 				setVCSError(fmt.Errorf("main package is in repository %q but current directory is in repository %q", pkgRepoDir, repoDir))
+2553: 				return
+2554: 			}
+2555: 			goto omitVCS
+2556: 		}
+2557: 		modRepoDir, _, err := vcs.FromDir(p.Module.Dir, "")
+2558: 		if err != nil {
+2559: 			setVCSError(err)
+2560: 			return
+2561: 		}
+2562: 		if modRepoDir != repoDir {
+2563: 			if cfg.BuildBuildvcs != "auto" {
+2564: 				setVCSError(fmt.Errorf("main module is in repository %q but current directory is in repository %q", modRepoDir, repoDir))
+2565: 				return
+2566: 			}
+2567: 			goto omitVCS
+2568: 		}
+2569: 
+2570: 		st, err := vcsStatusCache.Do(repoDir, func() (vcs.Status, error) {
+2571: 			return vcsCmd.Status(vcsCmd, repoDir)
+2572: 		})
+2573: 		if err != nil {
+2574: 			setVCSError(err)
+2575: 			return
+2576: 		}
+2577: 
+2578: 		appendSetting("vcs", vcsCmd.Cmd)
+2579: 		if st.Revision != "" {
+2580: 			appendSetting("vcs.revision", st.Revision)
+2581: 		}
+2582: 		if !st.CommitTime.IsZero() {
+2583: 			stamp := st.CommitTime.UTC().Format(time.RFC3339Nano)
+2584: 			appendSetting("vcs.time", stamp)
+2585: 		}
+2586: 		appendSetting("vcs.modified", strconv.FormatBool(st.Uncommitted))
+2587: 		// Determine the correct version of this module at the current revision and update the build metadata accordingly.

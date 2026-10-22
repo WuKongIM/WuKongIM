@@ -1,0 +1,142 @@
+{
+  "sha": "25a4765be7bed6696e1c9748142bdd61543b508c",
+  "node_id": "C_kwDOJgfwydoAKDI1YTQ3NjViZTdiZWQ2Njk2ZTFjOTc0ODE0MmJkZDYxNTQzYjUwOGM",
+  "commit": {
+    "author": {
+      "name": "WuKongIM",
+      "email": "tangtaoit@githubim.com",
+      "date": "2026-10-22T18:51:24Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-22T18:51:24Z"
+    },
+    "message": "Merge pull request #1026 from WuKongIM/codex/v3-rc-terminal-metrics\n\nfix: collect registered terminal metrics",
+    "tree": {
+      "sha": "89011038f444c5e9c8bd95f4a6814868676b4501",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/89011038f444c5e9c8bd95f4a6814868676b4501"
+    },
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/25a4765be7bed6696e1c9748142bdd61543b508c",
+    "comment_count": 0,
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq2lssCRC1aQ7uu5UhlAAAZVsQAA2h1rneXlyNQOcRJA1H9QvH\n0uNwHm0xk7p6HopiEZxQwndtO/lUzkzn3+Ca747JGCla6HtVtGdtyAnNURpA0JJw\nHJubNLLD/5tYzF9I/ppC6WogB8y45F/n5NbF2SVnaS1Wt1eAssfhWGKL8aGOtnTl\nhC/2OUisQNBlwpd44rv8Jn+3/BXUz9/mweWaaa53nU6QqF9w8CY9KPvBw6jl7I38\nTzxr/dwWVDEx8+4HcXhKjHnb6dPcJ2xCqEQOBJQPcdM0eT3WtVG3z5UjJDqgQsoi\ntavMr2gp8X8zi4wXHdf7559L1ElH2avx7AeejpWweehTDcTpPHC0H8hW1eIo8PkO\nP/6ieIzP2PSYQAEpnNlgKGPNX1m97GK27DzKx8c/Y2y9+DXKC1cM9MNveaCWDcU4\n9PhtOH0MfC1HWQy9f7GJ4VPpa+m/0o7KTP42H0w1lmXlxdQMk/WWDB0kRcDTdmdh\ndyPewUIPvFVsiX+i7PT0S0KOgRvtUEh/q8/5Bi9ypx+f0ytlZmoj+NgyEeQnvnqa\nZ8Pl8xBMI6fr0abDAlyZzvlv7OkGlr9jPsRHV8VxVjlpaqZEWQt/sVAeM/gMlMNn\nKEVTYWf40+x9GC1J2t7N4z1ZhAcy3h7VUWogZgj8nbUwk3tTSxLSQ6SSzAFWScfx\nRxZHiGoW7G7yxFeMjwPO\n=59LL\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 89011038f444c5e9c8bd95f4a6814868676b4501\nparent 79a7177032a6ae1ec7015cefe0e6f94eb0f19f06\nparent 23cf3f8764c2b841128b1a80d79ba9f49f447549\nauthor WuKongIM <tangtaoit@githubim.com> 1792695084 +0800\ncommitter GitHub <noreply@github.com> 1792695084 +0800\n\nMerge pull request #1026 from WuKongIM/codex/v3-rc-terminal-metrics\n\nfix: collect registered terminal metrics",
+      "verified_at": "2026-10-22T18:51:24Z"
+    }
+  },
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/25a4765be7bed6696e1c9748142bdd61543b508c",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/commit/25a4765be7bed6696e1c9748142bdd61543b508c",
+  "comments_url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/25a4765be7bed6696e1c9748142bdd61543b508c/comments",
+  "author": {
+    "login": "tangtaoit",
+    "id": 3895878,
+    "node_id": "MDQ6VXNlcjM4OTU4Nzg=",
+    "avatar_url": "https://avatars.githubusercontent.com/u/3895878?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/tangtaoit",
+    "html_url": "https://github.com/tangtaoit",
+    "followers_url": "https://api.github.com/users/tangtaoit/followers",
+    "following_url": "https://api.github.com/users/tangtaoit/following{/other_user}",
+    "gists_url": "https://api.github.com/users/tangtaoit/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/tangtaoit/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/tangtaoit/subscriptions",
+    "organizations_url": "https://api.github.com/users/tangtaoit/orgs",
+    "repos_url": "https://api.github.com/users/tangtaoit/repos",
+    "events_url": "https://api.github.com/users/tangtaoit/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/tangtaoit/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "committer": {
+    "login": "web-flow",
+    "id": 19864447,
+    "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
+    "avatar_url": "https://avatars.githubusercontent.com/u/19864447?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/web-flow",
+    "html_url": "https://github.com/web-flow",
+    "followers_url": "https://api.github.com/users/web-flow/followers",
+    "following_url": "https://api.github.com/users/web-flow/following{/other_user}",
+    "gists_url": "https://api.github.com/users/web-flow/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/web-flow/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/web-flow/subscriptions",
+    "organizations_url": "https://api.github.com/users/web-flow/orgs",
+    "repos_url": "https://api.github.com/users/web-flow/repos",
+    "events_url": "https://api.github.com/users/web-flow/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/web-flow/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "parents": [
+    {
+      "sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/79a7177032a6ae1ec7015cefe0e6f94eb0f19f06"
+    },
+    {
+      "sha": "23cf3f8764c2b841128b1a80d79ba9f49f447549",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/23cf3f8764c2b841128b1a80d79ba9f49f447549",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/23cf3f8764c2b841128b1a80d79ba9f49f447549"
+    }
+  ],
+  "stats": {
+    "total": 139,
+    "additions": 117,
+    "deletions": 22
+  },
+  "files": [
+    {
+      "sha": "3443ad00a9bbaa1383ef68b32001d69e3bb9b738",
+      "filename": "CHANGELOG.md",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 0,
+      "changes": 4,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/25a4765be7bed6696e1c9748142bdd61543b508c/CHANGELOG.md",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/25a4765be7bed6696e1c9748142bdd61543b508c/CHANGELOG.md",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/CHANGELOG.md?ref=25a4765be7bed6696e1c9748142bdd61543b508c",
+      "patch": "@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.\n \n ### \ud83d\udc1b Bug Fixes / \u95ee\u9898\u4fee\u590d\n \n+- Capture registered Go, process and Channel counters in cloud terminal evidence,\n+  so missing metric coverage remains distinguishable from a zero value.\n+  / \u4e91\u7aef\u7ec8\u6001\u8bca\u65ad\u6309\u5b9e\u9645\u5bfc\u51fa\u540d\u79f0\u6536\u96c6 Go\u3001\u8fdb\u7a0b\u548c\u9891\u9053\u8ba1\u6570\u6307\u6807\uff0c\u660e\u786e\u533a\u5206\u7f3a\u5931\u8986\u76d6\u4e0e\u96f6\u503c\u3002\n+\n - Cancel and join local threshold profile requests even when a signal arrives\n   during request startup, preserving interruption metadata and removing partial\n   files. / \u672c\u5730\u9608\u503c\u6027\u80fd\u91c7\u6837\u5728\u8bf7\u6c42\u542f\u52a8\u671f\u95f4\u6536\u5230\u4fe1\u53f7\u65f6\u4e5f\u4f1a\u5b8c\u6574\u53d6\u6d88\u5e76\u7b49\u5f85\u8bf7\u6c42\u7ed3\u675f\uff0c"
+    },
+    {
+      "sha": "3452d5d4c955df1afb551f2f18d50840c96a603d",
+      "filename": "docs/development/PROJECT_KNOWLEDGE.md",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 4,
+      "changes": 13,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/25a4765be7bed6696e1c9748142bdd61543b508c/docs%2Fdevelopment%2FPROJECT_KNOWLEDGE.md",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/25a4765be7bed6696e1c9748142bdd61543b508c/docs%2Fdevelopment%2FPROJECT_KNOWLEDGE.md",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/docs%2Fdevelopment%2FPROJECT_KNOWLEDGE.md?ref=25a4765be7bed6696e1c9748142bdd61543b508c",
+      "patch": "@@ -1917,11 +1917,16 @@ specification, runbook, report, or module documentation; link to them when neede\n   snapshot sequences and cut time to the final report. Aggregate loss counts alone\n   cannot reconstruct an expired sample after Lease release. Metric collection uses\n   the terminal report window rather than finalizer wall time: eight fixed queries\n-  preserve the previous selector plus exact presence-endpoint and delivery-worker,\n+  cover runtime pools, channel workers, exact presence-endpoint and delivery-worker,\n   authority-resolution and push-RPC families, with a shared 24 MiB transfer budget\n-  and 60-second deadline. Valid partitions survive sibling failures; empty families\n-  have explicit zero coverage. Missing, malformed or oversized required evidence\n-  stays incomplete and never replaces an earlier product failure. Query boundaries\n+  and 60-second deadline. Resource queries use registered standard `go_*` and\n+  `process_*` names alongside the independent `wukongim_process_*` collector;\n+  Channel counters use `wukongim_channel(v2)?_meta_created_total` and\n+  `wukongim_channel(v2)?_activation_rejected_total`. Legacy/promoted counter\n+  families remain separate raw series and must not be summed as distinct events.\n+  Valid partitions survive sibling failures; empty families have explicit zero\n+  coverage and unknown values, never measured zero. Missing, malformed or oversized\n+  required evidence stays incomplete and never replaces an earlier product failure. Query boundaries\n   use Prometheus millisecond precision while retaining the report's nanosecond cut;\n   only a legal terminal failure in formal soak with canonical not-attempted capacity\n   evidence can exempt absent capacity documents. Passing outcomes still require"
+    },
+    {
+      "sha": "0a6350eab7a0ec188917bccd96830f5a63e53f10",
+      "filename": "scripts/chat-lifecycle/terminal-evidence.py",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 4,
+      "changes": 8,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/25a4765be7bed6696e1c9748142bdd61543b508c/scripts%2Fchat-lifecycle%2Fterminal-evidence.py",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/25a4765be7bed6696e1c9748142bdd61543b508c/scripts%2Fchat-lifecycle%2Fterminal-evidence.py",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/scripts%2Fchat-lifecycle%2Fterminal-evidence.py?ref=25a4765be7bed6696e1c9748142bdd61543b508c",
+      "patch": "@@ -18,17 +18,17 @@\n MAX_FILE_BYTES = 4 << 20\n METRIC_TOTAL_BYTES = 24 << 20\n METRIC_DEADLINE_SECONDS = 60\n-# Two exact diagnostic families precede the six disjoint factors of the old selector.\n+# Exact diagnostic families precede bounded runtime and registered resource families.\n # This ordering preserves useful failure signals even when the shared budget expires.\n METRIC_PARTITIONS = (\n     (\"presence\", r\"wukongim_presence_endpoint_lookup_(total|items_total|groups_total|duration_seconds_(bucket|sum|count))\"),\n     (\"delivery\", r\"wukongim_delivery_(recipient_worker_(queue_depth|queue_capacity|inflight|capacity|admission_total|admission_wait_seconds_(bucket|sum|count)|process_total|process_duration_seconds_(bucket|sum|count)|process_recipients_(bucket|sum|count))|recipient_authority_resolve_(total|items_total|targets_total|duration_seconds_(bucket|sum|count))|push_rpc_(total|routes_total|duration_seconds_(bucket|sum|count)))\"),\n     (\"up\", r\"up\"),\n     (\"runtime\", r\"wukongim_runtime_.*\"),\n     (\"channel_worker\", r\"wukongim_channel_worker_.*\"),\n-    (\"process\", r\"wukongim_process_.*\"),\n-    (\"counters\", r\"wukongim_(metadata_create_total|activation_rejected_total)\"),\n-    (\"go\", r\"wukongim_go_.*\"),\n+    (\"process\", r\"(wukongim_)?process_.*\"),\n+    (\"counters\", r\"wukongim_channel(v2)?_(meta_created|activation_rejected)_total\"),\n+    (\"go\", r\"go_.*\"),\n )\n \n "
+    },
+    {
+      "sha": "4aa4378939666c53145baa7f882e785fc1c1d5e6",
+      "filename": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+      "status": "modified",
+      "additions": 100,
+      "deletions": 14,
+      "changes": 114,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/25a4765be7bed6696e1c9748142bdd61543b508c/scripts%2Ftestdata%2Fchat_lifecycle_terminal_evidence_test.py",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/25a4765be7bed6696e1c9748142bdd61543b508c/scripts%2Ftestdata%2Fchat_lifecycle_terminal_evidence_test.py",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/scripts%2Ftestdata%2Fchat_lifecycle_terminal_evidence_test.py?ref=25a4765be7bed6696e1c9748142bdd61543b508c",
+      "patch": "@@ -24,7 +24,12 @@\n END = \"2026-10-21T17:06:50.121277292Z\"\n RUN = \"terminal-fixture\"\n FAMILIES = [\"presence\", \"delivery\", \"up\", \"runtime\", \"channel_worker\", \"process\", \"counters\", \"go\"]\n-NAMES = {\"up\": \"up\", \"runtime\": \"wukongim_runtime_queue\", \"channel_worker\": \"wukongim_channel_worker_busy\", \"process\": \"wukongim_process_cpu\", \"counters\": \"wukongim_metadata_create_total\", \"go\": \"wukongim_go_heap\"}\n+NAMES = {\"up\": \"up\", \"runtime\": \"wukongim_runtime_pool_queue_depth\", \"channel_worker\": \"wukongim_channel_worker_queue_depth\", \"process\": \"wukongim_process_cpu_jiffies_total\", \"counters\": \"wukongim_channelv2_meta_created_total\", \"go\": \"go_goroutines\"}\n+REGISTERED_RESOURCES = {\n+    \"process\": [\"wukongim_process_cpu_jiffies_total\", \"process_cpu_seconds_total\", \"process_start_time_seconds\", \"process_resident_memory_bytes\"],\n+    \"counters\": [\"wukongim_channelv2_meta_created_total\", \"wukongim_channel_meta_created_total\", \"wukongim_channelv2_activation_rejected_total\", \"wukongim_channel_activation_rejected_total\"],\n+    \"go\": [\"go_goroutines\", \"go_memstats_heap_alloc_bytes\", \"go_gc_duration_seconds_count\", \"go_sched_latencies_seconds_bucket\", \"go_sched_latencies_seconds_sum\", \"go_sched_latencies_seconds_count\"],\n+}\n \n \n def report(stage=\"rehearsal\"):\n@@ -53,7 +58,7 @@ def status():\n def metric_family(query):\n     if 'runtime_.*|channel_worker' in query:return 'combined'\n     if query in ('up','{__name__=\"up\"}'):return 'up'\n-    for fragment,family in [('presence_endpoint_lookup_','presence'),('delivery_','delivery'),('runtime_','runtime'),('channel_worker_','channel_worker'),('process_','process'),('metadata_create_total','counters'),('go_','go')]:\n+    for fragment,family in [('presence_endpoint_lookup_','presence'),('delivery_','delivery'),('runtime_','runtime'),('channel_worker_','channel_worker'),('process_','process'),('meta_created','counters'),('metadata_create_total','counters'),('go_','go')]:\n         if fragment in query:return family\n     raise AssertionError('unknown fixture metric query')\n \n@@ -88,6 +93,8 @@ def prepare_ssh(directory, cfg, end):\n         key='range-'+family;mode=modes.get(key,'normal')\n         result={'metric':{'__name__':name},'values':[[1792602410,'1']]}\n         data={'status':'success','data':{'resultType':'matrix','result':[result]}}\n+        if mode=='registered':\n+            data['data']['result']=[{'metric':{'__name__':metric,'job':'wukongim'},'values':[[1792602400,'1'],[1792602410,'2']]} for metric in REGISTERED_RESOURCES[family]]\n         if mode in ('boundary-start','boundary-end','before-start','after-end','sub-millisecond'):\n             # Independent fixture time plus exact actual-command matching prevents\n             # a wrong query from receiving a conveniently prepared boundary value.\n@@ -137,7 +144,7 @@ def prepare_ssh(directory, cfg, end):\n    *runtime_*) kind=range-runtime ;;\n    *channel_worker_*) kind=range-channel_worker ;;\n    *process_*) kind=range-process ;;\n-   *metadata_create_total*) kind=range-counters ;;\n+   *meta_created*|*metadata_create_total*) kind=range-counters ;;\n    *go_*) kind=range-go ;;\n    *query=up*|*'__name__=\"up\"'*) kind=range-up ;;\n    *) exit 99 ;;\n@@ -218,6 +225,28 @@ def test_formal_before_capacity_is_explicitly_not_applicable(self):\n         self.assertFalse(any(c['kind'].startswith('capacity/') for c in calls))\n         self.assertIn('workload/formal/worker-evidence.json',files)\n \n+    def test_registered_resource_families_survive_the_real_collector(self):\n+        rc,m,calls,files,_=self.run_case('registered-resource-families',metric_modes=dict.fromkeys(REGISTERED_RESOURCES,'registered'))\n+        self.assertEqual(rc,0);self.assertTrue(m['complete'])\n+        ranges=[c for c in calls if c['kind'].startswith('range-')]\n+        self.assertEqual([c['kind'] for c in ranges],['range-'+x for x in FAMILIES])\n+        for family,names in REGISTERED_RESOURCES.items():\n+            with self.subTest(family=family):\n+                row=self.capture(m,'range-'+family)\n+                self.assertEqual(row['state'],'collected')\n+                self.assertEqual(row['series_count'],len(names));self.assertEqual(row['sample_count'],2*len(names))\n+                body=files['metrics/range-'+family+'.json']\n+                self.assertEqual(row['sha256'],hashlib.sha256(body).hexdigest())\n+                self.assertEqual([x['metric']['__name__'] for x in json.loads(body)['data']['result']],names)\n+                query=next(c['query'] for c in ranges if c['kind']=='range-'+family)\n+                pattern=re.fullmatch(r'\\{__name__=~\"([^\"]+)\"\\}',query).group(1)\n+                self.assertTrue(all(re.fullmatch(pattern,name) for name in names))\n+                self.assertEqual(row['window']['epoch_start'],'1792601510.121');self.assertEqual(row['window']['epoch_end'],'1792602410.121')\n+        self.assertEqual(m['metrics_budget']['max_requests'],8)\n+        self.assertEqual(m['metrics_budget']['max_total_bytes'],24<<20)\n+        self.assertEqual(m['metrics_budget']['deadline_seconds'],60)\n+        self.assertTrue(all(c['step']=='15' for c in ranges))\n+\n     def test_prometheus_millisecond_closed_window_and_raw_anchor(self):\n         for suffix in ['121277292','121777292','121500000','999777292']:\n             end='2026-10-21T17:06:50.'+suffix+'Z'\n@@ -357,10 +386,11 @@ def test_partitions_retain_more_than_original_single_response_cap(self):\n         self.assertEqual(m['metrics_budget']['retained_bytes'],total)\n \n     def test_empty_optional_metric_family_has_explicit_zero_coverage(self):\n-        rc,m,_,files,_=self.run_case('empty-go',metric_modes={'go':'empty'})\n+        rc,m,_,files,_=self.run_case('empty-resources',metric_modes={'go':'empty','counters':'empty'})\n         self.assertEqual(rc,0);self.assertTrue(m['complete'])\n-        row=self.capture(m,'range-go');self.assertEqual(row['series_count'],0);self.assertEqual(row['sample_count'],0)\n-        self.assertIsNone(row['observed_start']);self.assertIsNone(row['observed_end'])\n+        for family in ['go','counters']:\n+            row=self.capture(m,'range-'+family);self.assertEqual(row['series_count'],0);self.assertEqual(row['sample_count'],0)\n+            self.assertIsNone(row['observed_start']);self.assertIsNone(row['observed_end'])\n \n     def test_partial_metrics_keep_successful_siblings(self):\n         for mode in ['oversized','unavailable','partial','timeout','malformed','wrong-type','wrong-family','error']:\n@@ -381,14 +411,70 @@ def setUpClass(cls):\n \n     def test_selector_partition_is_disjoint_and_complete(self):\n         h=self.helper\n-        original=re.compile(r'up|wukongim_(runtime_.*|channel_worker_.*|process_.*|metadata_create_total|activation_rejected_total|go_.*)')\n-        # Algebraic factorization is checked with both prefixes and arbitrary suffixes;\n-        # exact counters and exclusions also matter, not just common metric names.\n-        for prefix in ['up','wukongim_runtime_','wukongim_channel_worker_','wukongim_process_','wukongim_metadata_create_total','wukongim_activation_rejected_total','wukongim_go_','node_','wukongim_other_']:\n-            for suffix in ['', 'x','_bucket','_sum','_count','runtime_.*']:\n-                name=prefix+suffix;matches=sum(bool(re.fullmatch(pattern,name)) for key,pattern in h.METRIC_PARTITIONS if key not in ('presence','delivery'))\n-                self.assertEqual(matches,int(bool(original.fullmatch(name))),name)\n-        self.assertEqual(len(h.METRIC_PARTITIONS),8)\n+        # These names come from the registered exporters, not the selector being tested.\n+        expected={\n+            'up':['up'],\n+            'runtime':['wukongim_runtime_pool_queue_depth'],\n+            'channel_worker':['wukongim_channel_worker_inflight'],\n+            'process':['wukongim_process_cpu_jiffies_total','wukongim_process_up',\n+                       'process_cpu_seconds_total','process_start_time_seconds','process_resident_memory_bytes'],\n+            'counters':['wukongim_channel_meta_created_total','wukongim_channelv2_meta_created_total',\n+                        'wukongim_channel_activation_rejected_total','wukongim_channelv2_activation_rejected_total'],\n+            'go':['go_goroutines','go_memstats_heap_alloc_bytes','go_gc_duration_seconds_count',\n+                  'go_sched_latencies_seconds_bucket','go_sched_latencies_seconds_sum','go_sched_latencies_seconds_count'],\n+        }\n+        for family,names in expected.items():\n+            for name in names:\n+                with self.subTest(metric=name):\n+                    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,name)],[family])\n+        for name in ['wukongim_metadata_create_total','wukongim_activation_rejected_total','wukongim_go_heap',\n+                     'wukongim_channel_meta_created_total_extra','wukongim_channelv2_activation_rejected_total_sum',\n+                     'wukongim_channel_meta_create_queue_depth','node_cpu_seconds_total','wukongim_other_secret']:\n+            with self.subTest(excluded=name):\n+                self.assertFalse(any(re.fullmatch(pattern,name) for _,pattern in h.METRIC_PARTITIONS))\n+        self.assertEqual([key for key,_ in h.METRIC_PARTITIONS],FAMILIES)\n+\n+    def test_registered_resource_matrices_retain_exact_bytes_without_extra_queries(self):\n+        h=self.helper\n+        exported={\n+            'process':['wukongim_process_cpu_jiffies_total','process_cpu_seconds_total',\n+                       'process_start_time_seconds','process_resident_memory_bytes'],\n+            'counters':['wukongim_channelv2_meta_created_total','wukongim_channel_meta_created_total',\n+                        'wukongim_channelv2_activation_rejected_total','wukongim_channel_activation_rejected_total'],\n+            'go':['go_goroutines','go_memstats_heap_alloc_bytes','go_gc_duration_seconds_count',\n+                  'go_sched_latencies_seconds_bucket','go_sched_latencies_seconds_sum','go_sched_latencies_seconds_count'],\n+        }\n+        bodies={family:json.dumps({'status':'success','data':{'resultType':'matrix','result':[\n+            {'metric':{'__name__':name,'job':'wukongim'},'values':[[1792602400,'1'],[1792602410,'2']]}\n+            for name in names]}}).encode() for family,names in exported.items()}\n+        empty=b'{\"status\":\"success\",\"data\":{\"resultType\":\"matrix\",\"result\":[]}}'\n+        calls=[]\n+        def capture(name,query,start,end,timeout,cap):\n+            calls.append((name,start,end,timeout,cap));return 'collected',bodies.get(name,empty)\n+        with tempfile.TemporaryDirectory() as directory:\n+            output=Path(directory)\n+            rows,budget=h.collect_ranges(output,{'end':END,'epoch_start':'1792601510.121','epoch_end':'1792602410.121','source':'rehearsal/final.json'},capture)\n+            for family,names in exported.items():\n+                with self.subTest(family=family):\n+                    row=next(x for x in rows if x['name']=='range-'+family)\n+                    self.assertEqual(row['state'],'collected')\n+                    self.assertEqual(row['series_count'],len(names));self.assertEqual(row['sample_count'],2*len(names))\n+                    self.assertEqual((output/row['path']).read_bytes(),bodies[family])\n+                    self.assertEqual(row['sha256'],hashlib.sha256(bodies[family]).hexdigest())\n+        self.assertEqual([x[0] for x in calls],FAMILIES)\n+        self.assertTrue(all(x[1:3]==('1792601510.121','1792602410.121') and 0<x[3]<=30 and x[4]<=4<<20 for x in calls))\n+        self.assertEqual(budget['max_requests'],8);self.assertEqual(budget['deadline_seconds'],60)\n+        self.assertEqual(budget['max_total_bytes'],24<<20)\n+\n+    def test_registered_counter_names_follow_exported_aliases(self):\n+        h=self.helper\n+        for source in ['channel.go','channel_runtime.go']:\n+            names=re.findall(r'Name:\\s+\"([^\"]+)\"',(ROOT/'pkg/metrics'/source).read_text())\n+            for name in names:\n+                if not name.endswith(('meta_created_total','activation_rejected_total')):continue\n+                exported=[name,name.replace('wukongim_channelv2_','wukongim_channel_')]\n+                for metric in set(exported):\n+                    self.assertEqual([key for key,pattern in h.METRIC_PARTITIONS if re.fullmatch(pattern,metric)],['counters'],metric)\n \n     def test_diagnostic_metric_names_are_exact_and_disjoint(self):\n         h=self.helper;patterns=dict(h.METRIC_PARTITIONS)"
+    }
+  ]
+}

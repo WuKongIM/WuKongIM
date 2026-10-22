@@ -1,0 +1,55 @@
+{
+  "collected_at_utc": "2026-10-22T20:21:16.070148+00:00",
+  "historical_build_environment_not_retained": true,
+  "current_parent_allowlisted_environment": {
+    "GIT_DIR": null,
+    "GIT_WORK_TREE": null,
+    "GIT_COMMON_DIR": null,
+    "GIT_INDEX_FILE": null,
+    "GOFLAGS": null,
+    "GOTOOLCHAIN": null,
+    "GOWORK": null
+  },
+  "worktree_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+  "worktree_realpath": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+  "worktree_git_file": "gitdir: /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.git/worktrees/v3-rc-loss-diagnosis",
+  "worktree_head_now": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "worktree_status_now": [
+    " M test/e2e/AGENTS.md",
+    " M test/e2e/message/AGENTS.md",
+    "?? test/e2e/message/online_loss_reproduction/AGENTS.md",
+    "?? test/e2e/message/online_loss_reproduction/online_loss_reproduction_test.go"
+  ],
+  "host_dispatcher": {
+    "path": "/usr/local/go/bin/go",
+    "version": "go version go1.23.4 darwin/arm64"
+  },
+  "selected_installed_toolchain": {
+    "absolute_path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "go_binary_sha256": "b65655bf3d496007755bd132e9611f9e5e64c46e33d89fcafdef916e299587fd",
+    "actual_version": "go version go1.25.11 darwin/arm64",
+    "env_in_worktree": "{\n\t\"GOFLAGS\": \"\",\n\t\"GOMOD\": \"/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/go.mod\",\n\t\"GOROOT\": \"/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64\",\n\t\"GOTOOLDIR\": \"/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/pkg/tool/darwin_arm64\",\n\t\"GOVERSION\": \"go1.25.11\",\n\t\"GOWORK\": \"off\"\n}\n"
+  },
+  "refused_readonly_dispatcher_probe": {
+    "command": [
+      "go",
+      "env",
+      "GOROOT",
+      "GOVERSION",
+      "GOFLAGS",
+      "GOTOOLDIR",
+      "GOMOD",
+      "GOWORK"
+    ],
+    "environment_overrides": {
+      "GOWORK": "off",
+      "GOPROXY": "off",
+      "GOSUMDB": "off",
+      "GOTOOLCHAIN": "go1.25.11"
+    },
+    "exit_code": 1,
+    "message": "golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64: verifying module: checksum database disabled by GOSUMDB=off",
+    "handling": "No retry through network. Read-only version/env metadata used the already installed absolute Go binary instead. No build or target execution."
+  },
+  "limits": "Current read-only environment and worktree state cannot reconstruct the environment at historical build time; they do not resolve why the CLI build declaration and embedded VCS differ."
+}

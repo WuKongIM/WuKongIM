@@ -1,0 +1,31 @@
+--- A/launcher.sh
++++ proposed/launcher.sh
+@@ -2,7 +2,7 @@
+ set -euo pipefail
+ umask 077
+ ROOT_DIR='/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis'
+-RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2'
++RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1'
+ BASE_PORT=25000
+ READY_TIMEOUT=60
+ CLEANUP_TIMEOUT=15
+@@ -353,9 +353,18 @@
+ "$WK_CLI_BIN" bench soak chat-lifecycle --config "$LIFECYCLE_CONFIG" --output-dir "$REPORT_DIR" >"$LOG_DIR/coordinator.log" 2>&1 &
+ COORDINATOR_PID=$!
+ record_pid coordinator "$COORDINATOR_PID"
++
++# Temporary node2 diagnostic; shares this exact owned workload process group.
++python3 /tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v1/watch-first-grant.py --run-dir /tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1 --out-dir /tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/profiles-node2 --source-root /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis --source-revision 79a7177032a6ae1ec7015cefe0e6f94eb0f19f06 --binary /tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/bin/wukongim --binary-sha256 c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379 --helper /tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v1/capture-first-grant-profiles.sh --helper-sha256 197b86be9f5f245a9b4c0dccc78b660094e2399cf19d1b9aba26b5e5ea319448 --base-port 25000 --run-hash sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52 --assignment-hash sha256:f9814da7618b2c867b9e8b7e82745b2a5dd3de6cd0b04cf696f96bcc80bfcd8c --generation 1 --owner-pgid "$$" --deadline-mono "$LOCAL_REPRO_DEADLINE_MONO" >"$LOG_DIR/profile-driver.log" 2>&1 &
++PROFILE_DRIVER_PID=$!
++record_pid profile-driver "$PROFILE_DRIVER_PID"
+ start_process_metrics_collector
+ wait_child_uninterrupted "$COORDINATOR_PID"
+-printf '%s\n' "$WAIT_CHILD_STATUS" >"$EVIDENCE_DIR/coordinator-exit-status"
++COORDINATOR_EXIT_STATUS="$WAIT_CHILD_STATUS"
++printf '%s\n' "$COORDINATOR_EXIT_STATUS" >"$EVIDENCE_DIR/coordinator-exit-status"
++wait_child_uninterrupted "$PROFILE_DRIVER_PID"
++printf '%s\n' "$WAIT_CHILD_STATUS" >"$EVIDENCE_DIR/profile-driver-exit-status"
++WAIT_CHILD_STATUS="$COORDINATOR_EXIT_STATUS"
+ if [[ "$WAIT_CHILD_STATUS" -eq 7 ]]; then
+   diagnosis_hold_end=$((SECONDS + 90))
+   while [[ ! -f "$EVIDENCE_DIR/diagnosis-hold-release" ]] && (( SECONDS < diagnosis_hold_end )); do

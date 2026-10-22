@@ -1,0 +1,11 @@
+{
+  "at_utc": "2026-10-22T20:02:37.741601+00:00",
+  "managed_by": "git worktree",
+  "original_worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-loss-observability",
+  "worktree_removed": true,
+  "original_local_branch_removed": true,
+  "target_contains_original_tip": true,
+  "forced_cleanup": false,
+  "uncommitted_source_preserved_before_cleanup": "none; verified clean",
+  "remote_task_branch_retained": true
+}

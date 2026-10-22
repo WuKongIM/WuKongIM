@@ -1,0 +1,135 @@
+{
+  "field_schema": {
+    "fingerprint": "128bit message identity digest rendered lowercase hex",
+    "private_matches": "per-sample worker/sample/fingerprint/decoded + sender_user_index/target_group_index/ChannelID/ClientMsgNo",
+    "sample_index": "uint64 logical send: domain bits61..63, generation bits43..60, ordinal bits0..42",
+    "worker_evidence": "wukongim/chat-lifecycle-worker-evidence/v1"
+  },
+  "limits": [
+    "Exactly2 retained code11 expiry samples enumerated; each scans10000 original initial indexes with worker-owned modulo2000 targets.",
+    "worker-evidence.json is the exact retained per-worker cut; no independent wire ACK or raw physical RECV event was retained in this file.",
+    "Positive ACK gating is inferred from frozen executable verifier semantics, not an exact retained ACK packet.",
+    "No DB query performed by this helper; same128bit fingerprint gives unique initial-population identity but not delivery failure cause."
+  ],
+  "mode": "offline_reuse_existing_hash_math",
+  "network_requests": 0,
+  "positive_ack_source": [
+    {
+      "line": 598,
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/bench/chatlifecycle/verifier.go"
+    },
+    {
+      "line": 691,
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/bench/chatlifecycle/verifier.go"
+    },
+    {
+      "line": 963,
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/bench/chatlifecycle/verifier.go"
+    },
+    {
+      "line": 978,
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/bench/chatlifecycle/verifier.go"
+    }
+  ],
+  "private_file": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/offline-identity/PRIVATE_matches.json",
+  "private_mode": "0600",
+  "private_sha256": "84f7b633fa3e8be8b77e14637fd35490f24038c265265c8c157fa3ddee92f622",
+  "product_starts": 0,
+  "results": [
+    {
+      "attempted_candidates": 3335,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 114
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "2efcbfa3df411300591fa4d22a48638c",
+      "group_type": "medium",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1731,
+          "target_group_index": 1731
+        }
+      ],
+      "positive_sendack_gate": {
+        "accepted_send_required": true,
+        "exact_ack_time_retained": false,
+        "exact_message_id_retained": false,
+        "exact_message_seq_retained": false,
+        "positive_message_id_required": true,
+        "positive_message_seq_required": true,
+        "proof_kind": "frozen_verifier_semantics_of_retained_expired_code11",
+        "success_reason_required": true
+      },
+      "reason": "same_128bit_fingerprint",
+      "sample_index": "9223380832947798130",
+      "source_evidence_fields": {
+        "class": 3,
+        "code": 11,
+        "deadline_nanoseconds": 10000000000,
+        "stage": 5
+      },
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 0
+    },
+    {
+      "attempted_candidates": 3330,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 14
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "8ea8b0568129e91f2e24921fca3fcb07",
+      "group_type": "medium",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1766,
+          "target_group_index": 1766
+        }
+      ],
+      "positive_sendack_gate": {
+        "accepted_send_required": true,
+        "exact_ack_time_retained": false,
+        "exact_message_id_retained": false,
+        "exact_message_seq_retained": false,
+        "positive_message_id_required": true,
+        "positive_message_seq_required": true,
+        "proof_kind": "frozen_verifier_semantics_of_retained_expired_code11",
+        "success_reason_required": true
+      },
+      "reason": "same_128bit_fingerprint",
+      "sample_index": "9223380832947798030",
+      "source_evidence_fields": {
+        "class": 3,
+        "code": 11,
+        "deadline_nanoseconds": 10000000000,
+        "stage": 5
+      },
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 2
+    }
+  ],
+  "schema": "wukongim/offline-initial-identity-summary/v1",
+  "source_changes": 0,
+  "source_sha256": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/bench/chatlifecycle/verifier.go": "f16dcacd27b6976f3ba3e680b4bc0b3d5adaa98cc53e9b9408f5f240194e4efa",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/report/worker-evidence.json": "8de6a28c4cdd9165b32249203b648bc9f2207d708e06e6b6f63a0b7e423d25e6",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/PRIVATE_identity_helper.py": "3e5f018b0beb3705ee67a25e65bc29686f9d8c86b8ea4491cbff0d8a2c97a861"
+  },
+  "timing": {
+    "cpu_seconds": 0.024017999999999998,
+    "utc_end": "2026-10-22T20:13:46.121149+00:00",
+    "utc_start": "2026-10-22T20:13:46.097000+00:00",
+    "wall_seconds": 0.024028250016272068
+  }
+}

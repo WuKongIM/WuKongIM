@@ -1,0 +1,68 @@
+File: wukongim
+Type: cpu
+Time: 2026-10-23 04:09:30 CST
+Duration: 10.17s, Total samples = 4.34s (42.68%)
+Showing nodes accounting for 2.83s, 65.21% of 4.34s total
+Dropped 464 nodes (cum <= 0.02s)
+Showing top 60 nodes out of 294
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      2.52s 58.06%  runtime/pprof.Do
+         0     0%     0%      2.30s 53.00%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+         0     0%     0%      2.30s 53.00%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0%     0%      1.29s 29.72%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop
+         0     0%     0%      1.28s 29.49%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch
+         0     0%     0%      1.28s 29.49%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch.func1
+         0     0%     0%      1.28s 29.49%  github.com/WuKongIM/WuKongIM/pkg/transport/wire.WriteFramesInto
+         0     0%     0%      1.28s 29.49%  internal/poll.(*FD).Writev
+         0     0%     0%      1.28s 29.49%  net.(*Buffers).WriteTo
+         0     0%     0%      1.28s 29.49%  net.(*conn).writeBuffers
+         0     0%     0%      1.28s 29.49%  net.(*netFD).writeBuffers
+     1.28s 29.49% 29.49%      1.28s 29.49%  syscall.syscallX
+         0     0% 29.49%      1.28s 29.49%  syscall.writev
+         0     0% 29.49%      0.87s 20.05%  runtime.systemstack
+     0.73s 16.82% 46.31%      0.73s 16.82%  syscall.syscall
+         0     0% 46.31%      0.58s 13.36%  internal/poll.ignoringEINTRIO (inline)
+     0.41s  9.45% 55.76%      0.41s  9.45%  syscall.syscall6
+         0     0% 55.76%      0.40s  9.22%  golang.org/x/sys/unix.Kevent
+         0     0% 55.76%      0.40s  9.22%  golang.org/x/sys/unix.kevent
+         0     0% 55.76%      0.38s  8.76%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop
+         0     0% 55.76%      0.38s  8.76%  github.com/WuKongIM/WuKongIM/pkg/transport/wire.ReadFrame
+         0     0% 55.76%      0.38s  8.76%  internal/poll.(*FD).Read
+         0     0% 55.76%      0.38s  8.76%  io.ReadAtLeast
+         0     0% 55.76%      0.38s  8.76%  io.ReadFull (inline)
+         0     0% 55.76%      0.38s  8.76%  net.(*conn).Read
+         0     0% 55.76%      0.38s  8.76%  net.(*netFD).Read
+         0     0% 55.76%      0.38s  8.76%  runtime.(*mheap).allocSpan
+         0     0% 55.76%      0.38s  8.76%  syscall.Read (inline)
+         0     0% 55.76%      0.38s  8.76%  syscall.read
+     0.36s  8.29% 64.06%      0.36s  8.29%  runtime.madvise
+         0     0% 64.06%      0.36s  8.29%  runtime.sysUsed (inline)
+         0     0% 64.06%      0.36s  8.29%  runtime.sysUsedOS (inline)
+         0     0% 64.06%      0.35s  8.06%  runtime.gcBgMarkWorker.func2
+         0     0% 64.06%      0.35s  8.06%  runtime.gcDrain
+         0     0% 64.06%      0.34s  7.83%  runtime.gcDrainMarkWorkerFractional (inline)
+         0     0% 64.06%      0.31s  7.14%  github.com/panjf2000/gnet/v2.(*eventloop).orbit
+         0     0% 64.06%      0.31s  7.14%  github.com/panjf2000/gnet/v2/pkg/netpoll.(*Poller).Polling
+         0     0% 64.06%      0.31s  7.14%  golang.org/x/sync/errgroup.(*Group).Go.func1
+         0     0% 64.06%      0.31s  7.14%  runtime.(*mheap).alloc.func1
+         0     0% 64.06%      0.30s  6.91%  runtime.gcBgMarkWorker
+         0     0% 64.06%      0.28s  6.45%  runtime.mcall
+         0     0% 64.06%      0.27s  6.22%  runtime.park_m
+     0.04s  0.92% 64.98%      0.27s  6.22%  runtime.scanobject
+         0     0% 64.98%      0.27s  6.22%  runtime.schedule
+         0     0% 64.98%      0.26s  5.99%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.*uint8]).run.func1
+     0.01s  0.23% 65.21%      0.26s  5.99%  runtime.findRunnable
+         0     0% 65.21%      0.25s  5.76%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).handle
+         0     0% 65.21%      0.25s  5.76%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*serviceTask).run
+         0     0% 65.21%      0.25s  5.76%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.NewExecutor.func1
+         0     0% 65.21%      0.24s  5.53%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportServer).Register.func1
+         0     0% 65.21%      0.24s  5.53%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.HandlerFunc.HandleRPC
+         0     0% 65.21%      0.22s  5.07%  github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushLoop
+         0     0% 65.21%      0.22s  5.07%  github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushPending
+         0     0% 65.21%      0.22s  5.07%  github.com/cockroachdb/pebble/v2/record.NewLogWriter.func2
+         0     0% 65.21%      0.22s  5.07%  github.com/cockroachdb/pebble/v2/vfs.(*diskHealthCheckingFile).timeDiskOp
+         0     0% 65.21%      0.22s  5.07%  github.com/panjf2000/gnet/v2/pkg/netpoll.(*Poller).Trigger
+         0     0% 65.21%      0.22s  5.07%  github.com/panjf2000/gnet/v2/pkg/netpoll.(*Poller).wakePoller
+         0     0% 65.21%      0.20s  4.61%  internal/poll.(*FD).Write
+         0     0% 65.21%      0.20s  4.61%  os.(*File).Write
+         0     0% 65.21%      0.20s  4.61%  os.(*File).write (inline)

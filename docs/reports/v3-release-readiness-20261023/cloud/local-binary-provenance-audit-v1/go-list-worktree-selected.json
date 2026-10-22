@@ -1,0 +1,61 @@
+{
+  "command": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "list",
+    "-mod=readonly",
+    "-json",
+    "./cmd/wkcli",
+    "./cmd/wukongim"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+  "environment_overrides": {
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "GOPROXY": "off",
+    "GOSUMDB": "off"
+  },
+  "packages": [
+    {
+      "Dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/cmd/wkcli",
+      "ImportPath": "github.com/WuKongIM/WuKongIM/cmd/wkcli",
+      "Name": "main",
+      "Root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+      "Module": {
+        "Path": "github.com/WuKongIM/WuKongIM",
+        "Main": true,
+        "Dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+        "GoMod": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/go.mod",
+        "GoVersion": "1.25.0"
+      },
+      "GoFiles": [
+        "cli.go",
+        "main.go",
+        "version.go"
+      ],
+      "Stale": true,
+      "StaleReason": "not installed but available in build cache"
+    },
+    {
+      "Dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/cmd/wukongim",
+      "ImportPath": "github.com/WuKongIM/WuKongIM/cmd/wukongim",
+      "Name": "main",
+      "Root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+      "Module": {
+        "Path": "github.com/WuKongIM/WuKongIM",
+        "Main": true,
+        "Dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+        "GoMod": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/go.mod",
+        "GoVersion": "1.25.0"
+      },
+      "GoFiles": [
+        "command.go",
+        "config.go",
+        "main.go",
+        "version.go"
+      ],
+      "Stale": true,
+      "StaleReason": "not installed but available in build cache"
+    }
+  ],
+  "limits": "Current readonly package resolution, not a historical build command or proof of every historical source byte."
+}

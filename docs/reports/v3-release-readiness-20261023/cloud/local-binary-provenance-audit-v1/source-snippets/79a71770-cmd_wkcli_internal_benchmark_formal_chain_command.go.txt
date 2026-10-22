@@ -1,0 +1,21 @@
+220: 		quoted += item.CostMicros
+221: 		switch item.Kind {
+222: 		case "postpaid_host_hour":
+223: 			itemsValid = itemsValid && item.Quantity%leaseHours == 0
+224: 		case "eip_public_egress_gib", "eip_retention_policy_risk_hour":
+225: 		default:
+226: 			itemsValid = false
+227: 		}
+228: 	}
+229: 	// Immutable requests retain the fixed cleanup reserve when lowering the ceiling.
+230: 	budgetBoundsValid := limit > hardLimit-operationalStop && limit <= hardLimit && stop == limit-(hardLimit-operationalStop)
+231: 	if directRepair {
+232: 		budgetBoundsValid = limit > 0 && stop > 0 && stop < limit
+233: 	}
+234: 	if createdErr != nil || limitErr != nil || stopErr != nil || committedErr != nil || estimatedErr != nil || decodeErr != nil ||
+235: 		!budgetBoundsValid || committed < 0 || estimated <= 0 ||
+236: 		committed >= stop || estimated > stop-committed || quoted != estimated || !itemsValid ||
+237: 		createdAt.After(now.UTC()) || !createdAt.Before(expiresAt) || expiresAt.Before(now.UTC().Add(minimumRemaining)) {
+238: 		return nil, errors.New("formal-chain immutable budget or expiry guard failed")
+239: 	}
+240: 	return &formalRuntimeEnvelope{

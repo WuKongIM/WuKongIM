@@ -1,0 +1,131 @@
+{
+  "id": 12454441176,
+  "name": "500qps-channel-append-d3fdd6a4c3eb94020776385efb32fd92b12700a0-1",
+  "declared_bytes": 25790,
+  "declared_digest": "sha256:0aab196364b8571dc66d11a0e8df8ca145db1a95aa65f908a7b55191d973bf23",
+  "state": "verified",
+  "zip_bytes": 25790,
+  "zip_sha256": "0aab196364b8571dc66d11a0e8df8ca145db1a95aa65f908a7b55191d973bf23",
+  "full_size_sha_crc_valid": true,
+  "members": [
+    {
+      "path": "arrival.json",
+      "bytes": 57422,
+      "compressed_bytes": 3276,
+      "crc32": "66156a3d",
+      "sha256": "b1e86e3cbbb8ca0f45e284eb00e4dc2cf29d2ebbdb9d8d366b10b0547f4f60e4"
+    },
+    {
+      "path": "arrival.warmup.json",
+      "bytes": 19268,
+      "compressed_bytes": 1295,
+      "crc32": "395c0c76",
+      "sha256": "2316f5eb6de575a887f062ac257422c26820dde10756b0a332253b83fe931258"
+    },
+    {
+      "path": "benchmark.txt",
+      "bytes": 2357,
+      "compressed_bytes": 832,
+      "crc32": "abbe6e15",
+      "sha256": "a7cc96add56acf3f5c3fb29428f19d4a4ca337810bae940905829f48335a9942"
+    },
+    {
+      "path": "binary.sha256",
+      "bytes": 127,
+      "compressed_bytes": 108,
+      "crc32": "6e88936e",
+      "sha256": "9143847dd68fa9d7e81a9b2d2698ae15d35b9d5aa32942b987e399d217f7ef24"
+    },
+    {
+      "path": "counters/after.json",
+      "bytes": 50666,
+      "compressed_bytes": 4278,
+      "crc32": "5c758ae7",
+      "sha256": "40157d1660cc1ca063ef586f498ef79a8c503fa37d945ab99c5e362152e0e5f5"
+    },
+    {
+      "path": "counters/before.json",
+      "bytes": 50449,
+      "compressed_bytes": 4254,
+      "crc32": "20857de2",
+      "sha256": "bd2df16dde72604a84d040552ef19081cde6221c4ce593810db7822a44810402"
+    },
+    {
+      "path": "counters/window.json",
+      "bytes": 575,
+      "compressed_bytes": 349,
+      "crc32": "d7c5040f",
+      "sha256": "d2439770a69c83b19fb4036b439d684cff747255063e70d795192895d0d14376"
+    },
+    {
+      "path": "counters.warmup/after.json",
+      "bytes": 50450,
+      "compressed_bytes": 4251,
+      "crc32": "ec55d1ea",
+      "sha256": "4c407f09073073137c7a174aa804c2311b5a9f6ce7fd166e251de97d5f66a2fa"
+    },
+    {
+      "path": "counters.warmup/before.json",
+      "bytes": 21576,
+      "compressed_bytes": 2946,
+      "crc32": "9732ac86",
+      "sha256": "e2e178ac192b8f4be276f4a18b4e57e60e39c80d5e119814bb6d26fff033c6d0"
+    },
+    {
+      "path": "counters.warmup/window.json",
+      "bytes": 504,
+      "compressed_bytes": 312,
+      "crc32": "1c2f844e",
+      "sha256": "bd45fcc0500cc0a23076bbb091731c1a86f07e22cfc5cc158c027dcf50525a95"
+    },
+    {
+      "path": "data-filesystem.json",
+      "bytes": 249,
+      "compressed_bytes": 163,
+      "crc32": "a22f9e15",
+      "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6"
+    },
+    {
+      "path": "filesystem-preflight.txt",
+      "bytes": 123,
+      "compressed_bytes": 107,
+      "crc32": "724e915a",
+      "sha256": "cb24fb5a9a11cc2e7f47d54dbb06cbbeac960154e28cf539ae68adfdef62f772"
+    },
+    {
+      "path": "go-version.txt",
+      "bytes": 33,
+      "compressed_bytes": 35,
+      "crc32": "dd48af92",
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "host.json",
+      "bytes": 4656,
+      "compressed_bytes": 1249,
+      "crc32": "757ba93f",
+      "sha256": "4faf2d476b88616bf2a0bbf9612e5ca27af13645b4259119ebbf675a22938d50"
+    },
+    {
+      "path": "kernel.txt",
+      "bytes": 113,
+      "compressed_bytes": 100,
+      "crc32": "5f528912",
+      "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+    },
+    {
+      "path": "result.json",
+      "bytes": 18,
+      "compressed_bytes": 20,
+      "crc32": "81529131",
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "source.sha",
+      "bytes": 41,
+      "compressed_bytes": 41,
+      "crc32": "8b5530de",
+      "sha256": "a865c7c841facb9d8cd8fb058cb6170df08aa1121b572680e627f7b03ebf2111"
+    }
+  ]
+}

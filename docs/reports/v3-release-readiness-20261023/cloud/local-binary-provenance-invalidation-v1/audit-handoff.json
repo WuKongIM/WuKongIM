@@ -1,0 +1,66 @@
+{
+  "schema": "wukongim/local-source-audit-handoff/v1",
+  "at_utc": "2026-10-22T20:24:48.838116+00:00",
+  "independent_auditor": "/root/loss_obs_ci",
+  "independent_audit_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1",
+  "audit_not_copied_or_reinterpreted": "Complete local/cloud go version -m, ELF hashes, exact flags, objdump and Go stamping source proof are separately owned/frozen by auditor. Do not infer actual source solely from embedded VCS.",
+  "positive_source_witness": "server writeCurrentTermBarrier includes79a errors.Join branch absentina804, with diagnostic-worktree paths; exact independent proof will be in auditor manifest",
+  "old_manifests_reverified": [
+    {
+      "scope": "local-loss-reproduction-v1",
+      "files": 12,
+      "manifest_sha256": "0e2212973c789ebcaefbd845b8ded51c9f6aae601f2b7ea852ddd1e85d13881c",
+      "all_members_unchanged": true
+    },
+    {
+      "scope": "local-loss-reproduction-v2",
+      "files": 5,
+      "manifest_sha256": "1943a2f68b0d261e32236c1031f426e9da0a56b65aca8d7d9f5c365583c363c8",
+      "all_members_unchanged": true
+    },
+    {
+      "scope": "local-loss-reproduction-v3",
+      "files": 7,
+      "manifest_sha256": "73b6e675a3935934235f71a9c950dba3e90840902810e4dc9665d8372931ebae",
+      "all_members_unchanged": true
+    },
+    {
+      "scope": "local-loss-reproduction-v4",
+      "files": 6,
+      "manifest_sha256": "66732868f0b534437a129b36f10608d37d2306eaf4d1d24c2c15d5d89de60349",
+      "all_members_unchanged": true
+    },
+    {
+      "scope": "full-original-distribution-v1",
+      "files": 23,
+      "manifest_sha256": "ff2c1ede9eee0c084d3673c8a8000850d9a68e8463bad59608c8f7efa28d9611",
+      "all_members_unchanged": true
+    },
+    {
+      "scope": "full-original-distribution-v2",
+      "files": 22,
+      "manifest_sha256": "04dfbf3d1cfdde42cc17085392c5160135558d87ece8eff990a928509eb9ad4b",
+      "all_members_unchanged": true
+    },
+    {
+      "scope": "full-original-distribution-batch128-v1",
+      "files": 12,
+      "manifest_sha256": "4f0c43d9275be09eb602cc068c8364a40e8008420e5dc5d999f997cd5b6310b6",
+      "all_members_unchanged": true
+    },
+    {
+      "scope": "profile-first-grant-proposal-v1",
+      "files": 27,
+      "manifest_sha256": "643bee17e571cb72dcd78d2753c8c74597095624df98a62b6189230e242fa14d",
+      "all_members_unchanged": true
+    },
+    {
+      "scope": "full-original-distribution-profile-node2-v1",
+      "files": 14,
+      "manifest_sha256": "100bc55a5712d3103f33694cf62a00a07887cef43fea9fed203c146188bd6f49",
+      "all_members_unchanged": true
+    }
+  ],
+  "new_build_or_run_after_discovery": false,
+  "next_source_layout_plan": "Clean clone outside enclosing checkout with real.git directory is proposed to avoid evidenced Go1.25.11 nested-worktree VCS root stamping; not created or executed."
+}

@@ -1,0 +1,365 @@
+{
+  "artifact_id": 12445080855,
+  "producer_run": {
+    "id": 39821046654,
+    "repository_id": 638054601,
+    "head_repository_id": 638054601,
+    "head_branch": "main",
+    "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06"
+  },
+  "zip": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023-private/live-observation/bundle-12445080855.zip",
+    "bytes": 141109198,
+    "sha256": "b5d5503195572d6569e150cfb15f7018cd30294c9caaa108eea965c25cef75fa"
+  },
+  "tar": {
+    "member": "cloud-deployment-bundle.tar.gz",
+    "bytes": 141451669,
+    "sha256": "cb6bf5ccc33a0be9950cffe4810490b9f21e7370658fa8836adfee5da1e3b4b3",
+    "zip_member_crc32": "bb2b46af"
+  },
+  "manifest_source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "manifest_control_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "manifest_bundle_digest": "sha256:3d78f1a3466f50c3875256a8dd056d99a0c414487616235a1b1792f113c70130",
+  "selected_elf_members": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/caddy",
+      "sha256": "b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9",
+      "bytes": 48521378,
+      "go_version": "go1.26.3",
+      "main_package": "caddy",
+      "module": [
+        "caddy",
+        "(devel)"
+      ],
+      "build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "-tags": "nobadger,nomysql,nopgx",
+        "-trimpath": "true",
+        "CGO_ENABLED": "0",
+        "GOARCH": "amd64",
+        "GOOS": "linux",
+        "GOAMD64": "v1",
+        "vcs": "git",
+        "vcs.revision": "e2eee6a7fce366321294c9c2a79f3146891dcbdf",
+        "vcs.time": "2026-06-01T19:35:02Z",
+        "vcs.modified": "false"
+      },
+      "raw_buildinfo_path": "buildinfo/cloud-caddy.txt",
+      "raw_buildinfo_sha256": "7ca4d9842e7e9bb3ccc585784df0644271597b7bd8a21d9b647bf4db467fb02c",
+      "target_executed": false,
+      "tar_member": "bin/caddy",
+      "manifest_entry": {
+        "path": "bin/caddy",
+        "mode": 493,
+        "size": 48521378,
+        "sha256": "b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9"
+      },
+      "elf_class": 64,
+      "elf_machine": "x86_64",
+      "extracted_only_for_read_only_buildinfo": true
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/node_exporter",
+      "sha256": "3a01a3cc7f69798698fbb31b24e5ee279dd2c39727be2a5a65071536fc16b455",
+      "bytes": 23724903,
+      "go_version": "go1.26.1",
+      "main_package": "github.com/prometheus/node_exporter",
+      "module": [
+        "github.com/prometheus/node_exporter",
+        "v1.11.1"
+      ],
+      "build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "-ldflags": "\"-X github.com/prometheus/common/version.Version=1.11.1 -X github.com/prometheus/common/version.Revision=0dd664dece3f8319f6bec5a221acd2c7ad13a23d -X github.com/prometheus/common/version.Branch=HEAD -X github.com/prometheus/common/version.BuildUser=root@3d8697c83dd8 -X github.com/prometheus/common/version.BuildDate=20260407-15:45:19  -extldflags '-static'\"",
+        "DefaultGODEBUG": "cryptocustomrand=1,tlssecpmlkem=0,urlstrictcolons=0",
+        "CGO_ENABLED": "0",
+        "GOARCH": "amd64",
+        "GOOS": "linux",
+        "GOAMD64": "v1",
+        "vcs": "git",
+        "vcs.revision": "0dd664dece3f8319f6bec5a221acd2c7ad13a23d",
+        "vcs.time": "2026-04-07T15:44:04Z",
+        "vcs.modified": "false"
+      },
+      "raw_buildinfo_path": "buildinfo/cloud-node_exporter.txt",
+      "raw_buildinfo_sha256": "f79527b2cb2dc8365e6b4c4ce5744b4af50b2e090171344de4dc3ab996cc9fc4",
+      "target_executed": false,
+      "tar_member": "bin/node_exporter",
+      "manifest_entry": {
+        "path": "bin/node_exporter",
+        "mode": 493,
+        "size": 23724903,
+        "sha256": "3a01a3cc7f69798698fbb31b24e5ee279dd2c39727be2a5a65071536fc16b455"
+      },
+      "elf_class": 64,
+      "elf_machine": "x86_64",
+      "extracted_only_for_read_only_buildinfo": true
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/prometheus",
+      "sha256": "702da6c221044ba0778c2017a2f51854bec900f79221cec4579411ee6806484a",
+      "bytes": 135857317,
+      "go_version": "go1.26.5",
+      "main_package": "github.com/prometheus/prometheus/cmd/prometheus",
+      "module": [
+        "github.com/prometheus/prometheus",
+        "v0.0.0-20260710080347-73ff57ce2b81+dirty"
+      ],
+      "build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "-ldflags": "\"-X github.com/prometheus/common/version.Version=3.13.1 -X github.com/prometheus/common/version.Revision=73ff57ce2b8161059ac7fe5188f03f1c3d22b29a -X github.com/prometheus/common/version.Branch=HEAD -X github.com/prometheus/common/version.BuildUser=root@6a98665b49f7 -X github.com/prometheus/common/version.BuildDate=20260710-08:18:27  -extldflags '-static'\"",
+        "-tags": "netgo,builtinassets",
+        "DefaultGODEBUG": "cryptocustomrand=1,tlssecpmlkem=0,urlstrictcolons=0",
+        "CGO_ENABLED": "0",
+        "GOARCH": "amd64",
+        "GOOS": "linux",
+        "GOAMD64": "v1",
+        "vcs": "git",
+        "vcs.revision": "73ff57ce2b8161059ac7fe5188f03f1c3d22b29a",
+        "vcs.time": "2026-07-10T08:03:47Z",
+        "vcs.modified": "true"
+      },
+      "raw_buildinfo_path": "buildinfo/cloud-prometheus.txt",
+      "raw_buildinfo_sha256": "c08ed627382e362ecfe9d3215fdfea59708ca150c07181a73c407a784bfacd86",
+      "target_executed": false,
+      "tar_member": "bin/prometheus",
+      "manifest_entry": {
+        "path": "bin/prometheus",
+        "mode": 493,
+        "size": 135857317,
+        "sha256": "702da6c221044ba0778c2017a2f51854bec900f79221cec4579411ee6806484a"
+      },
+      "elf_class": 64,
+      "elf_machine": "x86_64",
+      "extracted_only_for_read_only_buildinfo": true
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wkanalysis",
+      "sha256": "2eb52a8619c91168af8e18cd967c8b69cfdbfbb68db622509bb9e1dc6fdff6dc",
+      "bytes": 31252628,
+      "go_version": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkanalysis",
+      "module": [
+        "github.com/WuKongIM/WuKongIM",
+        "v0.0.0-20261021204441-79a7177032a6"
+      ],
+      "build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "-trimpath": "true",
+        "CGO_ENABLED": "0",
+        "GOARCH": "amd64",
+        "GOOS": "linux",
+        "GOAMD64": "v1",
+        "vcs": "git",
+        "vcs.revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "vcs.time": "2026-10-21T20:44:41Z",
+        "vcs.modified": "false"
+      },
+      "raw_buildinfo_path": "buildinfo/cloud-wkanalysis.txt",
+      "raw_buildinfo_sha256": "4f0d02a8d1af9a9d292dd2b00cb8151f5fbfd1bbf4919f05a095703c57c8a530",
+      "target_executed": false,
+      "tar_member": "bin/wkanalysis",
+      "manifest_entry": {
+        "path": "bin/wkanalysis",
+        "mode": 493,
+        "size": 31252628,
+        "sha256": "2eb52a8619c91168af8e18cd967c8b69cfdbfbb68db622509bb9e1dc6fdff6dc"
+      },
+      "elf_class": 64,
+      "elf_machine": "x86_64",
+      "extracted_only_for_read_only_buildinfo": true
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wkcli",
+      "sha256": "43dd65554569ef29596d5a21349f0a3e08c4093652413afbd2f654f1856c884b",
+      "bytes": 42950804,
+      "go_version": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcli",
+      "module": [
+        "github.com/WuKongIM/WuKongIM",
+        "v0.0.0-20261021204441-79a7177032a6"
+      ],
+      "build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "-trimpath": "true",
+        "CGO_ENABLED": "0",
+        "GOARCH": "amd64",
+        "GOOS": "linux",
+        "GOAMD64": "v1",
+        "vcs": "git",
+        "vcs.revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "vcs.time": "2026-10-21T20:44:41Z",
+        "vcs.modified": "false"
+      },
+      "raw_buildinfo_path": "buildinfo/cloud-wkcli.txt",
+      "raw_buildinfo_sha256": "38b61e3ed1cccbaa82e237f974c5293a0a8b2ea10475aab5a97d7c398a1d8059",
+      "target_executed": false,
+      "tar_member": "bin/wkcli",
+      "manifest_entry": {
+        "path": "bin/wkcli",
+        "mode": 493,
+        "size": 42950804,
+        "sha256": "43dd65554569ef29596d5a21349f0a3e08c4093652413afbd2f654f1856c884b"
+      },
+      "elf_class": 64,
+      "elf_machine": "x86_64",
+      "extracted_only_for_read_only_buildinfo": true
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wkcloudbundle",
+      "sha256": "5ab47afac494aa857ff162f8e80fce01652647b794c629336b11c16adddb2931",
+      "bytes": 3526804,
+      "go_version": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudbundle",
+      "module": [
+        "github.com/WuKongIM/WuKongIM",
+        "v0.0.0-20261021204441-79a7177032a6"
+      ],
+      "build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "-trimpath": "true",
+        "CGO_ENABLED": "0",
+        "GOARCH": "amd64",
+        "GOOS": "linux",
+        "GOAMD64": "v1",
+        "vcs": "git",
+        "vcs.revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "vcs.time": "2026-10-21T20:44:41Z",
+        "vcs.modified": "false"
+      },
+      "raw_buildinfo_path": "buildinfo/cloud-wkcloudbundle.txt",
+      "raw_buildinfo_sha256": "ec3d97ff7c01e847925e109314eb7a0c804290c8d359be796b625e5f383bd45a",
+      "target_executed": false,
+      "tar_member": "bin/wkcloudbundle",
+      "manifest_entry": {
+        "path": "bin/wkcloudbundle",
+        "mode": 493,
+        "size": 3526804,
+        "sha256": "5ab47afac494aa857ff162f8e80fce01652647b794c629336b11c16adddb2931"
+      },
+      "elf_class": 64,
+      "elf_machine": "x86_64",
+      "extracted_only_for_read_only_buildinfo": true
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wkcloudgate",
+      "sha256": "42fb87d893ca9bd6bd49167fafe2c1f9e3c5abe0f908c041838608051c078cef",
+      "bytes": 4026516,
+      "go_version": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudgate",
+      "module": [
+        "github.com/WuKongIM/WuKongIM",
+        "v0.0.0-20261021204441-79a7177032a6"
+      ],
+      "build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "-trimpath": "true",
+        "CGO_ENABLED": "0",
+        "GOARCH": "amd64",
+        "GOOS": "linux",
+        "GOAMD64": "v1",
+        "vcs": "git",
+        "vcs.revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "vcs.time": "2026-10-21T20:44:41Z",
+        "vcs.modified": "false"
+      },
+      "raw_buildinfo_path": "buildinfo/cloud-wkcloudgate.txt",
+      "raw_buildinfo_sha256": "6cf2506ea35c83ac01c7307a7a8ee2c037772473219ad446f508034d34e60db1",
+      "target_executed": false,
+      "tar_member": "bin/wkcloudgate",
+      "manifest_entry": {
+        "path": "bin/wkcloudgate",
+        "mode": 493,
+        "size": 4026516,
+        "sha256": "42fb87d893ca9bd6bd49167fafe2c1f9e3c5abe0f908c041838608051c078cef"
+      },
+      "elf_class": 64,
+      "elf_machine": "x86_64",
+      "extracted_only_for_read_only_buildinfo": true
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wkcloudhost",
+      "sha256": "511886009b1668b2ed90c8487d261d1c57a2a360f1bdb1fcb7079c92aea7a996",
+      "bytes": 3301524,
+      "go_version": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudhost",
+      "module": [
+        "github.com/WuKongIM/WuKongIM",
+        "v0.0.0-20261021204441-79a7177032a6"
+      ],
+      "build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "-trimpath": "true",
+        "CGO_ENABLED": "0",
+        "GOARCH": "amd64",
+        "GOOS": "linux",
+        "GOAMD64": "v1",
+        "vcs": "git",
+        "vcs.revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "vcs.time": "2026-10-21T20:44:41Z",
+        "vcs.modified": "false"
+      },
+      "raw_buildinfo_path": "buildinfo/cloud-wkcloudhost.txt",
+      "raw_buildinfo_sha256": "1d9caec380d08b65ffdb7c225f8491b0fee706c0d721c61ad65afe4c093cc340",
+      "target_executed": false,
+      "tar_member": "bin/wkcloudhost",
+      "manifest_entry": {
+        "path": "bin/wkcloudhost",
+        "mode": 493,
+        "size": 3301524,
+        "sha256": "511886009b1668b2ed90c8487d261d1c57a2a360f1bdb1fcb7079c92aea7a996"
+      },
+      "elf_class": 64,
+      "elf_machine": "x86_64",
+      "extracted_only_for_read_only_buildinfo": true
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wukongim",
+      "sha256": "99469fc9ab58c6180c909ccef65b2fdb8ad8fc9f0b91161292bda9b69b0eed00",
+      "bytes": 68186260,
+      "go_version": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wukongim",
+      "module": [
+        "github.com/WuKongIM/WuKongIM",
+        "v0.0.0-20261021204441-79a7177032a6"
+      ],
+      "build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "-trimpath": "true",
+        "CGO_ENABLED": "0",
+        "GOARCH": "amd64",
+        "GOOS": "linux",
+        "GOAMD64": "v1",
+        "vcs": "git",
+        "vcs.revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "vcs.time": "2026-10-21T20:44:41Z",
+        "vcs.modified": "false"
+      },
+      "raw_buildinfo_path": "buildinfo/cloud-wukongim.txt",
+      "raw_buildinfo_sha256": "12706af8aeff9be76854347684426cd86c0cb1acffdb8015c3965e159253e2e9",
+      "target_executed": false,
+      "tar_member": "bin/wukongim",
+      "manifest_entry": {
+        "path": "bin/wukongim",
+        "mode": 493,
+        "size": 68186260,
+        "sha256": "99469fc9ab58c6180c909ccef65b2fdb8ad8fc9f0b91161292bda9b69b0eed00"
+      },
+      "elf_class": 64,
+      "elf_machine": "x86_64",
+      "extracted_only_for_read_only_buildinfo": true
+    }
+  ],
+  "no_payload_or_target_executed": true,
+  "network_download": false
+}

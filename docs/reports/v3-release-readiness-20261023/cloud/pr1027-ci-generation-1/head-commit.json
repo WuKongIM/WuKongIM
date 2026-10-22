@@ -1,0 +1,233 @@
+{
+  "sha": "a93837d3fb55369acfe2d131aff52914f55a867f",
+  "node_id": "C_kwDOJgfwydoAKGE5MzgzN2QzZmI1NTM2OWFjZmUyZDEzMWFmZjUyOTE0ZjU1YTg2N2Y",
+  "commit": {
+    "author": {
+      "name": "tt",
+      "email": "tangtaoit@githubim.com",
+      "date": "2026-10-22T19:40:12Z"
+    },
+    "committer": {
+      "name": "tt",
+      "email": "tangtaoit@githubim.com",
+      "date": "2026-10-22T19:40:12Z"
+    },
+    "message": "fix: retain exact online delivery failure observations",
+    "tree": {
+      "sha": "0f24d5dfbdb8de60789fbf8760d5c3a1b3c33344",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/0f24d5dfbdb8de60789fbf8760d5c3a1b3c33344"
+    },
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/a93837d3fb55369acfe2d131aff52914f55a867f",
+    "comment_count": 0,
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    }
+  },
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/a93837d3fb55369acfe2d131aff52914f55a867f",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/commit/a93837d3fb55369acfe2d131aff52914f55a867f",
+  "comments_url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/a93837d3fb55369acfe2d131aff52914f55a867f/comments",
+  "author": {
+    "login": "tangtaoit",
+    "id": 3895878,
+    "node_id": "MDQ6VXNlcjM4OTU4Nzg=",
+    "avatar_url": "https://avatars.githubusercontent.com/u/3895878?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/tangtaoit",
+    "html_url": "https://github.com/tangtaoit",
+    "followers_url": "https://api.github.com/users/tangtaoit/followers",
+    "following_url": "https://api.github.com/users/tangtaoit/following{/other_user}",
+    "gists_url": "https://api.github.com/users/tangtaoit/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/tangtaoit/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/tangtaoit/subscriptions",
+    "organizations_url": "https://api.github.com/users/tangtaoit/orgs",
+    "repos_url": "https://api.github.com/users/tangtaoit/repos",
+    "events_url": "https://api.github.com/users/tangtaoit/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/tangtaoit/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "committer": {
+    "login": "tangtaoit",
+    "id": 3895878,
+    "node_id": "MDQ6VXNlcjM4OTU4Nzg=",
+    "avatar_url": "https://avatars.githubusercontent.com/u/3895878?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/tangtaoit",
+    "html_url": "https://github.com/tangtaoit",
+    "followers_url": "https://api.github.com/users/tangtaoit/followers",
+    "following_url": "https://api.github.com/users/tangtaoit/following{/other_user}",
+    "gists_url": "https://api.github.com/users/tangtaoit/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/tangtaoit/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/tangtaoit/subscriptions",
+    "organizations_url": "https://api.github.com/users/tangtaoit/orgs",
+    "repos_url": "https://api.github.com/users/tangtaoit/repos",
+    "events_url": "https://api.github.com/users/tangtaoit/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/tangtaoit/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "parents": [
+    {
+      "sha": "25a4765be7bed6696e1c9748142bdd61543b508c",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/25a4765be7bed6696e1c9748142bdd61543b508c",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/25a4765be7bed6696e1c9748142bdd61543b508c"
+    }
+  ],
+  "stats": {
+    "total": 252,
+    "additions": 252,
+    "deletions": 0
+  },
+  "files": [
+    {
+      "sha": "e964222a22628068c4ce6d7c1dbf2e5b18209f72",
+      "filename": "CHANGELOG.md",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 0,
+      "changes": 4,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/a93837d3fb55369acfe2d131aff52914f55a867f/CHANGELOG.md",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/a93837d3fb55369acfe2d131aff52914f55a867f/CHANGELOG.md",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/CHANGELOG.md?ref=a93837d3fb55369acfe2d131aff52914f55a867f",
+      "patch": "@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.\n \n ### \ud83d\udc1b Bug Fixes / \u95ee\u9898\u4fee\u590d\n \n+- Distinguish busy SEND acknowledgements in metrics and include exact message\n+  identities in existing incomplete online-delivery warnings.\n+  / \u6307\u6807\u5355\u72ec\u6807\u8bc6\u53d1\u9001\u7e41\u5fd9\u56de\u6267\uff0c\u5728\u7ebf\u6295\u9012\u672a\u5b8c\u6210\u544a\u8b66\u8865\u5145\u7cbe\u786e\u6d88\u606f\u7f16\u53f7\u4e0e\u5e8f\u53f7\u3002\n+\n - Capture registered Go, process and Channel counters in cloud terminal evidence,\n   so missing metric coverage remains distinguishable from a zero value.\n   / \u4e91\u7aef\u7ec8\u6001\u8bca\u65ad\u6309\u5b9e\u9645\u5bfc\u51fa\u540d\u79f0\u6536\u96c6 Go\u3001\u8fdb\u7a0b\u548c\u9891\u9053\u8ba1\u6570\u6307\u6807\uff0c\u660e\u786e\u533a\u5206\u7f3a\u5931\u8986\u76d6\u4e0e\u96f6\u503c\u3002"
+    },
+    {
+      "sha": "8cc688e736e8582cdcb9982cbd472cfd06effe81",
+      "filename": "docs/development/PROJECT_KNOWLEDGE.md",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 0,
+      "changes": 5,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/a93837d3fb55369acfe2d131aff52914f55a867f/docs%2Fdevelopment%2FPROJECT_KNOWLEDGE.md",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/a93837d3fb55369acfe2d131aff52914f55a867f/docs%2Fdevelopment%2FPROJECT_KNOWLEDGE.md",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/docs%2Fdevelopment%2FPROJECT_KNOWLEDGE.md?ref=a93837d3fb55369acfe2d131aff52914f55a867f",
+      "patch": "@@ -1058,6 +1058,11 @@ specification, runbook, report, or module documentation; link to them when neede\n   asynchronous effects; its cursor is only a progress hint, and losing it may\n   duplicate replay. Delivery, RECVACK, webhook completion, and business execution\n   are not implied by SENDACK.\n+- SENDACK metrics retain the fixed `system_busy` reason for bounded admission\n+  pressure. Incomplete online-delivery warnings carry exact uint64 `messageID`\n+  and `messageSeq` from the immutable plan; these identities never become metric\n+  labels. A matched warning explains terminal delivery failure, not lost durable\n+  storage or a confirmed root cause.\n - Gateway receive ACK and session-close feedback use the Online Delivery\n   runtime FeedbackHandler directly. App binds the optional port; gateway owns\n   frame mapping and the runtime owns exact-session ACK cleanup. The temporary"
+    },
+    {
+      "sha": "4b97f2e7498d76a946b072b279ccee2ba8709dd1",
+      "filename": "internal/app/composition_classification_contract_test.go",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "changes": 1,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fapp%2Fcomposition_classification_contract_test.go",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fapp%2Fcomposition_classification_contract_test.go",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/internal%2Fapp%2Fcomposition_classification_contract_test.go?ref=a93837d3fb55369acfe2d131aff52914f55a867f",
+      "patch": "@@ -36,6 +36,7 @@ func TestCompositionMetricClassifiersKeepBoundedStableTaxonomy(t *testing.T) {\n \t\t{name: \"channel banned\", reason: messageusecase.ReasonBan, want: \"ban\"},\n \t\t{name: \"channel disbanded\", reason: messageusecase.ReasonDisband, want: \"disband\"},\n \t\t{name: \"sender banned\", reason: messageusecase.ReasonSendBan, want: \"send_ban\"},\n+\t\t{name: \"system busy\", reason: messageusecase.ReasonSystemBusy, want: \"system_busy\"},\n \t\t{name: \"system failure\", reason: messageusecase.ReasonSystemError, want: \"system_error\"},\n \t\t{name: \"unsupported\", reason: messageusecase.ReasonUnsupported, want: \"unsupported\"},\n \t\t{name: \"future reason\", reason: messageusecase.Reason(255), want: \"unknown\"},"
+    },
+    {
+      "sha": "dade9272cdf05470e53c58547172a095e6bad1fb",
+      "filename": "internal/app/observability.go",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 0,
+      "changes": 2,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fapp%2Fobservability.go",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fapp%2Fobservability.go",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/internal%2Fapp%2Fobservability.go?ref=a93837d3fb55369acfe2d131aff52914f55a867f",
+      "patch": "@@ -454,6 +454,8 @@ func gatewaySendackReasonLabel(reason messageusecase.Reason) string {\n \t\treturn \"send_ban\"\n \tcase messageusecase.ReasonSystemError:\n \t\treturn \"system_error\"\n+\tcase messageusecase.ReasonSystemBusy:\n+\t\treturn \"system_busy\"\n \tcase messageusecase.ReasonUnsupported:\n \t\treturn \"unsupported\"\n \tdefault:"
+    },
+    {
+      "sha": "da692653d8aba3a4093b12c2d5b68e177120799c",
+      "filename": "internal/app/observability_test.go",
+      "status": "modified",
+      "additions": 41,
+      "deletions": 0,
+      "changes": 41,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fapp%2Fobservability_test.go",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fapp%2Fobservability_test.go",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/internal%2Fapp%2Fobservability_test.go?ref=a93837d3fb55369acfe2d131aff52914f55a867f",
+      "patch": "@@ -15,6 +15,7 @@ import (\n \t\"testing\"\n \t\"time\"\n \n+\tgatewayadapter \"github.com/WuKongIM/WuKongIM/internal/access/gateway\"\n \t\"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics\"\n \t\"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend\"\n \truntimedelivery \"github.com/WuKongIM/WuKongIM/internal/runtime/delivery\"\n@@ -41,6 +42,46 @@ import (\n \tdto \"github.com/prometheus/client_model/go\"\n )\n \n+func TestGatewaySendackObserverPreservesBusyMetricReason(t *testing.T) {\n+\treg := obsmetrics.New(1, \"node-1\")\n+\tobserver := gatewayMetricsObserver{metrics: reg}\n+\tfor _, event := range []gatewayadapter.SendackEvent{\n+\t\t{Reason: messageusecase.ReasonSystemBusy, Source: \"batch_result_error\", ErrorClass: \"route_not_ready\"},\n+\t\t{Reason: messageusecase.ReasonSuccess, Source: \"single_result\", ErrorClass: \"none\"},\n+\t\t{Reason: messageusecase.ReasonSystemError, Source: \"single_error\", ErrorClass: \"other\"},\n+\t\t{Reason: messageusecase.Reason(255), Source: \"unbounded-source\", ErrorClass: \"unbounded-error\"},\n+\t} {\n+\t\tobserver.SendackWritten(event)\n+\t}\n+\tfamilies, err := reg.Gather()\n+\tif err != nil {\n+\t\tt.Fatalf(\"Gather() error = %v\", err)\n+\t}\n+\tacks := requireAppMetricFamily(t, families, \"wukongim_gateway_sendacks_total\")\n+\tif len(acks.Metric) != 4 {\n+\t\tt.Fatalf(\"SENDACK series = %d, want four fixed result partitions\", len(acks.Metric))\n+\t}\n+\tfor _, labels := range []map[string]string{\n+\t\t{\"reason\": \"system_busy\", \"source\": \"batch_result_error\", \"class\": \"route_not_ready\"},\n+\t\t{\"reason\": \"success\", \"source\": \"single_result\", \"class\": \"none\"},\n+\t\t{\"reason\": \"system_error\", \"source\": \"single_error\", \"class\": \"other\"},\n+\t\t{\"reason\": \"unknown\", \"source\": \"unknown\", \"class\": \"unknown\"},\n+\t} {\n+\t\tif got := findAppMetricByLabels(t, acks, labels).GetCounter().GetValue(); got != 1 {\n+\t\t\tt.Fatalf(\"SENDACK count for %v = %v, want 1\", labels, got)\n+\t\t}\n+\t}\n+\tfor _, metric := range acks.Metric {\n+\t\tfor _, label := range metric.Label {\n+\t\t\tswitch label.GetName() {\n+\t\t\tcase \"node_id\", \"node_name\", \"reason\", \"source\", \"class\":\n+\t\t\tdefault:\n+\t\t\t\tt.Fatalf(\"unexpected SENDACK label %q\", label.GetName())\n+\t\t\t}\n+\t\t}\n+\t}\n+}\n+\n func TestChannelWorkerKindLabelIncludesMetaResolve(t *testing.T) {\n \tif got := channelWorkerKindLabel(worker.TaskMetaResolve); got != \"meta_resolve\" {\n \t\tt.Fatalf(\"channelWorkerKindLabel(TaskMetaResolve) = %q, want meta_resolve\", got)"
+    },
+    {
+      "sha": "4f55667a2f467d2fa2db891bc81e0b8ace0047a2",
+      "filename": "internal/app/online_delivery.go",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 0,
+      "changes": 2,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fapp%2Fonline_delivery.go",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fapp%2Fonline_delivery.go",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/internal%2Fapp%2Fonline_delivery.go?ref=a93837d3fb55369acfe2d131aff52914f55a867f",
+      "patch": "@@ -61,6 +61,8 @@ func (o *onlineDeliveryObserver) ObservePlanTerminal(event runtimedelivery.PlanT\n \t\t\twklog.Result(string(event.Result)),\n \t\t\twklog.String(\"phase\", string(event.Failure.Phase)),\n \t\t\twklog.String(\"mode\", onlineDeliveryModeLabel(event.Mode)),\n+\t\t\twklog.Uint64(\"messageID\", event.MessageID),\n+\t\t\twklog.MessageSeq(event.MessageSeq),\n \t\t\twklog.Int(\"recipients\", event.Recipients),\n \t\t\twklog.UID(event.Failure.RecipientUID),\n \t\t\twklog.Uint64(\"ownerNodeID\", event.Failure.OwnerNodeID),"
+    },
+    {
+      "sha": "7f1c280f257b22bcfe652a4d65318576d644c52d",
+      "filename": "internal/app/online_delivery_test.go",
+      "status": "modified",
+      "additions": 106,
+      "deletions": 0,
+      "changes": 106,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fapp%2Fonline_delivery_test.go",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fapp%2Fonline_delivery_test.go",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/internal%2Fapp%2Fonline_delivery_test.go?ref=a93837d3fb55369acfe2d131aff52914f55a867f",
+      "patch": "@@ -6,11 +6,117 @@ import (\n \t\"testing\"\n \t\"time\"\n \n+\t\"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery\"\n \t\"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend\"\n \truntimedelivery \"github.com/WuKongIM/WuKongIM/internal/runtime/delivery\"\n \tobsmetrics \"github.com/WuKongIM/WuKongIM/pkg/metrics\"\n+\t\"github.com/WuKongIM/WuKongIM/pkg/wklog\"\n )\n \n+func TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity(t *testing.T) {\n+\tfor _, tt := range []struct {\n+\t\tname   string\n+\t\tresult runtimedelivery.ObservationResult\n+\t\tphase  runtimedelivery.PlanFailurePhase\n+\t\tmode   onlinedelivery.Mode\n+\t\tseq    uint64\n+\t}{\n+\t\t{name: \"presence\", result: runtimedelivery.ObservationResultError, phase: runtimedelivery.PlanFailurePhasePresence, mode: onlinedelivery.ModeDurable, seq: 9007199254740993},\n+\t\t{name: \"owner push\", result: runtimedelivery.ObservationResultRetryExhausted, phase: runtimedelivery.PlanFailurePhaseOwnerPush, mode: onlinedelivery.ModeDurable, seq: 9007199254740993},\n+\t\t{name: \"canceled\", result: runtimedelivery.ObservationResultCanceled, phase: runtimedelivery.PlanFailurePhaseContext, mode: onlinedelivery.ModeDurable, seq: 9007199254740993},\n+\t\t{name: \"panic\", result: runtimedelivery.ObservationResultPanic, phase: runtimedelivery.PlanFailurePhasePanic, mode: onlinedelivery.ModeDurable, seq: 9007199254740993},\n+\t\t{name: \"transient zero sequence\", result: runtimedelivery.ObservationResultError, phase: runtimedelivery.PlanFailurePhasePresence, mode: onlinedelivery.ModeTransient},\n+\t\t{name: \"success remains quiet\", result: runtimedelivery.ObservationResultOK, mode: onlinedelivery.ModeDurable, seq: 9007199254740993},\n+\t} {\n+\t\tt.Run(tt.name, func(t *testing.T) {\n+\t\t\tlogger := &recordingAppLogger{}\n+\t\t\tobserver := &onlineDeliveryObserver{app: &App{logger: logger}}\n+\t\t\tcause := errors.New(\"original failure\")\n+\t\t\tobserver.ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{\n+\t\t\t\tMessageID: 18446744073709551614, MessageSeq: tt.seq,\n+\t\t\t\tResult: tt.result, Mode: tt.mode, Recipients: 3,\n+\t\t\t\tFailure: runtimedelivery.PlanFailureSample{Phase: tt.phase, RecipientUID: \"existing-recipient\", OwnerNodeID: 2, Err: cause},\n+\t\t\t})\n+\t\t\tentries := appLogEntriesForEvent(logger, \"WARN\", \"internal.app.delivery.plan_incomplete\")\n+\t\t\tif tt.result == runtimedelivery.ObservationResultOK {\n+\t\t\t\tif len(logger.entriesSnapshot()) != 0 {\n+\t\t\t\t\tt.Fatal(\"successful terminal observation added a log record\")\n+\t\t\t\t}\n+\t\t\t\treturn\n+\t\t\t}\n+\t\t\tif len(entries) != 1 || len(logger.entriesSnapshot()) != 1 {\n+\t\t\t\tt.Fatalf(\"failed plan logs = %d/%d, want one existing warning\", len(entries), len(logger.entriesSnapshot()))\n+\t\t\t}\n+\t\t\tentry := entries[0]\n+\t\t\trequireAppLogField(t, entry, \"messageID\", uint64(18446744073709551614))\n+\t\t\trequireAppLogField(t, entry, \"messageSeq\", tt.seq)\n+\t\t\trequireAppLogField(t, entry, \"result\", string(tt.result))\n+\t\t\trequireAppLogField(t, entry, \"phase\", string(tt.phase))\n+\t\t\twantMode := \"durable\"\n+\t\t\tif tt.mode == onlinedelivery.ModeTransient {\n+\t\t\t\twantMode = \"transient\"\n+\t\t\t}\n+\t\t\trequireAppLogField(t, entry, \"mode\", wantMode)\n+\t\t\trequireAppLogField(t, entry, \"recipients\", 3)\n+\t\t\trequireAppLogField(t, entry, \"uid\", \"existing-recipient\")\n+\t\t\trequireAppLogField(t, entry, \"ownerNodeID\", uint64(2))\n+\t\t\trequireAppLogField(t, entry, \"error\", cause)\n+\t\t\tif len(entry.fields) != 10 {\n+\t\t\t\tt.Fatalf(\"failure log fields = %d, want eight existing fields plus two scalar identities\", len(entry.fields))\n+\t\t\t}\n+\t\t\tfor _, field := range entry.fields {\n+\t\t\t\tswitch field.Key {\n+\t\t\t\tcase \"messageID\", \"messageSeq\":\n+\t\t\t\t\tif field.Type != wklog.Uint64Type {\n+\t\t\t\t\t\tt.Fatalf(\"identity %s type = %v, want uint64\", field.Key, field.Type)\n+\t\t\t\t\t}\n+\t\t\t\tcase \"event\", \"result\", \"phase\", \"mode\", \"recipients\", \"uid\", \"ownerNodeID\", \"error\":\n+\t\t\t\tdefault:\n+\t\t\t\t\tt.Fatalf(\"unexpected failure log field %q\", field.Key)\n+\t\t\t\t}\n+\t\t\t}\n+\t\t})\n+\t}\n+\tvar absent *onlineDeliveryObserver\n+\tabsent.ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{})\n+\t(&onlineDeliveryObserver{}).ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{})\n+\t(&onlineDeliveryObserver{app: &App{}}).ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{})\n+}\n+\n+func TestOnlineDeliveryTerminalIdentitiesDoNotCreateMetricSeries(t *testing.T) {\n+\treg := obsmetrics.New(1, \"node-1\")\n+\tobserver := &onlineDeliveryObserver{app: &App{metrics: reg}}\n+\tfor _, identity := range []struct{ id, sequence uint64 }{{0, 0}, {18446744073709551614, 9007199254740993}} {\n+\t\tobserver.ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{\n+\t\t\tMessageID: identity.id, MessageSeq: identity.sequence, Result: runtimedelivery.ObservationResultError,\n+\t\t\tRecipients: 3, Duration: time.Millisecond,\n+\t\t})\n+\t}\n+\tfamilies, err := reg.Gather()\n+\tif err != nil {\n+\t\tt.Fatalf(\"Gather() error = %v\", err)\n+\t}\n+\tprocess := requireAppMetricFamily(t, families, \"wukongim_delivery_recipient_worker_process_total\")\n+\tif len(process.Metric) != 7 {\n+\t\tt.Fatalf(\"process series = %d, want the seven existing terminal result partitions\", len(process.Metric))\n+\t}\n+\tif got := findAppMetricByLabels(t, process, map[string]string{\"result\": \"error\"}).GetCounter().GetValue(); got != 2 {\n+\t\tt.Fatalf(\"error process count = %v, want both message identities in one result series\", got)\n+\t}\n+\tfor _, metric := range process.Metric {\n+\t\tif len(metric.Label) != 3 {\n+\t\t\tt.Fatalf(\"process labels = %#v, want only node_id/node_name/result\", metric.Label)\n+\t\t}\n+\t\tfor _, label := range metric.Label {\n+\t\t\tswitch label.GetName() {\n+\t\t\tcase \"node_id\", \"node_name\", \"result\":\n+\t\t\tdefault:\n+\t\t\t\tt.Fatalf(\"identity leaked into metric label %q\", label.GetName())\n+\t\t\t}\n+\t\t}\n+\t}\n+}\n+\n func TestOnlineDeliveryOfflineObserverPreservesOrdinaryCommitEligibility(t *testing.T) {\n \ttests := []struct {\n \t\tname  string"
+    },
+    {
+      "sha": "039ba1cec87f57d1959c7e4c7707cb9c2a989c18",
+      "filename": "internal/runtime/delivery/runtime.go",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "changes": 1,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fruntime%2Fdelivery%2Fruntime.go",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fruntime%2Fdelivery%2Fruntime.go",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/internal%2Fruntime%2Fdelivery%2Fruntime.go?ref=a93837d3fb55369acfe2d131aff52914f55a867f",
+      "patch": "@@ -497,6 +497,7 @@ func (r *Runtime) runPlan(runCtx context.Context, plan onlinedelivery.RecipientD\n \t\tr.inflight.Add(-1)\n \t\tr.observePressure()\n \t\tr.observePlanTerminal(PlanTerminalEvent{\n+\t\t\tMessageID: plan.Event.MessageID, MessageSeq: plan.Event.MessageSeq,\n \t\t\tResult: result, Mode: plan.Mode, Recipients: plan.RecipientCount(),\n \t\t\tDuration: positiveRuntimeDuration(time.Since(started)), Failure: failure,\n \t\t})"
+    },
+    {
+      "sha": "be8471f71d2fb663ac03b99f46bff354febd0ef8",
+      "filename": "internal/runtime/delivery/runtime_ports.go",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 0,
+      "changes": 4,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fruntime%2Fdelivery%2Fruntime_ports.go",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fruntime%2Fdelivery%2Fruntime_ports.go",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/internal%2Fruntime%2Fdelivery%2Fruntime_ports.go?ref=a93837d3fb55369acfe2d131aff52914f55a867f",
+      "patch": "@@ -162,6 +162,10 @@ const (\n \n // PlanTerminalEvent describes terminal processing for accepted plan work.\n type PlanTerminalEvent struct {\n+\t// MessageID identifies the plan's immutable message for logs, never metric labels.\n+\tMessageID uint64\n+\t// MessageSeq preserves the plan's sequence, including zero for transient delivery.\n+\tMessageSeq uint64\n \t// Result is the bounded terminal outcome.\n \tResult ObservationResult\n \t// Mode preserves the plan's explicit Durable or Transient semantics."
+    },
+    {
+      "sha": "fe3f1a40455b6fcdebc7da488ee8d08ad24232c7",
+      "filename": "internal/runtime/delivery/runtime_test.go",
+      "status": "modified",
+      "additions": 77,
+      "deletions": 0,
+      "changes": 77,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fruntime%2Fdelivery%2Fruntime_test.go",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/a93837d3fb55369acfe2d131aff52914f55a867f/internal%2Fruntime%2Fdelivery%2Fruntime_test.go",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/internal%2Fruntime%2Fdelivery%2Fruntime_test.go?ref=a93837d3fb55369acfe2d131aff52914f55a867f",
+      "patch": "@@ -909,6 +909,83 @@ func TestRuntimeOwnerGroupingKeepsBatchOrderAndBoundsConcurrency(t *testing.T) {\n \t}\n }\n \n+func TestRuntimeTerminalObservationPreservesExactMessageIdentity(t *testing.T) {\n+\tpresenceErr := errors.New(\"presence unavailable\")\n+\tfor _, tt := range []struct {\n+\t\tname       string\n+\t\tmode       onlinedelivery.Mode\n+\t\tsequence   uint64\n+\t\tpresence   PlanPresenceResolver\n+\t\tcontext    func() context.Context\n+\t\twantResult ObservationResult\n+\t\twantPhase  PlanFailurePhase\n+\t\twantErr    error\n+\t\townerError bool\n+\t}{\n+\t\t{name: \"durable success\", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993, wantResult: ObservationResultOK},\n+\t\t{name: \"transient success\", mode: onlinedelivery.ModeTransient, wantResult: ObservationResultOK},\n+\t\t{name: \"presence failure\", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,\n+\t\t\tpresence: planPresenceResolverFunc(func(context.Context, []onlinedelivery.RecipientTargetBatch) []TargetPresenceResult {\n+\t\t\t\treturn []TargetPresenceResult{{Err: presenceErr}}\n+\t\t\t}), wantResult: ObservationResultError, wantPhase: PlanFailurePhasePresence, wantErr: presenceErr},\n+\t\t{name: \"canceled\", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,\n+\t\t\tcontext:    func() context.Context { ctx, cancel := context.WithCancel(context.Background()); cancel(); return ctx },\n+\t\t\twantResult: ObservationResultCanceled, wantPhase: PlanFailurePhaseContext, wantErr: context.Canceled},\n+\t\t{name: \"expired deadline\", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,\n+\t\t\tcontext: func() context.Context {\n+\t\t\t\tctx, cancel := context.WithDeadline(context.Background(), time.Unix(0, 0))\n+\t\t\t\tcancel()\n+\t\t\t\treturn ctx\n+\t\t\t},\n+\t\t\twantResult: ObservationResultTimeout, wantPhase: PlanFailurePhaseContext, wantErr: context.DeadlineExceeded},\n+\t\t{name: \"owner retry exhausted\", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,\n+\t\t\townerError: true, wantResult: ObservationResultRetryExhausted, wantPhase: PlanFailurePhaseOwnerPush, wantErr: ErrOwnerPushRetryExhausted},\n+\t\t{name: \"panic\", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,\n+\t\t\tpresence: planPresenceResolverFunc(func(context.Context, []onlinedelivery.RecipientTargetBatch) []TargetPresenceResult {\n+\t\t\t\tpanic(\"presence failed\")\n+\t\t\t}), wantResult: ObservationResultPanic, wantPhase: PlanFailurePhasePanic, wantErr: ErrPlanPanic},\n+\t} {\n+\t\tt.Run(tt.name, func(t *testing.T) {\n+\t\t\tobserver := &recordingRuntimeObserver{}\n+\t\t\tpresence := tt.presence\n+\t\t\tif presence == nil {\n+\t\t\t\tpresence = planPresenceResolverFunc(func(context.Context, []onlinedelivery.RecipientTargetBatch) []TargetPresenceResult {\n+\t\t\t\t\tif tt.ownerError {\n+\t\t\t\t\t\troute := runtimeRouteForTest()\n+\t\t\t\t\t\troute.OwnerNodeID = 2\n+\t\t\t\t\t\treturn []TargetPresenceResult{{Routes: []onlinedelivery.Route{route}}}\n+\t\t\t\t\t}\n+\t\t\t\t\treturn []TargetPresenceResult{{}}\n+\t\t\t\t})\n+\t\t\t}\n+\t\t\truntime := NewRuntime(RuntimeOptions{\n+\t\t\t\tLocalNodeID: 1, Presence: presence, Observer: observer, RetryMaxAttempts: 1,\n+\t\t\t\tRemoteOwnerPusher: remoteOwnerPusherFunc(func(context.Context, onlinedelivery.OwnerPush) (onlinedelivery.OwnerPushResult, error) {\n+\t\t\t\t\treturn onlinedelivery.OwnerPushResult{}, errors.New(\"owner unavailable\")\n+\t\t\t\t}),\n+\t\t\t})\n+\t\t\tplan := runtimePlanForTest(18446744073709551614)\n+\t\t\tplan.Event.MessageSeq = tt.sequence\n+\t\t\tplan.Mode = tt.mode\n+\t\t\tctx := context.Background()\n+\t\t\tif tt.context != nil {\n+\t\t\t\tctx = tt.context()\n+\t\t\t}\n+\t\t\truntime.runPlan(ctx, plan)\n+\t\t\tif got := len(observer.terminalResults()); got != 1 {\n+\t\t\t\tt.Fatalf(\"terminal observations = %d, want exactly one\", got)\n+\t\t\t}\n+\t\t\tevent := observer.lastTerminal()\n+\t\t\tif event.MessageID != 18446744073709551614 || event.MessageSeq != tt.sequence {\n+\t\t\t\tt.Fatalf(\"terminal identity = %d/%d, want exact input identity\", event.MessageID, event.MessageSeq)\n+\t\t\t}\n+\t\t\tif event.Mode != tt.mode || event.Recipients != 1 || event.Result != tt.wantResult || event.Failure.Phase != tt.wantPhase || !errors.Is(event.Failure.Err, tt.wantErr) {\n+\t\t\t\tt.Fatalf(\"terminal observation = %#v, want unchanged mode/count/result/failure\", event)\n+\t\t\t}\n+\t\t})\n+\t}\n+}\n+\n func TestRuntimeRetryExhaustionReportsBoundedTargetSample(t *testing.T) {\n \tobserver := &recordingRuntimeObserver{}\n \truntime := NewRuntime(RuntimeOptions{"
+    },
+    {
+      "sha": "289f9aa8329a3f9a582797cb4e738ddede28ccfc",
+      "filename": "pkg/metrics/gateway.go",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "changes": 1,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/a93837d3fb55369acfe2d131aff52914f55a867f/pkg%2Fmetrics%2Fgateway.go",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/a93837d3fb55369acfe2d131aff52914f55a867f/pkg%2Fmetrics%2Fgateway.go",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/pkg%2Fmetrics%2Fgateway.go?ref=a93837d3fb55369acfe2d131aff52914f55a867f",
+      "patch": "@@ -278,6 +278,7 @@ func normalizeGatewaySendackReason(reason string) string {\n \t\t\"channel_not_exist\",\n \t\t\"node_not_match\",\n \t\t\"system_error\",\n+\t\t\"system_busy\",\n \t\t\"unsupported\":\n \t\treturn reason\n \tdefault:"
+    },
+    {
+      "sha": "20496198bce6d40b198bc741a277e13c08aecdff",
+      "filename": "pkg/metrics/registry_test.go",
+      "status": "modified",
+      "additions": 8,
+      "deletions": 0,
+      "changes": 8,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/a93837d3fb55369acfe2d131aff52914f55a867f/pkg%2Fmetrics%2Fregistry_test.go",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/a93837d3fb55369acfe2d131aff52914f55a867f/pkg%2Fmetrics%2Fregistry_test.go",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/pkg%2Fmetrics%2Fregistry_test.go?ref=a93837d3fb55369acfe2d131aff52914f55a867f",
+      "patch": "@@ -66,6 +66,7 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {\n \treg.Gateway.ObserveAsyncSendDispatchWait(\"wkproto\", 2*time.Millisecond)\n \treg.Gateway.ObserveAsyncSendBatch(8, 256, 500*time.Microsecond)\n \treg.Gateway.Sendack(\"system_error\", \"batch_result_error\", \"timeout\")\n+\treg.Gateway.Sendack(\"system_busy\", \"batch_result_error\", \"route_not_ready\")\n \treg.Gateway.Sendack(\"surprising raw reason\", \"uid-leaking source\", \"uid-leaking error\")\n \treg.Gateway.ConnectionClosed(\"tcp\")\n \treg.Gateway.ConnectionClosedReason(\"tcp\", \"peer_closed\")\n@@ -188,6 +189,13 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {\n \t}).GetHistogram().GetSampleCount())\n \n \tsendacks := requireMetricFamily(t, families, \"wukongim_gateway_sendacks_total\")\n+\trequire.Equal(t, float64(1), findMetricByLabels(t, sendacks, map[string]string{\n+\t\t\"node_id\":   \"1\",\n+\t\t\"node_name\": \"node-1\",\n+\t\t\"reason\":    \"system_busy\",\n+\t\t\"source\":    \"batch_result_error\",\n+\t\t\"class\":     \"route_not_ready\",\n+\t}).GetCounter().GetValue())\n \trequire.Equal(t, float64(1), findMetricByLabels(t, sendacks, map[string]string{\n \t\t\"node_id\":   \"1\",\n \t\t\"node_name\": \"node-1\","
+    }
+  ]
+}

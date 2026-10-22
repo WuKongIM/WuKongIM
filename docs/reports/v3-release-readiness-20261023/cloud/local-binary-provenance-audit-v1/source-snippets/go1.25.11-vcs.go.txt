@@ -1,0 +1,108 @@
+212: 
+213: // vcsGit describes how to use Git.
+214: var vcsGit = &Cmd{
+215: 	Name: "Git",
+216: 	Cmd:  "git",
+217: 	RootNames: []rootName{
+218: 		{filename: ".git", isDir: true},
+219: 	},
+220: 
+221: 	Scheme: []string{"git", "https", "http", "git+ssh", "ssh"},
+232: func gitStatus(vcsGit *Cmd, rootDir string) (Status, error) {
+233: 	out, err := vcsGit.runOutputVerboseOnly(rootDir, "status --porcelain")
+234: 	if err != nil {
+235: 		return Status{}, err
+236: 	}
+237: 	uncommitted := len(out) > 0
+238: 
+239: 	// "git status" works for empty repositories, but "git log" does not.
+240: 	// Assume there are no commits in the repo when "git log" fails with
+241: 	// uncommitted files and skip tagging revision / committime.
+242: 	var rev string
+243: 	var commitTime time.Time
+244: 	out, err = vcsGit.runOutputVerboseOnly(rootDir, "-c log.showsignature=false log -1 --format=%H:%ct")
+245: 	if err != nil && !uncommitted {
+246: 		return Status{}, err
+247: 	} else if err == nil {
+248: 		rev, commitTime, err = parseRevTime(out)
+249: 		if err != nil {
+250: 			return Status{}, err
+251: 		}
+252: 	}
+253: 
+254: 	return Status{
+255: 		Revision:    rev,
+256: 		CommitTime:  commitTime,
+257: 		Uncommitted: uncommitted,
+258: 	}, nil
+259: }
+260: 
+261: // vcsBzr describes how to use Bazaar.
+262: var vcsBzr = &Cmd{
+263: 	Name: "Bazaar",
+264: 	Cmd:  "bzr",
+578: // FromDir inspects dir and its parents to determine the
+579: // version control system and code repository to use.
+580: // If no repository is found, FromDir returns an error
+581: // equivalent to os.ErrNotExist.
+582: func FromDir(dir, srcRoot string) (repoDir string, vcsCmd *Cmd, err error) {
+583: 	// Clean and double-check that dir is in (a subdirectory of) srcRoot.
+584: 	dir = filepath.Clean(dir)
+585: 	if srcRoot != "" {
+586: 		srcRoot = filepath.Clean(srcRoot)
+587: 		if len(dir) <= len(srcRoot) || dir[len(srcRoot)] != filepath.Separator {
+588: 			return "", nil, fmt.Errorf("directory %q is outside source root %q", dir, srcRoot)
+589: 		}
+590: 	}
+591: 
+592: 	origDir := dir
+593: 	for len(dir) > len(srcRoot) {
+594: 		for _, vcs := range vcsList {
+595: 			if isVCSRoot(dir, vcs.RootNames) {
+596: 				if vcsCmd == nil {
+597: 					// Record first VCS we find.
+598: 					vcsCmd = vcs
+599: 					repoDir = dir
+600: 					if allowmultiplevcs.Value() == "1" {
+601: 						allowmultiplevcs.IncNonDefault()
+602: 						return repoDir, vcsCmd, nil
+603: 					}
+604: 					// If allowmultiplevcs is not set, keep looking for
+605: 					// repositories in current and parent directories and report
+606: 					// an error if one is found to mitigate VCS injection
+607: 					// attacks.
+608: 					continue
+609: 				}
+610: 				if vcsCmd == vcsGit && vcs == vcsGit {
+611: 					// Nested Git is allowed, as this is how things like
+612: 					// submodules work. Git explicitly protects against
+613: 					// injection against itself.
+614: 					continue
+615: 				}
+616: 				return "", nil, fmt.Errorf("multiple VCS detected: %s in %q, and %s in %q",
+617: 					vcsCmd.Cmd, repoDir, vcs.Cmd, dir)
+618: 			}
+619: 		}
+620: 
+621: 		// Move to parent.
+622: 		ndir := filepath.Dir(dir)
+623: 		if len(ndir) >= len(dir) {
+624: 			break
+625: 		}
+626: 		dir = ndir
+627: 	}
+628: 	if vcsCmd == nil {
+629: 		return "", nil, &vcsNotFoundError{dir: origDir}
+630: 	}
+631: 	return repoDir, vcsCmd, nil
+632: }
+633: 
+634: // isVCSRoot identifies a VCS root by checking whether the directory contains
+635: // any of the listed root names.
+636: func isVCSRoot(dir string, rootNames []rootName) bool {
+637: 	for _, root := range rootNames {
+638: 		fi, err := os.Stat(filepath.Join(dir, root.filename))
+639: 		if err == nil && fi.IsDir() == root.isDir {
+640: 			return true
+641: 		}
+642: 	}

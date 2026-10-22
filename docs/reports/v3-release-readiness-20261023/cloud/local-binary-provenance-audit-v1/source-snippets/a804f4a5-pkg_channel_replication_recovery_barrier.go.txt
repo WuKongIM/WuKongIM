@@ -1,0 +1,30 @@
+48: 	proposal := durableProposal{
+49: 		first: recovered.LEO + 1, last: recovered.LEO + 1,
+50: 		channelKey: authority.Key, channelID: authority.ChannelID, leader: authority.Leader,
+51: 		manifest: manifest, records: []ch.Record{record}, committed: recovered.LEO,
+52: 	}
+53: 	result, err := runDurableRound(ctx, authority.Leader, authority.Voters, authority.WriteQuorum, proposal, dispatcher)
+54: 	if err != nil {
+55: 		return recoveryBarrierResult{}, err
+56: 	}
+57: 	if !result.localDurable || result.durableVotes < authority.WriteQuorum || !result.outcome.Durable() {
+58: 		return recoveryBarrierResult{}, errDurableQuorumUnavailable
+59: 	}
+60: 	return recoveryBarrierResult{State: ReplicaState{
+61: 		LEO: manifest.LastOffset, Committed: recovered.LEO, Manifest: manifest, TailIdentity: entries[0],
+62: 	}}, nil
+63: }
+64: 
+65: func validAuthority(authority Authority) bool {
+66: 	if authority.Key == "" || authority.ChannelID.ID == "" || authority.ID.ChannelEpoch == 0 ||
+67: 		authority.ID.LeaderTerm == 0 || authority.ID.FenceVersion == 0 || authority.Leader == 0 {
+68: 		return false
+69: 	}
+70: 	configured, err := validateRecoveryTopology(authority.Voters, authority.WriteQuorum)
+71: 	if err != nil {
+72: 		return false
+73: 	}
+74: 	_, leaderIsVoter := configured[authority.Leader]
+75: 	for _, learner := range authority.Learners {
+76: 		if _, duplicate := configured[learner]; learner == 0 || duplicate {
+77: 			return false

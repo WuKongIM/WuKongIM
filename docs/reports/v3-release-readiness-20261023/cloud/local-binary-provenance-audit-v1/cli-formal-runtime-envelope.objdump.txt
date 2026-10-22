@@ -1,0 +1,673 @@
+TEXT github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark.loadFormalRuntimeEnvelope(SB) /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/cmd/wkcli/internal/benchmark/formal_chain_command.go
+  formal_chain_command.go:163	0x1004db8e0		f9400b90		MOVD 16(R28), R16										
+  formal_chain_command.go:163	0x1004db8e4		d10543f1		SUB $336, RSP, R17										
+  formal_chain_command.go:163	0x1004db8e8		eb10023f		CMP R16, R17											
+  formal_chain_command.go:163	0x1004db8ec		54005269		BLS 659(PC)											
+  formal_chain_command.go:163	0x1004db8f0		d10743f4		SUB $464, RSP, R20										
+  formal_chain_command.go:163	0x1004db8f4		a93ffa9d		STP (R29, R30), -8(R20)										
+  formal_chain_command.go:163	0x1004db8f8		9100029f		MOVD R20, RSP											
+  formal_chain_command.go:163	0x1004db8fc		d10023fd		SUB $8, RSP, R29										
+  formal_chain_command.go:163	0x1004db900		f90343e2		MOVD R2, 1664(RSP)										
+  formal_chain_command.go:170	0x1004db904		f900dfe2		MOVD R2, 440(RSP)										
+  formal_chain_command.go:170	0x1004db908		f9007fe1		MOVD R1, 248(RSP)										
+  formal_chain_command.go:170	0x1004db90c		f9007be0		MOVD R0, 240(RSP)										
+  formal_chain_command.go:168	0x1004db910		90005e00		ADRP 12320768(PC), R0										
+  formal_chain_command.go:168	0x1004db914		91108400		ADD $1057, R0, R0										
+  formal_chain_command.go:168	0x1004db918		b27d07e1		ORR $24, ZR, R1											
+  formal_chain_command.go:168	0x1004db91c		97f02c99		CALL os.Getenv(SB)										
+  formal_chain_command.go:168	0x1004db920		97f0c148		CALL strings.TrimSpace(SB)									
+  formal_chain_command.go:168	0x1004db924		aa0003e2		MOVD R0, R2											
+  formal_chain_command.go:168	0x1004db928		aa0103e3		MOVD R1, R3											
+  formal_chain_command.go:168	0x1004db92c		f0005ec0		ADRP 12431360(PC), R0										
+  formal_chain_command.go:168	0x1004db930		91056c00		ADD $347, R0, R0										
+  formal_chain_command.go:168	0x1004db934		d2800461		MOVD $35, R1											
+  formal_chain_command.go:168	0x1004db938		97efc6b6		CALL time.Parse(SB)										
+  formal_chain_command.go:168	0x1004db93c		f90077e0		MOVD R0, 232(RSP)										
+  formal_chain_command.go:168	0x1004db940		f90057e3		MOVD R3, 168(RSP)										
+  formal_chain_command.go:168	0x1004db944		f90073e1		MOVD R1, 224(RSP)										
+  formal_chain_command.go:168	0x1004db948		f900dbe2		MOVD R2, 432(RSP)										
+  formal_chain_command.go:169	0x1004db94c		90005e00		ADRP 12320768(PC), R0										
+  formal_chain_command.go:169	0x1004db950		9110e400		ADD $1081, R0, R0										
+  formal_chain_command.go:169	0x1004db954		b27d07e1		ORR $24, ZR, R1											
+  formal_chain_command.go:169	0x1004db958		97f02c8a		CALL os.Getenv(SB)										
+  formal_chain_command.go:169	0x1004db95c		97f0c139		CALL strings.TrimSpace(SB)									
+  formal_chain_command.go:169	0x1004db960		aa0003e2		MOVD R0, R2											
+  formal_chain_command.go:169	0x1004db964		aa0103e3		MOVD R1, R3											
+  formal_chain_command.go:169	0x1004db968		f0005ec0		ADRP 12431360(PC), R0										
+  formal_chain_command.go:169	0x1004db96c		91056c00		ADD $347, R0, R0										
+  formal_chain_command.go:169	0x1004db970		d2800461		MOVD $35, R1											
+  formal_chain_command.go:169	0x1004db974		97efc6a7		CALL time.Parse(SB)										
+  formal_chain_command.go:170	0x1004db978		b5001ca3		CBNZ R3, 229(PC)										
+  formal_chain_command.go:169	0x1004db97c		f9006fe0		MOVD R0, 216(RSP)										
+  formal_chain_command.go:169	0x1004db980		f900d7e2		MOVD R2, 424(RSP)										
+  formal_chain_command.go:169	0x1004db984		f9006be1		MOVD R1, 208(RSP)										
+  formal_chain_command.go:181	0x1004db988		d000addb		ADRP 22781952(PC), R27										
+  formal_chain_command.go:181	0x1004db98c		f9406b62		MOVD 208(R27), R2										
+  formal_chain_command.go:181	0x1004db990		d0005e20		ADRP 12345344(PC), R0										
+  formal_chain_command.go:181	0x1004db994		91272400		ADD $2505, R0, R0										
+  formal_chain_command.go:181	0x1004db998		d2800361		MOVD $27, R1											
+  formal_chain_command.go:181	0x1004db99c		d000adda		ADRP 22781952(PC), R26										
+  formal_chain_command.go:181	0x1004db9a0		9103435a		ADD $208, R26, R26										
+  formal_chain_command.go:181	0x1004db9a4		d63f0040		CALL (R2)											
+  formal_chain_command.go:181	0x1004db9a8		f9003be0		MOVD R0, 112(RSP)										
+  formal_chain_command.go:181	0x1004db9ac		f90037e1		MOVD R1, 104(RSP)										
+  formal_chain_command.go:182	0x1004db9b0		d000addb		ADRP 22781952(PC), R27										
+  formal_chain_command.go:182	0x1004db9b4		f9406b62		MOVD 208(R27), R2										
+  formal_chain_command.go:182	0x1004db9b8		d0005f00		ADRP 12460032(PC), R0										
+  formal_chain_command.go:182	0x1004db9bc		91113c00		ADD $1103, R0, R0										
+  formal_chain_command.go:182	0x1004db9c0		d28004c1		MOVD $38, R1											
+  formal_chain_command.go:182	0x1004db9c4		d000adda		ADRP 22781952(PC), R26										
+  formal_chain_command.go:182	0x1004db9c8		9103435a		ADD $208, R26, R26										
+  formal_chain_command.go:182	0x1004db9cc		d63f0040		CALL (R2)											
+  formal_chain_command.go:182	0x1004db9d0		f9002be0		MOVD R0, 80(RSP)										
+  formal_chain_command.go:182	0x1004db9d4		f90027e1		MOVD R1, 72(RSP)										
+  formal_chain_command.go:183	0x1004db9d8		d000addb		ADRP 22781952(PC), R27										
+  formal_chain_command.go:183	0x1004db9dc		f9406b62		MOVD 208(R27), R2										
+  formal_chain_command.go:183	0x1004db9e0		90005e80		ADRP 12386304(PC), R0										
+  formal_chain_command.go:183	0x1004db9e4		91397800		ADD $3678, R0, R0										
+  formal_chain_command.go:183	0x1004db9e8		b24013e1		ORR $31, ZR, R1											
+  formal_chain_command.go:183	0x1004db9ec		d000adda		ADRP 22781952(PC), R26										
+  formal_chain_command.go:183	0x1004db9f0		9103435a		ADD $208, R26, R26										
+  formal_chain_command.go:183	0x1004db9f4		d63f0040		CALL (R2)											
+  formal_chain_command.go:183	0x1004db9f8		f9005fe0		MOVD R0, 184(RSP)										
+  formal_chain_command.go:183	0x1004db9fc		f9005be1		MOVD R1, 176(RSP)										
+  formal_chain_command.go:184	0x1004dba00		d000addb		ADRP 22781952(PC), R27										
+  formal_chain_command.go:184	0x1004dba04		f9406b62		MOVD 208(R27), R2										
+  formal_chain_command.go:184	0x1004dba08		90005e80		ADRP 12386304(PC), R0										
+  formal_chain_command.go:184	0x1004dba0c		9139f400		ADD $3709, R0, R0										
+  formal_chain_command.go:184	0x1004dba10		b24013e1		ORR $31, ZR, R1											
+  formal_chain_command.go:184	0x1004dba14		d000adda		ADRP 22781952(PC), R26										
+  formal_chain_command.go:184	0x1004dba18		9103435a		ADD $208, R26, R26										
+  formal_chain_command.go:184	0x1004dba1c		d63f0040		CALL (R2)											
+  formal_chain_command.go:184	0x1004dba20		f90047e0		MOVD R0, 136(RSP)										
+  formal_chain_command.go:184	0x1004dba24		f90043e1		MOVD R1, 128(RSP)										
+  formal_chain_command.go:185	0x1004dba28		f0005e80		ADRP 12398592(PC), R0										
+  formal_chain_command.go:185	0x1004dba2c		911c5400		ADD $1813, R0, R0										
+  formal_chain_command.go:185	0x1004dba30		b27b03e1		ORR $32, ZR, R1											
+  formal_chain_command.go:185	0x1004dba34		97f02c53		CALL os.Getenv(SB)										
+  formal_chain_command.go:185	0x1004dba38		97f0c102		CALL strings.TrimSpace(SB)									
+  formal_chain_command.go:185	0x1004dba3c		b0010b5b		ADRP 35033088(PC), R27										
+  formal_chain_command.go:185	0x1004dba40		f9411762		MOVD 552(R27), R2										
+  formal_chain_command.go:185	0x1004dba44		aa0003e3		MOVD R0, R3											
+  formal_chain_command.go:185	0x1004dba48		aa0203e0		MOVD R2, R0											
+  formal_chain_command.go:185	0x1004dba4c		aa0103e4		MOVD R1, R4											
+  formal_chain_command.go:185	0x1004dba50		aa0303e1		MOVD R3, R1											
+  formal_chain_command.go:185	0x1004dba54		aa0403e2		MOVD R4, R2											
+  formal_chain_command.go:185	0x1004dba58		97f0a702		CALL encoding/base64.(*Encoding).DecodeString(SB)						
+  formal_chain_command.go:185	0x1004dba5c		f90053e3		MOVD R3, 160(RSP)										
+  formal_chain_command.go:185	0x1004dba60		f900cbe0		MOVD R0, 400(RSP)										
+  formal_chain_command.go:185	0x1004dba64		f9004be1		MOVD R1, 144(RSP)										
+  formal_chain_command.go:185	0x1004dba68		f9004fe2		MOVD R2, 152(RSP)										
+  formal_chain_command.go:186	0x1004dba6c		b0009580		ADRP 19599360(PC), R0										
+  formal_chain_command.go:186	0x1004dba70		912d0000		ADD $2880, R0, R0										
+  formal_chain_command.go:186	0x1004dba74		97ecec7f		CALL runtime.newobject(SB)									
+  formal_chain_command.go:186	0x1004dba78		f900e3e0		MOVD R0, 448(RSP)										
+  formal_chain_command.go:187	0x1004dba7c		f94053e1		MOVD 160(RSP), R1										
+  formal_chain_command.go:187	0x1004dba80		b5000121		CBNZ R1, 9(PC)											
+  formal_chain_command.go:188	0x1004dba84		f9404be1		MOVD 144(RSP), R1										
+  formal_chain_command.go:188	0x1004dba88		f9404fe2		MOVD 152(RSP), R2										
+  formal_chain_command.go:188	0x1004dba8c		b0009583		ADRP 19599360(PC), R3										
+  formal_chain_command.go:188	0x1004dba90		912c0063		ADD $2816, R3, R3										
+  formal_chain_command.go:188	0x1004dba94		aa0003e4		MOVD R0, R4											
+  formal_chain_command.go:188	0x1004dba98		f940cbe0		MOVD 400(RSP), R0										
+  formal_chain_command.go:188	0x1004dba9c		97f0d85d		CALL encoding/json.Unmarshal(SB)								
+  formal_chain_command.go:234	0x1004dbaa0		aa0003e1		MOVD R0, R1											
+  formal_chain_command.go:234	0x1004dbaa4		f90053e1		MOVD R1, 160(RSP)										
+  formal_chain_command.go:190	0x1004dbaa8		90005e00		ADRP 12320768(PC), R0										
+  formal_chain_command.go:190	0x1004dbaac		91114400		ADD $1105, R0, R0										
+  formal_chain_command.go:190	0x1004dbab0		b27d07e1		ORR $24, ZR, R1											
+  formal_chain_command.go:190	0x1004dbab4		97f02c33		CALL os.Getenv(SB)										
+  formal_chain_command.go:190	0x1004dbab8		97f0c0e2		CALL strings.TrimSpace(SB)									
+  formal_chain_command.go:191	0x1004dbabc		f100343f		CMP $13, R1											
+  formal_chain_command.go:191	0x1004dbac0		54000221		BNE 17(PC)											
+  formal_chain_command.go:191	0x1004dbac4		f9400006		MOVD (R0), R6											
+  formal_chain_command.go:191	0x1004dbac8		d28d2c87		MOVD $26980, R7											
+  formal_chain_command.go:191	0x1004dbacc		f2acae47		MOVK $(25970<<16), R7										
+  formal_chain_command.go:191	0x1004dbad0		f2ce8c67		MOVK $(29795<<32), R7										
+  formal_chain_command.go:191	0x1004dbad4		f2ee4be7		MOVK $(29279<<48), R7										
+  formal_chain_command.go:191	0x1004dbad8		eb0700df		CMP R7, R6											
+  formal_chain_command.go:191	0x1004dbadc		54000141		BNE 10(PC)											
+  formal_chain_command.go:191	0x1004dbae0		b9400806		MOVWU 8(R0), R6											
+  formal_chain_command.go:191	0x1004dbae4		d28e0ca7		MOVD $28773, R7											
+  formal_chain_command.go:191	0x1004dbae8		f2ad2c27		MOVK $(26977<<16), R7										
+  formal_chain_command.go:191	0x1004dbaec		6b0700df		CMPW R7, R6											
+  formal_chain_command.go:191	0x1004dbaf0		540000a1		BNE 5(PC)											
+  formal_chain_command.go:191	0x1004dbaf4		39403006		MOVBU 12(R0), R6										
+  formal_chain_command.go:191	0x1004dbaf8		7101c8df		CMPW $114, R6											
+  formal_chain_command.go:191	0x1004dbafc		9a9f17e6		CSET EQ, R6											
+  formal_chain_command.go:191	0x1004dbb00		14000002		JMP 2(PC)											
+  formal_chain_command.go:191	0x1004dbb04		aa1f03e6		MOVD ZR, R6											
+  formal_chain_command.go:192	0x1004dbb08		b4000201		CBZ R1, 16(PC)											
+  formal_chain_command.go:192	0x1004dbb0c		370001e6		TBNZ $0, R6, 15(PC)										
+  errors.go:65			0x1004dbb10		f0009cc0		ADRP 20557824(PC), R0										
+  errors.go:65			0x1004dbb14		913a0000		ADD $3712, R0, R0										
+  errors.go:65			0x1004dbb18		97ecec56		CALL runtime.newobject(SB)									
+  errors.go:65			0x1004dbb1c		90006001		ADRP 12582912(PC), R1										
+  errors.go:65			0x1004dbb20		9111ec21		ADD $1147, R1, R1										
+  errors.go:65			0x1004dbb24		d2800682		MOVD $52, R2											
+  errors.go:65			0x1004dbb28		a9000801		STP (R1, R2), (R0)										
+  formal_chain_command.go:193	0x1004dbb2c		9000ae61		ADRP 22855680(PC), R1										
+  formal_chain_command.go:193	0x1004dbb30		912b6021		ADD $2776, R1, R1										
+  formal_chain_command.go:193	0x1004dbb34		aa0003e2		MOVD R0, R2											
+  formal_chain_command.go:193	0x1004dbb38		aa1f03e0		MOVD ZR, R0											
+  formal_chain_command.go:193	0x1004dbb3c		a97ffbfd		LDP -8(RSP), (R29, R30)										
+  formal_chain_command.go:193	0x1004dbb40		910743ff		ADD $464, RSP, RSP										
+  formal_chain_command.go:193	0x1004dbb44		d65f03c0		RET												
+  formal_chain_command.go:191	0x1004dbb48		39011fe6		MOVB R6, 71(RSP)										
+  formal_chain_command.go:196	0x1004dbb4c		910843fb		ADD $528, RSP, R27										
+  formal_chain_command.go:196	0x1004dbb50		a9402367		LDP (R27), (R7, R8)										
+  formal_chain_command.go:197	0x1004dbb54		f100191f		CMP $6, R8											
+  formal_chain_command.go:197	0x1004dbb58		54000461		BNE 35(PC)											
+  formal_chain_command.go:197	0x1004dbb5c		b94000e8		MOVWU (R7), R8											
+  formal_chain_command.go:197	0x1004dbb60		d28decc9		MOVD $28518, R9											
+  formal_chain_command.go:197	0x1004dbb64		f2adae49		MOVK $(28018<<16), R9										
+  formal_chain_command.go:197	0x1004dbb68		6b09011f		CMPW R9, R8											
+  formal_chain_command.go:197	0x1004dbb6c		54000b41		BNE 90(PC)											
+  formal_chain_command.go:197	0x1004dbb70		794008e7		MOVHU 4(R7), R7											
+  formal_chain_command.go:197	0x1004dbb74		d28d8c28		MOVD $27745, R8											
+  formal_chain_command.go:197	0x1004dbb78		6b0800ff		CMPW R8, R7											
+  formal_chain_command.go:197	0x1004dbb7c		54000ac1		BNE 86(PC)											
+  formal_chain_command.go:198	0x1004dbb80		37000166		TBNZ $0, R6, 11(PC)										
+  formal_chain_command.go:201	0x1004dbb84		f94307e7		MOVD 1544(RSP), R7										
+  formal_chain_command.go:201	0x1004dbb88		f9432be8		MOVD 1616(RSP), R8										
+  formal_chain_command.go:201	0x1004dbb8c		8b070107		ADD R7, R8, R7											
+  formal_chain_command.go:201	0x1004dbb90		f94337e8		MOVD 1640(RSP), R8										
+  formal_chain_command.go:201	0x1004dbb94		8b070107		ADD R7, R8, R7											
+  formal_chain_command.go:201	0x1004dbb98		d2940008		MOVD $40960, R8											
+  formal_chain_command.go:201	0x1004dbb9c		f2a61708		MOVK $(12472<<16), R8										
+  formal_chain_command.go:201	0x1004dbba0		f2c068c8		MOVK $(838<<32), R8										
+  formal_chain_command.go:201	0x1004dbba4		8b070107		ADD R7, R8, R7											
+  formal_chain_command.go:201	0x1004dbba8		14000023		JMP 35(PC)											
+  errors.go:65			0x1004dbbac		f0009cc0		ADRP 20557824(PC), R0										
+  errors.go:65			0x1004dbbb0		913a0000		ADD $3712, R0, R0										
+  errors.go:65			0x1004dbbb4		97ecec2f		CALL runtime.newobject(SB)									
+  errors.go:65			0x1004dbbb8		90006001		ADRP 12582912(PC), R1										
+  errors.go:65			0x1004dbbbc		9111ec21		ADD $1147, R1, R1										
+  errors.go:65			0x1004dbbc0		d2800682		MOVD $52, R2											
+  errors.go:65			0x1004dbbc4		a9000801		STP (R1, R2), (R0)										
+  formal_chain_command.go:199	0x1004dbbc8		9000ae61		ADRP 22855680(PC), R1										
+  formal_chain_command.go:199	0x1004dbbcc		912b6021		ADD $2776, R1, R1										
+  formal_chain_command.go:199	0x1004dbbd0		aa0003e2		MOVD R0, R2											
+  formal_chain_command.go:199	0x1004dbbd4		aa1f03e0		MOVD ZR, R0											
+  formal_chain_command.go:199	0x1004dbbd8		a97ffbfd		LDP -8(RSP), (R29, R30)										
+  formal_chain_command.go:199	0x1004dbbdc		910743ff		ADD $464, RSP, RSP										
+  formal_chain_command.go:199	0x1004dbbe0		d65f03c0		RET												
+  formal_chain_command.go:202	0x1004dbbe4		f100251f		CMP $9, R8											
+  formal_chain_command.go:202	0x1004dbbe8		54000761		BNE 59(PC)											
+  formal_chain_command.go:202	0x1004dbbec		f94000e8		MOVD (R7), R8											
+  formal_chain_command.go:202	0x1004dbbf0		d28cae49		MOVD $25970, R9											
+  formal_chain_command.go:202	0x1004dbbf4		f2acad09		MOVK $(25960<<16), R9										
+  formal_chain_command.go:202	0x1004dbbf8		f2ce4c29		MOVK $(29281<<32), R9										
+  formal_chain_command.go:202	0x1004dbbfc		f2ec2e69		MOVK $(24947<<48), R9										
+  formal_chain_command.go:202	0x1004dbc00		eb09011f		CMP R9, R8											
+  formal_chain_command.go:202	0x1004dbc04		54000681		BNE 52(PC)											
+  formal_chain_command.go:202	0x1004dbc08		394020e7		MOVBU 8(R7), R7											
+  formal_chain_command.go:202	0x1004dbc0c		7101b0ff		CMPW $108, R7											
+  formal_chain_command.go:202	0x1004dbc10		54000621		BNE 49(PC)											
+  formal_chain_command.go:237	0x1004dbc14		720000df		TSTW $1, R6											
+  formal_chain_command.go:237	0x1004dbc18		d2820008		MOVD $4096, R8											
+  formal_chain_command.go:237	0x1004dbc1c		f2bc7048		MOVK $(58242<<16), R8										
+  formal_chain_command.go:237	0x1004dbc20		f2c07a28		MOVK $(977<<32), R8										
+  formal_chain_command.go:237	0x1004dbc24		d29c0009		MOVD $57344, R9											
+  formal_chain_command.go:237	0x1004dbc28		f2b24529		MOVK $(37417<<16), R9										
+  formal_chain_command.go:237	0x1004dbc2c		f2c13a49		MOVK $(2514<<32), R9										
+  formal_chain_command.go:237	0x1004dbc30		9a891107		CSEL NE, R8, R9, R7										
+  formal_chain_command.go:237	0x1004dbc34		f90033e7		MOVD R7, 96(RSP)										
+  formal_chain_command.go:211	0x1004dbc38		f9406fe0		MOVD 216(RSP), R0										
+  formal_chain_command.go:211	0x1004dbc3c		f9406be1		MOVD 208(RSP), R1										
+  formal_chain_command.go:211	0x1004dbc40		f940d7e2		MOVD 424(RSP), R2										
+  formal_chain_command.go:211	0x1004dbc44		f94077e3		MOVD 232(RSP), R3										
+  formal_chain_command.go:211	0x1004dbc48		f94073e4		MOVD 224(RSP), R4										
+  formal_chain_command.go:211	0x1004dbc4c		f940dbe5		MOVD 432(RSP), R5										
+  formal_chain_command.go:211	0x1004dbc50		97efdba0		CALL time.Time.Sub(SB)										
+  time.go:1101			0x1004dbc54		d29daaa6		MOVD $60757, R6											
+  time.go:1101			0x1004dbc58		f2bdaea6		MOVK $(60789<<16), R6										
+  time.go:1101			0x1004dbc5c		f2dfe4c6		MOVK $(65318<<32), R6										
+  time.go:1101			0x1004dbc60		f2f38be6		MOVK $(40031<<48), R6										
+  time.go:1101			0x1004dbc64		9b407cc6		SMULH R0, R6, R6										
+  time.go:1101			0x1004dbc68		8b0000c6		ADD R0, R6, R6											
+  time.go:1101			0x1004dbc6c		9369fcc6		ASR $41, R6, R6											
+  time.go:1101			0x1004dbc70		cb80fcc6		SUB R0->63, R6, R6										
+  time.go:1102			0x1004dbc74		d2940007		MOVD $40960, R7											
+  time.go:1102			0x1004dbc78		f2a61707		MOVK $(12472<<16), R7										
+  time.go:1102			0x1004dbc7c		f2c068c7		MOVK $(838<<32), R7										
+  time.go:1102			0x1004dbc80		9b0680e7		MSUB R6, R0, R7, R7										
+  time.go:1103			0x1004dbc84		9e6200c0		SCVTFD R6, F0											
+  time.go:1103			0x1004dbc88		9e6200e1		SCVTFD R7, F1											
+  time.go:1103			0x1004dbc8c		f0008dfb		ADRP 18608128(PC), R27										
+  time.go:1103			0x1004dbc90		fd43df62		FMOVD 1976(R27), F2										
+  time.go:1103			0x1004dbc94		1e621821		FDIVD F2, F1, F1										
+  time.go:1103			0x1004dbc98		1e612800		FADDD F1, F0, F0										
+  formal_chain_command.go:211	0x1004dbc9c		1e64c000		FRINTPD F0, F0											
+  formal_chain_command.go:211	0x1004dbca0		9e780006		FCVTZSD F0, R6											
+  formal_chain_command.go:213	0x1004dbca4		f940e3e7		MOVD 448(RSP), R7										
+  formal_chain_command.go:213	0x1004dbca8		a94024e8		LDP (R7), (R8, R9)										
+  formal_chain_command.go:213	0x1004dbcac		b4000089		CBZ R9, 4(PC)											
+  formal_chain_command.go:213	0x1004dbcb0		f10000df		CMP $0, R6											
+  formal_chain_command.go:213	0x1004dbcb4		9a9fd7ea		CSET GT, R10											
+  formal_chain_command.go:213	0x1004dbcb8		14000002		JMP 2(PC)											
+  formal_chain_command.go:213	0x1004dbcbc		aa1f03ea		MOVD ZR, R10											
+  formal_chain_command.go:211	0x1004dbcc0		f9003fe6		MOVD R6, 120(RSP)										
+  formal_chain_command.go:213	0x1004dbcc4		f90067e9		MOVD R9, 200(RSP)										
+  formal_chain_command.go:214	0x1004dbcc8		aa1f03e0		MOVD ZR, R0											
+  formal_chain_command.go:236	0x1004dbccc		aa1f03e1		MOVD ZR, R1											
+  formal_chain_command.go:214	0x1004dbcd0		14000027		JMP 39(PC)											
+  errors.go:65			0x1004dbcd4		f0009cc0		ADRP 20557824(PC), R0										
+  errors.go:65			0x1004dbcd8		913a0000		ADD $3712, R0, R0										
+  errors.go:65			0x1004dbcdc		97ecebe5		CALL runtime.newobject(SB)									
+  errors.go:65			0x1004dbce0		90006001		ADRP 12582912(PC), R1										
+  errors.go:65			0x1004dbce4		9111ec21		ADD $1147, R1, R1										
+  errors.go:65			0x1004dbce8		d2800682		MOVD $52, R2											
+  errors.go:65			0x1004dbcec		a9000801		STP (R1, R2), (R0)										
+  formal_chain_command.go:209	0x1004dbcf0		9000ae61		ADRP 22855680(PC), R1										
+  formal_chain_command.go:209	0x1004dbcf4		912b6021		ADD $2776, R1, R1										
+  formal_chain_command.go:209	0x1004dbcf8		aa0003e2		MOVD R0, R2											
+  formal_chain_command.go:209	0x1004dbcfc		aa1f03e0		MOVD ZR, R0											
+  formal_chain_command.go:209	0x1004dbd00		a97ffbfd		LDP -8(RSP), (R29, R30)										
+  formal_chain_command.go:209	0x1004dbd04		910743ff		ADD $464, RSP, RSP										
+  formal_chain_command.go:209	0x1004dbd08		d65f03c0		RET												
+  errors.go:65			0x1004dbd0c		f0009cc0		ADRP 20557824(PC), R0										
+  errors.go:65			0x1004dbd10		913a0000		ADD $3712, R0, R0										
+  errors.go:65			0x1004dbd14		97ecebd7		CALL runtime.newobject(SB)									
+  errors.go:65			0x1004dbd18		d0005f01		ADRP 12460032(PC), R1										
+  errors.go:65			0x1004dbd1c		9110a421		ADD $1065, R1, R1										
+  errors.go:65			0x1004dbd20		d28004c2		MOVD $38, R2											
+  errors.go:65			0x1004dbd24		a9000801		STP (R1, R2), (R0)										
+  formal_chain_command.go:171	0x1004dbd28		9000ae61		ADRP 22855680(PC), R1										
+  formal_chain_command.go:171	0x1004dbd2c		912b6021		ADD $2776, R1, R1										
+  formal_chain_command.go:171	0x1004dbd30		aa0003e2		MOVD R0, R2											
+  formal_chain_command.go:171	0x1004dbd34		aa1f03e0		MOVD ZR, R0											
+  formal_chain_command.go:171	0x1004dbd38		a97ffbfd		LDP -8(RSP), (R29, R30)										
+  formal_chain_command.go:171	0x1004dbd3c		910743ff		ADD $464, RSP, RSP										
+  formal_chain_command.go:171	0x1004dbd40		d65f03c0		RET												
+  formal_chain_command.go:214	0x1004dbd44		f940d3eb		MOVD 416(RSP), R11										
+  formal_chain_command.go:214	0x1004dbd48		9100c168		ADD $48, R11, R8										
+  formal_chain_command.go:214	0x1004dbd4c		f94063eb		MOVD 192(RSP), R11										
+  formal_chain_command.go:214	0x1004dbd50		9100056b		ADD $1, R11, R11										
+  formal_chain_command.go:242	0x1004dbd54		f940e3e7		MOVD 448(RSP), R7										
+  formal_chain_command.go:214	0x1004dbd58		f94067e9		MOVD 200(RSP), R9										
+  formal_chain_command.go:214	0x1004dbd5c		aa0b03e0		MOVD R11, R0											
+  formal_chain_command.go:236	0x1004dbd60		f9402fe1		MOVD 88(RSP), R1										
+  formal_chain_command.go:236	0x1004dbd64		aa0603ea		MOVD R6, R10											
+  formal_chain_command.go:223	0x1004dbd68		f9403fe6		MOVD 120(RSP), R6										
+  formal_chain_command.go:214	0x1004dbd6c		eb09001f		CMP R9, R0											
+  formal_chain_command.go:214	0x1004dbd70		54000b8a		BGE 92(PC)											
+  formal_chain_command.go:214	0x1004dbd74		f90063e0		MOVD R0, 192(RSP)										
+  formal_chain_command.go:236	0x1004dbd78		39011bea		MOVB R10, 70(RSP)										
+  formal_chain_command.go:236	0x1004dbd7c		f9002fe1		MOVD R1, 88(RSP)										
+  formal_chain_command.go:214	0x1004dbd80		f900d3e8		MOVD R8, 416(RSP)										
+  formal_chain_command.go:214	0x1004dbd84		a9400d02		LDP (R8), (R2, R3)										
+  formal_chain_command.go:214	0x1004dbd88		a9411504		LDP 16(R8), (R4, R5)										
+  formal_chain_command.go:214	0x1004dbd8c		a9421d06		LDP 32(R8), (R6, R7)										
+  formal_chain_command.go:214	0x1004dbd90		a9160fe2		STP (R2, R3), 352(RSP)										
+  formal_chain_command.go:214	0x1004dbd94		a91717e4		STP (R4, R5), 368(RSP)										
+  formal_chain_command.go:214	0x1004dbd98		a9181fe6		STP (R6, R7), 384(RSP)										
+  formal_chain_command.go:215	0x1004dbd9c		a95607e0		LDP 352(RSP), (R0, R1)										
+  formal_chain_command.go:215	0x1004dbda0		97f0c028		CALL strings.TrimSpace(SB)									
+  formal_chain_command.go:215	0x1004dbda4		b5000061		CBNZ R1, 3(PC)											
+  formal_chain_command.go:215	0x1004dbda8		b24003e2		ORR $1, ZR, R2											
+  formal_chain_command.go:215	0x1004dbdac		14000005		JMP 5(PC)											
+  formal_chain_command.go:215	0x1004dbdb0		a95707e0		LDP 368(RSP), (R0, R1)										
+  formal_chain_command.go:215	0x1004dbdb4		97f0c023		CALL strings.TrimSpace(SB)									
+  formal_chain_command.go:215	0x1004dbdb8		f100003f		CMP $0, R1											
+  formal_chain_command.go:215	0x1004dbdbc		9a9f17e2		CSET EQ, R2											
+  formal_chain_command.go:215	0x1004dbdc0		37000862		TBNZ $0, R2, 67(PC)										
+  formal_chain_command.go:215	0x1004dbdc4		f940c3e6		MOVD 384(RSP), R6										
+  formal_chain_command.go:215	0x1004dbdc8		f10000df		CMP $0, R6											
+  formal_chain_command.go:215	0x1004dbdcc		540007cd		BLE 62(PC)											
+  formal_chain_command.go:216	0x1004dbdd0		f940c7e6		MOVD 392(RSP), R6										
+  formal_chain_command.go:216	0x1004dbdd4		f10000df		CMP $0, R6											
+  formal_chain_command.go:216	0x1004dbdd8		5400072d		BLE 57(PC)											
+  formal_chain_command.go:216	0x1004dbddc		92f00007		MOVD $9223372036854775807, R7									
+  formal_chain_command.go:216	0x1004dbde0		f9402fe8		MOVD 88(RSP), R8										
+  formal_chain_command.go:216	0x1004dbde4		cb0800e9		SUB R8, R7, R9											
+  formal_chain_command.go:216	0x1004dbde8		eb0900df		CMP R9, R6											
+  formal_chain_command.go:216	0x1004dbdec		5400072c		BGT 57(PC)											
+  formal_chain_command.go:221	0x1004dbdf0		a95627e0		LDP 352(RSP), (R0, R9)										
+  formal_chain_command.go:220	0x1004dbdf4		8b060106		ADD R6, R8, R6											
+  formal_chain_command.go:220	0x1004dbdf8		f9002fe6		MOVD R6, 88(RSP)										
+  formal_chain_command.go:222	0x1004dbdfc		f100493f		CMP $18, R9											
+  formal_chain_command.go:222	0x1004dbe00		54000300		BEQ 24(PC)											
+  formal_chain_command.go:224	0x1004dbe04		f100553f		CMP $21, R9											
+  formal_chain_command.go:224	0x1004dbe08		54000160		BEQ 11(PC)											
+  formal_chain_command.go:224	0x1004dbe0c		f100793f		CMP $30, R9											
+  formal_chain_command.go:224	0x1004dbe10		54000501		BNE 40(PC)											
+  formal_chain_command.go:224	0x1004dbe14		d0005e61		ADRP 12378112(PC), R1										
+  formal_chain_command.go:224	0x1004dbe18		91172c21		ADD $1483, R1, R1										
+  formal_chain_command.go:224	0x1004dbe1c		b27f0fe2		ORR $30, ZR, R2											
+  formal_chain_command.go:224	0x1004dbe20		97ec9fcc		CALL runtime.memequal(SB)									
+  formal_chain_command.go:224	0x1004dbe24		37000120		TBNZ $0, R0, 9(PC)										
+  formal_chain_command.go:236	0x1004dbe28		f9402fe6		MOVD 88(RSP), R6										
+  formal_chain_command.go:236	0x1004dbe2c		92f00007		MOVD $9223372036854775807, R7									
+  formal_chain_command.go:224	0x1004dbe30		14000020		JMP 32(PC)											
+  formal_chain_command.go:224	0x1004dbe34		b0005dc1		ADRP 12292096(PC), R1										
+  formal_chain_command.go:224	0x1004dbe38		913ae821		ADD $3770, R1, R1										
+  formal_chain_command.go:224	0x1004dbe3c		d28002a2		MOVD $21, R2											
+  formal_chain_command.go:224	0x1004dbe40		97ec9fc4		CALL runtime.memequal(SB)									
+  formal_chain_command.go:224	0x1004dbe44		36000080		TBZ $0, R0, 4(PC)										
+  formal_chain_command.go:223	0x1004dbe48		f9403fe0		MOVD 120(RSP), R0										
+  formal_chain_command.go:236	0x1004dbe4c		39411be6		MOVBU 70(RSP), R6										
+  formal_chain_command.go:224	0x1004dbe50		17ffffbd		JMP -67(PC)											
+  formal_chain_command.go:236	0x1004dbe54		f9402fe6		MOVD 88(RSP), R6										
+  formal_chain_command.go:236	0x1004dbe58		92f00007		MOVD $9223372036854775807, R7									
+  formal_chain_command.go:224	0x1004dbe5c		14000015		JMP 21(PC)											
+  formal_chain_command.go:222	0x1004dbe60		f0005d81		ADRP 12267520(PC), R1										
+  formal_chain_command.go:222	0x1004dbe64		91324021		ADD $3216, R1, R1										
+  formal_chain_command.go:222	0x1004dbe68		d2800242		MOVD $18, R2											
+  formal_chain_command.go:222	0x1004dbe6c		97ec9fb9		CALL runtime.memequal(SB)									
+  formal_chain_command.go:222	0x1004dbe70		360001c0		TBZ $0, R0, 14(PC)										
+  formal_chain_command.go:223	0x1004dbe74		39411be0		MOVBU 70(RSP), R0										
+  formal_chain_command.go:223	0x1004dbe78		36000120		TBZ $0, R0, 9(PC)										
+  formal_chain_command.go:223	0x1004dbe7c		f9403fe0		MOVD 120(RSP), R0										
+  formal_chain_command.go:223	0x1004dbe80		b4002580		CBZ R0, 300(PC)											
+  formal_chain_command.go:223	0x1004dbe84		f940c3e6		MOVD 384(RSP), R6										
+  formal_chain_command.go:223	0x1004dbe88		9ac00cdb		SDIV R0, R6, R27										
+  formal_chain_command.go:223	0x1004dbe8c		9b009b66		MSUB R0, R6, R27, R6										
+  formal_chain_command.go:223	0x1004dbe90		f10000df		CMP $0, R6											
+  formal_chain_command.go:223	0x1004dbe94		9a9f17e6		CSET EQ, R6											
+  formal_chain_command.go:223	0x1004dbe98		17ffffab		JMP -85(PC)											
+  formal_chain_command.go:223	0x1004dbe9c		f9403fe0		MOVD 120(RSP), R0										
+  formal_chain_command.go:223	0x1004dbea0		aa1f03e6		MOVD ZR, R6											
+  formal_chain_command.go:223	0x1004dbea4		17ffffa8		JMP -88(PC)											
+  formal_chain_command.go:236	0x1004dbea8		f9402fe6		MOVD 88(RSP), R6										
+  formal_chain_command.go:236	0x1004dbeac		92f00007		MOVD $9223372036854775807, R7									
+  formal_chain_command.go:223	0x1004dbeb0		f9403fe0		MOVD 120(RSP), R0										
+  formal_chain_command.go:236	0x1004dbeb4		aa1f03e6		MOVD ZR, R6											
+  formal_chain_command.go:226	0x1004dbeb8		17ffffa3		JMP -93(PC)											
+  formal_chain_command.go:236	0x1004dbebc		f9402fe8		MOVD 88(RSP), R8										
+  formal_chain_command.go:216	0x1004dbec0		14000004		JMP 4(PC)											
+  formal_chain_command.go:236	0x1004dbec4		f9402fe8		MOVD 88(RSP), R8										
+  formal_chain_command.go:215	0x1004dbec8		14000002		JMP 2(PC)											
+  formal_chain_command.go:236	0x1004dbecc		f9402fe8		MOVD 88(RSP), R8										
+  formal_chain_command.go:236	0x1004dbed0		aa0803e1		MOVD R8, R1											
+  formal_chain_command.go:242	0x1004dbed4		f9403fe6		MOVD 120(RSP), R6										
+  formal_chain_command.go:242	0x1004dbed8		f940e3e7		MOVD 448(RSP), R7										
+  formal_chain_command.go:236	0x1004dbedc		aa1f03ea		MOVD ZR, R10											
+  formal_chain_command.go:230	0x1004dbee0		f9403be8		MOVD 112(RSP), R8										
+  formal_chain_command.go:230	0x1004dbee4		d29a3029		MOVD $53633, R9											
+  formal_chain_command.go:230	0x1004dbee8		f2a11e09		MOVK $(2288<<16), R9										
+  formal_chain_command.go:230	0x1004dbeec		cb090109		SUB R9, R8, R9											
+  formal_chain_command.go:230	0x1004dbef0		d28bafeb		MOVD $23935, R11										
+  formal_chain_command.go:230	0x1004dbef4		f2aa0eeb		MOVK $(20599<<16), R11										
+  formal_chain_command.go:230	0x1004dbef8		eb0b013f		CMP R11, R9											
+  formal_chain_command.go:230	0x1004dbefc		54000108		BHI 8(PC)											
+  formal_chain_command.go:230	0x1004dbf00		d29a3009		MOVD $53632, R9											
+  formal_chain_command.go:230	0x1004dbf04		f2a11e09		MOVK $(2288<<16), R9										
+  formal_chain_command.go:230	0x1004dbf08		cb090109		SUB R9, R8, R9											
+  formal_chain_command.go:230	0x1004dbf0c		f9402beb		MOVD 80(RSP), R11										
+  formal_chain_command.go:230	0x1004dbf10		eb09017f		CMP R9, R11											
+  formal_chain_command.go:230	0x1004dbf14		9a9f17e9		CSET EQ, R9											
+  formal_chain_command.go:230	0x1004dbf18		14000003		JMP 3(PC)											
+  formal_chain_command.go:232	0x1004dbf1c		f9402beb		MOVD 80(RSP), R11										
+  formal_chain_command.go:230	0x1004dbf20		aa1f03e9		MOVD ZR, R9											
+  formal_chain_command.go:231	0x1004dbf24		39411fe0		MOVBU 71(RSP), R0										
+  formal_chain_command.go:231	0x1004dbf28		36000140		TBZ $0, R0, 10(PC)										
+  formal_chain_command.go:232	0x1004dbf2c		f100011f		CMP $0, R8											
+  formal_chain_command.go:232	0x1004dbf30		540000cd		BLE 6(PC)											
+  formal_chain_command.go:232	0x1004dbf34		f100017f		CMP $0, R11											
+  formal_chain_command.go:232	0x1004dbf38		5400008d		BLE 4(PC)											
+  formal_chain_command.go:232	0x1004dbf3c		eb08017f		CMP R8, R11											
+  formal_chain_command.go:232	0x1004dbf40		9a9fa7e8		CSET LT, R8											
+  formal_chain_command.go:232	0x1004dbf44		14000004		JMP 4(PC)											
+  formal_chain_command.go:232	0x1004dbf48		aa1f03e8		MOVD ZR, R8											
+  formal_chain_command.go:232	0x1004dbf4c		14000002		JMP 2(PC)											
+  formal_chain_command.go:235	0x1004dbf50		aa0903e8		MOVD R9, R8											
+  formal_chain_command.go:234	0x1004dbf54		f94057e0		MOVD 168(RSP), R0										
+  formal_chain_command.go:234	0x1004dbf58		b4000080		CBZ R0, 4(PC)											
+  formal_chain_command.go:242	0x1004dbf5c		f9405fe0		MOVD 184(RSP), R0										
+  formal_chain_command.go:242	0x1004dbf60		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:234	0x1004dbf64		14000061		JMP 97(PC)											
+  formal_chain_command.go:234	0x1004dbf68		f94037e0		MOVD 104(RSP), R0										
+  formal_chain_command.go:234	0x1004dbf6c		b4000080		CBZ R0, 4(PC)											
+  formal_chain_command.go:242	0x1004dbf70		f9405fe0		MOVD 184(RSP), R0										
+  formal_chain_command.go:242	0x1004dbf74		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:234	0x1004dbf78		1400005c		JMP 92(PC)											
+  formal_chain_command.go:234	0x1004dbf7c		f94027e0		MOVD 72(RSP), R0										
+  formal_chain_command.go:234	0x1004dbf80		b4000080		CBZ R0, 4(PC)											
+  formal_chain_command.go:242	0x1004dbf84		f9405fe0		MOVD 184(RSP), R0										
+  formal_chain_command.go:242	0x1004dbf88		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:234	0x1004dbf8c		14000057		JMP 87(PC)											
+  formal_chain_command.go:234	0x1004dbf90		f9405be0		MOVD 176(RSP), R0										
+  formal_chain_command.go:234	0x1004dbf94		b4000080		CBZ R0, 4(PC)											
+  formal_chain_command.go:242	0x1004dbf98		f9405fe0		MOVD 184(RSP), R0										
+  formal_chain_command.go:242	0x1004dbf9c		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:234	0x1004dbfa0		14000052		JMP 82(PC)											
+  formal_chain_command.go:234	0x1004dbfa4		f94043e0		MOVD 128(RSP), R0										
+  formal_chain_command.go:234	0x1004dbfa8		b4000080		CBZ R0, 4(PC)											
+  formal_chain_command.go:242	0x1004dbfac		f9405fe0		MOVD 184(RSP), R0										
+  formal_chain_command.go:242	0x1004dbfb0		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:234	0x1004dbfb4		1400004d		JMP 77(PC)											
+  formal_chain_command.go:234	0x1004dbfb8		f94053e0		MOVD 160(RSP), R0										
+  formal_chain_command.go:234	0x1004dbfbc		b4000080		CBZ R0, 4(PC)											
+  formal_chain_command.go:242	0x1004dbfc0		f9405fe0		MOVD 184(RSP), R0										
+  formal_chain_command.go:242	0x1004dbfc4		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:234	0x1004dbfc8		14000048		JMP 72(PC)											
+  formal_chain_command.go:235	0x1004dbfcc		360008a8		TBZ $0, R8, 69(PC)										
+  formal_chain_command.go:235	0x1004dbfd0		f9405fe0		MOVD 184(RSP), R0										
+  formal_chain_command.go:235	0x1004dbfd4		b6f80060		TBZ $63, R0, 3(PC)										
+  formal_chain_command.go:235	0x1004dbfd8		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:235	0x1004dbfdc		14000043		JMP 67(PC)											
+  formal_chain_command.go:235	0x1004dbfe0		f94047e8		MOVD 136(RSP), R8										
+  formal_chain_command.go:235	0x1004dbfe4		f100011f		CMP $0, R8											
+  formal_chain_command.go:235	0x1004dbfe8		5400006c		BGT 3(PC)											
+  formal_chain_command.go:235	0x1004dbfec		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:235	0x1004dbff0		1400003e		JMP 62(PC)											
+  formal_chain_command.go:236	0x1004dbff4		eb0b001f		CMP R11, R0											
+  formal_chain_command.go:236	0x1004dbff8		5400006b		BLT 3(PC)											
+  formal_chain_command.go:236	0x1004dbffc		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:236	0x1004dc000		1400003a		JMP 58(PC)											
+  formal_chain_command.go:236	0x1004dc004		cb000169		SUB R0, R11, R9											
+  formal_chain_command.go:236	0x1004dc008		eb09011f		CMP R9, R8											
+  formal_chain_command.go:236	0x1004dc00c		5400006d		BLE 3(PC)											
+  formal_chain_command.go:236	0x1004dc010		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:236	0x1004dc014		14000035		JMP 53(PC)											
+  formal_chain_command.go:236	0x1004dc018		eb01011f		CMP R1, R8											
+  formal_chain_command.go:236	0x1004dc01c		54000060		BEQ 3(PC)											
+  formal_chain_command.go:236	0x1004dc020		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:236	0x1004dc024		14000031		JMP 49(PC)											
+  formal_chain_command.go:236	0x1004dc028		3600058a		TBZ $0, R10, 44(PC)										
+  formal_chain_command.go:237	0x1004dc02c		f9407be8		MOVD 240(RSP), R8										
+  formal_chain_command.go:237	0x1004dc030		f900a7e8		MOVD R8, 328(RSP)										
+  formal_chain_command.go:237	0x1004dc034		f9407fe9		MOVD 248(RSP), R9										
+  formal_chain_command.go:237	0x1004dc038		f940dfea		MOVD 440(RSP), R10										
+  formal_chain_command.go:237	0x1004dc03c		a9152be9		STP (R9, R10), 336(RSP)										
+  time.go:1365			0x1004dc040		d503201f		NOOP												
+  time.go:221			0x1004dc044		d503201f		NOOP												
+  time.go:227			0x1004dc048		b6f80108		TBZ $63, R8, 8(PC)										
+  time.go:229			0x1004dc04c		9240750c		AND $1073741823, R8, R12									
+  time.go:183			0x1004dc050		d35ef90d		UBFX $30, R8, $33, R13										
+  time.go:183			0x1004dc054		d28ff00e		MOVD $32640, R14										
+  time.go:183			0x1004dc058		f2baf62e		MOVK $(55217<<16), R14										
+  time.go:183			0x1004dc05c		f2c001ae		MOVK $(13<<32), R14										
+  time.go:183			0x1004dc060		8b0d01cd		ADD R13, R14, R13										
+  time.go:228			0x1004dc064		a914b7ec		STP (R12, R13), 328(RSP)									
+  time.go:222			0x1004dc068		f900afff		MOVD ZR, 344(RSP)										
+  formal_chain_command.go:237	0x1004dc06c		a95493e3		LDP 328(RSP), (R3, R4)										
+  formal_chain_command.go:237	0x1004dc070		f94077e0		MOVD 232(RSP), R0										
+  formal_chain_command.go:237	0x1004dc074		f94073e1		MOVD 224(RSP), R1										
+  formal_chain_command.go:237	0x1004dc078		f940dbe2		MOVD 432(RSP), R2										
+  formal_chain_command.go:237	0x1004dc07c		aa1f03e5		MOVD ZR, R5											
+  formal_chain_command.go:237	0x1004dc080		97efd660		CALL time.Time.After(SB)									
+  formal_chain_command.go:237	0x1004dc084		360000e0		TBZ $0, R0, 7(PC)										
+  formal_chain_command.go:242	0x1004dc088		f9405fe0		MOVD 184(RSP), R0										
+  formal_chain_command.go:242	0x1004dc08c		f9403fe6		MOVD 120(RSP), R6										
+  formal_chain_command.go:242	0x1004dc090		f940e3e7		MOVD 448(RSP), R7										
+  formal_chain_command.go:241	0x1004dc094		f9402beb		MOVD 80(RSP), R11										
+  formal_chain_command.go:241	0x1004dc098		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:237	0x1004dc09c		14000013		JMP 19(PC)											
+  formal_chain_command.go:237	0x1004dc0a0		f94077e0		MOVD 232(RSP), R0										
+  formal_chain_command.go:237	0x1004dc0a4		f94073e1		MOVD 224(RSP), R1										
+  formal_chain_command.go:237	0x1004dc0a8		f940dbe2		MOVD 432(RSP), R2										
+  formal_chain_command.go:237	0x1004dc0ac		f9406fe3		MOVD 216(RSP), R3										
+  formal_chain_command.go:237	0x1004dc0b0		f9406be4		MOVD 208(RSP), R4										
+  formal_chain_command.go:237	0x1004dc0b4		f940d7e5		MOVD 424(RSP), R5										
+  formal_chain_command.go:237	0x1004dc0b8		97efd67a		CALL time.Time.Before(SB)									
+  formal_chain_command.go:237	0x1004dc0bc		d2400006		EOR $1, R0, R6											
+  formal_chain_command.go:242	0x1004dc0c0		f9405fe0		MOVD 184(RSP), R0										
+  formal_chain_command.go:242	0x1004dc0c4		f940e3e7		MOVD 448(RSP), R7										
+  formal_chain_command.go:241	0x1004dc0c8		f9402beb		MOVD 80(RSP), R11										
+  formal_chain_command.go:237	0x1004dc0cc		aa0603e1		MOVD R6, R1											
+  formal_chain_command.go:242	0x1004dc0d0		f9403fe6		MOVD 120(RSP), R6										
+  formal_chain_command.go:237	0x1004dc0d4		14000005		JMP 5(PC)											
+  formal_chain_command.go:237	0x1004dc0d8		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:236	0x1004dc0dc		14000003		JMP 3(PC)											
+  formal_chain_command.go:242	0x1004dc0e0		f9405fe0		MOVD 184(RSP), R0										
+  formal_chain_command.go:242	0x1004dc0e4		b24003e1		ORR $1, ZR, R1											
+  formal_chain_command.go:237	0x1004dc0e8		370003a1		TBNZ $0, R1, 29(PC)										
+  formal_chain_command.go:237	0x1004dc0ec		f9407be4		MOVD 240(RSP), R4										
+  formal_chain_command.go:237	0x1004dc0f0		f9009be4		MOVD R4, 304(RSP)										
+  formal_chain_command.go:237	0x1004dc0f4		f9407fe5		MOVD 248(RSP), R5										
+  formal_chain_command.go:237	0x1004dc0f8		f940dfe8		MOVD 440(RSP), R8										
+  formal_chain_command.go:237	0x1004dc0fc		a913a3e5		STP (R5, R8), 312(RSP)										
+  time.go:1365			0x1004dc100		d503201f		NOOP												
+  time.go:221			0x1004dc104		d503201f		NOOP												
+  time.go:227			0x1004dc108		b6f80104		TBZ $63, R4, 8(PC)										
+  time.go:229			0x1004dc10c		92407485		AND $1073741823, R4, R5										
+  time.go:183			0x1004dc110		d35ef884		UBFX $30, R4, $33, R4										
+  time.go:183			0x1004dc114		d28ff008		MOVD $32640, R8											
+  time.go:183			0x1004dc118		f2baf628		MOVK $(55217<<16), R8										
+  time.go:183			0x1004dc11c		f2c001a8		MOVK $(13<<32), R8										
+  time.go:183			0x1004dc120		8b040104		ADD R4, R8, R4											
+  time.go:228			0x1004dc124		a91313e5		STP (R5, R4), 304(RSP)										
+  time.go:222			0x1004dc128		f900a3ff		MOVD ZR, 320(RSP)										
+  formal_chain_command.go:237	0x1004dc12c		a95307e0		LDP 304(RSP), (R0, R1)										
+  formal_chain_command.go:237	0x1004dc130		aa1f03e2		MOVD ZR, R2											
+  formal_chain_command.go:237	0x1004dc134		f94033e3		MOVD 96(RSP), R3										
+  formal_chain_command.go:237	0x1004dc138		97efda1a		CALL time.Time.Add(SB)										
+  formal_chain_command.go:237	0x1004dc13c		aa0003e3		MOVD R0, R3											
+  formal_chain_command.go:237	0x1004dc140		aa0103e4		MOVD R1, R4											
+  formal_chain_command.go:237	0x1004dc144		aa0203e5		MOVD R2, R5											
+  formal_chain_command.go:237	0x1004dc148		f9406fe0		MOVD 216(RSP), R0										
+  formal_chain_command.go:237	0x1004dc14c		f9406be1		MOVD 208(RSP), R1										
+  formal_chain_command.go:237	0x1004dc150		f940d7e2		MOVD 424(RSP), R2										
+  formal_chain_command.go:237	0x1004dc154		97efd653		CALL time.Time.Before(SB)									
+  formal_chain_command.go:237	0x1004dc158		360001e0		TBZ $0, R0, 15(PC)										
+  errors.go:65			0x1004dc15c		d0009cc0		ADRP 20553728(PC), R0										
+  errors.go:65			0x1004dc160		913a0000		ADD $3712, R0, R0										
+  errors.go:65			0x1004dc164		97eceac3		CALL runtime.newobject(SB)									
+  errors.go:65			0x1004dc168		f0005fe1		ADRP 12578816(PC), R1										
+  errors.go:65			0x1004dc16c		9111ec21		ADD $1147, R1, R1										
+  errors.go:65			0x1004dc170		d2800682		MOVD $52, R2											
+  errors.go:65			0x1004dc174		a9000801		STP (R1, R2), (R0)										
+  formal_chain_command.go:238	0x1004dc178		f000ae41		ADRP 22851584(PC), R1										
+  formal_chain_command.go:238	0x1004dc17c		912b6021		ADD $2776, R1, R1										
+  formal_chain_command.go:238	0x1004dc180		aa0003e2		MOVD R0, R2											
+  formal_chain_command.go:238	0x1004dc184		aa1f03e0		MOVD ZR, R0											
+  formal_chain_command.go:238	0x1004dc188		a97ffbfd		LDP -8(RSP), (R29, R30)										
+  formal_chain_command.go:238	0x1004dc18c		910743ff		ADD $464, RSP, RSP										
+  formal_chain_command.go:238	0x1004dc190		d65f03c0		RET												
+  formal_chain_command.go:241	0x1004dc194		f94077e5		MOVD 232(RSP), R5										
+  formal_chain_command.go:241	0x1004dc198		f9008fe5		MOVD R5, 280(RSP)										
+  formal_chain_command.go:241	0x1004dc19c		f94073e6		MOVD 224(RSP), R6										
+  formal_chain_command.go:241	0x1004dc1a0		f940dbe7		MOVD 432(RSP), R7										
+  formal_chain_command.go:241	0x1004dc1a4		a9121fe6		STP (R6, R7), 288(RSP)										
+  time.go:1365			0x1004dc1a8		d503201f		NOOP												
+  time.go:221			0x1004dc1ac		d503201f		NOOP												
+  time.go:227			0x1004dc1b0		b6f80105		TBZ $63, R5, 8(PC)										
+  time.go:229			0x1004dc1b4		924074a6		AND $1073741823, R5, R6										
+  time.go:183			0x1004dc1b8		d35ef8a5		UBFX $30, R5, $33, R5										
+  time.go:183			0x1004dc1bc		d28ff007		MOVD $32640, R7											
+  time.go:183			0x1004dc1c0		f2baf627		MOVK $(55217<<16), R7										
+  time.go:183			0x1004dc1c4		f2c001a7		MOVK $(13<<32), R7										
+  time.go:183			0x1004dc1c8		8b0700a5		ADD R7, R5, R5											
+  time.go:228			0x1004dc1cc		a91197e6		STP (R6, R5), 280(RSP)										
+  time.go:222			0x1004dc1d0		f90097ff		MOVD ZR, 296(RSP)										
+  formal_chain_command.go:241	0x1004dc1d4		a9519be5		LDP 280(RSP), (R5, R6)										
+  formal_chain_command.go:241	0x1004dc1d8		f9406fe7		MOVD 216(RSP), R7										
+  formal_chain_command.go:241	0x1004dc1dc		f90083e7		MOVD R7, 256(RSP)										
+  formal_chain_command.go:241	0x1004dc1e0		f9406be8		MOVD 208(RSP), R8										
+  formal_chain_command.go:241	0x1004dc1e4		f940d7e9		MOVD 424(RSP), R9										
+  formal_chain_command.go:241	0x1004dc1e8		a910a7e8		STP (R8, R9), 264(RSP)										
+  time.go:1365			0x1004dc1ec		d503201f		NOOP												
+  time.go:221			0x1004dc1f0		d503201f		NOOP												
+  time.go:227			0x1004dc1f4		b6f80107		TBZ $63, R7, 8(PC)										
+  time.go:229			0x1004dc1f8		924074e8		AND $1073741823, R7, R8										
+  time.go:183			0x1004dc1fc		d35ef8e7		UBFX $30, R7, $33, R7										
+  time.go:183			0x1004dc200		d28ff009		MOVD $32640, R9											
+  time.go:183			0x1004dc204		f2baf629		MOVK $(55217<<16), R9										
+  time.go:183			0x1004dc208		f2c001a9		MOVK $(13<<32), R9										
+  time.go:183			0x1004dc20c		8b0900e7		ADD R9, R7, R7											
+  time.go:228			0x1004dc210		a9101fe8		STP (R8, R7), 256(RSP)										
+  formal_chain_command.go:241	0x1004dc214		f9007be5		MOVD R5, 240(RSP)										
+  formal_chain_command.go:241	0x1004dc218		f9007fe6		MOVD R6, 248(RSP)										
+  time.go:222			0x1004dc21c		f9008bff		MOVD ZR, 272(RSP)										
+  formal_chain_command.go:241	0x1004dc220		a95023e7		LDP 256(RSP), (R7, R8)										
+  formal_chain_command.go:241	0x1004dc224		f90073e8		MOVD R8, 224(RSP)										
+  formal_chain_command.go:241	0x1004dc228		f90077e7		MOVD R7, 232(RSP)										
+  formal_chain_command.go:242	0x1004dc22c		f940e3e9		MOVD 448(RSP), R9										
+  formal_chain_command.go:242	0x1004dc230		f9400523		MOVD 8(R9), R3											
+  formal_chain_command.go:242	0x1004dc234		b50000a3		CBNZ R3, 5(PC)											
+  formal_chain_command.go:242	0x1004dc238		aa1f03e0		MOVD ZR, R0											
+  formal_chain_command.go:242	0x1004dc23c		aa1f03e2		MOVD ZR, R2											
+  formal_chain_command.go:242	0x1004dc240		aa1f03e1		MOVD ZR, R1											
+  formal_chain_command.go:242	0x1004dc244		1400000a		JMP 10(PC)											
+  formal_chain_command.go:242	0x1004dc248		f90067e3		MOVD R3, 200(RSP)										
+  formal_chain_command.go:242	0x1004dc24c		aa1f03e0		MOVD ZR, R0											
+  formal_chain_command.go:242	0x1004dc250		aa0303e1		MOVD R3, R1											
+  formal_chain_command.go:242	0x1004dc254		aa1f03e2		MOVD ZR, R2											
+  formal_chain_command.go:242	0x1004dc258		d000a364		ADRP 21422080(PC), R4										
+  formal_chain_command.go:242	0x1004dc25c		91370084		ADD $3520, R4, R4										
+  formal_chain_command.go:242	0x1004dc260		97ee7d5c		CALL runtime.growslice(SB)									
+  formal_chain_command.go:242	0x1004dc264		f94067e3		MOVD 200(RSP), R3										
+  formal_chain_command.go:242	0x1004dc268		f940e3e9		MOVD 448(RSP), R9										
+  formal_chain_command.go:242	0x1004dc26c		f90067e2		MOVD R2, 200(RSP)										
+  formal_chain_command.go:242	0x1004dc270		f90063e1		MOVD R1, 192(RSP)										
+  formal_chain_command.go:242	0x1004dc274		f900cfe0		MOVD R0, 408(RSP)										
+  formal_chain_command.go:242	0x1004dc278		a9401125		LDP (R9), (R5, R4)										
+  formal_chain_command.go:242	0x1004dc27c		8b040026		ADD R4, R1, R6											
+  formal_chain_command.go:242	0x1004dc280		8b020087		ADD R2, R4, R7											
+  formal_chain_command.go:242	0x1004dc284		cb070067		SUB R7, R3, R7											
+  formal_chain_command.go:242	0x1004dc288		cb0300c2		SUB R3, R6, R2											
+  formal_chain_command.go:242	0x1004dc28c		cb040066		SUB R4, R3, R6											
+  formal_chain_command.go:242	0x1004dc290		d37cecc6		LSL $4, R6, R6											
+  formal_chain_command.go:242	0x1004dc294		8b0604c6		ADD R6<<1, R6, R6										
+  formal_chain_command.go:242	0x1004dc298		8a87fcc6		AND R7->63, R6, R6										
+  formal_chain_command.go:242	0x1004dc29c		8b060001		ADD R6, R0, R1											
+  formal_chain_command.go:242	0x1004dc2a0		d000a360		ADRP 21422080(PC), R0										
+  formal_chain_command.go:242	0x1004dc2a4		91370000		ADD $3520, R0, R0										
+  formal_chain_command.go:242	0x1004dc2a8		aa0503e3		MOVD R5, R3											
+  formal_chain_command.go:242	0x1004dc2ac		97ee6ad1		CALL runtime.typedslicecopy(SB)									
+  formal_chain_command.go:240	0x1004dc2b0		b000a5c0		ADRP 21729280(PC), R0										
+  formal_chain_command.go:240	0x1004dc2b4		91158000		ADD $1376, R0, R0										
+  formal_chain_command.go:240	0x1004dc2b8		97ecea6e		CALL runtime.newobject(SB)									
+  formal_chain_command.go:241	0x1004dc2bc		f9407be5		MOVD 240(RSP), R5										
+  formal_chain_command.go:241	0x1004dc2c0		f9000005		MOVD R5, (R0)											
+  formal_chain_command.go:241	0x1004dc2c4		f9407fe5		MOVD 248(RSP), R5										
+  formal_chain_command.go:241	0x1004dc2c8		a900fc05		STP (R5, ZR), 8(R0)										
+  formal_chain_command.go:241	0x1004dc2cc		f94077e5		MOVD 232(RSP), R5										
+  formal_chain_command.go:241	0x1004dc2d0		f94073e6		MOVD 224(RSP), R6										
+  formal_chain_command.go:241	0x1004dc2d4		a9019805		STP (R5, R6), 24(R0)										
+  formal_chain_command.go:241	0x1004dc2d8		f9402be5		MOVD 80(RSP), R5										
+  formal_chain_command.go:241	0x1004dc2dc		a902941f		STP (ZR, R5), 40(R0)										
+  formal_chain_command.go:242	0x1004dc2e0		f9405fe5		MOVD 184(RSP), R5										
+  formal_chain_command.go:242	0x1004dc2e4		f9403fe6		MOVD 120(RSP), R6										
+  formal_chain_command.go:242	0x1004dc2e8		a9039805		STP (R5, R6), 56(R0)										
+  formal_chain_command.go:242	0x1004dc2ec		f94063e5		MOVD 192(RSP), R5										
+  formal_chain_command.go:242	0x1004dc2f0		f94067e6		MOVD 200(RSP), R6										
+  formal_chain_command.go:242	0x1004dc2f4		a9051805		STP (R5, R6), 80(R0)										
+  formal_chain_command.go:242	0x1004dc2f8		b0010d5b		ADRP 35295232(PC), R27										
+  formal_chain_command.go:242	0x1004dc2fc		b9407365		MOVWU 112(R27), R5										
+  formal_chain_command.go:242	0x1004dc300		35000065		CBNZW R5, 3(PC)											
+  formal_chain_command.go:242	0x1004dc304		f940cfe3		MOVD 408(RSP), R3										
+  formal_chain_command.go:242	0x1004dc308		14000004		JMP 4(PC)											
+  formal_chain_command.go:242	0x1004dc30c		97ee9519		CALL runtime.gcWriteBarrier1(SB)								
+  formal_chain_command.go:242	0x1004dc310		f940cfe3		MOVD 408(RSP), R3										
+  formal_chain_command.go:242	0x1004dc314		f9000323		MOVD R3, (R25)											
+  formal_chain_command.go:242	0x1004dc318		f9002403		MOVD R3, 72(R0)											
+  formal_chain_command.go:240	0x1004dc31c		aa1f03e1		MOVD ZR, R1											
+  formal_chain_command.go:240	0x1004dc320		aa1f03e2		MOVD ZR, R2											
+  formal_chain_command.go:243	0x1004dc324		a97ffbfd		LDP -8(RSP), (R29, R30)										
+  formal_chain_command.go:243	0x1004dc328		910743ff		ADD $464, RSP, RSP										
+  formal_chain_command.go:243	0x1004dc32c		d65f03c0		RET												
+  formal_chain_command.go:223	0x1004dc330		97ed891c		CALL runtime.panicdivide(SB)									
+  formal_chain_command.go:223	0x1004dc334		d503201f		NOOP												
+  formal_chain_command.go:163	0x1004dc338		911283fb		ADD $1184, RSP, R27										
+  formal_chain_command.go:163	0x1004dc33c		a9000760		STP (R0, R1), (R27)										
+  formal_chain_command.go:163	0x1004dc340		f9025be2		MOVD R2, 1200(RSP)										
+  formal_chain_command.go:163	0x1004dc344		aa1e03e3		MOVD R30, R3											
+  formal_chain_command.go:163	0x1004dc348		97ee8c16		CALL runtime.morestack_noctxt.abi0(SB)								
+  formal_chain_command.go:163	0x1004dc34c		911283fb		ADD $1184, RSP, R27										
+  formal_chain_command.go:163	0x1004dc350		a9400760		LDP (R27), (R0, R1)										
+  formal_chain_command.go:163	0x1004dc354		f9425be2		MOVD 1200(RSP), R2										
+  formal_chain_command.go:163	0x1004dc358		17fffd62		JMP github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark.loadFormalRuntimeEnvelope(SB)	
+  formal_chain_command.go:163	0x1004dc35c		00000000		?												

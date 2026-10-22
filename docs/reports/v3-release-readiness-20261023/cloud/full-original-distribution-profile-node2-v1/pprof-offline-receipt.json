@@ -1,0 +1,26 @@
+{
+  "schema": "wukongim/offline-profile-derived/v1",
+  "product_not_restarted": true,
+  "inputs_private": true,
+  "cpu_sha256": "d3c5e46713de6add18641f2f4f4a0672cbac6db16322d555cdb0236cf32dcd23",
+  "commands": [
+    {
+      "kind": "top",
+      "exit_status": 0,
+      "started_at_utc": "2026-10-22T20:12:16.385098+00:00",
+      "completed_at_utc": "2026-10-22T20:12:21.254492+00:00",
+      "stderr_present": false,
+      "safe_file": "safe-cpu-top.txt",
+      "safe_sha256": "b4fa26ea2b2acf6342cc6ca29d3d477c75811b66f42e1bba9a895aa6bf32e9f1"
+    },
+    {
+      "kind": "cum",
+      "exit_status": 0,
+      "started_at_utc": "2026-10-22T20:12:21.254574+00:00",
+      "completed_at_utc": "2026-10-22T20:12:21.649285+00:00",
+      "stderr_present": false,
+      "safe_file": "safe-cpu-cum.txt",
+      "safe_sha256": "184df46518677f619e16e5d3fa6460af52da6b5d1d914fd852a33a630dee15ab"
+    }
+  ]
+}

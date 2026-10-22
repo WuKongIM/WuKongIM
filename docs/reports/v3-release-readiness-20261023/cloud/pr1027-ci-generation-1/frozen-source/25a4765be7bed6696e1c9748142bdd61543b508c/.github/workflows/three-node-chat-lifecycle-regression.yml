@@ -1,0 +1,326 @@
+name: Safety Automation - Three-Node Chat Lifecycle Regression
+run-name: >-
+  Three-Node Chat Lifecycle Regression ${{ github.event_name }}
+  ${{ github.event.pull_request.number || github.ref_name }} attempt ${{ github.run_attempt }}
+
+on:
+  pull_request:
+  schedule:
+    - cron: "17 18 * * *"
+  workflow_dispatch:
+    inputs:
+      diagnose_send:
+        description: Collect one fixed same-host SEND diagnostic instead of nightly qualification
+        type: boolean
+        default: false
+      qualify_candidate:
+        description: Run the fixed ten-minute qualification on this main-descended candidate
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: >-
+    three-node-chat-lifecycle-regression-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pr-baseline:
+    name: PR performance baseline evidence
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    outputs:
+      reuse: ${{ steps.baseline.outputs.reuse }}
+    steps:
+      - name: Checkout exact candidate without credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check identical-input successful main baseline
+        id: baseline
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 scripts/ci-500qps-baseline.py
+
+  pr-correctness:
+    name: PR three-node correctness
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GOWORK: "off"
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Prepare isolated PR evidence root
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/three-node-pr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "EVIDENCE_ROOT=$evidence_root" >>"$GITHUB_ENV"
+          install -d -m 0700 "$evidence_root"
+          df -Pk "$RUNNER_TEMP" >"$evidence_root/filesystem-preflight.txt"
+          git rev-parse HEAD >"$evidence_root/source.sha"
+          lscpu --json >"$evidence_root/host.json"
+          uname -a >"$evidence_root/kernel.txt"
+          findmnt -J -T /tmp >"$evidence_root/data-filesystem.json"
+      - name: Run bounded three-node 500 QPS correctness smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_token="$(openssl rand -hex 32)"
+          worker_token="$(openssl rand -hex 32)"
+          printf '::add-mask::%s\n' "$api_token" "$worker_token"
+          export WK_BENCH_API_TOKEN="$api_token"
+          export WK_BENCH_WORKER_TOKEN="$worker_token"
+          scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh \
+            --run-dir "$EVIDENCE_ROOT/artifacts" \
+            --base-port 15000 \
+            --ready-timeout 120 \
+            --send-rate 500 \
+            --measure-seconds 90 \
+            --warmup-seconds 60 \
+            --drain-timeout 90 \
+            --hot-sendack-p99-ms 1000 \
+            2>&1 | tee "$EVIDENCE_ROOT/driver.log"
+      - name: Reject tracked-tree mutation
+        if: always()
+        shell: bash
+        run: git diff --exit-code HEAD --
+      - name: Upload PR regression evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: three-node-pr-${{ github.event.pull_request.number }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/three-node-pr-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 7
+
+  pr-unit:
+    name: PR messaging unit and race
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GOWORK: "off"
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run focused unit and race gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          GOWORK=off go test ./internal/bench/arrival ./internal/bench/chatlifecycle ./internal/bench/workload ./internal/bench/worker ./pkg/bench/model ./pkg/client ./pkg/gateway/... -count=1
+          GOWORK=off go test -race ./internal/bench/workload ./internal/bench/worker ./pkg/client ./pkg/gateway/transport/gnet -count=1
+      - name: Exercise bounded arrival saturation under race detection
+        shell: bash
+        run: GOWORK=off go test -race -tags=integration ./internal/bench/arrival -count=1
+      - name: Reject tracked-tree mutation
+        if: always()
+        run: git diff --exit-code HEAD --
+
+  pr-performance:
+    name: PR 500 QPS / ${{ matrix.seam }}
+    needs: [pr-baseline]
+    if: >-
+      always() && !cancelled() &&
+      ((github.event_name == 'pull_request' && needs.pr-baseline.outputs.reuse != 'true') ||
+       github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && !inputs.diagnose_send &&
+        (github.ref == 'refs/heads/main' || inputs.qualify_candidate)))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        seam: [channel-append, mixed-send, tcp-sendack]
+    env:
+      GOWORK: "off"
+      GOMAXPROCS: "4"
+      SEAM: ${{ matrix.seam }}
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.25.11"
+          cache: true
+      - name: Run fixed sustained 500 QPS profile
+        shell: bash
+        run: bash scripts/run-500qps-seam.sh "$SEAM" "$RUNNER_TEMP/500qps-$SEAM"
+      - name: Reject tracked-tree mutation
+        if: always()
+        run: git diff --exit-code HEAD --
+      - name: Upload every performance result
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: 500qps-${{ matrix.seam }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/500qps-${{ matrix.seam }}
+          if-no-files-found: error
+          retention-days: 14
+
+  pr-regression:
+    # Preserve the existing aggregate check name for branch protection.
+    name: PR three-node regression
+    if: always() && github.event_name == 'pull_request'
+    needs: [pr-unit, pr-correctness, pr-performance, pr-baseline]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every independent check
+        env:
+          UNIT_RESULT: ${{ needs.pr-unit.result }}
+          CORRECTNESS_RESULT: ${{ needs.pr-correctness.result }}
+          PERFORMANCE_RESULT: ${{ needs.pr-performance.result }}
+          BASELINE_RESULT: ${{ needs.pr-baseline.result }}
+          BASELINE_REUSED: ${{ needs.pr-baseline.outputs.reuse }}
+        shell: bash
+        run: |
+          [[ "$UNIT_RESULT" == success && "$CORRECTNESS_RESULT" == success ]]
+          [[ "$PERFORMANCE_RESULT" == success ]] ||
+            [[ "$PERFORMANCE_RESULT" == skipped && "$BASELINE_RESULT" == success && "$BASELINE_REUSED" == true ]]
+
+  nightly-qualification:
+    name: Nightly direct 500 QPS qualification
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && !inputs.diagnose_send &&
+       (github.ref == 'refs/heads/main' || inputs.qualify_candidate))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GOWORK: "off"
+    steps:
+      - name: Checkout exact qualification source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind qualification source to main history
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main || git merge-base --is-ancestor origin/main "$SOURCE_SHA"
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Require at least fifteen percent free disk
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/three-node-nightly-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "EVIDENCE_ROOT=$evidence_root" >>"$GITHUB_ENV"
+          install -d -m 0700 "$evidence_root"
+          df -Pk "$RUNNER_TEMP" >"$evidence_root/filesystem-preflight.txt"
+          read -r filesystem_blocks filesystem_available < <(awk 'NR == 2 {print $2, $4}' "$evidence_root/filesystem-preflight.txt")
+          MINIMUM_FREE_PERCENT=15
+          observed_free_percent=$((filesystem_available * 100 / filesystem_blocks))
+          printf 'minimum_free_percent=%s\nobserved_free_percent=%s\n' \
+            "$MINIMUM_FREE_PERCENT" "$observed_free_percent" \
+            >"$evidence_root/filesystem-gate.txt"
+          (( observed_free_percent >= MINIMUM_FREE_PERCENT ))
+      - name: Run direct ten-minute 500 QPS qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_token="$(openssl rand -hex 32)"
+          worker_token="$(openssl rand -hex 32)"
+          printf '::add-mask::%s\n' "$api_token" "$worker_token"
+          export WK_BENCH_API_TOKEN="$api_token"
+          export WK_BENCH_WORKER_TOKEN="$worker_token"
+          scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh \
+            --run-dir "$EVIDENCE_ROOT/artifacts" \
+            --base-port 15000 \
+            --ready-timeout 180 \
+            --send-rate 500 \
+            --measure-seconds 600 \
+            --warmup-seconds 60 \
+            --drain-timeout 90 \
+            --hot-sendack-p99-ms 400 \
+            2>&1 | tee "$EVIDENCE_ROOT/driver.log"
+      - name: Reject tracked-tree mutation
+        if: always()
+        shell: bash
+        run: git diff --exit-code HEAD --
+      - name: Upload nightly qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: three-node-nightly-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/three-node-nightly-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+
+  send-diagnosis:
+    name: Fixed Linux SEND diagnosis
+    if: github.event_name == 'workflow_dispatch' && inputs.diagnose_send
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GOWORK: "off"
+    steps:
+      - name: Checkout exact diagnostic candidate without credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind source to main history
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main || git merge-base --is-ancestor origin/main "$SOURCE_SHA"
+      - name: Set up fixed Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.25.11"
+      - name: Collect one unprofiled and one profiled window
+        shell: bash
+        run: bash scripts/diagnose-mixed-send-linux.sh "$RUNNER_TEMP/mixed-send-diagnosis"
+      - name: Reject tracked-tree mutation
+        if: always()
+        shell: bash
+        run: git diff --exit-code HEAD --
+      - name: Upload bounded SEND diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mixed-send-diagnosis-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/mixed-send-diagnosis
+          if-no-files-found: error
+          retention-days: 90

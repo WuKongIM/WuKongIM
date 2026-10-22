@@ -1,0 +1,866 @@
+{
+  "schema": "wukongim/local_profile_provenance_correction/v1",
+  "declared_analysis_source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "actual_embedded_binary_revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "actual_binary_metadata": [
+    {
+      "binary": "wukongim",
+      "bytes": 92887922,
+      "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "embedded_go": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wukongim",
+      "main_module": [
+        "github.com/WuKongIM/WuKongIM",
+        "v1.2.6-0.20261021081325-a804f4a57c2b"
+      ],
+      "embedded_build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "CGO_ENABLED": "1",
+        "CGO_CFLAGS": "",
+        "CGO_CPPFLAGS": "",
+        "CGO_CXXFLAGS": "",
+        "CGO_LDFLAGS": "",
+        "GOARCH": "arm64",
+        "GOOS": "darwin",
+        "GOARM64": "v8.0",
+        "vcs": "git",
+        "vcs.revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+        "vcs.time": "2026-10-21T08:13:25Z",
+        "vcs.modified": "false"
+      },
+      "method": "go version -m reads binary buildinfo; product not executed",
+      "raw_version_output_sha256": "8b69c3a718c5cbbbb41d9e7ea495cb5eb6f204179d5dfe93368264ea8430633f"
+    },
+    {
+      "binary": "wkcli",
+      "bytes": 59162610,
+      "sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+      "embedded_go": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcli",
+      "main_module": [
+        "github.com/WuKongIM/WuKongIM",
+        "v1.2.6-0.20261021081325-a804f4a57c2b"
+      ],
+      "embedded_build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "CGO_ENABLED": "1",
+        "CGO_CFLAGS": "",
+        "CGO_CPPFLAGS": "",
+        "CGO_CXXFLAGS": "",
+        "CGO_LDFLAGS": "",
+        "GOARCH": "arm64",
+        "GOOS": "darwin",
+        "GOARM64": "v8.0",
+        "vcs": "git",
+        "vcs.revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+        "vcs.time": "2026-10-21T08:13:25Z",
+        "vcs.modified": "false"
+      },
+      "method": "go version -m reads binary buildinfo; product not executed",
+      "raw_version_output_sha256": "4e9ca4e27ecbc1a4aa8709af1506b09aee788b443c7b3ed3dce09df4cf9a1a48"
+    }
+  ],
+  "host_go_command": {
+    "exit_status": 0,
+    "stdout": "go version go1.25.0 darwin/arm64\n",
+    "stderr": ""
+  },
+  "host_go_is_not_embedded_go": true,
+  "all_repository_differences": [
+    {
+      "status": "M",
+      "path": ".github/workflows/README.md",
+      "base_sha256": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+      "declared_sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml",
+      "base_sha256": "3b4bcdffd747ba0839b52557849bdc4c9bfc530ad4381f79fffeda3999e5448f",
+      "declared_sha256": "43af3a24f78aa9bca4354c6c192de5a6f037b3686be0fb13f20e2b7c529cef05"
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/chat-lifecycle-formal.yml",
+      "base_sha256": "57443e3ee23799bf691ab580808bfca6dfdb0c8f5ce2b00b996e83a7e2904703",
+      "declared_sha256": "d252fe66bfeb9e6c9bb73bdee960073fd9f3a4566e2866b1b1f54bd69230174c"
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml",
+      "base_sha256": "2181d008be6273e6d8b6c2bf30f77c5934de2bdf515bddf0f24659cbe3c0bb1c",
+      "declared_sha256": "30b29a1b652682d749ca11599806fb6b370953636031bad7872b9640e5a0ec6f"
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+      "base_sha256": "ad063b33ee1442194fe2aa68f4e0e8b6eb41115d00423b6f51d053da282e885c",
+      "declared_sha256": "bc0c9dfb29164b9359f2dd78e4c5dee9fad7e40ffd8ee4734d69bc56f3e6e034"
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "base_sha256": "37a8998cfba6c3c0984eea6d27cd1e0d4563fa90adc585068ce97b8524397016",
+      "declared_sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f"
+    },
+    {
+      "status": "M",
+      "path": "CHANGELOG.md",
+      "base_sha256": "bddd553e9e9ee2bc5ecfc667f8f3edb6cf6cd04e3014c5c5535956219340f57d",
+      "declared_sha256": "6933c326cccd407769a18e32c1c09f254bca585090d587e887e112f917a07a29"
+    },
+    {
+      "status": "A",
+      "path": "cmd/wkchatlifecycle/budget_downward_test.go",
+      "declared_sha256": "727fe4f18b80f69c6e9cc4f7735ea66b8e3e5e9cd0d8e304a93ead8688000683"
+    },
+    {
+      "status": "M",
+      "path": "cmd/wkchatlifecycle/main.go",
+      "base_sha256": "448e079f061c70575a17b3a97d3b0690e3778f1a248c0291b3c121fb26a7077f",
+      "declared_sha256": "839d4bc3adcf5a4a26333cb8bacf25060ebf5781b3826e4cc828e5689bcd3c72"
+    },
+    {
+      "status": "M",
+      "path": "cmd/wkchatlifecycle/main_test.go",
+      "base_sha256": "2f6f4d9b238638131de86d1eafd70c75015282b018575c30fcebd10289bd638e",
+      "declared_sha256": "a5a30a6b5b85fcbcfa2e385da9f0278030fb440c04055160a1cfd3848e4fbe4d"
+    },
+    {
+      "status": "A",
+      "path": "cmd/wkcli/internal/benchmark/budget_downward_test.go",
+      "declared_sha256": "2c03ef872ea819f5983c4e42ea748c235e84f6d2d3123cfa5260289cb4a325f4"
+    },
+    {
+      "status": "M",
+      "path": "cmd/wkcli/internal/benchmark/formal_chain_command.go",
+      "base_sha256": "24f5e3d2fb5909c7cd679a8f29d919704344eef801ab1d60321b4f725361d344",
+      "declared_sha256": "751d7203a3017c935e37b5df41eaec8ffb4f67cb06a42ec816a193ea280ce2c0"
+    },
+    {
+      "status": "M",
+      "path": "configs/wkbench/chat-lifecycle/README.md",
+      "base_sha256": "e5ee68194b73e93ecbbf14d549eeaefc83c36ddb40ca2501e920c2914de0057d",
+      "declared_sha256": "3a167780fb4f9897bd353d7555af688f6b2927b9d2c237c150e6aec3e02edc39"
+    },
+    {
+      "status": "M",
+      "path": "configs/wkbench/chat-lifecycle/local-shakeout.yaml",
+      "base_sha256": "234db9313fb0d1bddb2bfc6a4cce4ed1d6396b0d065781aac2d4cfd24fad31ac",
+      "declared_sha256": "1a9e81e18c8afaaa62fa2b1edad6dc03ea34eda7163e501c26b341cd2dc7a2a2"
+    },
+    {
+      "status": "M",
+      "path": "docs-site/content/docs/api/product-http/conversations/syncConversationsLegacy.en.mdx",
+      "base_sha256": "bf99c032386b21567d80710a61218cc1c12408a6cb1ec022446751df65e89e91",
+      "declared_sha256": "8c7757c29d1c04935e7ed9d66ac6133bb45aa6f32af654f111e9c712c6a27860"
+    },
+    {
+      "status": "M",
+      "path": "docs-site/content/docs/api/product-http/conversations/syncConversationsLegacy.mdx",
+      "base_sha256": "25068f255286c99701ac7243fcf9b845895ec4d01d44eb81915c5d9a9d422b44",
+      "declared_sha256": "afcdc2641ba3e2aace2dcf0fb596463c8d12facf8bf2937eba794b1848920c56"
+    },
+    {
+      "status": "M",
+      "path": "docs-site/contracts/product-http.openapi.json",
+      "base_sha256": "d4f9a8d752a2fb90e4617cb120fb8f0592b185a8b73feb2a4edbebbfdbf6781a",
+      "declared_sha256": "568904e5d5f1b6bcf8b3f558409925ee12e674b0b875997a2e97a6b7875759fd"
+    },
+    {
+      "status": "M",
+      "path": "docs-site/lib/product-http-parameter-explanations.ts",
+      "base_sha256": "06fc3cc371b86e0de9309420f802698cee3470df14bda26f7975d74a35a06248",
+      "declared_sha256": "314d59d56c32425cf1436362df2a37a06492865957dabfbd8bd77cafc732b642"
+    },
+    {
+      "status": "M",
+      "path": "docs/adr/0047-retain-one-lease-across-deployment-repair.md",
+      "base_sha256": "fbd72cff0f2d7345693882321a4ff9156475390b2411837befbaa30a7f4b6b38",
+      "declared_sha256": "6ae3d060cd9e619e2ad03c24eff1f61ea0719e838a8137316c7aba3804cf03da"
+    },
+    {
+      "status": "M",
+      "path": "docs/development/FLOW_INDEX.md",
+      "base_sha256": "14a70353fadff6b7d515f9c1fd3e3fd57964c2b33245cdf8a2ccb012de4e40d9",
+      "declared_sha256": "4759e55986b34fb16545626db9769720ed69a0bc094450bc14509680b0eeca44"
+    },
+    {
+      "status": "M",
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "base_sha256": "b9d525adf0a908eff8486a14d9d7bedc7b22073737bb1b1fed4705deb0932170",
+      "declared_sha256": "42aa7f2976b12fde7ccd135e5acbef69ee7cabbcaac25fb1d42b8284050c6a36"
+    },
+    {
+      "status": "M",
+      "path": "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md",
+      "base_sha256": "7d971edd64be172ff8e36a170e2defdeec42b0617ec245da17d4f9372f6339a4",
+      "declared_sha256": "3bd523e203367c2abef5f2a7b6718e2783e32e828b96f1ab48da440bdf3969cf"
+    },
+    {
+      "status": "M",
+      "path": "internal/bench/chatlifecycle/config_examples_test.go",
+      "base_sha256": "608af732d9be56b02aaf81ad1e6529fbc15ed92c64b7d31f5b83fc7b57a0cb7f",
+      "declared_sha256": "fc628a454b724aca86d13a9020ace81ba19ca6863978db367b65cf6802c2adff"
+    },
+    {
+      "status": "A",
+      "path": "internal/bench/chatlifecycle/local_shakeout_budget_test.go",
+      "declared_sha256": "e89a98aa7412d2a17de36ede1301f9e1db7c4dae776436103ac7b834c37c09d1"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+      "base_sha256": "ab301c7579d789e4eadc41c833b3856b7b2b64c5c1c365f75dd11599b70bcf7f",
+      "declared_sha256": "220613fab3e90691ee9eab6296651ae8b08eba83cb178e5039e8f1c22ee47adf"
+    },
+    {
+      "status": "A",
+      "path": "internal/usecase/chatlifecyclerun/budget_downward_test.go",
+      "declared_sha256": "154b6b40db3a5b5b6dfbec3736d9d7fd2e5acb34e1b80c73801412993c90fce9"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "base_sha256": "db0e076554cc78b2203df272c4aca26024eb2e1b448a1d8d3abf1bb11ed0fb51",
+      "declared_sha256": "b400e4dc9889167225598a2cc57ae3e80d746dfb98bb33beacd09dbee02c6887"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/chatlifecyclerun/run_test.go",
+      "base_sha256": "801e0c60b3333813e9d4aef51dbb205d91d17b1e8cedaa38e74f4c2e014e5bcd",
+      "declared_sha256": "bc0e30941705f7e2d7bc40789e2a2eecd613ae5229513546d7491ac4df4398a5"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/clouddeploy/FLOW.md",
+      "base_sha256": "3f82641fef13b0d52a513247f02f8ae4955f70a3cd47df4a1c62acf4e91af7b8",
+      "declared_sha256": "5dcd339366b7dd8ebcd0cc1fd301a87441e1630cf1c0217aba46fcaa9f73f711"
+    },
+    {
+      "status": "A",
+      "path": "internal/usecase/clouddeploy/budget_downward_test.go",
+      "declared_sha256": "e8f5f62c19e7776a95928056da892b956861e44ba18f036cf11706804244d736"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/clouddeploy/deployment.go",
+      "base_sha256": "56637327515c88b189f29eadeede163b9192e5e169ee984528659379bddcdf9f",
+      "declared_sha256": "b1099deaa151575db01edcb0f2705ca87b291272378d5bae5e56a5530a74fbf2"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/conversation/FLOW.md",
+      "base_sha256": "16dfea83ae4fb33c7589705dced4abf146421a8720d336a8de9a70e8831b938c",
+      "declared_sha256": "e395927ea87e90445380325d59f7fc51c1b17ecd283c91f0d40d93ff4e330484"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/conversation/legacy_sync.go",
+      "base_sha256": "f8f84782ef96c98340917538527d00bbc0358493964e6cbc40fab46793034f1d",
+      "declared_sha256": "309c91dac717ef7ac839fd6d573620b8bd73607555f56f1ac2b7aa0c4dbdbd46"
+    },
+    {
+      "status": "D",
+      "path": "internal/usecase/conversation/legacy_sync_budget_test.go",
+      "base_sha256": "1a4e1810ae521960f8250ffe1a74ea68aa97dcdbc4f899748592a970e928cb6c"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/conversation/legacy_sync_test.go",
+      "base_sha256": "e2c37032e8a9c570a029af463bff1c2ec47f61bbae987d11d3ae380cd617dcc4",
+      "declared_sha256": "bd1f9393a13d536b1f6fde8b722e4868ef2c73d273ef7aa99541554d7603360a"
+    },
+    {
+      "status": "M",
+      "path": "pkg/channel/FLOW.md",
+      "base_sha256": "9750186a51c5fcd5ceac5fc85d26e5b5a122a6a20cbda188310dbac970f53c1a",
+      "declared_sha256": "b98b0e39eb634ae05a723c6c1990a8fcfd1058f2440373b17867e73d92a7a259"
+    },
+    {
+      "status": "M",
+      "path": "pkg/channel/replication/recovery_barrier.go",
+      "base_sha256": "b7c340d3af98b9f78fa65e4e36424e17ca64fdb9f57872e5a755a852cd9777d1",
+      "declared_sha256": "0f0db66e736e4885cdf15b13cf9022659c2536d820a5455b5d7528a1342f99f4"
+    },
+    {
+      "status": "A",
+      "path": "pkg/channel/replication/recovery_barrier_pending_test.go",
+      "declared_sha256": "099c5dd1c4a5741ef2cec5a3a621be6df39ba25f14fa61caa67fe43ea3e9a33d"
+    },
+    {
+      "status": "M",
+      "path": "pkg/transport/internal/buffer/retained_test.go",
+      "base_sha256": "f751bf595b75fda5bd7a676205716395a41bb1831fb4cc5635e90ea4f5b2032f",
+      "declared_sha256": "732390cf710b7199b0917aef02866de87e7d940687f259c587f84b84f00b0d16"
+    },
+    {
+      "status": "M",
+      "path": "scripts/capture-wukongim-local-threshold-pprof.sh",
+      "base_sha256": "cfade919beb172d0aebc5a195e16c900b9876cee7d2406e3083ca7440ee7904c",
+      "declared_sha256": "b17347aea7acdfc6320c7db547065893814b105b7fbe5b6f9655b8b044b0780a"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat-lifecycle/authenticate-released-preclock.py",
+      "declared_sha256": "d116f081fdc197f88440e064b57ad763788b0d825a1a7f9f07f118db739370fd"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/classify-pre-clock-summary.sh",
+      "base_sha256": "1a832333429bb7bfbd5ec58db1fbe304b79fad874565323cb700973d9ca1238d",
+      "declared_sha256": "7d72d5e83b590a74eab8cda6db70f3f347adf71865a7c3661597de662431d415"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/classify-stage-service-state.sh",
+      "base_sha256": "1e167ee6ffb2652266136c408601957161f42569b732de96d7bdec9d29d1274c",
+      "declared_sha256": "86fa3c1993ea4be2e36356f1efa25810e0bf154ca74eba97eff3f5212973840a"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/collect-terminal-evidence.sh",
+      "base_sha256": "dd9bf9127e2c5d7a7da06139498229543fab44c02702f43a6e4c2ea0586ccf98",
+      "declared_sha256": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/comment-request-issue.sh",
+      "base_sha256": "128a1f2e68d454598905bfbc31ee65d7a4ae41a35ad6cab7c6fd778dcef128f7",
+      "declared_sha256": "993eaa996b2eacea612fa44a791c81b08921579eea8c458fe07fc435789831a0"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/discover-active-handoffs.sh",
+      "base_sha256": "8e3b3c34e345ec5633f698fe73fee248bda6bb1005dc11a9bb52bef1f70b2477",
+      "declared_sha256": "c692318316837e07833ccc5dcb19de38af732f987069e71fd4f1d92c9758316e"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat-lifecycle/pre-clock-diagnostic.py",
+      "declared_sha256": "62d61d64faed14c8b5d0514e2280aff3ee4ef6b596c5b12630f1108830c1ef6c"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/select-formal-transition-committed.jq",
+      "base_sha256": "daa93110f502a6f7915c1acba09ecbbe823f9f3c010f764ed4e65f0f04136f8e",
+      "declared_sha256": "1bc9a9231d306d230331fc2ce9fe6eeed00a4589ea4efeea4eefa9b7f92d16a8"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh",
+      "base_sha256": "5e6fd434fa75aef3e60ae5e3c1602c104b33c2748cdc5fcdbc4a18ef54f7754a",
+      "declared_sha256": "a53eb9c44179f590f57e2599493664caf1b5f547a0812d9d6053ba945e49f0e7"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat-lifecycle/terminal-evidence.py",
+      "declared_sha256": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_direct_lab_start_integration_test.go",
+      "declared_sha256": "f59325ccf1b7dd3692dc8021491ce68cdcac013bf8ba0d3f6de3b56bc0891f71"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat_lifecycle_direct_lab_test.go",
+      "base_sha256": "bbc7446d53bf41032ac3bb3dfeeb13c0f5f8617cf743c3e9ef8be1dbcc6cbfcc",
+      "declared_sha256": "cf42269fd621ef8c4dad1a2766b1599f18ff2d719d8a9f10fd692a051b38715f"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_downward_budget_consumers_integration_test.go",
+      "declared_sha256": "fc9307c5d6ecd1cc4ad15a2d56948376786888735b5f3d0e270e993e7fdc5df3"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_downward_budget_consumers_test.go",
+      "declared_sha256": "c3aa906f6a8998cb2eda71915a0c8ba3f9abe4e2b24f35a2d2b2dcedb4d8b459"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_downward_budget_integration_test.go",
+      "declared_sha256": "c8c1f564f0d0dd30fd07c97bdfcc18f2ee0dbbd73bf1652d546783c1f387642a"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_downward_budget_test.go",
+      "declared_sha256": "b78523d7855b9b8e298ffe04edbafb61292c2b873f2af50db097736bb46cb143"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_issue_preflight_integration_test.go",
+      "declared_sha256": "db0abfe795ca054b51dd4834f61db014019e2a486d6128091514561c4713bcb3"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_preclock_capture_integration_test.go",
+      "declared_sha256": "2d68b2fe1df2aa3bfdcf85c24e33d7f0292b6d0d0c13264829d7fb10d9246a45"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_preclock_diagnostic_test.go",
+      "declared_sha256": "a6da05ccde2247e5ee27715df2efbfd46014203f97c10973049d5c3104ff9583"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_preflight_artifact_workflow_test.go",
+      "declared_sha256": "f14597a183f91fe5e7643c973e9c7384c16ce4e1229a1864c4edbf45f507e995"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_released_preclock_consumers_integration_test.go",
+      "declared_sha256": "4247c4629df72ae67b1735fe6d5e33f9f6a1e6300a25bb7e331a3eddedd2f679"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_released_preclock_consumers_test.go",
+      "declared_sha256": "74759db8e522f2097a913772c4958befb94cfa1b45cdbfb0c94dd317e0add402"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_released_preclock_integration_test.go",
+      "declared_sha256": "0435c2f6895348420d8937d8e3ff059b97aa9b7a0ebca4059f7152a37070115d"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_released_preclock_test.go",
+      "declared_sha256": "3de293748facabf9c884a837ebcfb79f5d62668e1a4d3028e451dd2d08c5780c"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_stage_state_test.go",
+      "declared_sha256": "ca5cd371f069eefd88832e3e71a812b6f8c435234b8ab19c75970912267aeea0"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_terminal_evidence_integration_test.go",
+      "declared_sha256": "0f350cb80301192f72644c3efff04dbcfa1c551667ea12647b6e2373b124baa2"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat_lifecycle_workflows_test.go",
+      "base_sha256": "e1e9da0b6ed7f00e766bfb92bc1eef20b25cac46ebc8f19cfc923d1376c38349",
+      "declared_sha256": "093fba46e7c04b00395e15669fa3d3fe2d61f02454863926f8dd2db9f975e64f"
+    },
+    {
+      "status": "M",
+      "path": "scripts/cloud-sim/analyze.sh",
+      "base_sha256": "3da01b22f59ad2ea51473d9acea947039fdf2cd91be91123b9e3321a8e032f9f",
+      "declared_sha256": "cf2b97ac49ff4a94666d58587b227197318865a8473b8b1c2359a319d0b987d8"
+    },
+    {
+      "status": "M",
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh",
+      "base_sha256": "e7915cac37e2b5197438a74c99d16ee60768c4dfd70cad5f3f284c87064e3c69",
+      "declared_sha256": "68512d0add0a80b6b364400388720cd0acc301897ef8b4a5e6facffed16880a5"
+    },
+    {
+      "status": "M",
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh",
+      "base_sha256": "efc49bb068de1b5dd714ebd12dc077b4c34a27fede0d995bdf59b37caf3386af",
+      "declared_sha256": "41d00b710c99d4d018e4f4f99590c53cb08f6df97b2c8043aa15c259bfdb01d4"
+    },
+    {
+      "status": "A",
+      "path": "scripts/shell_trap_cleanup_integration_test.go",
+      "declared_sha256": "b051e016ce067bb3aceae760a90a2dc2b6d50158ec2f539d7e37cd7eb46dc8d6"
+    },
+    {
+      "status": "A",
+      "path": "scripts/testdata/chat-lifecycle-released-preclock/README.md",
+      "declared_sha256": "fba1ae9ce62f84d1a37301f3d15224975da4be42a794a6e1e5433b32473396ff"
+    },
+    {
+      "status": "A",
+      "path": "scripts/testdata/chat-lifecycle-released-preclock/original.json",
+      "declared_sha256": "54af1615a2dc07cd780acf8e50a2f45b0175bcb9ec18c909341d59cabc6edb27"
+    },
+    {
+      "status": "A",
+      "path": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py",
+      "declared_sha256": "3db0a4151b25d851d2594eb452308f6fe2ec4192ee98406f0a5fb5904becc2b1"
+    },
+    {
+      "status": "M",
+      "path": "scripts/v3_candidate_workflow_contract_test.py",
+      "base_sha256": "99b8a7a4f8f373e23f9afcad62552fd4fadcf84b735dbd48b2f277270f1cf972",
+      "declared_sha256": "d4c691b6dc49364c66fccb95ede050256d0980f0e83282270e3b0bb7ab2a4ed2"
+    },
+    {
+      "status": "M",
+      "path": "scripts/wukongim_local_threshold_pprof_script_integration_test.go",
+      "base_sha256": "95d641c8bbfe353229b6422169492f838e94612df8fa18fb0e2e694fe359e418",
+      "declared_sha256": "8cdd6bb91e10a6f08fb84e710b16b2dff15bd3bd329c6f45fbeeb3391dd35311"
+    },
+    {
+      "status": "M",
+      "path": "scripts/wukongim_single_node_terminal_cut_integration_test.go",
+      "base_sha256": "ef5fc20a0ecef50d1efb5aee169797fa0c7c5f44507f2159e5c87ad001fc992d",
+      "declared_sha256": "675a01755185bbe33d12cb6260cb3d5fc0e5917ad9ea4013857dfd28415a0efd"
+    },
+    {
+      "status": "M",
+      "path": "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go",
+      "base_sha256": "c948867de66c9e9a641dd03d693adb541598d148cee7c1a3dfc11003622e23c9",
+      "declared_sha256": "0f665c92e3b99eeaf23a57e65fca4f91d16bf7b7e53a1d9d34462f49e820ccfa"
+    },
+    {
+      "status": "M",
+      "path": "scripts/wukongim_three_node_chat_lifecycle_script_test.go",
+      "base_sha256": "8cd26844632a051faf173a655a38bebb0b09b53578db039326ab0453f8ecf4cb",
+      "declared_sha256": "2589f7247b3fac027146b4261a721ddda552eca20893c630ebf8ec462c780e55"
+    },
+    {
+      "status": "M",
+      "path": "scripts/wukongim_three_nodes_build_integration_test.go",
+      "base_sha256": "69ab295c71ec086d5a626114beaf229bd747033f0e6371f372b00c8ef4bbd3dc",
+      "declared_sha256": "1fbab2bd77824ce611d1e6353ce941bcdfad96c2ece70ece30e2814af30a65cb"
+    },
+    {
+      "status": "M",
+      "path": "test/e2e/message/AGENTS.md",
+      "base_sha256": "61ec448702b8bdfe30f135d2d6162627f68134b1d52099a4e404bcecb148d68f",
+      "declared_sha256": "10ede99d4fe8ef4a6a946d058f58df1bec251141ba1f8b2a617da3a6b51c0e72"
+    },
+    {
+      "status": "M",
+      "path": "test/e2e/message/legacy_conversation_sync/AGENTS.md",
+      "base_sha256": "6605f8539278f3133895aabccee0049763cf2dcaed9dbbd45ee66db8938eafd1",
+      "declared_sha256": "5504cbf60ae73637e6f98338497067f43a1eab9d9088d55f3953886e1ce48b1f"
+    },
+    {
+      "status": "M",
+      "path": "test/e2e/message/legacy_conversation_sync/legacy_conversation_sync_test.go",
+      "base_sha256": "5bb2b8c6b218d668c6a777ceba08407ee8dcb150c4232f7b1b33c1808f07d901",
+      "declared_sha256": "475c15b906664c9a30c572eec10e8b92b0251300236bbe7ad8cf924325fe1249"
+    },
+    {
+      "status": "M",
+      "path": "test/e2e/migration/ordinary_history/AGENTS.md",
+      "base_sha256": "bb88da9005b7447e75a688e0afd7880a50e916a824320c80e89a6ee32a428e74",
+      "declared_sha256": "b3d0586735d4ed524fee49660eb5e466a14cfa56e5ab90c9da5d0db7197a89fc"
+    },
+    {
+      "status": "M",
+      "path": "test/e2e/migration/ordinary_history/ordinary_history_test.go",
+      "base_sha256": "5b71f5467b8f7de9104bca5da932efbe74ed28c4ec54af9ad7ae05e63a402a11",
+      "declared_sha256": "d24b12b77aadf0f356c46cff2930b2f293e8be33d645034e0118dac1eccf973c"
+    }
+  ],
+  "all_changed_non_test_go_implementation_files_under_cmd_internal_pkg": [
+    {
+      "status": "M",
+      "path": "cmd/wkchatlifecycle/main.go",
+      "base_sha256": "448e079f061c70575a17b3a97d3b0690e3778f1a248c0291b3c121fb26a7077f",
+      "declared_sha256": "839d4bc3adcf5a4a26333cb8bacf25060ebf5781b3826e4cc828e5689bcd3c72"
+    },
+    {
+      "status": "M",
+      "path": "cmd/wkcli/internal/benchmark/formal_chain_command.go",
+      "base_sha256": "24f5e3d2fb5909c7cd679a8f29d919704344eef801ab1d60321b4f725361d344",
+      "declared_sha256": "751d7203a3017c935e37b5df41eaec8ffb4f67cb06a42ec816a193ea280ce2c0"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/chatlifecyclerun/run.go",
+      "base_sha256": "db0e076554cc78b2203df272c4aca26024eb2e1b448a1d8d3abf1bb11ed0fb51",
+      "declared_sha256": "b400e4dc9889167225598a2cc57ae3e80d746dfb98bb33beacd09dbee02c6887"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/clouddeploy/deployment.go",
+      "base_sha256": "56637327515c88b189f29eadeede163b9192e5e169ee984528659379bddcdf9f",
+      "declared_sha256": "b1099deaa151575db01edcb0f2705ca87b291272378d5bae5e56a5530a74fbf2"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/conversation/legacy_sync.go",
+      "base_sha256": "f8f84782ef96c98340917538527d00bbc0358493964e6cbc40fab46793034f1d",
+      "declared_sha256": "309c91dac717ef7ac839fd6d573620b8bd73607555f56f1ac2b7aa0c4dbdbd46"
+    },
+    {
+      "status": "M",
+      "path": "pkg/channel/replication/recovery_barrier.go",
+      "base_sha256": "b7c340d3af98b9f78fa65e4e36424e17ca64fdb9f57872e5a755a852cd9777d1",
+      "declared_sha256": "0f0db66e736e4885cdf15b13cf9022659c2536d820a5455b5d7528a1342f99f4"
+    }
+  ],
+  "normal_message_product_implementation_differences": [
+    "internal/usecase/conversation/legacy_sync.go",
+    "pkg/channel/replication/recovery_barrier.go"
+  ],
+  "analysis_files_verified_byte_identical": [
+    {
+      "path": "AGENTS.md",
+      "base_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "declared_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "worktree_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "go.mod",
+      "base_sha256": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d",
+      "declared_sha256": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d",
+      "worktree_sha256": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d"
+    },
+    {
+      "path": "go.sum",
+      "base_sha256": "68ffe83def79e0889fffa722ac7d0a18d7bce52e01e8d8395da56da1e96975fb",
+      "declared_sha256": "68ffe83def79e0889fffa722ac7d0a18d7bce52e01e8d8395da56da1e96975fb",
+      "worktree_sha256": "68ffe83def79e0889fffa722ac7d0a18d7bce52e01e8d8395da56da1e96975fb"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "base_sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "declared_sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "worktree_sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "base_sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "declared_sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "worktree_sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "base_sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "declared_sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "worktree_sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "base_sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+      "declared_sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+      "worktree_sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e"
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "base_sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2",
+      "declared_sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2",
+      "worktree_sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2"
+    },
+    {
+      "path": "internal/runtime/presence/FLOW.md",
+      "base_sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "declared_sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "worktree_sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee"
+    },
+    {
+      "path": "internal/runtime/online/FLOW.md",
+      "base_sha256": "c7233cdcec9976b5f237194ad7fd211c96e961702ce7621d7e759250a5dbf246",
+      "declared_sha256": "c7233cdcec9976b5f237194ad7fd211c96e961702ce7621d7e759250a5dbf246",
+      "worktree_sha256": "c7233cdcec9976b5f237194ad7fd211c96e961702ce7621d7e759250a5dbf246"
+    },
+    {
+      "path": "internal/runtime/delivery/FLOW.md",
+      "base_sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+      "declared_sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+      "worktree_sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704"
+    },
+    {
+      "path": "internal/access/node/FLOW.md",
+      "base_sha256": "095836bd2e270d9663e1aa33bdb4457d42a7706b0706dc14610e72fc6beb82a7",
+      "declared_sha256": "095836bd2e270d9663e1aa33bdb4457d42a7706b0706dc14610e72fc6beb82a7",
+      "worktree_sha256": "095836bd2e270d9663e1aa33bdb4457d42a7706b0706dc14610e72fc6beb82a7"
+    },
+    {
+      "path": "internal/access/gateway/FLOW.md",
+      "base_sha256": "617a64aafd4d1e60aef670770f2ac22dd7cdfcd537f1f5cb3a00b98218eefb31",
+      "declared_sha256": "617a64aafd4d1e60aef670770f2ac22dd7cdfcd537f1f5cb3a00b98218eefb31",
+      "worktree_sha256": "617a64aafd4d1e60aef670770f2ac22dd7cdfcd537f1f5cb3a00b98218eefb31"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "base_sha256": "ae0f99b28ea52be22ddb95c785574819a4e4c31614435bff9250e5b10b8ecff2",
+      "declared_sha256": "ae0f99b28ea52be22ddb95c785574819a4e4c31614435bff9250e5b10b8ecff2",
+      "worktree_sha256": "ae0f99b28ea52be22ddb95c785574819a4e4c31614435bff9250e5b10b8ecff2"
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "base_sha256": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971",
+      "declared_sha256": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971",
+      "worktree_sha256": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/traffic.go",
+      "base_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "declared_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "worktree_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "base_sha256": "fef17bdf5ade437c5c68d58cfd9a9519a2a4a875bee2097ecb84f734ce7b4dba",
+      "declared_sha256": "fef17bdf5ade437c5c68d58cfd9a9519a2a4a875bee2097ecb84f734ce7b4dba",
+      "worktree_sha256": "fef17bdf5ade437c5c68d58cfd9a9519a2a4a875bee2097ecb84f734ce7b4dba"
+    },
+    {
+      "path": "internal/bench/target/client.go",
+      "base_sha256": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762",
+      "declared_sha256": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762",
+      "worktree_sha256": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762"
+    },
+    {
+      "path": "internal/app/observability.go",
+      "base_sha256": "7e2c7a2b0549e9425770dde0195bca07414daef50fd6c072c0d8a26fab5a48db",
+      "declared_sha256": "7e2c7a2b0549e9425770dde0195bca07414daef50fd6c072c0d8a26fab5a48db",
+      "worktree_sha256": "7e2c7a2b0549e9425770dde0195bca07414daef50fd6c072c0d8a26fab5a48db"
+    },
+    {
+      "path": "pkg/metrics/registry.go",
+      "base_sha256": "de1dfc8aa53b4271c83dc511250462cf1de70ec8e9636613ac7bd650b5981e02",
+      "declared_sha256": "de1dfc8aa53b4271c83dc511250462cf1de70ec8e9636613ac7bd650b5981e02",
+      "worktree_sha256": "de1dfc8aa53b4271c83dc511250462cf1de70ec8e9636613ac7bd650b5981e02"
+    },
+    {
+      "path": "internal/access/gateway/error_map.go",
+      "base_sha256": "548e034c0079507095617e2a5c7ce83c6955a8cd29bc53402e6b407eb1cc98e4",
+      "declared_sha256": "548e034c0079507095617e2a5c7ce83c6955a8cd29bc53402e6b407eb1cc98e4",
+      "worktree_sha256": "548e034c0079507095617e2a5c7ce83c6955a8cd29bc53402e6b407eb1cc98e4"
+    },
+    {
+      "path": "internal/usecase/presence/recovery.go",
+      "base_sha256": "dbbdc02e4922c1faef9aa81084ab06dd404be7f2a394a1fe4e4ff238e91542fb",
+      "declared_sha256": "dbbdc02e4922c1faef9aa81084ab06dd404be7f2a394a1fe4e4ff238e91542fb",
+      "worktree_sha256": "dbbdc02e4922c1faef9aa81084ab06dd404be7f2a394a1fe4e4ff238e91542fb"
+    },
+    {
+      "path": "internal/runtime/presence/recovery.go",
+      "base_sha256": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83",
+      "declared_sha256": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83",
+      "worktree_sha256": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83"
+    },
+    {
+      "path": "internal/infra/cluster/presence_recovery.go",
+      "base_sha256": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55",
+      "declared_sha256": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55",
+      "worktree_sha256": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55"
+    },
+    {
+      "path": "internal/infra/cluster/channel_metadata.go",
+      "base_sha256": "b4fb4459f2c728651be87726acf3dbbc86236b9e0e937e3862825fa8d1c0406c",
+      "declared_sha256": "b4fb4459f2c728651be87726acf3dbbc86236b9e0e937e3862825fa8d1c0406c",
+      "worktree_sha256": "b4fb4459f2c728651be87726acf3dbbc86236b9e0e937e3862825fa8d1c0406c"
+    },
+    {
+      "path": "internal/app/online_delivery.go",
+      "base_sha256": "1ff79492cc87ede7d006300f8866544e55d3a77530f560f979b2cb0acf74fc1a",
+      "declared_sha256": "1ff79492cc87ede7d006300f8866544e55d3a77530f560f979b2cb0acf74fc1a",
+      "worktree_sha256": "1ff79492cc87ede7d006300f8866544e55d3a77530f560f979b2cb0acf74fc1a"
+    },
+    {
+      "path": "internal/runtime/online/registry.go",
+      "base_sha256": "73e935fe10b2cc5f8a25f5364f285c679889b575efae5a2ed8184223a8701139",
+      "declared_sha256": "73e935fe10b2cc5f8a25f5364f285c679889b575efae5a2ed8184223a8701139",
+      "worktree_sha256": "73e935fe10b2cc5f8a25f5364f285c679889b575efae5a2ed8184223a8701139"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_cohort.go",
+      "base_sha256": "d84be076ccc93552ada25c867d2c641cdfb1b67ce78ef4ac154a3247b58ad352",
+      "declared_sha256": "d84be076ccc93552ada25c867d2c641cdfb1b67ce78ef4ac154a3247b58ad352",
+      "worktree_sha256": "d84be076ccc93552ada25c867d2c641cdfb1b67ce78ef4ac154a3247b58ad352"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_rpc.go",
+      "base_sha256": "872417d9cb60df5d12a59f17da5fe17a055f29f166d7e38d8e763eccf9faa781",
+      "declared_sha256": "872417d9cb60df5d12a59f17da5fe17a055f29f166d7e38d8e763eccf9faa781",
+      "worktree_sha256": "872417d9cb60df5d12a59f17da5fe17a055f29f166d7e38d8e763eccf9faa781"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_observer.go",
+      "base_sha256": "cabe577ee9405ab53f49259b82f63ba4f221a02f0751244b0369d3ccfee169ed",
+      "declared_sha256": "cabe577ee9405ab53f49259b82f63ba4f221a02f0751244b0369d3ccfee169ed",
+      "worktree_sha256": "cabe577ee9405ab53f49259b82f63ba4f221a02f0751244b0369d3ccfee169ed"
+    },
+    {
+      "path": "pkg/slot/multiraft/read_barrier.go",
+      "base_sha256": "1305c33b42ae35f11e733202083ddea683d1dd7b983895ca40276054b1ac1f9a",
+      "declared_sha256": "1305c33b42ae35f11e733202083ddea683d1dd7b983895ca40276054b1ac1f9a",
+      "worktree_sha256": "1305c33b42ae35f11e733202083ddea683d1dd7b983895ca40276054b1ac1f9a"
+    },
+    {
+      "path": "pkg/cluster/node_message_update.go",
+      "base_sha256": "fa978985924f6cdeed9125b8404d975d1ff4cfd74ba62f36e90f80572583f604",
+      "declared_sha256": "fa978985924f6cdeed9125b8404d975d1ff4cfd74ba62f36e90f80572583f604",
+      "worktree_sha256": "fa978985924f6cdeed9125b8404d975d1ff4cfd74ba62f36e90f80572583f604"
+    },
+    {
+      "path": "pkg/transport/internal/conn/conn.go",
+      "base_sha256": "4385f155f3e7305d51ae1215d1672fb1ab244545c3baf5d5eaef4c42385c8a51",
+      "declared_sha256": "4385f155f3e7305d51ae1215d1672fb1ab244545c3baf5d5eaef4c42385c8a51",
+      "worktree_sha256": "4385f155f3e7305d51ae1215d1672fb1ab244545c3baf5d5eaef4c42385c8a51"
+    }
+  ],
+  "source_trees": {
+    "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83": "d3ae8bec9e277cc0b7a95d51762682224e505be2",
+    "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06": "a13367b2dc4658e6c27a1992f240544636e5178d"
+  },
+  "worktree_status": [
+    " M test/e2e/AGENTS.md",
+    " M test/e2e/message/AGENTS.md",
+    "?? test/e2e/message/online_loss_reproduction/"
+  ],
+  "input_bindings": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/preflight.json",
+      "bytes": 1471,
+      "sha256": "1d6d33512093a4cc9fed02dfd7db7420f7c6c10db572d0677c946f152b4b5b0e"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/profile-driver-status.json",
+      "bytes": 1802,
+      "sha256": "06cf4266838fc29f9cfba97f9448ce5428aa10e943e7e4335f620d8b8377c77e"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/profiles-node2/metadata.json",
+      "bytes": 589,
+      "sha256": "d88631f99ac4d5141f00c1dce1d6959091de4a4791d3d110f9559d05c4d8c6a3"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/profiles-node2/profiles/node-2-cpu.pb.gz",
+      "bytes": 40474,
+      "sha256": "d3c5e46713de6add18641f2f4f4a0672cbac6db16322d555cdb0236cf32dcd23"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/pprof-offline-receipt.json",
+      "bytes": 893,
+      "sha256": "592c1fdd0db52cbc20185fd1aa672a462dee1315a24193ba8cab8886fcae6f9a"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/safe-cpu-top.txt",
+      "bytes": 6179,
+      "sha256": "b4fa26ea2b2acf6342cc6ca29d3d477c75811b66f42e1bba9a895aa6bf32e9f1"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/safe-cpu-cum.txt",
+      "bytes": 5295,
+      "sha256": "184df46518677f619e16e5d3fa6460af52da6b5d1d914fd852a33a630dee15ab"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/report/run-start.json",
+      "bytes": 391,
+      "sha256": "23e5c161c6056434e88cac7e02dc30d3c3ec70f721f4b6b6fa4869ed29f492d3"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/report/final.json",
+      "bytes": 23639,
+      "sha256": "5bb61b96301e766bebe2c716a8b6635dbbd24594245e04847c654d898c473cc4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/cleanup-receipt.json",
+      "bytes": 921,
+      "sha256": "520fe3caedea317a5cf61db5b9fd7c7cd5fb8ac9bfeffa5a78d287cabdaf5859"
+    }
+  ],
+  "limits": [
+    "Embedded metadata identifies the retained executable; no new reproducible build was performed.",
+    "No claim of whole-product equivalence between a804 and 79a.",
+    "This run is an a804/c253 executable with a 79a-derived launcher/config analysis context, not a validated 79a candidate reproduction.",
+    "CPU describes this retained node2 executable only; no cloud-performance or message-loss root cause is established.",
+    "No previous frozen proposal/artifact was rewritten; this is an independent correction addendum."
+  ],
+  "product_executed": false,
+  "new_profile_or_load_or_cloud_operation": false
+}

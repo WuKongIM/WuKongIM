@@ -1,0 +1,234 @@
+{
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/bin/wukongim": {
+    "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+    "bytes": 92887922
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/invocation.json": {
+    "sha256": "7a42bd6a0b2287c14dd38abb8c54254e528e1510b4d23cc80c2a42c9d2bad888",
+    "bytes": 1253
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/build.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/bin/wukongim": {
+    "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+    "bytes": 92887922
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/bin/wkcli": {
+    "sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+    "bytes": 59162610
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/supervise.py": {
+    "sha256": "0511756eb471d177a2deb937179e4f5f23ee2ebfd214fde8cae1c81cd188745f",
+    "bytes": 14744
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/launcher.sh": {
+    "sha256": "44193985711cb4127fd284e7122b89b8d78510e44fab2812fdeb7c6cdf2f8143",
+    "bytes": 13533
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/logs/build-wkcli.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/bin/wukongim": {
+    "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+    "bytes": 92887922
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/bin/wkcli": {
+    "sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+    "bytes": 59162610
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/supervise.py": {
+    "sha256": "25c5afbc89581f0dd61874191fdab6db0cf2822b62bd5ac20b871078f2f74c33",
+    "bytes": 14416
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/launcher.sh": {
+    "sha256": "232cb5a9e5ea8826d23c607f76dadb0dadf391345dc915eb43b64492782e0e3f",
+    "bytes": 13533
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/preflight.json": {
+    "sha256": "aa2f45fb967f759b12fe1cc0546e4c106d0b9abc32674e3f84b437b68f41c9b0",
+    "bytes": 1471
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/logs/build-wkcli.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/bin/wukongim": {
+    "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+    "bytes": 92887922
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/bin/wkcli": {
+    "sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+    "bytes": 59162610
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/supervise.py": {
+    "sha256": "25c5afbc89581f0dd61874191fdab6db0cf2822b62bd5ac20b871078f2f74c33",
+    "bytes": 14416
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/launcher.sh": {
+    "sha256": "f7f6f269c91a4178c7ee9737c883cbd17cccbfdb63c780212d86888ea49e628e",
+    "bytes": 13544
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/preflight.json": {
+    "sha256": "15f298ca549902aa8f1c8b76064186124fb9d3e4995e9814eccc97f673f0857f",
+    "bytes": 1471
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/logs/build-wkcli.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/input-and-source-recheck.json": {
+    "sha256": "69ab83860b8edda202d80711487af4d8e85894d2041a86b5662001c93d3443f0",
+    "bytes": 2887
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/bin/wukongim": {
+    "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+    "bytes": 92887922
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/bin/wkcli": {
+    "sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+    "bytes": 59162610
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/supervise.py": {
+    "sha256": "9bbae50d0cf41aef9d6f1626bd4779a4d119f11cc790280a72b89b9af5bb1327",
+    "bytes": 14554
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/launcher.sh": {
+    "sha256": "e4a4dc5de31dd229023dd7ef0971e3bf7ff44ff301468f1110c4b5fd546bb5be",
+    "bytes": 15072
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/preflight.json": {
+    "sha256": "1d6d33512093a4cc9fed02dfd7db7420f7c6c10db572d0677c946f152b4b5b0e",
+    "bytes": 1471
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/logs/build-wkcli.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/source-input-integrity.json": {
+    "sha256": "c8d599f03f4dbd26f8e171063feadc8ce4e871e820bf58b42558ed752abfb548",
+    "bytes": 5441
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v2/invocation.json": {
+    "sha256": "81b0f6185daf2713386cd3ea3df4ebadee16b6d5c3d04fcb6e0736cd749b8b1f",
+    "bytes": 1176
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v3/invocation.json": {
+    "sha256": "5e7be56bec3532d316a3fb0174af4408180ba626d7a7fcbc68f490921728faf0",
+    "bytes": 1126
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v4/invocation.json": {
+    "sha256": "49d54b3770a46a02bbc150d9b980cd773a224aac2d7bb3f4edbf9716916ca6e8",
+    "bytes": 1126
+  },
+  "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/live-observation/bundle/artifact-metadata.json": {
+    "sha256": "775858b5c22ccb4bbdbe87d494fa1549ebb245c3b60e0a02d12b5f043bc38eda",
+    "bytes": 834
+  },
+  "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/live-observation/bundle/verified/bundle-manifest.json": {
+    "sha256": "61d3582eee1aeca2e956b4dbcd1b424fd33de06251b415d81d6928aae81e21c2",
+    "bytes": 21151
+  },
+  "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/live-observation/bundle/verified/verification.json": {
+    "sha256": "caa80d0c1601f5addd0ad0a31fd0e2b4e42efc9e40cf9f90eb295f477d804d90",
+    "bytes": 1378
+  },
+  "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023-private/live-observation/bundle-12445080855.zip": {
+    "sha256": "b5d5503195572d6569e150cfb15f7018cd30294c9caaa108eea965c25cef75fa",
+    "bytes": 141109198
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/caddy": {
+    "sha256": "b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9",
+    "bytes": 48521378
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/node_exporter": {
+    "sha256": "3a01a3cc7f69798698fbb31b24e5ee279dd2c39727be2a5a65071536fc16b455",
+    "bytes": 23724903
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/prometheus": {
+    "sha256": "702da6c221044ba0778c2017a2f51854bec900f79221cec4579411ee6806484a",
+    "bytes": 135857317
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wkanalysis": {
+    "sha256": "2eb52a8619c91168af8e18cd967c8b69cfdbfbb68db622509bb9e1dc6fdff6dc",
+    "bytes": 31252628
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wkcli": {
+    "sha256": "43dd65554569ef29596d5a21349f0a3e08c4093652413afbd2f654f1856c884b",
+    "bytes": 42950804
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wkcloudbundle": {
+    "sha256": "5ab47afac494aa857ff162f8e80fce01652647b794c629336b11c16adddb2931",
+    "bytes": 3526804
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wkcloudgate": {
+    "sha256": "42fb87d893ca9bd6bd49167fafe2c1f9e3c5abe0f908c041838608051c078cef",
+    "bytes": 4026516
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wkcloudhost": {
+    "sha256": "511886009b1668b2ed90c8487d261d1c57a2a360f1bdb1fcb7079c92aea7a996",
+    "bytes": 3301524
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wukongim": {
+    "sha256": "99469fc9ab58c6180c909ccef65b2fdb8ad8fc9f0b91161292bda9b69b0eed00",
+    "bytes": 68186260
+  },
+  "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go": {
+    "sha256": "b65655bf3d496007755bd132e9611f9e5e64c46e33d89fcafdef916e299587fd",
+    "bytes": 14150608
+  },
+  "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/cmd/go/internal/vcs/vcs.go": {
+    "sha256": "a1c40768fd2ad50b345ab83e621107c82feb2dcdaf2e1ac2bb8ccc7b10bd0d6f",
+    "bytes": 40858
+  },
+  "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/cmd/go/internal/load/pkg.go": {
+    "sha256": "ae3866bb04014e27f186572df158068f954b30b72166d30eb34f9f29edb48d31",
+    "bytes": 125167
+  },
+  "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/pkg/tool/darwin_arm64/compile": {
+    "sha256": "1fc7d829e1bee7104521124f315bd096ce58ebac800c7e131f487e3910b63091",
+    "bytes": 20602160
+  },
+  "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/test/e2e/suite/binary.go": {
+    "sha256": "626aeed708a0be5387e3e2f26a1a78533004eb752b5c50b01f3f7b6f277d02b8",
+    "bytes": 3716
+  },
+  "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/test/e2e/message/online_loss_reproduction/online_loss_reproduction_test.go": {
+    "sha256": "688478813a69344e486534a186ef90aeb5f0224d3d5fbec8acda2a11614a0fdb",
+    "bytes": 16665
+  },
+  "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/AGENTS.md": {
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "bytes": 13284
+  },
+  "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/go.mod": {
+    "sha256": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d",
+    "bytes": 6662
+  },
+  "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/go.sum": {
+    "sha256": "68ffe83def79e0889fffa722ac7d0a18d7bce52e01e8d8395da56da1e96975fb",
+    "bytes": 52617
+  },
+  "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/FLOW.md": {
+    "sha256": "b98b0e39eb634ae05a723c6c1990a8fcfd1058f2440373b17867e73d92a7a259",
+    "bytes": 12423
+  },
+  "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/internal/usecase/conversation/FLOW.md": {
+    "sha256": "e395927ea87e90445380325d59f7fc51c1b17ecd283c91f0d40d93ff4e330484",
+    "bytes": 5653
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/report.json": {
+    "sha256": "3366f4f633d628b331a9f20faf90f7076f7bb7578cc89b8b80df72461e2a2728",
+    "bytes": 19115
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v3/report.json": {
+    "sha256": "b3d1e71151edebb5de496977a4a06f4c7e720dd640ef84ccbd8ae1940be8a0c1",
+    "bytes": 20802
+  },
+  "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v4/report.json": {
+    "sha256": "19dc5cf42d43851c3d00e18ed17430c424ea23460acd076d1efe0a8f52b8d38e",
+    "bytes": 34603
+  }
+}

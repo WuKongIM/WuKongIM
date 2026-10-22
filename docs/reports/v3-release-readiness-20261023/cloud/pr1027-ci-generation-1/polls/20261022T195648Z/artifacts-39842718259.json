@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12454886204,
+      "node_id": "MDg6QXJ0aWZhY3QxMjQ1NDg4NjIwNA==",
+      "name": "wukongim-native-package-preview-39842718259",
+      "size_in_bytes": 77863393,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12454886204",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12454886204/zip",
+      "expired": false,
+      "digest": "sha256:5beb1841b85caa0601393c2ad4d5604fe71f6ef11e211cfa4f924f7f4ee6fec9",
+      "created_at": "2026-10-22T19:55:12Z",
+      "updated_at": "2026-10-22T19:55:12Z",
+      "expires_at": "2026-11-05T19:55:10Z",
+      "workflow_run": {
+        "id": 39842718259,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-loss-observability",
+        "head_sha": "a93837d3fb55369acfe2d131aff52914f55a867f"
+      }
+    }
+  ]
+}

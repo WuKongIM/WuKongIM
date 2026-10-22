@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 12454232313,
+      "node_id": "MDg6QXJ0aWZhY3QxMjQ1NDIzMjMxMw==",
+      "name": "v3-candidate-default-39842718270-1",
+      "size_in_bytes": 8235,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12454232313",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12454232313/zip",
+      "expired": false,
+      "digest": "sha256:644d427b529bf4b7a83cf65f16daddc86c6dcd46eaec412a4e6814e4c1013360",
+      "created_at": "2026-10-22T19:51:32Z",
+      "updated_at": "2026-10-22T19:51:32Z",
+      "expires_at": "2026-11-05T19:51:30Z",
+      "workflow_run": {
+        "id": 39842718270,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-loss-observability",
+        "head_sha": "a93837d3fb55369acfe2d131aff52914f55a867f"
+      }
+    },
+    {
+      "id": 12453848065,
+      "node_id": "MDg6QXJ0aWZhY3QxMjQ1Mzg0ODA2NQ==",
+      "name": "v3-candidate-scripts-39842718270-1",
+      "size_in_bytes": 118692,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12453848065",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12453848065/zip",
+      "expired": false,
+      "digest": "sha256:40b98f32ee0c230122e974434ef941637fe5c3b263c8f25c3ddb2aa53b7d6be2",
+      "created_at": "2026-10-22T19:54:29Z",
+      "updated_at": "2026-10-22T19:54:29Z",
+      "expires_at": "2026-11-05T19:54:28Z",
+      "workflow_run": {
+        "id": 39842718270,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-loss-observability",
+        "head_sha": "a93837d3fb55369acfe2d131aff52914f55a867f"
+      }
+    }
+  ]
+}

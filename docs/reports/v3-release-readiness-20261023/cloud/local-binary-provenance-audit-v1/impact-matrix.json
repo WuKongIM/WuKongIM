@@ -1,0 +1,46 @@
+{
+  "canonical_claim": "The a804 VCS stamp is real metadata, but it does not establish that the local product or CLI was compiled from a804 source. The blanket old-source or mixed-source diagnosis is contradicted by compiled worktree path and 79a-specific code witnesses.",
+  "scope": [
+    {
+      "evidence": "Original cloud rehearsal and retained bundle",
+      "status": "Unchanged",
+      "reason": "Cloud ZIP/API digest and all nine ELF member hashes rechecked; six own binaries carry exact79a clean stamp and Go1.25.11. This audit does not rerun or override the cloud failure."
+    },
+    {
+      "evidence": "small v1/v3/v4 and full local runtime observations",
+      "status": "Retained as observations of exact c253 server / e36e CLI artifacts",
+      "reason": "Behavioral counters, durable reads and profiles remain measured facts. Positive worktree/79a code witnesses exist. The initial server build receipt/override creation chain is incomplete, so do not upgrade to a fully sealed source-build provenance claim."
+    },
+    {
+      "evidence": "small v2 and full-original-v1",
+      "status": "No product workload result",
+      "reason": "small v2 failed compilation before product start; full-v1 stopped at deployment-only validator refusal before services/worker traffic."
+    },
+    {
+      "evidence": "Claim all local services are actual a804 product",
+      "status": "Retracted as unsupported",
+      "reason": "Stamp discovery uses the outer repository, while machine code includes worktree paths and the 79a errors.Join recovery branch absent from a804."
+    },
+    {
+      "evidence": "Claim local CLI source is a804 or mixed with79a server",
+      "status": "Retracted as unsupported",
+      "reason": "Recorded cwd79a/GOWORKoff build commands plus compiled worktree path and79a reserve-condition witness support79a association; stamp alone cannot refute it."
+    },
+    {
+      "evidence": "Claim local Go1.23.4 versus cloud Go1.25.11 compiler difference",
+      "status": "Retracted",
+      "reason": "Every audited product/server/CLI artifact reports Go1.25.11. Go1.23.4 is merely the default dispatcher binary."
+    },
+    {
+      "evidence": "#1027 exact-source Linux CI and merge",
+      "status": "Unaffected",
+      "reason": "Independent reviewed head, actual CI checkout/tree, attempt1 command/cleanup/artifact receipts remain valid. This was an observability fix, not a claimed original message-loss root-cause fix."
+    },
+    {
+      "evidence": "GA readiness and original cloud message_loss root cause",
+      "status": "Still not established",
+      "reason": "No72h soak or production publication proof, and this provenance audit does not identify the original message-loss cause."
+    }
+  ],
+  "future_comparison": "Build79a and later2ab in independently recognized real-.git clean checkouts with the same explicit installed compiler and fixed flags. Keep old measured records and corrections immutable."
+}

@@ -1,0 +1,129 @@
+{
+  "schema": "wukongim/finalize-diagnostic-gap-source-freeze/v1",
+  "mode": "read_only_proposal_no_tests_or_builds",
+  "source_commit": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "origin_main_commit": "25a4765be7bed6696e1c9748142bdd61543b508c",
+  "source_files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "bytes": 12160,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "bytes": 6617,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "bytes": 6514,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "sha256": "83e035c6120fff170d6ef798675792b8036a146b9586c2c1930c03117bf3a4d2",
+      "bytes": 121975,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator_test.go",
+      "sha256": "498761c834159043a00dda02c40544cded063e541f4fe83efe933e03e4cd33e2",
+      "bytes": 169173,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "sha256": "fef17bdf5ade437c5c68d58cfd9a9519a2a4a875bee2097ecb84f734ce7b4dba",
+      "bytes": 27890,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller_test.go",
+      "sha256": "6319e3a6130b7fc5cb90acb9acc048763ba128204d797657afb56e28fd920538",
+      "bytes": 41294,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/checkpoint.go",
+      "sha256": "aea78c57780fa71013ddb27446c9ead3a528283e2b33633ee84f43c3e3aa8988",
+      "bytes": 16721,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/checkpoint_test.go",
+      "sha256": "30c1fec0714a9ab67bbb199d008eeacf66d69d15a4ed813da9f7e7b1a1de1fc1",
+      "bytes": 22193,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/report.go",
+      "sha256": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+      "bytes": 37534,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/report_test.go",
+      "sha256": "39a4a6e3d4c40ffa6e48c5aef7b3b965b4cbb7b080beca704d8988430319407b",
+      "bytes": 13199,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/live_diagnostics.go",
+      "sha256": "808d895a3735b7fa1509cdae64b43bf12f624b1bafd9bdecf4ae6fd34dca1fce",
+      "bytes": 14768,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/verdict.go",
+      "sha256": "7796e085ff8d718dc3b49ba1f9a842241a96e59f8cd46fca375f2caa21d18589",
+      "bytes": 37359,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "sha256": "abbfff7c6eb088c548896e4151103657327d95c92722faaff263647b25ffaa75",
+      "bytes": 12358,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_command.go",
+      "sha256": "30090d8f0e54e1f5f9deb0f52e04ae579c745b893b0e6885a646e18f75674df4",
+      "bytes": 7745,
+      "same_at_source_main_and_worktree": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+      "sha256": "3523188362feaaf11a06d5b1aa459adcae48957af357728e91ff76dea18a0ea9",
+      "bytes": 5549,
+      "same_at_source_main_and_worktree": true
+    }
+  ],
+  "inputs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/finalize-failure-matrix.md",
+      "sha256": "ad3a862713c1d418f2ee8a07250ce093a5ad864553cfbf4dc8c6ecbdf25a19d6",
+      "bytes": 2942
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/diagnostic-conclusion.md",
+      "sha256": "205d74c9403027408e2fe1f437bbb089a36083e95aacafede9603095fa77f175",
+      "bytes": 3523
+    }
+  ],
+  "input_manifest": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/PUBLIC_SHA256SUMS",
+    "sha256": "4f0c43d9275be09eb602cc068c8364a40e8008420e5dc5d999f997cd5b6310b6",
+    "verified_payload_count": 12
+  },
+  "repository_mutation": false,
+  "experiment_or_test_executed": false
+}

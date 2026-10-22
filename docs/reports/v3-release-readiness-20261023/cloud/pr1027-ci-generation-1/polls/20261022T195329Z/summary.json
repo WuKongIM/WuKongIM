@@ -1,0 +1,174 @@
+[
+  {
+    "id": 39842718360,
+    "name": "Manager Browser Smoke pull_request 1027 attempt 1",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120047791220,
+        "name": "Real three-node Manager Chromium smoke",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39842718259,
+    "name": "Safety Automation - Validate Native Package Preview",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120047790951,
+        "name": "Build and install deb/rpm preview",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39842718254,
+    "name": "Safety Automation - Issue Agent PR Signal",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120047790094,
+        "name": "Emit credential-free wake-up",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39842718103,
+    "name": "Three-Node Chat Lifecycle Regression pull_request 1027 attempt 1",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120047790134,
+        "name": "PR three-node correctness",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120047790399,
+        "name": "PR performance baseline evidence",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120047790418,
+        "name": "PR messaging unit and race",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120047792514,
+        "name": "Nightly direct 500 QPS qualification",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120047792709,
+        "name": "Fixed Linux SEND diagnosis",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120047952690,
+        "name": "PR 500 QPS / mixed-send",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120047952752,
+        "name": "PR 500 QPS / tcp-sendack",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120047952811,
+        "name": "PR 500 QPS / channel-append",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120050654296,
+        "name": "PR three-node regression",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12454441176,
+        "name": "500qps-channel-append-d3fdd6a4c3eb94020776385efb32fd92b12700a0-1",
+        "bytes": 25790,
+        "digest": "sha256:0aab196364b8571dc66d11a0e8df8ca145db1a95aa65f908a7b55191d973bf23"
+      },
+      {
+        "id": 12454172636,
+        "name": "three-node-pr-1027-d3fdd6a4c3eb94020776385efb32fd92b12700a0-1",
+        "bytes": 229645552,
+        "digest": "sha256:2a54e9810b8cf93d986c13b14f344a8d694067b03c6f38de7a2c3152bfa1c4e3"
+      },
+      {
+        "id": 12453532817,
+        "name": "500qps-tcp-sendack-d3fdd6a4c3eb94020776385efb32fd92b12700a0-1",
+        "bytes": 8061,
+        "digest": "sha256:2f38913cce0eff86ae5710b7e8c70e6aa71d19e00afa301f9a0b3d296e4ec601"
+      },
+      {
+        "id": 12453278652,
+        "name": "500qps-mixed-send-d3fdd6a4c3eb94020776385efb32fd92b12700a0-1",
+        "bytes": 231337,
+        "digest": "sha256:d2162c912013d722eb87ea26fe94845fc9e7e77234ec6130b15b25f64326c396"
+      }
+    ]
+  },
+  {
+    "id": 39842718270,
+    "name": "V3 Candidate Regression pull_request 1027 attempt 1",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120047791617,
+        "name": "Candidate scripts integration",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120047792169,
+        "name": "Candidate default suite (go-unit)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120051434478,
+        "name": "Candidate migration and messaging E2E",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12454232313,
+        "name": "v3-candidate-default-39842718270-1",
+        "bytes": 8235,
+        "digest": "sha256:644d427b529bf4b7a83cf65f16daddc86c6dcd46eaec412a4e6814e4c1013360"
+      }
+    ]
+  }
+]

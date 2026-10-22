@@ -1,0 +1,9 @@
+README.md
+pr-before.json
+protection-before.json
+repository-before.json
+pr-immediate-premerge.json
+pr-after.json
+protection-after.json
+local-before-cleanup.json
+cleanup-receipt.json

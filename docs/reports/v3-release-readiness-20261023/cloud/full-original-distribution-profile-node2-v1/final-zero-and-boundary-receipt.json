@@ -1,0 +1,29 @@
+{
+  "schema": "wukongim/local-profile-final-zero-recheck/v1",
+  "at_utc": "2026-10-22T20:20:09.800771+00:00",
+  "owned_pgid": 95883,
+  "remaining_group_members": [],
+  "remaining_wk_processes": [],
+  "port_range": [
+    25000,
+    25063
+  ],
+  "remaining_listeners": [],
+  "watcher_helper_timer_curl_ownership": "source did not create another group/session; no members in inherited owned PGID; watcher receipt confirms helper joined without escalation",
+  "goroutine_missing_boundary": {
+    "reason": "profile_capture_missing",
+    "cpu": "complete",
+    "goroutine": "missing",
+    "helper_stdout_stderr_log_bytes": 0,
+    "driver_log_bytes": 0,
+    "curl_exit_code": "not_retained",
+    "http_status": "not_retained",
+    "cause": "unknown; no re-request/retry or body expansion"
+  },
+  "source_inference_invalidated": true,
+  "actual_binary_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+  "actual_binary_revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "actual_binary_toolchain": "go1.25.11",
+  "invalidation_path": "/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-invalidation-v1/invalidation.json",
+  "invalidation_sha256": "ea54dbb5592a046c833f55f055a415990668243e3d6e32279ac2a53e2ec7446b"
+}

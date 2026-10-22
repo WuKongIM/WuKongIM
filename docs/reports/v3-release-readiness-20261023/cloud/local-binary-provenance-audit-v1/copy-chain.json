@@ -1,0 +1,100 @@
+{
+  "small_baseline": {
+    "runs_with_runtime_report": [
+      "local-loss-reproduction-v1",
+      "local-loss-reproduction-v3",
+      "local-loss-reproduction-v4"
+    ],
+    "report_binary_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+    "v2_compile_only_no_product_start": true,
+    "initial_server_creation_command_and_selected_override_absolute_path_not_retained": true,
+    "harness_default_cache_bug_not_established": true,
+    "positive_compiled_worktree_and_79a_recovery_witness_retained": true
+  },
+  "full_runs": [
+    {
+      "run": "full-original-distribution-v1",
+      "supervisor_path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/supervise.py",
+      "supervisor_sha256": "0511756eb471d177a2deb937179e4f5f23ee2ebfd214fde8cae1c81cd188745f",
+      "server_copy_from": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/bin/wukongim",
+      "server_copy_to": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/bin/wukongim",
+      "server_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "cli_build_record": {
+        "command": [
+          "go",
+          "build",
+          "-o",
+          "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/bin/wkcli",
+          "./cmd/wkcli"
+        ],
+        "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+        "explicit_GOWORK": "off",
+        "declaration_not_independently_a_complete_build_receipt": true
+      },
+      "cli_sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62"
+    },
+    {
+      "run": "full-original-distribution-v2",
+      "supervisor_path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/supervise.py",
+      "supervisor_sha256": "25c5afbc89581f0dd61874191fdab6db0cf2822b62bd5ac20b871078f2f74c33",
+      "server_copy_from": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/bin/wukongim",
+      "server_copy_to": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/bin/wukongim",
+      "server_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "cli_build_record": {
+        "command": [
+          "go",
+          "build",
+          "-o",
+          "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/bin/wkcli",
+          "./cmd/wkcli"
+        ],
+        "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+        "explicit_GOWORK": "off",
+        "declaration_not_independently_a_complete_build_receipt": true
+      },
+      "cli_sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62"
+    },
+    {
+      "run": "full-original-distribution-batch128-v1",
+      "supervisor_path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/supervise.py",
+      "supervisor_sha256": "25c5afbc89581f0dd61874191fdab6db0cf2822b62bd5ac20b871078f2f74c33",
+      "server_copy_from": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/bin/wukongim",
+      "server_copy_to": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/bin/wukongim",
+      "server_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "cli_build_record": {
+        "command": [
+          "go",
+          "build",
+          "-o",
+          "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/bin/wkcli",
+          "./cmd/wkcli"
+        ],
+        "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+        "explicit_GOWORK": "off",
+        "declaration_not_independently_a_complete_build_receipt": true
+      },
+      "cli_sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62"
+    },
+    {
+      "run": "full-original-distribution-profile-node2-v1",
+      "supervisor_path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/supervise.py",
+      "supervisor_sha256": "9bbae50d0cf41aef9d6f1626bd4779a4d119f11cc790280a72b89b9af5bb1327",
+      "server_copy_from": "/tmp/wukongim-v3-readiness-20261023/cloud/local-loss-reproduction-v1/bin/wukongim",
+      "server_copy_to": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/bin/wukongim",
+      "server_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "cli_build_record": {
+        "command": [
+          "go",
+          "build",
+          "-o",
+          "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/bin/wkcli",
+          "./cmd/wkcli"
+        ],
+        "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+        "explicit_GOWORK": "off",
+        "declaration_not_independently_a_complete_build_receipt": true
+      },
+      "cli_sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62"
+    }
+  ]
+}

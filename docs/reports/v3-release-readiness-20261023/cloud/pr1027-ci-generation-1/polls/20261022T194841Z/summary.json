@@ -1,0 +1,130 @@
+[
+  {
+    "id": 39842718270,
+    "name": "V3 Candidate Regression pull_request 1027 attempt 1",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120047791617,
+        "name": "Candidate scripts integration",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120047792169,
+        "name": "Candidate default suite (go-unit)",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39842718259,
+    "name": "Safety Automation - Validate Native Package Preview",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120047790951,
+        "name": "Build and install deb/rpm preview",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39842718254,
+    "name": "Safety Automation - Issue Agent PR Signal",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120047790094,
+        "name": "Emit credential-free wake-up",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39842718360,
+    "name": "Manager Browser Smoke pull_request 1027 attempt 1",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120047791220,
+        "name": "Real three-node Manager Chromium smoke",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39842718103,
+    "name": "Three-Node Chat Lifecycle Regression pull_request 1027 attempt 1",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120047790134,
+        "name": "PR three-node correctness",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120047790399,
+        "name": "PR performance baseline evidence",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120047790418,
+        "name": "PR messaging unit and race",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120047792514,
+        "name": "Nightly direct 500 QPS qualification",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120047792709,
+        "name": "Fixed Linux SEND diagnosis",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120047952690,
+        "name": "PR 500 QPS / mixed-send",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120047952752,
+        "name": "PR 500 QPS / tcp-sendack",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120047952811,
+        "name": "PR 500 QPS / channel-append",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  }
+]

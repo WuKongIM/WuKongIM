@@ -1,0 +1,27 @@
+test_06_waiting_receipt_cannot_consume_required_capture_budget (__main__.Contract.test_06_waiting_receipt_cannot_consume_required_capture_budget) ... ERROR
+
+======================================================================
+ERROR: test_06_waiting_receipt_cannot_consume_required_capture_budget (__main__.Contract.test_06_waiting_receipt_cannot_consume_required_capture_budget)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v1/driver_fixture_integration_test.py", line 81, in test_06_waiting_receipt_cannot_consume_required_capture_budget
+    r=f.wait(4);self.assertEqual(r['status'],'skipped');self.assertEqual(f.events,[]);f.assert_clean(self)
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v1/driver_fixture_integration_test.py", line 47, in wait
+    out,err=self.process.communicate(timeout=seconds)
+            ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/subprocess.py", line 1222, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/subprocess.py", line 2129, in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/subprocess.py", line 1269, in _check_timeout
+    raise TimeoutExpired(
+    ...<2 lines>...
+            stderr=b''.join(stderr_seq) if stderr_seq else None)
+subprocess.TimeoutExpired: Command '['bash', '-c', 'exec "$@" --owner-pgid "$$"', 'profile-fixture', '/opt/homebrew/opt/python@3.13/bin/python3.13', '/private/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v1/watch-first-grant.py', '--run-dir', '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-v2s7vqeh/run', '--out-dir', '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-v2s7vqeh/run/profile-evidence', '--source-root', '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-v2s7vqeh/source', '--source-revision', 'b3e49a1c2e3efa49799eb9535611e7d81fba9e03', '--binary', '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-v2s7vqeh/fake-binary', '--binary-sha256', 'c181d449650055d6b28b7769b8d1e4eb7461c50540109aac0d8551b11e4b386c', '--helper', '/private/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v1/capture-first-grant-profiles.sh', '--helper-sha256', '08645ffa6441cad4e78910b2bfd2fef180997ccb9731e08fe2176f26049b189e', '--base-port', '63828', '--run-hash', 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '--assignment-hash', 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', '--generation', '1', '--deadline-mono', '527373.579946875']' timed out after 4 seconds
+
+----------------------------------------------------------------------
+Ran 1 test in 6.202s
+
+FAILED (errors=1)

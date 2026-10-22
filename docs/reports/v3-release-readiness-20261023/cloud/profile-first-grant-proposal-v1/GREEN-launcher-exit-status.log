@@ -1,0 +1,3 @@
+PASS coordinator_exit=0 preserved across driver_exit=0
+PASS coordinator_exit=7 preserved across driver_exit=0
+PASS coordinator_exit=8 preserved across driver_exit=0

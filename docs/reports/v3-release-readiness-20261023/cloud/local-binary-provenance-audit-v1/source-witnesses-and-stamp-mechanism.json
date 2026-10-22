@@ -1,0 +1,123 @@
+{
+  "sources": {
+    "pkg/channel/replication/recovery_barrier.go": {
+      "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83": {
+        "bytes": 5210,
+        "sha256": "b7c340d3af98b9f78fa65e4e36424e17ca64fdb9f57872e5a755a852cd9777d1",
+        "has_specific_errors_join_recovery_branch": false
+      },
+      "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06": {
+        "bytes": 5863,
+        "sha256": "0f0db66e736e4885cdf15b13cf9022659c2536d820a5455b5d7528a1342f99f4",
+        "has_specific_errors_join_recovery_branch": true
+      }
+    },
+    "cmd/wkcli/internal/benchmark/formal_chain_command.go": {
+      "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83": {
+        "bytes": 17342,
+        "sha256": "24f5e3d2fb5909c7cd679a8f29d919704344eef801ab1d60321b4f725361d344",
+        "has_reserve_preserving_range_condition": false
+      },
+      "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06": {
+        "bytes": 17480,
+        "sha256": "751d7203a3017c935e37b5df41eaec8ffb4f67cb06a42ec816a193ea280ce2c0",
+        "has_reserve_preserving_range_condition": true
+      }
+    }
+  },
+  "go_vcs_root_mechanism": {
+    "go_version": "go1.25.11",
+    "git_root_definition": "RootNames includes only .git with isDir=true at vcs.go:218",
+    "is_vcs_root_constraint": "os.Stat(...).IsDir() must equal root.isDir at vcs.go:636-640",
+    "search_algorithm": "FromDir selects the first recognized VCS root while scanning parents; a .git ordinary file does not match. Nested Git directories remain allowed.",
+    "build_info_wiring": "load/pkg.go:2518/2545/2557 resolves cwd/package/module via FromDir; 2570 asks gitStatus on selected repoDir. gitStatus runs status --porcelain and log -1 there.",
+    "filesystem_reconstruction": [
+      {
+        "directory": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+        "dot_git_exists": true,
+        "dot_git_is_directory": false,
+        "dot_git_is_regular_file": true
+      },
+      {
+        "directory": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees",
+        "dot_git_exists": false,
+        "dot_git_is_directory": false,
+        "dot_git_is_regular_file": false
+      },
+      {
+        "directory": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+        "dot_git_exists": true,
+        "dot_git_is_directory": true,
+        "dot_git_is_regular_file": false
+      },
+      {
+        "directory": "/Users/tt/Desktop/work/go/WuKongIM-v2",
+        "dot_git_exists": false,
+        "dot_git_is_directory": false,
+        "dot_git_is_regular_file": false
+      },
+      {
+        "directory": "/Users/tt/Desktop/work/go",
+        "dot_git_exists": false,
+        "dot_git_is_directory": false,
+        "dot_git_is_regular_file": false
+      },
+      {
+        "directory": "/Users/tt/Desktop/work",
+        "dot_git_exists": false,
+        "dot_git_is_directory": false,
+        "dot_git_is_regular_file": false
+      },
+      {
+        "directory": "/Users/tt/Desktop",
+        "dot_git_exists": false,
+        "dot_git_is_directory": false,
+        "dot_git_is_regular_file": false
+      },
+      {
+        "directory": "/Users/tt",
+        "dot_git_exists": false,
+        "dot_git_is_directory": false,
+        "dot_git_is_regular_file": false
+      },
+      {
+        "directory": "/Users",
+        "dot_git_exists": false,
+        "dot_git_is_directory": false,
+        "dot_git_is_regular_file": false
+      },
+      {
+        "directory": "/",
+        "dot_git_exists": false,
+        "dot_git_is_directory": false,
+        "dot_git_is_regular_file": false
+      }
+    ],
+    "selected_repo_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+    "selected_repo_head_now": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+    "real_worktree_head_now": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+    "claim": "This source-derived filesystem reconstruction explains how an actual worktree build can acquire the outer repository a804/clean VCS stamp. It is not proof of compiling every historical source byte."
+  },
+  "binary_witnesses": {
+    "server": {
+      "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "main_path_worktree": true,
+      "changed_function": "pkg/channel/replication.writeCurrentTermBarrier",
+      "compiled_recovery_line_67_and_inlined_errors_join": true,
+      "interpretation": "Positive executable evidence of the 79a recovery-barrier change, which is absent from a804. This refutes a blanket claim that the server is the old a804 product. It does not replace a complete initial build receipt."
+    },
+    "cli": {
+      "sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+      "main_path_worktree": true,
+      "changed_function": "cmd/wkcli/internal/benchmark.loadFormalRuntimeEnvelope",
+      "compiled_range_subtraction_then_stop_equality_at_line_230": true,
+      "interpretation": "Positive executable evidence consistent with the 79a reserve-preserving range condition, not the a804 two fixed equalities; together with recorded worktree build commands this supports the 79a CLI source association."
+    }
+  },
+  "installed_toolchain": {
+    "go_absolute_path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "compiler_absolute_path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/pkg/tool/darwin_arm64/compile",
+    "compiler_version": "compile version go1.25.11"
+  },
+  "no_build_no_target_execution_no_network": true
+}

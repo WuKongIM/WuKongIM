@@ -1,0 +1,309 @@
+{
+  "schema": "wukongim/controlled-local-cpu-diagnostic-safe-snapshot/v1",
+  "source_tree_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "run_started_at_utc": "2026-10-22T20:05:08.906365+00:00",
+  "run_finished_at_utc": "2026-10-22T20:11:13.474919+00:00",
+  "result": {
+    "launcher_exit_status": 7,
+    "final_report_present": true,
+    "verdict": {
+      "outcome": "product_failure",
+      "cause": "overall_first_attempt_rate",
+      "terminal": true,
+      "cleanup_error_count": 0,
+      "latency_warnings": {
+        "hot": 0,
+        "cold": 0,
+        "sync": 0
+      },
+      "latency_anomaly_count": 0,
+      "retention": {
+        "minute_samples": 1,
+        "minute_capacity": 16,
+        "latency_samples": [
+          0,
+          0,
+          0
+        ],
+        "latency_capacity": 64,
+        "heap_samples": [
+          0,
+          0,
+          0
+        ],
+        "heap_capacity": 7,
+        "goroutine_samples": [
+          0,
+          0,
+          0
+        ],
+        "goroutine_capacity": 25
+      }
+    },
+    "harness": {
+      "classification": "product_failure",
+      "failures": 0,
+      "command_saturation": 0,
+      "offered_underdelivery": 0,
+      "planned_cancellations": 197876,
+      "lifecycle_approval_rejections": {
+        "missing_timer": 0,
+        "invalid_shape": 0,
+        "timer_fence": 0,
+        "activity_fence": 0,
+        "invalidated": 0,
+        "fence_exhausted": 0,
+        "deadline": 0,
+        "replay_expired": 0,
+        "replay_mismatch": 0
+      },
+      "drain_timed_out": false,
+      "unexpected_exit": false
+    },
+    "messages": {
+      "sent": 12001,
+      "send_attempts": 12802,
+      "first_attempts": 12001,
+      "first_attempt_failures": 173,
+      "send_acknowledged": 12001,
+      "send_rejected": 185,
+      "received": 14618,
+      "receive_acknowledged": 14618,
+      "receive_ack_failures": 0,
+      "retry_attempts": 801,
+      "terminal": 0,
+      "terminal_reasons": {
+        "retry_exhausted": {
+          "total": 0,
+          "attempt_timeout": 0,
+          "local_admission": 0,
+          "transport_error": 0,
+          "retryable_sendack": 0,
+          "unclassified": 0
+        },
+        "non_retriable": 0,
+        "session_closed": 0
+      },
+      "losses": 2,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "generated": {
+      "primary": 12000,
+      "person": 10800,
+      "group": 1200,
+      "canary": 1,
+      "payload_bytes": 9154560
+    },
+    "correlation": {
+      "pending_unfinished": 0,
+      "outstanding": 0,
+      "sampled": 102,
+      "delivered": 100,
+      "expired": 2,
+      "duplicate_completions": 0,
+      "conflicting_completions": 0,
+      "unknown_acknowledgments": 0
+    },
+    "window": {
+      "start": "2026-10-23T04:09:30.192341+08:00",
+      "warmup_end": "2026-10-23T06:09:30.192341+08:00",
+      "qualification_at": "2026-10-24T04:09:30.192341+08:00",
+      "final_at": "2026-10-26T04:09:30.192341+08:00",
+      "end": "2026-10-23T04:09:40.898746+08:00",
+      "elapsed": 10706257667
+    }
+  },
+  "profile_result": {
+    "status": "partial",
+    "reason": "profile_capture_missing",
+    "capture_joined": true,
+    "kill_escalated": false,
+    "receipt": {
+      "sha256": "23e5c161c6056434e88cac7e02dc30d3c3ec70f721f4b6b6fa4869ed29f492d3",
+      "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+      "assignment_hash": "sha256:f9814da7618b2c867b9e8b7e82745b2a5dd3de6cd0b04cf696f96bcc80bfcd8c",
+      "generation": 1,
+      "started_at": "2026-10-23T04:09:30.192341+08:00",
+      "seen_at": "2026-10-22T20:09:30.277888+00:00",
+      "detection_lag_seconds": 0.085547,
+      "publication_lag_limit": "receipt is written after first grant and dataset probe; exact sampling at first grant is impossible"
+    },
+    "helper_launch_parent_observed_at": "2026-10-22T20:09:30.295512+00:00",
+    "cpu_bytes": 40474,
+    "cpu_sha256": "d3c5e46713de6add18641f2f4f4a0672cbac6db16322d555cdb0236cf32dcd23",
+    "goroutine": "missing",
+    "goroutine_missing_cause": "unknown: curl status/HTTP status/stderr were not retained; no request repeated",
+    "profile_helper_log_bytes": 0,
+    "driver_log_bytes": 0,
+    "metadata": {
+      "schema": "wukongim.local_first_grant_profile/v1",
+      "trigger": {
+        "kind": "first_grant_receipt",
+        "observed_phase": "measurement",
+        "previous_utc": "2026-10-22T20:09:30.192341Z",
+        "current_utc": "2026-10-22T20:09:30.277888Z"
+      },
+      "capture": {
+        "status": "partial",
+        "valid": false,
+        "reason": "profile_capture_missing",
+        "start_phase": "measurement",
+        "end_phase": "measurement",
+        "started_at_utc": "2026-10-22T20:09:30Z",
+        "completed_at_utc": "2026-10-22T20:09:40Z",
+        "cpu_seconds": 10
+      },
+      "nodes": [
+        {
+          "node": "node-2",
+          "cpu": "complete",
+          "heap": "not_requested",
+          "goroutine": "missing"
+        }
+      ]
+    },
+    "timing_limit": "helper parent launch is before Popen, real CPU start and GOR offset not independently observed; measurement file does not prove active SEND entire interval; may mix active/drain"
+  },
+  "limits": [
+    "One real run, no retry or profile expansion",
+    "Shared Mac arm64/one disk; not cloud AMD64 capacity-equivalent or Linux performance acceptance",
+    "Sampling perturbs scheduling; no A/B performance improvement inference",
+    "Positive ACK gating follows code11 verifier semantics; exact ACK time/packet/ID not retained in worker evidence",
+    "Stopped-copy DB rows prove durable persistence only, not online delivery or live Manager visibility",
+    "Embedded binary VCS is a804; exact reused hash is proven; checked source tree79a equivalence reviewed separately"
+  ],
+  "cleanup": {
+    "at_utc": "2026-10-22T20:11:13.474352+00:00",
+    "owned_pgid": 95883,
+    "remaining_processes": [],
+    "remaining_listeners": [],
+    "tested_ports": [
+      25000,
+      25001,
+      25002,
+      25003,
+      25004,
+      25005,
+      25006,
+      25007,
+      25008,
+      25009,
+      25010,
+      25011,
+      25012,
+      25013,
+      25014,
+      25015,
+      25016,
+      25017,
+      25018,
+      25019,
+      25020,
+      25021,
+      25022,
+      25023,
+      25024,
+      25025,
+      25026,
+      25027,
+      25028,
+      25029,
+      25030,
+      25031,
+      25032,
+      25033,
+      25034,
+      25035,
+      25036,
+      25037,
+      25038,
+      25039,
+      25040,
+      25041,
+      25042,
+      25043,
+      25044,
+      25045,
+      25046,
+      25047,
+      25048,
+      25049,
+      25050,
+      25051,
+      25052,
+      25053,
+      25054,
+      25055,
+      25056,
+      25057,
+      25058,
+      25059,
+      25060,
+      25061,
+      25062,
+      25063
+    ],
+    "complete": true,
+    "elapsed_seconds": 364.56300437508617
+  },
+  "retained_raw_private_evidence": {
+    "report/final.json": {
+      "bytes": 23639,
+      "sha256": "5bb61b96301e766bebe2c716a8b6635dbbd24594245e04847c654d898c473cc4"
+    },
+    "report/worker-evidence.json": {
+      "bytes": 2149,
+      "sha256": "8de6a28c4cdd9165b32249203b648bc9f2207d708e06e6b6f63a0b7e423d25e6"
+    },
+    "report/diagnostic-status.json": {
+      "bytes": 9017,
+      "sha256": "2284e4c9ad2dff9399d3fa6cf9bc8ae320d55e16715388a2d673cba4589d5747"
+    },
+    "diagnostic-cuts.jsonl": {
+      "bytes": 10660,
+      "sha256": "b704fb049752f07d15360344ed14ecfda0060083189ea3fe742aae79f06d0bd7"
+    },
+    "host-process-samples.jsonl": {
+      "bytes": 95788,
+      "sha256": "2d83091bac16cd7d95280a8e6da5e87bfb085759bf12ada3a220cbd384f0f67e"
+    },
+    "logs/coordinator.log": {
+      "bytes": 2863,
+      "sha256": "20a46457d946fd71770d64417ec9f25567c43eb6ab258d9c841f5212c41fec4e"
+    },
+    "evidence/metrics-first-measured-node1.prom": {
+      "bytes": 1041165,
+      "sha256": "a6c767ff3f47ac9dee3d735b3fec62c1cebfcf1d7078568d475d0f641d7301d4"
+    },
+    "evidence/metrics-first-measured-node2.prom": {
+      "bytes": 1009383,
+      "sha256": "e9a0c996b37274dbe2077b3aa5cea5457389f95aeca2af52e428c33f46b8d3c0"
+    },
+    "evidence/metrics-first-measured-node3.prom": {
+      "bytes": 1006189,
+      "sha256": "1abba98f25ae77b8fe0ec2d2873aaf4c7206278e82381fd42edbd511f98ca321"
+    },
+    "evidence/metrics-terminal-node1.prom": {
+      "bytes": 1067228,
+      "sha256": "fd9fd4cb5bf8b2991a4b5b8b52a2a45c04d591af8eab509fab703e111c869334"
+    },
+    "evidence/metrics-terminal-node2.prom": {
+      "bytes": 1040885,
+      "sha256": "3caefadc0390a2f71f0804ed3406d4ea17f8c4623994924606e55306500ff057"
+    },
+    "evidence/metrics-terminal-node3.prom": {
+      "bytes": 1037704,
+      "sha256": "97ea3edda8103f5102a5b29880d65d1a80f99305be29fe56b6ce38fa3c4155da"
+    },
+    "evidence/metrics-first-measured-receipt.json": {
+      "bytes": 450,
+      "sha256": "7f5ac70f7e6a990abca49a655e4b3320ba04fa6adb4d961c29864c8f5e773f6f"
+    },
+    "evidence/metrics-terminal-receipt.json": {
+      "bytes": 450,
+      "sha256": "8982a97cf3768621c0b324eb87d59a7009f1dc36aac4cc0bfef574f0b5e2b69b"
+    }
+  }
+}

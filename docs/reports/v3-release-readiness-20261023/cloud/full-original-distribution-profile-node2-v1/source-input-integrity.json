@@ -1,0 +1,120 @@
+{
+  "schema": "wukongim/profile-run-source-and-input-integrity/v1",
+  "at_utc": "2026-10-22T20:15:28.971369+00:00",
+  "checked_tree_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "tracked_product_paths_unmodified": true,
+  "checks": [
+    {
+      "path": "launcher.sh",
+      "expected_sha256": "e4a4dc5de31dd229023dd7ef0971e3bf7ff44ff301468f1110c4b5fd546bb5be",
+      "actual_sha256": "e4a4dc5de31dd229023dd7ef0971e3bf7ff44ff301468f1110c4b5fd546bb5be",
+      "unchanged": true
+    },
+    {
+      "path": "supervise.py",
+      "expected_sha256": "9bbae50d0cf41aef9d6f1626bd4779a4d119f11cc790280a72b89b9af5bb1327",
+      "actual_sha256": "9bbae50d0cf41aef9d6f1626bd4779a4d119f11cc790280a72b89b9af5bb1327",
+      "unchanged": true
+    },
+    {
+      "path": "original-distribution-local.yaml",
+      "expected_sha256": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+      "actual_sha256": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+      "unchanged": true
+    },
+    {
+      "path": "watchdog.py",
+      "expected_sha256": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+      "actual_sha256": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+      "unchanged": true
+    },
+    {
+      "path": "verify-slots.py",
+      "expected_sha256": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+      "actual_sha256": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+      "unchanged": true
+    },
+    {
+      "path": "config/node1.toml",
+      "expected_sha256": "ff5fe20ce9fb7942d7a7e59c9e5cc160388b6f4664e40d2da813c8e3a976b25d",
+      "actual_sha256": "ff5fe20ce9fb7942d7a7e59c9e5cc160388b6f4664e40d2da813c8e3a976b25d",
+      "unchanged": true
+    },
+    {
+      "path": "config/node2.toml",
+      "expected_sha256": "de5adcfca4ae05293f05402974499e76558b470fee0a9431fa05905381bdde0e",
+      "actual_sha256": "de5adcfca4ae05293f05402974499e76558b470fee0a9431fa05905381bdde0e",
+      "unchanged": true
+    },
+    {
+      "path": "config/node3.toml",
+      "expected_sha256": "0052bc446b21a56ae3eb02eede154b32e1df6c6beb15767c0baa27ff4006b305",
+      "actual_sha256": "0052bc446b21a56ae3eb02eede154b32e1df6c6beb15767c0baa27ff4006b305",
+      "unchanged": true
+    },
+    {
+      "path": "bin/wukongim",
+      "expected_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "actual_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "unchanged": true
+    },
+    {
+      "path": "bin/wkcli",
+      "expected_sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+      "actual_sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+      "unchanged": true
+    },
+    {
+      "path": "proposal/watch-first-grant.py",
+      "expected_sha256": "6bf22ebcf256c04e34f24c84a9e6f8217417295c23dfd57dcf48032c7f14e566",
+      "actual_sha256": "6bf22ebcf256c04e34f24c84a9e6f8217417295c23dfd57dcf48032c7f14e566",
+      "unchanged": true
+    },
+    {
+      "path": "proposal/capture-first-grant-profiles.sh",
+      "expected_sha256": "197b86be9f5f245a9b4c0dccc78b660094e2399cf19d1b9aba26b5e5ea319448",
+      "actual_sha256": "197b86be9f5f245a9b4c0dccc78b660094e2399cf19d1b9aba26b5e5ea319448",
+      "unchanged": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/identity.go",
+      "expected_sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "actual_sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "unchanged": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/groups.go",
+      "expected_sha256": "b94b7a3a107e9b7470603051a15ffba073de718d2ca01dd0ca183fb61727f047",
+      "actual_sha256": "b94b7a3a107e9b7470603051a15ffba073de718d2ca01dd0ca183fb61727f047",
+      "unchanged": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/payload.go",
+      "expected_sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+      "actual_sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+      "unchanged": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/traffic.go",
+      "expected_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "actual_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "unchanged": true
+    },
+    {
+      "path": "internal/runtime/delivery/runtime.go",
+      "expected_sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b",
+      "actual_sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b",
+      "unchanged": true
+    },
+    {
+      "path": "internal/infra/cluster/presence.go",
+      "expected_sha256": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+      "actual_sha256": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+      "unchanged": true
+    }
+  ],
+  "all_unchanged": true,
+  "proposal_27_payload_members_unchanged": true,
+  "proposal_manifest_sha256": "643bee17e571cb72dcd78d2753c8c74597095624df98a62b6189230e242fa14d",
+  "binary_provenance_limit": "binary is reused by exact hash; its embedded VCS revision a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83 differs from checked tree79a; independent signals axis is verifying product-source byte equivalence. No claim of a fresh79a binary build."
+}

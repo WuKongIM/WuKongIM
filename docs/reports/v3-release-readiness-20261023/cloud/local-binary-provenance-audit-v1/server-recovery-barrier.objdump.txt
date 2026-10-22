@@ -1,0 +1,641 @@
+TEXT github.com/WuKongIM/WuKongIM/pkg/channel/replication.writeCurrentTermBarrier(SB) /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/pkg/channel/replication/recovery_barrier.go
+  recovery_barrier.go:23	0x10106de00		f9400b90		MOVD 16(R28), R16									
+  recovery_barrier.go:23	0x10106de04		d11643f1		SUB $1424, RSP, R17									
+  recovery_barrier.go:23	0x10106de08		eb10023f		CMP R16, R17										
+  recovery_barrier.go:23	0x10106de0c		54004e49		BLS 626(PC)										
+  recovery_barrier.go:23	0x10106de10		d11843f4		SUB $1552, RSP, R20									
+  recovery_barrier.go:23	0x10106de14		a93ffa9d		STP (R29, R30), -8(R20)									
+  recovery_barrier.go:23	0x10106de18		9100029f		MOVD R20, RSP										
+  recovery_barrier.go:23	0x10106de1c		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:24	0x10106de20		f904bfe3		MOVD R3, 2424(RSP)									
+  recovery_barrier.go:24	0x10106de24		f904bbe2		MOVD R2, 2416(RSP)									
+  recovery_barrier.go:24	0x10106de28		f904b7e1		MOVD R1, 2408(RSP)									
+  recovery_barrier.go:24	0x10106de2c		f904b3e0		MOVD R0, 2400(RSP)									
+  recovery_barrier.go:23	0x10106de30		912063f4		ADD $2072, RSP, R20									
+  recovery_barrier.go:23	0x10106de34		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:23	0x10106de38		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:23	0x10106de3c		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:23	0x10106de40		97c06c10		CALL runtime.duffzero+176(SB)								
+  recovery_barrier.go:23	0x10106de44		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:23	0x10106de48		f904afff		MOVD ZR, 2392(RSP)									
+  recovery_barrier.go:24	0x10106de4c		b40004c0		CBZ R0, 38(PC)										
+  recovery_barrier.go:24	0x10106de50		b5000062		CBNZ R2, 3(PC)										
+  recovery_barrier.go:24	0x10106de54		b24003e4		ORR $1, ZR, R4										
+  recovery_barrier.go:24	0x10106de58		14000024		JMP 36(PC)										
+  recovery_barrier.go:24	0x10106de5c		910023f5		ADD $8, RSP, R21									
+  recovery_barrier.go:24	0x10106de60		911863f4		ADD $1560, RSP, R20									
+  recovery_barrier.go:24	0x10106de64		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:24	0x10106de68		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:24	0x10106de6c		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:24	0x10106de70		97c06c86		CALL runtime.duffcopy+424(SB)								
+  recovery_barrier.go:24	0x10106de74		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:24	0x10106de78		f94367e0		MOVD 1736(RSP), R0									
+  recovery_barrier.go:24	0x10106de7c		f9005fe0		MOVD R0, 184(RSP)									
+  recovery_barrier.go:24	0x10106de80		94000260		CALL github.com/WuKongIM/WuKongIM/pkg/channel/replication.validAuthority(SB)		
+  recovery_barrier.go:24	0x10106de84		370000e0		TBNZ $0, R0, 7(PC)									
+  recovery_barrier.go:54	0x10106de88		f944b3e0		MOVD 2400(RSP), R0									
+  recovery_barrier.go:54	0x10106de8c		f944b7e1		MOVD 2408(RSP), R1									
+  recovery_barrier.go:54	0x10106de90		f944bbe2		MOVD 2416(RSP), R2									
+  recovery_barrier.go:54	0x10106de94		f944bfe3		MOVD 2424(RSP), R3									
+  recovery_barrier.go:54	0x10106de98		b24003e4		ORR $1, ZR, R4										
+  recovery_barrier.go:24	0x10106de9c		14000013		JMP 19(PC)										
+  recovery_barrier.go:24	0x10106dea0		910023f5		ADD $8, RSP, R21									
+  recovery_barrier.go:24	0x10106dea4		911b43f4		ADD $1744, RSP, R20									
+  recovery_barrier.go:24	0x10106dea8		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:24	0x10106deac		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:24	0x10106deb0		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:24	0x10106deb4		97c06c63		CALL runtime.duffcopy+352(SB)								
+  recovery_barrier.go:24	0x10106deb8		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:24	0x10106debc		f9440be0		MOVD 2064(RSP), R0									
+  recovery_barrier.go:24	0x10106dec0		f900a7e0		MOVD R0, 328(RSP)									
+  recovery_barrier.go:24	0x10106dec4		97ffb04b		CALL github.com/WuKongIM/WuKongIM/pkg/channel/replication.validReplicaState(SB)		
+  recovery_barrier.go:24	0x10106dec8		d2400000		EOR $1, R0, R0										
+  recovery_barrier.go:54	0x10106decc		f944b7e1		MOVD 2408(RSP), R1									
+  recovery_barrier.go:54	0x10106ded0		f944bbe2		MOVD 2416(RSP), R2									
+  recovery_barrier.go:54	0x10106ded4		f944bfe3		MOVD 2424(RSP), R3									
+  recovery_barrier.go:24	0x10106ded8		aa0003e4		MOVD R0, R4										
+  recovery_barrier.go:54	0x10106dedc		f944b3e0		MOVD 2400(RSP), R0									
+  recovery_barrier.go:24	0x10106dee0		14000002		JMP 2(PC)										
+  recovery_barrier.go:24	0x10106dee4		b24003e4		ORR $1, ZR, R4										
+  recovery_barrier.go:24	0x10106dee8		37000404		TBNZ $0, R4, 32(PC)									
+  recovery_barrier.go:25	0x10106deec		911b43fb		ADD $1744, RSP, R27									
+  recovery_barrier.go:25	0x10106def0		a9401764		LDP (R27), (R4, R5)									
+  recovery_barrier.go:25	0x10106def4		eb05009f		CMP R5, R4										
+  recovery_barrier.go:25	0x10106def8		54000381		BNE 28(PC)										
+  recovery_barrier.go:25	0x10106defc		b100049f		CMN $1, R4										
+  recovery_barrier.go:25	0x10106df00		54000340		BEQ 26(PC)										
+  recovery_barrier.go:28	0x10106df04		b40004c4		CBZ R4, 38(PC)										
+  recovery_barrier.go:29	0x10106df08		9109a3f5		ADD $616, RSP, R21									
+  recovery_barrier.go:29	0x10106df0c		911e03f4		ADD $1920, RSP, R20									
+  recovery_barrier.go:29	0x10106df10		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:29	0x10106df14		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:29	0x10106df18		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:29	0x10106df1c		97c06c5f		CALL runtime.duffcopy+440(SB)								
+  recovery_barrier.go:29	0x10106df20		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:29	0x10106df24		f9440be4		MOVD 2064(RSP), R4									
+  recovery_barrier.go:29	0x10106df28		f9017fe4		MOVD R4, 760(RSP)									
+  recovery_barrier.go:33	0x10106df2c		9109c3fb		ADD $624, RSP, R27									
+  recovery_barrier.go:33	0x10106df30		a9401764		LDP (R27), (R4, R5)									
+  recovery_barrier.go:33	0x10106df34		f94143e6		MOVD 640(RSP), R6									
+  recovery_barrier.go:34	0x10106df38		911903fb		ADD $1600, RSP, R27									
+  recovery_barrier.go:34	0x10106df3c		a9402367		LDP (R27), (R7, R8)									
+  recovery_barrier.go:34	0x10106df40		f9432be9		MOVD 1616(RSP), R9									
+  quorum_log.go:689		0x10106df44		9108e3fb		ADD $568, RSP, R27									
+  quorum_log.go:689		0x10106df48		a9001367		STP (R7, R4), (R27)									
+  quorum_log.go:689		0x10106df4c		910923fb		ADD $584, RSP, R27									
+  quorum_log.go:689		0x10106df50		a9001768		STP (R8, R5), (R27)									
+  quorum_log.go:689		0x10106df54		910963fb		ADD $600, RSP, R27									
+  quorum_log.go:689		0x10106df58		a9001b69		STP (R9, R6), (R27)									
+  quorum_log.go:689		0x10106df5c		9108e3e4		ADD $568, RSP, R4									
+  quorum_log.go:689		0x10106df60		aa1f03e5		MOVD ZR, R5										
+  quorum_log.go:689		0x10106df64		14000200		JMP 512(PC)										
+  recovery_barrier.go:26	0x10106df68		912063f4		ADD $2072, RSP, R20									
+  recovery_barrier.go:26	0x10106df6c		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:26	0x10106df70		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:26	0x10106df74		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:26	0x10106df78		97c06bc2		CALL runtime.duffzero+176(SB)								
+  recovery_barrier.go:26	0x10106df7c		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:26	0x10106df80		f904afff		MOVD ZR, 2392(RSP)									
+  recovery_barrier.go:26	0x10106df84		f001591b		ADRP 45232128(PC), R27									
+  recovery_barrier.go:26	0x10106df88		9109837b		ADD $608, R27, R27									
+  recovery_barrier.go:26	0x10106df8c		a9400760		LDP (R27), (R0, R1)									
+  recovery_barrier.go:26	0x10106df90		a97ffbfd		LDP -8(RSP), (R29, R30)									
+  recovery_barrier.go:26	0x10106df94		911843ff		ADD $1552, RSP, RSP									
+  recovery_barrier.go:26	0x10106df98		d65f03c0		RET											
+  recovery_barrier.go:38	0x10106df9c		910d03f4		ADD $832, RSP, R20									
+  recovery_barrier.go:38	0x10106dfa0		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:38	0x10106dfa4		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:38	0x10106dfa8		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:38	0x10106dfac		97c06bc1		CALL runtime.duffzero+224(SB)								
+  recovery_barrier.go:38	0x10106dfb0		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:38	0x10106dfb4		f901e3ff		MOVD ZR, 960(RSP)									
+  recovery_barrier.go:38	0x10106dfb8		910023f5		ADD $8, RSP, R21									
+  recovery_barrier.go:38	0x10106dfbc		911863f4		ADD $1560, RSP, R20									
+  recovery_barrier.go:38	0x10106dfc0		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:38	0x10106dfc4		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:38	0x10106dfc8		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:38	0x10106dfcc		97c06c2f		CALL runtime.duffcopy+424(SB)								
+  recovery_barrier.go:38	0x10106dfd0		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:38	0x10106dfd4		f94367e0		MOVD 1736(RSP), R0									
+  recovery_barrier.go:38	0x10106dfd8		f9005fe0		MOVD R0, 184(RSP)									
+  recovery_barrier.go:38	0x10106dfdc		940002a1		CALL github.com/WuKongIM/WuKongIM/pkg/channel/replication.recoveryBarrierContent(SB)	
+  recovery_barrier.go:38	0x10106dfe0		a94c07e0		LDP 192(RSP), (R0, R1)									
+  recovery_barrier.go:38	0x10106dfe4		a94d0fe2		LDP 208(RSP), (R2, R3)									
+  recovery_barrier.go:38	0x10106dfe8		a91887e0		STP (R0, R1), 392(RSP)									
+  recovery_barrier.go:38	0x10106dfec		a9198fe2		STP (R2, R3), 408(RSP)									
+  recovery_barrier.go:38	0x10106dff0		910d03f5		ADD $832, RSP, R21									
+  recovery_barrier.go:38	0x10106dff4		910383f4		ADD $224, RSP, R20									
+  recovery_barrier.go:38	0x10106dff8		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:38	0x10106dffc		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:38	0x10106e000		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:38	0x10106e004		97c06c27		CALL runtime.duffcopy+448(SB)								
+  recovery_barrier.go:38	0x10106e008		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:38	0x10106e00c		f940b3e0		MOVD 352(RSP), R0									
+  recovery_barrier.go:38	0x10106e010		f901e3e0		MOVD R0, 960(RSP)									
+  recovery_barrier.go:38	0x10106e014		a95887e0		LDP 392(RSP), (R0, R1)									
+  recovery_barrier.go:38	0x10106e018		a9598fe2		LDP 408(RSP), (R2, R3)									
+  recovery_barrier.go:38	0x10106e01c		9109a3fb		ADD $616, RSP, R27									
+  recovery_barrier.go:38	0x10106e020		a9000760		STP (R0, R1), (R27)									
+  recovery_barrier.go:38	0x10106e024		9109e3fb		ADD $632, RSP, R27									
+  recovery_barrier.go:38	0x10106e028		a9000f62		STP (R2, R3), (R27)									
+  recovery_barrier.go:38	0x10106e02c		9110a3f5		ADD $1064, RSP, R21									
+  recovery_barrier.go:38	0x10106e030		910d03f4		ADD $832, RSP, R20									
+  recovery_barrier.go:38	0x10106e034		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:38	0x10106e038		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:38	0x10106e03c		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:38	0x10106e040		97c06c18		CALL runtime.duffcopy+448(SB)								
+  recovery_barrier.go:38	0x10106e044		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:38	0x10106e048		f941e3e0		MOVD 960(RSP), R0									
+  recovery_barrier.go:38	0x10106e04c		f90257e0		MOVD R0, 1192(RSP)									
+  recovery_barrier.go:38	0x10106e050		9109a3fb		ADD $616, RSP, R27									
+  recovery_barrier.go:38	0x10106e054		a9400760		LDP (R27), (R0, R1)									
+  recovery_barrier.go:38	0x10106e058		9109e3fb		ADD $632, RSP, R27									
+  recovery_barrier.go:38	0x10106e05c		a9400f62		LDP (R27), (R2, R3)									
+  recovery_barrier.go:38	0x10106e060		a91887e0		STP (R0, R1), 392(RSP)									
+  recovery_barrier.go:38	0x10106e064		a9198fe2		STP (R2, R3), 408(RSP)									
+  recovery_barrier.go:38	0x10106e068		910d03f5		ADD $832, RSP, R21									
+  recovery_barrier.go:38	0x10106e06c		9110a3f4		ADD $1064, RSP, R20									
+  recovery_barrier.go:38	0x10106e070		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:38	0x10106e074		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:38	0x10106e078		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:38	0x10106e07c		97c06c09		CALL runtime.duffcopy+448(SB)								
+  recovery_barrier.go:38	0x10106e080		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:38	0x10106e084		f94257e0		MOVD 1192(RSP), R0									
+  recovery_barrier.go:38	0x10106e088		f901e3e0		MOVD R0, 960(RSP)									
+  recovery_barrier.go:44	0x10106e08c		9109a3f5		ADD $616, RSP, R21									
+  recovery_barrier.go:44	0x10106e090		f0008e14		ADRP 18624512(PC), R20									
+  recovery_barrier.go:44	0x10106e094		91204294		ADD $2064, R20, R20									
+  recovery_barrier.go:44	0x10106e098		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:44	0x10106e09c		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:44	0x10106e0a0		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:44	0x10106e0a4		97c06bfb		CALL runtime.duffcopy+432(SB)								
+  recovery_barrier.go:44	0x10106e0a8		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:41	0x10106e0ac		f94323e0		MOVD 1600(RSP), R0									
+  recovery_barrier.go:41	0x10106e0b0		f9013be0		MOVD R0, 624(RSP)									
+  recovery_barrier.go:41	0x10106e0b4		f94327e0		MOVD 1608(RSP), R0									
+  recovery_barrier.go:41	0x10106e0b8		f9013fe0		MOVD R0, 632(RSP)									
+  recovery_barrier.go:41	0x10106e0bc		f9432be0		MOVD 1616(RSP), R0									
+  recovery_barrier.go:41	0x10106e0c0		f90143e0		MOVD R0, 640(RSP)									
+  recovery_barrier.go:42	0x10106e0c4		a95887e0		LDP 392(RSP), (R0, R1)									
+  recovery_barrier.go:42	0x10106e0c8		a9598fe2		LDP 408(RSP), (R2, R3)									
+  recovery_barrier.go:42	0x10106e0cc		910a23fb		ADD $648, RSP, R27									
+  recovery_barrier.go:42	0x10106e0d0		a9000760		STP (R0, R1), (R27)									
+  recovery_barrier.go:42	0x10106e0d4		910a63fb		ADD $664, RSP, R27									
+  recovery_barrier.go:42	0x10106e0d8		a9000f62		STP (R2, R3), (R27)									
+  recovery_barrier.go:42	0x10106e0dc		f9436be0		MOVD 1744(RSP), R0									
+  recovery_barrier.go:42	0x10106e0e0		f90157e0		MOVD R0, 680(RSP)									
+  recovery_barrier.go:42	0x10106e0e4		f9436be0		MOVD 1744(RSP), R0									
+  recovery_barrier.go:42	0x10106e0e8		91000400		ADD $1, R0, R0										
+  recovery_barrier.go:42	0x10106e0ec		f9015be0		MOVD R0, 688(RSP)									
+  recovery_barrier.go:43	0x10106e0f0		f943cbe0		MOVD 1936(RSP), R0									
+  recovery_barrier.go:43	0x10106e0f4		f9015fe0		MOVD R0, 696(RSP)									
+  recovery_barrier.go:43	0x10106e0f8		f9436be0		MOVD 1744(RSP), R0									
+  recovery_barrier.go:43	0x10106e0fc		f90163e0		MOVD R0, 704(RSP)									
+  recovery_barrier.go:44	0x10106e100		911fe3fb		ADD $2040, RSP, R27									
+  recovery_barrier.go:44	0x10106e104		a9400760		LDP (R27), (R0, R1)									
+  recovery_barrier.go:44	0x10106e108		912023fb		ADD $2056, RSP, R27									
+  recovery_barrier.go:44	0x10106e10c		a9400f62		LDP (R27), (R2, R3)									
+  recovery_barrier.go:44	0x10106e110		910b23fb		ADD $712, RSP, R27									
+  recovery_barrier.go:44	0x10106e114		a9000760		STP (R0, R1), (R27)									
+  recovery_barrier.go:44	0x10106e118		910b63fb		ADD $728, RSP, R27									
+  recovery_barrier.go:44	0x10106e11c		a9000f62		STP (R2, R3), (R27)									
+  recovery_barrier.go:45	0x10106e120		9115c3f4		ADD $1392, RSP, R20									
+  recovery_barrier.go:45	0x10106e124		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:45	0x10106e128		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:45	0x10106e12c		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:45	0x10106e130		97c06b60		CALL runtime.duffzero+224(SB)								
+  recovery_barrier.go:45	0x10106e134		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:45	0x10106e138		f902fbff		MOVD ZR, 1520(RSP)									
+  recovery_barrier.go:45	0x10106e13c		9115c3f5		ADD $1392, RSP, R21									
+  recovery_barrier.go:45	0x10106e140		910d03f4		ADD $832, RSP, R20									
+  recovery_barrier.go:45	0x10106e144		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:45	0x10106e148		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:45	0x10106e14c		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:45	0x10106e150		97c06bd4		CALL runtime.duffcopy+448(SB)								
+  recovery_barrier.go:45	0x10106e154		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:45	0x10106e158		f941e3e0		MOVD 960(RSP), R0									
+  recovery_barrier.go:45	0x10106e15c		f902fbe0		MOVD R0, 1520(RSP)									
+  recovery_barrier.go:39	0x10106e160		910023f5		ADD $8, RSP, R21									
+  recovery_barrier.go:39	0x10106e164		9109a3f4		ADD $616, RSP, R20									
+  recovery_barrier.go:39	0x10106e168		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:39	0x10106e16c		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:39	0x10106e170		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:39	0x10106e174		97c06bc7		CALL runtime.duffcopy+432(SB)								
+  recovery_barrier.go:39	0x10106e178		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:39	0x10106e17c		9115c3e0		ADD $1392, RSP, R0									
+  recovery_barrier.go:39	0x10106e180		b24003e1		ORR $1, ZR, R1										
+  recovery_barrier.go:39	0x10106e184		aa0103e2		MOVD R1, R2										
+  recovery_barrier.go:39	0x10106e188		97fa87b6		CALL github.com/WuKongIM/WuKongIM/pkg/channel.SealProposalManifest(SB)			
+  recovery_barrier.go:39	0x10106e18c		9109a3f5		ADD $616, RSP, R21									
+  recovery_barrier.go:39	0x10106e190		9102a3f4		ADD $168, RSP, R20									
+  recovery_barrier.go:39	0x10106e194		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:39	0x10106e198		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:39	0x10106e19c		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:39	0x10106e1a0		97c06bbc		CALL runtime.duffcopy+432(SB)								
+  recovery_barrier.go:39	0x10106e1a4		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:39	0x10106e1a8		910623f5		ADD $392, RSP, R21									
+  recovery_barrier.go:39	0x10106e1ac		9109a3f4		ADD $616, RSP, R20									
+  recovery_barrier.go:39	0x10106e1b0		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:39	0x10106e1b4		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:39	0x10106e1b8		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:39	0x10106e1bc		97c06bb5		CALL runtime.duffcopy+432(SB)								
+  recovery_barrier.go:39	0x10106e1c0		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:46	0x10106e1c4		36001903		TBZ $0, R3, 200(PC)									
+  recovery_barrier.go:46	0x10106e1c8		f100043f		CMP $1, R1										
+  recovery_barrier.go:46	0x10106e1cc		540018c1		BNE 198(PC)										
+  recovery_barrier.go:39	0x10106e1d0		f902a3e0		MOVD R0, 1344(RSP)									
+  recovery_barrier.go:52	0x10106e1d4		9110a3f4		ADD $1064, RSP, R20									
+  recovery_barrier.go:52	0x10106e1d8		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:52	0x10106e1dc		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:52	0x10106e1e0		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:52	0x10106e1e4		97c06b2b		CALL runtime.duffzero+192(SB)								
+  recovery_barrier.go:52	0x10106e1e8		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:52	0x10106e1ec		f90297ff		MOVD ZR, 1320(RSP)									
+  recovery_barrier.go:50	0x10106e1f0		f9436be1		MOVD 1744(RSP), R1									
+  recovery_barrier.go:50	0x10106e1f4		91000421		ADD $1, R1, R1										
+  recovery_barrier.go:50	0x10106e1f8		f90217e1		MOVD R1, 1064(RSP)									
+  recovery_barrier.go:50	0x10106e1fc		f9436be1		MOVD 1744(RSP), R1									
+  recovery_barrier.go:50	0x10106e200		91000421		ADD $1, R1, R1										
+  recovery_barrier.go:50	0x10106e204		f9021be1		MOVD R1, 1072(RSP)									
+  recovery_barrier.go:51	0x10106e208		911863fb		ADD $1560, RSP, R27									
+  recovery_barrier.go:51	0x10106e20c		a9400b61		LDP (R27), (R1, R2)									
+  recovery_barrier.go:51	0x10106e210		9110e3fb		ADD $1080, RSP, R27									
+  recovery_barrier.go:51	0x10106e214		a9000b61		STP (R1, R2), (R27)									
+  recovery_barrier.go:51	0x10106e218		3958e3e1		MOVBU 1592(RSP), R1									
+  recovery_barrier.go:51	0x10106e21c		9118a3fb		ADD $1576, RSP, R27									
+  recovery_barrier.go:51	0x10106e220		a9400f62		LDP (R27), (R2, R3)									
+  recovery_barrier.go:51	0x10106e224		911123fb		ADD $1096, RSP, R27									
+  recovery_barrier.go:51	0x10106e228		a9000f62		STP (R2, R3), (R27)									
+  recovery_barrier.go:51	0x10106e22c		391163e1		MOVB R1, 1112(RSP)									
+  recovery_barrier.go:51	0x10106e230		f9432fe1		MOVD 1624(RSP), R1									
+  recovery_barrier.go:51	0x10106e234		f90233e1		MOVD R1, 1120(RSP)									
+  recovery_barrier.go:52	0x10106e238		9111a3f5		ADD $1128, RSP, R21									
+  recovery_barrier.go:52	0x10106e23c		910623f4		ADD $392, RSP, R20									
+  recovery_barrier.go:52	0x10106e240		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:52	0x10106e244		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:52	0x10106e248		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:52	0x10106e24c		97c06b91		CALL runtime.duffcopy+432(SB)								
+  recovery_barrier.go:52	0x10106e250		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:52	0x10106e254		9000a020		ADRP 20987904(PC), R0									
+  recovery_barrier.go:52	0x10106e258		910b8000		ADD $736, R0, R0									
+  recovery_barrier.go:52	0x10106e25c		97bebd4d		CALL runtime.newobject(SB)								
+  recovery_barrier.go:52	0x10106e260		d001611b		ADRP 46276608(PC), R27									
+  recovery_barrier.go:52	0x10106e264		b9492361		MOVWU 2336(R27), R1									
+  recovery_barrier.go:52	0x10106e268		34000101		CBZW R1, 8(PC)										
+  recovery_barrier.go:52	0x10106e26c		f90303e0		MOVD R0, 1536(RSP)									
+  recovery_barrier.go:52	0x10106e270		aa0003e1		MOVD R0, R1										
+  recovery_barrier.go:52	0x10106e274		910d03e2		ADD $832, RSP, R2									
+  recovery_barrier.go:52	0x10106e278		d000bec0		ADRP 25010176(PC), R0									
+  recovery_barrier.go:52	0x10106e27c		910b0000		ADD $704, R0, R0									
+  recovery_barrier.go:52	0x10106e280		97bebf74		CALL runtime.wbMove(SB)									
+  recovery_barrier.go:52	0x10106e284		f94303e0		MOVD 1536(RSP), R0									
+  recovery_barrier.go:52	0x10106e288		aa0003f5		MOVD R0, R21										
+  recovery_barrier.go:52	0x10106e28c		910d03f4		ADD $832, RSP, R20									
+  recovery_barrier.go:52	0x10106e290		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:52	0x10106e294		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:52	0x10106e298		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:52	0x10106e29c		97c06b81		CALL runtime.duffcopy+448(SB)								
+  recovery_barrier.go:52	0x10106e2a0		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:52	0x10106e2a4		f941e3e9		MOVD 960(RSP), R9									
+  recovery_barrier.go:52	0x10106e2a8		f9004009		MOVD R9, 128(R0)									
+  recovery_barrier.go:52	0x10106e2ac		f90287e0		MOVD R0, 1288(RSP)									
+  recovery_barrier.go:52	0x10106e2b0		b24003e9		ORR $1, ZR, R9										
+  recovery_barrier.go:52	0x10106e2b4		911443fb		ADD $1296, RSP, R27									
+  recovery_barrier.go:52	0x10106e2b8		a9002769		STP (R9, R9), (R27)									
+  recovery_barrier.go:52	0x10106e2bc		f9436be9		MOVD 1744(RSP), R9									
+  recovery_barrier.go:52	0x10106e2c0		f90293e9		MOVD R9, 1312(RSP)									
+  recovery_barrier.go:54	0x10106e2c4		f9432fe2		MOVD 1624(RSP), R2									
+  recovery_barrier.go:54	0x10106e2c8		9119e3fb		ADD $1656, RSP, R27									
+  recovery_barrier.go:54	0x10106e2cc		a9401363		LDP (R27), (R3, R4)									
+  recovery_barrier.go:54	0x10106e2d0		911a23fb		ADD $1672, RSP, R27									
+  recovery_barrier.go:54	0x10106e2d4		a9401b65		LDP (R27), (R5, R6)									
+  recovery_barrier.go:54	0x10106e2d8		910023f5		ADD $8, RSP, R21									
+  recovery_barrier.go:54	0x10106e2dc		9110a3f4		ADD $1064, RSP, R20									
+  recovery_barrier.go:54	0x10106e2e0		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:54	0x10106e2e4		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:54	0x10106e2e8		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:54	0x10106e2ec		97c06b5d		CALL runtime.duffcopy+384(SB)								
+  recovery_barrier.go:54	0x10106e2f0		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:54	0x10106e2f4		f94297e9		MOVD 1320(RSP), R9									
+  recovery_barrier.go:54	0x10106e2f8		f90087e9		MOVD R9, 264(RSP)									
+  recovery_barrier.go:54	0x10106e2fc		f944b3e0		MOVD 2400(RSP), R0									
+  recovery_barrier.go:54	0x10106e300		f944b7e1		MOVD 2408(RSP), R1									
+  recovery_barrier.go:54	0x10106e304		f944bbe7		MOVD 2416(RSP), R7									
+  recovery_barrier.go:54	0x10106e308		f944bfe8		MOVD 2424(RSP), R8									
+  recovery_barrier.go:54	0x10106e30c		97fff2b1		CALL github.com/WuKongIM/WuKongIM/pkg/channel/replication.runDurableRound(SB)		
+  recovery_barrier.go:54	0x10106e310		390d03e0		MOVB R0, 832(RSP)									
+  recovery_barrier.go:54	0x10106e314		f901a7e1		MOVD R1, 840(RSP)									
+  recovery_barrier.go:54	0x10106e318		390d43e2		MOVB R2, 848(RSP)									
+  recovery_barrier.go:54	0x10106e31c		f901afe3		MOVD R3, 856(RSP)									
+  recovery_barrier.go:54	0x10106e320		910d83fb		ADD $864, RSP, R27									
+  recovery_barrier.go:54	0x10106e324		a9001764		STP (R4, R5), (R27)									
+  recovery_barrier.go:54	0x10106e328		910d03fb		ADD $832, RSP, R27									
+  recovery_barrier.go:54	0x10106e32c		a9402b69		LDP (R27), (R9, R10)									
+  recovery_barrier.go:54	0x10106e330		910d43fb		ADD $848, RSP, R27									
+  recovery_barrier.go:54	0x10106e334		a940336b		LDP (R27), (R11, R12)									
+  recovery_barrier.go:54	0x10106e338		910d83fb		ADD $864, RSP, R27									
+  recovery_barrier.go:54	0x10106e33c		a9403b6d		LDP (R27), (R13, R14)									
+  recovery_barrier.go:54	0x10106e340		910c43fb		ADD $784, RSP, R27									
+  recovery_barrier.go:54	0x10106e344		a9002b69		STP (R9, R10), (R27)									
+  recovery_barrier.go:54	0x10106e348		910c83fb		ADD $800, RSP, R27									
+  recovery_barrier.go:54	0x10106e34c		a900336b		STP (R11, R12), (R27)									
+  recovery_barrier.go:54	0x10106e350		910cc3fb		ADD $816, RSP, R27									
+  recovery_barrier.go:54	0x10106e354		a9003b6d		STP (R13, R14), (R27)									
+  recovery_barrier.go:55	0x10106e358		b4000546		CBZ R6, 42(PC)										
+  recovery_barrier.go:59	0x10106e35c		9001593b		ADRP 45236224(PC), R27									
+  recovery_barrier.go:59	0x10106e360		9124c37b		ADD $2352, R27, R27									
+  recovery_barrier.go:59	0x10106e364		a9400b63		LDP (R27), (R3, R2)									
+  recovery_barrier.go:59	0x10106e368		eb0300df		CMP R3, R6										
+  recovery_barrier.go:59	0x10106e36c		54000060		BEQ 3(PC)										
+  recovery_barrier.go:59	0x10106e370		aa1f03e0		MOVD ZR, R0										
+  recovery_barrier.go:59	0x10106e374		14000008		JMP 8(PC)										
+  recovery_barrier.go:54	0x10106e378		f9029fe7		MOVD R7, 1336(RSP)									
+  recovery_barrier.go:54	0x10106e37c		f9011be6		MOVD R6, 560(RSP)									
+  recovery_barrier.go:59	0x10106e380		aa0603e0		MOVD R6, R0										
+  recovery_barrier.go:59	0x10106e384		aa0703e1		MOVD R7, R1										
+  recovery_barrier.go:59	0x10106e388		97be91ee		CALL runtime.ifaceeq(SB)								
+  recovery_barrier.go:69	0x10106e38c		f9411be6		MOVD 560(RSP), R6									
+  recovery_barrier.go:69	0x10106e390		f9429fe7		MOVD 1336(RSP), R7									
+  recovery_barrier.go:59	0x10106e394		360001e0		TBZ $0, R0, 15(PC)									
+  recovery_barrier.go:59	0x10106e398		394c43e3		MOVBU 784(RSP), R3									
+  recovery_barrier.go:59	0x10106e39c		360001a3		TBZ $0, R3, 13(PC)									
+  recovery_barrier.go:60	0x10106e3a0		f9418fe3		MOVD 792(RSP), R3									
+  recovery_barrier.go:60	0x10106e3a4		f9434be4		MOVD 1680(RSP), R4									
+  recovery_barrier.go:60	0x10106e3a8		eb03009f		CMP R3, R4										
+  recovery_barrier.go:60	0x10106e3ac		5400012d		BLE 9(PC)										
+  recovery_barrier.go:61	0x10106e3b0		910ca3fb		ADD $808, RSP, R27									
+  recovery_barrier.go:61	0x10106e3b4		a9401764		LDP (R27), (R4, R5)									
+  recovery_barrier.go:61	0x10106e3b8		8b050063		ADD R5, R3, R3										
+  recovery_barrier.go:61	0x10106e3bc		f94343e8		MOVD 1664(RSP), R8									
+  recovery_barrier.go:61	0x10106e3c0		eb03011f		CMP R3, R8										
+  recovery_barrier.go:61	0x10106e3c4		54000061		BNE 3(PC)										
+  recovery_barrier.go:62	0x10106e3c8		aa1f03e0		MOVD ZR, R0										
+  recovery_barrier.go:62	0x10106e3cc		14000055		JMP 85(PC)										
+  recovery_barrier.go:69	0x10106e3d0		912063f4		ADD $2072, RSP, R20									
+  recovery_barrier.go:69	0x10106e3d4		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:69	0x10106e3d8		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:69	0x10106e3dc		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:69	0x10106e3e0		97c06aa8		CALL runtime.duffzero+176(SB)								
+  recovery_barrier.go:69	0x10106e3e4		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:69	0x10106e3e8		f904afff		MOVD ZR, 2392(RSP)									
+  recovery_barrier.go:69	0x10106e3ec		aa0603e0		MOVD R6, R0										
+  recovery_barrier.go:69	0x10106e3f0		aa0703e1		MOVD R7, R1										
+  recovery_barrier.go:69	0x10106e3f4		a97ffbfd		LDP -8(RSP), (R29, R30)									
+  recovery_barrier.go:69	0x10106e3f8		911843ff		ADD $1552, RSP, RSP									
+  recovery_barrier.go:69	0x10106e3fc		d65f03c0		RET											
+  recovery_barrier.go:71	0x10106e400		394c43e2		MOVBU 784(RSP), R2									
+  recovery_barrier.go:71	0x10106e404		36000562		TBZ $0, R2, 43(PC)									
+  recovery_barrier.go:71	0x10106e408		f9418fe2		MOVD 792(RSP), R2									
+  recovery_barrier.go:71	0x10106e40c		f9434be3		MOVD 1680(RSP), R3									
+  recovery_barrier.go:71	0x10106e410		eb02007f		CMP R2, R3										
+  recovery_barrier.go:71	0x10106e414		540004ec		BGT 39(PC)										
+  recovery_barrier.go:71	0x10106e418		394c83e2		MOVBU 800(RSP), R2									
+  outcome.go:29			0x10106e41c		7100045f		CMPW $1, R2										
+  outcome.go:29			0x10106e420		54000060		BEQ 3(PC)										
+  outcome.go:29			0x10106e424		7100085f		CMPW $2, R2										
+  recovery_barrier.go:71	0x10106e428		54000441		BNE 34(PC)										
+  recovery_barrier.go:74	0x10106e42c		912063f4		ADD $2072, RSP, R20									
+  recovery_barrier.go:74	0x10106e430		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:74	0x10106e434		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:74	0x10106e438		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:74	0x10106e43c		97c06a91		CALL runtime.duffzero+176(SB)								
+  recovery_barrier.go:74	0x10106e440		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:74	0x10106e444		f904afff		MOVD ZR, 2392(RSP)									
+  recovery_barrier.go:75	0x10106e448		f940ebe2		MOVD 464(RSP), R2									
+  recovery_barrier.go:75	0x10106e44c		f9040fe2		MOVD R2, 2072(RSP)									
+  recovery_barrier.go:75	0x10106e450		f9436be2		MOVD 1744(RSP), R2									
+  recovery_barrier.go:75	0x10106e454		f90413e2		MOVD R2, 2080(RSP)									
+  recovery_barrier.go:75	0x10106e458		9120a3f5		ADD $2088, RSP, R21									
+  recovery_barrier.go:75	0x10106e45c		910623f4		ADD $392, RSP, R20									
+  recovery_barrier.go:75	0x10106e460		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:75	0x10106e464		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:75	0x10106e468		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:75	0x10106e46c		97c06b09		CALL runtime.duffcopy+432(SB)								
+  recovery_barrier.go:75	0x10106e470		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:75	0x10106e474		912323f5		ADD $2248, RSP, R21									
+  recovery_barrier.go:75	0x10106e478		f942a3f4		MOVD 1344(RSP), R20									
+  recovery_barrier.go:75	0x10106e47c		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:75	0x10106e480		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:75	0x10106e484		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:75	0x10106e488		97c06b04		CALL runtime.duffcopy+440(SB)								
+  recovery_barrier.go:75	0x10106e48c		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:75	0x10106e490		f942a3e2		MOVD 1344(RSP), R2									
+  recovery_barrier.go:75	0x10106e494		f9404842		MOVD 144(R2), R2									
+  recovery_barrier.go:75	0x10106e498		f904afe2		MOVD R2, 2392(RSP)									
+  recovery_barrier.go:74	0x10106e49c		aa1f03e0		MOVD ZR, R0										
+  recovery_barrier.go:74	0x10106e4a0		aa1f03e1		MOVD ZR, R1										
+  recovery_barrier.go:76	0x10106e4a4		a97ffbfd		LDP -8(RSP), (R29, R30)									
+  recovery_barrier.go:76	0x10106e4a8		911843ff		ADD $1552, RSP, RSP									
+  recovery_barrier.go:76	0x10106e4ac		d65f03c0		RET											
+  recovery_barrier.go:72	0x10106e4b0		912063f4		ADD $2072, RSP, R20									
+  recovery_barrier.go:72	0x10106e4b4		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:72	0x10106e4b8		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:72	0x10106e4bc		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:72	0x10106e4c0		97c06a70		CALL runtime.duffzero+176(SB)								
+  recovery_barrier.go:72	0x10106e4c4		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:72	0x10106e4c8		f904afff		MOVD ZR, 2392(RSP)									
+  recovery_barrier.go:72	0x10106e4cc		9001593b		ADRP 45236224(PC), R27									
+  recovery_barrier.go:72	0x10106e4d0		9124c37b		ADD $2352, R27, R27									
+  recovery_barrier.go:72	0x10106e4d4		a9400760		LDP (R27), (R0, R1)									
+  recovery_barrier.go:72	0x10106e4d8		a97ffbfd		LDP -8(RSP), (R29, R30)									
+  recovery_barrier.go:72	0x10106e4dc		911843ff		ADD $1552, RSP, RSP									
+  recovery_barrier.go:72	0x10106e4e0		d65f03c0		RET											
+  recovery_barrier.go:47	0x10106e4e4		912063f4		ADD $2072, RSP, R20									
+  recovery_barrier.go:47	0x10106e4e8		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:47	0x10106e4ec		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:47	0x10106e4f0		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:47	0x10106e4f4		97c06a63		CALL runtime.duffzero+176(SB)								
+  recovery_barrier.go:47	0x10106e4f8		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:47	0x10106e4fc		f904afff		MOVD ZR, 2392(RSP)									
+  recovery_barrier.go:47	0x10106e500		d001591b		ADRP 45228032(PC), R27									
+  recovery_barrier.go:47	0x10106e504		9109837b		ADD $608, R27, R27									
+  recovery_barrier.go:47	0x10106e508		a9400760		LDP (R27), (R0, R1)									
+  recovery_barrier.go:47	0x10106e50c		a97ffbfd		LDP -8(RSP), (R29, R30)									
+  recovery_barrier.go:47	0x10106e510		911843ff		ADD $1552, RSP, RSP									
+  recovery_barrier.go:47	0x10106e514		d65f03c0		RET											
+  recovery_barrier.go:62	0x10106e518		9103a084		ADD $232, R4, R4									
+  recovery_barrier.go:62	0x10106e51c		91000400		ADD $1, R0, R0										
+  recovery_barrier.go:62	0x10106e520		eb05001f		CMP R5, R0										
+  recovery_barrier.go:62	0x10106e524		5400036a		BGE 27(PC)										
+  recovery_barrier.go:62	0x10106e528		910d03f5		ADD $832, RSP, R21									
+  recovery_barrier.go:62	0x10106e52c		aa0403f4		MOVD R4, R20										
+  recovery_barrier.go:62	0x10106e530		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:62	0x10106e534		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:62	0x10106e538		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:62	0x10106e53c		97c06acd		CALL runtime.duffcopy+400(SB)								
+  recovery_barrier.go:62	0x10106e540		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:62	0x10106e544		f9407083		MOVD 224(R4), R3									
+  recovery_barrier.go:62	0x10106e548		f90213e3		MOVD R3, 1056(RSP)									
+  recovery_barrier.go:63	0x10106e54c		f9420fe3		MOVD 1048(RSP), R3									
+  recovery_barrier.go:63	0x10106e550		b4000083		CBZ R3, 4(PC)										
+  recovery_barrier.go:63	0x10106e554		f9421be8		MOVD 1072(RSP), R8									
+  recovery_barrier.go:63	0x10106e558		eb03011f		CMP R3, R8										
+  recovery_barrier.go:63	0x10106e55c		54fffde2		BCS -17(PC)										
+  recovery_barrier.go:64	0x10106e560		912063f4		ADD $2072, RSP, R20									
+  recovery_barrier.go:64	0x10106e564		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:64	0x10106e568		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:64	0x10106e56c		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:64	0x10106e570		97c06a44		CALL runtime.duffzero+176(SB)								
+  recovery_barrier.go:64	0x10106e574		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:64	0x10106e578		f904afff		MOVD ZR, 2392(RSP)									
+  recovery_barrier.go:64	0x10106e57c		aa0603e0		MOVD R6, R0										
+  recovery_barrier.go:64	0x10106e580		aa0703e1		MOVD R7, R1										
+  recovery_barrier.go:64	0x10106e584		a97ffbfd		LDP -8(RSP), (R29, R30)									
+  recovery_barrier.go:64	0x10106e588		911843ff		ADD $1552, RSP, RSP									
+  recovery_barrier.go:64	0x10106e58c		d65f03c0		RET											
+  recovery_barrier.go:67	0x10106e590		911543fb		ADD $1360, RSP, R27									
+  recovery_barrier.go:67	0x10106e594		a9007f7f		STP (ZR, ZR), (R27)									
+  recovery_barrier.go:67	0x10106e598		911583fb		ADD $1376, RSP, R27									
+  recovery_barrier.go:67	0x10106e59c		a9007f7f		STP (ZR, ZR), (R27)									
+  recovery_barrier.go:67	0x10106e5a0		d001591b		ADRP 45228032(PC), R27									
+  recovery_barrier.go:67	0x10106e5a4		910a437b		ADD $656, R27, R27									
+  recovery_barrier.go:67	0x10106e5a8		a9401363		LDP (R27), (R3, R4)									
+  recovery_barrier.go:67	0x10106e5ac		911543fb		ADD $1360, RSP, R27									
+  recovery_barrier.go:67	0x10106e5b0		a9001363		STP (R3, R4), (R27)									
+  recovery_barrier.go:67	0x10106e5b4		911583fb		ADD $1376, RSP, R27									
+  recovery_barrier.go:67	0x10106e5b8		a9001f66		STP (R6, R7), (R27)									
+  join.go:21			0x10106e5bc		911543e3		ADD $1360, RSP, R3									
+  join.go:21			0x10106e5c0		aa1f03e0		MOVD ZR, R0										
+  join.go:23			0x10106e5c4		aa1f03e1		MOVD ZR, R1										
+  join.go:21			0x10106e5c8		14000007		JMP 7(PC)										
+  join.go:21			0x10106e5cc		aa0303e4		MOVD R3, R4										
+  join.go:21			0x10106e5d0		f9400065		MOVD (R3), R5										
+  join.go:21			0x10106e5d4		91004083		ADD $16, R4, R3										
+  join.go:21			0x10106e5d8		91000400		ADD $1, R0, R0										
+  join.go:22			0x10106e5dc		f10000bf		CMP $0, R5										
+  join.go:23			0x10106e5e0		9a810421		CINC NE, R1, R1										
+  join.go:21			0x10106e5e4		f100081f		CMP $2, R0										
+  join.go:21			0x10106e5e8		54ffff2b		BLT -7(PC)										
+  join.go:26			0x10106e5ec		b4000341		CBZ R1, 26(PC)										
+  join.go:23			0x10106e5f0		f900c3e1		MOVD R1, 384(RSP)									
+  join.go:30			0x10106e5f4		d000a620		ADRP 21782528(PC), R0									
+  join.go:30			0x10106e5f8		91390000		ADD $3648, R0, R0									
+  join.go:30			0x10106e5fc		aa0103e2		MOVD R1, R2										
+  join.go:30			0x10106e600		aa1f03e1		MOVD ZR, R1										
+  join.go:30			0x10106e604		97c050bb		CALL runtime.makeslice(SB)								
+  join.go:30			0x10106e608		f902ffe0		MOVD R0, 1528(RSP)									
+  join.go:29			0x10106e60c		d000a9a0		ADRP 22241280(PC), R0									
+  join.go:29			0x10106e610		91340000		ADD $3328, R0, R0									
+  join.go:29			0x10106e614		97bebc5f		CALL runtime.newobject(SB)								
+  join.go:30			0x10106e618		f940c3e3		MOVD 384(RSP), R3									
+  join.go:30			0x10106e61c		f9000803		MOVD R3, 16(R0)										
+  join.go:30			0x10106e620		d001611b		ADRP 46276608(PC), R27									
+  join.go:30			0x10106e624		b9492363		MOVWU 2336(R27), R3									
+  join.go:30			0x10106e628		35000063		CBNZW R3, 3(PC)										
+  join.go:30			0x10106e62c		f942ffe5		MOVD 1528(RSP), R5									
+  join.go:30			0x10106e630		14000004		JMP 4(PC)										
+  join.go:30			0x10106e634		97c068eb		CALL runtime.gcWriteBarrier1(SB)							
+  join.go:30			0x10106e638		f942ffe5		MOVD 1528(RSP), R5									
+  join.go:30			0x10106e63c		f9000325		MOVD R5, (R25)										
+  join.go:29			0x10106e640		f902a7e0		MOVD R0, 1352(RSP)									
+  join.go:30			0x10106e644		f9000005		MOVD R5, (R0)										
+  join.go:32			0x10106e648		911543e5		ADD $1360, RSP, R5									
+  join.go:32			0x10106e64c		aa1f03e1		MOVD ZR, R1										
+  join.go:32			0x10106e650		1400000f		JMP 15(PC)										
+  recovery_barrier.go:67	0x10106e654		aa1f03e0		MOVD ZR, R0										
+  recovery_barrier.go:67	0x10106e658		aa1f03e1		MOVD ZR, R1										
+  recovery_barrier.go:67	0x10106e65c		912063f4		ADD $2072, RSP, R20									
+  recovery_barrier.go:67	0x10106e660		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:67	0x10106e664		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:67	0x10106e668		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:67	0x10106e66c		97c06a05		CALL runtime.duffzero+176(SB)								
+  recovery_barrier.go:67	0x10106e670		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:67	0x10106e674		f904afff		MOVD ZR, 2392(RSP)									
+  recovery_barrier.go:67	0x10106e678		a97ffbfd		LDP -8(RSP), (R29, R30)									
+  recovery_barrier.go:67	0x10106e67c		911843ff		ADD $1552, RSP, RSP									
+  recovery_barrier.go:67	0x10106e680		d65f03c0		RET											
+  join.go:32			0x10106e684		910040a5		ADD $16, R5, R5										
+  join.go:32			0x10106e688		91000421		ADD $1, R1, R1										
+  join.go:32			0x10106e68c		f100083f		CMP $2, R1										
+  join.go:32			0x10106e690		540005ea		BGE 47(PC)										
+  join.go:32			0x10106e694		a9401ca6		LDP (R5), (R6, R7)									
+  join.go:33			0x10106e698		b4ffff66		CBZ R6, -5(PC)										
+  join.go:34			0x10106e69c		a9402408		LDP (R0), (R8, R9)									
+  join.go:34			0x10106e6a0		91000529		ADD $1, R9, R9										
+  join.go:34			0x10106e6a4		f9400802		MOVD 16(R0), R2										
+  join.go:34			0x10106e6a8		eb09005f		CMP R9, R2										
+  join.go:34			0x10106e6ac		54000362		BCS 27(PC)										
+  join.go:32			0x10106e6b0		f9029be7		MOVD R7, 1328(RSP)									
+  join.go:32			0x10106e6b4		f90117e6		MOVD R6, 552(RSP)									
+  join.go:32			0x10106e6b8		f90187e1		MOVD R1, 776(RSP)									
+  join.go:32			0x10106e6bc		f902ffe5		MOVD R5, 1528(RSP)									
+  join.go:34			0x10106e6c0		aa0803e0		MOVD R8, R0										
+  join.go:34			0x10106e6c4		aa0903e1		MOVD R9, R1										
+  join.go:34			0x10106e6c8		b24003e3		ORR $1, ZR, R3										
+  join.go:34			0x10106e6cc		d000a624		ADRP 21782528(PC), R4									
+  join.go:34			0x10106e6d0		91390084		ADD $3648, R4, R4									
+  join.go:34			0x10106e6d4		97c050bb		CALL runtime.growslice(SB)								
+  join.go:34			0x10106e6d8		f942a7e5		MOVD 1352(RSP), R5									
+  join.go:34			0x10106e6dc		f90008a2		MOVD R2, 16(R5)										
+  join.go:34			0x10106e6e0		d001611b		ADRP 46276608(PC), R27									
+  join.go:34			0x10106e6e4		b9492366		MOVWU 2336(R27), R6									
+  join.go:34			0x10106e6e8		34000086		CBZW R6, 4(PC)										
+  join.go:34			0x10106e6ec		f94000a6		MOVD (R5), R6										
+  join.go:34			0x10106e6f0		97c068c0		CALL runtime.gcWriteBarrier2(SB)							
+  join.go:34			0x10106e6f4		a9001b20		STP (R0, R6), (R25)									
+  join.go:34			0x10106e6f8		f90000a0		MOVD R0, (R5)										
+  join.go:32			0x10106e6fc		f942ffe5		MOVD 1528(RSP), R5									
+  join.go:34			0x10106e700		f94117e6		MOVD 552(RSP), R6									
+  join.go:34			0x10106e704		f9429be7		MOVD 1328(RSP), R7									
+  join.go:34			0x10106e708		aa0103e9		MOVD R1, R9										
+  join.go:34			0x10106e70c		aa0003e8		MOVD R0, R8										
+  join.go:34			0x10106e710		f942a7e0		MOVD 1352(RSP), R0									
+  join.go:32			0x10106e714		f94187e1		MOVD 776(RSP), R1									
+  join.go:34			0x10106e718		f9000409		MOVD R9, 8(R0)										
+  join.go:34			0x10106e71c		d1000529		SUB $1, R9, R9										
+  join.go:34			0x10106e720		d37ced2a		LSL $4, R9, R10										
+  join.go:34			0x10106e724		f82a6906		MOVD R6, (R8)(R10)									
+  join.go:34			0x10106e728		8b091106		ADD R9<<4, R8, R6									
+  join.go:34			0x10106e72c		d001611b		ADRP 46276608(PC), R27									
+  join.go:34			0x10106e730		b9492368		MOVWU 2336(R27), R8									
+  join.go:34			0x10106e734		34000088		CBZW R8, 4(PC)										
+  join.go:34			0x10106e738		f94004c8		MOVD 8(R6), R8										
+  join.go:34			0x10106e73c		97c068ad		CALL runtime.gcWriteBarrier2(SB)							
+  join.go:34			0x10106e740		a9002327		STP (R7, R8), (R25)									
+  join.go:34			0x10106e744		f90004c7		MOVD R7, 8(R6)										
+  join.go:34			0x10106e748		17ffffcf		JMP -49(PC)										
+  join.go:34			0x10106e74c		9000c580		ADRP 25886720(PC), R0									
+  join.go:34			0x10106e750		91210000		ADD $2112, R0, R0									
+  recovery_barrier.go:67	0x10106e754		f942a7e1		MOVD 1352(RSP), R1									
+  recovery_barrier.go:67	0x10106e758		17ffffc1		JMP -63(PC)										
+  quorum_log.go:689		0x10106e75c		91004084		ADD $16, R4, R4										
+  quorum_log.go:689		0x10106e760		910004a5		ADD $1, R5, R5										
+  quorum_log.go:689		0x10106e764		f1000cbf		CMP $3, R5										
+  quorum_log.go:689		0x10106e768		5400016a		BGE 11(PC)										
+  quorum_log.go:689		0x10106e76c		a9401c86		LDP (R4), (R6, R7)									
+  quorum_log.go:689		0x10106e770		a9171fe6		STP (R6, R7), 368(RSP)									
+  quorum_log.go:694		0x10106e774		a9571fe6		LDP 368(RSP), (R6, R7)									
+  quorum_log.go:694		0x10106e778		eb0600ff		CMP R6, R7										
+  quorum_log.go:694		0x10106e77c		54000088		BHI 4(PC)										
+  quorum_log.go:697		0x10106e780		54fffee2		BCS -9(PC)										
+  quorum_log.go:697		0x10106e784		b24003e4		ORR $1, ZR, R4										
+  recovery_barrier.go:34	0x10106e788		14000004		JMP 4(PC)										
+  recovery_barrier.go:34	0x10106e78c		92800004		MOVD $-1, R4										
+  recovery_barrier.go:34	0x10106e790		14000002		JMP 2(PC)										
+  recovery_barrier.go:34	0x10106e794		aa1f03e4		MOVD ZR, R4										
+  recovery_barrier.go:34	0x10106e798		f100009f		CMP $0, R4										
+  recovery_barrier.go:34	0x10106e79c		54ffc00c		BGT -512(PC)										
+  recovery_barrier.go:35	0x10106e7a0		912063f4		ADD $2072, RSP, R20									
+  recovery_barrier.go:35	0x10106e7a4		1000009b		ADR 16(PC), R27										
+  recovery_barrier.go:35	0x10106e7a8		a93eeffd		STP (R29, R27), -24(RSP)								
+  recovery_barrier.go:35	0x10106e7ac		d10063fd		SUB $24, RSP, R29									
+  recovery_barrier.go:35	0x10106e7b0		97c069b4		CALL runtime.duffzero+176(SB)								
+  recovery_barrier.go:35	0x10106e7b4		d10023fd		SUB $8, RSP, R29									
+  recovery_barrier.go:35	0x10106e7b8		f904afff		MOVD ZR, 2392(RSP)									
+  recovery_barrier.go:35	0x10106e7bc		d001591b		ADRP 45228032(PC), R27									
+  recovery_barrier.go:35	0x10106e7c0		910a837b		ADD $672, R27, R27									
+  recovery_barrier.go:35	0x10106e7c4		a9400760		LDP (R27), (R0, R1)									
+  recovery_barrier.go:35	0x10106e7c8		a97ffbfd		LDP -8(RSP), (R29, R30)									
+  recovery_barrier.go:35	0x10106e7cc		911843ff		ADD $1552, RSP, RSP									
+  recovery_barrier.go:35	0x10106e7d0		d65f03c0		RET											
+  recovery_barrier.go:23	0x10106e7d4		910d43fb		ADD $848, RSP, R27									
+  recovery_barrier.go:23	0x10106e7d8		a9000760		STP (R0, R1), (R27)									
+  recovery_barrier.go:23	0x10106e7dc		910d83fb		ADD $864, RSP, R27									
+  recovery_barrier.go:23	0x10106e7e0		a9000f62		STP (R2, R3), (R27)									
+  recovery_barrier.go:23	0x10106e7e4		aa1e03e3		MOVD R30, R3										
+  recovery_barrier.go:23	0x10106e7e8		97c05f8a		CALL runtime.morestack_noctxt.abi0(SB)							
+  recovery_barrier.go:23	0x10106e7ec		910d43fb		ADD $848, RSP, R27									
+  recovery_barrier.go:23	0x10106e7f0		a9400760		LDP (R27), (R0, R1)									
+  recovery_barrier.go:23	0x10106e7f4		910d83fb		ADD $864, RSP, R27									
+  recovery_barrier.go:23	0x10106e7f8		a9400f62		LDP (R27), (R2, R3)									
+  recovery_barrier.go:23	0x10106e7fc		17fffd81		JMP github.com/WuKongIM/WuKongIM/pkg/channel/replication.writeCurrentTermBarrier(SB)	

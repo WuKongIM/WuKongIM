@@ -1,0 +1,244 @@
+{
+  "fixture_only": true,
+  "cases": [
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-pho5a736/run/profile-driver-status.json",
+      "driver_status": "complete",
+      "reason": "ok",
+      "requests": [
+        {
+          "kind": "cpu",
+          "at": 527461.8599005,
+          "path": "/debug/pprof/profile?seconds=10",
+          "auth_ok": true
+        },
+        {
+          "kind": "goroutine",
+          "at": 527466.901256083,
+          "path": "/debug/pprof/goroutine?debug=2",
+          "auth_ok": true
+        }
+      ],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-pho5a736"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-lbysa9z4/run/profile-driver-status.json",
+      "driver_status": "skipped",
+      "reason": "source_mismatch",
+      "requests": [],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-lbysa9z4"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-5g7y2fvk/run/profile-driver-status.json",
+      "driver_status": "skipped",
+      "reason": "receipt_identity_mismatch",
+      "requests": [],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-5g7y2fvk"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-0z7dihd4/run/profile-driver-status.json",
+      "driver_status": "skipped",
+      "reason": "missed_early_window",
+      "requests": [],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-0z7dihd4"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-s16_46hx/run/profile-driver-status.json",
+      "driver_status": "skipped",
+      "reason": "unsafe_or_oversized_receipt",
+      "requests": [],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-s16_46hx"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-ezblzte7/run/profile-driver-status.json",
+      "driver_status": "skipped",
+      "reason": "unsafe_or_oversized_receipt",
+      "requests": [],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-ezblzte7"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-xwck7fjr/run/profile-driver-status.json",
+      "driver_status": "skipped",
+      "reason": "insufficient_budget",
+      "requests": [],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-xwck7fjr"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-ysw_q88d/run/profile-driver-status.json",
+      "driver_status": "partial",
+      "reason": "coordinator_terminal",
+      "requests": [
+        {
+          "kind": "cpu",
+          "at": 527472.089657416,
+          "path": "/debug/pprof/profile?seconds=10",
+          "auth_ok": true
+        }
+      ],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-ysw_q88d"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-caxx6l38/run/profile-driver-status.json",
+      "driver_status": "partial",
+      "reason": "signal_SIGTERM",
+      "requests": [
+        {
+          "kind": "cpu",
+          "at": 527473.755836041,
+          "path": "/debug/pprof/profile?seconds=10",
+          "auth_ok": true
+        }
+      ],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-caxx6l38"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-311z25h0/run/profile-driver-status.json",
+      "driver_status": "partial",
+      "reason": "signal_SIGHUP",
+      "requests": [
+        {
+          "kind": "cpu",
+          "at": 527475.424686458,
+          "path": "/debug/pprof/profile?seconds=10",
+          "auth_ok": true
+        }
+      ],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-311z25h0"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-1paxz90n/run/profile-driver-status.json",
+      "driver_status": "partial",
+      "reason": "signal_SIGINT",
+      "requests": [
+        {
+          "kind": "cpu",
+          "at": 527477.085626375,
+          "path": "/debug/pprof/profile?seconds=10",
+          "auth_ok": true
+        }
+      ],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-1paxz90n"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-m2my5n_z/run/profile-driver-status.json",
+      "driver_status": "partial",
+      "reason": "signal_SIGTERM",
+      "requests": [
+        {
+          "kind": "cpu",
+          "at": 527478.716569833,
+          "path": "/debug/pprof/profile?seconds=10",
+          "auth_ok": true
+        },
+        {
+          "kind": "goroutine",
+          "at": 527483.757443666,
+          "path": "/debug/pprof/goroutine?debug=2",
+          "auth_ok": true
+        }
+      ],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-m2my5n_z"
+    },
+    {
+      "fixture_only": true,
+      "case": "oversize_cpu",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-_5lrgyqk/run/profile-driver-status.json",
+      "driver_status": "partial",
+      "reason": "profile_capture_missing",
+      "requests": [
+        {
+          "kind": "cpu",
+          "at": 527484.418072625,
+          "path": "/debug/pprof/profile?seconds=10",
+          "auth_ok": true
+        },
+        {
+          "kind": "goroutine",
+          "at": 527489.457768,
+          "path": "/debug/pprof/goroutine?debug=2",
+          "auth_ok": true
+        }
+      ],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-_5lrgyqk"
+    },
+    {
+      "fixture_only": true,
+      "case": "oversize_gor",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-3ft8tw8z/run/profile-driver-status.json",
+      "driver_status": "partial",
+      "reason": "profile_capture_missing",
+      "requests": [
+        {
+          "kind": "cpu",
+          "at": 527490.104604958,
+          "path": "/debug/pprof/profile?seconds=10",
+          "auth_ok": true
+        },
+        {
+          "kind": "goroutine",
+          "at": 527495.140842916,
+          "path": "/debug/pprof/goroutine?debug=2",
+          "auth_ok": true
+        }
+      ],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-3ft8tw8z"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-46x1wod5/run/profile-driver-status.json",
+      "driver_status": "skipped",
+      "reason": "insufficient_budget_after_receipt_wait",
+      "requests": [],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-46x1wod5"
+    },
+    {
+      "fixture_only": true,
+      "case": "normal",
+      "receipt": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-7cj_z1ns/run/profile-driver-status.json",
+      "driver_status": "complete",
+      "reason": "ok",
+      "requests": [
+        {
+          "kind": "cpu",
+          "at": 527498.396431958,
+          "path": "/debug/pprof/profile?seconds=10",
+          "auth_ok": true
+        },
+        {
+          "kind": "goroutine",
+          "at": 527503.430808708,
+          "path": "/debug/pprof/goroutine?debug=2",
+          "auth_ok": true
+        }
+      ],
+      "root": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-profile-fake-7cj_z1ns"
+    }
+  ],
+  "driver_sha256": "fecadb56d83b16999a5c23c9ea89cf8bc99ba463040ca96bc57fa122800b383e",
+  "helper_sha256": "197b86be9f5f245a9b4c0dccc78b660094e2399cf19d1b9aba26b5e5ea319448"
+}

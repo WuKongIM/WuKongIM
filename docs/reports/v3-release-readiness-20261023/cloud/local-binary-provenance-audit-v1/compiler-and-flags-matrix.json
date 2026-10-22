@@ -1,0 +1,370 @@
+{
+  "entries": [
+    {
+      "scope": "local",
+      "name": "local-loss-reproduction-v1/wukongim",
+      "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wukongim",
+      "selected_settings": {
+        "GOOS": "darwin",
+        "GOARCH": "arm64",
+        "GOAMD64": "not recorded",
+        "GOARM64": "v8.0",
+        "CGO_ENABLED": "1",
+        "-trimpath": "not recorded",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "local",
+      "name": "full-original-distribution-v1/wukongim",
+      "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wukongim",
+      "selected_settings": {
+        "GOOS": "darwin",
+        "GOARCH": "arm64",
+        "GOAMD64": "not recorded",
+        "GOARM64": "v8.0",
+        "CGO_ENABLED": "1",
+        "-trimpath": "not recorded",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "local",
+      "name": "full-original-distribution-v1/wkcli",
+      "sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcli",
+      "selected_settings": {
+        "GOOS": "darwin",
+        "GOARCH": "arm64",
+        "GOAMD64": "not recorded",
+        "GOARM64": "v8.0",
+        "CGO_ENABLED": "1",
+        "-trimpath": "not recorded",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "local",
+      "name": "full-original-distribution-v2/wukongim",
+      "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wukongim",
+      "selected_settings": {
+        "GOOS": "darwin",
+        "GOARCH": "arm64",
+        "GOAMD64": "not recorded",
+        "GOARM64": "v8.0",
+        "CGO_ENABLED": "1",
+        "-trimpath": "not recorded",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "local",
+      "name": "full-original-distribution-v2/wkcli",
+      "sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcli",
+      "selected_settings": {
+        "GOOS": "darwin",
+        "GOARCH": "arm64",
+        "GOAMD64": "not recorded",
+        "GOARM64": "v8.0",
+        "CGO_ENABLED": "1",
+        "-trimpath": "not recorded",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "local",
+      "name": "full-original-distribution-batch128-v1/wukongim",
+      "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wukongim",
+      "selected_settings": {
+        "GOOS": "darwin",
+        "GOARCH": "arm64",
+        "GOAMD64": "not recorded",
+        "GOARM64": "v8.0",
+        "CGO_ENABLED": "1",
+        "-trimpath": "not recorded",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "local",
+      "name": "full-original-distribution-batch128-v1/wkcli",
+      "sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcli",
+      "selected_settings": {
+        "GOOS": "darwin",
+        "GOARCH": "arm64",
+        "GOAMD64": "not recorded",
+        "GOARM64": "v8.0",
+        "CGO_ENABLED": "1",
+        "-trimpath": "not recorded",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "local",
+      "name": "full-original-distribution-profile-node2-v1/wukongim",
+      "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wukongim",
+      "selected_settings": {
+        "GOOS": "darwin",
+        "GOARCH": "arm64",
+        "GOAMD64": "not recorded",
+        "GOARM64": "v8.0",
+        "CGO_ENABLED": "1",
+        "-trimpath": "not recorded",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "local",
+      "name": "full-original-distribution-profile-node2-v1/wkcli",
+      "sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcli",
+      "selected_settings": {
+        "GOOS": "darwin",
+        "GOARCH": "arm64",
+        "GOAMD64": "not recorded",
+        "GOARM64": "v8.0",
+        "CGO_ENABLED": "1",
+        "-trimpath": "not recorded",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "cloud-retained-ELF",
+      "name": "bin/caddy",
+      "sha256": "b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9",
+      "actual_go_version_from_binary": "go1.26.3",
+      "main_package": "caddy",
+      "selected_settings": {
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "GOAMD64": "v1",
+        "GOARM64": "not recorded",
+        "CGO_ENABLED": "0",
+        "-trimpath": "true",
+        "-tags": "nobadger,nomysql,nopgx",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "e2eee6a7fce366321294c9c2a79f3146891dcbdf",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "cloud-retained-ELF",
+      "name": "bin/node_exporter",
+      "sha256": "3a01a3cc7f69798698fbb31b24e5ee279dd2c39727be2a5a65071536fc16b455",
+      "actual_go_version_from_binary": "go1.26.1",
+      "main_package": "github.com/prometheus/node_exporter",
+      "selected_settings": {
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "GOAMD64": "v1",
+        "GOARM64": "not recorded",
+        "CGO_ENABLED": "0",
+        "-trimpath": "not recorded",
+        "-tags": "not recorded",
+        "-ldflags": "\"-X github.com/prometheus/common/version.Version=1.11.1 -X github.com/prometheus/common/version.Revision=0dd664dece3f8319f6bec5a221acd2c7ad13a23d -X github.com/prometheus/common/version.Branch=HEAD -X github.com/prometheus/common/version.BuildUser=root@3d8697c83dd8 -X github.com/prometheus/common/version.BuildDate=20260407-15:45:19  -extldflags '-static'\"",
+        "-race": "not recorded",
+        "vcs.revision": "0dd664dece3f8319f6bec5a221acd2c7ad13a23d",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "cloud-retained-ELF",
+      "name": "bin/prometheus",
+      "sha256": "702da6c221044ba0778c2017a2f51854bec900f79221cec4579411ee6806484a",
+      "actual_go_version_from_binary": "go1.26.5",
+      "main_package": "github.com/prometheus/prometheus/cmd/prometheus",
+      "selected_settings": {
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "GOAMD64": "v1",
+        "GOARM64": "not recorded",
+        "CGO_ENABLED": "0",
+        "-trimpath": "not recorded",
+        "-tags": "netgo,builtinassets",
+        "-ldflags": "\"-X github.com/prometheus/common/version.Version=3.13.1 -X github.com/prometheus/common/version.Revision=73ff57ce2b8161059ac7fe5188f03f1c3d22b29a -X github.com/prometheus/common/version.Branch=HEAD -X github.com/prometheus/common/version.BuildUser=root@6a98665b49f7 -X github.com/prometheus/common/version.BuildDate=20260710-08:18:27  -extldflags '-static'\"",
+        "-race": "not recorded",
+        "vcs.revision": "73ff57ce2b8161059ac7fe5188f03f1c3d22b29a",
+        "vcs.modified": "true"
+      }
+    },
+    {
+      "scope": "cloud-retained-ELF",
+      "name": "bin/wkanalysis",
+      "sha256": "2eb52a8619c91168af8e18cd967c8b69cfdbfbb68db622509bb9e1dc6fdff6dc",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkanalysis",
+      "selected_settings": {
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "GOAMD64": "v1",
+        "GOARM64": "not recorded",
+        "CGO_ENABLED": "0",
+        "-trimpath": "true",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "cloud-retained-ELF",
+      "name": "bin/wkcli",
+      "sha256": "43dd65554569ef29596d5a21349f0a3e08c4093652413afbd2f654f1856c884b",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcli",
+      "selected_settings": {
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "GOAMD64": "v1",
+        "GOARM64": "not recorded",
+        "CGO_ENABLED": "0",
+        "-trimpath": "true",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "cloud-retained-ELF",
+      "name": "bin/wkcloudbundle",
+      "sha256": "5ab47afac494aa857ff162f8e80fce01652647b794c629336b11c16adddb2931",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudbundle",
+      "selected_settings": {
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "GOAMD64": "v1",
+        "GOARM64": "not recorded",
+        "CGO_ENABLED": "0",
+        "-trimpath": "true",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "cloud-retained-ELF",
+      "name": "bin/wkcloudgate",
+      "sha256": "42fb87d893ca9bd6bd49167fafe2c1f9e3c5abe0f908c041838608051c078cef",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudgate",
+      "selected_settings": {
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "GOAMD64": "v1",
+        "GOARM64": "not recorded",
+        "CGO_ENABLED": "0",
+        "-trimpath": "true",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "cloud-retained-ELF",
+      "name": "bin/wkcloudhost",
+      "sha256": "511886009b1668b2ed90c8487d261d1c57a2a360f1bdb1fcb7079c92aea7a996",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wkcloudhost",
+      "selected_settings": {
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "GOAMD64": "v1",
+        "GOARM64": "not recorded",
+        "CGO_ENABLED": "0",
+        "-trimpath": "true",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "vcs.modified": "false"
+      }
+    },
+    {
+      "scope": "cloud-retained-ELF",
+      "name": "bin/wukongim",
+      "sha256": "99469fc9ab58c6180c909ccef65b2fdb8ad8fc9f0b91161292bda9b69b0eed00",
+      "actual_go_version_from_binary": "go1.25.11",
+      "main_package": "github.com/WuKongIM/WuKongIM/cmd/wukongim",
+      "selected_settings": {
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "GOAMD64": "v1",
+        "GOARM64": "not recorded",
+        "CGO_ENABLED": "0",
+        "-trimpath": "true",
+        "-tags": "not recorded",
+        "-ldflags": "not recorded",
+        "-race": "not recorded",
+        "vcs.revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "vcs.modified": "false"
+      }
+    }
+  ],
+  "conclusions": [
+    "All audited local product/server and CLI outputs and the six cloud WuKongIM ELF outputs report compiler Go1.25.11. Host dispatcher Go1.23.4 is not the actual compiler of these outputs.",
+    "Local native outputs differ from cloud in GOOS/GOARCH, CGO=1 versus 0, and absent versus true trimpath. These are environment/configuration differences, not an established performance root cause.",
+    "Local VCS a804 stamps are explained by Go1.25.11 ignoring ordinary .git files in nested worktrees; actual compiled source witnesses point into the worktree and include post-a804 79a logic.",
+    "Third-party Caddy, Prometheus and node_exporter Go1.26.x metadata belongs to those separately pinned dependencies, not the product compiler."
+  ]
+}

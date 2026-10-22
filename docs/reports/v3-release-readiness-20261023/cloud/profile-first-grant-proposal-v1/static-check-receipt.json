@@ -1,0 +1,49 @@
+{
+  "schema": "wukongim/temporary-profile-proposal-static-check/v1",
+  "not_started": true,
+  "real_output_directory_exists": false,
+  "future_output_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1",
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "original_binary_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+  "helper_sha256": "197b86be9f5f245a9b4c0dccc78b660094e2399cf19d1b9aba26b5e5ea319448",
+  "watcher_sha256": "6bf22ebcf256c04e34f24c84a9e6f8217417295c23dfd57dcf48032c7f14e566",
+  "a_inputs_to_copy_unchanged": {
+    "original-distribution-local.yaml": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe"
+  },
+  "source_launcher_sha256": "232cb5a9e5ea8826d23c607f76dadb0dadf391345dc915eb43b64492782e0e3f",
+  "source_supervisor_sha256": "25c5afbc89581f0dd61874191fdab6db0cf2822b62bd5ac20b871078f2f74c33",
+  "launcher_sha256": "e4a4dc5de31dd229023dd7ef0971e3bf7ff44ff301468f1110c4b5fd546bb5be",
+  "supervisor_sha256": "9bbae50d0cf41aef9d6f1626bd4779a4d119f11cc790280a72b89b9af5bb1327",
+  "strict_loader_preserved": "existing wkcli bench soak chat-lifecycle --config; original LoadConfig/Config.Validate",
+  "run_start_expected": {
+    "schema": "wukongim.chat_lifecycle.run_start/v1",
+    "stage": "shakeout",
+    "started_at": "2026-10-23T03:01:30.891168+08:00",
+    "expected_end_at": "2026-10-26T03:01:30.891168+08:00",
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:f9814da7618b2c867b9e8b7e82745b2a5dd3de6cd0b04cf696f96bcc80bfcd8c",
+    "generation": 1
+  },
+  "static_checks": [
+    "bash -n helper",
+    "bash -n launcher",
+    "Python AST watcher/supervisor"
+  ],
+  "unchanged_limits": {
+    "total_seconds": 600,
+    "watchdog_term_seconds": 570,
+    "watchdog_kill_after_seconds": 5,
+    "first_grant_deadline_seconds": 360,
+    "traffic_target_seconds": 120,
+    "latest_stop_seconds": 480,
+    "product_failure_hold_seconds": 90
+  },
+  "configuration_changes": [],
+  "profile_requests_only": [
+    "node2 CPU seconds=10",
+    "node2 goroutine debug=2 nominal shell timer +5s"
+  ],
+  "future_materialization_required": "Copy these launcher/supervisor under their original basenames to fresh future directory and copy the three listed A inputs byte for byte; do not execute files from proposal directory."
+}

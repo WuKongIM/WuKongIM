@@ -1,0 +1,378 @@
+{
+  "metadata_revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "declared_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "trees": {
+    "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83": "d3ae8bec9e277cc0b7a95d51762682224e505be2",
+    "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06": "a13367b2dc4658e6c27a1992f240544636e5178d"
+  },
+  "all_changed_paths": [
+    {
+      "status": "M",
+      "path": ".github/workflows/README.md"
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml"
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/chat-lifecycle-formal.yml"
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml"
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml"
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/v3-candidate-regression.yml"
+    },
+    {
+      "status": "M",
+      "path": "CHANGELOG.md"
+    },
+    {
+      "status": "A",
+      "path": "cmd/wkchatlifecycle/budget_downward_test.go"
+    },
+    {
+      "status": "M",
+      "path": "cmd/wkchatlifecycle/main.go"
+    },
+    {
+      "status": "M",
+      "path": "cmd/wkchatlifecycle/main_test.go"
+    },
+    {
+      "status": "A",
+      "path": "cmd/wkcli/internal/benchmark/budget_downward_test.go"
+    },
+    {
+      "status": "M",
+      "path": "cmd/wkcli/internal/benchmark/formal_chain_command.go"
+    },
+    {
+      "status": "M",
+      "path": "configs/wkbench/chat-lifecycle/README.md"
+    },
+    {
+      "status": "M",
+      "path": "configs/wkbench/chat-lifecycle/local-shakeout.yaml"
+    },
+    {
+      "status": "M",
+      "path": "docs-site/content/docs/api/product-http/conversations/syncConversationsLegacy.en.mdx"
+    },
+    {
+      "status": "M",
+      "path": "docs-site/content/docs/api/product-http/conversations/syncConversationsLegacy.mdx"
+    },
+    {
+      "status": "M",
+      "path": "docs-site/contracts/product-http.openapi.json"
+    },
+    {
+      "status": "M",
+      "path": "docs-site/lib/product-http-parameter-explanations.ts"
+    },
+    {
+      "status": "M",
+      "path": "docs/adr/0047-retain-one-lease-across-deployment-repair.md"
+    },
+    {
+      "status": "M",
+      "path": "docs/development/FLOW_INDEX.md"
+    },
+    {
+      "status": "M",
+      "path": "docs/development/PROJECT_KNOWLEDGE.md"
+    },
+    {
+      "status": "M",
+      "path": "docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md"
+    },
+    {
+      "status": "M",
+      "path": "internal/bench/chatlifecycle/config_examples_test.go"
+    },
+    {
+      "status": "A",
+      "path": "internal/bench/chatlifecycle/local_shakeout_budget_test.go"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/chatlifecyclerun/FLOW.md"
+    },
+    {
+      "status": "A",
+      "path": "internal/usecase/chatlifecyclerun/budget_downward_test.go"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/chatlifecyclerun/run.go"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/chatlifecyclerun/run_test.go"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/clouddeploy/FLOW.md"
+    },
+    {
+      "status": "A",
+      "path": "internal/usecase/clouddeploy/budget_downward_test.go"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/clouddeploy/deployment.go"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/conversation/FLOW.md"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/conversation/legacy_sync.go"
+    },
+    {
+      "status": "D",
+      "path": "internal/usecase/conversation/legacy_sync_budget_test.go"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/conversation/legacy_sync_test.go"
+    },
+    {
+      "status": "M",
+      "path": "pkg/channel/FLOW.md"
+    },
+    {
+      "status": "M",
+      "path": "pkg/channel/replication/recovery_barrier.go"
+    },
+    {
+      "status": "A",
+      "path": "pkg/channel/replication/recovery_barrier_pending_test.go"
+    },
+    {
+      "status": "M",
+      "path": "pkg/transport/internal/buffer/retained_test.go"
+    },
+    {
+      "status": "M",
+      "path": "scripts/capture-wukongim-local-threshold-pprof.sh"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat-lifecycle/authenticate-released-preclock.py"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/classify-pre-clock-summary.sh"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/classify-stage-service-state.sh"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/collect-terminal-evidence.sh"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/comment-request-issue.sh"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/discover-active-handoffs.sh"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat-lifecycle/pre-clock-diagnostic.py"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/select-formal-transition-committed.jq"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat-lifecycle/stage-orchestrate.sh"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat-lifecycle/terminal-evidence.py"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_direct_lab_start_integration_test.go"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat_lifecycle_direct_lab_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_downward_budget_consumers_integration_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_downward_budget_consumers_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_downward_budget_integration_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_downward_budget_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_issue_preflight_integration_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_preclock_capture_integration_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_preclock_diagnostic_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_preflight_artifact_workflow_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_released_preclock_consumers_integration_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_released_preclock_consumers_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_released_preclock_integration_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_released_preclock_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_stage_state_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/chat_lifecycle_terminal_evidence_integration_test.go"
+    },
+    {
+      "status": "M",
+      "path": "scripts/chat_lifecycle_workflows_test.go"
+    },
+    {
+      "status": "M",
+      "path": "scripts/cloud-sim/analyze.sh"
+    },
+    {
+      "status": "M",
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-local-baseline.sh"
+    },
+    {
+      "status": "M",
+      "path": "scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh"
+    },
+    {
+      "status": "A",
+      "path": "scripts/shell_trap_cleanup_integration_test.go"
+    },
+    {
+      "status": "A",
+      "path": "scripts/testdata/chat-lifecycle-released-preclock/README.md"
+    },
+    {
+      "status": "A",
+      "path": "scripts/testdata/chat-lifecycle-released-preclock/original.json"
+    },
+    {
+      "status": "A",
+      "path": "scripts/testdata/chat_lifecycle_terminal_evidence_test.py"
+    },
+    {
+      "status": "M",
+      "path": "scripts/v3_candidate_workflow_contract_test.py"
+    },
+    {
+      "status": "M",
+      "path": "scripts/wukongim_local_threshold_pprof_script_integration_test.go"
+    },
+    {
+      "status": "M",
+      "path": "scripts/wukongim_single_node_terminal_cut_integration_test.go"
+    },
+    {
+      "status": "M",
+      "path": "scripts/wukongim_three_node_chat_lifecycle_script_integration_test.go"
+    },
+    {
+      "status": "M",
+      "path": "scripts/wukongim_three_node_chat_lifecycle_script_test.go"
+    },
+    {
+      "status": "M",
+      "path": "scripts/wukongim_three_nodes_build_integration_test.go"
+    },
+    {
+      "status": "M",
+      "path": "test/e2e/message/AGENTS.md"
+    },
+    {
+      "status": "M",
+      "path": "test/e2e/message/legacy_conversation_sync/AGENTS.md"
+    },
+    {
+      "status": "M",
+      "path": "test/e2e/message/legacy_conversation_sync/legacy_conversation_sync_test.go"
+    },
+    {
+      "status": "M",
+      "path": "test/e2e/migration/ordinary_history/AGENTS.md"
+    },
+    {
+      "status": "M",
+      "path": "test/e2e/migration/ordinary_history/ordinary_history_test.go"
+    }
+  ],
+  "production_go_changed_paths": [
+    {
+      "status": "M",
+      "path": "cmd/wkchatlifecycle/main.go"
+    },
+    {
+      "status": "M",
+      "path": "cmd/wkcli/internal/benchmark/formal_chain_command.go"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/chatlifecyclerun/run.go"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/clouddeploy/deployment.go"
+    },
+    {
+      "status": "M",
+      "path": "internal/usecase/conversation/legacy_sync.go"
+    },
+    {
+      "status": "M",
+      "path": "pkg/channel/replication/recovery_barrier.go"
+    }
+  ],
+  "production_go_changed_path_count": 6,
+  "conclusion": "a804 and79a have different production source, so stamp cannot be ignored without investigation. However compiled positive79a witnesses refute the inference that local binaries necessarily contain a804 source. Source diff is not by itself an invalidation of the actual local runtime observations."
+}

@@ -1,0 +1,8 @@
+{
+  "schema": "wukongim.local_first_grant_profile/v1",
+  "trigger": {"kind": "first_grant_receipt", "observed_phase": "measurement", "previous_utc": "2026-10-22T20:09:30.192341Z", "current_utc": "2026-10-22T20:09:30.277888Z"},
+  "capture": {"status": "partial", "valid": false, "reason": "profile_capture_missing", "start_phase": "measurement", "end_phase": "measurement", "started_at_utc": "2026-10-22T20:09:30Z", "completed_at_utc": "2026-10-22T20:09:40Z", "cpu_seconds": 10},
+  "nodes": [
+    {"node": "node-2", "cpu": "complete", "heap": "not_requested", "goroutine": "missing"}
+  ]
+}

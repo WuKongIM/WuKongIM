@@ -1,0 +1,26 @@
+{
+  "schema": "wukongim/binary_stamp_semantics_clarification/v1",
+  "amends_provenance_manifest_sha256": "a2d430dc95d71b8a819fa342863860f62f929ea11a9479c6d17c4a9b5bc60d9e",
+  "old_frozen_files_unchanged": true,
+  "verified_file_metadata": {
+    "wukongim_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+    "wkcli_sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+    "embedded_go": "go1.25.11",
+    "embedded_vcs_revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+    "embedded_vcs_modified": "false"
+  },
+  "actual_compilation_source_inferred_from_vcs_stamp": false,
+  "actual_compilation_source_independently_verified_by_this_axis": false,
+  "source_revision_claim_from_stamp_alone": null,
+  "possible_build_context_explanation_not_confirmed_here": "Go VCS discovery in nested .worktrees may observe outer checkout; independent audit is investigating Go source/build receipts/frame paths.",
+  "cli_build_receipt_context_from_parent": "Parent reports 79a build cwd/source-freeze evidence for CLI; this axis does not substitute VCS stamp for that chain or independently adjudicate the receipt.",
+  "server_prebuilt_override_context_from_parent": "Initial full build-source chain remains incomplete; exact-target candidate qualification is not established.",
+  "interpretation_priority": "If previous wording says a804 executable/source rather than embedded a804 metadata, read it as metadata only. Neither a804 nor 79a actual compilation source is concluded by this axis from stamp alone.",
+  "unchanged_facts": [
+    "Two file hashes and embedded Go/build settings.",
+    "85 repository path differences and33 source-file byte equivalence checks.",
+    "c253 node2 CPU sample descriptions and observed metrics/log aggregates."
+  ],
+  "qualification_limit": "Withdraw verified-79a-reproduction and cloud-performance-root-cause claims; do not withdraw descriptive signal facts solely because of a stamp mismatch.",
+  "no_new_build_or_product_or_profile_or_cloud": true
+}

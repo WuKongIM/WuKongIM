@@ -1,0 +1,18 @@
+/tmp/wukongim-v3-readiness-20261023/cloud/local-binary-provenance-audit-v1/PRIVATE_extracted-cloud/wkcloudgate: go1.25.11
+	path	github.com/WuKongIM/WuKongIM/cmd/wkcloudgate
+	mod	github.com/WuKongIM/WuKongIM	v0.0.0-20261021204441-79a7177032a6	
+	dep	github.com/spf13/cobra	v1.10.2	h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
+	dep	github.com/spf13/pflag	v1.0.10	h1:4EBh2KAYBwaONj6b2Ye1GiHfwjqyROoF4RwYO+vPwFk=
+	dep	golang.org/x/crypto	v0.55.0	h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=
+	dep	gopkg.in/yaml.v3	v3.0.1	h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-trimpath=true
+	build	CGO_ENABLED=0
+	build	GOARCH=amd64
+	build	GOOS=linux
+	build	GOAMD64=v1
+	build	vcs=git
+	build	vcs.revision=79a7177032a6ae1ec7015cefe0e6f94eb0f19f06
+	build	vcs.time=2026-10-21T20:44:41Z
+	build	vcs.modified=false

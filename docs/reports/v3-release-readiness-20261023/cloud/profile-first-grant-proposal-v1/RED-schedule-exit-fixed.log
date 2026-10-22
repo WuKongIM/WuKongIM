@@ -1,0 +1,18 @@
+test_01_matching_fresh_receipt_schedules_only_node2_cpu10_and_gor_at5 (__main__.Contract.test_01_matching_fresh_receipt_schedules_only_node2_cpu10_and_gor_at5) ... FAIL
+
+======================================================================
+FAIL: test_01_matching_fresh_receipt_schedules_only_node2_cpu10_and_gor_at5 (__main__.Contract.test_01_matching_fresh_receipt_schedules_only_node2_cpu10_and_gor_at5)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v1/driver_fixture_integration_test.py", line 67, in test_01_matching_fresh_receipt_schedules_only_node2_cpu10_and_gor_at5
+    f=self.fixture();r=f.wait();self.assertEqual(r['status'],'complete');self.assertEqual([e['kind'] for e in f.events],['cpu','goroutine']);self.assertTrue(all(e['auth_ok'] for e in f.events));self.assertGreaterEqual(f.events[1]['at']-f.events[0]['at'],4.8);self.assertLess(f.events[1]['at']-f.events[0]['at'],5.5);self.assertTrue((f.output/'profiles/node-2-cpu.pb.gz').exists());self.assertTrue((f.output/'profiles/node-2-goroutine.txt').exists());self.assertFalse(any('heap' in e['path'] for e in f.events));f.assert_clean(self)
+                       ~~~~~~^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v1/driver_fixture_integration_test.py", line 48, in wait
+    assert self.process.returncode==0,(self.process.returncode,err.decode()[:300])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (2, "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/private/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v1/watch-first-grant.py': [Errno 2] No such file or directory\n")
+
+----------------------------------------------------------------------
+Ran 1 test in 0.558s
+
+FAILED (failures=1)

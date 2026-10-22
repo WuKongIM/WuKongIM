@@ -1,0 +1,165 @@
+--- frozen79a/capture-wukongim-local-threshold-pprof.sh
++++ temporary/capture-first-grant-profiles.sh
+@@ -7,29 +7,12 @@
+ 
+ usage() {
+   cat <<'USAGE'
+-Usage: scripts/capture-wukongim-local-threshold-pprof.sh \
+-  --out-dir DIR \
+-  --phase-state-file FILE \
+-  --trigger-kind actual_offered_ratio|sendack_p99|terminal_product_failure \
+-  --trigger-observed-phase measurement \
+-  --previous-utc RFC3339Nano \
+-  --current-utc RFC3339Nano \
+-  --node http://127.0.0.1:PORT \
+-  [--node http://127.0.0.1:PORT \
+-   --node http://127.0.0.1:PORT] \
+-  [--cpu-seconds N] [--capture-context]
+-
+-Captures one bounded local profile set when a measured threshold is first
+-crossed. --trigger-observed-phase is the authoritative phase at the exact
+-typed worker-cut bracket. The live phase-state file contains one of warmup,
+-measurement, drain, or shutdown. A capture is valid only when both live phase
+-reads are measurement. If the parent has already closed SEND admission, the
+-helper records a typed partial result without starting network requests. The
+-required WK_BENCH_API_TOKEN environment variable authenticates every pprof
+-request without placing the credential in command arguments or artifacts.
+-
+-Exit status is 0 for complete, partial, phase-invalid, and repeated requests.
+-Invalid invocation parameters exit 64. Artifact/metadata write failures exit 73.
++Temporary fixed-node2 first-grant adapter. Required: --out-dir, --phase-state-file,
++--trigger-kind first_grant_receipt, --trigger-observed-phase measurement,
++--previous-utc (actual first grant), --current-utc (receipt detection),
++--node (one explicit loopback node2 URL), --cpu-seconds10.
++One CPU request then one goroutine request at local submission+5s. No heap/context.
++This adapts frozen threshold-helper ownership; it is not an unchanged threshold mode.
+ USAGE
+ }
+ 
+@@ -86,7 +69,7 @@
+       shift 2
+       ;;
+     --capture-context)
+-      CAPTURE_CONTEXT=1
++      die_usage "context capture is not permitted in temporary first-grant mode"
+       shift
+       ;;
+     --cpu-seconds)
+@@ -119,16 +102,17 @@
+ export -n LOCAL_PPROF_API_TOKEN
+ unset WK_BENCH_API_TOKEN
+ case "$TRIGGER_KIND" in
+-  actual_offered_ratio|sendack_p99|terminal_product_failure) ;;
++  first_grant_receipt) ;;
+   *) die_usage "unsupported --trigger-kind: $TRIGGER_KIND" ;;
+ esac
+ [[ "$TRIGGER_OBSERVED_PHASE" == measurement ]] ||
+   die_usage '--trigger-observed-phase must be measurement'
+ [[ "$CPU_SECONDS" =~ ^[0-9]+$ ]] && (( CPU_SECONDS >= 1 && CPU_SECONDS <= 30 )) ||
+   die_usage "--cpu-seconds must be an integer from 1 through 30: $CPU_SECONDS"
++[[ "$CPU_SECONDS" -eq 10 ]] || die_usage "temporary mode requires cpu-seconds10"
+ NODE_COUNT="${#NODE_URLS[@]}"
+-[[ "$NODE_COUNT" -eq 1 || "$NODE_COUNT" -eq 3 ]] ||
+-  die_usage 'exactly one or three --node values are required'
++[[ "$NODE_COUNT" -eq 1 ]] ||
++  die_usage 'exactly one physical node2 --node value is required'
+ 
+ normalize_rfc3339_nano() {
+   local value="$1" base fraction zone zone_for_date epoch utc_base fraction_digits fraction_nanos
+@@ -257,9 +241,10 @@
+ GOROUTINE_STATUS=()
+ for index in "${!NODE_URLS[@]}"; do
+   CPU_STATUS[$index]=missing
+-  HEAP_STATUS[$index]=missing
++  HEAP_STATUS[$index]=not_requested
+   GOROUTINE_STATUS[$index]=missing
+ done
++TIMER_PID=""
+ CAPTURE_PIDS=()
+ CAPTURE_TMP_FILES=()
+ CAPTURE_FINAL_FILES=()
+@@ -281,7 +266,7 @@
+   local temporary="$METADATA_FILE.next.$$" node comma
+   if ! {
+     printf '{\n'
+-    printf '  "schema": "wukongim.local_threshold_pprof/v1",\n'
++    printf '  "schema": "wukongim.local_first_grant_profile/v1",\n'
+     printf '  "trigger": {"kind": "%s", "observed_phase": "%s", "previous_utc": "%s", "current_utc": "%s"},\n' \
+       "$TRIGGER_KIND" "$TRIGGER_OBSERVED_PHASE" "$PREVIOUS_UTC" "$CURRENT_UTC"
+     printf '  "capture": {"status": "%s", "valid": %s, "reason": "%s", "start_phase": "%s", "end_phase": "%s", "started_at_utc": "%s", "completed_at_utc": "%s", "cpu_seconds": %s},\n' \
+@@ -292,7 +277,7 @@
+       comma=,
+       [[ "$node" -eq $((NODE_COUNT - 1)) ]] && comma=''
+       printf '    {"node": "node-%s", "cpu": "%s", "heap": "%s", "goroutine": "%s"}%s\n' \
+-        "$((node + 1))" "${CPU_STATUS[$node]}" "${HEAP_STATUS[$node]}" "${GOROUTINE_STATUS[$node]}" "$comma"
++        "2" "${CPU_STATUS[$node]}" "${HEAP_STATUS[$node]}" "${GOROUTINE_STATUS[$node]}" "$comma"
+     done
+     printf '  ]\n'
+     printf '}\n'
+@@ -308,6 +293,11 @@
+ 
+ terminate_children() {
+   local pid
++  if [[ -n "$TIMER_PID" ]]; then
++    kill "$TIMER_PID" 2>/dev/null || true
++    wait "$TIMER_PID" 2>/dev/null || true
++    TIMER_PID=""
++  fi
+   # Bash 3 treats an empty array expansion as unset under nounset.
+   if (( ${#CAPTURE_PIDS[@]} == 0 )); then return 0; fi
+   for pid in "${CAPTURE_PIDS[@]}"; do
+@@ -438,7 +428,10 @@
+     [[ -n "${CAPTURE_PIDS[$capture_index]}" ]] || continue
+     capture_status=missing
+     if wait "${CAPTURE_PIDS[$capture_index]}" && [[ -s "${CAPTURE_TMP_FILES[$capture_index]}" ]]; then
+-      if mv "${CAPTURE_TMP_FILES[$capture_index]}" "${CAPTURE_FINAL_FILES[$capture_index]}"; then
++      limit=8388608
++      [[ "${CAPTURE_KINDS[$capture_index]}" == goroutine ]] && limit=4194304
++      bytes="$(wc -c <"${CAPTURE_TMP_FILES[$capture_index]}")"
++      if (( bytes <= limit )) && mv "${CAPTURE_TMP_FILES[$capture_index]}" "${CAPTURE_FINAL_FILES[$capture_index]}"; then
+         capture_status=complete
+       fi
+     fi
+@@ -460,18 +453,21 @@
+   capture_context before
+ fi
+ 
+-for index in "${!NODE_URLS[@]}"; do
+-  node_number=$((index + 1))
+-  start_profile_request "$index" cpu \
+-    "${NODE_URLS[$index]}/debug/pprof/profile?seconds=${CPU_SECONDS}" \
+-    "$PROFILE_DIR/node-${node_number}-cpu.pb.gz" "$CPU_MAX_TIME_SECONDS"
+-  start_profile_request "$index" heap \
+-    "${NODE_URLS[$index]}/debug/pprof/heap" \
+-    "$PROFILE_DIR/node-${node_number}-heap.pb.gz" "$SNAPSHOT_MAX_TIME_SECONDS"
+-  start_profile_request "$index" goroutine \
+-    "${NODE_URLS[$index]}/debug/pprof/goroutine?debug=2" \
+-    "$PROFILE_DIR/node-${node_number}-goroutine.txt" "$SNAPSHOT_MAX_TIME_SECONDS"
+-done
++# Temporary fixed-role schedule. The original request-registration, auth,
++# cancellation and joins remain in use; this is not a threshold trigger.
++index=0
++start_profile_request "$index" cpu   "${NODE_URLS[$index]}/debug/pprof/profile?seconds=${CPU_SECONDS}"   "$PROFILE_DIR/node-2-cpu.pb.gz" "$CPU_MAX_TIME_SECONDS"
++CAPTURE_REGISTERING=1
++sleep 5 &
++TIMER_PID=$!
++CAPTURE_REGISTERING=0
++if (( SIGNAL_PENDING == 1 )); then handle_signal; fi
++wait "$TIMER_PID"
++TIMER_PID=""
++if [[ "$(read_phase_state)" != measurement ]]; then
++  handle_signal
++fi
++start_profile_request "$index" goroutine   "${NODE_URLS[$index]}/debug/pprof/goroutine?debug=2"   "$PROFILE_DIR/node-2-goroutine.txt" "$SNAPSHOT_MAX_TIME_SECONDS"
+ 
+ join_profile_requests
+ if (( CAPTURE_CONTEXT == 1 )); then
+@@ -490,7 +486,7 @@
+   VALID=false
+ else
+   for index in "${!NODE_URLS[@]}"; do
+-    if [[ "${CPU_STATUS[$index]}" != complete || "${HEAP_STATUS[$index]}" != complete ||
++    if [[ "${CPU_STATUS[$index]}" != complete ||
+       "${GOROUTINE_STATUS[$index]}" != complete ]]; then
+       OVERALL_STATUS=partial
+       OVERALL_REASON=profile_capture_missing

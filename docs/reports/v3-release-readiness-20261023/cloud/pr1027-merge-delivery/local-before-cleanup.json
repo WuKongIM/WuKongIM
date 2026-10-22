@@ -1,0 +1,10 @@
+{
+  "merged_commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+  "reviewed_head": "a93837d3fb55369acfe2d131aff52914f55a867f",
+  "merged_tree": "0f24d5dfbdb8de60789fbf8760d5c3a1b3c33344",
+  "target_contains_original_branch_tip": true,
+  "clean_worktree_before_cleanup": true,
+  "protection_unchanged": true,
+  "merge_method": "ordinary merge with exact head; no admin bypass",
+  "remote_task_branch_retained": true
+}

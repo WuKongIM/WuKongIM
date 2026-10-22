@@ -1,0 +1,6 @@
+test_06_waiting_receipt_cannot_consume_required_capture_budget (__main__.Contract.test_06_waiting_receipt_cannot_consume_required_capture_budget) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 2.557s
+
+OK

@@ -1,0 +1,11 @@
+--- A/supervise.py
++++ proposed/supervise.py
+@@ -82,6 +82,8 @@
+     if stop_sent:
+         return
+     reason, stop_sent, stop_at = code, True, time.monotonic()
++    # Fence this optional diagnostic before coordinator admission is stopped.
++    (OUT / "evidence/profile-stop").write_text(code + "\n")
+     pid = coordinator_pid()
+     if pid is None:
+         os.killpg(owned.pid, signal.SIGTERM)

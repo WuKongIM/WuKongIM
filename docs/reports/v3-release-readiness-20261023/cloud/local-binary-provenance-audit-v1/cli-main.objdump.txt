@@ -1,0 +1,41 @@
+TEXT main.main(SB) /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/cmd/wkcli/main.go
+  main.go:7		0x100fa3470		f9400b90		MOVD 16(R28), R16			
+  main.go:7		0x100fa3474		eb3063ff		CMP R16, RSP				
+  main.go:7		0x100fa3478		54000429		BLS 33(PC)				
+  main.go:7		0x100fa347c		f81b0ffe		MOVD.W R30, -80(RSP)			
+  main.go:7		0x100fa3480		f81f83fd		MOVD R29, -8(RSP)			
+  main.go:7		0x100fa3484		d10023fd		SUB $8, RSP, R29			
+  main.go:8		0x100fa3488		b000b53b		ADRP 23744512(PC), R27			
+  main.go:8		0x100fa348c		9117837b		ADD $1504, R27, R27			
+  main.go:8		0x100fa3490		a9402367		LDP (R27), (R7, R8)			
+  main.go:8		0x100fa3494		f100051f		CMP $1, R8				
+  main.go:8		0x100fa3498		540002a3		BCC 21(PC)				
+  main.go:8		0x100fa349c		d1000501		SUB $1, R8, R1				
+  main.go:8		0x100fa34a0		b000b53b		ADRP 23744512(PC), R27			
+  main.go:8		0x100fa34a4		f942fb68		MOVD 1520(R27), R8			
+  main.go:8		0x100fa34a8		d1000502		SUB $1, R8, R2				
+  main.go:8		0x100fa34ac		cb0203e8		NEG R2, R8				
+  main.go:8		0x100fa34b0		937ffd08		ASR $63, R8, R8				
+  main.go:8		0x100fa34b4		927c0108		AND $16, R8, R8				
+  main.go:8		0x100fa34b8		8b0800e0		ADD R8, R7, R0				
+  cli.go:31		0x100fa34bc		9000b51b		ADRP 23724032(PC), R27			
+  cli.go:31		0x100fa34c0		f947d764		MOVD 4008(R27), R4			
+  cli.go:31		0x100fa34c4		9000b51b		ADRP 23724032(PC), R27			
+  cli.go:31		0x100fa34c8		f947db66		MOVD 4016(R27), R6			
+  cli.go:31		0x100fa34cc		90005823		ADRP 11550720(PC), R3			
+  cli.go:31		0x100fa34d0		912a6063		ADD $2712, R3, R3			
+  cli.go:31		0x100fa34d4		aa0303e5		MOVD R3, R5				
+  cli.go:31		0x100fa34d8		97fffdfe		CALL main.runWithIO(SB)			
+  main.go:8		0x100fa34dc		97c52235		CALL os.Exit(SB)			
+  main.go:9		0x100fa34e0		f85f83fd		MOVD -8(RSP), R29			
+  main.go:9		0x100fa34e4		f84507fe		MOVD.P 80(RSP), R30			
+  main.go:9		0x100fa34e8		d65f03c0		RET					
+  main.go:8		0x100fa34ec		b24003e0		ORR $1, ZR, R0				
+  main.go:8		0x100fa34f0		aa1f03e1		MOVD ZR, R1				
+  main.go:8		0x100fa34f4		97c3796f		CALL runtime.panicSliceB(SB)		
+  main.go:8		0x100fa34f8		d503201f		NOOP					
+  main.go:7		0x100fa34fc		aa1e03e3		MOVD R30, R3				
+  main.go:7		0x100fa3500		97c36fa8		CALL runtime.morestack_noctxt.abi0(SB)	
+  main.go:7		0x100fa3504		17ffffdb		JMP main.main(SB)			
+  main.go:7		0x100fa3508		00000000		?					
+  main.go:7		0x100fa350c		00000000		?					

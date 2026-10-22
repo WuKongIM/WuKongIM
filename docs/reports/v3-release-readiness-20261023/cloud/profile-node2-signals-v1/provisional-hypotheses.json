@@ -1,0 +1,73 @@
+{
+  "scope": "Conditional diagnostic predictions only; final causal classification explicitly deferred due mixed provenance and missing wait evidence. No test was run for these hypotheses.",
+  "candidate_79a_or_cloud_root_cause_claim": false,
+  "ranked_hypotheses": [
+    {
+      "rank": 1,
+      "hypothesis": "Fresh Slot barrier residence sustains permission cohorts until bounded admission refuses work.",
+      "status": "supported mechanism and one observed quota boundary; upstream cause unconfirmed",
+      "support": [
+        "189 fixed-sentinel server refusals and cohort_busy counters align by node 110/69/10.",
+        "One node3 cut has cohorts64/64 while calls334/1024 and bytes1424736/16777216.",
+        "Between-cut barrier means209/283/243ms, snapshot0.013/0.052/0.012ms."
+      ],
+      "unknown": [
+        "Exact quota triggering each refusal.",
+        "Barrier residence division among control-queue, quorum exchange, durable apply and scheduling.",
+        "Whether this mechanism caused either expired recipient sample."
+      ],
+      "prediction": "With executable/environment/arrival shape fixed, quota occupancy and busy should track barrier residence; if barrier remains short while every refusal occurs below all admission bounds, this account is contradicted.",
+      "minimal_future_probe": "First validate an exact-target executable. Reuse existing stage/owned gauges and add only fixed quota-trigger/high-water plus barrier queue/quorum/apply timing if a diagnostic change is later authorized. No quota increase or retry change as a first experiment."
+    },
+    {
+      "rank": 2,
+      "hypothesis": "Cold UID recovery pages hold several of 32 shared lanes across bounded owner reads, creating convoy pressure on unrelated ordinary groups.",
+      "status": "source-feasible, not measured or confirmed",
+      "support": [
+        "recoverPage acquires cold HashSlot modulo32 lanes in ascending order and releases after recovery completion.",
+        "Owner recovery has node-wide admission4 and sequential current-owner reads with250ms child deadlines.",
+        "presence delivery timeout231 and presence-authority timeout291 are retained."
+      ],
+      "counter_evidence_or_limits": [
+        "No fault-time goroutine profile or lane wait/hold/page-width metrics.",
+        "CPU recovery functions have small retained cumulative weights; low on-CPU cost cannot falsify off-CPU waiting.",
+        "Fixed acquisition order prevents a lock cycle within this helper; it does not establish absence of convoy.",
+        "No 100k-canary-to-timeout or exact page-to-expired identity join."
+      ],
+      "prediction": "If multi-lane cold-page convoy dominates, a fault-time bounded wait observation should show contenders blocked on recovery lanes while holders retain multi-lane pages across owner-read admission/RPC; exact same-target warm UID proofs should bypass these waits. If lane waits are absent/short, the proposed bottleneck is weakened.",
+      "minimal_future_probe": "After executable provenance is correct, one bounded goroutine/wait observation or fixed-label cold-page/lane wait/hold counters at the same failure phase; preserve workload and avoid an additional CPU profile. Warm-vs-cold is a later single-variable diagnostic only, not qualification."
+    },
+    {
+      "rank": 3,
+      "hypothesis": "Shared Darwin host transport, scheduling or storage work amplifies barrier/presence latency.",
+      "status": "plausible contributor; no causal or cloud conclusion",
+      "support": [
+        "All3 product processes and load/observers share one10CPU32GiB host and disk, product GOMAXPROCS2.",
+        "c253 node2 CPU weights include writev29.49%, read8.76%, madvise8.29%, GC drain8.06%, Pebble logwriter flush5.07%; these cumulative groups overlap.",
+        "There are no independent four-host interval CPU/I/O/steal measurements."
+      ],
+      "counter_evidence_or_limits": [
+        "4.34s samples over10.169s is about42.68% of one CPU, not whole-host utilization or saturation.",
+        "Only two ps lifetime-PCPU observations within measured window.",
+        "No fault-time mutex/block/trace or disk-service-time evidence."
+      ],
+      "prediction": "If host scheduling/storage is the limiting cause, barrier/presence wait should coincide with independently measured scheduling or I/O service stalls; proving short waits and ample interval resources weakens it.",
+      "minimal_future_probe": "Use already-correct executable and retain real interval OS CPU/I/O plus existing queue/stage observations. Change only one resource knob in any later controlled test; do not interpret a source/OS/toolchain/profile mixture as a performance pair."
+    },
+    {
+      "rank": 4,
+      "hypothesis": "A pure business-computation loop is the dominant node2 bottleneck.",
+      "status": "not supported by this bounded CPU top; not globally excluded",
+      "support": [
+        "No dominant business-computation leaf is present among the retained top60."
+      ],
+      "counter_evidence_or_limits": [
+        "CPU sample window is short, node2 only, and can include drain.",
+        "Top60 drops low cumulative-weight nodes.",
+        "Other-node short bursts and blocked work are not excluded."
+      ],
+      "prediction": "A representative same-target CPU capture dominated by a stable business-computation stack would support it; current top concentrates in transport/syscall/runtime.",
+      "minimal_future_probe": "No new probe justified before resolving executable provenance and waiting evidence."
+    }
+  ]
+}

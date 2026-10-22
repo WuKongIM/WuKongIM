@@ -1,0 +1,8 @@
+{
+  "kind": "offline_parser_assertion_failure",
+  "not_a_ci_failure": true,
+  "first_script_sha256": "bd5ef096e1166efd5afe19ab3dec1a31cdf7d9c690c53648df0aa3d660a6127f",
+  "failed_assertion": "token_authentication is True",
+  "actual_typed_value": "production_default",
+  "correction": "Validate the exact existing string enum instead of assuming a boolean. Original API/log/ZIP/report bytes were not changed. No CI rerun, command rerun or test retry."
+}

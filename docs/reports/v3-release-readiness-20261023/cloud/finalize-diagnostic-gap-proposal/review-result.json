@@ -1,0 +1,23 @@
+{
+  "schema": "wukongim/finalize-diagnostic-gap-review/v1",
+  "conclusion": "confirmed_error_information_loss_not_exact_b128_rejection",
+  "implementation_authorized": false,
+  "tests_executed": false,
+  "repository_mutations": false,
+  "load_or_cloud_operations": false,
+  "proposal_only": true,
+  "production_scope_files": [
+    "internal/bench/chatlifecycle/checkpoint.go",
+    "internal/bench/chatlifecycle/production_controller.go",
+    "internal/bench/chatlifecycle/coordinator.go",
+    "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go"
+  ],
+  "excluded": [
+    "report_gate_change",
+    "verdict_precedence_change",
+    "new_valid_final_report_from_incomplete_input",
+    "production_fix_claim",
+    "new_replay",
+    "pr1027_head_or_ci_change"
+  ]
+}

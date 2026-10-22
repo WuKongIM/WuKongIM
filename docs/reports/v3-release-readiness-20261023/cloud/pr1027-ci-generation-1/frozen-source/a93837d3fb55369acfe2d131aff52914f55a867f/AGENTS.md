@@ -1,0 +1,249 @@
+# AGENTS.md
+
+## Project and Rule Levels
+
+WuKongIM is a high-performance general-purpose messaging system maintained as
+a Go monorepo.
+
+The keywords `MUST`, `MUST NOT`, `SHOULD`, and `MAY` define requirement levels:
+
+- `MUST` and `MUST NOT` are mandatory.
+- `SHOULD` is the default unless there is a documented reason to deviate.
+- `MAY` is optional.
+
+## Core Runtime Semantics
+
+- Every deployment is a cluster. A one-node deployment is a **single-node
+  cluster**, not a standalone mode that bypasses cluster behavior.
+- New code MUST NOT add business paths that bypass cluster semantics.
+- Documentation, comments, and test names MUST use "single-node cluster" for
+  deployment topology. Use "local" only for behavior within one node.
+- Designs MUST account for high-scale workloads such as 100,000-member groups,
+  high message rates, many channels, and many online users.
+- Unless explicitly specified otherwise, designs MUST assume 256 hash slots.
+
+## Before You Work
+
+- Development SHOULD use a Git worktree with its working copy located in the .worktrees directory
+- After a task branch is fully merged into its target branch, you MUST remove
+  its clean worktree and delete the original local task branch as part of delivery.
+  Verify that the target contains the branch tip before cleanup, and preserve
+  any uncommitted work. Do not force-delete unmerged branches.
+- Before deeply analyzing or changing a package, you MUST read every applicable
+  `FLOW.md`. Broad repository discovery and symbol search do not trigger this
+  requirement. A FLOW with `scope: package` applies only to its directory; a
+  FLOW with `scope: subtree` also applies to descendants. A FLOW without valid
+  scope metadata is invalid and MUST NOT be used as context.
+- `FLOW.md` is advisory module navigation. It MUST NOT override this file,
+  executable code, schemas, or tests. Use
+  `docs/development/FLOW_INDEX.md` only for discovery; read applicable FLOW
+  files directly before package work.
+- If a change makes an applicable `FLOW.md` inaccurate, update it in the same
+  change.
+- More specific `AGENTS.md` files in a target subtree add to or override this
+  file for that subtree.
+
+## Design and Implementation
+
+### Internal Architecture
+
+| Path | Responsibility |
+| --- | --- |
+| `internal/access/*` | Entry-protocol adapters only; no reusable business rules. |
+| `internal/usecase/*` | Entry-agnostic business orchestration. |
+| `internal/runtime/*` | Reusable node-local runtime capabilities; no entry logic. |
+| `internal/infra/*` | Adapters from internal ports to `pkg` runtimes or external infrastructure. |
+| `internal/app/*` | The only composition root under `internal`; dependency wiring and lifecycle belong here. |
+| `pkg/gateway/*` | Reusable gateway infrastructure; no product-specific use-case orchestration. |
+
+Code MUST maintain these dependency directions:
+
+```text
+access -> usecase/runtime
+usecase -> runtime/pkg
+app -> access/usecase/runtime/infra/pkg
+```
+
+- Use cases MAY depend on narrow shared `pkg` contracts, but MUST NOT depend on
+  entry-specific gateway/frame types or construct concrete infrastructure
+  implementations.
+- New HTTP, RPC, and task entrypoints SHOULD live in
+  `internal/access/<entry>`.
+- Reusable business capabilities SHOULD live in
+  `internal/usecase/<domain>`.
+- Node-local state, online routing, allocators, and similar capabilities SHOULD
+  live in `internal/runtime/<capability>`.
+- Infrastructure adapters MUST implement internal ports without moving
+  business rules into `internal/infra`.
+- New code MUST NOT recreate `internal/legacy` or `pkg/legacy/*`.
+- New code MUST NOT introduce a broad service package or another global
+  aggregate service object.
+- Cross-layer changes SHOULD add an `internal/app` wiring test or an entry-level
+  integration test.
+
+### Code Quality
+
+- Code MUST NOT be over-engineered. Abstractions SHOULD address current
+  behavior or a clear extension point.
+- Critical methods and important fields of primary structs MUST have English
+  comments that explain their responsibility or constraints.
+- Performance-sensitive designs MUST consider CPU, memory, allocations,
+  contention, queue bounds, backpressure, and fanout at the expected scale.
+
+### Release Notes
+
+- A release request MUST include publication to the applicable signed native
+  package channel in `WuKongIM/packages`, followed by public APT/RPM client
+  verification of the exact target version. Docker images, GitHub Release
+  assets, and documentation alone MUST NOT be reported as a complete release.
+  Follow `docs/development/RELEASING.md`; if the applicable channel is disabled
+  or publication fails, report the release as incomplete.
+- User-visible changes MUST add a concise user/operator-facing entry to the
+  root `CHANGELOG.md` under `Unreleased`.
+- A pull request MAY omit a Changelog entry only when its description explains
+  why no user-visible behavior changes and a maintainer applies the
+  `skip-changelog` label.
+- Before creating a release tag, maintainers MUST move the applicable entries
+  into the exact version heading required by `CHANGELOG.md`. Release Workflows
+  MUST fail before publishing any artifact when that version section is
+  missing, duplicated, empty, or malformed.
+
+### Configuration
+
+- The primary configuration file is `wukongim.toml` in TOML format.
+- TOML keys MUST use domain-grouped `snake_case`.
+- Environment variables MUST use the `WK_` prefix and override file values.
+- List values supplied through environment variables MUST replace the full list
+  using JSON, for example:
+  `WK_CLUSTER_NODES='[{"id":1,"addr":"wk-node1:7000"}]'`.
+- Without `-config`, configuration is searched in this order:
+  `./wukongim.toml`, `./conf/wukongim.toml`,
+  `/etc/wukongim/wukongim.toml`.
+- Configuration changes MUST update `wukongim.toml.example`.
+- New or changed configuration fields MUST have detailed English comments.
+
+## Testing and Validation
+
+### Test Policy
+
+- NEVER write unit tests after you write code.
+- Highly prefer E2E tests as the sole testing mechanism. Use them to verify complex features work. At the end of E2E tests, produce a verifiable and repeatable artifact.
+- If you must test a system in isolation, FIRST write all the ways it could fail, THEN write the code.
+- You MUST run at least the tests directly related to the change.
+- Unit tests MUST remain fast. Tests that simulate realistic elapsed time or
+  external integration MUST use the `integration` build tag.
+- Tests under `scripts/` that build binaries, start or signal processes, use
+  real sleeps/deadlines, open TCP listeners, or exercise retry/readiness loops
+  MUST live in `*_integration_test.go` with the `integration` build tag.
+  Static source/configuration contracts, parsers, AWK/JQ transforms, help
+  output, and no-background dry runs SHOULD remain in the default unit tier.
+- Repository-wide Go gates MUST NOT use root `./...`. Go ignores `.gitignore`
+  during package discovery and may include local packages under `tmp/` or
+  `web/node_modules/`.
+- E2E tests MUST remain process-level black-box tests and MUST follow
+  `test/e2e/AGENTS.md` for their structure and execution.
+- `pkg/metrics` instrumentation, `internal/bench` plans, and scripts SHOULD be
+  added to an E2E workflow only when the scenario requires them.
+
+### Common Commands
+
+- Full unit suite:
+  `GOWORK=off go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/... -count=1`
+- Focused unit tests:
+  `GOWORK=off go test ./internal/... ./pkg/...`
+- Integration tests:
+  `GOWORK=off go test -tags=integration ./internal/... ./pkg/... -count=1`
+- Scripts integration tests:
+  `GOWORK=off go test -tags=integration ./scripts/... -count=1 -timeout=9m -parallel=2`
+- E2E tests:
+  `GOWORK=off go test -tags=e2e ./test/e2e/... -count=1`
+- Run the server:
+  `go run ./cmd/wukongim`
+- Run with an explicit configuration:
+  `go run ./cmd/wukongim -config ./wukongim.toml`
+
+## Bug Diagnosis
+
+1. MUST gather evidence; do not diagnose by guessing.
+2. SHOULD inspect metrics first. If the necessary signal is missing, add
+   bounded observability.
+3. SHOULD use `pprof` for performance problems.
+
+## Documentation and Knowledge
+
+- Important repository rules and business knowledge MUST be recorded concisely
+  in `docs/development/PROJECT_KNOWLEDGE.md`.
+- Unrelated code-quality findings MAY be recorded in
+  `docs/development/CODE_QUALITY.md`; then continue the current task.
+- When the stable repository structure changes, update the directory guide
+  below.
+
+## Agent Workflows
+
+- GitHub Issues are the repository issue tracker. Follow
+  `docs/agents/issue-tracker.md`.
+- Use the canonical triage labels defined in
+  `docs/agents/triage-labels.md`.
+- Use the single-context domain documentation layout defined in
+  `docs/agents/domain.md`.
+- The serverless GitHub Issue Agent follows `docs/agents/issue-agent.md`.
+  Its control code, Workflows, policy, schemas, prompts, and instruction files
+  are protected from automated changes. Every Codex task freezes applicable
+  `AGENTS.md` and `FLOW.md` digests from its exact source revision.
+- `.github/review-agent/policy.json` MUST remain the sole machine-executable
+  authority for Review Agent check arguments, limits, and path selection.
+  Instructions, Skills, prompts, and Workflows MUST reference named checks
+  instead of copying their commands.
+- `.agents/skill-tests.json` MUST remain the sole catalog of focused
+  repository-Skill tests. Only its explicitly registered, contract-validated
+  commands may run; automation MUST NOT discover and execute arbitrary files
+  from Skill directories.
+- Changes under `.agents/skills/` MUST pass the `agent-artifact-contracts` and
+  `skill-focused-contracts` named checks.
+- Changes to any `FLOW.md`, its validator, the generated FLOW index, Agent FLOW
+  context discovery, or this governing rule MUST pass the
+  `flow-doc-contracts` named check.
+
+## GitHub Actions tools
+
+GitHub Actions are Agent-callable tools or explicit safety automations. Before
+invoking or changing one, read `.github/workflows/README.md` and follow its
+authorization, Review Agent evidence, retry, and monitoring contracts.
+
+## Directory Guide
+
+| Path | Purpose |
+| --- | --- |
+| `.agents/` | Repository-local agent skills and support files. |
+| `.github/` | CI workflows and cloud-simulation support. |
+| `cmd/wukongim/` | Product entrypoint that loads configuration and starts `internal/app`. |
+| `cmd/wkcli/` | Unified operator CLI: operations, black-box benchmarks, offline database inspection/transfer, and original v2-to-v3 migration. |
+| `cmd/wkchatlifecycle/` | Fixed Run Plan materialization, Lease selector, and rehearsal-report validation. |
+| `cmd/wkcloud*/`, `cmd/wkanalysis/` | Cloud lease identity/lifecycle, simulation, deployment, validation, viewing, and analysis tools. |
+| `cmd/wkissueagent/` | JSON-only GitHub Actions entrypoint for the stateless Issue Agent. |
+| `cmd/wkreviewcheck/` | Frozen selector-only helper for composite Review Agent checks. |
+| `internal/access/` | HTTP, gateway, node RPC, manager, plugin, and cloud-analysis entry adapters. |
+| `internal/usecase/` | Reusable business use cases. |
+| `internal/runtime/` | Reusable node-local runtimes. |
+| `internal/infra/` | Cluster, delivery, backup, and cloud infrastructure adapters. |
+| `internal/app/` | Product composition root and lifecycle. |
+| `internal/config/`, `internal/contracts/` | Configuration loading and cross-layer contracts. |
+| `internal/**/*agent*` | Issue Agent and Review Agent contracts, orchestration, clean verification, GitHub adapters, CLI boundaries, and composition. |
+| `internal/bench/` | Benchmark planning, coordination, workers, workloads, and reporting. |
+| `pkg/` | Reusable storage, protocol, gateway, cluster, channel, controller, slot, transport, metrics, plugin, and work-queue libraries. |
+| `test/e2e/` | Real-process black-box E2E suites and shared harness. |
+| `docs/` | Architecture, development, ADR, specification, plan, report, and runbook documentation. |
+| `docs-site/` | Standalone Fumadocs application for the bilingual public v3 documentation. |
+| `scripts/` | Repository automation, E2E gates, and cloud-simulation helpers. |
+| `docker/` | Development clusters, simulation, and observability configurations. |
+| `web/` | Manager React/Vite source. |
+| `demo/` | One-command loopback Demo launcher and process-level acceptance. |
+| `demo/shared/` | Shared catalog navigation and link styles for the six Demo frontends. |
+| `demo/chatdemo/` | Embedded chat demo Vue/Vite source. |
+| `demo/home/` | Dependency-free Demo catalog, embedded bundle build and loopback preview. |
+| `demo/agentdemo/` | Task assistant UI, bounded tool-calling backend and process-level acceptance. |
+| `demo/streamdemo/` | Embedded EasySDK streaming chat demo, local model relay, and browser acceptance. |
+| `demo/supportdemo/` | Embedded customer support UI, loopback Demo business backend, and process-level acceptance. |
+| `demo/mqttdemo/` | Embedded smart-store UI, browser MQTT WebSocket clients, provisioning backend, and browser acceptance. |
+| `demo/livedemo/` | Embedded live-room UI, browser transient SDK interactions, loopback moderation backend, and browser acceptance. |
+| `resources/` | Repository resources used by product and tooling. |

@@ -1,0 +1,17 @@
+TEXT main.main(SB) /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis/cmd/wukongim/main.go
+  main.go:27		0x101990830		f9400b90		MOVD 16(R28), R16			
+  main.go:27		0x101990834		eb3063ff		CMP R16, RSP				
+  main.go:27		0x101990838		54000149		BLS 10(PC)				
+  main.go:27		0x10199083c		f81e0ffe		MOVD.W R30, -32(RSP)			
+  main.go:27		0x101990840		f81f83fd		MOVD R29, -8(RSP)			
+  main.go:27		0x101990844		d10023fd		SUB $8, RSP, R29			
+  main.go:28		0x101990848		9400000a		CALL main.runMain(SB)			
+  main.go:28		0x10199084c		b4000040		CBZ R0, 2(PC)				
+  main.go:29		0x101990850		979dfaa4		CALL os.Exit(SB)			
+  main.go:31		0x101990854		f85f83fd		MOVD -8(RSP), R29			
+  main.go:31		0x101990858		f84207fe		MOVD.P 32(RSP), R30			
+  main.go:31		0x10199085c		d65f03c0		RET					
+  main.go:27		0x101990860		aa1e03e3		MOVD R30, R3				
+  main.go:27		0x101990864		979bd76b		CALL runtime.morestack_noctxt.abi0(SB)	
+  main.go:27		0x101990868		17fffff2		JMP main.main(SB)			
+  main.go:27		0x10199086c		00000000		?					

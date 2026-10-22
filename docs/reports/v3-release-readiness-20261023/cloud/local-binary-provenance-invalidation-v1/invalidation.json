@@ -1,0 +1,233 @@
+{
+  "schema": "wukongim/local-binary-source-invalidation/v1",
+  "at_utc": "2026-10-22T20:18:39.986201+00:00",
+  "decision": "All future run proposals stopped; no build/load/cloud started after discovery. Retain immutable originals; supersede any79a candidate inference.",
+  "actual_server": {
+    "sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+    "embedded_toolchain": "go1.25.11",
+    "embedded_vcs_revision": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+    "embedded_vcs_modified": false,
+    "metadata_verification": "independent loss_obs_ci retained go version -m audit will bind complete output; host go version is not executable toolchain proof"
+  },
+  "requested_tree_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "equivalence": "False: root independent audit found intervening conversation and replication product differences; only separately proven per-file equivalent source interpretations remain applicable",
+  "selection_chain": [
+    {
+      "step": 1,
+      "source": "test/e2e/suite/binary.go:59-76",
+      "meaning": "WK_E2E_BINARY overrides default build; override only Stat checks existence, no source/VCS validation"
+    },
+    {
+      "step": 2,
+      "source": "test/e2e/message/online_loss_reproduction/online_loss_reproduction_test.go:142-147",
+      "meaning": "small reports record binary_sha256 only when explicit override exists; v1/v3/v4 prove chosenprebuilt hashc253"
+    },
+    {
+      "step": 3,
+      "source": "local-loss-reproduction-v1/bin/wukongim",
+      "meaning": "retained origin of all full supervisor copies. Original creation/copy command and upstream cache path absent from retained invocation; cannot reconstruct confidently"
+    },
+    {
+      "step": 4,
+      "source": "all full supervise.py source_binary/write_bytes lines",
+      "meaning": "copies unchanged v1/bin/wukongim into own bin, then separately compiles wkcli from79a tree; GitHEAD assertion checks tree, not product binary origin"
+    },
+    {
+      "step": 5,
+      "source": "preflight.json/source/input hashes",
+      "meaning": "hash equality proves consistent reuse, not matching Git revision. Host go version is separate from embedded product toolchain"
+    }
+  ],
+  "not_a_default_harness_cache_bug": "default BinaryCache.Path uses per-test-process sync.Once then buildBinaryAtomically(go build -tags=e2e); no existence-only skip in this code path. Explicit override bypassed the build.",
+  "source_hashes": {
+    "test/e2e/suite/FLOW.md": "df0e9c970f6ee56d573407fb99d80b9ca620b6387a619bbadc66c82ef8222887",
+    "test/e2e/suite/binary.go": "626aeed708a0be5387e3e2f26a1a78533004eb752b5c50b01f3f7b6f277d02b8",
+    "test/e2e/message/online_loss_reproduction/online_loss_reproduction_test.go": "688478813a69344e486534a186ef90aeb5f0224d3d5fbec8acda2a11614a0fdb"
+  },
+  "runs": [
+    {
+      "directory": "local-loss-reproduction-v1",
+      "class": "small_group_e2e",
+      "source_tree_claim": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "selected_server_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "product_started": true,
+      "runtime_source": "explicit WK_E2E_BINARY override proven by test reporting branch for executed runs; actual override path not retained in invocation",
+      "report_present": true,
+      "original_artifacts": {
+        "invocation.json": "7a42bd6a0b2287c14dd38abb8c54254e528e1510b4d23cc80c2a42c9d2bad888",
+        "completion.json": "787fdfae37a261c9dccae62e20d85238537e0e2750aaa423c573c71a1bd88713",
+        "report.json": "3366f4f633d628b331a9f20faf90f7076f7bb7578cc89b8b80df72461e2a2728",
+        "cleanup-receipt.json": "519154657e0c680efccbf227f1c4dd07a5ac5f79dc704b5da62d734db3af6a6c",
+        "PUBLIC_SHA256SUMS": "0e2212973c789ebcaefbd845b8ded51c9f6aae601f2b7ea852ddd1e85d13881c"
+      },
+      "effect": "actual cached a804 product behavior/fixture result only; not79a candidate evidence"
+    },
+    {
+      "directory": "local-loss-reproduction-v2",
+      "class": "small_group_e2e",
+      "source_tree_claim": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "selected_server_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "product_started": false,
+      "runtime_source": "explicit WK_E2E_BINARY override proven by test reporting branch for executed runs; actual override path not retained in invocation",
+      "report_present": false,
+      "original_artifacts": {
+        "invocation.json": "81b0f6185daf2713386cd3ea3df4ebadee16b6d5c3d04fcb6e0736cd749b8b1f",
+        "completion.json": "85c9a6abf1e3dc5e9ba6ed3c3b609435be40f9457c1d4ed22e9dbca0f16a8725",
+        "cleanup-receipt.json": "61d4ee130b7653641a0c627b1ea941d13ed07a8155494915e2b98c783ce22b88",
+        "PUBLIC_SHA256SUMS": "1943a2f68b0d261e32236c1031f426e9da0a56b65aca8d7d9f5c365583c363c8"
+      },
+      "effect": "compile failure before product launch; selected hash misbound but no runtime product result"
+    },
+    {
+      "directory": "local-loss-reproduction-v3",
+      "class": "small_group_e2e",
+      "source_tree_claim": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "selected_server_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "product_started": true,
+      "runtime_source": "explicit WK_E2E_BINARY override proven by test reporting branch for executed runs; actual override path not retained in invocation",
+      "report_present": true,
+      "original_artifacts": {
+        "invocation.json": "5e7be56bec3532d316a3fb0174af4408180ba626d7a7fcbc68f490921728faf0",
+        "completion.json": "02c97984ea4beee33aad0b8e724f66dfe0c98a8a1a2edbf9b3e2220b5cfe047c",
+        "report.json": "b3d1e71151edebb5de496977a4a06f4c7e720dd640ef84ccbd8ae1940be8a0c1",
+        "cleanup-receipt.json": "a91adee21c0c5195abb3aefded2d04792e87eb71d9281cf75c5140ab438b7e79",
+        "PUBLIC_SHA256SUMS": "73b6e675a3935934235f71a9c950dba3e90840902810e4dc9665d8372931ebae"
+      },
+      "effect": "actual cached a804 product behavior/fixture result only; not79a candidate evidence"
+    },
+    {
+      "directory": "local-loss-reproduction-v4",
+      "class": "small_group_e2e",
+      "source_tree_claim": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "selected_server_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "product_started": true,
+      "runtime_source": "explicit WK_E2E_BINARY override proven by test reporting branch for executed runs; actual override path not retained in invocation",
+      "report_present": true,
+      "original_artifacts": {
+        "invocation.json": "49d54b3770a46a02bbc150d9b980cd773a224aac2d7bb3f4edbf9716916ca6e8",
+        "completion.json": "04b2d4da630ca84a518e24011cd48ee9badb420518414c020a71ea13c3c9de81",
+        "report.json": "19dc5cf42d43851c3d00e18ed17430c424ea23460acd076d1efe0a8f52b8d38e",
+        "cleanup-receipt.json": "83ac2bb7ce25ff72f7093bc07ce771e062f39e9cb1470452ab7dde109b5692b4",
+        "PUBLIC_SHA256SUMS": "66732868f0b534437a129b36f10608d37d2306eaf4d1d24c2c15d5d89de60349"
+      },
+      "effect": "actual cached a804 product behavior/fixture result only; not79a candidate evidence"
+    },
+    {
+      "directory": "full-original-distribution-v1",
+      "class": "full_original_workload",
+      "selected_server_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "server_copy_source": "local-loss-reproduction-v1/bin/wukongim",
+      "supervisor_sha256": "0511756eb471d177a2deb937179e4f5f23ee2ebfd214fde8cae1c81cd188745f",
+      "product_started": false,
+      "cli_path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v1/bin/wkcli",
+      "cli_sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+      "cli_build_source_tree": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "cli_build_command": [
+        "go",
+        "build",
+        "-o",
+        "<run>/bin/wkcli",
+        "./cmd/wkcli"
+      ],
+      "original_artifacts": {
+        "diagnostic-result.json": "1ae371886bcf9ed927aae4eea1db3cc9cc12bbe042cd8ab5213a9e6100431205",
+        "cleanup-receipt.json": "f31ba54ee65853e9d75ef5eb678710e26267b651f585815c90b9687c59a2e23b",
+        "PUBLIC_SHA256SUMS": "ff2c1ede9eee0c084d3673c8a8000850d9a68e8463bad59608c8f7efa28d9611"
+      },
+      "effect": "deployment-only validator preflight failed before product/worker launch; no workload evidence"
+    },
+    {
+      "directory": "full-original-distribution-v2",
+      "class": "full_original_workload",
+      "selected_server_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "server_copy_source": "local-loss-reproduction-v1/bin/wukongim",
+      "supervisor_sha256": "25c5afbc89581f0dd61874191fdab6db0cf2822b62bd5ac20b871078f2f74c33",
+      "product_started": true,
+      "cli_path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-v2/bin/wkcli",
+      "cli_sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+      "cli_build_source_tree": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "cli_build_command": [
+        "go",
+        "build",
+        "-o",
+        "<run>/bin/wkcli",
+        "./cmd/wkcli"
+      ],
+      "original_artifacts": {
+        "preflight.json": "aa2f45fb967f759b12fe1cc0546e4c106d0b9abc32674e3f84b437b68f41c9b0",
+        "diagnostic-result.json": "cc2f24827af22b23142db6aa492df9c3fd14600c1f0e15d2164a1e2c64cbb3a0",
+        "cleanup-receipt.json": "31aab9374c0870383197dea52cbf725ce74786d51362cde8eb54566e4584b5e0",
+        "report/final.json": "48bc2327163c73a5c446c6bc69475ea728132396dbe14a3f1024cc5e7e901260",
+        "report/worker-evidence.json": "5bd9e723db6b6ab9b0802fbba79974ab14d8c852fa7140059d92db30ab70758f",
+        "PUBLIC_SHA256SUMS": "04dfbf3d1cfdde42cc17085392c5160135558d87ece8eff990a928509eb9ad4b"
+      },
+      "effect": "cached a804 product +79a CLI mixed-version local evidence only; not79a candidate reproduction"
+    },
+    {
+      "directory": "full-original-distribution-batch128-v1",
+      "class": "full_original_workload",
+      "selected_server_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "server_copy_source": "local-loss-reproduction-v1/bin/wukongim",
+      "supervisor_sha256": "25c5afbc89581f0dd61874191fdab6db0cf2822b62bd5ac20b871078f2f74c33",
+      "product_started": true,
+      "cli_path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-batch128-v1/bin/wkcli",
+      "cli_sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+      "cli_build_source_tree": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "cli_build_command": [
+        "go",
+        "build",
+        "-o",
+        "<run>/bin/wkcli",
+        "./cmd/wkcli"
+      ],
+      "original_artifacts": {
+        "preflight.json": "15f298ca549902aa8f1c8b76064186124fb9d3e4995e9814eccc97f673f0857f",
+        "diagnostic-result.json": "6f0f9bc7409c17cf791d72c39b36571094769108d106037772eddd3f571b4923",
+        "cleanup-receipt.json": "7786db4dfae08750f1e49207971ad541c3fd04d8f618e0243098a16161396a30",
+        "report/worker-evidence.json": "f3c852a813f98ba4a99a7df2a9bc441f16394dde82fd9902b3d59dd38f730da9",
+        "PUBLIC_SHA256SUMS": "4f0c43d9275be09eb602cc068c8364a40e8008420e5dc5d999f997cd5b6310b6"
+      },
+      "effect": "cached a804 product +79a CLI mixed-version local evidence only; not79a candidate reproduction"
+    },
+    {
+      "directory": "full-original-distribution-profile-node2-v1",
+      "class": "full_original_workload_with_cpu_sampling",
+      "selected_server_sha256": "c2531b920ba7b9ff99d777c6bf5d988840426a5dc5f15d66ae0005aa2660b379",
+      "server_copy_source": "local-loss-reproduction-v1/bin/wukongim",
+      "supervisor_sha256": "9bbae50d0cf41aef9d6f1626bd4779a4d119f11cc790280a72b89b9af5bb1327",
+      "product_started": true,
+      "cli_path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-profile-node2-v1/bin/wkcli",
+      "cli_sha256": "e36e5151f4424b0485c1f611d2982f76e6dd0ed3b805c478c70a3bbfdb74ba62",
+      "cli_build_source_tree": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "cli_build_command": [
+        "go",
+        "build",
+        "-o",
+        "<run>/bin/wkcli",
+        "./cmd/wkcli"
+      ],
+      "original_artifacts": {
+        "preflight.json": "1d6d33512093a4cc9fed02dfd7db7420f7c6c10db572d0677c946f152b4b5b0e",
+        "diagnostic-result.json": "750f5cfe083a772041bf19b19b5318a08c4bfbc7f5d6aae104b70de00c0a9787",
+        "cleanup-receipt.json": "520fe3caedea317a5cf61db5b9fd7c7cd5fb8ac9bfeffa5a78d287cabdaf5859",
+        "report/final.json": "5bb61b96301e766bebe2c716a8b6635dbbd24594245e04847c654d898c473cc4",
+        "report/worker-evidence.json": "8de6a28c4cdd9165b32249203b648bc9f2207d708e06e6b6f63a0b7e423d25e6"
+      },
+      "effect": "cached a804 product +79a CLI mixed-version local evidence only; not79a candidate reproduction"
+    }
+  ],
+  "invalidated_claims": [
+    "Small v4 passing behavior as79a regression coverage",
+    "A/full-v2 loss as79a/cloud candidate reproduction",
+    "B128 counterfactual as79a behavior or product capacity improvement",
+    "Profile node2 CPU as79a cloud source-level explanation",
+    "Identity/group/gating/source interpretations across differing files unless separately proven byte-identical"
+  ],
+  "retained_valid_scope": [
+    "Actual cached c253/a804 process behavior and immutable failures",
+    "Explicitly versioned79a CLI behavior where its own metadata is separately verified",
+    "Stopped DB durable rows in actual run data; not online delivery proof",
+    "No paid/cloud state or officialLinux gate changed by these local probes"
+  ],
+  "old_frozen_payloads_preserved": true
+}

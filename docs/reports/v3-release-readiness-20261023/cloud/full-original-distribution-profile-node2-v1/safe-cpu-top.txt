@@ -1,0 +1,68 @@
+File: wukongim
+Type: cpu
+Time: 2026-10-23 04:09:30 CST
+Duration: 10.17s, Total samples = 4.34s (42.68%)
+Showing nodes accounting for 3.88s, 89.40% of 4.34s total
+Dropped 464 nodes (cum <= 0.02s)
+Showing top 60 nodes out of 294
+      flat  flat%   sum%        cum   cum%
+     1.28s 29.49% 29.49%      1.28s 29.49%  syscall.syscallX
+     0.73s 16.82% 46.31%      0.73s 16.82%  syscall.syscall
+     0.41s  9.45% 55.76%      0.41s  9.45%  syscall.syscall6
+     0.36s  8.29% 64.06%      0.36s  8.29%  runtime.madvise
+     0.20s  4.61% 68.66%      0.20s  4.61%  runtime.kevent
+     0.12s  2.76% 71.43%      0.12s  2.76%  runtime.memmove
+     0.09s  2.07% 73.50%      0.09s  2.07%  runtime.memclrNoHeapPointers
+     0.06s  1.38% 74.88%      0.10s  2.30%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel
+     0.05s  1.15% 76.04%      0.06s  1.38%  runtime.(*mspan).heapBitsSmallForAddr
+     0.05s  1.15% 77.19%      0.05s  1.15%  runtime.pthread_cond_signal
+     0.05s  1.15% 78.34%      0.05s  1.15%  runtime.pthread_cond_wait
+     0.04s  0.92% 79.26%      0.04s  0.92%  cmpbody
+     0.04s  0.92% 80.18%      0.04s  0.92%  runtime.fcntl
+     0.04s  0.92% 81.11%      0.08s  1.84%  runtime.findObject
+     0.04s  0.92% 82.03%      0.27s  6.22%  runtime.scanobject
+     0.04s  0.92% 82.95%      0.04s  0.92%  runtime.spanOf (inline)
+     0.03s  0.69% 83.64%      0.09s  2.07%  runtime.(*mspan).typePointersOfUnchecked
+     0.03s  0.69% 84.33%      0.03s  0.69%  runtime.duffcopy
+     0.03s  0.69% 85.02%      0.03s  0.69%  runtime.readvarint (inline)
+     0.03s  0.69% 85.71%      0.03s  0.69%  runtime.typePointers.nextFast (inline)
+     0.03s  0.69% 86.41%      0.03s  0.69%  runtime.walltime
+     0.02s  0.46% 86.87%      0.06s  1.38%  github.com/WuKongIM/WuKongIM/internal/runtime/online.(*Registry).ActiveRoutesByUIDs
+     0.02s  0.46% 87.33%      0.03s  0.69%  runtime.(*unwinder).resolveInternal
+     0.02s  0.46% 87.79%      0.05s  1.15%  runtime.mapaccess1_faststr
+     0.01s  0.23% 88.02%      0.17s  3.92%  github.com/cockroachdb/pebble/v2.(*DB).getInternal
+     0.01s  0.23% 88.25%      0.26s  5.99%  runtime.findRunnable
+     0.01s  0.23% 88.48%      0.08s  1.84%  runtime.growslice
+     0.01s  0.23% 88.71%      0.06s  1.38%  runtime.mallocgcSmallNoscan
+     0.01s  0.23% 88.94%      0.03s  0.69%  runtime.mapaccess1_fast32
+     0.01s  0.23% 89.17%      0.05s  1.15%  runtime.stackpoolalloc
+     0.01s  0.23% 89.40%      0.10s  2.30%  runtime.traceback2
+         0     0% 89.40%      0.04s  0.92%  bytes.Compare
+         0     0% 89.40%      0.12s  2.76%  github.com/WuKongIM/WuKongIM/internal/access/api.(*Server).requireBenchToken
+         0     0% 89.40%      0.13s  3.00%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).debugBearerMiddleware.func2
+         0     0% 89.40%      0.13s  3.00%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).restoreMaintenanceMiddleware.func3
+         0     0% 89.40%      0.13s  3.00%  github.com/WuKongIM/WuKongIM/internal/access/api.New.openCORSMiddleware.func1
+         0     0% 89.40%      0.12s  2.76%  github.com/WuKongIM/WuKongIM/internal/access/api.handlePProf
+         0     0% 89.40%      0.03s  0.69%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*Handler).writeSendack
+         0     0% 89.40%      0.03s  0.69%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func1
+         0     0% 89.40%      0.03s  0.69%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func1.1
+         0     0% 89.40%      0.05s  1.15%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func2
+         0     0% 89.40%      0.08s  1.84%  github.com/WuKongIM/WuKongIM/internal/access/gateway.gatewayPresenceSession.WriteDelivery
+         0     0% 89.40%      0.03s  0.69%  github.com/WuKongIM/WuKongIM/internal/access/gateway.writeSendack
+         0     0% 89.40%      0.08s  1.84%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).HandleDeliveryPushRPC
+         0     0% 89.40%      0.06s  1.38%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).HandlePresenceAuthorityRPC
+         0     0% 89.40%      0.05s  1.15%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).HandlePresenceOwnerRPC
+         0     0% 89.40%      0.05s  1.15%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).handleOwnerRoutesByTargets
+         0     0% 89.40%      0.05s  1.15%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).handlePresenceEndpointsByTargets
+         0     0% 89.40%      0.08s  1.84%  github.com/WuKongIM/WuKongIM/internal/access/node.(*onlineDeliveryOwnerPushAdapter).Push
+         0     0% 89.40%      0.19s  4.38%  github.com/WuKongIM/WuKongIM/internal/app.nodeRPCHandlerFunc.HandleRPC
+         0     0% 89.40%      0.05s  1.15%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceDirectoryAuthority).EndpointsByTargets
+         0     0% 89.40%      0.05s  1.15%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).RecoverRoutesByTargets
+         0     0% 89.40%      0.04s  0.92%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage
+         0     0% 89.40%      0.10s  2.30%  github.com/WuKongIM/WuKongIM/internal/infra/delivery.(*LocalSessionWriter).WriteSession
+         0     0% 89.40%      0.08s  1.84%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*OrderedSubmitter).run
+         0     0% 89.40%      0.03s  0.69%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Router).SendBatch
+         0     0% 89.40%      0.03s  0.69%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Router).SendBatchEach
+         0     0% 89.40%      0.03s  0.69%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Router).sendSingle
+         0     0% 89.40%      0.08s  1.84%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).PushOwner
+         0     0% 89.40%      0.04s  0.92%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1

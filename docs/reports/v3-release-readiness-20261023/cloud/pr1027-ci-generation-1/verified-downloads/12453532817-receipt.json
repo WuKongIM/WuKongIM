@@ -1,0 +1,89 @@
+{
+  "id": 12453532817,
+  "name": "500qps-tcp-sendack-d3fdd6a4c3eb94020776385efb32fd92b12700a0-1",
+  "declared_bytes": 8061,
+  "declared_digest": "sha256:2f38913cce0eff86ae5710b7e8c70e6aa71d19e00afa301f9a0b3d296e4ec601",
+  "state": "verified",
+  "zip_bytes": 8061,
+  "zip_sha256": "2f38913cce0eff86ae5710b7e8c70e6aa71d19e00afa301f9a0b3d296e4ec601",
+  "full_size_sha_crc_valid": true,
+  "members": [
+    {
+      "path": "arrival.json",
+      "bytes": 58100,
+      "compressed_bytes": 2966,
+      "crc32": "289f3e5d",
+      "sha256": "cc8873ae5d77adf7af7a98dd08c022bba2f5a80a32bf56c491ab8871ea267aa4"
+    },
+    {
+      "path": "benchmark.txt",
+      "bytes": 2953,
+      "compressed_bytes": 841,
+      "crc32": "98f46b8a",
+      "sha256": "55069d899e1aed6e79ca8c4971c203dc44f8480aa981e9e7251604f29224ebca"
+    },
+    {
+      "path": "arrival.warmup.json",
+      "bytes": 19436,
+      "compressed_bytes": 1162,
+      "crc32": "4ece25a1",
+      "sha256": "90eadf643912885eb44f50a761d627a079b740cb1bc48cdbe81bce6a03e3dbab"
+    },
+    {
+      "path": "binary.sha256",
+      "bytes": 124,
+      "compressed_bytes": 106,
+      "crc32": "797c7f9f",
+      "sha256": "384dce901ed1aa8ea666519a4d3fb67b1f77103ac0a5221b38df353a0fb532cb"
+    },
+    {
+      "path": "data-filesystem.json",
+      "bytes": 244,
+      "compressed_bytes": 159,
+      "crc32": "77ec143c",
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+    },
+    {
+      "path": "filesystem-preflight.txt",
+      "bytes": 123,
+      "compressed_bytes": 109,
+      "crc32": "d3a4551d",
+      "sha256": "c604894e5f13fae3806ebd83eda36d074f8266e565f111d0e7f1d6194114e833"
+    },
+    {
+      "path": "go-version.txt",
+      "bytes": 33,
+      "compressed_bytes": 35,
+      "crc32": "dd48af92",
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "host.json",
+      "bytes": 4483,
+      "compressed_bytes": 1178,
+      "crc32": "f38c7b89",
+      "sha256": "61dcffad00ce53e335d409d1803c82792f62ab6a364ed2b2e11b8c45d1941490"
+    },
+    {
+      "path": "kernel.txt",
+      "bytes": 113,
+      "compressed_bytes": 100,
+      "crc32": "5f528912",
+      "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+    },
+    {
+      "path": "result.json",
+      "bytes": 18,
+      "compressed_bytes": 20,
+      "crc32": "81529131",
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "source.sha",
+      "bytes": 41,
+      "compressed_bytes": 41,
+      "crc32": "8b5530de",
+      "sha256": "a865c7c841facb9d8cd8fb058cb6170df08aa1121b572680e627f7b03ebf2111"
+    }
+  ]
+}

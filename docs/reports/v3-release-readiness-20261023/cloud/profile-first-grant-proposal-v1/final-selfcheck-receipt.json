@@ -1,0 +1,42 @@
+{
+  "schema": "wukongim/profile-proposal-final-selfcheck/v1",
+  "at_utc": "2026-10-22T20:04:29.370299+00:00",
+  "product_started": false,
+  "real_profile_started": false,
+  "proposed_runtime_directory_exists": false,
+  "functional_suite_methods": 7,
+  "functional_suite_elapsed_seconds": 43.21,
+  "final_metadata_focused_methods": 1,
+  "final_metadata_focused_elapsed_seconds": 6.673,
+  "launcher_exit_statuses_checked": [
+    0,
+    7,
+    8
+  ],
+  "fake_owned_pgids_checked": [
+    94675,
+    94767,
+    94774,
+    94781,
+    94788,
+    94795,
+    94802,
+    94808,
+    94855,
+    94908,
+    94970,
+    95042,
+    95143,
+    95216,
+    95271,
+    95278,
+    95396
+  ],
+  "remaining_fake_group_members": [],
+  "final_watcher_sha256": "6bf22ebcf256c04e34f24c84a9e6f8217417295c23dfd57dcf48032c7f14e566",
+  "final_helper_sha256": "197b86be9f5f245a9b4c0dccc78b660094e2399cf19d1b9aba26b5e5ea319448",
+  "syntax_checks": "all listed final Python AST and Bash -n passed",
+  "real_cpu_start_and_gor_offset": "not independently observed",
+  "active_send_window": "not established by phase file; future real profile must join run cuts",
+  "unrun_checks": "Repository helper suite and complete micro-race/HTTP-error/clock/output-failure matrix were not rerun or exhaustively induced; only explicit fake cases reported"
+}
