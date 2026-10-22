@@ -15,6 +15,86 @@ import (
 
 var errProductionController = errors.New("chat lifecycle production controller failed")
 
+// FinalizationFailure is a bounded diagnostic, never an alternative final report
+// or verdict. Private errors remain only in the finalization error's chain.
+type FinalizationFailure struct {
+	// Stage and Reason are projected through Bounded before external formatting.
+	Stage  string `json:"stage"`
+	Reason string `json:"reason,omitempty"`
+	// Observed fields retain prior evidence without granting report validity.
+	ObservedOutcome  VerdictOutcome     `json:"observed_outcome,omitempty"`
+	ObservedCause    VerdictCause       `json:"observed_cause,omitempty"`
+	ObservedTerminal bool               `json:"observed_terminal,omitempty"`
+	ObservedDecision CoordinatorOutcome `json:"observed_decision,omitempty"`
+}
+
+// Bounded projects only the closed finalization vocabulary and frozen verdict
+// fields. It is safe to format even when a caller supplies an unknown record.
+func (f FinalizationFailure) Bounded() FinalizationFailure {
+	if f.Stage == "" {
+		return FinalizationFailure{}
+	}
+	valid := false
+	switch f.Stage {
+	case "controller_guard":
+		valid = f.Reason == "invalid_receiver_or_context" || f.Reason == "state" || f.Reason == "fence" || f.Reason == "time" || f.Reason == "snapshot_count" || f.Reason == "terminal"
+	case "controller_continuity":
+		valid = f.Reason == "mismatch"
+	case "live_diagnostic":
+		valid = f.Reason == "missing" || f.Reason == "invalid" || f.Reason == "output_failed"
+	case "dataset":
+		valid = f.Reason == "probe_failed" || f.Reason == "digest_mismatch"
+	case "meta_checkpoint", "checkpoint_sequence", "report_validation", "controller_unknown":
+		valid = f.Reason == "invalid"
+	case "checkpoint_evidence":
+		valid = f.Reason == "invalid_evidence" || f.Reason == "dataset_mismatch" || f.Reason == "invalid_snapshot_cut"
+	case "snapshot_aggregate":
+		valid = f.Reason == "snapshot_count" || f.Reason == "snapshot_fence" || f.Reason == "snapshot_stale" || f.Reason == "histogram_schema" || f.Reason == "counter_regression" || f.Reason == "aggregate_overflow" || f.Reason == "invalid"
+	case "write_json", "write_markdown":
+		valid = f.Reason == "output_failed" || f.Reason == "invalid_paths"
+	case "worker_stop":
+		valid = f.Reason == "snapshot_unavailable" || f.Reason == "deadline" || f.Reason == "canceled" || f.Reason == "control_failed"
+	}
+	if !valid {
+		f.Stage, f.Reason = "controller_unknown", "invalid"
+	}
+	if !f.ObservedTerminal || !validVerdictOutcome(f.ObservedOutcome) || !validVerdictCause(f.ObservedCause) {
+		f.ObservedOutcome, f.ObservedCause, f.ObservedTerminal = "", "", false
+	}
+	switch f.ObservedDecision {
+	case CoordinatorCompleted, CoordinatorProductFailure, CoordinatorHarnessInvalid, CoordinatorInfrastructureFailure, CoordinatorStopped:
+	default:
+		f.ObservedDecision = ""
+	}
+	return f
+}
+
+// finalizationError keeps errors.Is/As useful without formatting private causes.
+type finalizationError struct {
+	diagnostic FinalizationFailure
+	cause      error
+}
+
+func (*finalizationError) Error() string { return "chat lifecycle finalization failed" }
+func (e *finalizationError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
+func newFinalizationError(stage, reason string, cause error) error {
+	return &finalizationError{diagnostic: FinalizationFailure{Stage: stage, Reason: reason}, cause: cause}
+}
+
+func finalizationDiagnostic(err error, stage, reason string) FinalizationFailure {
+	var failure *finalizationError
+	if errors.As(err, &failure) && failure != nil {
+		return failure.diagnostic.Bounded()
+	}
+	return FinalizationFailure{Stage: stage, Reason: reason}
+}
+
 type productionControllerFailureStage string
 type productionControllerFailureReason string
 
@@ -400,25 +480,29 @@ func (c *ProductionEvidenceController) observeFailureReason(
 	reason productionControllerFailureReason,
 	err error,
 ) (CoordinatorOutcome, error) {
+	c.writeFailureDiagnostic(cut.At, cut.Kind, "", FinalizationFailure{Stage: string(stage), Reason: string(reason)})
+	if err == nil {
+		err = errProductionController
+	}
+	return "", err
+}
+
+func (c *ProductionEvidenceController) writeFailureDiagnostic(at time.Time, cut CoordinatorCutKind, phase string, failure FinalizationFailure) {
 	if c != nil && c.diagnosticLog != nil {
 		record := struct {
-			Event  string                            `json:"event"`
-			At     time.Time                         `json:"at"`
-			Cut    CoordinatorCutKind                `json:"cut"`
-			Stage  productionControllerFailureStage  `json:"stage"`
-			Reason productionControllerFailureReason `json:"reason,omitempty"`
+			Event string             `json:"event"`
+			At    time.Time          `json:"at"`
+			Cut   CoordinatorCutKind `json:"cut"`
+			Phase string             `json:"phase,omitempty"`
+			FinalizationFailure
 		}{
 			Event: "wkbench.chat_lifecycle.controller_failure",
-			At:    cut.At, Cut: cut.Kind, Stage: stage, Reason: reason,
+			At:    at, Cut: cut, Phase: phase, FinalizationFailure: failure,
 		}
 		if body, marshalErr := json.Marshal(record); marshalErr == nil {
 			_, _ = c.diagnosticLog.Write(append(body, '\n'))
 		}
 	}
-	if err == nil {
-		err = errProductionController
-	}
-	return "", err
 }
 
 func productionControllerSnapshotFailureReason(err error) productionControllerFailureReason {
@@ -529,26 +613,44 @@ func terminalCapacityVerdict(capacity CapacitySnapshot) VerdictSnapshot {
 // Finalize joins lifecycle work, rechecks dataset/meta evidence against the
 // final worker snapshots, and atomically writes both final formats.
 func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut CoordinatorFinalCut) error {
-	if c == nil || ctx == nil {
-		return errProductionController
+	if c == nil {
+		return newFinalizationError("controller_guard", "invalid_receiver_or_context", errProductionController)
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.begun || c.closed || cut.Start.Fence != c.start.Fence || cut.At.IsZero() ||
-		len(cut.FinalSnapshots) != coordinatorWorkerCount || !c.frozen.Terminal {
-		return errProductionController
+	if ctx == nil {
+		return c.finalizeFailure(cut, "controller_guard", "invalid_receiver_or_context", errProductionController)
+	}
+	switch {
+	case !c.begun || c.closed:
+		return c.finalizeFailure(cut, "controller_guard", "state", errProductionController)
+	case cut.Start.Fence != c.start.Fence:
+		return c.finalizeFailure(cut, "controller_guard", "fence", errProductionController)
+	case cut.At.IsZero():
+		return c.finalizeFailure(cut, "controller_guard", "time", errProductionController)
+	case len(cut.FinalSnapshots) != coordinatorWorkerCount:
+		return c.finalizeFailure(cut, "controller_guard", "snapshot_count", errProductionController)
+	case !c.frozen.Terminal:
+		return c.finalizeFailure(cut, "controller_guard", "terminal", errProductionController)
 	}
 	if cut.Continuous != (c.continuous && !c.continuing) {
-		return errProductionController
+		return c.finalizeFailure(cut, "controller_continuity", "mismatch", errProductionController)
 	}
-	if c.diagnostics == nil || c.diagnostics.Observe(cut.At, CoordinatorCutTerminal, cut.FinalSnapshots) != nil {
-		return errProductionController
+	if c.diagnostics == nil {
+		return c.finalizeFailure(cut, "live_diagnostic", "missing", errProductionController)
+	}
+	if err := c.diagnostics.Observe(cut.At, CoordinatorCutTerminal, cut.FinalSnapshots); err != nil {
+		reason := "output_failed"
+		if errors.Is(err, errProductionController) {
+			reason = "invalid"
+		}
+		return c.finalizeFailure(cut, "live_diagnostic", reason, err)
 	}
 	if !cut.Continuous {
 		c.stopLifecycleLocked()
 	}
 	if err := c.refreshDatasetLocked(ctx); err != nil {
-		return err
+		return c.finalizeFailure(cut, "dataset", "invalid", err)
 	}
 	beforeMeta := c.accounting.Snapshot()
 	hadMetaProduct := metaCreateSnapshotHasProductFailure(beforeMeta)
@@ -557,7 +659,7 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 	// harness-only reconciliation error cannot erase it or suppress the report.
 	metaProduct := hadMetaProduct || errors.Is(metaErr, ErrLifecycleProductFailure)
 	if metaErr != nil && !metaProduct {
-		return errProductionController
+		return c.finalizeFailure(cut, "meta_checkpoint", "invalid", metaErr)
 	}
 	lifecycle := c.lifecycle.Snapshot()
 	current := VerdictSignal{Outcome: c.frozen.Outcome, Cause: c.frozen.Cause}
@@ -577,7 +679,7 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 	}
 	finalEvidence := c.checkpointEvidenceLocked(lifecycle, c.frozen, cut.Capacity)
 	if _, err := c.recorder.CaptureAndWrite(cut.At, cut.FinalSnapshots, finalEvidence, c.paths("final")); err != nil {
-		return errProductionController
+		return c.finalizeFailure(cut, "checkpoint_evidence", "invalid_evidence", err)
 	}
 	if cut.Continuous {
 		c.awaitingCapacity = true
@@ -585,6 +687,17 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 	}
 	c.closed = true
 	return nil
+}
+
+// finalizeFailure preserves the primary private cause and the already-frozen
+// observation without turning incomplete finalization into a report verdict.
+func (c *ProductionEvidenceController) finalizeFailure(cut CoordinatorFinalCut, stage, reason string, cause error) error {
+	failure := finalizationDiagnostic(cause, stage, reason)
+	if c != nil && c.frozen.Terminal && validVerdictOutcome(c.frozen.Outcome) && validVerdictCause(c.frozen.Cause) && validCheckpointVerdict(c.frozen) {
+		failure.ObservedOutcome, failure.ObservedCause, failure.ObservedTerminal = c.frozen.Outcome, c.frozen.Cause, true
+	}
+	c.writeFailureDiagnostic(cut.At, CoordinatorCutTerminal, "finalize", failure)
+	return &finalizationError{diagnostic: failure, cause: errors.Join(errProductionController, cause)}
 }
 
 // Close is idempotent and guarantees the long-running lifecycle loop is joined.
@@ -607,8 +720,11 @@ func (c *ProductionEvidenceController) validCut(cut CoordinatorEvidenceCut) bool
 
 func (c *ProductionEvidenceController) refreshDatasetLocked(ctx context.Context) error {
 	digest, err := c.dataset.ProbeDatasetDigest(ctx, c.cfg)
-	if err != nil || digest != c.datasetDigest {
-		return errProductionController
+	if err != nil {
+		return newFinalizationError("dataset", "probe_failed", errors.Join(errProductionController, err))
+	}
+	if digest != c.datasetDigest {
+		return newFinalizationError("dataset", "digest_mismatch", errProductionController)
 	}
 	return nil
 }

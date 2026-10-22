@@ -1937,3 +1937,20 @@ specification, runbook, report, or module documentation; link to them when neede
   evidence can exempt absent capacity documents. Passing outcomes still require
   capacity evidence. Fixture artifact paths use a non-`WK_` environment variable
   so product child processes do not treat test metadata as runtime configuration.
+
+- Chat-lifecycle finalization diagnostics retain a closed rejecting stage/reason
+  and the previously frozen outcome/cause as observations, never a substitute
+  report. Private error chains remain available to `errors.Is/As` but are not
+  formatted into retained diagnostics. Missing final output still fails closed;
+  the CLI's existing valid-JSON report preference and JSON-before-Markdown write
+  order remain unchanged. A failed Markdown output can leave readable JSON while
+  the recorder's sequence remains uncommitted. A generic `invalid_observation`
+  fallback alone does not identify the rejecting finalization branch.
+
+- Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
+  `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
+  does not establish compiled-source provenance. Exact reproduction uses a clean
+  independent clone with a real `.git` directory and binds compiler, flags,
+  embedded assets and binary hashes. Rebuilding candidate `79a71770` this way
+  reproduced both original cloud Linux server/CLI ELF files byte for byte; native
+  Mac measurements still do not constitute Linux performance acceptance.
