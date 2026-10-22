@@ -44,7 +44,13 @@ func (f FinalizationFailure) Bounded() FinalizationFailure {
 		valid = f.Reason == "missing" || f.Reason == "invalid" || f.Reason == "output_failed"
 	case "dataset":
 		valid = f.Reason == "probe_failed" || f.Reason == "digest_mismatch"
-	case "meta_checkpoint", "checkpoint_sequence", "report_validation", "controller_unknown":
+	case "meta_checkpoint":
+		switch f.Reason {
+		case "guard", "context_canceled", "context_deadline", "expectation_worker_shape", "expectation_fence", "expectation_vector_bound",
+			"checkpoint_fence", "checkpoint_sequence", "checkpoint_vector_regression", "metrics_fetch", "metrics_preview", "settle_wait", "accounting", "invalid":
+			valid = true
+		}
+	case "checkpoint_sequence", "report_validation", "controller_unknown":
 		valid = f.Reason == "invalid"
 	case "checkpoint_evidence":
 		valid = f.Reason == "invalid_evidence" || f.Reason == "dataset_mismatch" || f.Reason == "invalid_snapshot_cut"

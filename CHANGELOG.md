@@ -14,6 +14,16 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Coalesce cold presence recovery by UID and authority identity so unrelated
+  proofs can progress within bounded owner admission. New cold UID bytes are
+  limited to 32 MiB per page; oversized pages remain explicitly not ready.
+  / 在线路由冷恢复按 UID 和权威身份合并，在有界 owner 准入内允许无关证明继续推进；
+  每页新恢复 UID 字节限制为 32 MiB，超限明确返回未就绪。
+
+- Identify metadata-checkpoint rejection stages in chat-lifecycle diagnostics
+  while retaining incomplete-report failures and prior product observations.
+  / 聊天生命周期诊断细分元数据核算拒绝阶段，保留报告不完整失败和此前产品观察。
+
 - Retain bounded chat-lifecycle finalization failure stages and prior product
   observations without changing report validation or release verdicts.
   / 聊天生命周期验收结束失败时保留有界的失败阶段和此前产品观察，不改变报告校验或发布结论。

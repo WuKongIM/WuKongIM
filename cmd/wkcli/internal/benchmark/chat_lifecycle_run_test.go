@@ -96,6 +96,34 @@ func TestChatLifecycleFinalizationSummaryRetainsClosedBoundaryWithoutChangingVer
 	}
 }
 
+func TestChatLifecycleMetaCheckpointLeavesKeepInvalidObservation(t *testing.T) {
+	for _, reason := range []string{
+		"guard", "context_canceled", "context_deadline", "expectation_worker_shape", "expectation_fence",
+		"expectation_vector_bound", "checkpoint_fence", "checkpoint_sequence", "checkpoint_vector_regression",
+		"metrics_fetch", "metrics_preview", "settle_wait", "accounting", "invalid",
+	} {
+		t.Run(reason, func(t *testing.T) {
+			result := chatlifecycle.CoordinatorResult{
+				Outcome: chatlifecycle.CoordinatorHarnessInvalid, Code: chatlifecycle.CoordinatorCodeFinalize,
+				FinalizationFailure: chatlifecycle.FinalizationFailure{
+					Stage: "meta_checkpoint", Reason: reason, ObservedDecision: chatlifecycle.CoordinatorProductFailure,
+					ObservedOutcome: chatlifecycle.VerdictProductFailure, ObservedCause: chatlifecycle.VerdictCauseMessageLoss, ObservedTerminal: true,
+				},
+			}
+			verdict := chatLifecycleCoordinatorVerdict(result)
+			if verdict.Outcome != chatlifecycle.VerdictHarnessInvalid || verdict.Cause != chatlifecycle.VerdictCauseInvalidObservation || chatLifecycleVerdictExitCode(verdict) != exitChatLifecycleHarness {
+				t.Fatalf("leaf diagnostic changed incomplete-report verdict: %+v", verdict)
+			}
+			summary := chatLifecycleCoordinatorSummary(verdict, result, "unavailable")
+			for _, field := range []string{"finalization_stage=meta_checkpoint", "finalization_reason=" + reason, "observed_cause=message_loss", "report=unavailable"} {
+				if !strings.Contains(summary, field) {
+					t.Errorf("summary misses %q: %q", field, summary)
+				}
+			}
+		})
+	}
+}
+
 func TestChatLifecycleFirstSignalRequestsGracefulStopAndWaitsForFinalResult(t *testing.T) {
 	runner := newSignalTestChatLifecycleRunner()
 	signals := make(chan os.Signal, 2)
