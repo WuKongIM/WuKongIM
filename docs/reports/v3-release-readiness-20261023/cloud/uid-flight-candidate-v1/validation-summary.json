@@ -1,0 +1,67 @@
+{
+  "head": "5a8c42fa69ddc15ef341e2992148c7c7fc36eb79",
+  "checks": [
+    {
+      "label": "red-before-production",
+      "exit_code": 1,
+      "seconds": 6.373503791051917,
+      "pass_events": 23,
+      "fail_events": 13
+    },
+    {
+      "label": "green-focused",
+      "exit_code": 0,
+      "seconds": 1.093541583046317,
+      "pass_events": 36,
+      "fail_events": 0
+    },
+    {
+      "label": "green-presence-runtime",
+      "exit_code": 0,
+      "seconds": 1.1579508329741657,
+      "pass_events": 106,
+      "fail_events": 0
+    },
+    {
+      "label": "race-presence-runtime",
+      "exit_code": 0,
+      "seconds": 18.939977208035998,
+      "pass_events": 106,
+      "fail_events": 0
+    },
+    {
+      "label": "race-owner-adapter",
+      "exit_code": 0,
+      "seconds": 53.971721666981466,
+      "pass_events": 4,
+      "fail_events": 0
+    }
+  ],
+  "named_checks": {
+    "go-format": 0,
+    "flow-doc-contracts": 0
+  },
+  "owned_process_groups": [
+    37213,
+    37768,
+    37810,
+    37853,
+    38409,
+    39360,
+    39486,
+    39518,
+    39537,
+    39542
+  ],
+  "remaining_processes": [],
+  "original_2ab_red_test_unchanged": true,
+  "old_test_sha256": "8b0a6940bf3132ccf5aa29625985a4a00750827bae2d1a9be4d717fa5d7527fe",
+  "committed_clean": true,
+  "no_push_pr_service_load_cloud": true,
+  "limits": {
+    "cohorts": 4,
+    "keys": 2048,
+    "page_uid_bytes": 33554432,
+    "owned_uid_bytes": 134217728
+  }
+}

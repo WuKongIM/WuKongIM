@@ -1,0 +1,21 @@
+{
+  "schema": "wukongim/c495-preparation-limitation/v1",
+  "at_utc": "2026-10-22T22:26:35.034492+00:00",
+  "extra_root_review_read_before_launch": {
+    "incorrect_basename": "PUBLIC_SHA256SUMS",
+    "result": "FileNotFoundError",
+    "proposal_and_all_executed_input_and_fresh_directory_checks_before_this_extra_read": "passed",
+    "orchestration_note": "outer functions script displayed the command exit1 then proceeded; explicit root one-run authorization and actual supervisor source/binary/process/port guards still held",
+    "no_configuration_or_source_mismatch": true
+  },
+  "root_clarification": "actual review manifest basename SHA256SUMS; independent root checks and explicit approval permit this already-started run to continue, no restart or source modification",
+  "corrected_read_only_recheck": {
+    "basename": "SHA256SUMS",
+    "manifest_sha256": "859a714a2415add8b4e05e3f71ccdfd58c72779e85ebac5f1248abf95ae629be",
+    "member_count": 4,
+    "all_members_verified": true
+  },
+  "root_review_or_sealed_proposal_modified": false,
+  "product_restarted_or_rerun": false,
+  "runtime_configuration_changed": false
+}

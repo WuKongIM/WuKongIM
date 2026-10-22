@@ -1,0 +1,29 @@
+{
+  "named_check": "go-format",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "policy_definition": {
+    "arguments": [
+      "review-agent-check",
+      "go-format"
+    ],
+    "working_dir": ".",
+    "timeout_seconds": 300,
+    "max_output_bytes": 1048576
+  },
+  "canonical_argv": [
+    "review-agent-check",
+    "go-format"
+  ],
+  "resolved_argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "run",
+    "./cmd/wkreviewcheck",
+    "go-format"
+  ],
+  "exit_code": 0,
+  "outer_timeout": false,
+  "child_joined": true,
+  "process_group": 39542,
+  "started_utc": "2026-10-22T22:07:50.554426+00:00",
+  "elapsed_seconds": 2.2824345829430968
+}

@@ -1,0 +1,67 @@
+File: wukongim
+Type: goroutine
+Time: 2026-10-23 06:29:12 CST
+Showing nodes accounting for 2540, 99.45% of 2554 total
+Dropped 237 nodes (cum <= 12)
+Showing top 60 nodes out of 187
+      flat  flat%   sum%        cum   cum%
+      2540 99.45% 99.45%       2540 99.45%  runtime.gopark
+         0     0% 99.45%         49  1.92%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred
+         0     0% 99.45%         14  0.55%  github.com/WuKongIM/WuKongIM/internal/access/node.(*ChannelAppendAdapter).HandleChannelAppendRPC
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).EndpointsByTargets
+         0     0% 99.45%         19  0.74%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).ForwardSendBatch
+         0     0% 99.45%         14  0.55%  github.com/WuKongIM/WuKongIM/internal/app.channelAppendAuthorityLocal.SubmitForAuthority
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/internal/app.nodeRPCHandlerFunc.HandleRPC
+         0     0% 99.45%         19  0.74%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*ChannelAppendClient).ForwardSendBatch
+         0     0% 99.45%         49  1.92%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*ChannelAppendClient).ResolveAppendAuthority
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*ChannelAppender).AppendBatch
+         0     0% 99.45%         49  1.92%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*ChannelMetadataStore).ReadPermissionsBatch
+         0     0% 99.45%         17  0.67%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).EndpointsByTargets
+         0     0% 99.45%         17  0.67%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce
+         0     0% 99.45%         26  1.02%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func1
+         0     0% 99.45%         26  1.02%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func2
+         0     0% 99.45%         12  0.47%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceDirectoryAuthority).EndpointsByTargets
+         0     0% 99.45%         17  0.67%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches
+         0     0% 99.45%         26  1.02%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches.func1 (partial-inline)
+         0     0% 99.45%         19  0.74%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches.func2
+         0     0% 99.45%         17  0.67%  github.com/WuKongIM/WuKongIM/internal/infra/delivery.(*PresenceResolver).EndpointsByTargets
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Future).Wait
+         0     0% 99.45%       1000 39.15%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*OrderedSubmitter).run
+         0     0% 99.45%         78  3.05%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Router).SendBatch
+         0     0% 99.45%         78  3.05%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Router).SendBatchEach
+         0     0% 99.45%         19  0.74%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Router).forwardBatch
+         0     0% 99.45%         78  3.05%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Router).sendSingle
+         0     0% 99.45%         29  1.14%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Router).submitSingleTarget
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).runAppend.func1
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).runAppend.func1.1
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*workerPool).submitWithCompletion.func1
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.appendEffect.run
+         0     0% 99.45%        320 12.53%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runPlan
+         0     0% 99.45%        320 12.53%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker
+         0     0% 99.45%        296 11.59%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*orderedPlanQueue).dequeue
+         0     0% 99.45%         16  0.63%  github.com/WuKongIM/WuKongIM/internal/runtime/pluginhook.(*Worker).Start.func1
+         0     0% 99.45%         16  0.63%  github.com/WuKongIM/WuKongIM/internal/runtime/pluginhook.(*Worker).runWorker
+         0     0% 99.45%         49  1.92%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).SubmitBatchEach
+         0     0% 99.45%         49  1.92%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).checkSendPermissionsBatch
+         0     0% 99.45%         49  1.92%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).readPermissionFacts
+         0     0% 99.45%         49  1.92%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).resolveSendBatchPermissions
+         0     0% 99.45%         49  1.92%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).sendBatchEach
+         0     0% 99.45%         17  0.67%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*App).EndpointsByTargets
+         0     0% 99.45%         12  0.47%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets
+         0     0% 99.45%         12  0.47%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets.func1 (inline)
+         0     0% 99.45%         12  0.47%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage
+         0     0% 99.45%         18   0.7%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*ExchangeServer).Handle
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*peerBatcher).drainTarget
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*peerBatcher).exchange
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*peerBatcher).scheduleTargetLocked.func1
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*storeAdapter).Sync
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.NewRuntime.func1
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.callPeerExchange
+         0     0% 99.45%         17  0.67%  github.com/WuKongIM/WuKongIM/pkg/channel/service.(*cluster).AppendBatch
+         0     0% 99.45%         17  0.67%  github.com/WuKongIM/WuKongIM/pkg/channel/service.(*cluster).appendBatch
+         0     0% 99.45%         17  0.67%  github.com/WuKongIM/WuKongIM/pkg/channel/service.awaitAppendFuture
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/pkg/channel/store.(*MessageDBFactory).AppendLeaderBatch
+         0     0% 99.45%         24  0.94%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).AppendChannelBatch
+         0     0% 99.45%        102  3.99%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).CallRPC

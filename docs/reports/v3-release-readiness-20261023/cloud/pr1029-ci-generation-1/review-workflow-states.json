@@ -1,0 +1,14 @@
+{
+  ".github/workflows/review-agent-run.yml": {
+    "id": 324187001,
+    "name": "Agent Tool - Review Pull Request",
+    "path": ".github/workflows/review-agent-run.yml",
+    "state": "disabled_manually"
+  },
+  ".github/workflows/review-agent.yml": {
+    "id": 324187004,
+    "name": "Safety Automation - Review Agent Controller",
+    "path": ".github/workflows/review-agent.yml",
+    "state": "disabled_manually"
+  }
+}

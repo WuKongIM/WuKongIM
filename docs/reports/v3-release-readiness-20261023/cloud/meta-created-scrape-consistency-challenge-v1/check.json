@@ -1,0 +1,27 @@
+{
+  "schema": "wukongim/meta-created-scrape-consistency-static-check/v1",
+  "at_utc": "2026-10-22T22:00:46.685344+00:00",
+  "source": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "hypothesis": "Concurrent ObserveMetaCreate/Prometheus Gather may independently sample a global created counter and perSlot counters, producing scalar!=sum and MetaCreateAccounting preview HarnessInvalid.",
+  "result": "refuted_for_the_fixed_production_parser_pipeline",
+  "decisive_fact": "No independent global counter is sampled. Target parser derives MetaCreatedTotal from the exact same unique perSlot samples it stores in MetaCreatedBySlot.",
+  "invariant": "For each accepted result r: MetaCreatedTotal[r] == sum(slot=1..12, MetaCreatedBySlot[slot-1][r]). Duplicate/invalid/non-exact/aggregate-overflow input fails parsing rather than producing a contradictory accepted snapshot. Missing perSlot entries default0 in both folds.",
+  "concurrency_fact": "Prometheus Counter Inc/load is atomic per counter; vector/registry locks cover membership/collector registration rather than one global instant. Different series may reflect different times, but each observed value feeds both local representations.",
+  "alias_fact": "Promoted alias is a clone of already gathered DTO; target parser recognizes only legacy channelv2 family and does not double count alias.",
+  "deterministic_test_seam": {
+    "positive_red_for_exact_hypothesis": "No valid unchanged production-pipeline seam identified; a manually inconsistent MetricsSnapshot bypasses the parser and would be an invalid reproduction of Inc/Gather tearing.",
+    "optional_confirmation_not_written": "Existing package-local parseObservationMetrics or public Client.Metrics with in-memory RoundTripper can accept a deliberately mixed-time canonical scrape and check scalar/perSlot equality plus overflow/duplicate rejection. A gathered metric Write barrier could demonstrate lack of a global instant, but cannot create this scalar/sum mismatch.",
+    "existing_tests_read_not_run": [
+      "pkg/metrics/registry_test.go:1000",
+      "internal/bench/target/client_test.go:1097",
+      "internal/bench/target/client_test.go:1140",
+      "internal/bench/chatlifecycle/lifecycle_proof_test.go:3130"
+    ]
+  },
+  "causal_limit": "Original exact failed metrics round/actual worker vectors absent; six nearby scrapes passing synthetic replay do not prove original checkpoint success. This refutes only the stated scalar/perSlot race hypothesis and does not determine current meta_checkpoint leaf or message-loss root cause.",
+  "no_tests_written_or_run": true,
+  "no_go_commands_compile_or_download": true,
+  "no_metrics_or_source_mutated": true,
+  "no_requests_profiles_services_or_cloud": true,
+  "source_worktree_clean": true
+}

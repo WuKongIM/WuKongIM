@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-22T22:39:19.503586+00:00",
+  "calls": [
+    {
+      "name": "pr-before",
+      "endpoint": "repos/WuKongIM/WuKongIM/pulls/1029",
+      "exit_code": 0
+    },
+    {
+      "name": "reviews-before",
+      "endpoint": "repos/WuKongIM/WuKongIM/pulls/1029/reviews",
+      "exit_code": 0
+    },
+    {
+      "name": "repo-before",
+      "endpoint": "repos/WuKongIM/WuKongIM",
+      "exit_code": 0
+    },
+    {
+      "name": "rulesets-before",
+      "endpoint": "repos/WuKongIM/WuKongIM/rulesets",
+      "exit_code": 0
+    },
+    {
+      "name": "branch-protection-before",
+      "endpoint": "repos/WuKongIM/WuKongIM/branches/main/protection",
+      "exit_code": 0
+    },
+    {
+      "name": "review-workflow-before",
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/workflows/review-agent.yml",
+      "exit_code": 0
+    },
+    {
+      "name": "review-run-workflow-before",
+      "endpoint": "repos/WuKongIM/WuKongIM/actions/workflows/review-agent-run.yml",
+      "exit_code": 0
+    }
+  ]
+}

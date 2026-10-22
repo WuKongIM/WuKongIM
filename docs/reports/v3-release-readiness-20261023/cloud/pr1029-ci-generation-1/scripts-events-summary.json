@@ -1,0 +1,70 @@
+{
+  "test_event_counts": {
+    "run": 1323,
+    "output": 3150,
+    "pass": 1317,
+    "pause": 249,
+    "cont": 249,
+    "skip": 6
+  },
+  "package_event_counts": {
+    "start": 7,
+    "output": 14,
+    "pass": 7
+  },
+  "failed_tests": [],
+  "skips": [
+    {
+      "Time": "2026-10-22T22:26:09.648008175Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageRuntimeContract",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-22T22:26:09.688154813Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageEmbeddedPrometheus",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-22T22:26:10.538023493Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestEasySDKReadinessSerialDelayFixture",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-22T22:26:39.437383621Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageLifecycle",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-22T22:26:39.437424126Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageSignedRepository",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-22T22:26:39.808666013Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageRepositoryDeadlineFixture",
+      "Elapsed": 0
+    }
+  ],
+  "output_truncated": false,
+  "elapsed_seconds": 587.354,
+  "output_bytes": 1507192,
+  "cleanup": {
+    "session_id": 2520,
+    "verified": true,
+    "complete": true,
+    "initial_processes": [],
+    "remaining_processes": []
+  }
+}

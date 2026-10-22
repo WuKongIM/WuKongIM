@@ -1,0 +1,41 @@
+{
+  "schema": "wukongim/c495-safe-expired-identity-proposal/v1",
+  "source_evidence_sha256": "fc8094a2065db8b062d9628fde0d1a96876b14d8937a8f224464573a7ed73cd9",
+  "helper_source_sha256": "98bf8f05f9370489c6b8cc29581361b0cc135bc3800728daba990b3b9104f1bc",
+  "helper_adaptation": "source-root metadata only",
+  "helper_timing": {
+    "cpu_seconds": 0.011936000000000002,
+    "utc_end": "2026-10-22T22:32:40.448193+00:00",
+    "utc_start": "2026-10-22T22:32:40.436135+00:00",
+    "wall_seconds": 0.011940374970436096
+  },
+  "results": [
+    {
+      "attempted_candidates": 3330,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 314
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "0db0904a5c1178a44b1596dfd762770d",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1646,
+          "target_group_index": 1646
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798330,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 2
+    }
+  ],
+  "db_queries": 0,
+  "database_copies": 0,
+  "limitation": "exact128bit fingerprint identifies candidate ClientMsgNo privately; warning MessageID association not established"
+}

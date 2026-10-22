@@ -1,0 +1,3 @@
+# Retained metrics parser replay, before test code
+
+One diagnostic invocation, six existing first-measured/terminal scrapes. Required: all six regular non-symlink files <=2MiB; exact input SHA/size/mtime unchanged before/after; exactly six in-memory HTTP round trips to /metrics, no DNS/listener/network; real target.Client.Metrics used; every parse result retained even if one fails. Known constant parser errors may be reported through a source-derived literal allowlist; other errors stay redacted. A replay failure is not automatically the actual failed checkpoint round. No worker vectors reconstructed, no accounting success asserted. No service, workload, DB, cloud, retry, or production edit. Test 30s/outer60s, installedGo1.25.11/offline modules/-p1.

@@ -1,0 +1,50 @@
+{
+  "schema": "wukongim/exact-c495-native-readonly-preflight/v1",
+  "verified": true,
+  "product_started": false,
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-c495-candidate",
+  "source_revision": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "source_clean": true,
+  "real_git_directory": true,
+  "binaries": {
+    "wukongim": {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-c495-native-v1/darwin-arm64/wukongim",
+      "sha256": "82ba7ab6955c4ed9e6b60f1f98eb44f14b8e64c9d09224b319c56e5c281fc5a6",
+      "compiler": "go1.25.11",
+      "build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "-trimpath": "true",
+        "CGO_ENABLED": "0",
+        "GOARCH": "arm64",
+        "GOOS": "darwin",
+        "GOARM64": "v8.0",
+        "vcs": "git",
+        "vcs.revision": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+        "vcs.time": "2026-10-22T22:20:48Z",
+        "vcs.modified": "false"
+      }
+    },
+    "wkcli": {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-c495-native-v1/darwin-arm64/wkcli",
+      "sha256": "1d44f1f1fba89662b2824c6771da37e9f84276ee4afec74eb16477800e02a2ea",
+      "compiler": "go1.25.11",
+      "build_settings": {
+        "-buildmode": "exe",
+        "-compiler": "gc",
+        "-trimpath": "true",
+        "CGO_ENABLED": "0",
+        "GOARCH": "arm64",
+        "GOOS": "darwin",
+        "GOARM64": "v8.0",
+        "vcs": "git",
+        "vcs.revision": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+        "vcs.time": "2026-10-22T22:20:48Z",
+        "vcs.modified": "false"
+      }
+    }
+  },
+  "build_receipt_manifest_sha256": "ece8616d6e2075eea66ad000889d43ab63e7711fbbcb21c3966d6223181b0aba",
+  "cloud_binary_byte_equality_claimed": false,
+  "runtime_limit": "native shared Macarm64 diagnosis, not a Linux performance environment"
+}

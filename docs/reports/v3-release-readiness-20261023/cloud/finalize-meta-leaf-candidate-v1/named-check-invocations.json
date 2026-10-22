@@ -1,0 +1,68 @@
+[
+  {
+    "named_check": "go-format",
+    "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "canonical_arguments": [
+      "review-agent-check",
+      "go-format"
+    ],
+    "resolved_argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "run",
+      "./cmd/wkreviewcheck",
+      "go-format"
+    ],
+    "adapter": "Repository cmd/wkreviewcheck fixed selector entrypoint for review-agent-check",
+    "environment_overrides": {
+      "GOWORK": "off",
+      "GOTOOLCHAIN": "local",
+      "GOFLAGS": "-p=2",
+      "CGO_ENABLED": "0",
+      "GOPROXY": "off",
+      "GOSUMDB": "off"
+    },
+    "path_prepend": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin",
+    "started_at_utc": "2026-10-22T22:01:29.736526+00:00",
+    "elapsed_seconds": 0.8717209589667618,
+    "timed_out": false,
+    "exit_code": 0,
+    "stdout_bytes": 0,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "process_joined": true
+  },
+  {
+    "named_check": "flow-doc-contracts",
+    "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "canonical_arguments": [
+      "go",
+      "run",
+      "./scripts/flowcheck",
+      "--mode",
+      "check"
+    ],
+    "resolved_argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "run",
+      "./scripts/flowcheck",
+      "--mode",
+      "check"
+    ],
+    "adapter": "Pinned installed Go executable, unchanged named-check arguments",
+    "environment_overrides": {
+      "GOWORK": "off",
+      "GOTOOLCHAIN": "local",
+      "GOFLAGS": "-p=2",
+      "CGO_ENABLED": "0",
+      "GOPROXY": "off",
+      "GOSUMDB": "off"
+    },
+    "path_prepend": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin",
+    "started_at_utc": "2026-10-22T22:01:30.608456+00:00",
+    "elapsed_seconds": 0.5341709590284154,
+    "timed_out": false,
+    "exit_code": 0,
+    "stdout_bytes": 1376,
+    "stdout_sha256": "5ebe3121e5c1b878ace6159d0e34bdf5f370bc21868496383269cabcc14d408e",
+    "process_joined": true
+  }
+]

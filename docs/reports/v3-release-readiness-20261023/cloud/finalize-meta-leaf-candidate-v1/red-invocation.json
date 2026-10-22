@@ -1,0 +1,32 @@
+{
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "-json",
+    "./internal/bench/chatlifecycle",
+    "./cmd/wkcli/internal/benchmark",
+    "-run",
+    "^(TestMetaCheckpoint|TestChatLifecycleMetaCheckpoint)",
+    "-count=1",
+    "-timeout=90s"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+  "started_at_utc": "2026-10-22T21:57:25.783163+00:00",
+  "elapsed_seconds": 4.27599866699893,
+  "outer_timeout_seconds": 120,
+  "go_timeout_seconds": 90,
+  "timed_out": false,
+  "exit_code": 1,
+  "environment_overrides": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOFLAGS": "-p=2",
+    "CGO_ENABLED": "0",
+    "GOPROXY": "off",
+    "GOSUMDB": "off"
+  },
+  "stdout_bytes": 112539,
+  "stdout_sha256": "d7376862996c0018fe937f0abdcfd78c6f315734bc183f6ffc7515999fe95620",
+  "process_joined": true,
+  "production_unchanged_before_red": true
+}

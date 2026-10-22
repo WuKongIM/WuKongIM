@@ -1,0 +1,42 @@
+{
+  "schema": "wukongim/c495-exact-source-selection/v1",
+  "at_utc": "2026-10-22T22:21:37.173633+00:00",
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-c495-candidate",
+  "head": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "real_git_directory": true,
+  "source_clean": true,
+  "source_changes_vs_3e668": [
+    "docs/development/FLOW_INDEX.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "internal/usecase/presence/FLOW.md"
+  ],
+  "all_go_blobs_unchanged_vs_3e668": true,
+  "clone_commands": [
+    {
+      "name": "clone",
+      "argv": [
+        "git",
+        "clone",
+        "--shared",
+        "--no-checkout",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-c495-candidate"
+      ],
+      "exit_status": 0
+    },
+    {
+      "name": "checkout",
+      "argv": [
+        "git",
+        "checkout",
+        "--detach",
+        "c4954c6a638080e6a915ecec305a3381f4afd9a0"
+      ],
+      "exit_status": 0
+    }
+  ],
+  "assets76_equal_original_cloud": true,
+  "prior_clones_or_binaries_modified": false,
+  "build_started": false
+}

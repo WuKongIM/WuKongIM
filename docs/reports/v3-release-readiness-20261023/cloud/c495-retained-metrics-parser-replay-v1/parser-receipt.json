@@ -1,0 +1,66 @@
+{
+  "actual_failed_round_available": false,
+  "in_memory_http_calls": 6,
+  "results": [
+    {
+      "name": "metrics-first-measured-node1.prom",
+      "sha256": "e1abfaf05440f145807d27529ec3bbc22963475d0c8e15c7367949d32712dc55",
+      "bytes": 1024098,
+      "mtime_nanos": 1792708152568321045,
+      "parse_ok": true,
+      "created": 727,
+      "runtime_queue_percent": 38.28125,
+      "channel_queue_percent": 0
+    },
+    {
+      "name": "metrics-first-measured-node2.prom",
+      "sha256": "c9d562ba05f060e6de601f937bbe1e94c3d9dae693a4f1b592c84f1c9651f984",
+      "bytes": 992279,
+      "mtime_nanos": 1792708152685422316,
+      "parse_ok": true,
+      "created": 709,
+      "runtime_queue_percent": 36.71875,
+      "channel_queue_percent": 0
+    },
+    {
+      "name": "metrics-first-measured-node3.prom",
+      "sha256": "2289b07d12bb2b76bc659252d04db103f9872b0013f971cb7720f21888d79342",
+      "bytes": 979383,
+      "mtime_nanos": 1792708152729040221,
+      "parse_ok": true,
+      "created": 733,
+      "runtime_queue_percent": 37.3046875,
+      "channel_queue_percent": 0.390625
+    },
+    {
+      "name": "metrics-terminal-node1.prom",
+      "sha256": "038d4a5cb3c809be385656ab2feff26941b50f172be8edccfc1da3c77e3c6a64",
+      "bytes": 1075478,
+      "mtime_nanos": 1792708170305087678,
+      "parse_ok": true,
+      "created": 1680,
+      "runtime_queue_percent": 69.3359375,
+      "channel_queue_percent": 0
+    },
+    {
+      "name": "metrics-terminal-node2.prom",
+      "sha256": "f4d7bfce73d71da22c87bf1a562b3654c8b2a4a6c89fd0e126e78cfeda762298",
+      "bytes": 1032893,
+      "mtime_nanos": 1792708170310826030,
+      "parse_ok": true,
+      "created": 1714,
+      "runtime_queue_percent": 0,
+      "channel_queue_percent": 0
+    },
+    {
+      "name": "metrics-terminal-node3.prom",
+      "sha256": "a97302dbb26046c2e8ddece8225cd5e2f47434db1fcd413340c0353e8addd348",
+      "bytes": 1028245,
+      "mtime_nanos": 1792708170316457256,
+      "parse_ok": true,
+      "created": 1716,
+      "runtime_queue_percent": 0.016276041666666668,
+      "channel_queue_percent": 0
+    }
+  ]
+}

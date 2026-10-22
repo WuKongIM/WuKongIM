@@ -1,0 +1,89 @@
+{
+  "red": {
+    "test_events": {
+      "run": 72,
+      "output": 224,
+      "fail": 69,
+      "pass": 3
+    },
+    "top_level_tests": 5,
+    "package_results": [
+      {
+        "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+        "action": "fail",
+        "elapsed_seconds": 0.872
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+        "action": "fail",
+        "elapsed_seconds": 1.212
+      }
+    ],
+    "build_output_events": 0
+  },
+  "green": {
+    "test_events": {
+      "run": 130,
+      "output": 260,
+      "pass": 130
+    },
+    "top_level_tests": 25,
+    "package_results": [
+      {
+        "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+        "action": "pass",
+        "elapsed_seconds": 0.805
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+        "action": "pass",
+        "elapsed_seconds": 1.871
+      }
+    ],
+    "build_output_events": 0
+  },
+  "race": {
+    "test_events": {
+      "run": 130,
+      "output": 260,
+      "pass": 130
+    },
+    "top_level_tests": 25,
+    "package_results": [
+      {
+        "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+        "action": "pass",
+        "elapsed_seconds": 1.545
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+        "action": "pass",
+        "elapsed_seconds": 3.208
+      }
+    ],
+    "build_output_events": 1
+  },
+  "full-packages": {
+    "test_events": {
+      "run": 1685,
+      "output": 3571,
+      "pass": 1685,
+      "pause": 82,
+      "cont": 82
+    },
+    "top_level_tests": 871,
+    "package_results": [
+      {
+        "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+        "action": "pass",
+        "elapsed_seconds": 9.034
+      },
+      {
+        "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+        "action": "pass",
+        "elapsed_seconds": 16.789
+      }
+    ],
+    "build_output_events": 0
+  }
+}

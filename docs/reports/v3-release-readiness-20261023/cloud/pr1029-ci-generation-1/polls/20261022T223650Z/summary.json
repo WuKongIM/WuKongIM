@@ -1,0 +1,217 @@
+[
+  {
+    "id": 39865967329,
+    "name": "Safety Automation - Issue Agent PR Signal",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120128114611,
+        "name": "Emit credential-free wake-up",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39864525576,
+    "name": "Safety Automation - Issue Agent PR Signal",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120123267531,
+        "name": "Emit credential-free wake-up",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39864525733,
+    "name": "Three-Node Chat Lifecycle Regression pull_request 1029 attempt 1",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120123268550,
+        "name": "PR messaging unit and race",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120123268853,
+        "name": "PR three-node correctness",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120123268928,
+        "name": "PR performance baseline evidence",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120123270829,
+        "name": "Nightly direct 500 QPS qualification",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120123271280,
+        "name": "Fixed Linux SEND diagnosis",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120123387593,
+        "name": "PR 500 QPS / mixed-send",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120123387605,
+        "name": "PR 500 QPS / tcp-sendack",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120123387653,
+        "name": "PR 500 QPS / channel-append",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120125534016,
+        "name": "PR three-node regression",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12464230213,
+        "name": "500qps-tcp-sendack-15289a0a91d1b858db667f7783955d022f965913-1",
+        "bytes": 8207,
+        "digest": "sha256:07716578f4268eb1dd0fb26c966322ccfafaa1900bd21faf291e4ca2375a29c3"
+      },
+      {
+        "id": 12464185853,
+        "name": "500qps-mixed-send-15289a0a91d1b858db667f7783955d022f965913-1",
+        "bytes": 248257,
+        "digest": "sha256:6192a11dc0c1c4e7af4bd3724661b2f71d7ebf2ee0c44b64efa4965af5629cc6"
+      },
+      {
+        "id": 12463302802,
+        "name": "500qps-channel-append-15289a0a91d1b858db667f7783955d022f965913-1",
+        "bytes": 25106,
+        "digest": "sha256:1b9d6129e6240bfdbf975f5227d2d95fba68a94ce3678b7aec99e73b964becfe"
+      },
+      {
+        "id": 12462748860,
+        "name": "three-node-pr-1029-15289a0a91d1b858db667f7783955d022f965913-1",
+        "bytes": 229478934,
+        "digest": "sha256:975e0de3521b33777c87f91638183d5b5b03110ff54443b4cd5c90a981959dd9"
+      }
+    ]
+  },
+  {
+    "id": 39864525579,
+    "name": "Safety Automation - Validate Native Package Preview",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120123267437,
+        "name": "Build and install deb/rpm preview",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120125744917,
+        "name": "Exercise Ubuntu 24.04 package lifecycle",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120125744948,
+        "name": "Exercise Rocky Linux 9 package lifecycle",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120125744973,
+        "name": "Exercise AlmaLinux 9 package lifecycle",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120125744994,
+        "name": "Exercise Debian 12 package lifecycle",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12462948610,
+        "name": "wukongim-native-package-preview-39864525579",
+        "bytes": 77875382,
+        "digest": "sha256:6909cac5878634ad627b58eaf974bb4e4b8173649c8709c6d57dad9628d92bd2"
+      }
+    ]
+  },
+  {
+    "id": 39864525628,
+    "name": "V3 Candidate Regression pull_request 1029 attempt 1",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120123268563,
+        "name": "Candidate default suite (go-unit)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120123268900,
+        "name": "Candidate scripts integration",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120126407060,
+        "name": "Candidate migration and messaging E2E",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12464001319,
+        "name": "v3-candidate-default-39864525628-1",
+        "bytes": 8233,
+        "digest": "sha256:0ad7aa75dd7564fa0caed6d1e3fc4a048e4796058c79152b4192cf33dce389d3"
+      },
+      {
+        "id": 12463991876,
+        "name": "v3-candidate-e2e-39864525628-1",
+        "bytes": 16545,
+        "digest": "sha256:4f53723f9f50a7989b761952c628a5575ca2007748f67ed4783fb3de843b969b"
+      },
+      {
+        "id": 12463792620,
+        "name": "v3-candidate-scripts-39864525628-1",
+        "bytes": 118744,
+        "digest": "sha256:ab48dbd0c02673f91d467b0ec7c75098d48c8adfd8e6d6c7d37ec8136c6e0792"
+      }
+    ]
+  }
+]

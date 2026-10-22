@@ -1,0 +1,10 @@
+{
+  "source": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay/internal/bench/chatlifecycle/retained_d349_meta_replay_test.go",
+  "preserved_at": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-meta-checkpoint-replay-v1-private/evidence/retained_d349_meta_replay_test.go",
+  "bytes": 6451,
+  "sha256": "defdf0fc7a77cba1c985c52e851020c65efc0fcaa1d9639bd7e49acee24bdb03",
+  "same_as_frozen_replay_test": true,
+  "removed_from_candidate_worktree": true,
+  "replay_freeze_modified": false,
+  "candidate_tests_self_contained": true
+}

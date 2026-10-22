@@ -1,0 +1,184 @@
+{
+  "review_axis": "Standards",
+  "review_mode": "static_read_only",
+  "base": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "head": "3e668ac4733ae403e57242ddec559e6d937b0d3c",
+  "head_tree": "f70fc869cf65bb03ac42fd43d19e85c32a0fe114",
+  "diff_command": "git diff d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e...3e668ac4733ae403e57242ddec559e6d937b0d3c --",
+  "commits": [
+    "3e668ac4733ae403e57242ddec559e6d937b0d3c",
+    "5a8c42fa69ddc15ef341e2992148c7c7fc36eb79",
+    "486ec5f154b120b9daedcf5a427d51966a82e06c"
+  ],
+  "recorded_at_utc": "2026-10-22T22:15:02.487382+00:00",
+  "worktree_clean": true,
+  "documented_standard_findings": 0,
+  "heuristic_findings": 0,
+  "tools_already_covered_not_rerun": [
+    "formatting",
+    "generated FLOW index validity",
+    "tests",
+    "race",
+    "named gates"
+  ],
+  "fowler_baseline_considered": [
+    "Mysterious Name",
+    "Duplicated Code",
+    "Feature Envy",
+    "Data Clumps",
+    "Primitive Obsession",
+    "Repeated Switches",
+    "Shotgun Surgery",
+    "Divergent Change",
+    "Speculative Generality",
+    "Message Chains",
+    "Middle Man",
+    "Refused Bequest"
+  ],
+  "sources": [
+    {
+      "path": ".github/workflows/README.md",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "git_blob": "c6492152b32db43fd10a4a2975c123de933fa517"
+    },
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "git_blob": "b89d41eebadc701ada7157b387c2f45e8ff76354"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 192714,
+      "sha256": "a3774049a7cd6e3304a341a85602734b8f0d663b6f0aa90ecd9be17dfff0f10f",
+      "git_blob": "2c9e3cbb858c38ab8b419fd775904fa35059bc7c"
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+      "bytes": 9767,
+      "sha256": "9d8647b8d46b87e9a64028d1f9eec886826efd3a1d5c4fbb3f4d817ac5d884bb",
+      "git_blob": "914a9cc1022f5db1b1e3c9b007fb549b81b6aec1"
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "bytes": 1615,
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+      "git_blob": "5a6f59558cb9a0fd32605b9c2a42bbce7ce591d8"
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "bytes": 19368,
+      "sha256": "eaa8479538ba3429b0dc79092bdd856b37ed7c67794aa0eab559c59fc9abc0ca",
+      "git_blob": "7195a42b26e91af110f2771e5a6fcb914041d727"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 148210,
+      "sha256": "0491355b0923339b85ed83e62d5625f860c6fa730b1beced4f55eba6ecd66214",
+      "git_blob": "d85f013355333bd7a7725457f669f2ef78c6e5ba"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "git_blob": "88cd421cebecc6f34bd33d3c06e15e288bbc1856"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "git_blob": "25a7a9000f2f00aad9202182e7902ce726c57d1b"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go",
+      "bytes": 16200,
+      "sha256": "e3ec8c9ff89a531d7d6d86e1696704a0d3cf10d97f158e9e6209af1ce4941508",
+      "git_blob": "539a9bbc4ebe6b8e081452bf60e11388d20ad9d8"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "bytes": 33924,
+      "sha256": "0c3905553b7aa3daafa2fe8b74753179a94a1bd39c467c7a4ef51ac2da4998ce",
+      "git_blob": "934a35b1f55e32cdbe9585b042df9f23439943ce"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_meta.go",
+      "bytes": 11865,
+      "sha256": "9ca546402471998154468977ab180c461781de56c2bec5029f20d8d24096ff20",
+      "git_blob": "af86ca7e6291c4ba4aaadc1a3264fb367590421f"
+    },
+    {
+      "path": "internal/runtime/presence/FLOW.md",
+      "bytes": 2490,
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "git_blob": "239f4dcf87add4bc7b71db1482fa51e5581330e6"
+    },
+    {
+      "path": "internal/runtime/presence/directory.go",
+      "bytes": 19192,
+      "sha256": "b9ad257b4a6e231416d7813639e6225694a126b4d4953e191985171ddcd27900",
+      "git_blob": "de242f49a79ba3ee659535e0dc8bc87b5aeb3080"
+    },
+    {
+      "path": "internal/runtime/presence/recovery.go",
+      "bytes": 2712,
+      "sha256": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83",
+      "git_blob": "87f186ff7b1bfa9a6e1b807b3f2a153061f6de9e"
+    },
+    {
+      "path": "internal/runtime/presence/types.go",
+      "bytes": 6102,
+      "sha256": "1c8e8bdb35c6bdcacf362ad65c4355cb634e8f0641a32003e0ab92f7c4f74798",
+      "git_blob": "2573014ac2f7389db0376fdf49cf7696d3f41376"
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "bytes": 3118,
+      "sha256": "f5e94270e318b9d5cec7a9eb15cbe62d9bac366470c45653be7fdd70db23168a",
+      "git_blob": "303f71469d626f0154fc4747e822c158f95f0506"
+    },
+    {
+      "path": "internal/usecase/presence/cold_uid_isolation_integration_test.go",
+      "bytes": 8384,
+      "sha256": "8b0a6940bf3132ccf5aa29625985a4a00750827bae2d1a9be4d717fa5d7527fe",
+      "git_blob": "08306dfd8f1c292c9354c49a3557d024b8491ab7"
+    },
+    {
+      "path": "internal/usecase/presence/ports.go",
+      "bytes": 1636,
+      "sha256": "5a2918747c518ad8e187eb6eefb69fb34467f0fd4c1a7f07a68f48646379c8f9",
+      "git_blob": "b73c13db69f3a37748c417e902a61a22089c1014"
+    },
+    {
+      "path": "internal/usecase/presence/recovery.go",
+      "bytes": 3764,
+      "sha256": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b",
+      "git_blob": "10a1163dea12a3d638328f80b243b6c6821adda7"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_flights.go",
+      "bytes": 8482,
+      "sha256": "53bb1b4f03152f76bef2e833dc658103f58f334dd38f948f2e2f0de1471cce95",
+      "git_blob": "e1ff793ae997afbc10989e0ec3731c17358c9592"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_integration_test.go",
+      "bytes": 1760,
+      "sha256": "bd43617c0b82edf9429ef32be85a01ec77375d6e58928837fcfa4db26e13722b",
+      "git_blob": "6c034765ae0bd35856a6fca723339875beef0db3"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_test.go",
+      "bytes": 6461,
+      "sha256": "64e0499567283c8f49dd228c5916b0a87acc26b4b2fca9fdf0a7f6f0bb39d85c",
+      "git_blob": "bcd4111c52f03e5f9fa57846e995ed23cb343326"
+    },
+    {
+      "path": "internal/usecase/presence/uid_flight_integration_test.go",
+      "bytes": 20110,
+      "sha256": "e00ead21e618278bf16f9195e87298d8a991092f4f78d28ce0cd37f380dc457b",
+      "git_blob": "b4b4bd361574e4d8c75ad6cb37303ef7c7f0c005"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+﻿2026-10-22T22:34:44.0830180Z Current runner version: '2.338.0'
+2026-10-22T22:34:44.0853231Z ##[group]Runner Image Provisioner
+2026-10-22T22:34:44.0854191Z Hosted Compute Agent
+2026-10-22T22:34:44.0854797Z Version: 20261012.601
+2026-10-22T22:34:44.0855452Z Commit: f3dc54e1fb89da6852db922499a0233137369e1d
+2026-10-22T22:34:44.0856298Z Build Date: 2026-10-12T17:48:21Z
+2026-10-22T22:34:44.0856989Z Worker ID: {796c4b69-23f5-40a6-abd7-c7b1489e3ebb}
+2026-10-22T22:34:44.0858060Z Region: westcentralus
+2026-10-22T22:34:44.0858691Z Cloud: Azure
+2026-10-22T22:34:44.0859235Z ##[endgroup]
+2026-10-22T22:34:44.0860750Z ##[group]Operating System
+2026-10-22T22:34:44.0861373Z Ubuntu
+2026-10-22T22:34:44.0861942Z 24.04.5
+2026-10-22T22:34:44.0862501Z LTS
+2026-10-22T22:34:44.0863038Z ##[endgroup]
+2026-10-22T22:34:44.0863632Z ##[group]Runner Image
+2026-10-22T22:34:44.0864217Z Image: ubuntu-24.04
+2026-10-22T22:34:44.0864760Z Version: 20261012.334.1
+2026-10-22T22:34:44.0866055Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261012.334/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-22T22:34:44.0867917Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261012.334
+2026-10-22T22:34:44.0868892Z ##[endgroup]
+2026-10-22T22:34:44.0869950Z ##[group]GITHUB_TOKEN Permissions
+2026-10-22T22:34:44.0872000Z Metadata: read
+2026-10-22T22:34:44.0872694Z ##[endgroup]
+2026-10-22T22:34:44.0874719Z Secret source: Actions
+2026-10-22T22:34:44.0875683Z Cache mode: write
+2026-10-22T22:34:44.0876447Z Prepare workflow directory
+2026-10-22T22:34:44.1215356Z Prepare all required actions
+2026-10-22T22:34:44.1315269Z Complete job name: Emit credential-free wake-up
+2026-10-22T22:34:44.2767167Z ##[group]Run test -n "$EVENT_NAME"
+2026-10-22T22:34:44.2768671Z [36;1mtest -n "$EVENT_NAME"[0m
+2026-10-22T22:34:44.3601250Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T22:34:44.3602253Z env:
+2026-10-22T22:34:44.3602701Z   EVENT_NAME: pull_request
+2026-10-22T22:34:44.3603203Z ##[endgroup]
+2026-10-22T22:34:44.3945386Z Cleaning up orphan processes

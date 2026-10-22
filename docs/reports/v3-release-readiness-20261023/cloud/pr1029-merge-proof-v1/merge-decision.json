@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-22T22:40:21.752482+00:00",
+  "head": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "base": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "checks": 20,
+  "success": 18,
+  "skipped": 2,
+  "review_axes_remaining": 0,
+  "local_full_distribution_result": "failed_not_overridden",
+  "ordinary_merge_authority": "standing human authorization to merge reviewed PRs; repository admin manual merge contract",
+  "paid_cloud_or_release_authorized": false,
+  "body_sha256": "ac7b2bf66a33fbb025ea3847cc172c0342eb0ca7a6fe2085673825660576569b"
+}

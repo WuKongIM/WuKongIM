@@ -1,0 +1,44 @@
+{
+  "schema": "wukongim/c495-offline-proposal-semantic-diff/v2",
+  "v1_correction": "v1 line22 does comparecurrentinventory with expectedfile. Root initial review missed unchangedcontext; actual missingprotection was fixedexpectedfile SHA pin. v1 remains unchanged.",
+  "changes": [
+    {
+      "guard": "expected_inventory",
+      "before": "read expectedfile without immutableSHA pin",
+      "after": "verify exactb0685f\u2026b327b1 then current mapping equals expected includingmtime beforemkdir/copy/query"
+    },
+    {
+      "guard": "copy_integrity",
+      "before": "no postcopy mappingverification beforeCLI",
+      "after": "all36copiedfile paths/size/SHA equal expectedoriginal mapping beforefirstCLIopen"
+    },
+    {
+      "guard": "source_freshness",
+      "before": "mkdir happened beforeCLI/sourceproof/inventory checks",
+      "after": "freshOUT/sourceHEADtreeclean/CLIsha/sourceproof+identitypins/fullinventory checks all complete beforemkdir"
+    },
+    {
+      "guard": "wallbudget",
+      "before": "elapsedchecks betweenqueries didnot boundcopy or wholeprocess",
+      "after": "outerownsnewchildPGID only;85s work,TERM\u22642s,KILL/join\u226490s; childremainingchecks; no broadps scan; timeoutafterinventoryunknown staysunknown"
+    },
+    {
+      "guard": "sample_scope",
+      "before": "failurematrix incorrectly mentioned4 otheridentities",
+      "after": "exactly1expiredsamplew2/o314/group1646; max3queries andnoothergroup"
+    }
+  ],
+  "unchanged": [
+    "onegroupx3nodes",
+    "max3queries",
+    "10s/query",
+    "90s total ceiling",
+    "GOMAX1",
+    "limit100/has_morefalse",
+    "exactClientMsgNo/fingerprint\u2192uniqueMessageIDseq",
+    "existingc495ReadOnlyCLI",
+    "noorigDBopen",
+    "noqueryretry/expansion",
+    "noactualDB executionbeforeapproval"
+  ]
+}

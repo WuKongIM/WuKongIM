@@ -1,0 +1,131 @@
+{
+  "id": 12463302802,
+  "name": "500qps-channel-append-15289a0a91d1b858db667f7783955d022f965913-1",
+  "declared_bytes": 25106,
+  "declared_digest": "sha256:1b9d6129e6240bfdbf975f5227d2d95fba68a94ce3678b7aec99e73b964becfe",
+  "state": "verified",
+  "zip_bytes": 25106,
+  "zip_sha256": "1b9d6129e6240bfdbf975f5227d2d95fba68a94ce3678b7aec99e73b964becfe",
+  "full_size_sha_crc_valid": true,
+  "members": [
+    {
+      "path": "arrival.json",
+      "bytes": 57436,
+      "compressed_bytes": 3316,
+      "crc32": "ab7ede99",
+      "sha256": "4cd60d88f761dad553c3b5b812b71d3125a603319109352b65cbe389fe10f78d"
+    },
+    {
+      "path": "benchmark.txt",
+      "bytes": 2353,
+      "compressed_bytes": 831,
+      "crc32": "ade82857",
+      "sha256": "067fe9417fe644c59d6cdafcc645a8786340146b053608989bae78b602e1dd5e"
+    },
+    {
+      "path": "arrival.warmup.json",
+      "bytes": 19206,
+      "compressed_bytes": 1234,
+      "crc32": "db8801f8",
+      "sha256": "4fd276e1b6a168f37bfa842434c33ffa778b75aa90d2f83e1c65948f26a25d2b"
+    },
+    {
+      "path": "binary.sha256",
+      "bytes": 127,
+      "compressed_bytes": 108,
+      "crc32": "0409cb78",
+      "sha256": "e540a1d804d8a31808d0664dcd0c25901925ace03f3f8f7ac264c6e073781593"
+    },
+    {
+      "path": "counters/after.json",
+      "bytes": 50612,
+      "compressed_bytes": 4160,
+      "crc32": "420b5841",
+      "sha256": "d92a203350a58306601830fee66af26289b82d77ec227ee285e93891df085c3b"
+    },
+    {
+      "path": "counters/before.json",
+      "bytes": 50392,
+      "compressed_bytes": 4018,
+      "crc32": "cfc0d617",
+      "sha256": "b67a6c9baf754dee9d0f7e60c2288972d997334559cc47850515a581a1b6067b"
+    },
+    {
+      "path": "counters/window.json",
+      "bytes": 575,
+      "compressed_bytes": 350,
+      "crc32": "783bb288",
+      "sha256": "0c05cd784b9158ec79006b5cd7d347bd5632c479cf319a5eb3a7012157d65a8b"
+    },
+    {
+      "path": "counters.warmup/after.json",
+      "bytes": 50392,
+      "compressed_bytes": 4024,
+      "crc32": "34f58a2a",
+      "sha256": "1f3e0fd57dc1d801205796c18411e584ea47a5464013c841999c131a96f3784e"
+    },
+    {
+      "path": "counters.warmup/before.json",
+      "bytes": 21546,
+      "compressed_bytes": 2937,
+      "crc32": "6f6b5f7d",
+      "sha256": "97349ef402c6d35c894dfbdeed5d7e089542d6085cb85f301349b40baf43ff04"
+    },
+    {
+      "path": "counters.warmup/window.json",
+      "bytes": 503,
+      "compressed_bytes": 310,
+      "crc32": "b16cf1ce",
+      "sha256": "729678c6a5f4d2f0f528a3883d7802a03010f50a254a0b63bdf81d6e0e8cff66"
+    },
+    {
+      "path": "data-filesystem.json",
+      "bytes": 244,
+      "compressed_bytes": 159,
+      "crc32": "77ec143c",
+      "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+    },
+    {
+      "path": "filesystem-preflight.txt",
+      "bytes": 123,
+      "compressed_bytes": 109,
+      "crc32": "e20d3ed6",
+      "sha256": "e83b066e149a7d7a68dfbb9287c48862f1d01f256c600d9304e5363a8b627e14"
+    },
+    {
+      "path": "go-version.txt",
+      "bytes": 33,
+      "compressed_bytes": 35,
+      "crc32": "dd48af92",
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "host.json",
+      "bytes": 4484,
+      "compressed_bytes": 1180,
+      "crc32": "1b77ff76",
+      "sha256": "372bc9835676a2d36a431151ae3a65cba3b74707813a1897bcc9ceaa3b094902"
+    },
+    {
+      "path": "kernel.txt",
+      "bytes": 113,
+      "compressed_bytes": 100,
+      "crc32": "5f528912",
+      "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+    },
+    {
+      "path": "result.json",
+      "bytes": 18,
+      "compressed_bytes": 20,
+      "crc32": "81529131",
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "source.sha",
+      "bytes": 41,
+      "compressed_bytes": 41,
+      "crc32": "cbe8c2d1",
+      "sha256": "b79a484310c7ea6149b4bae64e9e7cde518a91bdb542ed9741bdcb3c8019843e"
+    }
+  ]
+}

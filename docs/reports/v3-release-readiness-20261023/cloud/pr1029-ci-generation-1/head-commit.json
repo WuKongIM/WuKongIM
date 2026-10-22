@@ -1,0 +1,125 @@
+{
+  "sha": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "node_id": "C_kwDOJgfwydoAKGM0OTU0YzZhNjM4MDgwZTZhOTE1ZWNlYzMwNWEzMzgxZjRhZmQ5YTA",
+  "commit": {
+    "author": {
+      "name": "tt",
+      "email": "tangtaoit@githubim.com",
+      "date": "2026-10-22T22:20:48Z"
+    },
+    "committer": {
+      "name": "tt",
+      "email": "tangtaoit@githubim.com",
+      "date": "2026-10-22T22:20:48Z"
+    },
+    "message": "docs(presence): clarify successful flight proof rereads",
+    "tree": {
+      "sha": "98fead03ba0c727dd733f742790e7737327f3942",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/98fead03ba0c727dd733f742790e7737327f3942"
+    },
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/c4954c6a638080e6a915ecec305a3381f4afd9a0",
+    "comment_count": 0,
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    }
+  },
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/commit/c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "comments_url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/c4954c6a638080e6a915ecec305a3381f4afd9a0/comments",
+  "author": {
+    "login": "tangtaoit",
+    "id": 3895878,
+    "node_id": "MDQ6VXNlcjM4OTU4Nzg=",
+    "avatar_url": "https://avatars.githubusercontent.com/u/3895878?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/tangtaoit",
+    "html_url": "https://github.com/tangtaoit",
+    "followers_url": "https://api.github.com/users/tangtaoit/followers",
+    "following_url": "https://api.github.com/users/tangtaoit/following{/other_user}",
+    "gists_url": "https://api.github.com/users/tangtaoit/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/tangtaoit/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/tangtaoit/subscriptions",
+    "organizations_url": "https://api.github.com/users/tangtaoit/orgs",
+    "repos_url": "https://api.github.com/users/tangtaoit/repos",
+    "events_url": "https://api.github.com/users/tangtaoit/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/tangtaoit/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "committer": {
+    "login": "tangtaoit",
+    "id": 3895878,
+    "node_id": "MDQ6VXNlcjM4OTU4Nzg=",
+    "avatar_url": "https://avatars.githubusercontent.com/u/3895878?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/tangtaoit",
+    "html_url": "https://github.com/tangtaoit",
+    "followers_url": "https://api.github.com/users/tangtaoit/followers",
+    "following_url": "https://api.github.com/users/tangtaoit/following{/other_user}",
+    "gists_url": "https://api.github.com/users/tangtaoit/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/tangtaoit/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/tangtaoit/subscriptions",
+    "organizations_url": "https://api.github.com/users/tangtaoit/orgs",
+    "repos_url": "https://api.github.com/users/tangtaoit/repos",
+    "events_url": "https://api.github.com/users/tangtaoit/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/tangtaoit/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "parents": [
+    {
+      "sha": "3e668ac4733ae403e57242ddec559e6d937b0d3c",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/3e668ac4733ae403e57242ddec559e6d937b0d3c",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/3e668ac4733ae403e57242ddec559e6d937b0d3c"
+    }
+  ],
+  "stats": {
+    "total": 15,
+    "additions": 9,
+    "deletions": 6
+  },
+  "files": [
+    {
+      "sha": "5c5b6de1abc0f0718f3b0de349b90ff89a7193cd",
+      "filename": "docs/development/FLOW_INDEX.md",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "changes": 2,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/c4954c6a638080e6a915ecec305a3381f4afd9a0/docs%2Fdevelopment%2FFLOW_INDEX.md",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/c4954c6a638080e6a915ecec305a3381f4afd9a0/docs%2Fdevelopment%2FFLOW_INDEX.md",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/docs%2Fdevelopment%2FFLOW_INDEX.md?ref=c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "patch": "@@ -73,7 +73,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind\n | [internal/usecase/mqttsession/FLOW.md](../../internal/usecase/mqttsession/FLOW.md) | `package` | Coordinates MQTT Session lifecycle, subscription preparation, consumer progress and bounded replay copy/recovery/retirement turns. | 125 | warning |\n | [internal/usecase/opsobserve/FLOW.md](../../internal/usecase/opsobserve/FLOW.md) | `package` | Defines closed-world Operations MCP validation and bounded observation envelopes over narrow sources. | 51 | ok |\n | [internal/usecase/plugin/FLOW.md](../../internal/usecase/plugin/FLOW.md) | `package` | Owns entry-independent plugin desired state, candidate selection, hook orchestration, and PDK-compatible host RPC mapping. | 79 | ok |\n-| [internal/usecase/presence/FLOW.md](../../internal/usecase/presence/FLOW.md) | `package` | Coordinates owner-local connection lifecycle with UID authority registration, actions, touch batching, and route lookup. | 67 | ok |\n+| [internal/usecase/presence/FLOW.md](../../internal/usecase/presence/FLOW.md) | `package` | Coordinates owner-local connection lifecycle with UID authority registration, actions, touch batching, and route lookup. | 68 | ok |\n | [internal/usecase/reviewagent/FLOW.md](../../internal/usecase/reviewagent/FLOW.md) | `package` | Owns deterministic Review Agent commands, PR lifecycle reconciliation, scheduling, projection planning, and publication policy. | 53 | ok |\n | [internal/usecase/user/FLOW.md](../../internal/usecase/user/FLOW.md) | `package` | Orchestrates legacy-compatible user tokens, device quit, online status, system UIDs, and restore cache reload. | 63 | ok |\n | [pkg/backup/FLOW.md](../../pkg/backup/FLOW.md) | `package` | Defines the portable full-backup repository format, strict manifests, compressed chunks, publication markers, and verification. | 52 | ok |"
+    },
+    {
+      "sha": "2e42bb9970b783168e187b84ec2f791258efb014",
+      "filename": "docs/development/PROJECT_KNOWLEDGE.md",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 3,
+      "changes": 8,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/c4954c6a638080e6a915ecec305a3381f4afd9a0/docs%2Fdevelopment%2FPROJECT_KNOWLEDGE.md",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/c4954c6a638080e6a915ecec305a3381f4afd9a0/docs%2Fdevelopment%2FPROJECT_KNOWLEDGE.md",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/docs%2Fdevelopment%2FPROJECT_KNOWLEDGE.md?ref=c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "patch": "@@ -1078,9 +1078,11 @@ specification, runbook, report, or module documentation; link to them when neede\n   The original 512-UID/256-target page fits maximum 65,535-byte stored identities.\n   Larger arbitrary lookup strings can now remain explicitly not ready. Quota\n   waits hold no partial keys; owned proofs publish/release before joining old\n-  flights. Every waiter rereads Directory, so FIFO eviction remains unknown,\n-  never fabricated offline. Follower cancellation is isolated; canceled leaders\n-  leave live followers typed not-ready under the existing outer retry policy.\n+  flights. Successful completions require a fresh Directory read, so FIFO\n+  eviction remains unknown, never fabricated offline. Failed completions can\n+  directly propagate their typed failure. Follower cancellation is isolated;\n+  canceled leaders leave live followers typed not-ready under the existing outer\n+  retry policy.\n - Every online route, including advisory EVENT hints, must preserve device ID,\n   flag and level along with the exact owner/session identity. The final session\n   fence rejects a route with missing or stale device fields."
+    },
+    {
+      "sha": "d60110d7119f5a810add137269856c115ad88db5",
+      "filename": "internal/usecase/presence/FLOW.md",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 2,
+      "changes": 5,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/c4954c6a638080e6a915ecec305a3381f4afd9a0/internal%2Fusecase%2Fpresence%2FFLOW.md",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/c4954c6a638080e6a915ecec305a3381f4afd9a0/internal%2Fusecase%2Fpresence%2FFLOW.md",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/internal%2Fusecase%2Fpresence%2FFLOW.md?ref=c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "patch": "@@ -48,8 +48,9 @@ It does not own gateway frames, concrete cluster routing, or session storage.\n - Production target-aware lookup preserves the complete fence and returns\n   aligned results. The per-UID fallback exists only for limited compatibility\n   implementations and cannot provide that target fence.\n-- Flight completion stores no routes: callers reread current Directory proof,\n-  including after FIFO eviction. Canceling a follower does not cancel its leader;\n+- Flights store no routes. After successful completion, callers reread current\n+  Directory proof, including after FIFO eviction; failed completions may propagate\n+  their typed failure. Canceling a follower does not cancel its leader;\n   a canceled leader leaves live followers retryable without adding a retry.\n - Import-boundary tests reject concrete entry, protocol, cluster, and app imports.\n "
+    }
+  ]
+}

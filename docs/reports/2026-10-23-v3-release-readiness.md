@@ -83,6 +83,34 @@
 
 另一次已封存的 metadata 结构重放在精确 d349 来源、Go 1.25.11 下首次单次通过（总 **8.223 秒**，测试包 **0.580 秒**）。六份既有 scrape 通过真实 `target.Client.Metrics` parser、`MetaCreateAccounting` 和 `ProductionMetaController`，但使用了明确 **synthetic 的空 expected vectors 和 final worker shapes**。这仅验证附近切面的解析及结构一致性；实际 terminal worker vectors 和发生失败的精确 metrics round 未保存，故无法识别原 `meta_checkpoint/invalid` 的 leaf，也不能宣称原 checkpoint 成功。首测 created 总数 690/690/726、保留 terminal 总数 1,465/1,447/1,471 不是实际 expectation 的替代物；负向守卫仍拒绝无效 worker/result，原报告 completeness 门禁保持。该重放只编译测试包、未启动服务或负载；其 leaf 诊断方案和 UID 隔离方案已获 tests-first 实现授权，但本批不包含未封存代码、后续实现或 GREEN，发布结论仍为 **NO-GO**。
 
+在后续封存的 tests-first 实现中，presence 候选 `5a8c42fa69ddc15ef341e2992148c7c7fc36eb79` 已把跨 owner I/O 的粗粒度 lane 互斥改为UID 与五项分布式 authority 身份（不含本地 RouteRevision/AuthorityEpoch） 的私有 flight。实现前固定的最终合同保留 4 个 leader cohorts、2,048 个 keys，新增 owned UID 字节预算为每个不可拆分 subset **32 MiB**、registry 合计 **128 MiB**；该预算约束 registry 新持有的 UID 字符串，不是进程全部堆内存或 RPC 上限。早期 1 MiB/4 MiB 设计不符合既有最大 UID/512 页 packing，已在写实现前修订，旧设计原件继续保留。实现没有增加 goroutine、重试、超时、公共配置或 owner 并发；成功完成后重新读取 Directory，失败完成可直接传播 typed failure，FIFO 淘汰不制造 offline。
+
+原 tests-first 场景在旧代码保留 **23 PASS / 13 FAIL**，相同测试在候选为 **36 PASS / 0 FAIL**；完整 presence/runtime 测试与 race（各 **106** 个通过事件）、真实 owner adapter 的 **4** 项 race 均通过。收尾诊断候选 `486ec5f154b120b9daedcf5a427d51966a82e06c` 增加 **13** 个固定 metadata leaf reason，保留既有 `invalid` fallback，未修改 accounting、worker schema、verdict、完整报告或退出门禁。它的首轮 RED 为 69 个失败/3 个通过事件，GREEN/race 各 130 个通过事件，两包完整 **871** 个顶层测试、**1,685** 个通过事件。该补丁帮助定位错误，未修复或识别旧 d349 收尾实际失败的 leaf。
+
+两项实现已合并为本地候选 `3e668ac4733ae403e57242ddec559e6d937b0d3c`，各独立组件的生产与测试字节保留。首轮 Standards 为零问题，Spec 报告一处 P3 文档表述过宽：成功等待者需重读 Directory，失败状态可直接返回 typed failure。仅修正文档和生成的 FLOW index 后，固定 head 为 **`c4954c6a638080e6a915ecec305a3381f4afd9a0`**、tree `98fead03ba0c727dd733f742790e7737327f3942`；两轴关闭复核均为零问题，全部 4,202 个 Go blob 与首轮 head 相同。首轮发现、第一次 FLOW 检查失败与既有 20 条 advisory warning 均保留，不能把组件通过数简单相加称为完整合并套件。
+
+另一次静态挑战已反驳“独立全局 created counter 与 per-slot Counter 在 Gather 时各自取样导致 scalar/sum 矛盾”的特定解释：当前 parser 直接从同一组唯一 per-slot 样本同时构造两种表示，重复、非精确整数和溢出会被拒绝。不同 series 不是同一时刻的事实不等于上述矛盾成立。该挑战没有执行新测试或服务，不能由此认定旧失败 leaf、message_loss 根因或原 checkpoint 成功。
+
+首轮 `3e668` 与文档修订后 `c495` 均有独立、clean、真实 `.git` clone 的 native 构建和有限 500 SEND/s 提案。`3e668` 构建后没有启动负载；后续只对 `c495` 启动一次原分布本地实验，保持相同配置、采样、门禁和 600 秒总监督预算。10000 用户于 **UTC 22:29:07.269544（北京 10 月 23 日 06:29:07.269544）** 进入 first grant。+20.019647 秒的保留切面为 SEND 10,002、ACK 9,738、首尝试失败/拒绝 0、1 个过期；终态 +22.822771 秒为 **SEND=ACK 10,502、RECV 13,043、首尝试失败/拒绝 0、1 个过期**。这些是累计 worker 切面，不能当作有效最终报告或完整 120 秒结果。候选仍复现了过期，未证明实际负载修复。于 **UTC 22:29:36.543145（北京 06:29:36.543145）**、监督启动后 282.848405 秒，所属 PGID 50713 和全部 64 端口已核零。
+
+本次新诊断把收尾失败细分为 **`finalize / meta_checkpoint / metrics_fetch`**，冻结产品观察仍为 `product_failure/message_loss/terminal=true`，CLI 仍为 `harness_invalid/invalid_observation`、exit 8，`final.json` 缺失。另保留一次准备期额外读取错误：错误猜测 root review 的 manifest basename 导致 FileNotFoundError；实际 supervisor 来源/产物/进程/端口 guards 均通过，root 澄清并核验真实清单，明确继续已启动的一次实验，没有重启或修改冻结输入。该限制不从记录中删除。
+
+仅解读既有 node 2 profiles 的离线分析显示，**UTC 22:29:12.473778** 的 2,554 个 goroutine 中，320 个 delivery worker 互斥分组为 **296 空闲、10 presence leader join、7 owner push、5 remote authority、1 owner recovery、1 registry quota wait**。全部 12 个 recoverPage 调用为 **8 quota wait + 4 owner-read holder**；无旧 cold-lane 等待，四个 holder 都停在 Conn.Call。它描述候选已改变等待形态，不能确定 quota 的具体绑定上限、等待时长、远端 RPC 根因，或把唯一过期样本强行关联到某条栈。CPU 窗口 10.119805541 秒、2.28 秒 sampled CPU 也不能当作磁盘延迟或 Linux 容量。原始 profiles 与完整解码私存。
+
+六份附近已保留的 metrics scrape 在精确 c495 的真实 `target.Client.Metrics` 和 in-memory RoundTripper 中单次重放全部解析通过（1.810 秒）；未启动 TCP、服务或负载，输入字节/哈希/mtime 不变。**实际失败的 fetch round 未保留**，附近成功既不能复现也不能反驳该次失败，无法区分网络、HTTP、body 或 parser 分支，也未恢复实际 worker vectors 或完整终态。
+
+[#1029](https://github.com/WuKongIM/WuKongIM/pull/1029) 固定 head `c4954c6a638080e6a915ecec305a3381f4afd9a0` 的首轮 Linux CI 已完成：实际 checkout `15289a0a91d1b858db667f7783955d022f965913` 与复核树相同，14 个 checkout job 均已绑定；原四个工作流 attempt 1 全部成功，18 项检查为 16 成功/2 条件跳过。更新 PR 正文后另一次 credential-free Issue Signal 成功，最终表为 19 项、17 成功/2 跳过，不是回归补跑。默认 named check 为 219 package summaries + 15 no-test-file summaries；脚本集成为 1,317 个通过事件、7 个 package-pass、6 个显式 opt-in/subprocess skip、零失败，cleanup 完整。新 presence 并发合同带 integration tag，默认 Linux 套件不构成其逐项 Linux 执行回执，本地 integration/race 不重标为 Linux。
+
+五种迁移拓扑（含 1→3）、四项跨节点投递、一/三节点 self-chat 整群重启、三类各三窗 500 QPS 和四发行版真实 systemd 原生包 lifecycle 均通过。Manager 未触发，2,000 QPS opt-in 比较跳过，不构成容量或浏览器验收。五份公开 proof ZIP 的 59 个 UTF-8 成员均校验大小、SHA、CRC；private self-chat 原始报告/ZIP 排除，大 correctness/native ZIP 只保留 API 元数据，未下载验字节。随后已完成普通合并（见下文）。这些 focused CI 通过不覆盖同候选原分布过期与缺最终报告，也不证明原云同根因、72 小时长稳、正式包公网交付或 GA 就绪，结论仍为 **NO-GO**。
+
+#1029 已普通合并为 **`27fa6d63cf3b2b6c3a9a28575f917d60cc054ded`**，合并树与复核及首轮 CI 精确相同。合并前再次核对 exact head、权限、保护规则与评审状态；没有改保护，Review Agent 两个工作流继续保持 disabled。四个已合并的干净任务 tip 均确为 target 祖先，随后移除对应 worktree 并不带 force 删除本地分支；初次清理拒绝及其修正记录保留。primary checkout 仍 clean `a804f4a5`。此合并只交付已复核的 UID 隔离和收尾诊断能力，没有把失败的原分布实验改判为通过。
+
+候选唯一过期样本现已完成独立封存的精确离线关联：worker 2 / ordinal 314 / 普通群 index 1646，在三个停止副本各返回唯一完整行，均为 **MessageID `2113397295402721287` / seq `1`**。同次 node 2 在北京时间 **06:29:20.098** 恰有一条相同 MessageID/seq 的 **presence / timeout / durable / deadline_exceeded** 警告，位于 first grant→终态切面窗口内。这直接关联该过期消息的 presence plan 超时；仍不定位下层等待来源、实际历史在线 RECV 或原云同根因。该窗口 canonical incomplete warning 共 75 条（74 presence、1 owner_push），窗口外 184 条单列，不能混作运行窗口计数。
+
+该关联只执行已复核 v2 驱动的一次有界调用，3 次查询 **0.367391 秒**内全部完成、无重试/其他群、owned child/group joined 并核零。36 个原文件、**66,553,406 字节**的 size/SHA/mtime 前后一致；先核验固定 expected inventory SHA，再校验完整原件，全部私有副本 path/size/SHA 在 CLI 打开前一致，原 DB 未打开。旧 v1 提案原件也保留，并修正首次审阅中的误述：**v1 已将当前 inventory 与 expected file 比较**，缺的是 expected-file 固定 SHA pin、复制后完整性和覆盖整个进程的外层预算等 guards，v2 才补齐这些边界。公开原件不因后续修正被重写；raw UID/channel/ClientMsgNo、驱动/SQL、查询 body/error、DB 和运行日志继续私存。
+
+为进一步解释 `metrics_fetch`，已封存 **54 项写代码前 failure/control cases** 和 option A 设计，并获 root 的实现批准。设计采用 typed Metrics 边界和固定三来源诊断投影，保留原解析、三源 joining、parent context 优先、timeout/retry/accounting/verdict/report 门禁；冻结 README 的“awaiting approval”是当时历史状态。**本批仅归档设计，实际实现、后续测试/独审/CI 和 owner 静态跟踪仍进行中且排除**，不宣称新的修复完成、原失败 leaf 已解或发布通过。
+
 ## 包交付实现
 
 新增 [packages #79](https://github.com/WuKongIM/packages/pull/79) 修复 RPM 验证器把路径文本当作签名状态的问题。相同已签 RPM 和公钥在 `good` 路径通过、在 `bad` 路径失败的独立对照已复现。修复分离精确路径标题与签名状态行，同时保留隔离候选证书、RSA/SHA256、完整签名者指纹及真实密码学校验。
@@ -107,7 +135,7 @@
 
 ## 继续处理的条件
 
-1. 清洁来源构建及精确产物绑定已完成，新 native 原分布诊断仍失败；继续解释已保留的 CPU/goroutine 和固定指标，确认群投递超时与过期关联根因。需要产品修复时先保留可重复失败再实现并独立复核。指标名错配、#1027 观测缺口及 #1028 收尾诊断均已修复合并并完成首次 Linux CI；旧 batch128 和 79a 的 500 诊断内层失败分支仍未知；新 d349 已定位 `meta_checkpoint/invalid`，该层具体不变量仍待核对。两次 500 诊断保留零首尝试失败下的接收过期，但均缺最终报告。受控 cold-lane RED 与独立静态挑战已完成，UID-flight 处于 tests-first 候选阶段，尚无完成的生产实现/验证收据；首个过期样本已关联到精确 MessageID/seq 的 presence timeout，具体等待来源及原云同因仍未证实。真实 parser 的 synthetic 结构重放未恢复实际 vectors/失败 round；继续 tests-first 候选验证与因果对照，不能把关联、单点栈或 proposed 隔离性质当作原云产品根因。修复后重新评估所需 RC，付费启动另按明确授权办理。
+1. #1029 已合并且首轮 focused Linux CI 通过；相同精确 c495 原分布本地实验仍有 1 个接收过期、exit 8 且缺最终报告，不能按通过收口。该样本现已精确关联 MessageID/seq 的 presence timeout，但具体 quota/owner/下层等待来源及原云同因仍未证实。实际失败 metrics fetch 的内层分支仍未知，附近六份 scrape 重放通过不替代失败 round；54 项 pre-code 诊断设计已批准，实际实现与 owner 静态跟踪尚未归档。继续依据停止数据的有限关联、受控复现和原门禁完成诊断/修复；付费启动另按明确授权办理。
 2. #80 权限/清理修复及 Linux CI 已完成并合并，后续以该精确来源接续生产上传/激活入口。
 3. 完成真实 OSS/CDN、TLS、精确运行身份与权限接入、生产候选来源/签名/审计和版本公网验收。当前 ECS 授权不扩展为包分发资源采购或正式发布授权；具体实现与报价准备完成后再处理所需的最后授权。
 4. 满足前述条件后，冻结正式目标版本和 CHANGELOG，执行最终 tag 对应的发布门禁，并完成适用 signed native channel 的公开 APT/RPM 精确版本安装验证。

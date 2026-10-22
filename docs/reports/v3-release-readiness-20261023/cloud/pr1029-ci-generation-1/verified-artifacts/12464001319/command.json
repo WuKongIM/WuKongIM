@@ -1,0 +1,20 @@
+{
+  "arguments": [
+    "go",
+    "test",
+    "./cmd/...",
+    "./internal/...",
+    "./pkg/...",
+    "./scripts/...",
+    "./docker/...",
+    "-count=1"
+  ],
+  "working_dir": ".",
+  "timeout_seconds": 1800,
+  "max_output_bytes": 8388608,
+  "named_check": "go-unit",
+  "environment": {
+    "GOWORK": "off",
+    "GOFLAGS": "-p=2"
+  }
+}

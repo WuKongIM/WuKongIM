@@ -1,0 +1,206 @@
+{
+  "review_axis": "Standards",
+  "review_mode": "static_read_only_doc_closure",
+  "overall_base": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "delta_base": "3e668ac4733ae403e57242ddec559e6d937b0d3c",
+  "head": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "head_tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "diff_command": "git diff 3e668ac4733ae403e57242ddec559e6d937b0d3c...c4954c6a638080e6a915ecec305a3381f4afd9a0 --",
+  "recorded_at_utc": "2026-10-22T22:23:44.141963+00:00",
+  "worktree_clean": true,
+  "changed_paths": [
+    "docs/development/FLOW_INDEX.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "internal/usecase/presence/FLOW.md"
+  ],
+  "all_tracked_go_files_unchanged": 4202,
+  "go_verification": "Complete old/head git ls-tree blob maps compared exactly; no file-content compiler or test execution. Initial slower redundant per-path git audit was stopped before artifact writes.",
+  "documented_standard_findings": 0,
+  "heuristic_findings": 0,
+  "fowler_baseline_considered": [
+    "Mysterious Name",
+    "Duplicated Code",
+    "Feature Envy",
+    "Data Clumps",
+    "Primitive Obsession",
+    "Repeated Switches",
+    "Shotgun Surgery",
+    "Divergent Change",
+    "Speculative Generality",
+    "Message Chains",
+    "Middle Man",
+    "Refused Bequest"
+  ],
+  "prior_manifest_sha256": "ae04ef2804e42c5171c7e63ad1bdc3ef91c46b453c94e22d34a8ff04259330c9",
+  "closure_evidence_manifest_sha256": "0fce660659615e1918398dbc3ebb0a1e17c30f85d6998cb0290673b79aa63045",
+  "sources": [
+    {
+      "path": ".github/workflows/README.md",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "git_blob": "c6492152b32db43fd10a4a2975c123de933fa517",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "git_blob": "b89d41eebadc701ada7157b387c2f45e8ff76354",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 192714,
+      "sha256": "a3774049a7cd6e3304a341a85602734b8f0d663b6f0aa90ecd9be17dfff0f10f",
+      "git_blob": "2c9e3cbb858c38ab8b419fd775904fa35059bc7c",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+      "bytes": 9767,
+      "sha256": "9d8647b8d46b87e9a64028d1f9eec886826efd3a1d5c4fbb3f4d817ac5d884bb",
+      "git_blob": "914a9cc1022f5db1b1e3c9b007fb549b81b6aec1",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "bytes": 1615,
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+      "git_blob": "5a6f59558cb9a0fd32605b9c2a42bbce7ce591d8",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "bytes": 19368,
+      "sha256": "1fe31f0e6db40116e271543f8f52920208dee70e0e11213c3a153d53161c21f4",
+      "git_blob": "5c5b6de1abc0f0718f3b0de349b90ff89a7193cd",
+      "unchanged_from_round1": false
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 148300,
+      "sha256": "f105fbc9034deabfc7a6e1347639d7b4993acaf27b2480c13e3a773c543e575f",
+      "git_blob": "2e42bb9970b783168e187b84ec2f791258efb014",
+      "unchanged_from_round1": false
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "git_blob": "88cd421cebecc6f34bd33d3c06e15e288bbc1856",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "git_blob": "25a7a9000f2f00aad9202182e7902ce726c57d1b",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go",
+      "bytes": 16200,
+      "sha256": "e3ec8c9ff89a531d7d6d86e1696704a0d3cf10d97f158e9e6209af1ce4941508",
+      "git_blob": "539a9bbc4ebe6b8e081452bf60e11388d20ad9d8",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "bytes": 33924,
+      "sha256": "0c3905553b7aa3daafa2fe8b74753179a94a1bd39c467c7a4ef51ac2da4998ce",
+      "git_blob": "934a35b1f55e32cdbe9585b042df9f23439943ce",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_meta.go",
+      "bytes": 11865,
+      "sha256": "9ca546402471998154468977ab180c461781de56c2bec5029f20d8d24096ff20",
+      "git_blob": "af86ca7e6291c4ba4aaadc1a3264fb367590421f",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/runtime/presence/FLOW.md",
+      "bytes": 2490,
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "git_blob": "239f4dcf87add4bc7b71db1482fa51e5581330e6",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/runtime/presence/directory.go",
+      "bytes": 19192,
+      "sha256": "b9ad257b4a6e231416d7813639e6225694a126b4d4953e191985171ddcd27900",
+      "git_blob": "de242f49a79ba3ee659535e0dc8bc87b5aeb3080",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/runtime/presence/recovery.go",
+      "bytes": 2712,
+      "sha256": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83",
+      "git_blob": "87f186ff7b1bfa9a6e1b807b3f2a153061f6de9e",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/runtime/presence/types.go",
+      "bytes": 6102,
+      "sha256": "1c8e8bdb35c6bdcacf362ad65c4355cb634e8f0641a32003e0ab92f7c4f74798",
+      "git_blob": "2573014ac2f7389db0376fdf49cf7696d3f41376",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "bytes": 3192,
+      "sha256": "438ba6664b276dc9b055c14e234b1bcefad55d8f56f649a3779c6df66d780d4e",
+      "git_blob": "d60110d7119f5a810add137269856c115ad88db5",
+      "unchanged_from_round1": false
+    },
+    {
+      "path": "internal/usecase/presence/cold_uid_isolation_integration_test.go",
+      "bytes": 8384,
+      "sha256": "8b0a6940bf3132ccf5aa29625985a4a00750827bae2d1a9be4d717fa5d7527fe",
+      "git_blob": "08306dfd8f1c292c9354c49a3557d024b8491ab7",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/usecase/presence/ports.go",
+      "bytes": 1636,
+      "sha256": "5a2918747c518ad8e187eb6eefb69fb34467f0fd4c1a7f07a68f48646379c8f9",
+      "git_blob": "b73c13db69f3a37748c417e902a61a22089c1014",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/usecase/presence/recovery.go",
+      "bytes": 3764,
+      "sha256": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b",
+      "git_blob": "10a1163dea12a3d638328f80b243b6c6821adda7",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/usecase/presence/recovery_flights.go",
+      "bytes": 8482,
+      "sha256": "53bb1b4f03152f76bef2e833dc658103f58f334dd38f948f2e2f0de1471cce95",
+      "git_blob": "e1ff793ae997afbc10989e0ec3731c17358c9592",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/usecase/presence/recovery_integration_test.go",
+      "bytes": 1760,
+      "sha256": "bd43617c0b82edf9429ef32be85a01ec77375d6e58928837fcfa4db26e13722b",
+      "git_blob": "6c034765ae0bd35856a6fca723339875beef0db3",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/usecase/presence/recovery_test.go",
+      "bytes": 6461,
+      "sha256": "64e0499567283c8f49dd228c5916b0a87acc26b4b2fca9fdf0a7f6f0bb39d85c",
+      "git_blob": "bcd4111c52f03e5f9fa57846e995ed23cb343326",
+      "unchanged_from_round1": true
+    },
+    {
+      "path": "internal/usecase/presence/uid_flight_integration_test.go",
+      "bytes": 20110,
+      "sha256": "e00ead21e618278bf16f9195e87298d8a991092f4f78d28ce0cd37f380dc457b",
+      "git_blob": "b4b4bd361574e4d8c75ad6cb37303ef7c7f0c005",
+      "unchanged_from_round1": true
+    }
+  ]
+}

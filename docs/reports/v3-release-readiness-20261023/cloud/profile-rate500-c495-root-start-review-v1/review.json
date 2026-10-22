@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-22T22:24:29.853506+00:00",
+  "source": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "manifest_payloads_verified": [
+    "ece8616d6e2075eea66ad000889d43ab63e7711fbbcb21c3966d6223181b0aba",
+    "558e138943d66b40700f19194888f74738d4b42dd1bcd7f2fdb802cd141fc81a",
+    "253e540db230b5f43d3a765d469374ad9d4b4efcdf173023767ef265f083c8d3",
+    "2f0a5aef132a54dd1293e1483e8e299afe6747d19acd1279f3548958c5a824f4"
+  ],
+  "source_clean": true,
+  "source_guard_reverified": true,
+  "executed_inputs_equal_proposal": true,
+  "watcher_and_helper_reverified": true,
+  "review_findings_remaining": 0,
+  "decision": "authorize_once_internal_local500_process_experiment",
+  "cloud_authorized": false,
+  "retry_authorized": false,
+  "budgets": {
+    "total_seconds": 600,
+    "watchdog_TERM": 570,
+    "watchdog_KILL_after": 5,
+    "startup_seconds": 360,
+    "target_traffic_seconds": 120,
+    "lateststop_seconds": 480,
+    "exit7hold_seconds": 90
+  }
+}

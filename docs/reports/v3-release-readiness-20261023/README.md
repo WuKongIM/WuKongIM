@@ -22,3 +22,5 @@
 后续 #1027 已于北京时间 **04:01:25** 合并，首次 CI 为 17 项成功、2 项条件跳过。本地实验的来源声明、二进制嵌入 stamp 和实际编译内容必须分开核对：Go 1.25.11 在嵌套 worktree 的 Git 根查找可取外层 a804 标记，而反汇编已见 79a 工作树路径及新增分支；不能仅凭 stamp 判断执行了旧源码。最初产品 override 构建链仍不完整，不能由后续重建追溯认证。新的 clean 79a 构建在 `.worktrees` 下使用具有真实 `.git` 目录的独立本地 clone，已固定云编译器/链接参数并核对 76 个嵌入资源，Linux 两程序与原云 ELF 逐字节相同；新 native 诊断终态覆盖 10.742 秒窗口（含停止/收尾），首个失败原因为 `overall_first_attempt_rate`。该窗口不是已知 active SEND 时长，完整 CPU/goroutine 采集不等于性能验收。当前来源纠正及后续诊断见[复核报告](../2026-10-23-v3-release-readiness.md)；旧批次冻结材料中的初步解释保留原字节。
 
 云 RC、实际生产来源/签名/审计、OSS/CDN 激活和公网客户端验收分别需要自己的实际收据。TEST ONLY、局域 TLS 或 SDK adapter 的成功不能代替这些结果。
+
+- [第十四批收据](COPY_BATCH14_RECEIPT.json)：冻结的 UID-flight 最终合同、tests-first 实现及回归/race、metadata leaf 诊断实现、组合候选、两轮独立复核与 P3 文档关闭、两代 clean native 构建/有限提案、c495 仍有 1 个过期及 metrics_fetch/缺最终报告的进程实验、离线 profile、附近 scrape 真实 parser 重放、#1029 首轮 Linux CI，以及静态 created-scrape 反驳。仅按清单复制公开 source/测试/收据和有限 proof ZIP；补入普通合并与四任务清理、两代离线关联提案/guards 修正、一次三副本精确 MessageID/seq 关联及 54 项 pre-code 诊断设计。保留准备期限制与全部失败；实际 metrics-fetch 实现和 owner 静态跟踪仍排除。见[清单](COPY_BATCH14_ALLOWLIST)和[校验表](COPY_BATCH14_SHA256SUMS)。

@@ -1,0 +1,616 @@
+diff --git a/internal/bench/chatlifecycle/production_controller.go b/internal/bench/chatlifecycle/production_controller.go
+index 39bbd3625..934a35b1f 100644
+--- a/internal/bench/chatlifecycle/production_controller.go
++++ b/internal/bench/chatlifecycle/production_controller.go
+@@ -44,7 +44,13 @@ func (f FinalizationFailure) Bounded() FinalizationFailure {
+ 		valid = f.Reason == "missing" || f.Reason == "invalid" || f.Reason == "output_failed"
+ 	case "dataset":
+ 		valid = f.Reason == "probe_failed" || f.Reason == "digest_mismatch"
+-	case "meta_checkpoint", "checkpoint_sequence", "report_validation", "controller_unknown":
++	case "meta_checkpoint":
++		switch f.Reason {
++		case "guard", "context_canceled", "context_deadline", "expectation_worker_shape", "expectation_fence", "expectation_vector_bound",
++			"checkpoint_fence", "checkpoint_sequence", "checkpoint_vector_regression", "metrics_fetch", "metrics_preview", "settle_wait", "accounting", "invalid":
++			valid = true
++		}
++	case "checkpoint_sequence", "report_validation", "controller_unknown":
+ 		valid = f.Reason == "invalid"
+ 	case "checkpoint_evidence":
+ 		valid = f.Reason == "invalid_evidence" || f.Reason == "dataset_mismatch" || f.Reason == "invalid_snapshot_cut"
+diff --git a/internal/bench/chatlifecycle/production_meta.go b/internal/bench/chatlifecycle/production_meta.go
+index eef0880d0..af86ca7e6 100644
+--- a/internal/bench/chatlifecycle/production_meta.go
++++ b/internal/bench/chatlifecycle/production_meta.go
+@@ -77,10 +77,10 @@ func (c *ProductionMetaController) Checkpoint(
+ 	reheat bool,
+ ) error {
+ 	if c == nil || ctx == nil {
+-		return ErrLifecycleHarnessInvalid
++		return metaCheckpointFailure("guard", ErrLifecycleHarnessInvalid)
+ 	}
+ 	if err := ctx.Err(); err != nil {
+-		return err
++		return metaCheckpointFailure("guard", err)
+ 	}
+ 	c.mu.Lock()
+ 	defer c.mu.Unlock()
+@@ -91,16 +91,16 @@ func (c *ProductionMetaController) Checkpoint(
+ 	}
+ 	if c.initialized {
+ 		if expectation.assignmentID != c.assignmentID || expectation.generation != c.generation {
+-			return ErrLifecycleHarnessInvalid
++			return metaCheckpointFailure("checkpoint_fence", ErrLifecycleHarnessInvalid)
+ 		}
+ 		for workerID := range expectation.personByWorker {
+ 			if expectation.sequences[workerID] <= c.sequences[workerID] {
+-				return ErrLifecycleHarnessInvalid
++				return metaCheckpointFailure("checkpoint_sequence", ErrLifecycleHarnessInvalid)
+ 			}
+ 			for hashSlot := range expectation.personByWorker[workerID] {
+ 				if expectation.personByWorker[workerID][hashSlot] < c.person[workerID][hashSlot] ||
+ 					expectation.groupByWorker[workerID][hashSlot] < c.groups[workerID][hashSlot] {
+-					return ErrLifecycleHarnessInvalid
++					return metaCheckpointFailure("checkpoint_vector_regression", ErrLifecycleHarnessInvalid)
+ 				}
+ 			}
+ 		}
+@@ -110,7 +110,10 @@ func (c *ProductionMetaController) Checkpoint(
+ 		return err
+ 	}
+ 	if err := c.accounting.Checkpoint(expectation.person, expectation.groups, assignment, metrics, reheat); err != nil {
+-		return err
++		if errors.Is(err, ErrLifecycleProductFailure) {
++			return err
++		}
++		return metaCheckpointFailure("accounting", err)
+ 	}
+ 	c.initialized = true
+ 	c.assignmentID = expectation.assignmentID
+@@ -121,6 +124,18 @@ func (c *ProductionMetaController) Checkpoint(
+ 	return nil
+ }
+ 
++// metaCheckpointFailure adds only a closed leaf diagnostic while preserving the
++// original private cause and every existing checkpoint failure classification.
++func metaCheckpointFailure(reason string, cause error) error {
++	switch {
++	case errors.Is(cause, context.Canceled):
++		reason = "context_canceled"
++	case errors.Is(cause, context.DeadlineExceeded):
++		reason = "context_deadline"
++	}
++	return newFinalizationError("meta_checkpoint", reason, cause)
++}
++
+ // collectSettledMetrics gives authoritative counters one short bounded window
+ // to become visible after a final worker SENDACK. It never commits a preview,
+ // and a stable deficit is still handed to accounting as product evidence.
+@@ -133,7 +148,7 @@ func (c *ProductionMetaController) collectSettledMetrics(
+ 	for attempt := 0; attempt < productionMetaSettleAttempts; attempt++ {
+ 		metrics, err := collectProductionMetaMetrics(ctx, c.metrics)
+ 		if err != nil {
+-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
++			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("metrics_fetch", err)
+ 		}
+ 		preview := NewMetaCreateAccounting()
+ 		previewErr := preview.Checkpoint(person, groups, assignment, metrics, false)
+@@ -141,18 +156,18 @@ func (c *ProductionMetaController) collectSettledMetrics(
+ 		case previewErr == nil:
+ 			return metrics, nil
+ 		case !errors.Is(previewErr, ErrLifecycleProductFailure):
+-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, previewErr
++			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("metrics_preview", previewErr)
+ 		case attempt == productionMetaSettleAttempts-1:
+ 			return metrics, nil
+ 		}
+ 		if c.settleWait == nil {
+-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, ErrLifecycleHarnessInvalid
++			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("settle_wait", ErrLifecycleHarnessInvalid)
+ 		}
+ 		if err := c.settleWait(ctx); err != nil {
+-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
++			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("settle_wait", err)
+ 		}
+ 	}
+-	return [coordinatorWorkerCount]target.MetricsSnapshot{}, ErrLifecycleHarnessInvalid
++	return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("settle_wait", ErrLifecycleHarnessInvalid)
+ }
+ 
+ func waitProductionMetaSettle(ctx context.Context) error {
+@@ -197,20 +212,22 @@ func collectProductionMetaExpectation(
+ ) (productionMetaExpectationSnapshot, error) {
+ 	var expectation productionMetaExpectationSnapshot
+ 	if runID == "" || workerCount != coordinatorWorkerCount || groupLimit == 0 || len(workers) != coordinatorWorkerCount {
+-		return expectation, ErrLifecycleHarnessInvalid
++		return expectation, metaCheckpointFailure("expectation_worker_shape", ErrLifecycleHarnessInvalid)
+ 	}
+ 	var seen [coordinatorWorkerCount]bool
+ 	var groupTotal uint64
+ 	for _, snapshot := range workers {
+-		if snapshot.RunID != runID || snapshot.AssignmentID == "" || snapshot.Generation == 0 ||
+-			snapshot.WorkerCount != workerCount || snapshot.WorkerID >= workerCount || snapshot.SnapshotSequence == 0 ||
++		if snapshot.RunID != runID || snapshot.AssignmentID == "" || snapshot.Generation == 0 {
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_fence", ErrLifecycleHarnessInvalid)
++		}
++		if snapshot.WorkerCount != workerCount || snapshot.WorkerID >= workerCount || snapshot.SnapshotSequence == 0 ||
+ 			(snapshot.Phase != WorkerPhaseRunning && snapshot.Phase != WorkerPhaseFinal) || seen[snapshot.WorkerID] {
+-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_worker_shape", ErrLifecycleHarnessInvalid)
+ 		}
+ 		if expectation.assignmentID == "" {
+ 			expectation.assignmentID, expectation.generation = snapshot.AssignmentID, snapshot.Generation
+ 		} else if snapshot.AssignmentID != expectation.assignmentID || snapshot.Generation != expectation.generation {
+-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_fence", ErrLifecycleHarnessInvalid)
+ 		}
+ 		workerID := int(snapshot.WorkerID)
+ 		seen[workerID] = true
+@@ -220,29 +237,29 @@ func collectProductionMetaExpectation(
+ 		for hashSlot, count := range snapshot.MetaCreate.PersonByHashSlot {
+ 			var ok bool
+ 			if expectation.person[hashSlot], ok = checkedUint64Add(expectation.person[hashSlot], count); !ok {
+-				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++				return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
+ 			}
+ 			if expectation.groups[hashSlot], ok = checkedUint64Add(
+ 				expectation.groups[hashSlot], snapshot.MetaCreate.GroupByHashSlot[hashSlot],
+ 			); !ok {
+-				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++				return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
+ 			}
+ 		}
+ 		workerGroups := uint64(0)
+ 		for _, count := range snapshot.MetaCreate.GroupByHashSlot {
+ 			var ok bool
+ 			if workerGroups, ok = checkedUint64Add(workerGroups, count); !ok {
+-				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++				return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
+ 			}
+ 		}
+ 		var ok bool
+ 		if groupTotal, ok = checkedUint64Add(groupTotal, workerGroups); !ok || groupTotal > groupLimit {
+-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
+ 		}
+ 	}
+ 	for _, present := range seen {
+ 		if !present {
+-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_worker_shape", ErrLifecycleHarnessInvalid)
+ 		}
+ 	}
+ 	return expectation, nil
+diff --git a/internal/usecase/presence/recovery.go b/internal/usecase/presence/recovery.go
+index 666c12185..10a1163de 100644
+--- a/internal/usecase/presence/recovery.go
++++ b/internal/usecase/presence/recovery.go
+@@ -2,7 +2,7 @@ package presence
+ 
+ import (
+ 	"context"
+-	"errors"
++	"sync"
+ 
+ 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+ )
+@@ -21,21 +21,27 @@ type RecoveryOwners interface {
+ }
+ 
+ // AuthorityRecovery reconstructs requested UIDs with bounded owner queries.
+-// Fixed admission lanes coalesce overlapping lookups without per-UID goroutines
+-// or an unbounded in-flight map. Directory ownership fences every completion.
++// Bounded UID flights coalesce overlapping proofs without per-UID goroutines.
++// Directory ownership fences every completion.
+ type AuthorityRecovery struct {
+ 	directory RecoveryDirectory
+ 	owners    RecoveryOwners
+-	lanes     [32]chan struct{}
++	// mu protects admission accounting only; it never spans owner I/O or waits.
++	mu sync.Mutex
++	// inFlight retains only admitted UID identities and completion status.
++	inFlight map[recoveryUIDKey]*recoveryUIDFlight
++	// ownedUIDBytes counts exact UID clones retained by admitted leaders only.
++	ownedUIDBytes int
++	// cohorts bounds caller-executed owner rounds, including downstream admission.
++	cohorts int
++	// changed wakes quota waiters without retaining a per-waiter queue.
++	changed chan struct{}
+ }
+ 
+-// NewAuthorityRecovery allocates fixed admission lanes for owner reconstruction.
++// NewAuthorityRecovery creates bounded UID proof admission for owner reconstruction.
+ func NewAuthorityRecovery(directory RecoveryDirectory, owners RecoveryOwners) *AuthorityRecovery {
+-	r := &AuthorityRecovery{directory: directory, owners: owners}
+-	for i := range r.lanes {
+-		r.lanes[i] = make(chan struct{}, 1)
+-	}
+-	return r
++	return &AuthorityRecovery{directory: directory, owners: owners,
++		inFlight: make(map[recoveryUIDKey]*recoveryUIDFlight), changed: make(chan struct{})}
+ }
+ 
+ // RecoveryBatchOwners returns aligned proofs while sharing each owner read
+@@ -51,7 +57,7 @@ func (r *AuthorityRecovery) Endpoints(ctx context.Context, target RouteTarget, u
+ }
+ 
+ // EndpointsByTargets packs at most 512 UIDs and 256 targets per owner round.
+-// A cold page shares the unavailable-owner timeout across all its Hash Slots.
++// Newly owned proofs share one bounded owner round; matching UIDs coalesce.
+ // Proven lookups stay outside recovery admission; failed groups remain aligned.
+ func (r *AuthorityRecovery) EndpointsByTargets(ctx context.Context, groups []EndpointLookupGroup) []EndpointLookupResult {
+ 	results := make([]EndpointLookupResult, len(groups))
+@@ -95,97 +101,3 @@ func (r *AuthorityRecovery) EndpointsByTargets(ctx context.Context, groups []End
+ 	}
+ 	return results
+ }
+-
+-// recoverPage locks distinct cold lanes in a fixed order and rechecks proofs
+-// after admission, coalescing concurrent reconstructions without lock cycles.
+-func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLookupGroup) []EndpointLookupResult {
+-	results := make([]EndpointLookupResult, len(groups))
+-	fail := func(err error) []EndpointLookupResult {
+-		for i := range results {
+-			results[i] = EndpointLookupResult{Err: err}
+-		}
+-		return results
+-	}
+-	if r == nil || r.directory == nil || r.owners == nil {
+-		return fail(authority.ErrRouteNotReady)
+-	}
+-	if err := ctx.Err(); err != nil {
+-		return fail(err)
+-	}
+-	var lanes [32]bool
+-	for i, group := range groups {
+-		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(group.Target, group.UIDs)
+-		if errors.Is(results[i].Err, authority.ErrRouteNotReady) {
+-			lanes[int(group.Target.HashSlot)%len(r.lanes)] = true
+-		}
+-	}
+-	locked := make([]int, 0, len(lanes))
+-	defer func() {
+-		for _, i := range locked {
+-			<-r.lanes[i]
+-		}
+-	}()
+-	for i, needed := range lanes {
+-		if !needed {
+-			continue
+-		}
+-		select {
+-		case r.lanes[i] <- struct{}{}:
+-			locked = append(locked, i)
+-		case <-ctx.Done():
+-			for j := range results {
+-				if errors.Is(results[j].Err, authority.ErrRouteNotReady) {
+-					results[j].Err = ctx.Err()
+-				}
+-			}
+-			return results
+-		}
+-	}
+-	missing := make([]EndpointLookupGroup, 0, len(groups))
+-	indexes := make([]int, 0, len(groups))
+-	for i, group := range groups {
+-		if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
+-			continue
+-		}
+-		uids, err := r.directory.RecoveryUIDs(group.Target, group.UIDs)
+-		if err != nil {
+-			results[i].Err = err
+-			continue
+-		}
+-		if len(uids) == 0 {
+-			results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(group.Target, group.UIDs)
+-			continue
+-		}
+-		missing = append(missing, EndpointLookupGroup{Target: group.Target, UIDs: uids})
+-		indexes = append(indexes, i)
+-	}
+-	if len(missing) == 0 {
+-		return results
+-	}
+-	recovered := make([]EndpointLookupResult, len(missing))
+-	if batch, ok := r.owners.(RecoveryBatchOwners); ok {
+-		recovered = batch.RecoverRoutesByTargets(ctx, missing)
+-	} else {
+-		// Limited in-process compatibility implementations retain the single-target
+-		// port. Production uses the batch port and never retries unsupported RPCs serially.
+-		for i, group := range missing {
+-			recovered[i].Routes, recovered[i].Err = r.owners.RecoverRoutes(ctx, group.Target, group.UIDs)
+-		}
+-	}
+-	for j, i := range indexes {
+-		if len(recovered) != len(missing) {
+-			results[i].Err = authority.ErrRouteNotReady
+-			continue
+-		}
+-		if recovered[j].Err != nil {
+-			results[i].Err = recovered[j].Err
+-			continue
+-		}
+-		if err := r.directory.InstallRecoveredRoutes(missing[j].Target, missing[j].UIDs, recovered[j].Routes); err != nil {
+-			results[i].Err = err
+-			continue
+-		}
+-		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(groups[i].Target, groups[i].UIDs)
+-	}
+-	return results
+-}
+diff --git a/internal/usecase/presence/recovery_flights.go b/internal/usecase/presence/recovery_flights.go
+new file mode 100644
+index 000000000..e1ff793ae
+--- /dev/null
++++ b/internal/usecase/presence/recovery_flights.go
+@@ -0,0 +1,271 @@
++package presence
++
++import (
++	"context"
++	"errors"
++	"strings"
++
++	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
++)
++
++const (
++	// Four leaders match the production node-wide owner-read admission. Keys and
++	// bytes bound only registry-owned UID clones, not caller/Directory/RPC heap.
++	recoveryMaxCohorts = 4
++	recoveryMaxKeys    = recoveryMaxCohorts * authority.RecoveryBatchSize
++	// A full page of 512 maximum-length stored UIDs (65535 bytes each) fits.
++	// This is a new internal admission budget, not an RPC string-size contract.
++	recoveryPageUIDBytes = 32 << 20
++	recoveryMaxUIDBytes  = recoveryMaxCohorts * recoveryPageUIDBytes
++)
++
++// recoveryUIDKey uses the distributed authority identity. Local routing revision
++// and AuthorityEpoch must not split one proof; original targets still flow to
++// Directory and owners unchanged for their independent validation.
++type recoveryUIDKey struct {
++	hashSlot                              uint16
++	slotID                                uint32
++	leaderNodeID, leaderTerm, configEpoch uint64
++	uid                                   string
++}
++
++func recoveryKey(target RouteTarget, uid string) recoveryUIDKey {
++	return recoveryUIDKey{target.HashSlot, target.SlotID, target.LeaderNodeID, target.LeaderTerm, target.ConfigEpoch, uid}
++}
++
++// recoveryUIDFlight publishes status before done closes. It never caches routes
++// or an offline proof; every successful follower rereads the current Directory.
++type recoveryUIDFlight struct {
++	done <-chan struct{}
++	err  error
++}
++
++type recoveryCohort struct {
++	done     chan struct{}
++	keys     []recoveryUIDKey
++	groups   []EndpointLookupGroup
++	uidBytes int
++}
++
++func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLookupGroup) []EndpointLookupResult {
++	results := make([]EndpointLookupResult, len(groups))
++	if r == nil || r.directory == nil || r.owners == nil {
++		for i := range results {
++			results[i].Err = authority.ErrRouteNotReady
++		}
++		return results
++	}
++	results, cohort, waits := r.admitRecoveryPage(ctx, groups)
++	if cohort != nil {
++		// Publish/release owned work before joining older flights. In particular,
++		// A={u1}, B={u1,u2} must make u2 available before B waits for A's u1.
++		r.executeRecoveryCohort(ctx, cohort)
++	}
++	for i, group := range groups {
++		if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
++			continue
++		}
++		var err error
++		for _, flight := range waits[i] {
++			select {
++			case <-ctx.Done():
++				err = ctx.Err()
++			case <-flight.done:
++				err = flight.err
++			}
++			if err != nil {
++				break
++			}
++		}
++		if ctx.Err() != nil {
++			err = ctx.Err()
++		}
++		if err != nil {
++			results[i] = EndpointLookupResult{Err: err}
++			continue
++		}
++		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(group.Target, group.UIDs)
++	}
++	return results
++}
++
++// admitRecoveryPage reserves a whole new subset or none. Quota waiting retains
++// no partial keys, UID copies or cohort slot, and rechecks proofs after waking.
++func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []EndpointLookupGroup) ([]EndpointLookupResult, *recoveryCohort, [][]*recoveryUIDFlight) {
++	for {
++		results := make([]EndpointLookupResult, len(groups))
++		missing := make([]EndpointLookupGroup, 0, len(groups))
++		indexes := make([]int, 0, len(groups))
++		waits := make([][]*recoveryUIDFlight, len(groups))
++		for i, group := range groups {
++			if err := ctx.Err(); err != nil {
++				results[i].Err = err
++				continue
++			}
++			results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(group.Target, group.UIDs)
++			if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
++				continue
++			}
++			uids, err := r.directory.RecoveryUIDs(group.Target, group.UIDs)
++			if err != nil {
++				results[i].Err = err
++				continue
++			}
++			if len(uids) == 0 {
++				continue
++			}
++			missing = append(missing, EndpointLookupGroup{Target: group.Target, UIDs: uids})
++			indexes = append(indexes, i)
++		}
++		if len(missing) == 0 {
++			return results, nil, waits
++		}
++
++		r.mu.Lock()
++		newKeys := make(map[recoveryUIDKey]recoveryUIDKey)
++		uidBytes := 0
++		oversized := false
++		for _, group := range missing {
++			for _, uid := range group.UIDs {
++				key := recoveryKey(group.Target, uid)
++				if _, exists := r.inFlight[key]; exists {
++					continue
++				}
++				if _, exists := newKeys[key]; exists {
++					continue
++				}
++				// Subtraction makes accounting overflow-safe before any UID copy.
++				if len(uid) > recoveryPageUIDBytes-uidBytes {
++					oversized = true
++					break
++				}
++				uidBytes += len(uid)
++				newKeys[key] = key
++			}
++			if oversized {
++				break
++			}
++		}
++		if oversized {
++			r.mu.Unlock()
++			return results, nil, waits
++		}
++		if len(newKeys) != 0 && (r.cohorts >= recoveryMaxCohorts || len(newKeys) > recoveryMaxKeys-len(r.inFlight) || uidBytes > recoveryMaxUIDBytes-r.ownedUIDBytes) {
++			changed := r.changed
++			r.mu.Unlock()
++			select {
++			case <-ctx.Done():
++				for _, i := range indexes {
++					results[i] = EndpointLookupResult{Err: ctx.Err()}
++				}
++				return results, nil, waits
++			case <-changed:
++				continue
++			}
++		}
++		var cohort *recoveryCohort
++		if len(newKeys) != 0 {
++			cohort = &recoveryCohort{done: make(chan struct{}), uidBytes: uidBytes, keys: make([]recoveryUIDKey, 0, len(newKeys))}
++			for key := range newKeys {
++				owned := key
++				owned.uid = strings.Clone(key.uid)
++				newKeys[key] = owned
++				cohort.keys = append(cohort.keys, owned)
++				r.inFlight[owned] = &recoveryUIDFlight{done: cohort.done}
++			}
++			r.cohorts++
++			r.ownedUIDBytes += uidBytes
++		}
++		for j, group := range missing {
++			ownedGroup := EndpointLookupGroup{Target: group.Target}
++			for _, uid := range group.UIDs {
++				key := recoveryKey(group.Target, uid)
++				waits[indexes[j]] = append(waits[indexes[j]], r.inFlight[key])
++				if owned, ok := newKeys[key]; ok {
++					ownedGroup.UIDs = append(ownedGroup.UIDs, owned.uid)
++					delete(newKeys, key)
++				}
++			}
++			if len(ownedGroup.UIDs) != 0 {
++				cohort.groups = append(cohort.groups, ownedGroup)
++			}
++		}
++		r.mu.Unlock()
++		return results, cohort, waits
++	}
++}
++
++// executeRecoveryCohort runs in the caller, with its original deadline. A
++// canceled leader cannot publish incomplete proof or strand live followers.
++func (r *AuthorityRecovery) executeRecoveryCohort(ctx context.Context, cohort *recoveryCohort) {
++	outcomes := make(map[recoveryUIDKey]error, len(cohort.keys))
++	for _, key := range cohort.keys {
++		outcomes[key] = authority.ErrRouteNotReady
++	}
++	defer r.completeRecoveryCohort(cohort, outcomes)
++	set := func(group EndpointLookupGroup, err error) {
++		for _, uid := range group.UIDs {
++			outcomes[recoveryKey(group.Target, uid)] = err
++		}
++	}
++	active := make([]EndpointLookupGroup, 0, len(cohort.groups))
++	for _, group := range cohort.groups {
++		uids, err := r.directory.RecoveryUIDs(group.Target, group.UIDs)
++		if err != nil {
++			set(group, err)
++			continue
++		}
++		set(group, nil)
++		if len(uids) != 0 {
++			active = append(active, EndpointLookupGroup{Target: group.Target, UIDs: uids})
++		}
++	}
++	if len(active) == 0 {
++		return
++	}
++	recovered := make([]EndpointLookupResult, len(active))
++	if batch, ok := r.owners.(RecoveryBatchOwners); ok {
++		recovered = batch.RecoverRoutesByTargets(ctx, active)
++	} else {
++		// Limited compatibility ports keep their existing single-target path.
++		for i, group := range active {
++			recovered[i].Routes, recovered[i].Err = r.owners.RecoverRoutes(ctx, group.Target, group.UIDs)
++		}
++	}
++	for i, group := range active {
++		if err := ctx.Err(); err != nil {
++			set(group, err)
++			continue
++		}
++		if len(recovered) != len(active) {
++			set(group, authority.ErrRouteNotReady)
++			continue
++		}
++		if recovered[i].Err != nil {
++			set(group, recovered[i].Err)
++			continue
++		}
++		set(group, r.directory.InstallRecoveredRoutes(group.Target, group.UIDs, recovered[i].Routes))
++	}
++}
++
++// completeRecoveryCohort releases owned resources and signals followers before
++// its leader can wait on older flights. A live follower never inherits someone
++// else's context cancellation as its own; existing outer retries stay unchanged.
++func (r *AuthorityRecovery) completeRecoveryCohort(cohort *recoveryCohort, outcomes map[recoveryUIDKey]error) {
++	r.mu.Lock()
++	defer r.mu.Unlock()
++	for _, key := range cohort.keys {
++		err := outcomes[key]
++		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
++			err = authority.ErrRouteNotReady
++		}
++		r.inFlight[key].err = err
++		delete(r.inFlight, key)
++	}
++	r.ownedUIDBytes -= cohort.uidBytes
++	r.cohorts--
++	close(cohort.done)
++	close(r.changed)
++	r.changed = make(chan struct{})
++}

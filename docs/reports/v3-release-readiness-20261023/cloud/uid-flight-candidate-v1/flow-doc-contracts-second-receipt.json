@@ -1,0 +1,36 @@
+{
+  "named_check": "flow-doc-contracts",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "policy_definition": {
+    "arguments": [
+      "go",
+      "run",
+      "./scripts/flowcheck",
+      "--mode",
+      "check"
+    ],
+    "working_dir": ".",
+    "timeout_seconds": 60,
+    "max_output_bytes": 1048576
+  },
+  "canonical_argv": [
+    "go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "check"
+  ],
+  "resolved_argv": [
+    "go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "check"
+  ],
+  "exit_code": 1,
+  "outer_timeout": false,
+  "child_joined": true,
+  "process_group": 39486,
+  "started_utc": "2026-10-22T22:07:18.407303+00:00",
+  "elapsed_seconds": 0.22724491695407778
+}

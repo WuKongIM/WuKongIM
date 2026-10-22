@@ -1,0 +1,20 @@
+{
+  "schema": "wukongim/c495-copy-original-integrity/v2",
+  "pinned_expected_inventory_sha256": "b0685fdbf0a0aeebe6af378e8c88c970092165dbf219c2ea4888ace904b327b1",
+  "original_files": 36,
+  "original_bytes": 66553406,
+  "original_before_equals_frozen_expected": true,
+  "original_after_equals_before_and_frozen_expected": true,
+  "copy_full_path_size_SHA_mapping_equals_frozen_original": true,
+  "copy_integrity_verified_before_CLI_open": true,
+  "private_original_before_sha256": "b0685fdbf0a0aeebe6af378e8c88c970092165dbf219c2ea4888ace904b327b1",
+  "private_original_after_sha256": "b0685fdbf0a0aeebe6af378e8c88c970092165dbf219c2ea4888ace904b327b1",
+  "private_copy_inventory_before_open_sha256": "37e31c86f3e15e3fc41c5553f28f5fab9943715c1a04077efdc7caf42c567dce",
+  "evidence_and_canonical_logs_SHA_mtime_unchanged": true,
+  "owned_query_group_recheck": {
+    "owned_pgid": 57907,
+    "alive": false,
+    "global_ps_scan": false
+  },
+  "all3queries_joined": true
+}

@@ -1,0 +1,114 @@
+[
+  {
+    "id": 39864525733,
+    "name": "Three-Node Chat Lifecycle Regression pull_request 1029 attempt 1",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120123268550,
+        "name": "PR messaging unit and race",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120123268853,
+        "name": "PR three-node correctness",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120123268928,
+        "name": "PR performance baseline evidence",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120123270829,
+        "name": "Nightly direct 500 QPS qualification",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120123271280,
+        "name": "Fixed Linux SEND diagnosis",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120123387593,
+        "name": "PR 500 QPS / mixed-send",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120123387605,
+        "name": "PR 500 QPS / tcp-sendack",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120123387653,
+        "name": "PR 500 QPS / channel-append",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39864525628,
+    "name": "V3 Candidate Regression pull_request 1029 attempt 1",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120123268563,
+        "name": "Candidate default suite (go-unit)",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120123268900,
+        "name": "Candidate scripts integration",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39864525576,
+    "name": "Safety Automation - Issue Agent PR Signal",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120123267531,
+        "name": "Emit credential-free wake-up",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39864525579,
+    "name": "Safety Automation - Validate Native Package Preview",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120123267437,
+        "name": "Build and install deb/rpm preview",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  }
+]

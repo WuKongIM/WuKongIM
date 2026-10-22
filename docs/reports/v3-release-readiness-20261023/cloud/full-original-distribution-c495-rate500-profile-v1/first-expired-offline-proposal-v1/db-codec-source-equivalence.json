@@ -1,0 +1,73 @@
+{
+  "baseline_revision": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "new_revision": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "files": [
+    {
+      "path": "cmd/wkcli/internal/database/main.go",
+      "sha256": "d610dacd439e5e2263a6a4719e602bf7fa492901172fe67cd8f122afd265677f",
+      "old_new_equal": true
+    },
+    {
+      "path": "pkg/db/inspect/store.go",
+      "sha256": "298ff49355c859c6e7051c7071cd7f3832eea42937f740e38ebf508b186d5f2c",
+      "old_new_equal": true
+    },
+    {
+      "path": "pkg/db/internal/engine/db.go",
+      "sha256": "a5544110e6ef740a3dc70add13c716d3df8eec3a6a00131078f20c2355e47ec5",
+      "old_new_equal": true
+    },
+    {
+      "path": "pkg/db/inspect/execute.go",
+      "sha256": "f5ec9fd47138bee8d4789f7968d8c65e7cfbe730c46fc506c715f41b3148d258",
+      "old_new_equal": true
+    },
+    {
+      "path": "pkg/db/message/inspect.go",
+      "sha256": "1c75aba8520b8e0ad88e18c79c5167b6c4860bb1ea5fae488ac16bc0dd1a2db6",
+      "old_new_equal": true
+    },
+    {
+      "path": "pkg/channel/types.go",
+      "sha256": "b53a5ad011f1d8c1b2687c87763afbdda9a9a96ee97f4a5d47f51b6daad560ca",
+      "old_new_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/identity.go",
+      "sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "old_new_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/payload.go",
+      "sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+      "old_new_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/traffic.go",
+      "sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "old_new_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/evidence.go",
+      "sha256": "3f630c9086b727ed7bab5b541c8ddab6fb7eca3fe89d06c32874f2983c12d852",
+      "old_new_equal": true
+    }
+  ],
+  "read_only_source_locations": [
+    "cmd/wkcli/internal/database/main.go:110",
+    "pkg/db/inspect/store.go:49",
+    "pkg/db/internal/engine/db.go:188"
+  ],
+  "applicable_FLOW_digest_reuse": [
+    {
+      "path": "pkg/db/FLOW.md",
+      "sha256": "57578a266e60e804ee46f71205b92c7d64df00e0df6e6f9120cc0e1937334017",
+      "content_equal_previously_read_d349": true
+    },
+    {
+      "path": "pkg/db/message/FLOW.md",
+      "sha256": "32732f4f0df214406ff53467a8396275c189404b147ae1ad353eda4c397c6e09",
+      "content_equal_previously_read_d349": true
+    }
+  ]
+}

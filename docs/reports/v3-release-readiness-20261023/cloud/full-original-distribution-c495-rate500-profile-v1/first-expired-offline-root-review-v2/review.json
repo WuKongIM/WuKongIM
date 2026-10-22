@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-22T22:44:25.164491+00:00",
+  "proposal_manifest_sha256": "c4cc84928832ecf852af9efbc4d969f4a4595a46c654c40833354b2db30dd43e",
+  "driver_sha256": "c6e4b3d526b0e8745452988162b82dcd3351792d4c6f034eb527d3df408febc6",
+  "all_nine_public_payloads_verified": true,
+  "private_driver_and_full_diff_reviewed": true,
+  "native_binary_reverified": true,
+  "fresh_output_absent": true,
+  "query_bounds": {
+    "groups": 1,
+    "nodes": 3,
+    "maximum_queries": 3,
+    "per_query_timeout_seconds": 10,
+    "GOMAXPROCS": 1,
+    "SQL_limit": 100,
+    "require_has_more": false,
+    "retry_or_expansion": false
+  },
+  "outer_seconds": 90,
+  "original_inventory_files": 36,
+  "original_inventory_bytes": 66553406,
+  "decision": "authorize_exactly_one_bounded_offline_copy_inspection_and_exact_warning_join",
+  "no_new_workload_or_cloud": true,
+  "earlier_review_correction": "v1 had current-versus-file comparison; new pin/copy/outer-budget guards are the actual delta"
+}

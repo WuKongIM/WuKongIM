@@ -1,0 +1,3 @@
+# Documentation closure for round1 Spec P3
+
+The only source delta from 3e668ac4733ae403e57242ddec559e6d937b0d3c clarifies successful flight completions versus typed failure propagation in Knowledge and presence FLOW, plus the canonical generated FLOW index. All tracked Go files are unchanged. The named flow-doc-contracts check passed with 20 existing advisory line-count warnings. Initial orchestration field-name error occurred before either command and is retained separately. No runtime test was repeated for this documentation-only delta. Independent reviewer closure and real-process validation remain separate.

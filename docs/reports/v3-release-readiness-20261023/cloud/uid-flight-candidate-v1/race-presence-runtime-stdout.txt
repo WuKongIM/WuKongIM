@@ -1,0 +1,225 @@
+=== RUN   TestActivateRegistersPendingLocalRouteThenAuthorityThenMarksActive
+--- PASS: TestActivateRegistersPendingLocalRouteThenAuthorityThenMarksActive (0.00s)
+=== RUN   TestActivateRollsBackLocalRouteWhenAuthorityRegisterFails
+--- PASS: TestActivateRollsBackLocalRouteWhenAuthorityRegisterFails (0.00s)
+=== RUN   TestActivateReturnsHashSlotErrorBeforeLocalRegister
+--- PASS: TestActivateReturnsHashSlotErrorBeforeLocalRegister (0.00s)
+=== RUN   TestActivateUnregistersAuthorityWhenSessionClosedDuringActivation
+--- PASS: TestActivateUnregistersAuthorityWhenSessionClosedDuringActivation (0.00s)
+=== RUN   TestActivateCleansPendingLocalRouteWhenMarkActiveFails
+--- PASS: TestActivateCleansPendingLocalRouteWhenMarkActiveFails (0.00s)
+=== RUN   TestActivateEmitsOnlineStatusAfterSuccessfulMarkActive
+--- PASS: TestActivateEmitsOnlineStatusAfterSuccessfulMarkActive (0.00s)
+=== RUN   TestActivateOnlineStatusCountsActiveLocalSessionsAfterTransition
+--- PASS: TestActivateOnlineStatusCountsActiveLocalSessionsAfterTransition (0.00s)
+=== RUN   TestActivateFailurePathsDoNotEmitOnlineStatus
+=== RUN   TestActivateFailurePathsDoNotEmitOnlineStatus/authority_register_fails
+=== RUN   TestActivateFailurePathsDoNotEmitOnlineStatus/mark_active_fails
+--- PASS: TestActivateFailurePathsDoNotEmitOnlineStatus (0.00s)
+    --- PASS: TestActivateFailurePathsDoNotEmitOnlineStatus/authority_register_fails (0.00s)
+    --- PASS: TestActivateFailurePathsDoNotEmitOnlineStatus/mark_active_fails (0.00s)
+=== RUN   TestActivateWithNilOnlineStatusObserverIsNoop
+--- PASS: TestActivateWithNilOnlineStatusObserverIsNoop (0.00s)
+=== RUN   TestActivateAppliesPendingActionsBeforeCommitThenMarksActive
+--- PASS: TestActivateAppliesPendingActionsBeforeCommitThenMarksActive (0.00s)
+=== RUN   TestActivateAbortsPendingRouteAndKeepsConflictsWhenActionFails
+--- PASS: TestActivateAbortsPendingRouteAndKeepsConflictsWhenActionFails (0.00s)
+=== RUN   TestActivateAbortsPendingRouteWhenOwnerActionClientMissing
+--- PASS: TestActivateAbortsPendingRouteWhenOwnerActionClientMissing (0.00s)
+=== RUN   TestDeactivateRemovesLocalRouteAndQueuesAuthorityTombstone
+--- PASS: TestDeactivateRemovesLocalRouteAndQueuesAuthorityTombstone (0.00s)
+=== RUN   TestDeactivateEmitsOfflineStatusForLastLocalSession
+--- PASS: TestDeactivateEmitsOfflineStatusForLastLocalSession (0.00s)
+=== RUN   TestDeactivateDoesNotEmitOfflineStatusForPendingSession
+--- PASS: TestDeactivateDoesNotEmitOfflineStatusForPendingSession (0.00s)
+=== RUN   TestDeactivateDoesNotEmitOfflineStatusWhenSameUIDSessionRemains
+--- PASS: TestDeactivateDoesNotEmitOfflineStatusWhenSameUIDSessionRemains (0.00s)
+=== RUN   TestDeactivateEmitsOfflineStatusWhenOnlySameUIDPendingSessionRemains
+--- PASS: TestDeactivateEmitsOfflineStatusWhenOnlySameUIDPendingSessionRemains (0.00s)
+=== RUN   TestDeactivateWithNilOnlineStatusObserverIsNoop
+--- PASS: TestDeactivateWithNilOnlineStatusObserverIsNoop (0.00s)
+=== RUN   TestEndpointsByUIDUsesAuthorityClient
+--- PASS: TestEndpointsByUIDUsesAuthorityClient (0.00s)
+=== RUN   TestTouchMarksLocalSessionTouched
+--- PASS: TestTouchMarksLocalSessionTouched (0.00s)
+=== RUN   TestTouchRequiresLocalRegistry
+--- PASS: TestTouchRequiresLocalRegistry (0.00s)
+=== RUN   TestRouteFromOwnerRouteCarriesLastSeenUnix
+--- PASS: TestRouteFromOwnerRouteCarriesLastSeenUnix (0.00s)
+=== RUN   TestPresenceUsecaseImportBoundary
+--- PASS: TestPresenceUsecaseImportBoundary (0.00s)
+=== RUN   TestEndpointsByTargetsUsesTargetAwareBatchAuthority
+--- PASS: TestEndpointsByTargetsUsesTargetAwareBatchAuthority (0.00s)
+=== RUN   TestEndpointsByTargetsLegacyFallbackContinuesAfterGroupError
+--- PASS: TestEndpointsByTargetsLegacyFallbackContinuesAfterGroupError (0.00s)
+=== RUN   TestEndpointsByTargetsReportsUnavailableAuthorityPerGroup
+--- PASS: TestEndpointsByTargetsReportsUnavailableAuthorityPerGroup (0.00s)
+=== RUN   TestAuthorityRecoveryProvenLookupDoesNotWaitForColdOwner
+--- PASS: TestAuthorityRecoveryProvenLookupDoesNotWaitForColdOwner (0.00s)
+=== RUN   TestAuthorityRecoveryRequiresCompleteOwnersAndRejectsOldCompletion
+--- PASS: TestAuthorityRecoveryRequiresCompleteOwnersAndRejectsOldCompletion (0.00s)
+=== RUN   TestAuthorityRecoveryCancellationDoesNotQueryOwner
+--- PASS: TestAuthorityRecoveryCancellationDoesNotQueryOwner (0.00s)
+=== RUN   TestAuthorityRecoveryBatchesColdTargetsAndPreservesSiblingResults
+--- PASS: TestAuthorityRecoveryBatchesColdTargetsAndPreservesSiblingResults (0.01s)
+=== RUN   TestAuthorityRecoveryPagesLargeTargetWithoutDiscardingEarlierResults
+--- PASS: TestAuthorityRecoveryPagesLargeTargetWithoutDiscardingEarlierResults (0.01s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_IndependentUIDWhilePagePaused
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_IndependentUIDWhilePagePaused (0.00s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_NonConflictingTargetProgresses
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_NonConflictingTargetProgresses (0.00s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_SameUIDSharesOwnerProof
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_SameUIDSharesOwnerProof (0.04s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_CanceledWaiterDoesNotCancelOwner
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_CanceledWaiterDoesNotCancelOwner (0.04s)
+=== RUN   TestAuthorityRecoveryUIDFlightPartialOverlapPublishesBeforeJoin
+--- PASS: TestAuthorityRecoveryUIDFlightPartialOverlapPublishesBeforeJoin (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightLeaderCancellationKeepsFollowerRetryable
+--- PASS: TestAuthorityRecoveryUIDFlightLeaderCancellationKeepsFollowerRetryable (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/hash
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/slot
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/leader
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/term
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/config
+--- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity/hash (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity/slot (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity/leader (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity/term (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity/config (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightLocalMetadataCoalesces
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryUIDFlightLocalMetadataCoalesces (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightOwnsUIDBacking
+--- PASS: TestAuthorityRecoveryUIDFlightOwnsUIDBacking (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys
+--- PASS: TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-0
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-511
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-512
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-513
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-1025
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/targets-255
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/targets-256
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/targets-257
+--- PASS: TestAuthorityRecoveryUIDFlightPackingBounds (0.04s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-0 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-511 (0.01s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-512 (0.01s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-513 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-1025 (0.01s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/targets-255 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/targets-256 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/targets-257 (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/4096
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/65535
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/byte-bound-33554432
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/byte-bound-33554433
+--- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs (0.10s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/4096 (0.01s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/65535 (0.06s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/byte-bound-33554432 (0.03s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/byte-bound-33554433 (0.01s)
+=== RUN   TestAuthorityRecoveryUIDFlightLateWaiterMustRereadEvictedProof
+--- PASS: TestAuthorityRecoveryUIDFlightLateWaiterMustRereadEvictedProof (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightMixedGroupsDuplicatesAndTombstone
+--- PASS: TestAuthorityRecoveryUIDFlightMixedGroupsDuplicatesAndTombstone (0.00s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/presence	1.584s
+=== RUN   TestDirectoryRejectsStaleTarget
+--- PASS: TestDirectoryRejectsStaleTarget (0.00s)
+=== RUN   TestDirectoryEndpointsByUIDsReturnsRoutesInInputUIDOrder
+--- PASS: TestDirectoryEndpointsByUIDsReturnsRoutesInInputUIDOrder (0.00s)
+=== RUN   TestDirectoryEndpointsByUIDsRejectsStaleTargetAsOneGroup
+--- PASS: TestDirectoryEndpointsByUIDsRejectsStaleTargetAsOneGroup (0.00s)
+=== RUN   TestDirectoryEndpointsByTargetsPreservesAlignedPartialFailures
+--- PASS: TestDirectoryEndpointsByTargetsPreservesAlignedPartialFailures (0.00s)
+=== RUN   TestDirectoryEndpointsByTargetsReturnsCapacityLimitedCallOwnedSnapshots
+--- PASS: TestDirectoryEndpointsByTargetsReturnsCapacityLimitedCallOwnedSnapshots (0.00s)
+=== RUN   TestDirectoryEndpointsByTargetsIsSafeDuringConcurrentTouches
+--- PASS: TestDirectoryEndpointsByTargetsIsSafeDuringConcurrentTouches (0.01s)
+=== RUN   TestDirectoryEndpointsByTargetsCloudMediumAllocationBudget
+--- PASS: TestDirectoryEndpointsByTargetsCloudMediumAllocationBudget (0.02s)
+=== RUN   TestDirectoryAcceptsDifferentLocalAuthorityEpochWithSameRaftIdentity
+--- PASS: TestDirectoryAcceptsDifferentLocalAuthorityEpochWithSameRaftIdentity (0.00s)
+=== RUN   TestDirectoryRejectsOldLeaderTerm
+--- PASS: TestDirectoryRejectsOldLeaderTerm (0.00s)
+=== RUN   TestDirectoryRejectsDifferentConfigEpoch
+--- PASS: TestDirectoryRejectsDifferentConfigEpoch (0.00s)
+=== RUN   TestDirectoryTouchRoutesIgnoresExplicitUnregisterTombstoneAtSameOwnerSeq
+--- PASS: TestDirectoryTouchRoutesIgnoresExplicitUnregisterTombstoneAtSameOwnerSeq (0.00s)
+=== RUN   TestDirectoryTouchRoutesRefreshesExistingRoute
+--- PASS: TestDirectoryTouchRoutesRefreshesExistingRoute (0.00s)
+=== RUN   TestDirectoryTouchRoutesDoesNotMoveLastSeenBackward
+--- PASS: TestDirectoryTouchRoutesDoesNotMoveLastSeenBackward (0.00s)
+=== RUN   TestDirectoryTouchRoutesRecreatesMissingRoute
+--- PASS: TestDirectoryTouchRoutesRecreatesMissingRoute (0.00s)
+=== RUN   TestDirectorySnapshotCountsAuthorityRoutesByHashSlotAndCounters
+--- PASS: TestDirectorySnapshotCountsAuthorityRoutesByHashSlotAndCounters (0.00s)
+=== RUN   TestDirectoryUnregisterRequiresExactUIDIdentity
+--- PASS: TestDirectoryUnregisterRequiresExactUIDIdentity (0.00s)
+=== RUN   TestDirectoryConflictActionFailureLeavesExistingRouteActive
+--- PASS: TestDirectoryConflictActionFailureLeavesExistingRouteActive (0.00s)
+=== RUN   TestDirectoryCommitRouteReplacesConflictingActiveRoute
+--- PASS: TestDirectoryCommitRouteReplacesConflictingActiveRoute (0.00s)
+=== RUN   TestDirectoryCommitRouteRejectsNewUnacknowledgedConflicts
+--- PASS: TestDirectoryCommitRouteRejectsNewUnacknowledgedConflicts (0.00s)
+=== RUN   TestDirectoryCommitRouteRejectsSupersededPendingRoute
+--- PASS: TestDirectoryCommitRouteRejectsSupersededPendingRoute (0.00s)
+=== RUN   TestDirectoryLeadershipIdentityClearsOldRoutes
+--- PASS: TestDirectoryLeadershipIdentityClearsOldRoutes (0.00s)
+=== RUN   TestDirectoryRouteRevisionUpdatePreservesAuthorityState
+--- PASS: TestDirectoryRouteRevisionUpdatePreservesAuthorityState (0.00s)
+=== RUN   TestDirectoryRouteRevisionUpdatePreservesPendingConflictCandidate
+--- PASS: TestDirectoryRouteRevisionUpdatePreservesPendingConflictCandidate (0.00s)
+=== RUN   TestDirectoryAcceptsSameIdentityTargetBeforeRevisionUpdateEvent
+--- PASS: TestDirectoryAcceptsSameIdentityTargetBeforeRevisionUpdateEvent (0.00s)
+=== RUN   TestDirectoryLoseAuthorityRejectsOldTarget
+--- PASS: TestDirectoryLoseAuthorityRejectsOldTarget (0.00s)
+=== RUN   TestDirectoryTouchRoutesIgnoresConflictingMissingRoute
+--- PASS: TestDirectoryTouchRoutesIgnoresConflictingMissingRoute (0.00s)
+=== RUN   TestDirectoryExpireRoutesRemovesUntouchedRoutes
+--- PASS: TestDirectoryExpireRoutesRemovesUntouchedRoutes (0.00s)
+=== RUN   TestDirectoryExpireRoutesKeepsUntimestampedRoutes
+--- PASS: TestDirectoryExpireRoutesKeepsUntimestampedRoutes (0.00s)
+=== RUN   TestDirectoryTouchMovesRouteOutOfOldExpiryBucket
+--- PASS: TestDirectoryTouchMovesRouteOutOfOldExpiryBucket (0.00s)
+=== RUN   TestDirectoryUnregisterUnschedulesExpiryAndPreservesTombstone
+--- PASS: TestDirectoryUnregisterUnschedulesExpiryAndPreservesTombstone (0.00s)
+=== RUN   TestDirectoryExpiredRouteRejectsLowerOwnerSeqTouch
+--- PASS: TestDirectoryExpiredRouteRejectsLowerOwnerSeqTouch (0.00s)
+=== RUN   TestDirectoryExpiredRouteCanBeRecreatedByEqualOwnerSeqTouch
+--- PASS: TestDirectoryExpiredRouteCanBeRecreatedByEqualOwnerSeqTouch (0.00s)
+=== RUN   TestDirectoryExpiredRouteCanBeRecreatedByHigherOwnerSeqTouch
+--- PASS: TestDirectoryExpiredRouteCanBeRecreatedByHigherOwnerSeqTouch (0.00s)
+=== RUN   TestDirectoryRevisionOnlyAuthorityUpdatePreservesExpiryIndex
+--- PASS: TestDirectoryRevisionOnlyAuthorityUpdatePreservesExpiryIndex (0.00s)
+=== RUN   TestDirectoryAuthorityIdentityReplacementDropsExpiryIndex
+--- PASS: TestDirectoryAuthorityIdentityReplacementDropsExpiryIndex (0.00s)
+=== RUN   TestDirectoryConflictReplacementUnschedulesOldRoute
+--- PASS: TestDirectoryConflictReplacementUnschedulesOldRoute (0.00s)
+=== RUN   TestDirectoryExpireRoutesExaminesOnlyDueCandidates
+--- PASS: TestDirectoryExpireRoutesExaminesOnlyDueCandidates (0.23s)
+=== RUN   TestDirectoryExpiryIndexTracksTimestampedRoutes
+--- PASS: TestDirectoryExpiryIndexTracksTimestampedRoutes (0.00s)
+=== RUN   TestDirectoryExpiryRetainsExactDeadlineEquality
+--- PASS: TestDirectoryExpiryRetainsExactDeadlineEquality (0.00s)
+=== RUN   TestAuthorityChangeCannotReportUnreconstructedUIDOffline
+--- PASS: TestAuthorityChangeCannotReportUnreconstructedUIDOffline (0.00s)
+=== RUN   TestRecoveryProofDistinguishesOfflineTombstonesAndStaleAuthority
+--- PASS: TestRecoveryProofDistinguishesOfflineTombstonesAndStaleAuthority (0.00s)
+=== RUN   TestRecoveryProofCacheEvictionRequiresNewProof
+--- PASS: TestRecoveryProofCacheEvictionRequiresNewProof (0.00s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/internal/runtime/presence	1.575s

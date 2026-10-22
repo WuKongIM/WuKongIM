@@ -1,0 +1,27 @@
+{
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-uid-flight-candidate",
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "-trimpath",
+    "-p=1",
+    "-tags=integration",
+    "./internal/usecase/presence",
+    "-run",
+    "^TestAuthorityRecovery",
+    "-count=1",
+    "-timeout=90s",
+    "-v"
+  ],
+  "environment_overrides": {
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOWORK": "off",
+    "CGO_ENABLED": "0",
+    "GOMAXPROCS": "1",
+    "PATH": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin:/usr/local/go/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/tt/.codex/tmp/arg0-macos/codex-arg0wWE2xx:/Users/tt/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/tt/.bun/bin:/Users/tt/.nvm/versions/node/v24.3.0/bin:/Users/tt/.local/bin:/usr/local/include/protoc/bin:/Users/tt/go/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/tt/flutter/flutter/bin:/Users/tt/.cargo/bin:/Applications/\u6781\u7a7a\u95f4.app/Contents/Resources/app.asar.unpacked/bin/platform-tools:/Users/tt/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS"
+  },
+  "started_utc": "2026-10-22T21:58:06.455690+00:00",
+  "outer_timeout_seconds": 120
+}

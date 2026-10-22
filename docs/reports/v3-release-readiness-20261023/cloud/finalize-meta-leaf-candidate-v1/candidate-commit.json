@@ -1,0 +1,54 @@
+{
+  "base": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "head": "486ec5f154b120b9daedcf5a427d51966a82e06c",
+  "tree": "ba721f6cd506158e98e4b90896a15b3cfda3109f",
+  "parents": [
+    "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e"
+  ],
+  "branch": "codex/v3-finalize-meta-replay",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+  "clean": true,
+  "pushed": false,
+  "commit_subject": "fix(bench): identify metadata checkpoint failure leaves",
+  "files": [
+    {
+      "name": "CHANGELOG.md",
+      "bytes": 192290,
+      "sha256": "ffebdc4eb793fd0ee982d94708be9e14a7f141b4e75c14a71cdc365fe56868d0",
+      "git_blob": "37145ffb23fbc5869146486bd00fe376dc07290c"
+    },
+    {
+      "name": "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+      "bytes": 9767,
+      "sha256": "9d8647b8d46b87e9a64028d1f9eec886826efd3a1d5c4fbb3f4d817ac5d884bb",
+      "git_blob": "914a9cc1022f5db1b1e3c9b007fb549b81b6aec1"
+    },
+    {
+      "name": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 147425,
+      "sha256": "408fa268abe7c5eb1fb7af51dd2b6e8c7d4b22a4786e86ee2abc87d8d1131e12",
+      "git_blob": "b2afb77b4099b09a13da8369ed1867215b9b88fc"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go",
+      "bytes": 16200,
+      "sha256": "e3ec8c9ff89a531d7d6d86e1696704a0d3cf10d97f158e9e6209af1ce4941508",
+      "git_blob": "539a9bbc4ebe6b8e081452bf60e11388d20ad9d8"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/production_controller.go",
+      "bytes": 33924,
+      "sha256": "0c3905553b7aa3daafa2fe8b74753179a94a1bd39c467c7a4ef51ac2da4998ce",
+      "git_blob": "934a35b1f55e32cdbe9585b042df9f23439943ce"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/production_meta.go",
+      "bytes": 11865,
+      "sha256": "9ca546402471998154468977ab180c461781de56c2bec5029f20d8d24096ff20",
+      "git_blob": "af86ca7e6291c4ba4aaadc1a3264fb367590421f"
+    }
+  ],
+  "candidate_diff_sha256": "28d77ff58123ba2f38c2169cf1e9a33eea244b0ed59c474c3259cbf22b7d32bc",
+  "permanent_tests_self_contained": true,
+  "one_off_test_excluded": true
+}

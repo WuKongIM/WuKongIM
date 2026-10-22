@@ -1,0 +1,98 @@
+package target
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
+	"testing"
+)
+
+type retainedC495Transport func(*http.Request) (*http.Response, error)
+
+func (f retainedC495Transport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// TestRetainedC495MetricsParserOffline replays nearby retained scrapes through
+// the real parser without opening a listener or reconstructing failed evidence.
+func TestRetainedC495MetricsParserOffline(t *testing.T) {
+	root, receiptPath := os.Getenv("WK_METRICS_REPLAY_ROOT"), os.Getenv("WK_METRICS_REPLAY_RECEIPT")
+	if root == "" || receiptPath == "" {
+		t.Fatal("explicit private replay paths required")
+	}
+	source, err := os.ReadFile("client.go")
+	if err != nil {
+		t.Fatal("source literal allowlist unavailable")
+	}
+	allowed := map[string]bool{}
+	for _, match := range regexp.MustCompile(`errors.New\("([^"\\]+)"\)`).FindAllSubmatch(source, -1) {
+		allowed[string(match[1])] = true
+	}
+	type result struct {
+		Name                string  `json:"name"`
+		SHA256              string  `json:"sha256"`
+		Bytes               int64   `json:"bytes"`
+		MtimeNanos          int64   `json:"mtime_nanos"`
+		ParseOK             bool    `json:"parse_ok"`
+		ConstantError       string  `json:"constant_error,omitempty"`
+		Created             uint64  `json:"created"`
+		RuntimeQueuePercent float64 `json:"runtime_queue_percent"`
+		ChannelQueuePercent float64 `json:"channel_queue_percent"`
+	}
+	var results []result
+	calls := 0
+	for _, cut := range []string{"first-measured", "terminal"} {
+		for node := 1; node <= 3; node++ {
+			name := fmt.Sprintf("metrics-%s-node%d.prom", cut, node)
+			path := filepath.Join(root, "evidence", name)
+			before, err := os.Lstat(path)
+			if err != nil || !before.Mode().IsRegular() || before.Size() <= 0 || before.Size() > 2<<20 {
+				t.Fatal("invalid retained input")
+			}
+			body, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal("retained input unavailable")
+			}
+			digest := sha256.Sum256(body)
+			client := NewClient(Config{APIAddrs: []string{"http://retained.invalid"}, HTTPClient: &http.Client{Transport: retainedC495Transport(func(r *http.Request) (*http.Response, error) {
+				calls++
+				if r.URL.Path != "/metrics" {
+					t.Fatal("unexpected replay path")
+				}
+				return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(body)), Request: r}, nil
+			})}})
+			snapshot, parseErr := client.Metrics(context.Background())
+			entry := result{Name: name, SHA256: hex.EncodeToString(digest[:]), Bytes: before.Size(), MtimeNanos: before.ModTime().UnixNano(), ParseOK: parseErr == nil, Created: uint64(snapshot.MetaCreatedTotal["created"]), RuntimeQueuePercent: snapshot.RuntimeQueueMaxPercent, ChannelQueuePercent: snapshot.ChannelWorkerQueueMaxPercent}
+			if parseErr != nil {
+				entry.ConstantError = "redacted_nonliteral_error"
+				if allowed[parseErr.Error()] {
+					entry.ConstantError = parseErr.Error()
+				}
+				t.Errorf("cut=%s node=%d retained_parser_failed", cut, node)
+			}
+			after, err := os.Lstat(path)
+			again, readErr := os.ReadFile(path)
+			if err != nil || readErr != nil || !after.Mode().IsRegular() || after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) || sha256.Sum256(again) != digest {
+				t.Fatal("retained input mutated")
+			}
+			results = append(results, entry)
+		}
+	}
+	if calls != 6 {
+		t.Fatal("unexpected replay call count")
+	}
+	encoded, err := json.MarshalIndent(struct {
+		ActualFailedRoundAvailable bool     `json:"actual_failed_round_available"`
+		Calls                      int      `json:"in_memory_http_calls"`
+		Results                    []result `json:"results"`
+	}{Calls: calls, Results: results}, "", "  ")
+	if err != nil || os.WriteFile(receiptPath, append(encoded, '\n'), 0600) != nil {
+		t.Fatal("receipt failed")
+	}
+}

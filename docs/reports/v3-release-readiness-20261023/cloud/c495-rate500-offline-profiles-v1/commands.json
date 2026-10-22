@@ -1,0 +1,40 @@
+[
+  {
+    "argv": [
+      "/Users/tt/Library/Caches/go-build/3b/3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5-d/pprof",
+      "-symbolize=none",
+      "-top",
+      "-nodecount=60",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-c495-rate500-profile-v1/profiles-node2/profiles/node-2-cpu.pb.gz"
+    ],
+    "exit_status": 0,
+    "started_at_utc": "2026-10-22T22:31:53.002662+00:00",
+    "elapsed_seconds": 0.040100084035657346,
+    "input": {
+      "sha256": "5ca9749d9fd97d63fff1b9fcd09abdb6c6eb4920c09da450da52756be03379f4",
+      "bytes": 24144,
+      "mtime_ns": 1792708157564049634
+    },
+    "tool_sha256": "3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5",
+    "no_new_profile_or_service_request": true
+  },
+  {
+    "argv": [
+      "/Users/tt/Library/Caches/go-build/3b/3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5-d/pprof",
+      "-symbolize=none",
+      "-top",
+      "-nodecount=60",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-c495-rate500-profile-v1/profiles-node2/profiles/node-2-goroutine.pb.gz"
+    ],
+    "exit_status": 0,
+    "started_at_utc": "2026-10-22T22:31:53.048762+00:00",
+    "elapsed_seconds": 0.00929458299651742,
+    "input": {
+      "sha256": "253dcc329571781d01aa523fc3317de478bf43b991e425c447572a7bf9835f91",
+      "bytes": 23542,
+      "mtime_ns": 1792708152486159715
+    },
+    "tool_sha256": "3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5",
+    "no_new_profile_or_service_request": true
+  }
+]

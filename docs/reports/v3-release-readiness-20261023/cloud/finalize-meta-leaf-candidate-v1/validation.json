@@ -1,0 +1,35 @@
+{
+  "result": "pass",
+  "base": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "head": "486ec5f154b120b9daedcf5a427d51966a82e06c",
+  "tree": "ba721f6cd506158e98e4b90896a15b3cfda3109f",
+  "clean": true,
+  "remote_mutations": false,
+  "candidate_files": 6,
+  "baseline_files_bound_to_exact_git_objects": 13,
+  "tests_first_byte_hashes_match_committed_tests": true,
+  "first_red_preserved": true,
+  "green_test_events": 130,
+  "race_test_events": 130,
+  "complete_two_package_top_level_tests": 871,
+  "complete_two_package_test_events": 1685,
+  "complete_two_package_first_attempt_exit": 0,
+  "complete_two_package_skips": 0,
+  "all_test_processes_joined": true,
+  "new_reason_count": 13,
+  "existing_invalid_fallback": true,
+  "worker_schema_or_accounting_arithmetic_or_report_gate_changes": false,
+  "one_off_replay_preserved_excluded": true,
+  "old_replay_freeze_unchanged": true,
+  "actual_failed_d349_leaf": "unknown",
+  "message_loss_fix_claimed": false,
+  "linux_acceptance_claimed": false,
+  "warnings_retained": {
+    "race_linker_lc_dysymtab": 1,
+    "existing_flow_length_warnings": 20
+  },
+  "named_checks_passed": [
+    "go-format",
+    "flow-doc-contracts"
+  ]
+}

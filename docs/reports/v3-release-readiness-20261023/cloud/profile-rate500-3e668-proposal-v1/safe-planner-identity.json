@@ -1,0 +1,12 @@
+{
+  "schema": "wukongim/3e668-rate500-retained-real-planner-identity/v1",
+  "identity": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc",
+    "assignment_count": 3,
+    "generation": 1
+  },
+  "basis": "retained real LoadConfig+BuildCoordinatorAssignments identity; new source and config identical proof",
+  "prior_materialization_sha256": "45968c37fc028285387f138f07235987a7379be372264d19467a17f2a37fce3e",
+  "equivalence_sha256": "93e5060cd92a9a44af86c5b2158b4713863f9b381f1aab31433e556c4b607602"
+}

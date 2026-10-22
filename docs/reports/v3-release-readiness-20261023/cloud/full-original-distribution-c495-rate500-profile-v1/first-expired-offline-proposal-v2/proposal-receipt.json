@@ -1,0 +1,48 @@
+{
+  "schema": "wukongim/c495-single-expired-offline-proposal/v2",
+  "at_utc": "2026-10-22T22:43:16.748817+00:00",
+  "future_output": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-c495-rate500-profile-v1/first-expired-offline-addendum-v2",
+  "source_revision": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "source_tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "native_cli_sha256": "1d44f1f1fba89662b2824c6771da37e9f84276ee4afec74eb16477800e02a2ea",
+  "selected_sample": {
+    "worker_id": 2,
+    "domain": 4,
+    "generation": 1,
+    "ordinal": 314,
+    "group_index": 1646,
+    "fingerprint": "0db0904a5c1178a44b1596dfd762770d"
+  },
+  "v1_manifest_sha256": "2e5b9768bc9b072c24ae6b4d50594452e1de2924e58c10c723b81707e26c29d8",
+  "v1_driver_sha256": "f4e40053e7a36abd21135461e2abc6747091ff162a2dce7a666773c2981491f3",
+  "driver_sha256": "c6e4b3d526b0e8745452988162b82dcd3351792d4c6f034eb527d3df408febc6",
+  "driver_contract_test_sha256": "ff5dc23b20d0b19a633f93e03cfe435aa522c9537c01e647a57cc389221f69f1",
+  "pinned_expected_inventory_sha256": "b0685fdbf0a0aeebe6af378e8c88c970092165dbf219c2ea4888ace904b327b1",
+  "expected_original_files": 36,
+  "expected_original_bytes": 66553406,
+  "copy_integrity_required_before_any_CLI_open": true,
+  "source_binary_and_freshguards_before_output_mkdir": true,
+  "outer_wallbudget_seconds": 90,
+  "work_ceiling_seconds": 85,
+  "TERM_grace_seconds": 2,
+  "KILL_join_budget_seconds": 1,
+  "query_bounds": {
+    "groups": 1,
+    "nodes": 3,
+    "maximum_queries": 3,
+    "per_query_timeout_seconds": 10,
+    "GOMAXPROCS": 1,
+    "SQL_limit": 100,
+    "require_has_more": false,
+    "retry_or_expansion": false
+  },
+  "original_DB_never_opened": true,
+  "db_copies_created": 0,
+  "db_queries_executed": 0,
+  "proposed_invocation": [
+    "python3",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-c495-rate500-profile-v1/first-expired-offline-proposal-v2/PRIVATE_offline_db_inspect.proposed.py"
+  ],
+  "PRIVATE_driver_diff_sha256": "87f37bc712ffadc8c5f900be342eedb89a51191d1f83106836597df81e4a5e5e",
+  "root_review_before_actual_execution_required": true
+}

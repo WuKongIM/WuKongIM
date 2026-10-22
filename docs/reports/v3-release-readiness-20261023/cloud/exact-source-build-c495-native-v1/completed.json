@@ -1,0 +1,11 @@
+{
+  "at_utc": "2026-10-22T22:21:59.157936+00:00",
+  "source_clean": true,
+  "binary_count": 2,
+  "tracked_embedded_assets_equal": 76,
+  "runtime_started": false,
+  "source_revision": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "source_tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "cloud_binary_byte_equality_claimed": false,
+  "scope": "exactc495 presenceUIDcandidate plus bounded meta diagnostics; allGo blobs equal3e668, documentation corrected, not runtime-qualified by construction"
+}

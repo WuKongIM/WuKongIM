@@ -1,0 +1,52 @@
+{
+  "schema": "wukongim/3e668-exact-source-selection/v1",
+  "at_utc": "2026-10-22T22:13:53.503497+00:00",
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-3e668-candidate",
+  "head": "3e668ac4733ae403e57242ddec559e6d937b0d3c",
+  "tree": "f70fc869cf65bb03ac42fd43d19e85c32a0fe114",
+  "real_git_directory": true,
+  "source_clean": true,
+  "source_changes_vs_d349": [
+    "CHANGELOG.md",
+    "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+    "docs/development/FLOW_INDEX.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go",
+    "internal/bench/chatlifecycle/production_controller.go",
+    "internal/bench/chatlifecycle/production_meta.go",
+    "internal/usecase/presence/FLOW.md",
+    "internal/usecase/presence/cold_uid_isolation_integration_test.go",
+    "internal/usecase/presence/recovery.go",
+    "internal/usecase/presence/recovery_flights.go",
+    "internal/usecase/presence/recovery_integration_test.go",
+    "internal/usecase/presence/recovery_test.go",
+    "internal/usecase/presence/uid_flight_integration_test.go"
+  ],
+  "clone_commands": [
+    {
+      "name": "clone",
+      "argv": [
+        "git",
+        "clone",
+        "--shared",
+        "--no-checkout",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-3e668-candidate"
+      ],
+      "exit_status": 0
+    },
+    {
+      "name": "checkout",
+      "argv": [
+        "git",
+        "checkout",
+        "--detach",
+        "3e668ac4733ae403e57242ddec559e6d937b0d3c"
+      ],
+      "exit_status": 0
+    }
+  ],
+  "assets76_equal_original_cloud": true,
+  "prior_clones_or_binaries_modified": false,
+  "build_started": false
+}

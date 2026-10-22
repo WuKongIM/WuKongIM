@@ -1,0 +1,10 @@
+{
+  "head": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "hashes": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "internal/bench/FLOW.md": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+    "internal/bench/chatlifecycle/FLOW.md": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+    "internal/bench/target/client.go": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762"
+  }
+}

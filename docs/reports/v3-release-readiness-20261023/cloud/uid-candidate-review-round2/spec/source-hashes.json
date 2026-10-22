@@ -1,0 +1,77 @@
+{
+  "axis": "Spec",
+  "review_mode": "static P3 closure only",
+  "recorded_utc": "2026-10-22T22:21:45.557658+00:00",
+  "base": "3e668ac4733ae403e57242ddec559e6d937b0d3c",
+  "head": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "changed_paths": [
+    "docs/development/FLOW_INDEX.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "internal/usecase/presence/FLOW.md"
+  ],
+  "current_sources": [
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "bytes": 19368,
+      "sha256": "1fe31f0e6db40116e271543f8f52920208dee70e0e11213c3a153d53161c21f4",
+      "git_blob": "5c5b6de1abc0f0718f3b0de349b90ff89a7193cd"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 148300,
+      "sha256": "f105fbc9034deabfc7a6e1347639d7b4993acaf27b2480c13e3a773c543e575f",
+      "git_blob": "2e42bb9970b783168e187b84ec2f791258efb014"
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "bytes": 3192,
+      "sha256": "438ba6664b276dc9b055c14e234b1bcefad55d8f56f649a3779c6df66d780d4e",
+      "git_blob": "d60110d7119f5a810add137269856c115ad88db5"
+    },
+    {
+      "path": "internal/usecase/presence/recovery.go",
+      "bytes": 3764,
+      "sha256": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b",
+      "git_blob": "10a1163dea12a3d638328f80b243b6c6821adda7"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_flights.go",
+      "bytes": 8482,
+      "sha256": "53bb1b4f03152f76bef2e833dc658103f58f334dd38f948f2e2f0de1471cce95",
+      "git_blob": "e1ff793ae997afbc10989e0ec3731c17358c9592"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_meta.go",
+      "bytes": 11865,
+      "sha256": "9ca546402471998154468977ab180c461781de56c2bec5029f20d8d24096ff20",
+      "git_blob": "af86ca7e6291c4ba4aaadc1a3264fb367590421f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "bytes": 33924,
+      "sha256": "0c3905553b7aa3daafa2fe8b74753179a94a1bd39c467c7a4ef51ac2da4998ce",
+      "git_blob": "934a35b1f55e32cdbe9585b042df9f23439943ce"
+    }
+  ],
+  "all_tracked_go_files_unchanged": {
+    "count": 4202,
+    "comparison": "exact git blob IDs at both revisions",
+    "sorted_path_blob_map_sha256": "e71ed35c1e7587791d8cc1c9bab307011b36c6a78040290773fdf738a68bd67c"
+  },
+  "closure_manifest": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/uid-candidate-doc-closure-v1/manifest.sha256",
+    "sha256": "0fce660659615e1918398dbc3ebb0a1e17c30f85d6998cb0290673b79aa63045",
+    "entries": 7,
+    "all_payload_hashes_match": true
+  },
+  "round1_immutable": {
+    "manifest_sha256": "d0fd7f7522082f0c5cc449ced1429d2f14613c2174f4ef310edf677ae8a681b6",
+    "all_payload_hashes_match": true,
+    "original_P3_retained": true
+  },
+  "named_flow_check_receipt_inspected": true,
+  "remaining_findings": 0,
+  "runtime_tests_repeated": false,
+  "clean_before_after": true
+}

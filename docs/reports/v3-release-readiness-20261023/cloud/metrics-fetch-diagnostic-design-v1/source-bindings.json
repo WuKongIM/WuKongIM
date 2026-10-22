@@ -1,0 +1,54 @@
+{
+  "schema": "wukongim/metrics-fetch-design-source/v1",
+  "source": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-c495-candidate",
+  "head": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "clean_before_analysis": true,
+  "files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "internal/bench/FLOW.md": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+    "internal/bench/chatlifecycle/FLOW.md": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+    "internal/bench/target/client.go": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762",
+    "internal/bench/target/client_test.go": "e48732178091c95ceb654dbcc68be1eb9b04b3338a7f1c758bdd15a8373c930f",
+    "internal/bench/chatlifecycle/production_meta.go": "9ca546402471998154468977ab180c461781de56c2bec5029f20d8d24096ff20",
+    "internal/bench/chatlifecycle/production_meta_test.go": "c1dde724ad86cf8954d7402fa5d5521207f54ab8bbd408692536bd5f73f7a019",
+    "internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go": "e3ec8c9ff89a531d7d6d86e1696704a0d3cf10d97f158e9e6209af1ce4941508",
+    "internal/bench/chatlifecycle/production_controller.go": "0c3905553b7aa3daafa2fe8b74753179a94a1bd39c467c7a4ef51ac2da4998ce",
+    "internal/bench/chatlifecycle/production_observation.go": "85c147271c695a2af5f40fd35d16b13301dde3e3da9588f3bb78843b937bf8b7",
+    "internal/bench/chatlifecycle/coordinator.go": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+    "internal/bench/chatlifecycle/finalize_diagnostics_test.go": "2a27392c2f70d9315a5f3b7ed93a31ba5394f8f9229adc0d52526a0bdd768ae3",
+    "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee",
+    ".github/review-agent/policy.json": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+  },
+  "applicable_valid_FLOW": [
+    "internal/bench/FLOW.md",
+    "internal/bench/chatlifecycle/FLOW.md"
+  ],
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "named_checks_not_executed_in_design": {
+    "go-format": {
+      "arguments": [
+        "review-agent-check",
+        "go-format"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 300,
+      "max_output_bytes": 1048576
+    },
+    "flow-doc-contracts": {
+      "arguments": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 60,
+      "max_output_bytes": 1048576
+    }
+  },
+  "design_only": true,
+  "source_mutations_tests_builds_requests_workloads_cloud_operations": 0,
+  "clean_after_analysis": true
+}

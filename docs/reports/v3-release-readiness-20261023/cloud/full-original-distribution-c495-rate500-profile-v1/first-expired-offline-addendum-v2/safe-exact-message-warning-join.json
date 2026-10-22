@@ -1,0 +1,98 @@
+{
+  "schema": "wukongim/c495-single-expired-exact-warning-join/v2",
+  "source_revision": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "selected_sample": {
+    "worker_id": 2,
+    "domain": 4,
+    "generation": 1,
+    "ordinal": 314,
+    "group_index": 1646,
+    "fingerprint": "0db0904a5c1178a44b1596dfd762770d"
+  },
+  "unique_durable_message": {
+    "message_id": "2113397295402721287",
+    "message_seq": "1",
+    "replicas_matching": 3,
+    "clientno_fingerprint_matches": true
+  },
+  "canonical_log_window": {
+    "first_grant": "2026-10-23T06:29:07.269544+08:00",
+    "terminal_cut": "2026-10-23T06:29:30.092315+08:00",
+    "timezone": "prefix local wallclock UTC+08:00 from runreceipt"
+  },
+  "exact_message_warning_matches": [
+    {
+      "node_id": 2,
+      "at": "2026-10-23T06:29:20.098000+08:00",
+      "within_firstgrant_terminal_window": true,
+      "message_id": "2113397295402721287",
+      "message_seq": "1",
+      "phase": "presence",
+      "result": "timeout",
+      "mode": "durable",
+      "fixed_error_reason": "deadline_exceeded",
+      "exact_db_messageID_and_seq_match": true
+    }
+  ],
+  "exact_message_warning_match_count": 1,
+  "canonical_nodes": [
+    {
+      "node_id": 1,
+      "in_window_incomplete_warnings": 24,
+      "outside_window_incomplete_warnings": 1,
+      "unparseable_candidates": 0,
+      "by_phase_result_mode_reason": [
+        {
+          "phase": "owner_push",
+          "result": "timeout",
+          "mode": "durable",
+          "fixed_error_reason": "deadline_exceeded",
+          "count": 1
+        },
+        {
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "fixed_error_reason": "deadline_exceeded",
+          "count": 23
+        }
+      ]
+    },
+    {
+      "node_id": 2,
+      "in_window_incomplete_warnings": 33,
+      "outside_window_incomplete_warnings": 0,
+      "unparseable_candidates": 0,
+      "by_phase_result_mode_reason": [
+        {
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "fixed_error_reason": "deadline_exceeded",
+          "count": 33
+        }
+      ]
+    },
+    {
+      "node_id": 3,
+      "in_window_incomplete_warnings": 18,
+      "outside_window_incomplete_warnings": 183,
+      "unparseable_candidates": 0,
+      "by_phase_result_mode_reason": [
+        {
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "fixed_error_reason": "deadline_exceeded",
+          "count": 18
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "Only1groupx3replicas queried, no retries or othergroup",
+    "Durable existence does not prove onlineRECV",
+    "ExactIDseq warning identifies observed plan failure phase; underlying cause remains separate",
+    "No new product/profile/workload/network/cloud operation"
+  ]
+}

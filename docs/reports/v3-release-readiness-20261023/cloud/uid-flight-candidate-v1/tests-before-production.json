@@ -1,0 +1,32 @@
+{
+  "red_finished_utc": "2026-10-22T21:58:12.829283+00:00",
+  "test_sources": [
+    {
+      "path": "internal/usecase/presence/cold_uid_isolation_integration_test.go",
+      "sha256": "8b0a6940bf3132ccf5aa29625985a4a00750827bae2d1a9be4d717fa5d7527fe",
+      "mtime_utc": "2026-10-22T21:53:28.449880+00:00",
+      "mtime_precedes_first_meaningful_red_completion": true
+    },
+    {
+      "path": "internal/usecase/presence/uid_flight_integration_test.go",
+      "sha256": "e00ead21e618278bf16f9195e87298d8a991092f4f78d28ce0cd37f380dc457b",
+      "mtime_utc": "2026-10-22T21:57:27.007250+00:00",
+      "mtime_precedes_first_meaningful_red_completion": true
+    },
+    {
+      "path": "internal/usecase/presence/recovery_test.go",
+      "sha256": "64e0499567283c8f49dd228c5916b0a87acc26b4b2fca9fdf0a7f6f0bb39d85c",
+      "mtime_utc": "2026-10-22T21:57:26.969184+00:00",
+      "mtime_precedes_first_meaningful_red_completion": true
+    },
+    {
+      "path": "internal/usecase/presence/recovery_integration_test.go",
+      "sha256": "bd43617c0b82edf9429ef32be85a01ec77375d6e58928837fcfa4db26e13722b",
+      "mtime_utc": "2026-10-22T21:57:27.007578+00:00",
+      "mtime_precedes_first_meaningful_red_completion": true
+    }
+  ],
+  "new_production_file_birth_utc": "2026-10-22T22:00:26.400036+00:00",
+  "new_production_created_after_meaningful_red": true,
+  "failure_matrix_sha256": "56affa4e409314f7e87678fc07c75969ff7943a46993e4692ec7ec3372d38a0f"
+}

@@ -1,0 +1,48 @@
+diff --git a/docs/development/FLOW_INDEX.md b/docs/development/FLOW_INDEX.md
+index 7195a42b2..5c5b6de1a 100644
+--- a/docs/development/FLOW_INDEX.md
++++ b/docs/development/FLOW_INDEX.md
+@@ -73,7 +73,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
+ | [internal/usecase/mqttsession/FLOW.md](../../internal/usecase/mqttsession/FLOW.md) | `package` | Coordinates MQTT Session lifecycle, subscription preparation, consumer progress and bounded replay copy/recovery/retirement turns. | 125 | warning |
+ | [internal/usecase/opsobserve/FLOW.md](../../internal/usecase/opsobserve/FLOW.md) | `package` | Defines closed-world Operations MCP validation and bounded observation envelopes over narrow sources. | 51 | ok |
+ | [internal/usecase/plugin/FLOW.md](../../internal/usecase/plugin/FLOW.md) | `package` | Owns entry-independent plugin desired state, candidate selection, hook orchestration, and PDK-compatible host RPC mapping. | 79 | ok |
+-| [internal/usecase/presence/FLOW.md](../../internal/usecase/presence/FLOW.md) | `package` | Coordinates owner-local connection lifecycle with UID authority registration, actions, touch batching, and route lookup. | 67 | ok |
++| [internal/usecase/presence/FLOW.md](../../internal/usecase/presence/FLOW.md) | `package` | Coordinates owner-local connection lifecycle with UID authority registration, actions, touch batching, and route lookup. | 68 | ok |
+ | [internal/usecase/reviewagent/FLOW.md](../../internal/usecase/reviewagent/FLOW.md) | `package` | Owns deterministic Review Agent commands, PR lifecycle reconciliation, scheduling, projection planning, and publication policy. | 53 | ok |
+ | [internal/usecase/user/FLOW.md](../../internal/usecase/user/FLOW.md) | `package` | Orchestrates legacy-compatible user tokens, device quit, online status, system UIDs, and restore cache reload. | 63 | ok |
+ | [pkg/backup/FLOW.md](../../pkg/backup/FLOW.md) | `package` | Defines the portable full-backup repository format, strict manifests, compressed chunks, publication markers, and verification. | 52 | ok |
+diff --git a/docs/development/PROJECT_KNOWLEDGE.md b/docs/development/PROJECT_KNOWLEDGE.md
+index d85f01335..2e42bb997 100644
+--- a/docs/development/PROJECT_KNOWLEDGE.md
++++ b/docs/development/PROJECT_KNOWLEDGE.md
+@@ -1078,9 +1078,11 @@ specification, runbook, report, or module documentation; link to them when neede
+   The original 512-UID/256-target page fits maximum 65,535-byte stored identities.
+   Larger arbitrary lookup strings can now remain explicitly not ready. Quota
+   waits hold no partial keys; owned proofs publish/release before joining old
+-  flights. Every waiter rereads Directory, so FIFO eviction remains unknown,
+-  never fabricated offline. Follower cancellation is isolated; canceled leaders
+-  leave live followers typed not-ready under the existing outer retry policy.
++  flights. Successful completions require a fresh Directory read, so FIFO
++  eviction remains unknown, never fabricated offline. Failed completions can
++  directly propagate their typed failure. Follower cancellation is isolated;
++  canceled leaders leave live followers typed not-ready under the existing outer
++  retry policy.
+ - Every online route, including advisory EVENT hints, must preserve device ID,
+   flag and level along with the exact owner/session identity. The final session
+   fence rejects a route with missing or stale device fields.
+diff --git a/internal/usecase/presence/FLOW.md b/internal/usecase/presence/FLOW.md
+index 303f71469..d60110d71 100644
+--- a/internal/usecase/presence/FLOW.md
++++ b/internal/usecase/presence/FLOW.md
+@@ -48,8 +48,9 @@ It does not own gateway frames, concrete cluster routing, or session storage.
+ - Production target-aware lookup preserves the complete fence and returns
+   aligned results. The per-UID fallback exists only for limited compatibility
+   implementations and cannot provide that target fence.
+-- Flight completion stores no routes: callers reread current Directory proof,
+-  including after FIFO eviction. Canceling a follower does not cancel its leader;
++- Flights store no routes. After successful completion, callers reread current
++  Directory proof, including after FIFO eviction; failed completions may propagate
++  their typed failure. Canceling a follower does not cancel its leader;
+   a canceled leader leaves live followers retryable without adding a retry.
+ - Import-boundary tests reject concrete entry, protocol, cluster, and app imports.
+ 

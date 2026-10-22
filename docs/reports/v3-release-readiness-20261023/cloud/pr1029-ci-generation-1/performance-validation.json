@@ -1,0 +1,146 @@
+{
+  "channel-append": {
+    "artifact_id": 12463302802,
+    "schema": "scheduled-arrival/v1",
+    "phase": "measurement",
+    "qualification": true,
+    "windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 5.257535,
+        "scheduled_to_start_p99_ms": 1.074415,
+        "service_p99_ms": 4.022138
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 5.55269,
+        "scheduled_to_start_p99_ms": 1.081224,
+        "service_p99_ms": 4.296111
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 10.078245,
+        "scheduled_to_start_p99_ms": 1.140136,
+        "service_p99_ms": 6.429587
+      }
+    ],
+    "one_second_cohorts": 180,
+    "source_sha": "15289a0a91d1b858db667f7783955d022f965913",
+    "binary_sha256_file": "020d665df688785b40561c17d6e5467322d5e4da8a9508e2a232d3de8cae44b4  /home/runner/work/_temp/500qps-channel-append/benchmark.test\n",
+    "go_version": "go version go1.25.11 linux/amd64"
+  },
+  "mixed-send": {
+    "artifact_id": 12464185853,
+    "schema": "scheduled-arrival/v1",
+    "phase": "measurement",
+    "qualification": true,
+    "windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 96.476311,
+        "scheduled_to_start_p99_ms": 1.181034,
+        "service_p99_ms": 95.948295
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 143.358961,
+        "scheduled_to_start_p99_ms": 1.422927,
+        "service_p99_ms": 142.957186
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 189.154939,
+        "scheduled_to_start_p99_ms": 2.746524,
+        "service_p99_ms": 187.968435
+      }
+    ],
+    "one_second_cohorts": 180,
+    "source_sha": "15289a0a91d1b858db667f7783955d022f965913",
+    "binary_sha256_file": "ee5dc6a8e456b51f5abea18949f3135b4b4074ac05653561f748c0f14858439e  /home/runner/work/_temp/500qps-mixed-send/benchmark.test\n",
+    "go_version": "go version go1.25.11 linux/amd64"
+  },
+  "tcp-sendack": {
+    "artifact_id": 12464230213,
+    "schema": "scheduled-arrival/v1",
+    "phase": "measurement",
+    "qualification": true,
+    "windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.059007,
+        "scheduled_to_start_p99_ms": 1.065229,
+        "service_p99_ms": 177.382125
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.071883,
+        "scheduled_to_start_p99_ms": 1.061821,
+        "service_p99_ms": 177.393056
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.033059,
+        "scheduled_to_start_p99_ms": 1.066487,
+        "service_p99_ms": 177.378404
+      }
+    ],
+    "one_second_cohorts": 180,
+    "source_sha": "15289a0a91d1b858db667f7783955d022f965913",
+    "binary_sha256_file": "b3f9efb9f81bf4496a3592001af98cd72d296b2de69489927bf2ca662f3ccc03  /home/runner/work/_temp/500qps-tcp-sendack/benchmark.test\n",
+    "go_version": "go version go1.25.11 linux/amd64"
+  }
+}

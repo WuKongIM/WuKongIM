@@ -1,0 +1,58 @@
+{
+  "base": "3e668ac4733ae403e57242ddec559e6d937b0d3c",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "named_check": {
+    "arguments": [
+      "go",
+      "run",
+      "./scripts/flowcheck",
+      "--mode",
+      "check"
+    ],
+    "working_dir": ".",
+    "timeout_seconds": 60,
+    "max_output_bytes": 1048576
+  },
+  "records": [
+    {
+      "label": "render",
+      "args": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "render",
+        "--write-index"
+      ],
+      "start": "2026-10-22T22:20:29.684095+00:00",
+      "exit_code": 0
+    },
+    {
+      "label": "flow-doc-contracts",
+      "args": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "start": "2026-10-22T22:20:30.604112+00:00",
+      "exit_code": 0
+    }
+  ],
+  "changed": [
+    "docs/development/FLOW_INDEX.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "internal/usecase/presence/FLOW.md"
+  ],
+  "all_tracked_go_files_unchanged": 4202,
+  "environment": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "CGO_ENABLED": "0",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "1",
+    "GOFLAGS": "-p=1"
+  }
+}

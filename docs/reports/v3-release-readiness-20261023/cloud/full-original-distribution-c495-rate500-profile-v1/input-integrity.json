@@ -1,0 +1,54 @@
+{
+  "schema": "wukongim/c495500-input-integrity/v1",
+  "executed_inputs": {
+    "launcher.sh": {
+      "expected": "136e133510841bff54ff40ce7f1b533926f84519aecb5a66f8bfa9e31d628650",
+      "actual": "136e133510841bff54ff40ce7f1b533926f84519aecb5a66f8bfa9e31d628650",
+      "equal": true
+    },
+    "supervise.py": {
+      "expected": "13bbe2127e67522d5ed68dae86e1d2954b5b2fde5f83ac313cda0ec5b81fc25c",
+      "actual": "13bbe2127e67522d5ed68dae86e1d2954b5b2fde5f83ac313cda0ec5b81fc25c",
+      "equal": true
+    },
+    "exact_build_guard.py": {
+      "expected": "4a158ee458b7e0e7f4bb68c84ac42cafe3200bf6d52af5658a7739bda8c408da",
+      "actual": "4a158ee458b7e0e7f4bb68c84ac42cafe3200bf6d52af5658a7739bda8c408da",
+      "equal": true
+    },
+    "original-distribution-local.yaml": {
+      "expected": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+      "actual": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+      "equal": true
+    },
+    "watchdog.py": {
+      "expected": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+      "actual": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+      "equal": true
+    },
+    "verify-slots.py": {
+      "expected": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+      "actual": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+      "equal": true
+    }
+  },
+  "source_revision": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "source_clean_after": true,
+  "real_git_directory": true,
+  "source_embedded_assets_count": 76,
+  "all_embedded_assets_equal_frozen_source": true,
+  "binary_inputs": {
+    "wukongim": {
+      "expected": "82ba7ab6955c4ed9e6b60f1f98eb44f14b8e64c9d09224b319c56e5c281fc5a6",
+      "actual": "82ba7ab6955c4ed9e6b60f1f98eb44f14b8e64c9d09224b319c56e5c281fc5a6"
+    },
+    "wkcli": {
+      "expected": "1d44f1f1fba89662b2824c6771da37e9f84276ee4afec74eb16477800e02a2ea",
+      "actual": "1d44f1f1fba89662b2824c6771da37e9f84276ee4afec74eb16477800e02a2ea"
+    }
+  },
+  "old_clones_or_binaries_modified_by_this_run": false,
+  "proposal_manifest_sha256": "558e138943d66b40700f19194888f74738d4b42dd1bcd7f2fdb802cd141fc81a",
+  "build_manifest_sha256": "ece8616d6e2075eea66ad000889d43ab63e7711fbbcb21c3966d6223181b0aba",
+  "preparation_limitation_sha256": "426d9a7c9dd01156ccc9cf1dbe127c9726cd7b5903d7314d95d1a021d0abe4d5"
+}

@@ -1,0 +1,8 @@
+{"Time":"2026-10-23T06:33:39.653971+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/internal/bench/target"}
+{"Time":"2026-10-23T06:33:40.192983+08:00","Action":"run","Package":"github.com/WuKongIM/WuKongIM/internal/bench/target","Test":"TestRetainedC495MetricsParserOffline"}
+{"Time":"2026-10-23T06:33:40.193067+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/bench/target","Test":"TestRetainedC495MetricsParserOffline","Output":"=== RUN   TestRetainedC495MetricsParserOffline\n"}
+{"Time":"2026-10-23T06:33:40.213302+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/bench/target","Test":"TestRetainedC495MetricsParserOffline","Output":"--- PASS: TestRetainedC495MetricsParserOffline (0.02s)\n"}
+{"Time":"2026-10-23T06:33:40.213382+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/internal/bench/target","Test":"TestRetainedC495MetricsParserOffline","Elapsed":0.02}
+{"Time":"2026-10-23T06:33:40.213395+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/bench/target","Output":"PASS\n"}
+{"Time":"2026-10-23T06:33:40.214025+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/bench/target","Output":"ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/target\t0.560s\n"}
+{"Time":"2026-10-23T06:33:40.214035+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/internal/bench/target","Elapsed":0.56}

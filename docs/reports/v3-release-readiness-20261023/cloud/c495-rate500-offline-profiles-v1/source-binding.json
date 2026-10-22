@@ -1,0 +1,29 @@
+{
+  "schema": "wukongim/offline-profile-source-binding/v1",
+  "source_head": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "source_tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "source_working_tree_clean": true,
+  "source_files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "internal/usecase/presence/FLOW.md": "438ba6664b276dc9b055c14e234b1bcefad55d8f56f649a3779c6df66d780d4e",
+    "internal/runtime/presence/FLOW.md": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+    "internal/infra/cluster/FLOW.md": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+    "internal/runtime/delivery/FLOW.md": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+    "internal/usecase/presence/recovery.go": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b",
+    "internal/usecase/presence/recovery_flights.go": "53bb1b4f03152f76bef2e833dc658103f58f334dd38f948f2e2f0de1471cce95",
+    "internal/infra/cluster/presence_recovery.go": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55",
+    "internal/infra/cluster/presence.go": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+    "internal/runtime/delivery/runtime.go": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561",
+    "internal/runtime/delivery/plan_queue.go": "47cb7c5ab5492e5755b1aa9e21c7722f55ec6a3a63ff9d7225ecd76360d5d5b1"
+  },
+  "old_comparison_scope": "/tmp/wukongim-v3-readiness-20261023/cloud/rate500-offline-profiles-v1",
+  "old_manifest_sha256": "753da7505331ddbb0e4d20dab170e8078cdd831e7a4177e6edded9afe18775b8",
+  "old_verified_payload_entries": 17,
+  "old_disjoint_counts_sha256": "a9573b5b2121c06d12e298fd04727976ba11a5e79ff97fcfcdb74fc80df699b7",
+  "old_selected_summary_sha256": "a17eb53606f26ef390f5bbc527df61d6120b0693ef69cdf11e66c78bb3d921c8",
+  "existing_capture_metadata_sha256": "8a1ea96cb1cde3cb7e91686ef6f0da2349c0904a4f297bff4bd3f8ae30a23bca",
+  "existing_cpu_request_status_sha256": "05fc40ca2d1ed3ae7dddcf8b27d67f447811010f90d6b59b16ee4d1676b17f0e",
+  "existing_goroutine_request_status_sha256": "b09f728f0c2a2bb83326c53ef1c7445685070c520f135fef36530290180f7c62",
+  "analysis_only": true,
+  "no_new_service_request_profile_workload_build_DB_query_or_cloud_operation": true
+}

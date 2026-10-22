@@ -1,0 +1,52 @@
+{
+  "base": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "head": "5a8c42fa69ddc15ef341e2992148c7c7fc36eb79",
+  "tree": "39020a91db40547b31add7c0663fc82348a6f657",
+  "branch": "codex/v3-uid-flight-candidate",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-uid-flight-candidate",
+  "clean_status": "",
+  "changed_file_digests": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "39a995044adb89e9764cad1bd25f0a21e5a95ee6963498f3cad8ecf1763e759f"
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "sha256": "eaa8479538ba3429b0dc79092bdd856b37ed7c67794aa0eab559c59fc9abc0ca"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "3135c40fd97a220849d69071808d534f17063961241dca4a4b604de85f949a0e"
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "sha256": "f5e94270e318b9d5cec7a9eb15cbe62d9bac366470c45653be7fdd70db23168a"
+    },
+    {
+      "path": "internal/usecase/presence/cold_uid_isolation_integration_test.go",
+      "sha256": "8b0a6940bf3132ccf5aa29625985a4a00750827bae2d1a9be4d717fa5d7527fe"
+    },
+    {
+      "path": "internal/usecase/presence/recovery.go",
+      "sha256": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_flights.go",
+      "sha256": "53bb1b4f03152f76bef2e833dc658103f58f334dd38f948f2e2f0de1471cce95"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_integration_test.go",
+      "sha256": "bd43617c0b82edf9429ef32be85a01ec77375d6e58928837fcfa4db26e13722b"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_test.go",
+      "sha256": "64e0499567283c8f49dd228c5916b0a87acc26b4b2fca9fdf0a7f6f0bb39d85c"
+    },
+    {
+      "path": "internal/usecase/presence/uid_flight_integration_test.go",
+      "sha256": "e00ead21e618278bf16f9195e87298d8a991092f4f78d28ce0cd37f380dc457b"
+    }
+  ],
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "recorded_utc": "2026-10-22T22:10:23.129866+00:00"
+}

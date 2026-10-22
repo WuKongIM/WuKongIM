@@ -1,0 +1,18 @@
+{
+  "child_pid": 57907,
+  "owned_pgid": 57907,
+  "exit_code": 0,
+  "timed_out": false,
+  "term_sent": false,
+  "kill_sent": false,
+  "child_joined": true,
+  "owned_group_alive": false,
+  "elapsed_seconds": 0.36739091703202575,
+  "total_bound_seconds": 90,
+  "schema": "wukongim/c495-offline-outer-budget/v2",
+  "at_utc": "2026-10-22T22:44:54.691521+00:00",
+  "child_stdout_bytes": 65,
+  "child_stdout_sha256": "e832262d1c08c5bd4de133bb6d018f2328cc55583abbc14ace3844b7e5d4de8f",
+  "child_stderr_bytes": 0,
+  "child_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

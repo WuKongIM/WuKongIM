@@ -1,0 +1,90 @@
+{
+  "base": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "head": "3e668ac4733ae403e57242ddec559e6d937b0d3c",
+  "parents": [
+    "486ec5f154b120b9daedcf5a427d51966a82e06c",
+    "5a8c42fa69ddc15ef341e2992148c7c7fc36eb79"
+  ],
+  "tree": "f70fc869cf65bb03ac42fd43d19e85c32a0fe114",
+  "files": [
+    "CHANGELOG.md",
+    "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+    "docs/development/FLOW_INDEX.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go",
+    "internal/bench/chatlifecycle/production_controller.go",
+    "internal/bench/chatlifecycle/production_meta.go",
+    "internal/usecase/presence/FLOW.md",
+    "internal/usecase/presence/cold_uid_isolation_integration_test.go",
+    "internal/usecase/presence/recovery.go",
+    "internal/usecase/presence/recovery_flights.go",
+    "internal/usecase/presence/recovery_integration_test.go",
+    "internal/usecase/presence/recovery_test.go",
+    "internal/usecase/presence/uid_flight_integration_test.go"
+  ],
+  "source_blob_verification": [
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+      "source": "486ec5f154b120b9daedcf5a427d51966a82e06c",
+      "sha256": "9d8647b8d46b87e9a64028d1f9eec886826efd3a1d5c4fbb3f4d817ac5d884bb"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go",
+      "source": "486ec5f154b120b9daedcf5a427d51966a82e06c",
+      "sha256": "e3ec8c9ff89a531d7d6d86e1696704a0d3cf10d97f158e9e6209af1ce4941508"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "source": "486ec5f154b120b9daedcf5a427d51966a82e06c",
+      "sha256": "0c3905553b7aa3daafa2fe8b74753179a94a1bd39c467c7a4ef51ac2da4998ce"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_meta.go",
+      "source": "486ec5f154b120b9daedcf5a427d51966a82e06c",
+      "sha256": "9ca546402471998154468977ab180c461781de56c2bec5029f20d8d24096ff20"
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "source": "5a8c42fa69ddc15ef341e2992148c7c7fc36eb79",
+      "sha256": "eaa8479538ba3429b0dc79092bdd856b37ed7c67794aa0eab559c59fc9abc0ca"
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "source": "5a8c42fa69ddc15ef341e2992148c7c7fc36eb79",
+      "sha256": "f5e94270e318b9d5cec7a9eb15cbe62d9bac366470c45653be7fdd70db23168a"
+    },
+    {
+      "path": "internal/usecase/presence/cold_uid_isolation_integration_test.go",
+      "source": "5a8c42fa69ddc15ef341e2992148c7c7fc36eb79",
+      "sha256": "8b0a6940bf3132ccf5aa29625985a4a00750827bae2d1a9be4d717fa5d7527fe"
+    },
+    {
+      "path": "internal/usecase/presence/recovery.go",
+      "source": "5a8c42fa69ddc15ef341e2992148c7c7fc36eb79",
+      "sha256": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_flights.go",
+      "source": "5a8c42fa69ddc15ef341e2992148c7c7fc36eb79",
+      "sha256": "53bb1b4f03152f76bef2e833dc658103f58f334dd38f948f2e2f0de1471cce95"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_integration_test.go",
+      "source": "5a8c42fa69ddc15ef341e2992148c7c7fc36eb79",
+      "sha256": "bd43617c0b82edf9429ef32be85a01ec77375d6e58928837fcfa4db26e13722b"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_test.go",
+      "source": "5a8c42fa69ddc15ef341e2992148c7c7fc36eb79",
+      "sha256": "64e0499567283c8f49dd228c5916b0a87acc26b4b2fca9fdf0a7f6f0bb39d85c"
+    },
+    {
+      "path": "internal/usecase/presence/uid_flight_integration_test.go",
+      "source": "5a8c42fa69ddc15ef341e2992148c7c7fc36eb79",
+      "sha256": "e00ead21e618278bf16f9195e87298d8a991092f4f78d28ce0cd37f380dc457b"
+    }
+  ],
+  "only_manual_conflict_resolution": "CHANGELOG retains both entries; PROJECT_KNOWLEDGE auto-merged both entries",
+  "clean": true,
+  "pushed": false
+}

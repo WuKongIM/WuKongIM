@@ -1,0 +1,84 @@
+{
+  "schema": "wukongim/proposed-metrics-diagnostic-validation/v1",
+  "status": "not_executed_design_only",
+  "source_revision": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "expected_implementation_base": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+  "expected_production_tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "approval_required_before_tests_or_code": "Root review of exact frozen design and failure matrix",
+  "test_first_order": [
+    "Author synthetic target boundary/default-tier table tests for all applicable matrix cases before production edits",
+    "Author fixed three-source meta aggregation/finalization/default-tier tests before production edits",
+    "Run RED and retain compile success plus intended assertion failures; do not treat compile failures as behavioral RED",
+    "Implement the smallest approved seam; retain unchanged test blob hashes",
+    "Run focused GREEN, then affected packages and focused race checks",
+    "Run applicable named checks by resolving the frozen policy catalog; retain exact argv/environment/limits and status",
+    "Review exact diff independently along Standards and Spec; resolve findings without overwriting prior records"
+  ],
+  "in_memory_test_constraints": {
+    "http": "Injected http.RoundTripper returns synthetic http.Response and bounded Readers; no httptest server or TCP",
+    "time": "Pre-canceled/past-deadline or deterministic context fixture; no real sleeps or elapsed-time simulations",
+    "joining": "Channel barriers, completion-index permutations and fixed call counters; no additional production goroutines",
+    "privacy": "Synthetic secret-rich sentinels only, no retained runtime raw scrape/body/error in tests; assert no new Error formatting",
+    "bounds": "Generated/lazy bodies and line/series cases; existing HTTP/parser limits unchanged"
+  },
+  "proposed_go_commands": [
+    {
+      "purpose": "Affected default suites",
+      "argv": [
+        "go",
+        "test",
+        "./internal/bench/target",
+        "./internal/bench/chatlifecycle",
+        "-count=1"
+      ],
+      "env": {
+        "GOWORK": "off"
+      }
+    },
+    {
+      "purpose": "Focused concurrency/privacy/error-chain race tests after names are fixed",
+      "argv_template": [
+        "go",
+        "test",
+        "-race",
+        "./internal/bench/target",
+        "./internal/bench/chatlifecycle",
+        "-run",
+        "<exact approved new test selection>",
+        "-count=1"
+      ],
+      "env": {
+        "GOWORK": "off"
+      }
+    }
+  ],
+  "named_checks": [
+    "go-format",
+    "flow-doc-contracts"
+  ],
+  "named_check_authority": ".github/review-agent/policy.json",
+  "named_check_policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "FLOW_update_rule": "If FLOW changes, use canonical flowcheck render --write-index then the named flow-doc-contracts check; do not copy a check command into another machine authority",
+  "expected_operator_docs": [
+    "Root CHANGELOG.md Unreleased entry for new bounded failure diagnostic",
+    "PROJECT_KNOWLEDGE.md concise error-isolation/projection contract",
+    "Applicable FLOW and canonical index if made inaccurate"
+  ],
+  "proof_requirements": [
+    "Exact base/head/tree and source/rule/policy hashes",
+    "Before-code failure matrix, RED/GREEN/race logs with exact commands and bounded retained outputs",
+    "No success/no-body validation or existing failure classification changes",
+    "All three source errors retained only in private fixed array; aggregate errors.Is sees only old harness sentinel",
+    "Existing parent context and injected product-sentinel regressions pass",
+    "Source ordered masks and closed kinds survive only the Bounded projection",
+    "Explicit test counts/failures/skips and unchanged no-final-report semantics",
+    "Safe allowlist and SHA256SUMS excluding arbitrary errors, response bodies, runtime identities, binaries and private data"
+  ],
+  "not_authorized_by_this_design": [
+    "Production implementation before root approval",
+    "Any workload start or server request",
+    "Any cloud procurement/deployment",
+    "Changing timeouts/retries/body/parser bounds, gates or verdict/report validity",
+    "Capturing raw failed-round bodies without a separately reviewed plan"
+  ]
+}

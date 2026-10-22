@@ -1,0 +1,118 @@
+{
+  "schema": "wukongim/c495-single-expired-offline-db/v2",
+  "started_at_utc": "2026-10-22T22:44:54.447240+00:00",
+  "worker_id": 2,
+  "ordinal": 314,
+  "group_index": 1646,
+  "fingerprint": "0db0904a5c1178a44b1596dfd762770d",
+  "fingerprint_matches_reconstructed_clientno": true,
+  "binary_sha256": "1d44f1f1fba89662b2824c6771da37e9f84276ee4afec74eb16477800e02a2ea",
+  "original_databases_opened": false,
+  "maximum_queries": 3,
+  "per_command_timeout_seconds": 10,
+  "overall_bound_seconds": 90,
+  "nodes": [
+    {
+      "node_id": 1,
+      "opened_copy": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.04748370894230902,
+      "process_joined": true,
+      "argv_redacted": [
+        "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-c495-native-v1/darwin-arm64/wkcli",
+        "db",
+        "--message-path",
+        "PRIVATE_copy/node1",
+        "--format",
+        "json",
+        "query",
+        "PRIVATE_exact_channel_and_clientno_limit100"
+      ],
+      "argv_full_sha256": "b96d8342c00f2494d972af3d2dac3af45c16cc4989df59fa77f1b7ef3a73524a",
+      "stdout_bytes": 452,
+      "stdout_sha256": "33c35db6d4d9b7c4cdcddfb70877a31cff8a031b53abcaab20dcebbfa3013c2c",
+      "stderr_bytes": 4567,
+      "stderr_sha256": "6c6d3fedf0e7d497e925f6adfe4eb8ab1265b7d9bced27b4cf459cba210953cb",
+      "matching_messages": [
+        {
+          "message_id": "2113397295402721287",
+          "message_seq": "1",
+          "client_msg_no_fingerprint_match": true
+        }
+      ],
+      "status": "unique_matching_durable_row",
+      "matching_row_count": 1,
+      "has_more": false
+    },
+    {
+      "node_id": 2,
+      "opened_copy": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.05038791708648205,
+      "process_joined": true,
+      "argv_redacted": [
+        "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-c495-native-v1/darwin-arm64/wkcli",
+        "db",
+        "--message-path",
+        "PRIVATE_copy/node2",
+        "--format",
+        "json",
+        "query",
+        "PRIVATE_exact_channel_and_clientno_limit100"
+      ],
+      "argv_full_sha256": "62db3fece78054dadfc32041f9badcc48beca6fda21ca287119ab4db64f12bdc",
+      "stdout_bytes": 452,
+      "stdout_sha256": "33c35db6d4d9b7c4cdcddfb70877a31cff8a031b53abcaab20dcebbfa3013c2c",
+      "stderr_bytes": 4568,
+      "stderr_sha256": "e1083feff0ea3d1c0d3ed2eccad4a1b3c23670514261ba60ce7dc365fcd10df4",
+      "matching_messages": [
+        {
+          "message_id": "2113397295402721287",
+          "message_seq": "1",
+          "client_msg_no_fingerprint_match": true
+        }
+      ],
+      "status": "unique_matching_durable_row",
+      "matching_row_count": 1,
+      "has_more": false
+    },
+    {
+      "node_id": 3,
+      "opened_copy": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.04695958294905722,
+      "process_joined": true,
+      "argv_redacted": [
+        "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-c495-native-v1/darwin-arm64/wkcli",
+        "db",
+        "--message-path",
+        "PRIVATE_copy/node3",
+        "--format",
+        "json",
+        "query",
+        "PRIVATE_exact_channel_and_clientno_limit100"
+      ],
+      "argv_full_sha256": "daa4d03ff0a1eb0799a46e7aa92e2337b2025465a012f2b97c3429a932978186",
+      "stdout_bytes": 452,
+      "stdout_sha256": "33c35db6d4d9b7c4cdcddfb70877a31cff8a031b53abcaab20dcebbfa3013c2c",
+      "stderr_bytes": 4567,
+      "stderr_sha256": "60fcb38a7f925e0b713125a7750b554da3b49ece686a2817063940b3544b60db",
+      "matching_messages": [
+        {
+          "message_id": "2113397295402721287",
+          "message_seq": "1",
+          "client_msg_no_fingerprint_match": true
+        }
+      ],
+      "status": "unique_matching_durable_row",
+      "matching_row_count": 1,
+      "has_more": false
+    }
+  ],
+  "copy_integrity_verified_before_any_CLI_open": true,
+  "original_bytes_mtime_unchanged": true,
+  "finished_at_utc": "2026-10-22T22:44:54.687192+00:00",
+  "original_file_count": 36,
+  "original_bytes": 66553406,
+  "expected_inventory_sha256": "b0685fdbf0a0aeebe6af378e8c88c970092165dbf219c2ea4888ace904b327b1"
+}

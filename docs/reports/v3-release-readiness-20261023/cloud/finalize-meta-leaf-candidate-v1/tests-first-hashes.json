@@ -1,0 +1,15 @@
+{
+  "production_unchanged_before_red": true,
+  "files": [
+    {
+      "name": "internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go",
+      "bytes": 16200,
+      "sha256": "e3ec8c9ff89a531d7d6d86e1696704a0d3cf10d97f158e9e6209af1ce4941508"
+    },
+    {
+      "name": "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+      "bytes": 9767,
+      "sha256": "9d8647b8d46b87e9a64028d1f9eec886826efd3a1d5c4fbb3f4d817ac5d884bb"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "exit_code": 1,
+  "outer_timeout": false,
+  "child_joined": true,
+  "process_group": 37213,
+  "elapsed_seconds": 6.373503791051917,
+  "started_utc": "2026-10-22T21:58:06.455690+00:00",
+  "finished_utc": "2026-10-22T21:58:12.829283+00:00"
+}

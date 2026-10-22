@@ -1,0 +1,5 @@
+# Integrated local candidate, not a qualification result
+
+Root fast-forwarded the metadata diagnostic tip486ec5f154b120b9daedcf5a427d51966a82e06c, then merged the UID-flight tip5a8c42fa69ddc15ef341e2992148c7c7fc36eb79. The sole manual content conflict was CHANGELOG, retaining both new entries; PROJECT_KNOWLEDGE auto-merged both additions. All twelve non-shared source/test/FLOW paths are byte-equal to their independently tested component commits. Fourteen total changed paths, exact treef70fc869cf65bb03ac42fd43d19e85c32a0fe114. Both original tips remain ancestors for eventual clean-worktree cleanup after main merge.
+
+The two independent component suites passed. No additional combined-source test or process E2E is claimed here. Standards and Spec review are running against this exact head. Native build preparation may occur separately; this proof starts no services, workload or cloud resource. UID isolation is a candidate mechanism, not confirmed cloud root cause. Metadata leaf visibility is diagnostic only; the prior failed leaf remains unknown. Production stable publication remains disabled and release staysNO-GO.

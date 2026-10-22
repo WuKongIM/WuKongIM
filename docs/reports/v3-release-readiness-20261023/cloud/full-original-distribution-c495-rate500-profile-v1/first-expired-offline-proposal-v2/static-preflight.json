@@ -1,0 +1,26 @@
+{
+  "schema": "wukongim/c495-offline-static-preflight/v2",
+  "at_utc": "2026-10-22T22:43:16.748817+00:00",
+  "driver_ast_parse": true,
+  "v1_manifest_and_driver_and_expectedinventory_hashes_match_root": true,
+  "pinned_expected_inventory_sha256": "b0685fdbf0a0aeebe6af378e8c88c970092165dbf219c2ea4888ace904b327b1",
+  "current_original_inventory_equals_frozen_expected": true,
+  "original_files": 36,
+  "original_bytes": 66553406,
+  "current_inventory_read_only": true,
+  "db_originals_opened": false,
+  "actual_db_driver_executed": false,
+  "db_copies_created": 0,
+  "db_queries_executed": 0,
+  "future_output_exists": false,
+  "contract_results": {
+    "RED_exit": 1,
+    "GREEN_exit": 0,
+    "methods": 4,
+    "GREEN_log_sha256": "f4acb9b17deb1cb3ad6128b7ade87a74d0968e63bc2d6be4574fe3a2f451aab6",
+    "fake_owned_sleeper_only": true,
+    "fake_child_killed_and_joined": true,
+    "real_native_CLI_or_product_invoked": false
+  },
+  "run12payload_manifest_unchanged": true
+}

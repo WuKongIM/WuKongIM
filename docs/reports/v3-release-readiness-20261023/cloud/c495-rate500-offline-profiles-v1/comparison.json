@@ -1,0 +1,40 @@
+{
+  "schema": "wukongim/offline-profile-one-point-comparison/v1",
+  "original_source": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "candidate_source": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "original_goroutine_time": "2026-10-22T21:09:03.284063000Z",
+  "candidate_goroutine_time": "2026-10-22T22:29:12.473778000Z",
+  "original_total_goroutines": 2574,
+  "candidate_total_goroutines": 2554,
+  "original_delivery_workers": {
+    "idle_plan_dequeue": 291,
+    "presence_cold_lane_select": 12,
+    "presence_parallel_leader_join": 9,
+    "owner_push_parallel_join_or_inline": 4,
+    "presence_remote_authority_RPC": 3,
+    "presence_owner_recovery_RPC": 1
+  },
+  "candidate_delivery_workers": {
+    "idle_plan_dequeue": 296,
+    "presence_parallel_leader_join": 10,
+    "owner_push_RPC": 7,
+    "presence_remote_authority_RPC": 5,
+    "presence_owner_recovery_RPC": 1,
+    "presence_registry_quota_wait": 1,
+    "presence_UID_flight_join": 0,
+    "unclassified": 0
+  },
+  "original_recoverPage_callers": 47,
+  "original_cold_lane_waiters": 45,
+  "original_owner_read_holders": 2,
+  "candidate_recoverPage_callers": 12,
+  "candidate_registry_quota_waiters": 8,
+  "candidate_UID_flight_waiters": 0,
+  "candidate_owner_read_holders": 4,
+  "original_cpu_profile_duration_nanoseconds": "10134447333",
+  "candidate_cpu_profile_duration_nanoseconds": "10119805541",
+  "candidate_CPU_on_CPU_sample_nanoseconds": 2280000000,
+  "candidate_goroutine_profile_after_first_grant_nanoseconds": "5204234000",
+  "basis_for_offset": "Retained run first-grant timestamp 2026-10-22T22:29:07.269544Z and pprof goroutine timestamp; timestamps only, no inference of instantaneous SEND QPS. Sampler metadata separately labels capture start/end measurement.",
+  "limits": "Separate native-Darwin one-point samples, not paired population measurements or a Linux performance/latency acceptance. Candidate removes old cold-lane mechanism but an expired sample still occurred. Different cohort partitions cannot establish which expired plan waited where, quota binding dimension, RPC latency cause or cloud equivalence."
+}

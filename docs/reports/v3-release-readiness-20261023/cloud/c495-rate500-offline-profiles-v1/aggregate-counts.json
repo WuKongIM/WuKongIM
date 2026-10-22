@@ -1,0 +1,262 @@
+{
+  "schema": "wukongim/offline-profile-aggregate/v1",
+  "goroutine_profile": {
+    "file_sha256": "253dcc329571781d01aa523fc3317de478bf43b991e425c447572a7bf9835f91",
+    "bytes": 23542,
+    "time_utc": "2026-10-22T22:29:12.473778000Z",
+    "time_unix_nanos": "1792708152473778000",
+    "duration_nanos": "0",
+    "end_utc": "2026-10-22T22:29:12.473778000Z",
+    "period": 1,
+    "types": [
+      {
+        "type": "goroutine",
+        "unit": "count"
+      }
+    ]
+  },
+  "cpu_profile": {
+    "file_sha256": "5ca9749d9fd97d63fff1b9fcd09abdb6c6eb4920c09da450da52756be03379f4",
+    "bytes": 24144,
+    "time_utc": "2026-10-22T22:29:07.430027000Z",
+    "time_unix_nanos": "1792708147430027000",
+    "duration_nanos": "10119805541",
+    "end_utc": "2026-10-22T22:29:17.549832541Z",
+    "period": 10000000,
+    "types": [
+      {
+        "type": "samples",
+        "unit": "count"
+      },
+      {
+        "type": "cpu",
+        "unit": "nanoseconds"
+      }
+    ]
+  },
+  "goroutines_total": 2554,
+  "aggregated_stack_records": 146,
+  "delivery_runWorker_total": 320,
+  "delivery_runWorker_disjoint": {
+    "idle_plan_dequeue": 296,
+    "presence_parallel_leader_join": 10,
+    "owner_push_RPC": 7,
+    "presence_remote_authority_RPC": 5,
+    "presence_owner_recovery_RPC": 1,
+    "presence_registry_quota_wait": 1,
+    "presence_UID_flight_join": 0,
+    "unclassified": 0
+  },
+  "recoverPage_total": 12,
+  "recoverPage_disjoint": {
+    "registry_quota_wait": 8,
+    "executing_cohort_owner_RPC": 4,
+    "UID_flight_join": 0,
+    "unclassified": 0
+  },
+  "actual_owner_read_holder_total": 4,
+  "actual_owner_read_holder_context_disjoint": {
+    "inbound_presence_RPC": 3,
+    "delivery_worker": 1
+  },
+  "actual_owner_read_operation_disjoint": {
+    "batch_ReadOwnerRoutesByTargets": 3,
+    "single_ReadOwnerRoutes": 1
+  },
+  "actual_owner_read_source_line_disjoint": {
+    "196": 3,
+    "182": 1
+  },
+  "Conn_Call_total": 152,
+  "Conn_Call_nearest_non_transport_product_frame_disjoint": [
+    {
+      "function": "pkg/slot/proxy.(*Store).callSendPermission",
+      "line": 332,
+      "count": 38
+    },
+    {
+      "function": "pkg/cluster/propose.(*NetworkForwardClient).forward",
+      "line": 39,
+      "count": 26
+    },
+    {
+      "function": "pkg/cluster/channels.(*QuorumPeerLink).Exchange",
+      "line": 45,
+      "count": 24
+    },
+    {
+      "function": "internal/access/node.(*Client).EndpointsByTargets",
+      "line": 704,
+      "count": 24
+    },
+    {
+      "function": "internal/access/node.(*Client).ForwardSendBatch",
+      "line": 120,
+      "count": 19
+    },
+    {
+      "function": "internal/access/node.(*Client).PushBatch",
+      "line": 56,
+      "count": 7
+    },
+    {
+      "function": "pkg/slot/proxy.callAuthoritativeRPCWithStatuses[go.shape.struct { Status string \"json:\\\"status\\\"\"; LeaderID uint64 \"json:\\\"leader_id,omitempty\\\"\"; Meta *github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelRuntimeMeta \"json:\\\"meta,omitempty\\\"\"; Metas []github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelRuntimeMeta \"json:\\\"metas,omitempty\\\"\"; Cursor github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelRuntimeMetaCursor \"json:\\\"cursor,omitempty\\\"\"; Done bool \"json:\\\"done,omitempty\\\"\" }]",
+      "line": 92,
+      "count": 7
+    },
+    {
+      "function": "internal/access/node.(*Client).ReadOwnerRoutesByTargets",
+      "line": 60,
+      "count": 3
+    },
+    {
+      "function": "pkg/slot/proxy.callAuthoritativeRPCWithStatuses[go.shape.struct { Status string \"json:\\\"status\\\"\"; LeaderID uint64 \"json:\\\"leader_id,omitempty\\\"\"; Channel *github.com/WuKongIM/WuKongIM/pkg/db/meta.Channel \"json:\\\"channel,omitempty\\\"\"; Channels []github.com/WuKongIM/WuKongIM/pkg/db/meta.Channel \"json:\\\"channels,omitempty\\\"\"; Cursor github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelCursor \"json:\\\"cursor,omitempty\\\"\"; Done bool \"json:\\\"done,omitempty\\\"\" }]",
+      "line": 92,
+      "count": 2
+    },
+    {
+      "function": "internal/access/node.(*Client).ReadOwnerRoutes",
+      "line": 44,
+      "count": 1
+    },
+    {
+      "function": "internal/access/node.(*Client).callService",
+      "line": 788,
+      "count": 1
+    }
+  ],
+  "delivery_enqueue_callers": 0,
+  "Slot_runApplyTask_callers": 8,
+  "recovery_symbol_line_aggregates_overlapping": [
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).admitRecoveryPage",
+      "line": 156,
+      "count": 8
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+      "line": 58,
+      "count": 8
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets.func1",
+      "line": 68,
+      "count": 12
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets",
+      "line": 100,
+      "count": 12
+    },
+    {
+      "function": "internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage",
+      "line": 196,
+      "count": 3
+    },
+    {
+      "function": "internal/infra/cluster.(*PresenceRecoveryOwners).RecoverRoutesByTargets",
+      "line": 106,
+      "count": 4
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).executeRecoveryCohort",
+      "line": 228,
+      "count": 4
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+      "line": 62,
+      "count": 4
+    },
+    {
+      "function": "internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage",
+      "line": 182,
+      "count": 1
+    }
+  ],
+  "cpu_sample_count": 228,
+  "cpu_total_sample_nanoseconds": 2280000000,
+  "cpu_flat_top_20": [
+    {
+      "function": "syscall.syscallX",
+      "nanoseconds": 1170000000
+    },
+    {
+      "function": "syscall.syscall",
+      "nanoseconds": 340000000
+    },
+    {
+      "function": "runtime.madvise",
+      "nanoseconds": 160000000
+    },
+    {
+      "function": "syscall.syscall6",
+      "nanoseconds": 110000000
+    },
+    {
+      "function": "runtime.fcntl",
+      "nanoseconds": 100000000
+    },
+    {
+      "function": "runtime.scanobject",
+      "nanoseconds": 30000000
+    },
+    {
+      "function": "runtime.usleep",
+      "nanoseconds": 30000000
+    },
+    {
+      "function": "runtime.pthread_cond_signal",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.(*mspan).init",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.kevent",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.markBits.isMarked",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.pthread_cond_wait",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "internal/runtime/maps.(*Iter).Next",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).getNext",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "internal/sync.(*Mutex).Unlock",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.mapaccess1_fast32",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.typePointers.next",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "gcWriteBarrier",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.(*bucket).mp",
+      "nanoseconds": 10000000
+    }
+  ],
+  "limits": "Disjoint only within named cohorts; cohorts overlap. One node at one point. Source line proves which branch is sampled, not quota dimension, elapsed waits, remote serving cause, sampled-message identity or Linux/whole-window capacity. CPU nanoseconds are on-CPU samples, never disk/off-CPU latency. No raw stack records/labels/identities are published."
+}

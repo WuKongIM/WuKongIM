@@ -1,0 +1,27 @@
+{
+  "args": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "./internal/bench/target",
+    "-run",
+    "^TestRetainedC495MetricsParserOffline$",
+    "-count=1",
+    "-timeout=30s",
+    "-json"
+  ],
+  "started": "2026-10-22T22:33:38.420912+00:00",
+  "exit_code": 0,
+  "wall_seconds": 1.809436000068672,
+  "test_sha256": "347bc95b601d929388eed99fd8d45e812e0eac73ab956f7387ef4897e701b118",
+  "environment": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "CGO_ENABLED": "0",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "1",
+    "GOFLAGS": "-p=1",
+    "WK_METRICS_REPLAY_ROOT": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-c495-rate500-profile-v1",
+    "WK_METRICS_REPLAY_RECEIPT": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-retained-metrics-parser-replay-v1/parser-receipt.json"
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "revision": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "tree": "763f8432135e6b94df28451a43a4a635c7aba2a0",
+  "source_clean_before_after": true,
+  "repository_files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "pkg/metrics/channel_runtime.go",
+      "bytes": 26661,
+      "sha256": "4b516e84d602737c96e99aa03504a6094b3f23e1a3049c0a1cc8190bb77b58b4",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "pkg/metrics/registry.go",
+      "bytes": 5670,
+      "sha256": "de1dfc8aa53b4271c83dc511250462cf1de70ec8e9636613ac7bd650b5981e02",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "pkg/metrics/registry_test.go",
+      "bytes": 116028,
+      "sha256": "aa0b70afdeb291e70b9aece952d9a97b048e4eb43cac9611828db507fa78f54d",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "internal/bench/target/client.go",
+      "bytes": 52166,
+      "sha256": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "internal/bench/target/client_test.go",
+      "bytes": 60790,
+      "sha256": "e48732178091c95ceb654dbcc68be1eb9b04b3338a7f1c758bdd15a8373c930f",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/lifecycle_proof.go",
+      "bytes": 43754,
+      "sha256": "5ef8476104c3741089acbb74bfc6002e01badb1aab4316a4928299159601b8ce",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/lifecycle_proof_test.go",
+      "bytes": 150683,
+      "sha256": "1544e46c403c3771edd6f726da082bf27a13b1823cb2efcd4688cf17559f167c",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_meta.go",
+      "bytes": 10377,
+      "sha256": "394d7ce3e937ff638d0890f9011a5fa31a6dd3a56e1133d8f7856ec3976a8e4c",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "go.mod",
+      "bytes": 6662,
+      "sha256": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "go.sum",
+      "bytes": 52617,
+      "sha256": "68ffe83def79e0889fffa722ac7d0a18d7bce52e01e8d8395da56da1e96975fb",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "docs/adr/0022-aggregate-live-observability-without-a-log-stack.md",
+      "bytes": 704,
+      "sha256": "a08b4bcb7658e2e71b7f1905b3c066de65b6ee1fe47029e383abeb5c3077dc6d",
+      "git_object_byte_equal": true
+    },
+    {
+      "path": "docs/adr/0045-exclude-manual-demo-traffic-from-workload-verdicts.md",
+      "bytes": 595,
+      "sha256": "cb7b7a8850a56396aab7797e27a07e2f6b6678413e4114acc48fb0ca358e938b",
+      "git_object_byte_equal": true
+    }
+  ],
+  "local_dependency_files": [
+    {
+      "path": "/Users/tt/go/pkg/mod/github.com/prometheus/client_golang@v1.16.0/prometheus/counter.go",
+      "module": "github.com/prometheus/client_golang",
+      "version": "v1.16.0",
+      "bytes": 12494,
+      "sha256": "6fa520e3b82b343f5a6ec772f8c7399247bbe8cf29015667f7916c4c15758f7b",
+      "boundary": "Read installed source bytes only; no Go module operation or download."
+    },
+    {
+      "path": "/Users/tt/go/pkg/mod/github.com/prometheus/client_golang@v1.16.0/prometheus/vec.go",
+      "module": "github.com/prometheus/client_golang",
+      "version": "v1.16.0",
+      "bytes": 21946,
+      "sha256": "f19ebec8adfc03e9a58e3e20c4fd238aa2e380cadd62e7c9d06fac8ed8efd640",
+      "boundary": "Read installed source bytes only; no Go module operation or download."
+    },
+    {
+      "path": "/Users/tt/go/pkg/mod/github.com/prometheus/client_golang@v1.16.0/prometheus/registry.go",
+      "module": "github.com/prometheus/client_golang",
+      "version": "v1.16.0",
+      "bytes": 36146,
+      "sha256": "f3581b66590606ed407590e23c3904d413aa201a6bde3b78bc0e232bf7182965",
+      "boundary": "Read installed source bytes only; no Go module operation or download."
+    }
+  ],
+  "applicable_flows_read": [
+    "internal/bench/FLOW.md (scope=subtree)",
+    "internal/bench/chatlifecycle/FLOW.md (scope=package)"
+  ],
+  "no_applicable_metrics_flow": "No root FLOW.md, pkg/FLOW.md or pkg/metrics/FLOW.md exists at fixed source. No more-specific AGENTS applies to these packages.",
+  "module_pin": {
+    "go_mod_line": 41,
+    "version": "github.com/prometheus/client_golang v1.16.0",
+    "go_sum_line": 283,
+    "sum": "h1:yk/hx9hDbrGHovbci4BY+pRMfSuuat626eFsHb7tmT8="
+  },
+  "scope": "Single specified hypothesis. Parent explicitly restricted to static evidence, so no reproduction command, new test, compile, live request, sample, cloud action, mutation or further hypotheses attempted."
+}

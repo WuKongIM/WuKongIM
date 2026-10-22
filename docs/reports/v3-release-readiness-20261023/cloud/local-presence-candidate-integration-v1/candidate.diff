@@ -1,0 +1,2016 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 67bc80595..2c9e3cbb8 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,16 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Coalesce cold presence recovery by UID and authority identity so unrelated
++  proofs can progress within bounded owner admission. New cold UID bytes are
++  limited to 32 MiB per page; oversized pages remain explicitly not ready.
++  / 在线路由冷恢复按 UID 和权威身份合并，在有界 owner 准入内允许无关证明继续推进；
++  每页新恢复 UID 字节限制为 32 MiB，超限明确返回未就绪。
++
++- Identify metadata-checkpoint rejection stages in chat-lifecycle diagnostics
++  while retaining incomplete-report failures and prior product observations.
++  / 聊天生命周期诊断细分元数据核算拒绝阶段，保留报告不完整失败和此前产品观察。
++
+ - Retain bounded chat-lifecycle finalization failure stages and prior product
+   observations without changing report validation or release verdicts.
+   / 聊天生命周期验收结束失败时保留有界的失败阶段和此前产品观察，不改变报告校验或发布结论。
+diff --git a/cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go b/cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go
+index e281b655b..914a9cc10 100644
+--- a/cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go
++++ b/cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go
+@@ -96,6 +96,34 @@ func TestChatLifecycleFinalizationSummaryRetainsClosedBoundaryWithoutChangingVer
+ 	}
+ }
+ 
++func TestChatLifecycleMetaCheckpointLeavesKeepInvalidObservation(t *testing.T) {
++	for _, reason := range []string{
++		"guard", "context_canceled", "context_deadline", "expectation_worker_shape", "expectation_fence",
++		"expectation_vector_bound", "checkpoint_fence", "checkpoint_sequence", "checkpoint_vector_regression",
++		"metrics_fetch", "metrics_preview", "settle_wait", "accounting", "invalid",
++	} {
++		t.Run(reason, func(t *testing.T) {
++			result := chatlifecycle.CoordinatorResult{
++				Outcome: chatlifecycle.CoordinatorHarnessInvalid, Code: chatlifecycle.CoordinatorCodeFinalize,
++				FinalizationFailure: chatlifecycle.FinalizationFailure{
++					Stage: "meta_checkpoint", Reason: reason, ObservedDecision: chatlifecycle.CoordinatorProductFailure,
++					ObservedOutcome: chatlifecycle.VerdictProductFailure, ObservedCause: chatlifecycle.VerdictCauseMessageLoss, ObservedTerminal: true,
++				},
++			}
++			verdict := chatLifecycleCoordinatorVerdict(result)
++			if verdict.Outcome != chatlifecycle.VerdictHarnessInvalid || verdict.Cause != chatlifecycle.VerdictCauseInvalidObservation || chatLifecycleVerdictExitCode(verdict) != exitChatLifecycleHarness {
++				t.Fatalf("leaf diagnostic changed incomplete-report verdict: %+v", verdict)
++			}
++			summary := chatLifecycleCoordinatorSummary(verdict, result, "unavailable")
++			for _, field := range []string{"finalization_stage=meta_checkpoint", "finalization_reason=" + reason, "observed_cause=message_loss", "report=unavailable"} {
++				if !strings.Contains(summary, field) {
++					t.Errorf("summary misses %q: %q", field, summary)
++				}
++			}
++		})
++	}
++}
++
+ func TestChatLifecycleFirstSignalRequestsGracefulStopAndWaitsForFinalResult(t *testing.T) {
+ 	runner := newSignalTestChatLifecycleRunner()
+ 	signals := make(chan os.Signal, 2)
+diff --git a/docs/development/FLOW_INDEX.md b/docs/development/FLOW_INDEX.md
+index a4d964204..7195a42b2 100644
+--- a/docs/development/FLOW_INDEX.md
++++ b/docs/development/FLOW_INDEX.md
+@@ -73,7 +73,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
+ | [internal/usecase/mqttsession/FLOW.md](../../internal/usecase/mqttsession/FLOW.md) | `package` | Coordinates MQTT Session lifecycle, subscription preparation, consumer progress and bounded replay copy/recovery/retirement turns. | 125 | warning |
+ | [internal/usecase/opsobserve/FLOW.md](../../internal/usecase/opsobserve/FLOW.md) | `package` | Defines closed-world Operations MCP validation and bounded observation envelopes over narrow sources. | 51 | ok |
+ | [internal/usecase/plugin/FLOW.md](../../internal/usecase/plugin/FLOW.md) | `package` | Owns entry-independent plugin desired state, candidate selection, hook orchestration, and PDK-compatible host RPC mapping. | 79 | ok |
+-| [internal/usecase/presence/FLOW.md](../../internal/usecase/presence/FLOW.md) | `package` | Coordinates owner-local connection lifecycle with UID authority registration, actions, touch batching, and route lookup. | 61 | ok |
++| [internal/usecase/presence/FLOW.md](../../internal/usecase/presence/FLOW.md) | `package` | Coordinates owner-local connection lifecycle with UID authority registration, actions, touch batching, and route lookup. | 67 | ok |
+ | [internal/usecase/reviewagent/FLOW.md](../../internal/usecase/reviewagent/FLOW.md) | `package` | Owns deterministic Review Agent commands, PR lifecycle reconciliation, scheduling, projection planning, and publication policy. | 53 | ok |
+ | [internal/usecase/user/FLOW.md](../../internal/usecase/user/FLOW.md) | `package` | Orchestrates legacy-compatible user tokens, device quit, online status, system UIDs, and restore cache reload. | 63 | ok |
+ | [pkg/backup/FLOW.md](../../pkg/backup/FLOW.md) | `package` | Defines the portable full-backup repository format, strict manifests, compressed chunks, publication markers, and verification. | 52 | ok |
+diff --git a/docs/development/PROJECT_KNOWLEDGE.md b/docs/development/PROJECT_KNOWLEDGE.md
+index 62e787289..d85f01335 100644
+--- a/docs/development/PROJECT_KNOWLEDGE.md
++++ b/docs/development/PROJECT_KNOWLEDGE.md
+@@ -1071,6 +1071,16 @@ specification, runbook, report, or module documentation; link to them when neede
+   routes are volatile, UID-authority-fenced projections; concrete sessions remain
+   owner-local. Authority changes require bounded reconstruction before an empty
+   route can be treated as offline, never a scan of every session.
++- Cold presence recovery coalesces UID proofs by the five-field distributed
++  identity, excluding local revision/AuthorityEpoch counters. Four caller-owned
++  cohorts bound retained keys to 2,048 and owned UID clones to 128 MiB (32 MiB
++  per new subset); these byte budgets do not describe all presence/RPC heap.
++  The original 512-UID/256-target page fits maximum 65,535-byte stored identities.
++  Larger arbitrary lookup strings can now remain explicitly not ready. Quota
++  waits hold no partial keys; owned proofs publish/release before joining old
++  flights. Every waiter rereads Directory, so FIFO eviction remains unknown,
++  never fabricated offline. Follower cancellation is isolated; canceled leaders
++  leave live followers typed not-ready under the existing outer retry policy.
+ - Every online route, including advisory EVENT hints, must preserve device ID,
+   flag and level along with the exact owner/session identity. The final session
+   fence rejects a route with missing or stale device fields.
+@@ -1946,6 +1956,11 @@ specification, runbook, report, or module documentation; link to them when neede
+   order remain unchanged. A failed Markdown output can leave readable JSON while
+   the recorder's sequence remains uncommitted. A generic `invalid_observation`
+   fallback alone does not identify the rejecting finalization branch.
++  Metadata-checkpoint leaves distinguish worker shape/fence/vector bounds,
++  baseline continuity, metrics fetch/preview and final accounting through the
++  same closed diagnostic envelope. They retain private cause chains, the
++  three-source join and existing bounded settle attempts. These diagnostics
++  cannot reconstruct missing worker vectors or certify a complete report.
+ 
+ - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
+   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
+diff --git a/internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go b/internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go
+new file mode 100644
+index 000000000..539a9bbc4
+--- /dev/null
++++ b/internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go
+@@ -0,0 +1,333 @@
++package chatlifecycle
++
++import (
++	"bytes"
++	"context"
++	"encoding/json"
++	"errors"
++	"math"
++	"os"
++	"path/filepath"
++	"reflect"
++	"strings"
++	"testing"
++	"time"
++
++	"github.com/WuKongIM/WuKongIM/internal/bench/target"
++)
++
++// metaDiagnosticSource exposes only the existing metrics port to each fixture.
++type metaDiagnosticSource struct {
++	snapshot target.MetricsSnapshot
++	err      error
++	calls    int
++}
++
++type metaDiagnosticPrivateError struct{}
++
++func (*metaDiagnosticPrivateError) Error() string {
++	return "private uid=example credential=hidden /private/source"
++}
++
++func (s *metaDiagnosticSource) Metrics(context.Context) (target.MetricsSnapshot, error) {
++	s.calls++
++	return s.snapshot, s.err
++}
++
++type metaDiagnosticFixture struct {
++	controller *ProductionMetaController
++	accounting *MetaCreateAccounting
++	workers    []WorkerSnapshot
++	assignment LifecycleSlotAssignment
++	sources    [coordinatorWorkerCount]*metaDiagnosticSource
++	ctx        context.Context
++	reheat     bool
++}
++
++func newMetaDiagnosticFixture(t *testing.T, initialized bool) *metaDiagnosticFixture {
++	t.Helper()
++	cfg := LocalConfig()
++	f := &metaDiagnosticFixture{
++		accounting: NewMetaCreateAccounting(), workers: productionMetaWorkerSnapshots(cfg),
++		assignment: productionMetaInitialAssignment(t), ctx: context.Background(),
++	}
++	var expected [formalLogicalSlotGroups]uint64
++	if initialized {
++		f.workers[0].MetaCreate.PersonByHashSlot[0] = 1
++		f.workers[0].MetaCreate.GroupByHashSlot[0] = 1
++		expected[0] = 2
++	}
++	metrics := productionMetaMetricsForExpected(expected)
++	if initialized {
++		metrics[0].MetaCreatedTotal["already_existing"] = 2
++		metrics[0].MetaCreatedBySlot[0].AlreadyExisting = 2
++	}
++	var sources [coordinatorWorkerCount]ProductionMetaMetricsSource
++	for node := range sources {
++		f.sources[node] = &metaDiagnosticSource{snapshot: metrics[node]}
++		sources[node] = f.sources[node]
++	}
++	var err error
++	f.controller, err = NewProductionMetaController(ProductionMetaControllerOptions{Config: cfg, Metrics: sources, Accounting: f.accounting})
++	if err != nil {
++		t.Fatal(err)
++	}
++	if initialized {
++		if err := f.controller.Checkpoint(f.ctx, f.workers, f.assignment, false); err != nil {
++			t.Fatal(err)
++		}
++		for worker := range f.workers {
++			f.workers[worker].SnapshotSequence++
++		}
++	}
++	return f
++}
++
++// TestMetaCheckpointFailureLeaves exercises the public checkpoint boundary;
++// malformed rounds keep the same sentinel, source-call bound and baseline.
++func TestMetaCheckpointFailureLeaves(t *testing.T) {
++	private := &metaDiagnosticPrivateError{}
++	tests := []struct {
++		name, reason string
++		initialized  bool
++		mutate       func(*metaDiagnosticFixture)
++		want         error
++		metrics      bool
++	}{
++		{"nil_receiver", "guard", false, func(f *metaDiagnosticFixture) { f.controller = nil }, ErrLifecycleHarnessInvalid, false},
++		{"nil_context", "guard", false, func(f *metaDiagnosticFixture) { f.ctx = nil }, ErrLifecycleHarnessInvalid, false},
++		{"canceled", "context_canceled", false, func(f *metaDiagnosticFixture) { ctx, cancel := context.WithCancel(f.ctx); cancel(); f.ctx = ctx }, context.Canceled, false},
++		{"deadline", "context_deadline", false, func(f *metaDiagnosticFixture) {
++			ctx, cancel := context.WithDeadline(f.ctx, time.Unix(1, 0))
++			cancel()
++			f.ctx = ctx
++		}, context.DeadlineExceeded, false},
++		{"run_config", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.controller.runID = "" }, ErrLifecycleHarnessInvalid, false},
++		{"worker_config", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.controller.workerCount = 2 }, ErrLifecycleHarnessInvalid, false},
++		{"group_config", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.controller.groupLimit = 0 }, ErrLifecycleHarnessInvalid, false},
++		{"worker_count", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.workers = f.workers[:2] }, ErrLifecycleHarnessInvalid, false},
++		{"worker_count_field", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.workers[0].WorkerCount = 2 }, ErrLifecycleHarnessInvalid, false},
++		{"worker_id_range", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.workers[0].WorkerID = math.MaxUint64 }, ErrLifecycleHarnessInvalid, false},
++		{"worker_duplicate", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.workers[2].WorkerID = 1 }, ErrLifecycleHarnessInvalid, false},
++		{"worker_sequence_zero", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.workers[0].SnapshotSequence = 0 }, ErrLifecycleHarnessInvalid, false},
++		{"worker_phase", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.workers[0].Phase = WorkerPhase("private-phase") }, ErrLifecycleHarnessInvalid, false},
++		{"run_fence", "expectation_fence", false, func(f *metaDiagnosticFixture) { f.workers[0].RunID = "private-other-run" }, ErrLifecycleHarnessInvalid, false},
++		{"assignment_empty", "expectation_fence", false, func(f *metaDiagnosticFixture) { f.workers[0].AssignmentID = "" }, ErrLifecycleHarnessInvalid, false},
++		{"generation_zero", "expectation_fence", false, func(f *metaDiagnosticFixture) { f.workers[0].Generation = 0 }, ErrLifecycleHarnessInvalid, false},
++		{"assignment_mismatch", "expectation_fence", false, func(f *metaDiagnosticFixture) { f.workers[1].AssignmentID = "private-other-assignment" }, ErrLifecycleHarnessInvalid, false},
++		{"generation_mismatch", "expectation_fence", false, func(f *metaDiagnosticFixture) { f.workers[1].Generation++ }, ErrLifecycleHarnessInvalid, false},
++		{"person_sum", "expectation_vector_bound", false, func(f *metaDiagnosticFixture) {
++			f.workers[0].MetaCreate.PersonByHashSlot[0] = math.MaxUint64
++			f.workers[1].MetaCreate.PersonByHashSlot[0] = 1
++		}, ErrLifecycleHarnessInvalid, false},
++		{"group_sum", "expectation_vector_bound", false, func(f *metaDiagnosticFixture) {
++			f.controller.groupLimit = math.MaxUint64
++			f.workers[0].MetaCreate.GroupByHashSlot[0] = math.MaxUint64
++			f.workers[1].MetaCreate.GroupByHashSlot[0] = 1
++		}, ErrLifecycleHarnessInvalid, false},
++		{"worker_group_sum", "expectation_vector_bound", false, func(f *metaDiagnosticFixture) {
++			f.controller.groupLimit = math.MaxUint64
++			f.workers[0].MetaCreate.GroupByHashSlot[0] = math.MaxUint64
++			f.workers[0].MetaCreate.GroupByHashSlot[1] = 1
++		}, ErrLifecycleHarnessInvalid, false},
++		{"global_group_sum", "expectation_vector_bound", false, func(f *metaDiagnosticFixture) {
++			f.controller.groupLimit = math.MaxUint64
++			f.workers[0].MetaCreate.GroupByHashSlot[0] = math.MaxUint64
++			f.workers[1].MetaCreate.GroupByHashSlot[1] = 1
++		}, ErrLifecycleHarnessInvalid, false},
++		{"group_limit", "expectation_vector_bound", false, func(f *metaDiagnosticFixture) {
++			f.workers[0].MetaCreate.GroupByHashSlot[0] = f.controller.groupLimit + 1
++		}, ErrLifecycleHarnessInvalid, false},
++		{"checkpoint_assignment", "checkpoint_fence", true, func(f *metaDiagnosticFixture) {
++			for i := range f.workers {
++				f.workers[i].AssignmentID = "private-new-assignment"
++			}
++		}, ErrLifecycleHarnessInvalid, false},
++		{"checkpoint_generation", "checkpoint_fence", true, func(f *metaDiagnosticFixture) {
++			for i := range f.workers {
++				f.workers[i].Generation++
++			}
++		}, ErrLifecycleHarnessInvalid, false},
++		{"checkpoint_sequence", "checkpoint_sequence", true, func(f *metaDiagnosticFixture) { f.workers[0].SnapshotSequence-- }, ErrLifecycleHarnessInvalid, false},
++		{"checkpoint_person", "checkpoint_vector_regression", true, func(f *metaDiagnosticFixture) { f.workers[0].MetaCreate.PersonByHashSlot[0]-- }, ErrLifecycleHarnessInvalid, false},
++		{"checkpoint_group", "checkpoint_vector_regression", true, func(f *metaDiagnosticFixture) { f.workers[0].MetaCreate.GroupByHashSlot[0]-- }, ErrLifecycleHarnessInvalid, false},
++		{"metrics_fetch", "metrics_fetch", false, func(f *metaDiagnosticFixture) { f.sources[0].err = private }, ErrLifecycleHarnessInvalid, true},
++		{"preview_assignment", "metrics_preview", false, func(f *metaDiagnosticFixture) { f.assignment = LifecycleSlotAssignment{} }, ErrLifecycleHarnessInvalid, true},
++		{"preview_missing_result", "metrics_preview", false, func(f *metaDiagnosticFixture) { delete(f.sources[0].snapshot.MetaCreatedTotal, "created") }, ErrLifecycleHarnessInvalid, true},
++		{"preview_fractional_result", "metrics_preview", false, func(f *metaDiagnosticFixture) { f.sources[0].snapshot.MetaCreatedTotal["created"] = 0.5 }, ErrLifecycleHarnessInvalid, true},
++		{"preview_slot_total", "metrics_preview", false, func(f *metaDiagnosticFixture) { f.sources[0].snapshot.MetaCreatedTotal["created"] = 1 }, ErrLifecycleHarnessInvalid, true},
++		{"settle_missing", "settle_wait", false, func(f *metaDiagnosticFixture) {
++			f.workers[0].MetaCreate.PersonByHashSlot[0] = 1
++			f.controller.settleWait = nil
++		}, ErrLifecycleHarnessInvalid, true},
++		{"settle_private_error", "settle_wait", false, func(f *metaDiagnosticFixture) {
++			f.workers[0].MetaCreate.PersonByHashSlot[0] = 1
++			f.controller.settleWait = func(context.Context) error { return private }
++		}, private, true},
++		{"settle_canceled", "context_canceled", false, func(f *metaDiagnosticFixture) {
++			f.workers[0].MetaCreate.PersonByHashSlot[0] = 1
++			f.controller.settleWait = func(context.Context) error { return context.Canceled }
++		}, context.Canceled, true},
++		{"settle_deadline", "context_deadline", false, func(f *metaDiagnosticFixture) {
++			f.workers[0].MetaCreate.PersonByHashSlot[0] = 1
++			f.controller.settleWait = func(context.Context) error { return context.DeadlineExceeded }
++		}, context.DeadlineExceeded, true},
++		{"accounting_initial_reheat", "accounting", false, func(f *metaDiagnosticFixture) { f.reheat = true }, ErrLifecycleHarnessInvalid, true},
++		{"accounting_counter_regression", "accounting", true, func(f *metaDiagnosticFixture) {
++			f.sources[0].snapshot.MetaCreatedTotal["already_existing"] = 1
++			f.sources[0].snapshot.MetaCreatedBySlot[0].AlreadyExisting = 1
++		}, ErrLifecycleHarnessInvalid, true},
++	}
++	for _, test := range tests {
++		t.Run(test.name, func(t *testing.T) {
++			f := newMetaDiagnosticFixture(t, test.initialized)
++			test.mutate(f)
++			before := f.accounting.Snapshot()
++			var sequences [coordinatorWorkerCount]uint64
++			var person, groups [coordinatorWorkerCount]MetaCreateHashSlotCounts
++			if f.controller != nil {
++				sequences, person, groups = f.controller.sequences, f.controller.person, f.controller.groups
++			}
++			var calls [coordinatorWorkerCount]int
++			for node, source := range f.sources {
++				calls[node] = source.calls
++			}
++			err := f.controller.Checkpoint(f.ctx, f.workers, f.assignment, f.reheat)
++			if !errors.Is(err, test.want) {
++				t.Fatalf("error = %v, want original sentinel", err)
++			}
++			if test.want == private {
++				var cause *metaDiagnosticPrivateError
++				if !errors.As(err, &cause) || cause != private {
++					t.Error("typed private cause chain lost")
++				}
++			}
++			failure := finalizationDiagnostic(err, "meta_checkpoint", "invalid")
++			if failure.Stage != "meta_checkpoint" || failure.Reason != test.reason {
++				t.Errorf("diagnostic = %+v, want meta_checkpoint/%s", failure, test.reason)
++			}
++			body, _ := json.Marshal(failure.Bounded())
++			if strings.Contains(err.Error(), "private") || strings.Contains(string(body), "private") {
++				t.Error("private cause leaked into formatting")
++			}
++			if !reflect.DeepEqual(before, f.accounting.Snapshot()) {
++				t.Error("invalid checkpoint mutated accounting")
++			}
++			if f.controller != nil && (f.controller.sequences != sequences || f.controller.person != person || f.controller.groups != groups) {
++				t.Error("invalid checkpoint advanced controller baseline")
++			}
++			for node, source := range f.sources {
++				want := calls[node]
++				if test.metrics {
++					want++
++				}
++				if source.calls != want {
++					t.Errorf("source %d calls = %d, want %d", node, source.calls, want)
++				}
++			}
++		})
++	}
++}
++
++func TestMetaCheckpointCancellationJoinsEverySource(t *testing.T) {
++	f := newMetaDiagnosticFixture(t, false)
++	started, returned := make(chan struct{}, coordinatorWorkerCount), make(chan struct{}, coordinatorWorkerCount)
++	for node := range f.controller.metrics {
++		f.controller.metrics[node] = blockingProductionMetaMetricsSource{started: started, returned: returned}
++	}
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	done := make(chan error, 1)
++	go func() { done <- f.controller.Checkpoint(ctx, f.workers, f.assignment, false) }()
++	for range coordinatorWorkerCount {
++		select {
++		case <-started:
++		case <-time.After(time.Second):
++			t.Fatal("source did not start")
++		}
++	}
++	cancel()
++	select {
++	case err := <-done:
++		if !errors.Is(err, context.Canceled) || finalizationDiagnostic(err, "meta_checkpoint", "invalid").Reason != "context_canceled" {
++			t.Errorf("cancellation lost its leaf or sentinel: %v", err)
++		}
++	case <-time.After(time.Second):
++		t.Fatal("canceled round did not join")
++	}
++	for range coordinatorWorkerCount {
++		select {
++		case <-returned:
++		default:
++			t.Fatal("checkpoint returned before every source joined")
++		}
++	}
++	if f.accounting.Snapshot().Checkpoints != 0 || f.controller.initialized {
++		t.Error("partial canceled round committed")
++	}
++}
++
++func TestMetaCheckpointProductDeficitKeepsExistingBound(t *testing.T) {
++	f := newMetaDiagnosticFixture(t, false)
++	f.workers[0].MetaCreate.PersonByHashSlot[0] = 1
++	waits := 0
++	f.controller.settleWait = func(context.Context) error { waits++; return nil }
++	err := f.controller.Checkpoint(f.ctx, f.workers, f.assignment, false)
++	if !errors.Is(err, ErrLifecycleProductFailure) || errors.Is(err, ErrLifecycleHarnessInvalid) {
++		t.Fatalf("deficit reclassified: %v", err)
++	}
++	var diagnostic *finalizationError
++	if errors.As(err, &diagnostic) {
++		t.Error("product deficit became a finalization error")
++	}
++	if waits != 4 || productionMetaSettleDelay != 25*time.Millisecond {
++		t.Errorf("settle bound changed: waits=%d delay=%v", waits, productionMetaSettleDelay)
++	}
++	for node, source := range f.sources {
++		if source.calls != 5 {
++			t.Errorf("source %d calls=%d, want5", node, source.calls)
++		}
++	}
++	if f.accounting.Snapshot().Checkpoints != 1 || f.controller.initialized {
++		t.Error("product checkpoint commit semantics changed")
++	}
++}
++
++func TestMetaCheckpointLeafProjectionAndFinalizeCompleteness(t *testing.T) {
++	reasons := []string{"guard", "context_canceled", "context_deadline", "expectation_worker_shape", "expectation_fence", "expectation_vector_bound", "checkpoint_fence", "checkpoint_sequence", "checkpoint_vector_regression", "metrics_fetch", "metrics_preview", "settle_wait", "accounting", "invalid"}
++	private := &metaDiagnosticPrivateError{}
++	for _, reason := range reasons {
++		t.Run(reason, func(t *testing.T) {
++			controller, cut, diagnostics, _ := newFinalizeDiagnosticFixture(t)
++			controller.meta = finalizeMetaProbe{err: newFinalizationError("meta_checkpoint", reason, private)}
++			before := controller.frozen
++			err := controller.Finalize(context.Background(), cut)
++			if !errors.Is(err, private) || !errors.Is(err, errProductionController) {
++				t.Fatal("private cause chain lost")
++			}
++			var cause *metaDiagnosticPrivateError
++			if !errors.As(err, &cause) || cause != private {
++				t.Error("typed private cause chain lost")
++			}
++			failure := finalizationDiagnostic(err, "controller_unknown", "invalid")
++			if failure.Stage != "meta_checkpoint" || failure.Reason != reason || failure.ObservedOutcome != before.Outcome || failure.ObservedCause != before.Cause || !failure.ObservedTerminal {
++				t.Errorf("leaf/frozen observation lost: %+v", failure)
++			}
++			if strings.Contains(err.Error(), "private") || bytes.Contains(diagnostics.Bytes(), []byte("private")) {
++				t.Error("private chain formatted")
++			}
++			if _, err := os.Stat(filepath.Join(controller.outputDir, "final.json")); !os.IsNotExist(err) {
++				t.Error("incomplete finalization invented a report")
++			}
++			if !reflect.DeepEqual(controller.frozen, before) {
++				t.Error("diagnostic changed the frozen verdict")
++			}
++		})
++	}
++	for _, failure := range []FinalizationFailure{{Stage: "meta_checkpoint", Reason: "private-reason"}, {Stage: "private-stage", Reason: "metrics_fetch"}} {
++		got := failure.Bounded()
++		if got.Stage != "controller_unknown" || got.Reason != "invalid" {
++			t.Errorf("forged leaf accepted: %+v", got)
++		}
++	}
++}
+diff --git a/internal/bench/chatlifecycle/production_controller.go b/internal/bench/chatlifecycle/production_controller.go
+index 39bbd3625..934a35b1f 100644
+--- a/internal/bench/chatlifecycle/production_controller.go
++++ b/internal/bench/chatlifecycle/production_controller.go
+@@ -44,7 +44,13 @@ func (f FinalizationFailure) Bounded() FinalizationFailure {
+ 		valid = f.Reason == "missing" || f.Reason == "invalid" || f.Reason == "output_failed"
+ 	case "dataset":
+ 		valid = f.Reason == "probe_failed" || f.Reason == "digest_mismatch"
+-	case "meta_checkpoint", "checkpoint_sequence", "report_validation", "controller_unknown":
++	case "meta_checkpoint":
++		switch f.Reason {
++		case "guard", "context_canceled", "context_deadline", "expectation_worker_shape", "expectation_fence", "expectation_vector_bound",
++			"checkpoint_fence", "checkpoint_sequence", "checkpoint_vector_regression", "metrics_fetch", "metrics_preview", "settle_wait", "accounting", "invalid":
++			valid = true
++		}
++	case "checkpoint_sequence", "report_validation", "controller_unknown":
+ 		valid = f.Reason == "invalid"
+ 	case "checkpoint_evidence":
+ 		valid = f.Reason == "invalid_evidence" || f.Reason == "dataset_mismatch" || f.Reason == "invalid_snapshot_cut"
+diff --git a/internal/bench/chatlifecycle/production_meta.go b/internal/bench/chatlifecycle/production_meta.go
+index eef0880d0..af86ca7e6 100644
+--- a/internal/bench/chatlifecycle/production_meta.go
++++ b/internal/bench/chatlifecycle/production_meta.go
+@@ -77,10 +77,10 @@ func (c *ProductionMetaController) Checkpoint(
+ 	reheat bool,
+ ) error {
+ 	if c == nil || ctx == nil {
+-		return ErrLifecycleHarnessInvalid
++		return metaCheckpointFailure("guard", ErrLifecycleHarnessInvalid)
+ 	}
+ 	if err := ctx.Err(); err != nil {
+-		return err
++		return metaCheckpointFailure("guard", err)
+ 	}
+ 	c.mu.Lock()
+ 	defer c.mu.Unlock()
+@@ -91,16 +91,16 @@ func (c *ProductionMetaController) Checkpoint(
+ 	}
+ 	if c.initialized {
+ 		if expectation.assignmentID != c.assignmentID || expectation.generation != c.generation {
+-			return ErrLifecycleHarnessInvalid
++			return metaCheckpointFailure("checkpoint_fence", ErrLifecycleHarnessInvalid)
+ 		}
+ 		for workerID := range expectation.personByWorker {
+ 			if expectation.sequences[workerID] <= c.sequences[workerID] {
+-				return ErrLifecycleHarnessInvalid
++				return metaCheckpointFailure("checkpoint_sequence", ErrLifecycleHarnessInvalid)
+ 			}
+ 			for hashSlot := range expectation.personByWorker[workerID] {
+ 				if expectation.personByWorker[workerID][hashSlot] < c.person[workerID][hashSlot] ||
+ 					expectation.groupByWorker[workerID][hashSlot] < c.groups[workerID][hashSlot] {
+-					return ErrLifecycleHarnessInvalid
++					return metaCheckpointFailure("checkpoint_vector_regression", ErrLifecycleHarnessInvalid)
+ 				}
+ 			}
+ 		}
+@@ -110,7 +110,10 @@ func (c *ProductionMetaController) Checkpoint(
+ 		return err
+ 	}
+ 	if err := c.accounting.Checkpoint(expectation.person, expectation.groups, assignment, metrics, reheat); err != nil {
+-		return err
++		if errors.Is(err, ErrLifecycleProductFailure) {
++			return err
++		}
++		return metaCheckpointFailure("accounting", err)
+ 	}
+ 	c.initialized = true
+ 	c.assignmentID = expectation.assignmentID
+@@ -121,6 +124,18 @@ func (c *ProductionMetaController) Checkpoint(
+ 	return nil
+ }
+ 
++// metaCheckpointFailure adds only a closed leaf diagnostic while preserving the
++// original private cause and every existing checkpoint failure classification.
++func metaCheckpointFailure(reason string, cause error) error {
++	switch {
++	case errors.Is(cause, context.Canceled):
++		reason = "context_canceled"
++	case errors.Is(cause, context.DeadlineExceeded):
++		reason = "context_deadline"
++	}
++	return newFinalizationError("meta_checkpoint", reason, cause)
++}
++
+ // collectSettledMetrics gives authoritative counters one short bounded window
+ // to become visible after a final worker SENDACK. It never commits a preview,
+ // and a stable deficit is still handed to accounting as product evidence.
+@@ -133,7 +148,7 @@ func (c *ProductionMetaController) collectSettledMetrics(
+ 	for attempt := 0; attempt < productionMetaSettleAttempts; attempt++ {
+ 		metrics, err := collectProductionMetaMetrics(ctx, c.metrics)
+ 		if err != nil {
+-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
++			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("metrics_fetch", err)
+ 		}
+ 		preview := NewMetaCreateAccounting()
+ 		previewErr := preview.Checkpoint(person, groups, assignment, metrics, false)
+@@ -141,18 +156,18 @@ func (c *ProductionMetaController) collectSettledMetrics(
+ 		case previewErr == nil:
+ 			return metrics, nil
+ 		case !errors.Is(previewErr, ErrLifecycleProductFailure):
+-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, previewErr
++			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("metrics_preview", previewErr)
+ 		case attempt == productionMetaSettleAttempts-1:
+ 			return metrics, nil
+ 		}
+ 		if c.settleWait == nil {
+-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, ErrLifecycleHarnessInvalid
++			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("settle_wait", ErrLifecycleHarnessInvalid)
+ 		}
+ 		if err := c.settleWait(ctx); err != nil {
+-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
++			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("settle_wait", err)
+ 		}
+ 	}
+-	return [coordinatorWorkerCount]target.MetricsSnapshot{}, ErrLifecycleHarnessInvalid
++	return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("settle_wait", ErrLifecycleHarnessInvalid)
+ }
+ 
+ func waitProductionMetaSettle(ctx context.Context) error {
+@@ -197,20 +212,22 @@ func collectProductionMetaExpectation(
+ ) (productionMetaExpectationSnapshot, error) {
+ 	var expectation productionMetaExpectationSnapshot
+ 	if runID == "" || workerCount != coordinatorWorkerCount || groupLimit == 0 || len(workers) != coordinatorWorkerCount {
+-		return expectation, ErrLifecycleHarnessInvalid
++		return expectation, metaCheckpointFailure("expectation_worker_shape", ErrLifecycleHarnessInvalid)
+ 	}
+ 	var seen [coordinatorWorkerCount]bool
+ 	var groupTotal uint64
+ 	for _, snapshot := range workers {
+-		if snapshot.RunID != runID || snapshot.AssignmentID == "" || snapshot.Generation == 0 ||
+-			snapshot.WorkerCount != workerCount || snapshot.WorkerID >= workerCount || snapshot.SnapshotSequence == 0 ||
++		if snapshot.RunID != runID || snapshot.AssignmentID == "" || snapshot.Generation == 0 {
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_fence", ErrLifecycleHarnessInvalid)
++		}
++		if snapshot.WorkerCount != workerCount || snapshot.WorkerID >= workerCount || snapshot.SnapshotSequence == 0 ||
+ 			(snapshot.Phase != WorkerPhaseRunning && snapshot.Phase != WorkerPhaseFinal) || seen[snapshot.WorkerID] {
+-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_worker_shape", ErrLifecycleHarnessInvalid)
+ 		}
+ 		if expectation.assignmentID == "" {
+ 			expectation.assignmentID, expectation.generation = snapshot.AssignmentID, snapshot.Generation
+ 		} else if snapshot.AssignmentID != expectation.assignmentID || snapshot.Generation != expectation.generation {
+-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_fence", ErrLifecycleHarnessInvalid)
+ 		}
+ 		workerID := int(snapshot.WorkerID)
+ 		seen[workerID] = true
+@@ -220,29 +237,29 @@ func collectProductionMetaExpectation(
+ 		for hashSlot, count := range snapshot.MetaCreate.PersonByHashSlot {
+ 			var ok bool
+ 			if expectation.person[hashSlot], ok = checkedUint64Add(expectation.person[hashSlot], count); !ok {
+-				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++				return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
+ 			}
+ 			if expectation.groups[hashSlot], ok = checkedUint64Add(
+ 				expectation.groups[hashSlot], snapshot.MetaCreate.GroupByHashSlot[hashSlot],
+ 			); !ok {
+-				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++				return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
+ 			}
+ 		}
+ 		workerGroups := uint64(0)
+ 		for _, count := range snapshot.MetaCreate.GroupByHashSlot {
+ 			var ok bool
+ 			if workerGroups, ok = checkedUint64Add(workerGroups, count); !ok {
+-				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++				return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
+ 			}
+ 		}
+ 		var ok bool
+ 		if groupTotal, ok = checkedUint64Add(groupTotal, workerGroups); !ok || groupTotal > groupLimit {
+-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
+ 		}
+ 	}
+ 	for _, present := range seen {
+ 		if !present {
+-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_worker_shape", ErrLifecycleHarnessInvalid)
+ 		}
+ 	}
+ 	return expectation, nil
+diff --git a/internal/usecase/presence/FLOW.md b/internal/usecase/presence/FLOW.md
+index 04c457082..303f71469 100644
+--- a/internal/usecase/presence/FLOW.md
++++ b/internal/usecase/presence/FLOW.md
+@@ -28,10 +28,13 @@ It does not own gateway frames, concrete cluster routing, or session storage.
+ 2. Deactivate snapshots active state, removes local indexes first, observes
+    offline only for the last active owner-local session, then queues the exact
+    authority unregister tombstone.
+-3. Authority recovery packs up to 512 UIDs across 256 targets per owner page,
+-   locks cold admission lanes in a fixed order, and queries each current owner
+-   once. Proven lookups bypass admission; complete results retain exact fences
+-   and failed target groups do not discard successful siblings.
++3. Authority recovery packs up to 512 UIDs across 256 targets per owner page.
++   Bounded flights coalesce the same UID and distributed authority identity;
++   newly owned proofs install and release before joining older flights.
++   Four leader cohorts retain at most 2,048 keys and 128 MiB of owned UID bytes,
++   with 32 MiB per new subset. Proven lookups bypass admission; quota waits
++   reserve no partial keys and recheck proofs after waking. Complete results
++   retain exact fences and failed groups preserve successful siblings.
+ 4. Lookup delegates one UID, a batch, or aligned exact-target groups to optional
+    authority batch ports; group errors do not abort successful siblings.
+ 
+@@ -45,6 +48,9 @@ It does not own gateway frames, concrete cluster routing, or session storage.
+ - Production target-aware lookup preserves the complete fence and returns
+   aligned results. The per-UID fallback exists only for limited compatibility
+   implementations and cannot provide that target fence.
++- Flight completion stores no routes: callers reread current Directory proof,
++  including after FIFO eviction. Canceling a follower does not cancel its leader;
++  a canceled leader leaves live followers retryable without adding a retry.
+ - Import-boundary tests reject concrete entry, protocol, cluster, and app imports.
+ 
+ ## Read First
+@@ -52,7 +58,7 @@ It does not own gateway frames, concrete cluster routing, or session storage.
+ - [Activation](activate.go)
+ - [Deactivation](deactivate.go)
+ - [Lookup](lookup.go)
+-- [Touch](touch.go)
++- [Recovery admission](recovery_flights.go)
+ - [Ports](ports.go)
+ 
+ ## Update Triggers
+diff --git a/internal/usecase/presence/cold_uid_isolation_integration_test.go b/internal/usecase/presence/cold_uid_isolation_integration_test.go
+new file mode 100644
+index 000000000..08306dfd8
+--- /dev/null
++++ b/internal/usecase/presence/cold_uid_isolation_integration_test.go
+@@ -0,0 +1,236 @@
++//go:build integration
++
++package presence_test
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"sync"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
++	presence "github.com/WuKongIM/WuKongIM/internal/usecase/presence"
++)
++
++// coldOwnerGate pauses only the selected owner's read. Independent requests
++// remain immediately serviceable, so admission at this boundary is not full.
++type coldOwnerGate struct {
++	entered      chan struct{}
++	release      chan struct{}
++	canceled     chan struct{}
++	enterOnce    sync.Once
++	releaseOnce  sync.Once
++	cancelOnce   sync.Once
++	blockedCalls atomic.Int32
++	active       atomic.Int32
++	peak         atomic.Int32
++}
++
++func newColdOwnerGate() *coldOwnerGate {
++	return &coldOwnerGate{entered: make(chan struct{}), release: make(chan struct{}), canceled: make(chan struct{})}
++}
++
++func (g *coldOwnerGate) RecoverRoutes(ctx context.Context, target presence.RouteTarget, uids []string) ([]presence.Route, error) {
++	result := g.RecoverRoutesByTargets(ctx, []presence.EndpointLookupGroup{{Target: target, UIDs: uids}})[0]
++	return result.Routes, result.Err
++}
++
++func (g *coldOwnerGate) RecoverRoutesByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++	active := g.active.Add(1)
++	defer g.active.Add(-1)
++	for old := g.peak.Load(); active > old && !g.peak.CompareAndSwap(old, active); old = g.peak.Load() {
++	}
++	blocked := false
++	for _, group := range groups {
++		for _, uid := range group.UIDs {
++			blocked = blocked || uid == "cold-a-0"
++		}
++	}
++	if blocked {
++		g.blockedCalls.Add(1)
++		g.enterOnce.Do(func() { close(g.entered) })
++		select {
++		case <-g.release:
++		case <-ctx.Done():
++			g.cancelOnce.Do(func() { close(g.canceled) })
++			results := make([]presence.EndpointLookupResult, len(groups))
++			for i := range results {
++				results[i].Err = ctx.Err()
++			}
++			return results
++		}
++	}
++	results := make([]presence.EndpointLookupResult, len(groups))
++	for i, group := range groups {
++		for _, uid := range group.UIDs {
++			results[i].Routes = append(results[i].Routes, presence.Route{UID: uid, OwnerNodeID: 2, OwnerBootID: 22, OwnerSeq: 1, SessionID: 1})
++		}
++	}
++	return results
++}
++
++func (g *coldOwnerGate) unblock() { g.releaseOnce.Do(func() { close(g.release) }) }
++
++// coldLookup owns its goroutine until the result is joined, including failed
++// assertions. Its deadline is a test watchdog, never a production setting.
++type coldLookup struct {
++	done   chan []presence.EndpointLookupResult
++	cancel context.CancelFunc
++	result []presence.EndpointLookupResult
++	joined bool
++}
++
++func startColdLookup(t *testing.T, recovery *presence.AuthorityRecovery, groups []presence.EndpointLookupGroup, budget time.Duration) *coldLookup {
++	t.Helper()
++	ctx, cancel := context.WithTimeout(context.Background(), budget)
++	call := &coldLookup{done: make(chan []presence.EndpointLookupResult, 1), cancel: cancel}
++	go func() { call.done <- recovery.EndpointsByTargets(ctx, groups) }()
++	t.Cleanup(func() {
++		cancel()
++		if !call.joined {
++			timer := time.NewTimer(time.Second)
++			defer timer.Stop()
++			select {
++			case call.result = <-call.done:
++				call.joined = true
++			case <-timer.C:
++				t.Error("lookup cleanup did not join")
++			}
++		}
++		t.Logf("lookup cleanup joined=%t", call.joined)
++	})
++	return call
++}
++
++func (c *coldLookup) await(t *testing.T) []presence.EndpointLookupResult {
++	t.Helper()
++	if !c.joined {
++		timer := time.NewTimer(time.Second)
++		defer timer.Stop()
++		select {
++		case c.result = <-c.done:
++			c.joined = true
++		case <-timer.C:
++			t.Fatal("public lookup did not return within watchdog")
++		}
++	}
++	return c.result
++}
++
++func startPausedColdPage(t *testing.T, targets int) (*presence.AuthorityRecovery, *coldOwnerGate, *coldLookup, []presence.EndpointLookupGroup) {
++	t.Helper()
++	directory := authority.NewDirectory(authority.DirectoryOptions{LocalNodeID: 1, RequireRecovery: true})
++	groups := make([]presence.EndpointLookupGroup, targets)
++	for i := range groups {
++		target := presence.RouteTarget{HashSlot: uint16(i), SlotID: uint32(i%12 + 1), LeaderNodeID: 1, LeaderTerm: 1, ConfigEpoch: 1}
++		directory.BecomeAuthority(target)
++		groups[i] = presence.EndpointLookupGroup{Target: target, UIDs: []string{fmt.Sprintf("cold-a-%d", i)}}
++	}
++	// The non-conflicting control can use this additional real authority.
++	if targets == 1 {
++		directory.BecomeAuthority(presence.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 1, ConfigEpoch: 1})
++	}
++	owners := newColdOwnerGate()
++	recovery := presence.NewAuthorityRecovery(directory, owners)
++	a := startColdLookup(t, recovery, groups, 3*time.Second)
++	// Registered after A's join cleanup so the gate opens before that join.
++	t.Cleanup(owners.unblock)
++	timer := time.NewTimer(time.Second)
++	defer timer.Stop()
++	select {
++	case <-owners.entered:
++	case <-timer.C:
++		t.Fatal("A did not reach the controlled owner boundary")
++	}
++	return recovery, owners, a, groups
++}
++
++func requireColdRoutes(t *testing.T, results []presence.EndpointLookupResult, groups []presence.EndpointLookupGroup) {
++	t.Helper()
++	if len(results) != len(groups) {
++		t.Fatalf("result groups=%d, want %d", len(results), len(groups))
++	}
++	for i, result := range results {
++		if result.Err != nil || len(result.Routes) != len(groups[i].UIDs) {
++			t.Fatalf("group %d routes=%d err=%v", i, len(result.Routes), result.Err)
++		}
++		for j, route := range result.Routes {
++			if route.UID != groups[i].UIDs[j] || route.OwnerNodeID != 2 || route.OwnerBootID != 22 || route.OwnerSeq != 1 || route.SessionID != 1 {
++				t.Fatalf("group %d route %d lost the expected owner proof", i, j)
++			}
++		}
++	}
++}
++
++// This is a proposed isolation property, not a claim that the current public
++// contract guarantees independent cold-UID latency. Its expected RED records
++// coarse admission HOL without labeling that existing policy a correctness bug.
++func TestAuthorityRecoveryColdUIDIsolation_IndependentUIDWhilePagePaused(t *testing.T) {
++	recovery, owners, a, groups := startPausedColdPage(t, 32)
++	bGroups := []presence.EndpointLookupGroup{{Target: groups[0].Target, UIDs: []string{"cold-b-independent"}}}
++	b := startColdLookup(t, recovery, bGroups, 250*time.Millisecond)
++	results := b.await(t)
++	if len(results) != 1 || results[0].Err != nil {
++		t.Fatalf("proposed isolation failed before A release: B results=%v; A owner calls=%d peak owner calls=%d", results, owners.blockedCalls.Load(), owners.peak.Load())
++	}
++	requireColdRoutes(t, results, bGroups)
++	owners.unblock()
++	requireColdRoutes(t, a.await(t), groups)
++}
++
++func TestAuthorityRecoveryColdUIDIsolation_NonConflictingTargetProgresses(t *testing.T) {
++	recovery, owners, a, groups := startPausedColdPage(t, 1)
++	target := presence.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 1, ConfigEpoch: 1}
++	bGroups := []presence.EndpointLookupGroup{{Target: target, UIDs: []string{"cold-b-independent"}}}
++	b := startColdLookup(t, recovery, bGroups, 250*time.Millisecond)
++	requireColdRoutes(t, b.await(t), bGroups)
++	owners.unblock()
++	requireColdRoutes(t, a.await(t), groups)
++}
++
++func TestAuthorityRecoveryColdUIDIsolation_SameUIDSharesOwnerProof(t *testing.T) {
++	recovery, owners, a, groups := startPausedColdPage(t, 1)
++	b := startColdLookup(t, recovery, groups, 2*time.Second)
++	guard := time.NewTimer(40 * time.Millisecond)
++	defer guard.Stop()
++	select {
++	case b.result = <-b.done:
++		b.joined = true
++		t.Fatal("same UID completed before the owner proof existed")
++	case <-guard.C:
++	}
++	owners.unblock()
++	requireColdRoutes(t, a.await(t), groups)
++	requireColdRoutes(t, b.await(t), groups)
++	if calls := owners.blockedCalls.Load(); calls != 1 {
++		t.Fatalf("same UID required %d owner reads, want one complete proof", calls)
++	}
++}
++
++func TestAuthorityRecoveryColdUIDIsolation_CanceledWaiterDoesNotCancelOwner(t *testing.T) {
++	recovery, owners, a, groups := startPausedColdPage(t, 1)
++	b := startColdLookup(t, recovery, groups, 2*time.Second)
++	guard := time.NewTimer(40 * time.Millisecond)
++	defer guard.Stop()
++	select {
++	case b.result = <-b.done:
++		b.joined = true
++		t.Fatal("same UID completed before the owner proof existed")
++	case <-guard.C:
++	}
++	b.cancel()
++	results := b.await(t)
++	if len(results) != 1 || !errors.Is(results[0].Err, context.Canceled) {
++		t.Fatalf("canceled waiter results=%v", results)
++	}
++	select {
++	case <-owners.canceled:
++		t.Fatal("canceling B canceled A's owner read")
++	default:
++	}
++	owners.unblock()
++	requireColdRoutes(t, a.await(t), groups)
++}
+diff --git a/internal/usecase/presence/recovery.go b/internal/usecase/presence/recovery.go
+index 666c12185..10a1163de 100644
+--- a/internal/usecase/presence/recovery.go
++++ b/internal/usecase/presence/recovery.go
+@@ -2,7 +2,7 @@ package presence
+ 
+ import (
+ 	"context"
+-	"errors"
++	"sync"
+ 
+ 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+ )
+@@ -21,21 +21,27 @@ type RecoveryOwners interface {
+ }
+ 
+ // AuthorityRecovery reconstructs requested UIDs with bounded owner queries.
+-// Fixed admission lanes coalesce overlapping lookups without per-UID goroutines
+-// or an unbounded in-flight map. Directory ownership fences every completion.
++// Bounded UID flights coalesce overlapping proofs without per-UID goroutines.
++// Directory ownership fences every completion.
+ type AuthorityRecovery struct {
+ 	directory RecoveryDirectory
+ 	owners    RecoveryOwners
+-	lanes     [32]chan struct{}
++	// mu protects admission accounting only; it never spans owner I/O or waits.
++	mu sync.Mutex
++	// inFlight retains only admitted UID identities and completion status.
++	inFlight map[recoveryUIDKey]*recoveryUIDFlight
++	// ownedUIDBytes counts exact UID clones retained by admitted leaders only.
++	ownedUIDBytes int
++	// cohorts bounds caller-executed owner rounds, including downstream admission.
++	cohorts int
++	// changed wakes quota waiters without retaining a per-waiter queue.
++	changed chan struct{}
+ }
+ 
+-// NewAuthorityRecovery allocates fixed admission lanes for owner reconstruction.
++// NewAuthorityRecovery creates bounded UID proof admission for owner reconstruction.
+ func NewAuthorityRecovery(directory RecoveryDirectory, owners RecoveryOwners) *AuthorityRecovery {
+-	r := &AuthorityRecovery{directory: directory, owners: owners}
+-	for i := range r.lanes {
+-		r.lanes[i] = make(chan struct{}, 1)
+-	}
+-	return r
++	return &AuthorityRecovery{directory: directory, owners: owners,
++		inFlight: make(map[recoveryUIDKey]*recoveryUIDFlight), changed: make(chan struct{})}
+ }
+ 
+ // RecoveryBatchOwners returns aligned proofs while sharing each owner read
+@@ -51,7 +57,7 @@ func (r *AuthorityRecovery) Endpoints(ctx context.Context, target RouteTarget, u
+ }
+ 
+ // EndpointsByTargets packs at most 512 UIDs and 256 targets per owner round.
+-// A cold page shares the unavailable-owner timeout across all its Hash Slots.
++// Newly owned proofs share one bounded owner round; matching UIDs coalesce.
+ // Proven lookups stay outside recovery admission; failed groups remain aligned.
+ func (r *AuthorityRecovery) EndpointsByTargets(ctx context.Context, groups []EndpointLookupGroup) []EndpointLookupResult {
+ 	results := make([]EndpointLookupResult, len(groups))
+@@ -95,97 +101,3 @@ func (r *AuthorityRecovery) EndpointsByTargets(ctx context.Context, groups []End
+ 	}
+ 	return results
+ }
+-
+-// recoverPage locks distinct cold lanes in a fixed order and rechecks proofs
+-// after admission, coalescing concurrent reconstructions without lock cycles.
+-func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLookupGroup) []EndpointLookupResult {
+-	results := make([]EndpointLookupResult, len(groups))
+-	fail := func(err error) []EndpointLookupResult {
+-		for i := range results {
+-			results[i] = EndpointLookupResult{Err: err}
+-		}
+-		return results
+-	}
+-	if r == nil || r.directory == nil || r.owners == nil {
+-		return fail(authority.ErrRouteNotReady)
+-	}
+-	if err := ctx.Err(); err != nil {
+-		return fail(err)
+-	}
+-	var lanes [32]bool
+-	for i, group := range groups {
+-		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(group.Target, group.UIDs)
+-		if errors.Is(results[i].Err, authority.ErrRouteNotReady) {
+-			lanes[int(group.Target.HashSlot)%len(r.lanes)] = true
+-		}
+-	}
+-	locked := make([]int, 0, len(lanes))
+-	defer func() {
+-		for _, i := range locked {
+-			<-r.lanes[i]
+-		}
+-	}()
+-	for i, needed := range lanes {
+-		if !needed {
+-			continue
+-		}
+-		select {
+-		case r.lanes[i] <- struct{}{}:
+-			locked = append(locked, i)
+-		case <-ctx.Done():
+-			for j := range results {
+-				if errors.Is(results[j].Err, authority.ErrRouteNotReady) {
+-					results[j].Err = ctx.Err()
+-				}
+-			}
+-			return results
+-		}
+-	}
+-	missing := make([]EndpointLookupGroup, 0, len(groups))
+-	indexes := make([]int, 0, len(groups))
+-	for i, group := range groups {
+-		if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
+-			continue
+-		}
+-		uids, err := r.directory.RecoveryUIDs(group.Target, group.UIDs)
+-		if err != nil {
+-			results[i].Err = err
+-			continue
+-		}
+-		if len(uids) == 0 {
+-			results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(group.Target, group.UIDs)
+-			continue
+-		}
+-		missing = append(missing, EndpointLookupGroup{Target: group.Target, UIDs: uids})
+-		indexes = append(indexes, i)
+-	}
+-	if len(missing) == 0 {
+-		return results
+-	}
+-	recovered := make([]EndpointLookupResult, len(missing))
+-	if batch, ok := r.owners.(RecoveryBatchOwners); ok {
+-		recovered = batch.RecoverRoutesByTargets(ctx, missing)
+-	} else {
+-		// Limited in-process compatibility implementations retain the single-target
+-		// port. Production uses the batch port and never retries unsupported RPCs serially.
+-		for i, group := range missing {
+-			recovered[i].Routes, recovered[i].Err = r.owners.RecoverRoutes(ctx, group.Target, group.UIDs)
+-		}
+-	}
+-	for j, i := range indexes {
+-		if len(recovered) != len(missing) {
+-			results[i].Err = authority.ErrRouteNotReady
+-			continue
+-		}
+-		if recovered[j].Err != nil {
+-			results[i].Err = recovered[j].Err
+-			continue
+-		}
+-		if err := r.directory.InstallRecoveredRoutes(missing[j].Target, missing[j].UIDs, recovered[j].Routes); err != nil {
+-			results[i].Err = err
+-			continue
+-		}
+-		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(groups[i].Target, groups[i].UIDs)
+-	}
+-	return results
+-}
+diff --git a/internal/usecase/presence/recovery_flights.go b/internal/usecase/presence/recovery_flights.go
+new file mode 100644
+index 000000000..e1ff793ae
+--- /dev/null
++++ b/internal/usecase/presence/recovery_flights.go
+@@ -0,0 +1,271 @@
++package presence
++
++import (
++	"context"
++	"errors"
++	"strings"
++
++	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
++)
++
++const (
++	// Four leaders match the production node-wide owner-read admission. Keys and
++	// bytes bound only registry-owned UID clones, not caller/Directory/RPC heap.
++	recoveryMaxCohorts = 4
++	recoveryMaxKeys    = recoveryMaxCohorts * authority.RecoveryBatchSize
++	// A full page of 512 maximum-length stored UIDs (65535 bytes each) fits.
++	// This is a new internal admission budget, not an RPC string-size contract.
++	recoveryPageUIDBytes = 32 << 20
++	recoveryMaxUIDBytes  = recoveryMaxCohorts * recoveryPageUIDBytes
++)
++
++// recoveryUIDKey uses the distributed authority identity. Local routing revision
++// and AuthorityEpoch must not split one proof; original targets still flow to
++// Directory and owners unchanged for their independent validation.
++type recoveryUIDKey struct {
++	hashSlot                              uint16
++	slotID                                uint32
++	leaderNodeID, leaderTerm, configEpoch uint64
++	uid                                   string
++}
++
++func recoveryKey(target RouteTarget, uid string) recoveryUIDKey {
++	return recoveryUIDKey{target.HashSlot, target.SlotID, target.LeaderNodeID, target.LeaderTerm, target.ConfigEpoch, uid}
++}
++
++// recoveryUIDFlight publishes status before done closes. It never caches routes
++// or an offline proof; every successful follower rereads the current Directory.
++type recoveryUIDFlight struct {
++	done <-chan struct{}
++	err  error
++}
++
++type recoveryCohort struct {
++	done     chan struct{}
++	keys     []recoveryUIDKey
++	groups   []EndpointLookupGroup
++	uidBytes int
++}
++
++func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLookupGroup) []EndpointLookupResult {
++	results := make([]EndpointLookupResult, len(groups))
++	if r == nil || r.directory == nil || r.owners == nil {
++		for i := range results {
++			results[i].Err = authority.ErrRouteNotReady
++		}
++		return results
++	}
++	results, cohort, waits := r.admitRecoveryPage(ctx, groups)
++	if cohort != nil {
++		// Publish/release owned work before joining older flights. In particular,
++		// A={u1}, B={u1,u2} must make u2 available before B waits for A's u1.
++		r.executeRecoveryCohort(ctx, cohort)
++	}
++	for i, group := range groups {
++		if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
++			continue
++		}
++		var err error
++		for _, flight := range waits[i] {
++			select {
++			case <-ctx.Done():
++				err = ctx.Err()
++			case <-flight.done:
++				err = flight.err
++			}
++			if err != nil {
++				break
++			}
++		}
++		if ctx.Err() != nil {
++			err = ctx.Err()
++		}
++		if err != nil {
++			results[i] = EndpointLookupResult{Err: err}
++			continue
++		}
++		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(group.Target, group.UIDs)
++	}
++	return results
++}
++
++// admitRecoveryPage reserves a whole new subset or none. Quota waiting retains
++// no partial keys, UID copies or cohort slot, and rechecks proofs after waking.
++func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []EndpointLookupGroup) ([]EndpointLookupResult, *recoveryCohort, [][]*recoveryUIDFlight) {
++	for {
++		results := make([]EndpointLookupResult, len(groups))
++		missing := make([]EndpointLookupGroup, 0, len(groups))
++		indexes := make([]int, 0, len(groups))
++		waits := make([][]*recoveryUIDFlight, len(groups))
++		for i, group := range groups {
++			if err := ctx.Err(); err != nil {
++				results[i].Err = err
++				continue
++			}
++			results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(group.Target, group.UIDs)
++			if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
++				continue
++			}
++			uids, err := r.directory.RecoveryUIDs(group.Target, group.UIDs)
++			if err != nil {
++				results[i].Err = err
++				continue
++			}
++			if len(uids) == 0 {
++				continue
++			}
++			missing = append(missing, EndpointLookupGroup{Target: group.Target, UIDs: uids})
++			indexes = append(indexes, i)
++		}
++		if len(missing) == 0 {
++			return results, nil, waits
++		}
++
++		r.mu.Lock()
++		newKeys := make(map[recoveryUIDKey]recoveryUIDKey)
++		uidBytes := 0
++		oversized := false
++		for _, group := range missing {
++			for _, uid := range group.UIDs {
++				key := recoveryKey(group.Target, uid)
++				if _, exists := r.inFlight[key]; exists {
++					continue
++				}
++				if _, exists := newKeys[key]; exists {
++					continue
++				}
++				// Subtraction makes accounting overflow-safe before any UID copy.
++				if len(uid) > recoveryPageUIDBytes-uidBytes {
++					oversized = true
++					break
++				}
++				uidBytes += len(uid)
++				newKeys[key] = key
++			}
++			if oversized {
++				break
++			}
++		}
++		if oversized {
++			r.mu.Unlock()
++			return results, nil, waits
++		}
++		if len(newKeys) != 0 && (r.cohorts >= recoveryMaxCohorts || len(newKeys) > recoveryMaxKeys-len(r.inFlight) || uidBytes > recoveryMaxUIDBytes-r.ownedUIDBytes) {
++			changed := r.changed
++			r.mu.Unlock()
++			select {
++			case <-ctx.Done():
++				for _, i := range indexes {
++					results[i] = EndpointLookupResult{Err: ctx.Err()}
++				}
++				return results, nil, waits
++			case <-changed:
++				continue
++			}
++		}
++		var cohort *recoveryCohort
++		if len(newKeys) != 0 {
++			cohort = &recoveryCohort{done: make(chan struct{}), uidBytes: uidBytes, keys: make([]recoveryUIDKey, 0, len(newKeys))}
++			for key := range newKeys {
++				owned := key
++				owned.uid = strings.Clone(key.uid)
++				newKeys[key] = owned
++				cohort.keys = append(cohort.keys, owned)
++				r.inFlight[owned] = &recoveryUIDFlight{done: cohort.done}
++			}
++			r.cohorts++
++			r.ownedUIDBytes += uidBytes
++		}
++		for j, group := range missing {
++			ownedGroup := EndpointLookupGroup{Target: group.Target}
++			for _, uid := range group.UIDs {
++				key := recoveryKey(group.Target, uid)
++				waits[indexes[j]] = append(waits[indexes[j]], r.inFlight[key])
++				if owned, ok := newKeys[key]; ok {
++					ownedGroup.UIDs = append(ownedGroup.UIDs, owned.uid)
++					delete(newKeys, key)
++				}
++			}
++			if len(ownedGroup.UIDs) != 0 {
++				cohort.groups = append(cohort.groups, ownedGroup)
++			}
++		}
++		r.mu.Unlock()
++		return results, cohort, waits
++	}
++}
++
++// executeRecoveryCohort runs in the caller, with its original deadline. A
++// canceled leader cannot publish incomplete proof or strand live followers.
++func (r *AuthorityRecovery) executeRecoveryCohort(ctx context.Context, cohort *recoveryCohort) {
++	outcomes := make(map[recoveryUIDKey]error, len(cohort.keys))
++	for _, key := range cohort.keys {
++		outcomes[key] = authority.ErrRouteNotReady
++	}
++	defer r.completeRecoveryCohort(cohort, outcomes)
++	set := func(group EndpointLookupGroup, err error) {
++		for _, uid := range group.UIDs {
++			outcomes[recoveryKey(group.Target, uid)] = err
++		}
++	}
++	active := make([]EndpointLookupGroup, 0, len(cohort.groups))
++	for _, group := range cohort.groups {
++		uids, err := r.directory.RecoveryUIDs(group.Target, group.UIDs)
++		if err != nil {
++			set(group, err)
++			continue
++		}
++		set(group, nil)
++		if len(uids) != 0 {
++			active = append(active, EndpointLookupGroup{Target: group.Target, UIDs: uids})
++		}
++	}
++	if len(active) == 0 {
++		return
++	}
++	recovered := make([]EndpointLookupResult, len(active))
++	if batch, ok := r.owners.(RecoveryBatchOwners); ok {
++		recovered = batch.RecoverRoutesByTargets(ctx, active)
++	} else {
++		// Limited compatibility ports keep their existing single-target path.
++		for i, group := range active {
++			recovered[i].Routes, recovered[i].Err = r.owners.RecoverRoutes(ctx, group.Target, group.UIDs)
++		}
++	}
++	for i, group := range active {
++		if err := ctx.Err(); err != nil {
++			set(group, err)
++			continue
++		}
++		if len(recovered) != len(active) {
++			set(group, authority.ErrRouteNotReady)
++			continue
++		}
++		if recovered[i].Err != nil {
++			set(group, recovered[i].Err)
++			continue
++		}
++		set(group, r.directory.InstallRecoveredRoutes(group.Target, group.UIDs, recovered[i].Routes))
++	}
++}
++
++// completeRecoveryCohort releases owned resources and signals followers before
++// its leader can wait on older flights. A live follower never inherits someone
++// else's context cancellation as its own; existing outer retries stay unchanged.
++func (r *AuthorityRecovery) completeRecoveryCohort(cohort *recoveryCohort, outcomes map[recoveryUIDKey]error) {
++	r.mu.Lock()
++	defer r.mu.Unlock()
++	for _, key := range cohort.keys {
++		err := outcomes[key]
++		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
++			err = authority.ErrRouteNotReady
++		}
++		r.inFlight[key].err = err
++		delete(r.inFlight, key)
++	}
++	r.ownedUIDBytes -= cohort.uidBytes
++	r.cohorts--
++	close(cohort.done)
++	close(r.changed)
++	r.changed = make(chan struct{})
++}
+diff --git a/internal/usecase/presence/recovery_integration_test.go b/internal/usecase/presence/recovery_integration_test.go
+index 222789249..6c034765a 100644
+--- a/internal/usecase/presence/recovery_integration_test.go
++++ b/internal/usecase/presence/recovery_integration_test.go
+@@ -9,7 +9,7 @@ import (
+ 	"time"
+ )
+ 
+-func TestAuthorityRecoveryProvenLookupDoesNotWaitForColdLane(t *testing.T) {
++func TestAuthorityRecoveryProvenLookupDoesNotWaitForColdOwner(t *testing.T) {
+ 	directory := authority.NewDirectory(authority.DirectoryOptions{LocalNodeID: 1, RequireRecovery: true})
+ 	target := RouteTarget{HashSlot: 1, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 1}
+ 	directory.BecomeAuthority(target)
+@@ -17,16 +17,36 @@ func TestAuthorityRecoveryProvenLookupDoesNotWaitForColdLane(t *testing.T) {
+ 	if err := directory.InstallRecoveredRoutes(target, []string{"hot"}, []Route{row}); err != nil {
+ 		t.Fatal(err)
+ 	}
+-	recovery := NewAuthorityRecovery(directory, recoveryOwnersFunc(func(context.Context, RouteTarget, []string) ([]Route, error) {
+-		t.Error("hot proof queried owners")
+-		return nil, nil
++	entered := make(chan struct{})
++	recovery := NewAuthorityRecovery(directory, recoveryOwnersFunc(func(ctx context.Context, _ RouteTarget, uids []string) ([]Route, error) {
++		if len(uids) != 1 || uids[0] != "cold" {
++			t.Error("hot proof queried owners")
++			return nil, authority.ErrRouteNotReady
++		}
++		close(entered)
++		<-ctx.Done()
++		return nil, ctx.Err()
+ 	}))
+-	recovery.lanes[1] <- struct{}{}
+-	defer func() { <-recovery.lanes[1] }()
++	coldCtx, coldCancel := context.WithTimeout(context.Background(), time.Second)
++	coldDone := make(chan struct{})
++	go func() { defer close(coldDone); _, _ = recovery.Endpoints(coldCtx, target, []string{"cold"}) }()
++	t.Cleanup(func() {
++		coldCancel()
++		select {
++		case <-coldDone:
++		case <-time.After(time.Second):
++			t.Error("cold lookup cleanup did not join")
++		}
++	})
++	select {
++	case <-entered:
++	case <-time.After(time.Second):
++		t.Fatal("cold owner did not enter")
++	}
+ 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+ 	defer cancel()
+ 	rows, err := recovery.Endpoints(ctx, target, []string{"hot"})
+ 	if err != nil || len(rows) != 1 || rows[0] != row {
+-		t.Fatalf("hot lookup blocked by cold lane: rows=%+v err=%v", rows, err)
++		t.Fatalf("hot lookup blocked by cold owner: rows=%+v err=%v", rows, err)
+ 	}
+ }
+diff --git a/internal/usecase/presence/recovery_test.go b/internal/usecase/presence/recovery_test.go
+index 5354020ba..bcd4111c5 100644
+--- a/internal/usecase/presence/recovery_test.go
++++ b/internal/usecase/presence/recovery_test.go
+@@ -64,7 +64,7 @@ func TestAuthorityRecoveryRequiresCompleteOwnersAndRejectsOldCompletion(t *testi
+ 	}
+ }
+ 
+-func TestAuthorityRecoveryCancellationDoesNotWaitForBusyLane(t *testing.T) {
++func TestAuthorityRecoveryCancellationDoesNotQueryOwner(t *testing.T) {
+ 	directory := authority.NewDirectory(authority.DirectoryOptions{LocalNodeID: 1, RequireRecovery: true})
+ 	target := RouteTarget{HashSlot: 1, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 1}
+ 	directory.BecomeAuthority(target)
+@@ -72,13 +72,11 @@ func TestAuthorityRecoveryCancellationDoesNotWaitForBusyLane(t *testing.T) {
+ 		t.Fatal("canceled recovery called owner")
+ 		return nil, nil
+ 	}))
+-	recovery.lanes[1] <- struct{}{}
+ 	ctx, cancel := context.WithCancel(context.Background())
+ 	cancel()
+ 	if _, err := recovery.Endpoints(ctx, target, []string{"bob"}); !errors.Is(err, context.Canceled) {
+-		t.Fatalf("busy lane cancel=%v", err)
++		t.Fatalf("canceled lookup=%v", err)
+ 	}
+-	<-recovery.lanes[1]
+ }
+ 
+ type recoveryBatchOwnersFunc func(context.Context, []EndpointLookupGroup) []EndpointLookupResult
+diff --git a/internal/usecase/presence/uid_flight_integration_test.go b/internal/usecase/presence/uid_flight_integration_test.go
+new file mode 100644
+index 000000000..b4b4bd361
+--- /dev/null
++++ b/internal/usecase/presence/uid_flight_integration_test.go
+@@ -0,0 +1,582 @@
++//go:build integration
++
++package presence_test
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"strings"
++	"sync"
++	"sync/atomic"
++	"testing"
++	"time"
++	"unsafe"
++
++	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
++	presence "github.com/WuKongIM/WuKongIM/internal/usecase/presence"
++)
++
++type flightOwnersFunc func(context.Context, []presence.EndpointLookupGroup) []presence.EndpointLookupResult
++
++func (f flightOwnersFunc) RecoverRoutesByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++	return f(ctx, groups)
++}
++func (f flightOwnersFunc) RecoverRoutes(ctx context.Context, target presence.RouteTarget, uids []string) ([]presence.Route, error) {
++	r := f(ctx, []presence.EndpointLookupGroup{{Target: target, UIDs: uids}})[0]
++	return r.Routes, r.Err
++}
++
++// waitObservedContext exposes only the public context cancellation boundary. A
++// follower with no owner I/O must reach a cancellation-aware wait before the
++// test releases its leader; no private registry/lane state is inspected.
++type waitObservedContext struct {
++	context.Context
++	waiting chan struct{}
++	once    sync.Once
++}
++
++func (c *waitObservedContext) Done() <-chan struct{} {
++	c.once.Do(func() { close(c.waiting) })
++	return c.Context.Done()
++}
++
++type flightCall struct {
++	done    chan []presence.EndpointLookupResult
++	waiting chan struct{}
++	cancel  context.CancelFunc
++	joined  bool
++	result  []presence.EndpointLookupResult
++}
++
++func startFlightCall(t *testing.T, r *presence.AuthorityRecovery, groups []presence.EndpointLookupGroup) *flightCall {
++	t.Helper()
++	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
++	observed := &waitObservedContext{Context: ctx, waiting: make(chan struct{})}
++	c := &flightCall{done: make(chan []presence.EndpointLookupResult, 1), waiting: observed.waiting, cancel: cancel}
++	go func() { c.done <- r.EndpointsByTargets(observed, groups) }()
++	t.Cleanup(func() {
++		cancel()
++		if !c.joined {
++			select {
++			case c.result = <-c.done:
++				c.joined = true
++			case <-time.After(time.Second):
++				t.Error("flight lookup cleanup did not join")
++			}
++		}
++	})
++	return c
++}
++
++func (c *flightCall) await(t *testing.T) []presence.EndpointLookupResult {
++	t.Helper()
++	if !c.joined {
++		select {
++		case c.result = <-c.done:
++			c.joined = true
++		case <-time.After(time.Second):
++			t.Fatal("flight lookup did not finish within watchdog")
++		}
++	}
++	return c.result
++}
++
++func awaitFlightGate(t *testing.T, gate <-chan struct{}) {
++	t.Helper()
++	select {
++	case <-gate:
++	case <-time.After(time.Second):
++		t.Fatal("controlled public boundary was not reached")
++	}
++}
++
++func flightTarget(hash uint16) presence.RouteTarget {
++	return presence.RouteTarget{HashSlot: hash, SlotID: uint32(hash%12 + 1), LeaderNodeID: 1, LeaderTerm: 1, ConfigEpoch: 1}
++}
++
++func flightGroups(target presence.RouteTarget, uids ...string) []presence.EndpointLookupGroup {
++	return []presence.EndpointLookupGroup{{Target: target, UIDs: uids}}
++}
++
++func completeFlightRoutes(groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++	results := make([]presence.EndpointLookupResult, len(groups))
++	for i, g := range groups {
++		for _, uid := range g.UIDs {
++			if uid != "" {
++				results[i].Routes = append(results[i].Routes, presence.Route{UID: uid, OwnerNodeID: 2, OwnerBootID: 22, OwnerSeq: 1, SessionID: 1})
++			}
++		}
++	}
++	return results
++}
++
++func flightError(groups []presence.EndpointLookupGroup, err error) []presence.EndpointLookupResult {
++	results := make([]presence.EndpointLookupResult, len(groups))
++	for i := range results {
++		results[i].Err = err
++	}
++	return results
++}
++
++func requireFlightError(t *testing.T, results []presence.EndpointLookupResult, want error) {
++	t.Helper()
++	if len(results) != 1 || !errors.Is(results[0].Err, want) {
++		var got error
++		if len(results) == 1 {
++			got = results[0].Err
++		}
++		t.Fatalf("groups=%d err=%v, want %v", len(results), got, want)
++	}
++}
++
++func TestAuthorityRecoveryUIDFlightPartialOverlapPublishesBeforeJoin(t *testing.T) {
++	d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
++	target := flightTarget(0)
++	d.BecomeAuthority(target)
++	aEntered, bEntered := make(chan struct{}), make(chan struct{})
++	aRelease, bRelease := make(chan struct{}), make(chan struct{})
++	var aOnce, bOnce sync.Once
++	var reads atomic.Int32
++	owners := flightOwnersFunc(func(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++		reads.Add(1)
++		var gate <-chan struct{}
++		for _, uid := range groups[0].UIDs {
++			if uid == "u1" {
++				aOnce.Do(func() { close(aEntered) })
++				gate = aRelease
++			} else if uid == "u2" {
++				bOnce.Do(func() { close(bEntered) })
++				gate = bRelease
++			}
++		}
++		select {
++		case <-gate:
++			return completeFlightRoutes(groups)
++		case <-ctx.Done():
++			return flightError(groups, ctx.Err())
++		}
++	})
++	r := presence.NewAuthorityRecovery(d, owners)
++	a := startFlightCall(t, r, flightGroups(target, "u1"))
++	t.Cleanup(func() {
++		aOnce.Do(func() { close(aEntered) })
++		select {
++		case <-aRelease:
++		default:
++			close(aRelease)
++		}
++		select {
++		case <-bRelease:
++		default:
++			close(bRelease)
++		}
++	})
++	awaitFlightGate(t, aEntered)
++	b := startFlightCall(t, r, flightGroups(target, "u1", "u2"))
++	awaitFlightGate(t, bEntered)
++	c := startFlightCall(t, r, flightGroups(target, "u2"))
++	awaitFlightGate(t, c.waiting)
++	close(bRelease)
++	// C must be signaled by B's owned work before B can join A. A remains held.
++	requireColdRoutes(t, c.await(t), flightGroups(target, "u2"))
++	if got, err := d.EndpointsByUIDs(target, []string{"u2"}); err != nil || len(got) != 1 {
++		t.Fatalf("new sibling not published before join: routes=%v err=%v", got, err)
++	}
++	close(aRelease)
++	requireColdRoutes(t, a.await(t), flightGroups(target, "u1"))
++	requireColdRoutes(t, b.await(t), flightGroups(target, "u1", "u2"))
++	if reads.Load() != 2 {
++		t.Fatalf("owner reads=%d, want two distinct owned subsets", reads.Load())
++	}
++}
++
++func TestAuthorityRecoveryUIDFlightLeaderCancellationKeepsFollowerRetryable(t *testing.T) {
++	d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
++	target := flightTarget(0)
++	d.BecomeAuthority(target)
++	entered := make(chan struct{})
++	var once sync.Once
++	var reads atomic.Int32
++	r := presence.NewAuthorityRecovery(d, flightOwnersFunc(func(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++		if reads.Add(1) > 1 {
++			return completeFlightRoutes(groups)
++		}
++		once.Do(func() { close(entered) })
++		<-ctx.Done()
++		return flightError(groups, ctx.Err())
++	}))
++	a := startFlightCall(t, r, flightGroups(target, "same"))
++	awaitFlightGate(t, entered)
++	b := startFlightCall(t, r, flightGroups(target, "same"))
++	awaitFlightGate(t, b.waiting)
++	a.cancel()
++	requireFlightError(t, a.await(t), context.Canceled)
++	requireFlightError(t, b.await(t), authority.ErrRouteNotReady)
++	if reads.Load() != 1 {
++		t.Fatalf("follower retried owner: reads=%d", reads.Load())
++	}
++	if _, err := d.EndpointsByUIDs(target, []string{"same"}); !errors.Is(err, authority.ErrRouteNotReady) {
++		t.Fatalf("canceled work installed proof: %v", err)
++	}
++}
++
++func TestAuthorityRecoveryUIDFlightDistributedIdentity(t *testing.T) {
++	changes := []struct {
++		name   string
++		change func(*presence.RouteTarget)
++	}{
++		{"hash", func(t *presence.RouteTarget) { t.HashSlot++ }}, {"slot", func(t *presence.RouteTarget) { t.SlotID++ }},
++		{"leader", func(t *presence.RouteTarget) { t.LeaderNodeID++ }}, {"term", func(t *presence.RouteTarget) { t.LeaderTerm++ }},
++		{"config", func(t *presence.RouteTarget) { t.ConfigEpoch++ }},
++	}
++	for _, change := range changes {
++		t.Run(change.name, func(t *testing.T) {
++			d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
++			old := flightTarget(0)
++			d.BecomeAuthority(old)
++			entered, release := make(chan struct{}), make(chan struct{})
++			var reads atomic.Int32
++			r := presence.NewAuthorityRecovery(d, flightOwnersFunc(func(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++				if reads.Add(1) == 1 {
++					close(entered)
++					select {
++					case <-release:
++					case <-ctx.Done():
++						return flightError(groups, ctx.Err())
++					}
++				}
++				return completeFlightRoutes(groups)
++			}))
++			a := startFlightCall(t, r, flightGroups(old, "same"))
++			t.Cleanup(func() {
++				select {
++				case <-release:
++				default:
++					close(release)
++				}
++			})
++			awaitFlightGate(t, entered)
++			next := old
++			change.change(&next)
++			d.BecomeAuthority(next)
++			b := startFlightCall(t, r, flightGroups(next, "same"))
++			requireColdRoutes(t, b.await(t), flightGroups(next, "same"))
++			close(release)
++			if next.HashSlot == old.HashSlot {
++				requireFlightError(t, a.await(t), authority.ErrNotLeader)
++			} else {
++				requireColdRoutes(t, a.await(t), flightGroups(old, "same"))
++			}
++			if reads.Load() != 2 {
++				t.Fatalf("distributed identities shared owner proof: reads=%d", reads.Load())
++			}
++		})
++	}
++}
++
++func TestAuthorityRecoveryUIDFlightLocalMetadataCoalesces(t *testing.T) {
++	r, owners, a, groups := startPausedColdPage(t, 1)
++	other := groups[0]
++	other.Target.AuthorityEpoch = 99
++	other.Target.RouteRevision = 99
++	b := startFlightCall(t, r, []presence.EndpointLookupGroup{other})
++	awaitFlightGate(t, b.waiting)
++	owners.unblock()
++	requireColdRoutes(t, a.await(t), groups)
++	requireColdRoutes(t, b.await(t), []presence.EndpointLookupGroup{other})
++	if owners.blockedCalls.Load() != 1 {
++		t.Fatalf("local observations split one distributed identity")
++	}
++}
++
++func TestAuthorityRecoveryUIDFlightOwnsUIDBacking(t *testing.T) {
++	d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
++	target := flightTarget(0)
++	d.BecomeAuthority(target)
++	backing := strings.Repeat("x", 1<<20)
++	uid := backing[:8]
++	var borrowed atomic.Bool
++	r := presence.NewAuthorityRecovery(d, flightOwnersFunc(func(_ context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++		borrowed.Store(unsafe.StringData(groups[0].UIDs[0]) == unsafe.StringData(uid))
++		return completeFlightRoutes(groups)
++	}))
++	requireColdRoutes(t, r.EndpointsByTargets(context.Background(), flightGroups(target, uid)), flightGroups(target, uid))
++	if borrowed.Load() {
++		t.Fatal("owner request retained caller UID backing instead of an owned exact-byte copy")
++	}
++}
++
++func TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys(t *testing.T) {
++	d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
++	entered := make(chan int, 8)
++	releases := []chan struct{}{make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})}
++	var active, peak, reads atomic.Int32
++	r := presence.NewAuthorityRecovery(d, flightOwnersFunc(func(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++		n := active.Add(1)
++		defer active.Add(-1)
++		reads.Add(1)
++		for p := peak.Load(); n > p && !peak.CompareAndSwap(p, n); p = peak.Load() {
++		}
++		i := int(groups[0].Target.HashSlot)
++		entered <- i
++		if i < 4 {
++			select {
++			case <-releases[i]:
++			case <-ctx.Done():
++				return flightError(groups, ctx.Err())
++			}
++		}
++		return completeFlightRoutes(groups)
++	}))
++	as := make([]*flightCall, 4)
++	for i := 0; i < 5; i++ {
++		d.BecomeAuthority(flightTarget(uint16(i)))
++	}
++	for i := range as {
++		as[i] = startFlightCall(t, r, flightGroups(flightTarget(uint16(i)), fmt.Sprint(i)))
++		select {
++		case got := <-entered:
++			if got != i {
++				t.Fatalf("owner=%d", got)
++			}
++		case <-time.After(time.Second):
++			t.Fatal("owner did not enter")
++		}
++	}
++	t.Cleanup(func() {
++		for _, release := range releases {
++			select {
++			case <-release:
++			default:
++				close(release)
++			}
++		}
++	})
++	canceled := startFlightCall(t, r, flightGroups(flightTarget(4), "canceled-1", "canceled-2"))
++	awaitFlightGate(t, canceled.waiting)
++	canceled.cancel()
++	requireFlightError(t, canceled.await(t), context.Canceled)
++	b := startFlightCall(t, r, flightGroups(flightTarget(4), "new-1", "new-2"))
++	awaitFlightGate(t, b.waiting)
++	if peak.Load() != 4 {
++		t.Fatalf("leader cohort exceeded four: peak=%d", peak.Load())
++	}
++	follower := startFlightCall(t, r, flightGroups(flightTarget(0), "0"))
++	awaitFlightGate(t, follower.waiting)
++	follower.cancel()
++	requireFlightError(t, follower.await(t), context.Canceled)
++	if err := d.InstallRecoveredRoutes(flightTarget(4), []string{"new-1", "new-2"}, completeFlightRoutes(flightGroups(flightTarget(4), "new-1", "new-2"))[0].Routes); err != nil {
++		t.Fatal(err)
++	}
++	close(releases[0])
++	requireColdRoutes(t, b.await(t), flightGroups(flightTarget(4), "new-1", "new-2"))
++	for i := 1; i < 4; i++ {
++		close(releases[i])
++	}
++	for i, a := range as {
++		requireColdRoutes(t, a.await(t), flightGroups(flightTarget(uint16(i)), fmt.Sprint(i)))
++	}
++	if reads.Load() != 4 {
++		t.Fatalf("quota wake requeried installed proof: reads=%d", reads.Load())
++	}
++}
++
++func TestAuthorityRecoveryUIDFlightPackingBounds(t *testing.T) {
++	for _, n := range []int{0, 511, 512, 513, 1025} {
++		t.Run(fmt.Sprintf("uids-%d", n), func(t *testing.T) {
++			d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
++			target := flightTarget(0)
++			d.BecomeAuthority(target)
++			uids := make([]string, n)
++			for i := range uids {
++				uids[i] = fmt.Sprint(i)
++			}
++			sizes := []int{}
++			r := presence.NewAuthorityRecovery(d, flightOwnersFunc(func(_ context.Context, g []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++				total := 0
++				for _, group := range g {
++					total += len(group.UIDs)
++				}
++				sizes = append(sizes, total)
++				if total > 512 || len(g) > 256 {
++					t.Error("owner page exceeded bounds")
++				}
++				return completeFlightRoutes(g)
++			}))
++			got := r.EndpointsByTargets(context.Background(), flightGroups(target, uids...))
++			if len(got) != 1 || got[0].Err != nil || len(got[0].Routes) != n {
++				t.Fatalf("packing groups=%d routes=%d", len(got), len(got[0].Routes))
++			}
++			want := (n + 511) / 512
++			if len(sizes) != want {
++				t.Fatalf("owner rounds=%v, want %d", sizes, want)
++			}
++		})
++	}
++	for _, n := range []int{255, 256, 257} {
++		t.Run(fmt.Sprintf("targets-%d", n), func(t *testing.T) {
++			d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
++			groups := make([]presence.EndpointLookupGroup, n)
++			for i := range groups {
++				target := flightTarget(uint16(i % 256))
++				d.BecomeAuthority(target)
++				groups[i] = flightGroups(target, fmt.Sprint(i))[0]
++			}
++			rounds := 0
++			r := presence.NewAuthorityRecovery(d, flightOwnersFunc(func(_ context.Context, g []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++				rounds++
++				total := 0
++				for _, group := range g {
++					total += len(group.UIDs)
++				}
++				if total > 512 || len(g) > 256 {
++					t.Error("owner page exceeded bounds")
++				}
++				return completeFlightRoutes(g)
++			}))
++			requireColdRoutes(t, r.EndpointsByTargets(context.Background(), groups), groups)
++			if rounds != (n+255)/256 {
++				t.Fatalf("owner rounds=%d", rounds)
++			}
++		})
++	}
++}
++
++func TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs(t *testing.T) {
++	for _, size := range []int{4096, 65535} {
++		t.Run(fmt.Sprint(size), func(t *testing.T) {
++			d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
++			target := flightTarget(0)
++			d.BecomeAuthority(target)
++			uids := make([]string, 512)
++			for i := range uids {
++				uids[i] = fmt.Sprintf("%04d", i) + strings.Repeat("x", size-4)
++			}
++			var rounds int
++			r := presence.NewAuthorityRecovery(d, flightOwnersFunc(func(_ context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++				rounds++
++				if len(groups) != 1 || len(groups[0].UIDs) != 512 {
++					t.Errorf("legal full page changed packing")
++				}
++				return completeFlightRoutes(groups)
++			}))
++			requireColdRoutes(t, r.EndpointsByTargets(context.Background(), flightGroups(target, uids...)), flightGroups(target, uids...))
++			if rounds != 1 {
++				t.Fatalf("legal full page required %d owner rounds", rounds)
++			}
++		})
++	}
++	for _, size := range []int{32 << 20, (32 << 20) + 1} {
++		t.Run(fmt.Sprintf("byte-bound-%d", size), func(t *testing.T) {
++			d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
++			target := flightTarget(0)
++			d.BecomeAuthority(target)
++			var rounds int
++			uid := strings.Repeat("x", size)
++			r := presence.NewAuthorityRecovery(d, flightOwnersFunc(func(_ context.Context, g []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++				rounds++
++				return completeFlightRoutes(g)
++			}))
++			got := r.EndpointsByTargets(context.Background(), flightGroups(target, uid))
++			if size > 32<<20 {
++				requireFlightError(t, got, authority.ErrRouteNotReady)
++				if rounds != 0 {
++					t.Fatal("oversized page called owner")
++				}
++			} else {
++				requireColdRoutes(t, got, flightGroups(target, uid))
++				if rounds != 1 {
++					t.Fatal("boundary-equal page rejected")
++				}
++			}
++		})
++	}
++}
++
++// evictingDirectory models another legitimate public Directory writer advancing
++// the real FIFO immediately after installation, before a late waiter rereads it.
++type evictingDirectory struct {
++	*authority.Directory
++	target presence.RouteTarget
++}
++
++func (d *evictingDirectory) InstallRecoveredRoutes(target presence.RouteTarget, uids []string, routes []presence.Route) error {
++	if err := d.Directory.InstallRecoveredRoutes(target, uids, routes); err != nil {
++		return err
++	}
++	for i := 0; i < 1024; i++ {
++		if err := d.Directory.InstallRecoveredRoutes(target, []string{fmt.Sprintf("evict-%d", i)}, nil); err != nil {
++			return err
++		}
++	}
++	return nil
++}
++
++func TestAuthorityRecoveryUIDFlightLateWaiterMustRereadEvictedProof(t *testing.T) {
++	d := &evictingDirectory{Directory: authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true}), target: flightTarget(0)}
++	d.BecomeAuthority(d.target)
++	entered, release := make(chan struct{}), make(chan struct{})
++	var reads atomic.Int32
++	r := presence.NewAuthorityRecovery(d, flightOwnersFunc(func(ctx context.Context, g []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++		if reads.Add(1) == 1 {
++			close(entered)
++		}
++		select {
++		case <-release:
++			return completeFlightRoutes(g)
++		case <-ctx.Done():
++			return flightError(g, ctx.Err())
++		}
++	}))
++	a := startFlightCall(t, r, flightGroups(d.target, "old"))
++	t.Cleanup(func() {
++		select {
++		case <-release:
++		default:
++			close(release)
++		}
++	})
++	awaitFlightGate(t, entered)
++	b := startFlightCall(t, r, flightGroups(d.target, "old"))
++	awaitFlightGate(t, b.waiting)
++	close(release)
++	requireFlightError(t, a.await(t), authority.ErrRouteNotReady)
++	requireFlightError(t, b.await(t), authority.ErrRouteNotReady)
++	if reads.Load() != 1 {
++		t.Fatalf("late follower silently retried owner: reads=%d", reads.Load())
++	}
++}
++
++func TestAuthorityRecoveryUIDFlightMixedGroupsDuplicatesAndTombstone(t *testing.T) {
++	d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
++	target := flightTarget(0)
++	bad := flightTarget(1)
++	d.BecomeAuthority(target)
++	d.BecomeAuthority(bad)
++	route := completeFlightRoutes(flightGroups(target, "u"))[0].Routes[0]
++	if err := d.UnregisterRoute(target, route.Identity(), 2); err != nil {
++		t.Fatal(err)
++	}
++	r := presence.NewAuthorityRecovery(d, flightOwnersFunc(func(_ context.Context, g []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
++		results := completeFlightRoutes(g)
++		for i := range results {
++			if g[i].Target == bad {
++				results[i].Err = authority.ErrRouteNotReady
++			}
++		}
++		return results
++	}))
++	groups := append(flightGroups(target, "u", "u", "v"), flightGroups(bad, "failed")...)
++	got := r.EndpointsByTargets(context.Background(), groups)
++	if len(got) != 2 || got[0].Err != nil || len(got[0].Routes) != 1 || got[0].Routes[0].UID != "v" || !errors.Is(got[1].Err, authority.ErrRouteNotReady) {
++		t.Fatalf("mixed results lost alignment/tombstone: %v", got)
++	}
++	if _, err := d.EndpointsByUIDs(bad, []string{"failed"}); !errors.Is(err, authority.ErrRouteNotReady) {
++		t.Fatalf("failed sibling gained negative proof: %v", err)
++	}
++	got = r.EndpointsByTargets(context.Background(), flightGroups(target, "v", "v"))
++	if got[0].Err != nil || len(got[0].Routes) != 2 {
++		t.Fatalf("duplicate multiplicity lost: %v", got)
++	}
++}

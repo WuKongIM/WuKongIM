@@ -1,0 +1,14 @@
+{
+  "args": [
+    "gh",
+    "pr",
+    "merge",
+    "1029",
+    "--merge",
+    "--match-head-commit",
+    "c4954c6a638080e6a915ecec305a3381f4afd9a0"
+  ],
+  "started_at": "2026-10-22T22:40:21.753259+00:00",
+  "ended_at": "2026-10-22T22:40:26.563226+00:00",
+  "exit_code": 0
+}

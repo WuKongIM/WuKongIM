@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-c495-rate500-profile-v1/first-expired-offline-proposal-v2/driver_contract_test.py", line 4, in <module>
+    s=importlib.util.spec_from_file_location("guard",p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+                                                                                             ~~~~~~~~~~~~~~~~~~~~^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-c495-rate500-profile-v1/first-expired-offline-proposal-v2/PRIVATE_offline_db_inspect.proposed.py'

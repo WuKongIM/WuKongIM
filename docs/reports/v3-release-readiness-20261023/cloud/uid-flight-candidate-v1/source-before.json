@@ -1,0 +1,73 @@
+{
+  "head": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-uid-flight-candidate",
+  "clean_status": "",
+  "source_rules": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2"
+    },
+    {
+      "path": "internal/runtime/presence/FLOW.md",
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee"
+    },
+    {
+      "path": "internal/usecase/user/FLOW.md",
+      "sha256": "b82782e2e59a5eba70c42458a1063c6283bdf81cd825d79e3c91bf978b314b6b"
+    },
+    {
+      "path": "internal/access/node/FLOW.md",
+      "sha256": "095836bd2e270d9663e1aa33bdb4457d42a7706b0706dc14610e72fc6beb82a7"
+    },
+    {
+      "path": "internal/access/api/FLOW.md",
+      "sha256": "2af34512e6fb8cd0559ddad21c8e4d4a317b699c088ed28c0673847a2940ade9"
+    },
+    {
+      "path": "internal/access/gateway/FLOW.md",
+      "sha256": "617a64aafd4d1e60aef670770f2ac22dd7cdfcd537f1f5cb3a00b98218eefb31"
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "sha256": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971"
+    },
+    {
+      "path": "pkg/db/FLOW.md",
+      "sha256": "57578a266e60e804ee46f71205b92c7d64df00e0df6e6f9120cc0e1937334017"
+    },
+    {
+      "path": "pkg/db/meta/FLOW.md",
+      "sha256": "2fc1c3f670d8cd6a60e4e132c99ee71908c64f771c55bbce853eaa10fe0eaeac"
+    },
+    {
+      "path": "internal/usecase/presence/recovery.go",
+      "sha256": "dbbdc02e4922c1faef9aa81084ab06dd404be7f2a394a1fe4e4ff238e91542fb"
+    },
+    {
+      "path": "internal/runtime/presence/recovery.go",
+      "sha256": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83"
+    },
+    {
+      "path": "internal/runtime/presence/directory.go",
+      "sha256": "b9ad257b4a6e231416d7813639e6225694a126b4d4953e191985171ddcd27900"
+    },
+    {
+      "path": "pkg/protocol/codec/encoder.go",
+      "sha256": "2cbd469f9d9c679ea941945d6d8d92b22751005231116630b80435c00a3d9440"
+    },
+    {
+      "path": "internal/access/node/presence_codec.go",
+      "sha256": "df012114d828e58d5daffa234e0571ed83c764392fb0cac1a6cffa0f23ca34b7"
+    },
+    {
+      "path": "pkg/db/meta/tx_helpers.go",
+      "sha256": "d5c1c806343b78b9291baa47f205bf13a913639adbcd05f3efb3e139ec158fcf"
+    }
+  ],
+  "recorded_before_tests_utc": "2026-10-22T21:53:28.449363+00:00",
+  "scope": "local candidate only; no service, cloud, PR or merge"
+}

@@ -1,0 +1,438 @@
+{
+  "schema": "wukongim/metrics-fetch-failure-matrix/v1",
+  "status": "proposed-before-code",
+  "rows": [
+    {
+      "id": "M01",
+      "group": "target",
+      "failure_or_control": "Canceled context before acquisition",
+      "expected_diagnostic": "context_canceled",
+      "unchanged_behavior": "No HTTP call; original context error remains errors.Is-visible",
+      "synthetic_test": "Pre-canceled context; counting RoundTripper"
+    },
+    {
+      "id": "M02",
+      "group": "target",
+      "failure_or_control": "Expired context before acquisition",
+      "expected_diagnostic": "context_deadline",
+      "unchanged_behavior": "No HTTP call; original deadline error remains visible",
+      "synthetic_test": "Already-past context deadline, no elapsed-time wait"
+    },
+    {
+      "id": "M03",
+      "group": "target",
+      "failure_or_control": "No nonblank configured API addresses",
+      "expected_diagnostic": "configuration",
+      "unchanged_behavior": "No HTTP call; same failure",
+      "synthetic_test": "Empty/blank address list"
+    },
+    {
+      "id": "M04",
+      "group": "target",
+      "failure_or_control": "http.NewRequestWithContext rejects an address",
+      "expected_diagnostic": "configuration when exhausted",
+      "unchanged_behavior": "Same configured fallback order; no attempted request to malformed address",
+      "synthetic_test": "Malformed synthetic URL then exhaustion"
+    },
+    {
+      "id": "M05",
+      "group": "target",
+      "failure_or_control": "HTTP Do fails with live caller context",
+      "expected_diagnostic": "transport",
+      "unchanged_behavior": "Same fallback/exhaustion; original generic error chain stays generic",
+      "synthetic_test": "RoundTripper returns private sentinel; do not inspect sentinel text"
+    },
+    {
+      "id": "M06",
+      "group": "target",
+      "failure_or_control": "HTTP client-like timeout while caller remains live",
+      "expected_diagnostic": "transport",
+      "unchanged_behavior": "No new caller cancellation classification through error chain",
+      "synthetic_test": "RoundTripper returns url.Error wrapping DeadlineExceeded; live parent"
+    },
+    {
+      "id": "M07",
+      "group": "target",
+      "failure_or_control": "Causal caller cancellation on first HTTP Do",
+      "expected_diagnostic": "context_canceled",
+      "unchanged_behavior": "Same immediate original context error",
+      "synthetic_test": "RoundTripper cancels supplied context and returns matching error"
+    },
+    {
+      "id": "M08",
+      "group": "target",
+      "failure_or_control": "Causal caller deadline on first HTTP Do",
+      "expected_diagnostic": "context_deadline",
+      "unchanged_behavior": "Same original context error; no new timeout",
+      "synthetic_test": "Expired controllable context supplied by deterministic fixture"
+    },
+    {
+      "id": "M09",
+      "group": "target",
+      "failure_or_control": "Noncausal transport error while caller becomes canceled on only address",
+      "expected_diagnostic": "transport",
+      "unchanged_behavior": "Preserve old causal-match and fallback checks; do not replace cause",
+      "synthetic_test": "Deterministic context fixture returns Canceled while transport returns unrelated sentinel"
+    },
+    {
+      "id": "M10",
+      "group": "target",
+      "failure_or_control": "Caller context stops at next-address check after earlier failure",
+      "expected_diagnostic": "mixed when the prior class differs; same context kind if repeated",
+      "unchanged_behavior": "Same break/generic failure, not newly errors.Is context",
+      "synthetic_test": "Controlled context Err transition after first fake response"
+    },
+    {
+      "id": "M11",
+      "group": "target",
+      "failure_or_control": "HTTP 401 or 403",
+      "expected_diagnostic": "auth",
+      "unchanged_behavior": "Same immediate stop; at most 512 status-body bytes drained; close remains best effort",
+      "synthetic_test": "In-memory status responses with secret sentinel body"
+    },
+    {
+      "id": "M12",
+      "group": "target",
+      "failure_or_control": "Other non-2xx response",
+      "expected_diagnostic": "http_status when exhausted",
+      "unchanged_behavior": "Same fallback; do not emit numeric status/body",
+      "synthetic_test": "Table 1xx/3xx/4xx/5xx non-auth; fake client transport, no redirects added"
+    },
+    {
+      "id": "M13",
+      "group": "target",
+      "failure_or_control": "Different address failures all exhausted",
+      "expected_diagnostic": "mixed",
+      "unchanged_behavior": "Same exact number/order of existing address attempts",
+      "synthetic_test": "Transport then 503, and request-construction then transport"
+    },
+    {
+      "id": "M14",
+      "group": "target",
+      "failure_or_control": "Repeated same address failure class exhausted",
+      "expected_diagnostic": "That class, not mixed",
+      "unchanged_behavior": "No extra attempt or early stop",
+      "synthetic_test": "Two 503 responses; two transport sentinels"
+    },
+    {
+      "id": "M15",
+      "group": "target",
+      "failure_or_control": "Earlier address fails, later body parses successfully",
+      "expected_diagnostic": "No diagnostic/error",
+      "unchanged_behavior": "Discard prior classification; identical selected snapshot",
+      "synthetic_test": "Transport/status then valid synthetic metrics"
+    },
+    {
+      "id": "M16",
+      "group": "target",
+      "failure_or_control": "Earlier failures then terminal auth or body limit",
+      "expected_diagnostic": "auth or response_limit",
+      "unchanged_behavior": "Existing immediate return wins; no later address",
+      "synthetic_test": "First transport then 403; first status then oversized ContentLength"
+    },
+    {
+      "id": "M17",
+      "group": "target",
+      "failure_or_control": "ContentLength exceeds current 8 MiB bound",
+      "expected_diagnostic": "response_limit",
+      "unchanged_behavior": "Same immediate close before body read",
+      "synthetic_test": "Counting body verifies zero reads and one close"
+    },
+    {
+      "id": "M18",
+      "group": "target",
+      "failure_or_control": "Unknown ContentLength, actual read reaches limit+1",
+      "expected_diagnostic": "response_limit",
+      "unchanged_behavior": "Same bounded read and immediate rejection",
+      "synthetic_test": "Lazy generated reader; never retain an oversized fixture string"
+    },
+    {
+      "id": "M19",
+      "group": "target",
+      "failure_or_control": "Successful status with independent body-read failure",
+      "expected_diagnostic": "body_read when exhausted",
+      "unchanged_behavior": "Same fallback and original generic error",
+      "synthetic_test": "Reader returns sentinel after a bounded prefix"
+    },
+    {
+      "id": "M20",
+      "group": "target",
+      "failure_or_control": "Causal caller stop during first body read",
+      "expected_diagnostic": "context_canceled or context_deadline",
+      "unchanged_behavior": "Same original context error when failures=0",
+      "synthetic_test": "Reader deterministically transitions context and returns matching error"
+    },
+    {
+      "id": "M21",
+      "group": "target",
+      "failure_or_control": "Caller stop/read error after prior address failure",
+      "expected_diagnostic": "mixed when observed classes differ; repeated class otherwise",
+      "unchanged_behavior": "Preserve failures!=0 generic-error behavior and no new context Is",
+      "synthetic_test": "Earlier fake status then controlled body reader"
+    },
+    {
+      "id": "M22",
+      "group": "target",
+      "failure_or_control": "Ignored status-drain/body-close error",
+      "expected_diagnostic": "Status class or success unchanged",
+      "unchanged_behavior": "No newly failing close/drain; no additional drain",
+      "synthetic_test": "Fake ReadCloser with private Close error and bounded read counters"
+    },
+    {
+      "id": "M23",
+      "group": "parser",
+      "failure_or_control": "Invalid sample/label/token syntax or invalid numeric value",
+      "expected_diagnostic": "parse",
+      "unchanged_behavior": "Exact same parser rejection and zero snapshot",
+      "synthetic_test": "Self-contained malformed allowlisted lines; NaN/Inf/negative cases"
+    },
+    {
+      "id": "M24",
+      "group": "parser",
+      "failure_or_control": "Metadata-create labels/Slot/result/counter/duplicate/overflow invalid",
+      "expected_diagnostic": "parse",
+      "unchanged_behavior": "Exact same counter validation and arithmetic",
+      "synthetic_test": "Synthetic table spanning current parser branches, no retained production scrape"
+    },
+    {
+      "id": "M25",
+      "group": "parser",
+      "failure_or_control": "Queue duplicate/excessive/unpaired/inconsistent series or overflow",
+      "expected_diagnostic": "parse",
+      "unchanged_behavior": "Same queue validation and series caps",
+      "synthetic_test": "Small synthetic cases plus generated 129-series boundary"
+    },
+    {
+      "id": "M26",
+      "group": "parser",
+      "failure_or_control": "Line count, scanner line bytes, or total series cap exceeded",
+      "expected_diagnostic": "parse, not response_limit",
+      "unchanged_behavior": "Same existing parser bounds; no per-parser-reason expansion",
+      "synthetic_test": "Lazy/generative inputs capped below HTTP body budget"
+    },
+    {
+      "id": "M27",
+      "group": "parser",
+      "failure_or_control": "Valid unknown metric families with otherwise valid snapshot",
+      "expected_diagnostic": "No error",
+      "unchanged_behavior": "Same allowlist behavior; ignored unknown families remain ignored",
+      "synthetic_test": "Valid small synthetic Metrics body with unrelated family"
+    },
+    {
+      "id": "M28",
+      "group": "parser",
+      "failure_or_control": "Empty body/204 or partial families accepted by current parser",
+      "expected_diagnostic": "Fetch succeeds; later leaf unchanged",
+      "unchanged_behavior": "Do not add ValidateRequired to Metrics/meta; no invented parse failure",
+      "synthetic_test": "Empty/partial body controls followed by existing preview path"
+    },
+    {
+      "id": "M29",
+      "group": "parser",
+      "failure_or_control": "Earlier transport failure then selected-body parse failure",
+      "expected_diagnostic": "parse",
+      "unchanged_behavior": "Do not call another address after a selected 2xx body fails parsing",
+      "synthetic_test": "Fake transport then malformed 2xx body; assert exact call count"
+    },
+    {
+      "id": "M30",
+      "group": "aggregate",
+      "failure_or_control": "All three sources succeed in each completion order",
+      "expected_diagnostic": "No metrics_fetch object; snapshots ordered by source",
+      "unchanged_behavior": "Exactly three calls, complete join and existing snapshot values",
+      "synthetic_test": "Channel-controlled six result permutations, no sleeps"
+    },
+    {
+      "id": "M31",
+      "group": "aggregate",
+      "failure_or_control": "Only source 0 fails",
+      "expected_diagnostic": "source_mask=1; kind only at index 0",
+      "unchanged_behavior": "Join all three; return zero snapshots and harness sentinel through Unwrap",
+      "synthetic_test": "One typed synthetic failure; channel barriers and call counters"
+    },
+    {
+      "id": "M32",
+      "group": "aggregate",
+      "failure_or_control": "Only source 1 fails",
+      "expected_diagnostic": "source_mask=2; kind only at index 1",
+      "unchanged_behavior": "Join all three; return zero snapshots and harness sentinel through Unwrap",
+      "synthetic_test": "One typed synthetic failure; channel barriers and call counters"
+    },
+    {
+      "id": "M33",
+      "group": "aggregate",
+      "failure_or_control": "Only source 2 fails",
+      "expected_diagnostic": "source_mask=4; kind only at index 2",
+      "unchanged_behavior": "Join all three; return zero snapshots and harness sentinel through Unwrap",
+      "synthetic_test": "One typed synthetic failure; channel barriers and call counters"
+    },
+    {
+      "id": "M34",
+      "group": "aggregate",
+      "failure_or_control": "Failed-source set mask 3, same/different classes",
+      "expected_diagnostic": "source_mask=3; exact three-position closed vector",
+      "unchanged_behavior": "Completion order cannot change source/category association",
+      "synthetic_test": "Synthetic typed classes, fixed sources, controlled completion orders"
+    },
+    {
+      "id": "M35",
+      "group": "aggregate",
+      "failure_or_control": "Failed-source set mask 5, same/different classes",
+      "expected_diagnostic": "source_mask=5; exact three-position closed vector",
+      "unchanged_behavior": "Completion order cannot change source/category association",
+      "synthetic_test": "Synthetic typed classes, fixed sources, controlled completion orders"
+    },
+    {
+      "id": "M36",
+      "group": "aggregate",
+      "failure_or_control": "Failed-source set mask 6, same/different classes",
+      "expected_diagnostic": "source_mask=6; exact three-position closed vector",
+      "unchanged_behavior": "Completion order cannot change source/category association",
+      "synthetic_test": "Synthetic typed classes, fixed sources, controlled completion orders"
+    },
+    {
+      "id": "M37",
+      "group": "aggregate",
+      "failure_or_control": "Failed-source set mask 7, same/different classes",
+      "expected_diagnostic": "source_mask=7; exact three-position closed vector",
+      "unchanged_behavior": "Completion order cannot change source/category association",
+      "synthetic_test": "Synthetic typed classes, fixed sources, controlled completion orders"
+    },
+    {
+      "id": "M38",
+      "group": "aggregate",
+      "failure_or_control": "Untyped non-context private source error",
+      "expected_diagnostic": "unknown at failed source",
+      "unchanged_behavior": "Do not format/string-match private cause",
+      "synthetic_test": "Secret-rich sentinel with Error-call counter"
+    },
+    {
+      "id": "M39",
+      "group": "aggregate",
+      "failure_or_control": "Untyped source Canceled/DeadlineExceeded with live parent",
+      "expected_diagnostic": "Corresponding source context kind; outer reason metrics_fetch",
+      "unchanged_behavior": "Aggregate does not match child context; original harness classification",
+      "synthetic_test": "Assert errors.Is(aggregate, child context)==false and private refs exact"
+    },
+    {
+      "id": "M40",
+      "group": "aggregate",
+      "failure_or_control": "Custom source returns ErrLifecycleProductFailure",
+      "expected_diagnostic": "unknown source; metrics_fetch",
+      "unchanged_behavior": "Aggregate does not match product sentinel; cannot create metaProduct evidence",
+      "synthetic_test": "Finalize regression with fake metrics source, same frozen failure/no final report"
+    },
+    {
+      "id": "M41",
+      "group": "aggregate",
+      "failure_or_control": "Parent context already failed before fanout",
+      "expected_diagnostic": "Original context reason; no optional object",
+      "unchanged_behavior": "No source called",
+      "synthetic_test": "Counting three fake sources plus canceled/past-deadline parent"
+    },
+    {
+      "id": "M42",
+      "group": "aggregate",
+      "failure_or_control": "Parent context fails while three calls run",
+      "expected_diagnostic": "Original parent context reason; no optional object",
+      "unchanged_behavior": "Join all three before returning; parent context still wins",
+      "synthetic_test": "Controlled context and three channel-returned acknowledgements"
+    },
+    {
+      "id": "M43",
+      "group": "aggregate",
+      "failure_or_control": "One error completes while two sources remain pending",
+      "expected_diagnostic": "No early result",
+      "unchanged_behavior": "Still join both pending calls; no new goroutines/retries",
+      "synthetic_test": "Channel barriers; nonblocking checkpoint then release remaining sources"
+    },
+    {
+      "id": "M44",
+      "group": "aggregate",
+      "failure_or_control": "Fetch failure during settle loop",
+      "expected_diagnostic": "Same metrics_fetch; optional vector",
+      "unchanged_behavior": "One three-source round only; no added settle retry or accounting advance",
+      "synthetic_test": "Existing meta fixture with call counts and baseline snapshot"
+    },
+    {
+      "id": "M45",
+      "group": "aggregate",
+      "failure_or_control": "Fetch succeeds but preview/accounting/settle later fails",
+      "expected_diagnostic": "Existing leaf; no metrics_fetch object",
+      "unchanged_behavior": "No changed arithmetic, attempts/delay, expectation vectors or baseline",
+      "synthetic_test": "Reuse existing meta-leaf tests as controls"
+    },
+    {
+      "id": "M46",
+      "group": "projection",
+      "failure_or_control": "Valid mixed-source vector",
+      "expected_diagnostic": "Exact mask/kinds retained in existing finalization event/result",
+      "unchanged_behavior": "No new event or success log; frozen verdict/decision unchanged",
+      "synthetic_test": "Marshal Bounded projection and existing finalize fixture"
+    },
+    {
+      "id": "M47",
+      "group": "projection",
+      "failure_or_control": "Unknown kind includes secret/address/body text",
+      "expected_diagnostic": "unknown only",
+      "unchanged_behavior": "No raw text; input record not mutated",
+      "synthetic_test": "Malicious injected kind plus JSON/error-format checks"
+    },
+    {
+      "id": "M48",
+      "group": "projection",
+      "failure_or_control": "Zero/out-of-range source mask or mask/kind inconsistency",
+      "expected_diagnostic": "Optional object cleared",
+      "unchanged_behavior": "Stage/reason/frozen observation keep existing Bounded semantics",
+      "synthetic_test": "All uint8 masks; wrong empty/nonempty slot combinations"
+    },
+    {
+      "id": "M49",
+      "group": "projection",
+      "failure_or_control": "metrics_fetch object supplied for another stage/reason",
+      "expected_diagnostic": "Optional object cleared",
+      "unchanged_behavior": "No metadata smuggling into unrelated diagnostic",
+      "synthetic_test": "Every existing stage plus unknown stage/reason"
+    },
+    {
+      "id": "M50",
+      "group": "projection",
+      "failure_or_control": "Unknown error type / nil typed pointer / nil error",
+      "expected_diagnostic": "unknown / safe empty as applicable",
+      "unchanged_behavior": "Classifier cannot panic or stringify an unknown error",
+      "synthetic_test": "Table nil interface, typed-nil and unrelated wrappers"
+    },
+    {
+      "id": "M51",
+      "group": "privacy",
+      "failure_or_control": "Raw source causes contain URL/token/UID/body or long Error strings",
+      "expected_diagnostic": "Only fixed safe error text and closed fields serialized",
+      "unchanged_behavior": "Retain at most three references; no Error() calls/string copies or public cause accessor",
+      "synthetic_test": "Sentinels increment counter on Error; fmt.Sprint and public JSON exclude secrets"
+    },
+    {
+      "id": "M52",
+      "group": "aggregate",
+      "failure_or_control": "Untyped source chain matches both Canceled and DeadlineExceeded",
+      "expected_diagnostic": "mixed at failed source",
+      "unchanged_behavior": "Do not pick a causal parent-context claim; outer reason remains metrics_fetch",
+      "synthetic_test": "Synthetic errors.Join of the two standard sentinels with a live parent"
+    },
+    {
+      "id": "M53",
+      "group": "scope",
+      "failure_or_control": "Other debug/profile observation endpoints use shared helper",
+      "expected_diagnostic": "Existing outputs/errors unchanged",
+      "unchanged_behavior": "Wrapper discards class; HTTP bounds/order/drains unchanged",
+      "synthetic_test": "In-memory JSON/profile/status controls, no TCP"
+    },
+    {
+      "id": "M54",
+      "group": "scope",
+      "failure_or_control": "Absent/invalid source in constructor; nil context unsupported",
+      "expected_diagnostic": "Existing guard behavior",
+      "unchanged_behavior": "Do not expand lifecycle/input contracts in diagnostic patch",
+      "synthetic_test": "Existing constructor controls; no new nil-context behavior promised"
+    }
+  ]
+}

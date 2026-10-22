@@ -1,0 +1,32 @@
+{
+  "schema": "wukongim/c495-single-expired-offline-provenance/v2",
+  "source_revision": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "source_tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "native_CLI_sha256": "1d44f1f1fba89662b2824c6771da37e9f84276ee4afec74eb16477800e02a2ea",
+  "executed_driver_sha256": "c6e4b3d526b0e8745452988162b82dcd3351792d4c6f034eb527d3df408febc6",
+  "approved_proposal_manifest_sha256": "c4cc84928832ecf852af9efbc4d969f4a4595a46c654c40833354b2db30dd43e",
+  "root_review_manifest_reference": "43a37c80b51fc07cb59bb38b1426a34383f61b84469cf27f75f177b7bbd19eef",
+  "source_codec_binding_sha256": "975915e9ca2cac811bac761d220f26e8472b648a3121ce7bb3e4267208eda29e",
+  "original_run_and_all_v1_v2_proposal_public_members_unchanged": true,
+  "original_DB_never_opened": true,
+  "only_private_copy_DB_opened": true,
+  "groups_queried": 1,
+  "nodes_queried": 3,
+  "query_attempts": 3,
+  "query_retries": 0,
+  "query_limit": 100,
+  "per_command_timeout_seconds": 10,
+  "outer_limit_seconds": 90,
+  "owned_worker_work_limit_seconds": 85,
+  "GOMAXPROCS": 1,
+  "service_or_workload_started": false,
+  "profile_or_pprof_decoded": false,
+  "network_or_cloud_operations": 0,
+  "raw_SQL_argv_stdout_stderr_identity_DBcopy_private": true,
+  "public_MessageID_and_seq_encoding": "decimalstrings from Pythoninteger uint64validation",
+  "limitations": [
+    "Offline durable row does not prove historical online delivery",
+    "ExactMessageIDseq warning links one expiredsample to observed presence timeout, not lower-layerrootcause",
+    "Onlyoneexpiredgroup three replicas were queried; no broaderquery"
+  ]
+}

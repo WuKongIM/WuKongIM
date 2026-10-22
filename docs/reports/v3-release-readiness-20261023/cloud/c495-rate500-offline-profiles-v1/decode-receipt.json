@@ -1,0 +1,26 @@
+{
+  "inputs_before_after_equal": {
+    "cpu": {
+      "sha256": "5ca9749d9fd97d63fff1b9fcd09abdb6c6eb4920c09da450da52756be03379f4",
+      "bytes": 24144,
+      "mtime_ns": 1792708157564049634
+    },
+    "goroutine": {
+      "sha256": "253dcc329571781d01aa523fc3317de478bf43b991e425c447572a7bf9835f91",
+      "bytes": 23542,
+      "mtime_ns": 1792708152486159715
+    }
+  },
+  "decoder_argv": [
+    "/opt/homebrew/opt/python@3.13/bin/python3.13",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/decode_profiles.py"
+  ],
+  "decoder_exit_status": 0,
+  "private_symbol_stacks_directory": "/tmp/wukongim-v3-readiness-20261023/private/c495-rate500-offline-profiles-v1",
+  "profile_labels_string_tables_goroutine_ids_addresses_never_emitted": true,
+  "bounded_decompressed_profile_bytes": 4194304,
+  "decoder_script_sha256": "d946a4a217d7126c85e6df8eb253982f05128435eef5e08877c277292e120389",
+  "classifier_script_sha256": "5f6bf0f7292bb7fd317791009ce9c19f8bf52a5b53b6f538c9d7c2c2b074187b",
+  "bounded_read_implementation": "gzip.GzipFile.read(4194305), reject length above 4194304",
+  "decoder_rerun_exit_status_after_bounded_read_refinement": 0
+}

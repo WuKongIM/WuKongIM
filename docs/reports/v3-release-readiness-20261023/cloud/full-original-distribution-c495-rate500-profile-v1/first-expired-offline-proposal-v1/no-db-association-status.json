@@ -1,0 +1,25 @@
+{
+  "schema": "wukongim/c495-no-db-association-status/v1",
+  "known_group_index": 1646,
+  "fingerprint": "0db0904a5c1178a44b1596dfd762770d",
+  "same_run_canonical_log_occurrences": [
+    {
+      "node": 1,
+      "raw_reconstructed_clientno_occurrences": 0,
+      "expired_fingerprint_occurrences": 0
+    },
+    {
+      "node": 2,
+      "raw_reconstructed_clientno_occurrences": 0,
+      "expired_fingerprint_occurrences": 0
+    },
+    {
+      "node": 3,
+      "raw_reconstructed_clientno_occurrences": 0,
+      "expired_fingerprint_occurrences": 0
+    }
+  ],
+  "exact_MessageID_seq_join": "unknown;warning logs contain MessageID/seq but neither selected fingerprint nor reconstructed ClientMsgNo; no candidateID chosen by time/group",
+  "db_opened": false,
+  "db_copied": false
+}

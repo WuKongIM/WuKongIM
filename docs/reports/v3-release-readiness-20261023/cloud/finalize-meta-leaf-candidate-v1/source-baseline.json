@@ -1,0 +1,78 @@
+{
+  "head": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-finalize-meta-replay",
+  "approved_seams": [
+    "ProductionMetaController.Checkpoint closed diagnostics",
+    "FinalizationFailure.Bounded projection",
+    "ProductionEvidenceController.Finalize completeness/observation",
+    "CLI summary/verdict projection"
+  ],
+  "tests_first_order": "Root explicitly requires full matrix tests before any production implementation; this overrides generic TDD vertical-slice preference for this authorized diagnostic-only candidate.",
+  "files": [
+    {
+      "name": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "name": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "name": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "name": ".github/review-agent/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/production_controller.go",
+      "bytes": 33591,
+      "sha256": "8ed4d172ddadbc6dd3fb96134747921c563c86c38b513b92b7e73c1a245bfc42"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/production_meta.go",
+      "bytes": 10377,
+      "sha256": "394d7ce3e937ff638d0890f9011a5fa31a6dd3a56e1133d8f7856ec3976a8e4c"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/lifecycle_proof.go",
+      "bytes": 43754,
+      "sha256": "5ef8476104c3741089acbb74bfc6002e01badb1aab4316a4928299159601b8ce"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/production_meta_test.go",
+      "bytes": 14570,
+      "sha256": "c1dde724ad86cf8954d7402fa5d5521207f54ab8bbd408692536bd5f73f7a019"
+    },
+    {
+      "name": "internal/bench/chatlifecycle/finalize_diagnostics_test.go",
+      "bytes": 22813,
+      "sha256": "2a27392c2f70d9315a5f3b7ed93a31ba5394f8f9229adc0d52526a0bdd768ae3"
+    },
+    {
+      "name": "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+      "bytes": 8173,
+      "sha256": "c6cc87dee283da2f68a4fbb61a3499b5fa9efb29e2fc9ca40e8517ccd84f54c2"
+    },
+    {
+      "name": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 147049,
+      "sha256": "1dbd3f7fdc393236a378a9f62698f091d098e30b14ac079be10ede71a1ce7308"
+    },
+    {
+      "name": "CHANGELOG.md",
+      "bytes": 192018,
+      "sha256": "e9bfbe3e0969fd9952b9038cf27dfd0c01160b3ece8e68e88389852a0087f42b"
+    }
+  ]
+}

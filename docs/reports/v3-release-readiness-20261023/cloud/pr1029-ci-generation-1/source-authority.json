@@ -1,0 +1,76 @@
+{
+  "head": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "base": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "files": {
+    "c4954c6a638080e6a915ecec305a3381f4afd9a0": {
+      "AGENTS.md": {
+        "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+        "bytes": 13284
+      },
+      ".github/workflows/README.md": {
+        "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+        "bytes": 85960
+      },
+      ".github/review-agent/policy.json": {
+        "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "bytes": 14492
+      },
+      ".github/workflows/v3-candidate-regression.yml": {
+        "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f",
+        "bytes": 13951
+      },
+      ".github/workflows/three-node-chat-lifecycle-regression.yml": {
+        "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71",
+        "bytes": 13037
+      },
+      ".github/workflows/native-package-preview.yml": {
+        "sha256": "a620e3d2345f670f701d6661869a33fe1673e32a66d02b1d1caf587cf343ccf2",
+        "bytes": 6230
+      },
+      ".github/workflows/manager-browser-smoke.yml": {
+        "sha256": "ba776b1959289d862443e077e85cf13a87df46f6d1620dd3fb25d6ab52451a7b",
+        "bytes": 2865
+      },
+      ".github/workflows/issue-agent-pr-signal.yml": {
+        "sha256": "ad6672a4c58423ac3d08bd8d7eb95a5f1d5392afcd0dd9f0d46f628dc49bfa45",
+        "bytes": 609
+      }
+    },
+    "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e": {
+      "AGENTS.md": {
+        "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+        "bytes": 13284
+      },
+      ".github/workflows/README.md": {
+        "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+        "bytes": 85960
+      },
+      ".github/review-agent/policy.json": {
+        "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "bytes": 14492
+      },
+      ".github/workflows/v3-candidate-regression.yml": {
+        "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f",
+        "bytes": 13951
+      },
+      ".github/workflows/three-node-chat-lifecycle-regression.yml": {
+        "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71",
+        "bytes": 13037
+      },
+      ".github/workflows/native-package-preview.yml": {
+        "sha256": "a620e3d2345f670f701d6661869a33fe1673e32a66d02b1d1caf587cf343ccf2",
+        "bytes": 6230
+      },
+      ".github/workflows/manager-browser-smoke.yml": {
+        "sha256": "ba776b1959289d862443e077e85cf13a87df46f6d1620dd3fb25d6ab52451a7b",
+        "bytes": 2865
+      },
+      ".github/workflows/issue-agent-pr-signal.yml": {
+        "sha256": "ad6672a4c58423ac3d08bd8d7eb95a5f1d5392afcd0dd9f0d46f628dc49bfa45",
+        "bytes": 609
+      }
+    }
+  },
+  "applicable_flow": [],
+  "workflow_invocation_mutation_rerun": false
+}

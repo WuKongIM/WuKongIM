@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12462948610,
+      "node_id": "MDg6QXJ0aWZhY3QxMjQ2Mjk0ODYxMA==",
+      "name": "wukongim-native-package-preview-39864525579",
+      "size_in_bytes": 77875382,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12462948610",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12462948610/zip",
+      "expired": false,
+      "digest": "sha256:6909cac5878634ad627b58eaf974bb4e4b8173649c8709c6d57dad9628d92bd2",
+      "created_at": "2026-10-22T22:28:48Z",
+      "updated_at": "2026-10-22T22:28:48Z",
+      "expires_at": "2026-11-05T22:28:44Z",
+      "workflow_run": {
+        "id": 39864525579,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-local-presence-candidate",
+        "head_sha": "c4954c6a638080e6a915ecec305a3381f4afd9a0"
+      }
+    }
+  ]
+}

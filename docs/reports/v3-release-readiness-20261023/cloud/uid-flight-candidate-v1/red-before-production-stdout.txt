@@ -1,0 +1,95 @@
+=== RUN   TestAuthorityRecoveryProvenLookupDoesNotWaitForColdOwner
+--- PASS: TestAuthorityRecoveryProvenLookupDoesNotWaitForColdOwner (0.00s)
+=== RUN   TestAuthorityRecoveryRequiresCompleteOwnersAndRejectsOldCompletion
+--- PASS: TestAuthorityRecoveryRequiresCompleteOwnersAndRejectsOldCompletion (0.00s)
+=== RUN   TestAuthorityRecoveryCancellationDoesNotQueryOwner
+--- PASS: TestAuthorityRecoveryCancellationDoesNotQueryOwner (0.00s)
+=== RUN   TestAuthorityRecoveryBatchesColdTargetsAndPreservesSiblingResults
+--- PASS: TestAuthorityRecoveryBatchesColdTargetsAndPreservesSiblingResults (0.00s)
+=== RUN   TestAuthorityRecoveryPagesLargeTargetWithoutDiscardingEarlierResults
+--- PASS: TestAuthorityRecoveryPagesLargeTargetWithoutDiscardingEarlierResults (0.00s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_IndependentUIDWhilePagePaused
+    cold_uid_isolation_integration_test.go:177: proposed isolation failed before A release: B results=[{[] context deadline exceeded}]; A owner calls=1 peak owner calls=1
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- FAIL: TestAuthorityRecoveryColdUIDIsolation_IndependentUIDWhilePagePaused (0.25s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_NonConflictingTargetProgresses
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_NonConflictingTargetProgresses (0.00s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_SameUIDSharesOwnerProof
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_SameUIDSharesOwnerProof (0.04s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_CanceledWaiterDoesNotCancelOwner
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_CanceledWaiterDoesNotCancelOwner (0.04s)
+=== RUN   TestAuthorityRecoveryUIDFlightPartialOverlapPublishesBeforeJoin
+    uid_flight_integration_test.go:177: controlled public boundary was not reached
+--- FAIL: TestAuthorityRecoveryUIDFlightPartialOverlapPublishesBeforeJoin (1.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightLeaderCancellationKeepsFollowerRetryable
+    uid_flight_integration_test.go:215: groups=1 err=<nil>, want internal/runtime/presence: route not ready
+--- FAIL: TestAuthorityRecoveryUIDFlightLeaderCancellationKeepsFollowerRetryable (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/hash
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/slot
+    uid_flight_integration_test.go:264: flight lookup did not finish within watchdog
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/leader
+    uid_flight_integration_test.go:264: flight lookup did not finish within watchdog
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/term
+    uid_flight_integration_test.go:264: flight lookup did not finish within watchdog
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/config
+    uid_flight_integration_test.go:264: flight lookup did not finish within watchdog
+--- FAIL: TestAuthorityRecoveryUIDFlightDistributedIdentity (4.01s)
+    --- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity/hash (0.00s)
+    --- FAIL: TestAuthorityRecoveryUIDFlightDistributedIdentity/slot (1.00s)
+    --- FAIL: TestAuthorityRecoveryUIDFlightDistributedIdentity/leader (1.00s)
+    --- FAIL: TestAuthorityRecoveryUIDFlightDistributedIdentity/term (1.00s)
+    --- FAIL: TestAuthorityRecoveryUIDFlightDistributedIdentity/config (1.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightLocalMetadataCoalesces
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryUIDFlightLocalMetadataCoalesces (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightOwnsUIDBacking
+    uid_flight_integration_test.go:306: owner request retained caller UID backing instead of an owned exact-byte copy
+--- FAIL: TestAuthorityRecoveryUIDFlightOwnsUIDBacking (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys
+    uid_flight_integration_test.go:359: groups=1 err=<nil>, want context canceled
+--- FAIL: TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-0
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-511
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-512
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-513
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-1025
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/targets-255
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/targets-256
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/targets-257
+--- PASS: TestAuthorityRecoveryUIDFlightPackingBounds (0.01s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-0 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-511 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-512 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-513 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-1025 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/targets-255 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/targets-256 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/targets-257 (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/4096
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/65535
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/byte-bound-33554432
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/byte-bound-33554433
+    uid_flight_integration_test.go:483: groups=1 err=<nil>, want internal/runtime/presence: route not ready
+--- FAIL: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs (0.05s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/4096 (0.01s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/65535 (0.03s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/byte-bound-33554432 (0.01s)
+    --- FAIL: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/byte-bound-33554433 (0.01s)
+=== RUN   TestAuthorityRecoveryUIDFlightLateWaiterMustRereadEvictedProof
+    uid_flight_integration_test.go:547: late follower silently retried owner: reads=2
+--- FAIL: TestAuthorityRecoveryUIDFlightLateWaiterMustRereadEvictedProof (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightMixedGroupsDuplicatesAndTombstone
+--- PASS: TestAuthorityRecoveryUIDFlightMixedGroupsDuplicatesAndTombstone (0.00s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/internal/usecase/presence	5.756s
+FAIL

@@ -1,0 +1,591 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 67bc80595..37145ffb2 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Identify metadata-checkpoint rejection stages in chat-lifecycle diagnostics
++  while retaining incomplete-report failures and prior product observations.
++  / 聊天生命周期诊断细分元数据核算拒绝阶段，保留报告不完整失败和此前产品观察。
++
+ - Retain bounded chat-lifecycle finalization failure stages and prior product
+   observations without changing report validation or release verdicts.
+   / 聊天生命周期验收结束失败时保留有界的失败阶段和此前产品观察，不改变报告校验或发布结论。
+diff --git a/cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go b/cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go
+index e281b655b..914a9cc10 100644
+--- a/cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go
++++ b/cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go
+@@ -96,6 +96,34 @@ func TestChatLifecycleFinalizationSummaryRetainsClosedBoundaryWithoutChangingVer
+ 	}
+ }
+ 
++func TestChatLifecycleMetaCheckpointLeavesKeepInvalidObservation(t *testing.T) {
++	for _, reason := range []string{
++		"guard", "context_canceled", "context_deadline", "expectation_worker_shape", "expectation_fence",
++		"expectation_vector_bound", "checkpoint_fence", "checkpoint_sequence", "checkpoint_vector_regression",
++		"metrics_fetch", "metrics_preview", "settle_wait", "accounting", "invalid",
++	} {
++		t.Run(reason, func(t *testing.T) {
++			result := chatlifecycle.CoordinatorResult{
++				Outcome: chatlifecycle.CoordinatorHarnessInvalid, Code: chatlifecycle.CoordinatorCodeFinalize,
++				FinalizationFailure: chatlifecycle.FinalizationFailure{
++					Stage: "meta_checkpoint", Reason: reason, ObservedDecision: chatlifecycle.CoordinatorProductFailure,
++					ObservedOutcome: chatlifecycle.VerdictProductFailure, ObservedCause: chatlifecycle.VerdictCauseMessageLoss, ObservedTerminal: true,
++				},
++			}
++			verdict := chatLifecycleCoordinatorVerdict(result)
++			if verdict.Outcome != chatlifecycle.VerdictHarnessInvalid || verdict.Cause != chatlifecycle.VerdictCauseInvalidObservation || chatLifecycleVerdictExitCode(verdict) != exitChatLifecycleHarness {
++				t.Fatalf("leaf diagnostic changed incomplete-report verdict: %+v", verdict)
++			}
++			summary := chatLifecycleCoordinatorSummary(verdict, result, "unavailable")
++			for _, field := range []string{"finalization_stage=meta_checkpoint", "finalization_reason=" + reason, "observed_cause=message_loss", "report=unavailable"} {
++				if !strings.Contains(summary, field) {
++					t.Errorf("summary misses %q: %q", field, summary)
++				}
++			}
++		})
++	}
++}
++
+ func TestChatLifecycleFirstSignalRequestsGracefulStopAndWaitsForFinalResult(t *testing.T) {
+ 	runner := newSignalTestChatLifecycleRunner()
+ 	signals := make(chan os.Signal, 2)
+diff --git a/docs/development/PROJECT_KNOWLEDGE.md b/docs/development/PROJECT_KNOWLEDGE.md
+index 62e787289..b2afb77b4 100644
+--- a/docs/development/PROJECT_KNOWLEDGE.md
++++ b/docs/development/PROJECT_KNOWLEDGE.md
+@@ -1946,6 +1946,11 @@ specification, runbook, report, or module documentation; link to them when neede
+   order remain unchanged. A failed Markdown output can leave readable JSON while
+   the recorder's sequence remains uncommitted. A generic `invalid_observation`
+   fallback alone does not identify the rejecting finalization branch.
++  Metadata-checkpoint leaves distinguish worker shape/fence/vector bounds,
++  baseline continuity, metrics fetch/preview and final accounting through the
++  same closed diagnostic envelope. They retain private cause chains, the
++  three-source join and existing bounded settle attempts. These diagnostics
++  cannot reconstruct missing worker vectors or certify a complete report.
+ 
+ - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
+   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
+diff --git a/internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go b/internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go
+new file mode 100644
+index 000000000..539a9bbc4
+--- /dev/null
++++ b/internal/bench/chatlifecycle/meta_checkpoint_diagnostics_test.go
+@@ -0,0 +1,333 @@
++package chatlifecycle
++
++import (
++	"bytes"
++	"context"
++	"encoding/json"
++	"errors"
++	"math"
++	"os"
++	"path/filepath"
++	"reflect"
++	"strings"
++	"testing"
++	"time"
++
++	"github.com/WuKongIM/WuKongIM/internal/bench/target"
++)
++
++// metaDiagnosticSource exposes only the existing metrics port to each fixture.
++type metaDiagnosticSource struct {
++	snapshot target.MetricsSnapshot
++	err      error
++	calls    int
++}
++
++type metaDiagnosticPrivateError struct{}
++
++func (*metaDiagnosticPrivateError) Error() string {
++	return "private uid=example credential=hidden /private/source"
++}
++
++func (s *metaDiagnosticSource) Metrics(context.Context) (target.MetricsSnapshot, error) {
++	s.calls++
++	return s.snapshot, s.err
++}
++
++type metaDiagnosticFixture struct {
++	controller *ProductionMetaController
++	accounting *MetaCreateAccounting
++	workers    []WorkerSnapshot
++	assignment LifecycleSlotAssignment
++	sources    [coordinatorWorkerCount]*metaDiagnosticSource
++	ctx        context.Context
++	reheat     bool
++}
++
++func newMetaDiagnosticFixture(t *testing.T, initialized bool) *metaDiagnosticFixture {
++	t.Helper()
++	cfg := LocalConfig()
++	f := &metaDiagnosticFixture{
++		accounting: NewMetaCreateAccounting(), workers: productionMetaWorkerSnapshots(cfg),
++		assignment: productionMetaInitialAssignment(t), ctx: context.Background(),
++	}
++	var expected [formalLogicalSlotGroups]uint64
++	if initialized {
++		f.workers[0].MetaCreate.PersonByHashSlot[0] = 1
++		f.workers[0].MetaCreate.GroupByHashSlot[0] = 1
++		expected[0] = 2
++	}
++	metrics := productionMetaMetricsForExpected(expected)
++	if initialized {
++		metrics[0].MetaCreatedTotal["already_existing"] = 2
++		metrics[0].MetaCreatedBySlot[0].AlreadyExisting = 2
++	}
++	var sources [coordinatorWorkerCount]ProductionMetaMetricsSource
++	for node := range sources {
++		f.sources[node] = &metaDiagnosticSource{snapshot: metrics[node]}
++		sources[node] = f.sources[node]
++	}
++	var err error
++	f.controller, err = NewProductionMetaController(ProductionMetaControllerOptions{Config: cfg, Metrics: sources, Accounting: f.accounting})
++	if err != nil {
++		t.Fatal(err)
++	}
++	if initialized {
++		if err := f.controller.Checkpoint(f.ctx, f.workers, f.assignment, false); err != nil {
++			t.Fatal(err)
++		}
++		for worker := range f.workers {
++			f.workers[worker].SnapshotSequence++
++		}
++	}
++	return f
++}
++
++// TestMetaCheckpointFailureLeaves exercises the public checkpoint boundary;
++// malformed rounds keep the same sentinel, source-call bound and baseline.
++func TestMetaCheckpointFailureLeaves(t *testing.T) {
++	private := &metaDiagnosticPrivateError{}
++	tests := []struct {
++		name, reason string
++		initialized  bool
++		mutate       func(*metaDiagnosticFixture)
++		want         error
++		metrics      bool
++	}{
++		{"nil_receiver", "guard", false, func(f *metaDiagnosticFixture) { f.controller = nil }, ErrLifecycleHarnessInvalid, false},
++		{"nil_context", "guard", false, func(f *metaDiagnosticFixture) { f.ctx = nil }, ErrLifecycleHarnessInvalid, false},
++		{"canceled", "context_canceled", false, func(f *metaDiagnosticFixture) { ctx, cancel := context.WithCancel(f.ctx); cancel(); f.ctx = ctx }, context.Canceled, false},
++		{"deadline", "context_deadline", false, func(f *metaDiagnosticFixture) {
++			ctx, cancel := context.WithDeadline(f.ctx, time.Unix(1, 0))
++			cancel()
++			f.ctx = ctx
++		}, context.DeadlineExceeded, false},
++		{"run_config", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.controller.runID = "" }, ErrLifecycleHarnessInvalid, false},
++		{"worker_config", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.controller.workerCount = 2 }, ErrLifecycleHarnessInvalid, false},
++		{"group_config", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.controller.groupLimit = 0 }, ErrLifecycleHarnessInvalid, false},
++		{"worker_count", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.workers = f.workers[:2] }, ErrLifecycleHarnessInvalid, false},
++		{"worker_count_field", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.workers[0].WorkerCount = 2 }, ErrLifecycleHarnessInvalid, false},
++		{"worker_id_range", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.workers[0].WorkerID = math.MaxUint64 }, ErrLifecycleHarnessInvalid, false},
++		{"worker_duplicate", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.workers[2].WorkerID = 1 }, ErrLifecycleHarnessInvalid, false},
++		{"worker_sequence_zero", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.workers[0].SnapshotSequence = 0 }, ErrLifecycleHarnessInvalid, false},
++		{"worker_phase", "expectation_worker_shape", false, func(f *metaDiagnosticFixture) { f.workers[0].Phase = WorkerPhase("private-phase") }, ErrLifecycleHarnessInvalid, false},
++		{"run_fence", "expectation_fence", false, func(f *metaDiagnosticFixture) { f.workers[0].RunID = "private-other-run" }, ErrLifecycleHarnessInvalid, false},
++		{"assignment_empty", "expectation_fence", false, func(f *metaDiagnosticFixture) { f.workers[0].AssignmentID = "" }, ErrLifecycleHarnessInvalid, false},
++		{"generation_zero", "expectation_fence", false, func(f *metaDiagnosticFixture) { f.workers[0].Generation = 0 }, ErrLifecycleHarnessInvalid, false},
++		{"assignment_mismatch", "expectation_fence", false, func(f *metaDiagnosticFixture) { f.workers[1].AssignmentID = "private-other-assignment" }, ErrLifecycleHarnessInvalid, false},
++		{"generation_mismatch", "expectation_fence", false, func(f *metaDiagnosticFixture) { f.workers[1].Generation++ }, ErrLifecycleHarnessInvalid, false},
++		{"person_sum", "expectation_vector_bound", false, func(f *metaDiagnosticFixture) {
++			f.workers[0].MetaCreate.PersonByHashSlot[0] = math.MaxUint64
++			f.workers[1].MetaCreate.PersonByHashSlot[0] = 1
++		}, ErrLifecycleHarnessInvalid, false},
++		{"group_sum", "expectation_vector_bound", false, func(f *metaDiagnosticFixture) {
++			f.controller.groupLimit = math.MaxUint64
++			f.workers[0].MetaCreate.GroupByHashSlot[0] = math.MaxUint64
++			f.workers[1].MetaCreate.GroupByHashSlot[0] = 1
++		}, ErrLifecycleHarnessInvalid, false},
++		{"worker_group_sum", "expectation_vector_bound", false, func(f *metaDiagnosticFixture) {
++			f.controller.groupLimit = math.MaxUint64
++			f.workers[0].MetaCreate.GroupByHashSlot[0] = math.MaxUint64
++			f.workers[0].MetaCreate.GroupByHashSlot[1] = 1
++		}, ErrLifecycleHarnessInvalid, false},
++		{"global_group_sum", "expectation_vector_bound", false, func(f *metaDiagnosticFixture) {
++			f.controller.groupLimit = math.MaxUint64
++			f.workers[0].MetaCreate.GroupByHashSlot[0] = math.MaxUint64
++			f.workers[1].MetaCreate.GroupByHashSlot[1] = 1
++		}, ErrLifecycleHarnessInvalid, false},
++		{"group_limit", "expectation_vector_bound", false, func(f *metaDiagnosticFixture) {
++			f.workers[0].MetaCreate.GroupByHashSlot[0] = f.controller.groupLimit + 1
++		}, ErrLifecycleHarnessInvalid, false},
++		{"checkpoint_assignment", "checkpoint_fence", true, func(f *metaDiagnosticFixture) {
++			for i := range f.workers {
++				f.workers[i].AssignmentID = "private-new-assignment"
++			}
++		}, ErrLifecycleHarnessInvalid, false},
++		{"checkpoint_generation", "checkpoint_fence", true, func(f *metaDiagnosticFixture) {
++			for i := range f.workers {
++				f.workers[i].Generation++
++			}
++		}, ErrLifecycleHarnessInvalid, false},
++		{"checkpoint_sequence", "checkpoint_sequence", true, func(f *metaDiagnosticFixture) { f.workers[0].SnapshotSequence-- }, ErrLifecycleHarnessInvalid, false},
++		{"checkpoint_person", "checkpoint_vector_regression", true, func(f *metaDiagnosticFixture) { f.workers[0].MetaCreate.PersonByHashSlot[0]-- }, ErrLifecycleHarnessInvalid, false},
++		{"checkpoint_group", "checkpoint_vector_regression", true, func(f *metaDiagnosticFixture) { f.workers[0].MetaCreate.GroupByHashSlot[0]-- }, ErrLifecycleHarnessInvalid, false},
++		{"metrics_fetch", "metrics_fetch", false, func(f *metaDiagnosticFixture) { f.sources[0].err = private }, ErrLifecycleHarnessInvalid, true},
++		{"preview_assignment", "metrics_preview", false, func(f *metaDiagnosticFixture) { f.assignment = LifecycleSlotAssignment{} }, ErrLifecycleHarnessInvalid, true},
++		{"preview_missing_result", "metrics_preview", false, func(f *metaDiagnosticFixture) { delete(f.sources[0].snapshot.MetaCreatedTotal, "created") }, ErrLifecycleHarnessInvalid, true},
++		{"preview_fractional_result", "metrics_preview", false, func(f *metaDiagnosticFixture) { f.sources[0].snapshot.MetaCreatedTotal["created"] = 0.5 }, ErrLifecycleHarnessInvalid, true},
++		{"preview_slot_total", "metrics_preview", false, func(f *metaDiagnosticFixture) { f.sources[0].snapshot.MetaCreatedTotal["created"] = 1 }, ErrLifecycleHarnessInvalid, true},
++		{"settle_missing", "settle_wait", false, func(f *metaDiagnosticFixture) {
++			f.workers[0].MetaCreate.PersonByHashSlot[0] = 1
++			f.controller.settleWait = nil
++		}, ErrLifecycleHarnessInvalid, true},
++		{"settle_private_error", "settle_wait", false, func(f *metaDiagnosticFixture) {
++			f.workers[0].MetaCreate.PersonByHashSlot[0] = 1
++			f.controller.settleWait = func(context.Context) error { return private }
++		}, private, true},
++		{"settle_canceled", "context_canceled", false, func(f *metaDiagnosticFixture) {
++			f.workers[0].MetaCreate.PersonByHashSlot[0] = 1
++			f.controller.settleWait = func(context.Context) error { return context.Canceled }
++		}, context.Canceled, true},
++		{"settle_deadline", "context_deadline", false, func(f *metaDiagnosticFixture) {
++			f.workers[0].MetaCreate.PersonByHashSlot[0] = 1
++			f.controller.settleWait = func(context.Context) error { return context.DeadlineExceeded }
++		}, context.DeadlineExceeded, true},
++		{"accounting_initial_reheat", "accounting", false, func(f *metaDiagnosticFixture) { f.reheat = true }, ErrLifecycleHarnessInvalid, true},
++		{"accounting_counter_regression", "accounting", true, func(f *metaDiagnosticFixture) {
++			f.sources[0].snapshot.MetaCreatedTotal["already_existing"] = 1
++			f.sources[0].snapshot.MetaCreatedBySlot[0].AlreadyExisting = 1
++		}, ErrLifecycleHarnessInvalid, true},
++	}
++	for _, test := range tests {
++		t.Run(test.name, func(t *testing.T) {
++			f := newMetaDiagnosticFixture(t, test.initialized)
++			test.mutate(f)
++			before := f.accounting.Snapshot()
++			var sequences [coordinatorWorkerCount]uint64
++			var person, groups [coordinatorWorkerCount]MetaCreateHashSlotCounts
++			if f.controller != nil {
++				sequences, person, groups = f.controller.sequences, f.controller.person, f.controller.groups
++			}
++			var calls [coordinatorWorkerCount]int
++			for node, source := range f.sources {
++				calls[node] = source.calls
++			}
++			err := f.controller.Checkpoint(f.ctx, f.workers, f.assignment, f.reheat)
++			if !errors.Is(err, test.want) {
++				t.Fatalf("error = %v, want original sentinel", err)
++			}
++			if test.want == private {
++				var cause *metaDiagnosticPrivateError
++				if !errors.As(err, &cause) || cause != private {
++					t.Error("typed private cause chain lost")
++				}
++			}
++			failure := finalizationDiagnostic(err, "meta_checkpoint", "invalid")
++			if failure.Stage != "meta_checkpoint" || failure.Reason != test.reason {
++				t.Errorf("diagnostic = %+v, want meta_checkpoint/%s", failure, test.reason)
++			}
++			body, _ := json.Marshal(failure.Bounded())
++			if strings.Contains(err.Error(), "private") || strings.Contains(string(body), "private") {
++				t.Error("private cause leaked into formatting")
++			}
++			if !reflect.DeepEqual(before, f.accounting.Snapshot()) {
++				t.Error("invalid checkpoint mutated accounting")
++			}
++			if f.controller != nil && (f.controller.sequences != sequences || f.controller.person != person || f.controller.groups != groups) {
++				t.Error("invalid checkpoint advanced controller baseline")
++			}
++			for node, source := range f.sources {
++				want := calls[node]
++				if test.metrics {
++					want++
++				}
++				if source.calls != want {
++					t.Errorf("source %d calls = %d, want %d", node, source.calls, want)
++				}
++			}
++		})
++	}
++}
++
++func TestMetaCheckpointCancellationJoinsEverySource(t *testing.T) {
++	f := newMetaDiagnosticFixture(t, false)
++	started, returned := make(chan struct{}, coordinatorWorkerCount), make(chan struct{}, coordinatorWorkerCount)
++	for node := range f.controller.metrics {
++		f.controller.metrics[node] = blockingProductionMetaMetricsSource{started: started, returned: returned}
++	}
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	done := make(chan error, 1)
++	go func() { done <- f.controller.Checkpoint(ctx, f.workers, f.assignment, false) }()
++	for range coordinatorWorkerCount {
++		select {
++		case <-started:
++		case <-time.After(time.Second):
++			t.Fatal("source did not start")
++		}
++	}
++	cancel()
++	select {
++	case err := <-done:
++		if !errors.Is(err, context.Canceled) || finalizationDiagnostic(err, "meta_checkpoint", "invalid").Reason != "context_canceled" {
++			t.Errorf("cancellation lost its leaf or sentinel: %v", err)
++		}
++	case <-time.After(time.Second):
++		t.Fatal("canceled round did not join")
++	}
++	for range coordinatorWorkerCount {
++		select {
++		case <-returned:
++		default:
++			t.Fatal("checkpoint returned before every source joined")
++		}
++	}
++	if f.accounting.Snapshot().Checkpoints != 0 || f.controller.initialized {
++		t.Error("partial canceled round committed")
++	}
++}
++
++func TestMetaCheckpointProductDeficitKeepsExistingBound(t *testing.T) {
++	f := newMetaDiagnosticFixture(t, false)
++	f.workers[0].MetaCreate.PersonByHashSlot[0] = 1
++	waits := 0
++	f.controller.settleWait = func(context.Context) error { waits++; return nil }
++	err := f.controller.Checkpoint(f.ctx, f.workers, f.assignment, false)
++	if !errors.Is(err, ErrLifecycleProductFailure) || errors.Is(err, ErrLifecycleHarnessInvalid) {
++		t.Fatalf("deficit reclassified: %v", err)
++	}
++	var diagnostic *finalizationError
++	if errors.As(err, &diagnostic) {
++		t.Error("product deficit became a finalization error")
++	}
++	if waits != 4 || productionMetaSettleDelay != 25*time.Millisecond {
++		t.Errorf("settle bound changed: waits=%d delay=%v", waits, productionMetaSettleDelay)
++	}
++	for node, source := range f.sources {
++		if source.calls != 5 {
++			t.Errorf("source %d calls=%d, want5", node, source.calls)
++		}
++	}
++	if f.accounting.Snapshot().Checkpoints != 1 || f.controller.initialized {
++		t.Error("product checkpoint commit semantics changed")
++	}
++}
++
++func TestMetaCheckpointLeafProjectionAndFinalizeCompleteness(t *testing.T) {
++	reasons := []string{"guard", "context_canceled", "context_deadline", "expectation_worker_shape", "expectation_fence", "expectation_vector_bound", "checkpoint_fence", "checkpoint_sequence", "checkpoint_vector_regression", "metrics_fetch", "metrics_preview", "settle_wait", "accounting", "invalid"}
++	private := &metaDiagnosticPrivateError{}
++	for _, reason := range reasons {
++		t.Run(reason, func(t *testing.T) {
++			controller, cut, diagnostics, _ := newFinalizeDiagnosticFixture(t)
++			controller.meta = finalizeMetaProbe{err: newFinalizationError("meta_checkpoint", reason, private)}
++			before := controller.frozen
++			err := controller.Finalize(context.Background(), cut)
++			if !errors.Is(err, private) || !errors.Is(err, errProductionController) {
++				t.Fatal("private cause chain lost")
++			}
++			var cause *metaDiagnosticPrivateError
++			if !errors.As(err, &cause) || cause != private {
++				t.Error("typed private cause chain lost")
++			}
++			failure := finalizationDiagnostic(err, "controller_unknown", "invalid")
++			if failure.Stage != "meta_checkpoint" || failure.Reason != reason || failure.ObservedOutcome != before.Outcome || failure.ObservedCause != before.Cause || !failure.ObservedTerminal {
++				t.Errorf("leaf/frozen observation lost: %+v", failure)
++			}
++			if strings.Contains(err.Error(), "private") || bytes.Contains(diagnostics.Bytes(), []byte("private")) {
++				t.Error("private chain formatted")
++			}
++			if _, err := os.Stat(filepath.Join(controller.outputDir, "final.json")); !os.IsNotExist(err) {
++				t.Error("incomplete finalization invented a report")
++			}
++			if !reflect.DeepEqual(controller.frozen, before) {
++				t.Error("diagnostic changed the frozen verdict")
++			}
++		})
++	}
++	for _, failure := range []FinalizationFailure{{Stage: "meta_checkpoint", Reason: "private-reason"}, {Stage: "private-stage", Reason: "metrics_fetch"}} {
++		got := failure.Bounded()
++		if got.Stage != "controller_unknown" || got.Reason != "invalid" {
++			t.Errorf("forged leaf accepted: %+v", got)
++		}
++	}
++}
+diff --git a/internal/bench/chatlifecycle/production_controller.go b/internal/bench/chatlifecycle/production_controller.go
+index 39bbd3625..934a35b1f 100644
+--- a/internal/bench/chatlifecycle/production_controller.go
++++ b/internal/bench/chatlifecycle/production_controller.go
+@@ -44,7 +44,13 @@ func (f FinalizationFailure) Bounded() FinalizationFailure {
+ 		valid = f.Reason == "missing" || f.Reason == "invalid" || f.Reason == "output_failed"
+ 	case "dataset":
+ 		valid = f.Reason == "probe_failed" || f.Reason == "digest_mismatch"
+-	case "meta_checkpoint", "checkpoint_sequence", "report_validation", "controller_unknown":
++	case "meta_checkpoint":
++		switch f.Reason {
++		case "guard", "context_canceled", "context_deadline", "expectation_worker_shape", "expectation_fence", "expectation_vector_bound",
++			"checkpoint_fence", "checkpoint_sequence", "checkpoint_vector_regression", "metrics_fetch", "metrics_preview", "settle_wait", "accounting", "invalid":
++			valid = true
++		}
++	case "checkpoint_sequence", "report_validation", "controller_unknown":
+ 		valid = f.Reason == "invalid"
+ 	case "checkpoint_evidence":
+ 		valid = f.Reason == "invalid_evidence" || f.Reason == "dataset_mismatch" || f.Reason == "invalid_snapshot_cut"
+diff --git a/internal/bench/chatlifecycle/production_meta.go b/internal/bench/chatlifecycle/production_meta.go
+index eef0880d0..af86ca7e6 100644
+--- a/internal/bench/chatlifecycle/production_meta.go
++++ b/internal/bench/chatlifecycle/production_meta.go
+@@ -77,10 +77,10 @@ func (c *ProductionMetaController) Checkpoint(
+ 	reheat bool,
+ ) error {
+ 	if c == nil || ctx == nil {
+-		return ErrLifecycleHarnessInvalid
++		return metaCheckpointFailure("guard", ErrLifecycleHarnessInvalid)
+ 	}
+ 	if err := ctx.Err(); err != nil {
+-		return err
++		return metaCheckpointFailure("guard", err)
+ 	}
+ 	c.mu.Lock()
+ 	defer c.mu.Unlock()
+@@ -91,16 +91,16 @@ func (c *ProductionMetaController) Checkpoint(
+ 	}
+ 	if c.initialized {
+ 		if expectation.assignmentID != c.assignmentID || expectation.generation != c.generation {
+-			return ErrLifecycleHarnessInvalid
++			return metaCheckpointFailure("checkpoint_fence", ErrLifecycleHarnessInvalid)
+ 		}
+ 		for workerID := range expectation.personByWorker {
+ 			if expectation.sequences[workerID] <= c.sequences[workerID] {
+-				return ErrLifecycleHarnessInvalid
++				return metaCheckpointFailure("checkpoint_sequence", ErrLifecycleHarnessInvalid)
+ 			}
+ 			for hashSlot := range expectation.personByWorker[workerID] {
+ 				if expectation.personByWorker[workerID][hashSlot] < c.person[workerID][hashSlot] ||
+ 					expectation.groupByWorker[workerID][hashSlot] < c.groups[workerID][hashSlot] {
+-					return ErrLifecycleHarnessInvalid
++					return metaCheckpointFailure("checkpoint_vector_regression", ErrLifecycleHarnessInvalid)
+ 				}
+ 			}
+ 		}
+@@ -110,7 +110,10 @@ func (c *ProductionMetaController) Checkpoint(
+ 		return err
+ 	}
+ 	if err := c.accounting.Checkpoint(expectation.person, expectation.groups, assignment, metrics, reheat); err != nil {
+-		return err
++		if errors.Is(err, ErrLifecycleProductFailure) {
++			return err
++		}
++		return metaCheckpointFailure("accounting", err)
+ 	}
+ 	c.initialized = true
+ 	c.assignmentID = expectation.assignmentID
+@@ -121,6 +124,18 @@ func (c *ProductionMetaController) Checkpoint(
+ 	return nil
+ }
+ 
++// metaCheckpointFailure adds only a closed leaf diagnostic while preserving the
++// original private cause and every existing checkpoint failure classification.
++func metaCheckpointFailure(reason string, cause error) error {
++	switch {
++	case errors.Is(cause, context.Canceled):
++		reason = "context_canceled"
++	case errors.Is(cause, context.DeadlineExceeded):
++		reason = "context_deadline"
++	}
++	return newFinalizationError("meta_checkpoint", reason, cause)
++}
++
+ // collectSettledMetrics gives authoritative counters one short bounded window
+ // to become visible after a final worker SENDACK. It never commits a preview,
+ // and a stable deficit is still handed to accounting as product evidence.
+@@ -133,7 +148,7 @@ func (c *ProductionMetaController) collectSettledMetrics(
+ 	for attempt := 0; attempt < productionMetaSettleAttempts; attempt++ {
+ 		metrics, err := collectProductionMetaMetrics(ctx, c.metrics)
+ 		if err != nil {
+-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
++			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("metrics_fetch", err)
+ 		}
+ 		preview := NewMetaCreateAccounting()
+ 		previewErr := preview.Checkpoint(person, groups, assignment, metrics, false)
+@@ -141,18 +156,18 @@ func (c *ProductionMetaController) collectSettledMetrics(
+ 		case previewErr == nil:
+ 			return metrics, nil
+ 		case !errors.Is(previewErr, ErrLifecycleProductFailure):
+-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, previewErr
++			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("metrics_preview", previewErr)
+ 		case attempt == productionMetaSettleAttempts-1:
+ 			return metrics, nil
+ 		}
+ 		if c.settleWait == nil {
+-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, ErrLifecycleHarnessInvalid
++			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("settle_wait", ErrLifecycleHarnessInvalid)
+ 		}
+ 		if err := c.settleWait(ctx); err != nil {
+-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
++			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("settle_wait", err)
+ 		}
+ 	}
+-	return [coordinatorWorkerCount]target.MetricsSnapshot{}, ErrLifecycleHarnessInvalid
++	return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("settle_wait", ErrLifecycleHarnessInvalid)
+ }
+ 
+ func waitProductionMetaSettle(ctx context.Context) error {
+@@ -197,20 +212,22 @@ func collectProductionMetaExpectation(
+ ) (productionMetaExpectationSnapshot, error) {
+ 	var expectation productionMetaExpectationSnapshot
+ 	if runID == "" || workerCount != coordinatorWorkerCount || groupLimit == 0 || len(workers) != coordinatorWorkerCount {
+-		return expectation, ErrLifecycleHarnessInvalid
++		return expectation, metaCheckpointFailure("expectation_worker_shape", ErrLifecycleHarnessInvalid)
+ 	}
+ 	var seen [coordinatorWorkerCount]bool
+ 	var groupTotal uint64
+ 	for _, snapshot := range workers {
+-		if snapshot.RunID != runID || snapshot.AssignmentID == "" || snapshot.Generation == 0 ||
+-			snapshot.WorkerCount != workerCount || snapshot.WorkerID >= workerCount || snapshot.SnapshotSequence == 0 ||
++		if snapshot.RunID != runID || snapshot.AssignmentID == "" || snapshot.Generation == 0 {
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_fence", ErrLifecycleHarnessInvalid)
++		}
++		if snapshot.WorkerCount != workerCount || snapshot.WorkerID >= workerCount || snapshot.SnapshotSequence == 0 ||
+ 			(snapshot.Phase != WorkerPhaseRunning && snapshot.Phase != WorkerPhaseFinal) || seen[snapshot.WorkerID] {
+-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_worker_shape", ErrLifecycleHarnessInvalid)
+ 		}
+ 		if expectation.assignmentID == "" {
+ 			expectation.assignmentID, expectation.generation = snapshot.AssignmentID, snapshot.Generation
+ 		} else if snapshot.AssignmentID != expectation.assignmentID || snapshot.Generation != expectation.generation {
+-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_fence", ErrLifecycleHarnessInvalid)
+ 		}
+ 		workerID := int(snapshot.WorkerID)
+ 		seen[workerID] = true
+@@ -220,29 +237,29 @@ func collectProductionMetaExpectation(
+ 		for hashSlot, count := range snapshot.MetaCreate.PersonByHashSlot {
+ 			var ok bool
+ 			if expectation.person[hashSlot], ok = checkedUint64Add(expectation.person[hashSlot], count); !ok {
+-				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++				return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
+ 			}
+ 			if expectation.groups[hashSlot], ok = checkedUint64Add(
+ 				expectation.groups[hashSlot], snapshot.MetaCreate.GroupByHashSlot[hashSlot],
+ 			); !ok {
+-				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++				return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
+ 			}
+ 		}
+ 		workerGroups := uint64(0)
+ 		for _, count := range snapshot.MetaCreate.GroupByHashSlot {
+ 			var ok bool
+ 			if workerGroups, ok = checkedUint64Add(workerGroups, count); !ok {
+-				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++				return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
+ 			}
+ 		}
+ 		var ok bool
+ 		if groupTotal, ok = checkedUint64Add(groupTotal, workerGroups); !ok || groupTotal > groupLimit {
+-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
+ 		}
+ 	}
+ 	for _, present := range seen {
+ 		if !present {
+-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
++			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_worker_shape", ErrLifecycleHarnessInvalid)
+ 		}
+ 	}
+ 	return expectation, nil

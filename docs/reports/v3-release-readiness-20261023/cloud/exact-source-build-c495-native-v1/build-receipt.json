@@ -1,0 +1,72 @@
+{
+  "source": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-c495-candidate",
+  "revision": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "compiler": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+  "compiler_version": "go version go1.25.11 darwin/arm64",
+  "environment": {
+    "GOOS": "darwin",
+    "GOARCH": "arm64",
+    "CGO_ENABLED": "0",
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "1",
+    "GOFLAGS": "",
+    "GOENV": "off",
+    "GOEXPERIMENT": ""
+  },
+  "started_at": "2026-10-22T22:21:56.012292+00:00",
+  "clean_before": true,
+  "builds": [
+    {
+      "name": "wukongim",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "build",
+        "-p=1",
+        "-trimpath",
+        "-buildvcs=true",
+        "-mod=readonly",
+        "-ldflags=-s -w -buildid=",
+        "-o",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-c495-native-v1/darwin-arm64/wukongim",
+        "./cmd/wukongim"
+      ],
+      "started_at": "2026-10-22T22:21:56.012533+00:00",
+      "exit_code": 0,
+      "finished_at": "2026-10-22T22:21:57.972581+00:00",
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-c495-native-v1/darwin-arm64/wukongim",
+      "sha256": "82ba7ab6955c4ed9e6b60f1f98eb44f14b8e64c9d09224b319c56e5c281fc5a6",
+      "bytes": 64618738,
+      "buildinfo_sha256": "a83f1fd5c609ccd36e505faacb4b3b734cbeb7a7a411879af79e6abd0cc8790b"
+    },
+    {
+      "name": "wkcli",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "build",
+        "-p=1",
+        "-trimpath",
+        "-buildvcs=true",
+        "-mod=readonly",
+        "-ldflags=-s -w -buildid=",
+        "-o",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-c495-native-v1/darwin-arm64/wkcli",
+        "./cmd/wkcli"
+      ],
+      "started_at": "2026-10-22T22:21:58.006437+00:00",
+      "exit_code": 0,
+      "finished_at": "2026-10-22T22:21:59.132597+00:00",
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-c495-native-v1/darwin-arm64/wkcli",
+      "sha256": "1d44f1f1fba89662b2824c6771da37e9f84276ee4afec74eb16477800e02a2ea",
+      "bytes": 41043010,
+      "buildinfo_sha256": "da23bddb4d3a7f1353f0b7b81c75f6ade1677a64a9ba4004caccf6d74c67f170"
+    }
+  ],
+  "finished_at": "2026-10-22T22:21:59.157936+00:00",
+  "elapsed_seconds": 3.1455259579233825,
+  "clean_after": true,
+  "source_revision_after": "c4954c6a638080e6a915ecec305a3381f4afd9a0"
+}

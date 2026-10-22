@@ -1,0 +1,52 @@
+[
+  {
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestDockerImageRuntimeContract",
+    "Output": "    docker_image_integration_test.go:22: set WK_DOCKER_IMAGE_INTEGRATION=1 to build and validate the Docker image runtime contract\n"
+  },
+  {
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestDockerImageRuntimeContract",
+    "Output": "--- SKIP: TestDockerImageRuntimeContract (0.00s)\n"
+  },
+  {
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestDockerImageEmbeddedPrometheus",
+    "Output": "    docker_prometheus_integration_test.go:18: set WK_DOCKER_PROMETHEUS_IMAGE to the exact image to validate\n"
+  },
+  {
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestDockerImageEmbeddedPrometheus",
+    "Output": "--- SKIP: TestDockerImageEmbeddedPrometheus (0.00s)\n"
+  },
+  {
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestEasySDKReadinessSerialDelayFixture",
+    "Output": "--- SKIP: TestEasySDKReadinessSerialDelayFixture (0.00s)\n"
+  },
+  {
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestNativePackageLifecycle",
+    "Output": "    native_package_lifecycle_integration_test.go:17: set WK_NATIVE_PACKAGE_LIFECYCLE_INTEGRATION=1 to run the native package lifecycle validation\n"
+  },
+  {
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestNativePackageLifecycle",
+    "Output": "--- SKIP: TestNativePackageLifecycle (0.00s)\n"
+  },
+  {
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestNativePackageSignedRepository",
+    "Output": "    native_package_repository_integration_test.go:15: set WK_NATIVE_PACKAGE_REPOSITORY_INTEGRATION=1 to run the signed repository container validation\n"
+  },
+  {
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestNativePackageSignedRepository",
+    "Output": "--- SKIP: TestNativePackageSignedRepository (0.00s)\n"
+  },
+  {
+    "Package": "github.com/WuKongIM/WuKongIM/scripts",
+    "Test": "TestNativePackageRepositoryDeadlineFixture",
+    "Output": "--- SKIP: TestNativePackageRepositoryDeadlineFixture (0.00s)\n"
+  }
+]

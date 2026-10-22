@@ -1,0 +1,72 @@
+{
+  "source": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-3e668-candidate",
+  "revision": "3e668ac4733ae403e57242ddec559e6d937b0d3c",
+  "tree": "f70fc869cf65bb03ac42fd43d19e85c32a0fe114",
+  "compiler": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+  "compiler_version": "go version go1.25.11 darwin/arm64",
+  "environment": {
+    "GOOS": "darwin",
+    "GOARCH": "arm64",
+    "CGO_ENABLED": "0",
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "1",
+    "GOFLAGS": "",
+    "GOENV": "off",
+    "GOEXPERIMENT": ""
+  },
+  "started_at": "2026-10-22T22:14:12.880769+00:00",
+  "clean_before": true,
+  "builds": [
+    {
+      "name": "wukongim",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "build",
+        "-p=1",
+        "-trimpath",
+        "-buildvcs=true",
+        "-mod=readonly",
+        "-ldflags=-s -w -buildid=",
+        "-o",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-3e668-native-v1/darwin-arm64/wukongim",
+        "./cmd/wukongim"
+      ],
+      "started_at": "2026-10-22T22:14:12.880989+00:00",
+      "exit_code": 0,
+      "finished_at": "2026-10-22T22:14:20.393412+00:00",
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-3e668-native-v1/darwin-arm64/wukongim",
+      "sha256": "de6876a48750969fb6325d01f0d91d1720f3a769a62fce9b24e0d723c8dff523",
+      "bytes": 64618738,
+      "buildinfo_sha256": "f39628d45a99cf1be4b28d476b12fbacb48810458ce60c2ac1a0c25aebb9d58e"
+    },
+    {
+      "name": "wkcli",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "build",
+        "-p=1",
+        "-trimpath",
+        "-buildvcs=true",
+        "-mod=readonly",
+        "-ldflags=-s -w -buildid=",
+        "-o",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-3e668-native-v1/darwin-arm64/wkcli",
+        "./cmd/wkcli"
+      ],
+      "started_at": "2026-10-22T22:14:20.429428+00:00",
+      "exit_code": 0,
+      "finished_at": "2026-10-22T22:14:23.508009+00:00",
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-3e668-native-v1/darwin-arm64/wkcli",
+      "sha256": "0b2e5c995dd7cbc4ebbea90e9055e6cfaef1fb5b614a932c6e177d0a701e1900",
+      "bytes": 41043010,
+      "buildinfo_sha256": "b5a254d5406b7495c9052aaa6b32be1185ee8de4f4af6e51d274597e9eb74515"
+    }
+  ],
+  "finished_at": "2026-10-22T22:14:23.535506+00:00",
+  "elapsed_seconds": 10.654625083087012,
+  "clean_after": true,
+  "source_revision_after": "3e668ac4733ae403e57242ddec559e6d937b0d3c"
+}

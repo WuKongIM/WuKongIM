@@ -1,0 +1,11 @@
+{
+  "at_utc": "2026-10-22T22:14:23.535506+00:00",
+  "source_clean": true,
+  "binary_count": 2,
+  "tracked_embedded_assets_equal": 76,
+  "runtime_started": false,
+  "source_revision": "3e668ac4733ae403e57242ddec559e6d937b0d3c",
+  "source_tree": "f70fc869cf65bb03ac42fd43d19e85c32a0fe114",
+  "cloud_binary_byte_equality_claimed": false,
+  "scope": "exact3e668 local presence UID-isolation candidate plus bounded meta-checkpoint diagnostics; not qualified by this construction receipt"
+}

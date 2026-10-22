@@ -1,0 +1,595 @@
+{
+  "total_count": 8,
+  "jobs": [
+    {
+      "id": 120123268550,
+      "run_id": 39864525733,
+      "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1029 attempt 1",
+      "head_branch": "codex/v3-local-presence-candidate",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39864525733",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAb9-edxg",
+      "head_sha": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/120123268550",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39864525733/job/120123268550",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-22T22:22:55Z",
+      "started_at": "2026-10-22T22:22:56Z",
+      "completed_at": null,
+      "name": "PR messaging unit and race",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-22T22:22:57Z",
+          "completed_at": "2026-10-22T22:22:58Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-22T22:22:58Z",
+          "completed_at": "2026-10-22T22:23:07Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-22T22:23:07Z",
+          "completed_at": "2026-10-22T22:23:21Z"
+        },
+        {
+          "name": "Run focused unit and race gates",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 4,
+          "started_at": "2026-10-22T22:23:21Z",
+          "completed_at": null
+        },
+        {
+          "name": "Exercise bounded arrival saturation under race detection",
+          "status": "pending",
+          "conclusion": null,
+          "number": 5,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "pending",
+          "conclusion": null,
+          "number": 6,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "pending",
+          "conclusion": null,
+          "number": 11,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "pending",
+          "conclusion": null,
+          "number": 12,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/120123268550",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024704,
+      "runner_name": "GitHub Actions 1000024704",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120123268853,
+      "run_id": 39864525733,
+      "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1029 attempt 1",
+      "head_branch": "codex/v3-local-presence-candidate",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39864525733",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAb9-ee9Q",
+      "head_sha": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/120123268853",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39864525733/job/120123268853",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-22T22:22:55Z",
+      "started_at": "2026-10-22T22:22:56Z",
+      "completed_at": null,
+      "name": "PR three-node correctness",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-22T22:22:57Z",
+          "completed_at": "2026-10-22T22:22:58Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-22T22:22:58Z",
+          "completed_at": "2026-10-22T22:23:08Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-22T22:23:08Z",
+          "completed_at": "2026-10-22T22:23:21Z"
+        },
+        {
+          "name": "Prepare isolated PR evidence root",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-22T22:23:21Z",
+          "completed_at": "2026-10-22T22:23:22Z"
+        },
+        {
+          "name": "Run bounded three-node 500 QPS correctness smoke",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 5,
+          "started_at": "2026-10-22T22:23:22Z",
+          "completed_at": null
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "pending",
+          "conclusion": null,
+          "number": 6,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload PR regression evidence",
+          "status": "pending",
+          "conclusion": null,
+          "number": 7,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "pending",
+          "conclusion": null,
+          "number": 13,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "pending",
+          "conclusion": null,
+          "number": 14,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/120123268853",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024705,
+      "runner_name": "GitHub Actions 1000024705",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120123268928,
+      "run_id": 39864525733,
+      "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1029 attempt 1",
+      "head_branch": "codex/v3-local-presence-candidate",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39864525733",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAb9-efQA",
+      "head_sha": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/120123268928",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39864525733/job/120123268928",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T22:22:55Z",
+      "started_at": "2026-10-22T22:22:56Z",
+      "completed_at": "2026-10-22T22:23:11Z",
+      "name": "PR performance baseline evidence",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-22T22:22:57Z",
+          "completed_at": "2026-10-22T22:22:58Z"
+        },
+        {
+          "name": "Checkout exact candidate without credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-22T22:22:58Z",
+          "completed_at": "2026-10-22T22:23:08Z"
+        },
+        {
+          "name": "Check identical-input successful main baseline",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-22T22:23:08Z",
+          "completed_at": "2026-10-22T22:23:09Z"
+        },
+        {
+          "name": "Post Checkout exact candidate without credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-22T22:23:09Z",
+          "completed_at": "2026-10-22T22:23:09Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-22T22:23:09Z",
+          "completed_at": "2026-10-22T22:23:09Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/120123268928",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024706,
+      "runner_name": "GitHub Actions 1000024706",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120123270829,
+      "run_id": 39864525733,
+      "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1029 attempt 1",
+      "head_branch": "codex/v3-local-presence-candidate",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39864525733",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAb9-emrQ",
+      "head_sha": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/120123270829",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39864525733/job/120123270829",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-22T22:22:55Z",
+      "started_at": "2026-10-22T22:22:55Z",
+      "completed_at": "2026-10-22T22:22:54Z",
+      "name": "Nightly direct 500 QPS qualification",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/120123270829",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    },
+    {
+      "id": 120123271280,
+      "run_id": 39864525733,
+      "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1029 attempt 1",
+      "head_branch": "codex/v3-local-presence-candidate",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39864525733",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAb9-eocA",
+      "head_sha": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/120123271280",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39864525733/job/120123271280",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-22T22:22:55Z",
+      "started_at": "2026-10-22T22:22:55Z",
+      "completed_at": "2026-10-22T22:22:54Z",
+      "name": "Fixed Linux SEND diagnosis",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/120123271280",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    },
+    {
+      "id": 120123387593,
+      "run_id": 39864525733,
+      "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1029 attempt 1",
+      "head_branch": "codex/v3-local-presence-candidate",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39864525733",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAb9-luyQ",
+      "head_sha": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/120123387593",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39864525733/job/120123387593",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-22T22:23:11Z",
+      "started_at": "2026-10-22T22:23:13Z",
+      "completed_at": null,
+      "name": "PR 500 QPS / mixed-send",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-22T22:23:14Z",
+          "completed_at": "2026-10-22T22:23:14Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-22T22:23:14Z",
+          "completed_at": "2026-10-22T22:23:24Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-22T22:23:24Z",
+          "completed_at": "2026-10-22T22:23:36Z"
+        },
+        {
+          "name": "Run fixed sustained 500 QPS profile",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 4,
+          "started_at": "2026-10-22T22:23:36Z",
+          "completed_at": null
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "pending",
+          "conclusion": null,
+          "number": 5,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload every performance result",
+          "status": "pending",
+          "conclusion": null,
+          "number": 6,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "pending",
+          "conclusion": null,
+          "number": 11,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "pending",
+          "conclusion": null,
+          "number": 12,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/120123387593",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024710,
+      "runner_name": "GitHub Actions 1000024710",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120123387605,
+      "run_id": 39864525733,
+      "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1029 attempt 1",
+      "head_branch": "codex/v3-local-presence-candidate",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39864525733",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAb9-lu1Q",
+      "head_sha": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/120123387605",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39864525733/job/120123387605",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-22T22:23:11Z",
+      "started_at": "2026-10-22T22:23:13Z",
+      "completed_at": null,
+      "name": "PR 500 QPS / tcp-sendack",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-22T22:23:14Z",
+          "completed_at": "2026-10-22T22:23:15Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-22T22:23:15Z",
+          "completed_at": "2026-10-22T22:23:24Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-22T22:23:24Z",
+          "completed_at": "2026-10-22T22:23:36Z"
+        },
+        {
+          "name": "Run fixed sustained 500 QPS profile",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 4,
+          "started_at": "2026-10-22T22:23:36Z",
+          "completed_at": null
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "pending",
+          "conclusion": null,
+          "number": 5,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload every performance result",
+          "status": "pending",
+          "conclusion": null,
+          "number": 6,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "pending",
+          "conclusion": null,
+          "number": 11,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "pending",
+          "conclusion": null,
+          "number": 12,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/120123387605",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024709,
+      "runner_name": "GitHub Actions 1000024709",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120123387653,
+      "run_id": 39864525733,
+      "workflow_name": "Three-Node Chat Lifecycle Regression pull_request 1029 attempt 1",
+      "head_branch": "codex/v3-local-presence-candidate",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39864525733",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAb9-lvBQ",
+      "head_sha": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/120123387653",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39864525733/job/120123387653",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-22T22:23:11Z",
+      "started_at": "2026-10-22T22:23:13Z",
+      "completed_at": null,
+      "name": "PR 500 QPS / channel-append",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-22T22:23:14Z",
+          "completed_at": "2026-10-22T22:23:15Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-22T22:23:15Z",
+          "completed_at": "2026-10-22T22:23:25Z"
+        },
+        {
+          "name": "Set up Go",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-22T22:23:25Z",
+          "completed_at": "2026-10-22T22:23:39Z"
+        },
+        {
+          "name": "Run fixed sustained 500 QPS profile",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 4,
+          "started_at": "2026-10-22T22:23:39Z",
+          "completed_at": null
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "pending",
+          "conclusion": null,
+          "number": 5,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload every performance result",
+          "status": "pending",
+          "conclusion": null,
+          "number": 6,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Go",
+          "status": "pending",
+          "conclusion": null,
+          "number": 11,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Checkout candidate",
+          "status": "pending",
+          "conclusion": null,
+          "number": 12,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/120123387653",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024711,
+      "runner_name": "GitHub Actions 1000024711",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

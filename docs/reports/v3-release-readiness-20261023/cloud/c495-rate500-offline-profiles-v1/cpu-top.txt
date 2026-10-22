@@ -1,0 +1,68 @@
+File: wukongim
+Type: cpu
+Time: 2026-10-23 06:29:07 CST
+Duration: 10.12s, Total samples = 2.28s (22.53%)
+Showing nodes accounting for 2.03s, 89.04% of 2.28s total
+Dropped 265 nodes (cum <= 0.01s)
+Showing top 60 nodes out of 206
+      flat  flat%   sum%        cum   cum%
+     1.17s 51.32% 51.32%      1.17s 51.32%  syscall.syscallX
+     0.34s 14.91% 66.23%      0.34s 14.91%  syscall.syscall
+     0.16s  7.02% 73.25%      0.16s  7.02%  runtime.madvise
+     0.11s  4.82% 78.07%      0.11s  4.82%  syscall.syscall6
+     0.10s  4.39% 82.46%      0.10s  4.39%  runtime.fcntl
+     0.03s  1.32% 83.77%      0.07s  3.07%  runtime.scanobject
+     0.03s  1.32% 85.09%      0.03s  1.32%  runtime.usleep
+     0.02s  0.88% 85.96%      0.03s  1.32%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel
+     0.02s  0.88% 86.84%      0.02s  0.88%  runtime.(*mspan).init
+     0.02s  0.88% 87.72%      0.02s  0.88%  runtime.kevent
+     0.02s  0.88% 88.60%      0.02s  0.88%  runtime.pthread_cond_signal
+     0.01s  0.44% 89.04%      0.03s  1.32%  github.com/cockroachdb/pebble/v2/sstable/block.(*Reader).Read
+         0     0% 89.04%      0.04s  1.75%  bufio.(*Writer).Flush
+         0     0% 89.04%      0.03s  1.32%  bufio.(*Writer).Write
+         0     0% 89.04%      0.02s  0.88%  compress/flate.(*Writer).Write (inline)
+         0     0% 89.04%      0.02s  0.88%  compress/flate.(*compressor).write
+         0     0% 89.04%      0.02s  0.88%  compress/gzip.(*Writer).Write
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/internal/access/api.(*Server).handleMetrics
+         0     0% 89.04%      0.03s  1.32%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).debugBearerMiddleware.func2
+         0     0% 89.04%      0.03s  1.32%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).restoreMaintenanceMiddleware.func3
+         0     0% 89.04%      0.03s  1.32%  github.com/WuKongIM/WuKongIM/internal/access/api.New.openCORSMiddleware.func1
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*Handler).writeSendack
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func1
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func1.1
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func2
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/internal/access/gateway.writeSendack
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*OrderedSubmitter).run
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).admitSendBatchLane.func1
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*sendBatchPublication).finishItem
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*ExchangeServer).Handle
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*storeAdapter).Sync
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/channel/store.(*MessageDBFactory).AppendLeaderBatch
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).ensureDefaultRuntime.RegisterQuorumExchangeHandlerOn.func1
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*QuorumExchangeGateway).Handle
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*metaCreateSlotOwner).run.(*metaCreateSlotOwner).startBatch.func1
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*metaCreateSlotOwner).submit
+         0     0% 89.04%      0.03s  1.32%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportServer).Register.func1
+         0     0% 89.04%      0.03s  1.32%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.HandlerFunc.HandleRPC
+         0     0% 89.04%      0.03s  1.32%  github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*DB).Get
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*Snapshot).Get
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*ChannelLog).loadCheckpoint
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/db/message.(*channelEntry).loadMQTTSourceState
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/db/meta.(*DB).ReadPermissionSnapshot
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/db/meta.snapshotUpdateRow[go.shape.struct { Incarnation uint64; ChannelID string; ChannelType int64; UID string }]
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/pkg/gateway/core.(*Server).encodeAndWrite
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/pkg/gateway/core.(*Server).onOpen.func1
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/pkg/gateway/core.(*Server).writePayloadDirectObserved
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/pkg/gateway/core.(*deferredSendBatch).invokePublication
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/pkg/gateway/core.(*deferredSendBatch).publish
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/pkg/gateway/core.(*deferredSendBatch).runLane
+         0     0% 89.04%      0.05s  2.19%  github.com/WuKongIM/WuKongIM/pkg/gateway/session.(*session).WriteFrame
+         0     0% 89.04%      0.03s  1.32%  github.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet.(*stateConn).WriteObserved
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet.(*stateConn).asyncWriteWithOutboundLimit
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet.(*stateConn).writeTCP
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet.(*stateConn).writeTCP.func2
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/pkg/gateway/types.(*Context).WriteFrame
+         0     0% 89.04%      1.59s 69.74%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+         0     0% 89.04%      1.59s 69.74%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0% 89.04%      0.02s  0.88%  github.com/WuKongIM/WuKongIM/pkg/slot/fsm.(*stateMachine).ApplyBatch
+         0     0% 89.04%      0.04s  1.75%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*applyPipeline).runQueue

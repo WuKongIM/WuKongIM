@@ -1,0 +1,21 @@
+{
+  "source_revision": "3e668ac4733ae403e57242ddec559e6d937b0d3c",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "sha256": "f5e94270e318b9d5cec7a9eb15cbe62d9bac366470c45653be7fdd70db23168a"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    }
+  ]
+}

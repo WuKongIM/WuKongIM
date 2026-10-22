@@ -1,0 +1,14 @@
+--- template3e668/supervise.py
++++ proposedc495/supervise.py
+@@ -13,9 +13,9 @@
+ import urllib.request
+ from exact_build_guard import verify_exact_build, PRODUCT_BINARIES
+ 
+-ROOT = Path("/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-3e668-candidate")
++ROOT = Path("/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-c495-candidate")
+ OUT = Path(__file__).resolve().parent
+-SOURCE = "3e668ac4733ae403e57242ddec559e6d937b0d3c"
++SOURCE = "c4954c6a638080e6a915ecec305a3381f4afd9a0"
+ RUN_ID = "chat-20261021T214505Z-00299e37-rehearsal-1"
+ BASE = 25000
+ TOTAL_SECONDS = 600

@@ -1,0 +1,22 @@
+docs-site/FLOW.md: 115 lines exceeds the 100-line target
+internal/access/api/FLOW.md: 148 lines exceeds the 100-line target
+internal/access/mqtt/FLOW.md: 102 lines exceeds the 100-line target
+internal/access/node/FLOW.md: 106 lines exceeds the 100-line target
+internal/app/FLOW.md: 148 lines exceeds the 100-line target
+internal/bench/FLOW.md: 121 lines exceeds the 100-line target
+internal/bench/chatlifecycle/FLOW.md: 107 lines exceeds the 100-line target
+internal/infra/cluster/FLOW.md: 133 lines exceeds the 100-line target
+internal/runtime/channelappend/FLOW.md: 118 lines exceeds the 100-line target
+internal/runtime/mqttsession/FLOW.md: 102 lines exceeds the 100-line target
+internal/usecase/message/FLOW.md: 132 lines exceeds the 100-line target
+internal/usecase/mqttsession/FLOW.md: 125 lines exceeds the 100-line target
+internal/usecase/presence/FLOW.md: Read First must contain 1-5 local references
+pkg/channel/FLOW.md: 150 lines exceeds the 100-line target
+pkg/channel/reactor/FLOW.md: 102 lines exceeds the 100-line target
+pkg/cluster/FLOW.md: 150 lines exceeds the 100-line target
+pkg/db/message/FLOW.md: 150 lines exceeds the 100-line target
+pkg/db/meta/FLOW.md: 123 lines exceeds the 100-line target
+pkg/gateway/FLOW.md: 111 lines exceeds the 100-line target
+pkg/slot/FLOW.md: 115 lines exceeds the 100-line target
+test/e2e/suite/FLOW.md: 105 lines exceeds the 100-line target
+exit status 1

@@ -1,0 +1,10 @@
+=== RUN   TestRecoveryColdFanoutFitsDeliveryDeadlineWithUnavailableOwner
+--- PASS: TestRecoveryColdFanoutFitsDeliveryDeadlineWithUnavailableOwner (0.27s)
+=== RUN   TestRecoveryReadsSurvivingIngressAndRejectsStaleOwnerGeneration
+--- PASS: TestRecoveryReadsSurvivingIngressAndRejectsStaleOwnerGeneration (0.00s)
+=== RUN   TestRecoveryOwnerMembershipDoesNotAssumeDataReplicaRole
+--- PASS: TestRecoveryOwnerMembershipDoesNotAssumeDataReplicaRole (0.00s)
+=== RUN   TestRecoveryChildDeadlineRemainsRetryableAndPreservesParentCancellation
+--- PASS: TestRecoveryChildDeadlineRemainsRetryableAndPreservesParentCancellation (0.00s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/cluster	1.828s
