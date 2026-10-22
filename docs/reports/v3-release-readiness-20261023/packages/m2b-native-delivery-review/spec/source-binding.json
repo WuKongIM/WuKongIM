@@ -1,0 +1,124 @@
+{
+  "schema": "m2b.spec-review-binding/v1",
+  "finished_at_utc": "2026-10-21T21:24:55.264899+00:00",
+  "axis": "Spec",
+  "base": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "head": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "head_tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "commit_list": [],
+  "diff_command": "git diff 7255102 --",
+  "tracked_diff_sha256": "d31772930cbae9b7e91855bbecc9483da32e3e9fe532542789a492ea3b6bdf0d",
+  "untracked_command": "git ls-files --others --exclude-standard",
+  "untracked": [
+    "tests/provider_sdk/native_object_delivery_sdk_drill.py"
+  ],
+  "files": [
+    {
+      "path": "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "sha256": "3d9512ae4b0024de4dd0dbec2a395e3d94c3e67d377fd6f27ec180fc51c289a0",
+      "bytes": 27422,
+      "final_sha256": "3d9512ae4b0024de4dd0dbec2a395e3d94c3e67d377fd6f27ec180fc51c289a0",
+      "unchanged": true
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "sha256": "dadf907845abb09c3374dd2cd57b2ab6a84f8e6a3130ec2f232921c1a8b4e7a2",
+      "bytes": 55926,
+      "final_sha256": "dadf907845abb09c3374dd2cd57b2ab6a84f8e6a3130ec2f232921c1a8b4e7a2",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "sha256": "6240e56b9fd43b01d02d7ca2ac3b5bd41b108bed9c9cedf53d5756baf2a92210",
+      "bytes": 19236,
+      "final_sha256": "6240e56b9fd43b01d02d7ca2ac3b5bd41b108bed9c9cedf53d5756baf2a92210",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "sha256": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+      "bytes": 21899,
+      "final_sha256": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+      "unchanged": true
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "sha256": "c1062fef4d675425cfbe2665f310f15ad59e39637b6e7227a2a5e5fd70688027",
+      "bytes": 21249,
+      "final_sha256": "c1062fef4d675425cfbe2665f310f15ad59e39637b6e7227a2a5e5fd70688027",
+      "unchanged": true
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "e91f5ad28e6c30135f4ed3f3be2c7cbbd3a42a38e2bedf7a8f7e9c1bb26887ed",
+      "bytes": 4426,
+      "final_sha256": "e91f5ad28e6c30135f4ed3f3be2c7cbbd3a42a38e2bedf7a8f7e9c1bb26887ed",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "sha256": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8",
+      "bytes": 28828,
+      "final_sha256": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8",
+      "unchanged": true
+    }
+  ],
+  "original_source_freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/source-freeze.json",
+    "sha256": "123aa28a8aa8e38e8f3f3a53298b4201825db6e2f578dfbb984770375f21d831"
+  },
+  "original_combined_patch": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/implementation.patch",
+    "sha256": "c4c90a6fc27d8f0ce3ae5567f3b1c3f27b5885a64eaba8fc31f4095e9d8574b8"
+  },
+  "spec_sources": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-m2b-plan/README.md",
+      "sha256": "58f6ed0cfaf56b37a88de781eb1e15a6e0e9e9744e68b5722b5e332598937fac"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/failure-matrix.md",
+      "sha256": "bf1f44f24fd7c5e07a30780c6b370a743621dfc33dff241adb03a2a5d566813c"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-failure-matrix.md",
+      "sha256": "30b728c95f1b6d752cbe49bafa1bdc916223973a9f711d0290c457e16dc30c19"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-scope-binding.json",
+      "sha256": "af29fb943b43e41142a6537b2468737cfa043b9eb35a9e0827144430b1682dcd"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-refresh-design-review/README.md",
+      "sha256": "9fe7e2c3d2b9809163157f2fe4557aaa33bb39132057b38ba271f9a68a6fae25"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-refresh-design-review/observation-and-red-addendum/README.md",
+      "sha256": "9b714becf7bc4b44fbd6ca928205c7a36aa256885ece1c56a92af5cac6895c91"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/refresh-task-live-readonly-observation/manifest.json",
+      "sha256": "f6630eb65c38160857514435837baf8db78befc9232b60a527b2b39e022efea2"
+    }
+  ],
+  "rules": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "/Users/tt/.agents/skills/code-review/SKILL.md",
+      "sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143"
+    }
+  ],
+  "flow_scope": "No applicable package FLOW in this independent packages Git worktree; root project FLOW is not a substitute.",
+  "latest_spec_supersession": "Authorized exact File root/trailing slash, 1000 URLs, 50-submit/10-query aggregate rows supersedes earlier refresh_unsupported plan; original poll 10 and interval 5 remain.",
+  "constraints": {
+    "source_modified": false,
+    "full_tests_rerun": false,
+    "cloud_api_calls": 0,
+    "private_logs_read": false,
+    "actual_network_probe_calls": 0,
+    "probe_count": 2
+  }
+}

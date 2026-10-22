@@ -1,0 +1,22 @@
+{
+  "axis": "Spec",
+  "findings": [],
+  "requirements_checked": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "native_acceptance_receipt_checked": true,
+  "minimal_scope": true,
+  "preserved_cryptographic_authorities": [
+    "RSA packet and SHA-256 digest inspection",
+    "candidate-only isolated rpmdb",
+    "hashed full issuer fingerprint binding",
+    "exactly one successful reviewed candidate"
+  ],
+  "original_unrecorded_failure_cause": "unknown"
+}

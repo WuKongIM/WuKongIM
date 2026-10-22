@@ -1,0 +1,152 @@
+{
+  "reviewed_at_utc": "2026-10-22T17:15:37.508979+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status",
+  "base": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "head": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "diff_commands": [
+    "git diff HEAD",
+    "git ls-files --others --exclude-standard"
+  ],
+  "commits": [],
+  "staged": [],
+  "untracked": [],
+  "source_freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/source-freeze.json",
+    "sha256": "a7794bca01f11476c9b93b2daa3a20a850cb6615bdc69c8ea8a77410e18dcfb7",
+    "bytes": 867
+  },
+  "implementation_patch": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/implementation.patch",
+    "sha256": "ba465186dd9e93e09b3e357a4c635fa5c173ca746e2c9bce89cdd5b2ca5a318a",
+    "bytes": 6275,
+    "matches_working_diff": true
+  },
+  "sources": [
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "base_sha256": "71f1d4f4ae9f83fafa20fe690593b618e9e36a65dcecd3be7cc94e7bd304424f",
+      "frozen_sha256": "aed022731b14eb58ba58150d48083473c12fc6801003518723b771f85eff072b",
+      "before": {
+        "sha256": "aed022731b14eb58ba58150d48083473c12fc6801003518723b771f85eff072b",
+        "bytes": 77446
+      },
+      "after": {
+        "sha256": "aed022731b14eb58ba58150d48083473c12fc6801003518723b771f85eff072b",
+        "bytes": 77446
+      }
+    },
+    {
+      "path": "tests/test_verify_production_package_site.py",
+      "base_sha256": "f7cb017611a24d47eb6e6c80ce0359126ff7276b3049fdd760555f8bd07aa928",
+      "frozen_sha256": "5abf2d0cd14479697414d30020043421af620a36347a62a865faf5fc7f3b3006",
+      "before": {
+        "sha256": "5abf2d0cd14479697414d30020043421af620a36347a62a865faf5fc7f3b3006",
+        "bytes": 51330
+      },
+      "after": {
+        "sha256": "5abf2d0cd14479697414d30020043421af620a36347a62a865faf5fc7f3b3006",
+        "bytes": 51330
+      }
+    },
+    {
+      "path": "CHANGELOG.md",
+      "base_sha256": "b46e8bd869f6c9d05e95311a9a76578c7e7159c6d38cea3340367a13de9512f0",
+      "frozen_sha256": "6e68a918b61a48c56a5308ba96bf83c6b59709def6784365f261ff5f896b77ad",
+      "before": {
+        "sha256": "6e68a918b61a48c56a5308ba96bf83c6b59709def6784365f261ff5f896b77ad",
+        "bytes": 4335
+      },
+      "after": {
+        "sha256": "6e68a918b61a48c56a5308ba96bf83c6b59709def6784365f261ff5f896b77ad",
+        "bytes": 4335
+      }
+    }
+  ],
+  "standards_sources": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/README.md",
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "bytes": 10871,
+      "previously_read_exact_bytes_reverified": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "bytes": 47357,
+      "previously_read_exact_bytes_reverified": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/.github/CODEOWNERS",
+      "sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2",
+      "bytes": 27,
+      "previously_read_exact_bytes_reverified": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284,
+      "previously_read_exact_bytes_reverified": true
+    }
+  ],
+  "exact_rule_reuse_from": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-review-v2/standards/source-binding.json",
+    "sha256": "95f494a45456d36259cca714b844dc5e28369595c57f8a287e3aa3e7602839db",
+    "bytes": 7768
+  },
+  "discovery": {
+    "command": "rg --files --hidden --no-ignore -g !.git -g AGENTS.md -g FLOW.md -g CONTEXT.md -g CONTRIBUTING* -g CODING*",
+    "package_matches": []
+  },
+  "evidence_read": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/failure-matrix.md",
+      "sha256": "0198e350ed083856d675d0b9a4e0f8392407f8f584a234d7ad68e9bdcb42abca",
+      "bytes": 1476
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/focused-first-red.json",
+      "sha256": "86b1368059f8ff949ccad9f6515b18d0d67a544c91818e5170ea7fb9d419761b",
+      "bytes": 363
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/focused-first-red.log",
+      "sha256": "d7b74ae959abc219e0800cf3ed835d4f5fcd7991e998325da53a7580429076ff",
+      "bytes": 17451
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/focused-green.json",
+      "sha256": "94b36b454c54240289c2fb2fbf5be71506fc117ddef90924cf29e04a6d2e8011",
+      "bytes": 278
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/focused-green.log",
+      "sha256": "7727825cf1d15d378c44455ce92bc660ca03e1b088c73b6c997377fad336b03a",
+      "bytes": 7044
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/contracts-first.json",
+      "sha256": "dd09d9c4db4f131baf9852cc2c43c074b69cb953dfd98afc925706e089c007ff",
+      "bytes": 117
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/native-command.json",
+      "sha256": "0819a09412ec940b0f12f08e5b654a4412cc478a3b0d9438d778dfccbac22b80",
+      "bytes": 1189
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/native-result.json",
+      "sha256": "b8c432a5698c8566b90e93b9d7e45c60dfe660c50f55c55f67100adaa093c829",
+      "bytes": 1762
+    }
+  ],
+  "tests_first_binding": {
+    "red_source_matches_base": true,
+    "red_tests_match_final_frozen_tests": true,
+    "green_native_verifier_match_frozen_source": true
+  },
+  "tests_run": false,
+  "source_edits": false,
+  "cloud_calls": false,
+  "spec_report_read": false
+}

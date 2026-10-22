@@ -1,0 +1,184 @@
+{
+  "review": "Independent Standards only; no Spec report read",
+  "reviewed_at_utc": "2026-10-22T17:14:05.872880+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk",
+  "base_head": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "diff_commands": [
+    "git diff --binary 7255102de81b45c23d52e908ccdde1b7799ee3f5",
+    "git ls-files --others --exclude-standard"
+  ],
+  "branch_commits": [],
+  "staged": [],
+  "untracked": [
+    "tests/provider_sdk/native_object_delivery_sdk_drill.py"
+  ],
+  "source_freeze": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-repair-v2/source-freeze.json",
+    "sha256": "aa9afd07b187741be04969a0477b07a7a4f735f3e2c1316ac9c37068f0cdc4a9",
+    "bytes": 1998
+  },
+  "full_patch": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-repair-v2/implementation.patch",
+    "sha256": "c9e177e835ac976af8d06f87b8ebbbb18cabe547d2357321e6ca824ddcb6f940",
+    "bytes": 88619,
+    "matches_working_tracked_plus_untracked": true
+  },
+  "sources": [
+    {
+      "path": "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "base_sha256": null,
+      "frozen_sha256": "6cbb8e7c726bdd7057ba1a449cd97c10ce8e7e44d82301042026cf4ee462e2da",
+      "verified_before_finalization": {
+        "sha256": "6cbb8e7c726bdd7057ba1a449cd97c10ce8e7e44d82301042026cf4ee462e2da",
+        "bytes": 39380
+      },
+      "frozen_matches": true,
+      "verified_after_finalization": {
+        "sha256": "6cbb8e7c726bdd7057ba1a449cd97c10ce8e7e44d82301042026cf4ee462e2da",
+        "bytes": 39380
+      }
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "base_sha256": "7c16af29a46fe882ec04e37b1179261b3dbf5e301b76f6dd26bc52f7607dc768",
+      "frozen_sha256": "84d85a0fc96a21f40c1d14258636fab69782dccbe69c6221a253594383e71c01",
+      "verified_before_finalization": {
+        "sha256": "84d85a0fc96a21f40c1d14258636fab69782dccbe69c6221a253594383e71c01",
+        "bytes": 62901
+      },
+      "frozen_matches": true,
+      "verified_after_finalization": {
+        "sha256": "84d85a0fc96a21f40c1d14258636fab69782dccbe69c6221a253594383e71c01",
+        "bytes": 62901
+      }
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "base_sha256": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55",
+      "frozen_sha256": "3c133e5a0aa23856f02e420d372174720e1434ed3199607559d66d0c354b4524",
+      "verified_before_finalization": {
+        "sha256": "3c133e5a0aa23856f02e420d372174720e1434ed3199607559d66d0c354b4524",
+        "bytes": 24778
+      },
+      "frozen_matches": true,
+      "verified_after_finalization": {
+        "sha256": "3c133e5a0aa23856f02e420d372174720e1434ed3199607559d66d0c354b4524",
+        "bytes": 24778
+      }
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "base_sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+      "frozen_sha256": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+      "verified_before_finalization": {
+        "sha256": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+        "bytes": 21899
+      },
+      "frozen_matches": true,
+      "verified_after_finalization": {
+        "sha256": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+        "bytes": 21899
+      }
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "base_sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b",
+      "frozen_sha256": "373c59bf878ccc78deab15b45f2cc131af2f58c6716c05405ee0f7a5fd7157de",
+      "verified_before_finalization": {
+        "sha256": "373c59bf878ccc78deab15b45f2cc131af2f58c6716c05405ee0f7a5fd7157de",
+        "bytes": 22477
+      },
+      "frozen_matches": true,
+      "verified_after_finalization": {
+        "sha256": "373c59bf878ccc78deab15b45f2cc131af2f58c6716c05405ee0f7a5fd7157de",
+        "bytes": 22477
+      }
+    },
+    {
+      "path": "CHANGELOG.md",
+      "base_sha256": "b46e8bd869f6c9d05e95311a9a76578c7e7159c6d38cea3340367a13de9512f0",
+      "frozen_sha256": "071bb40ed2c05742f3fd6c60dcbbdf034dea42cb472a9832f1709a86dc93c945",
+      "verified_before_finalization": {
+        "sha256": "071bb40ed2c05742f3fd6c60dcbbdf034dea42cb472a9832f1709a86dc93c945",
+        "bytes": 4501
+      },
+      "frozen_matches": true,
+      "verified_after_finalization": {
+        "sha256": "071bb40ed2c05742f3fd6c60dcbbdf034dea42cb472a9832f1709a86dc93c945",
+        "bytes": 4501
+      }
+    },
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "base_sha256": "17ca5ff3878ccaf838f70e77b909b70b6920c3fd644ad010e24c59bb8ffa332d",
+      "frozen_sha256": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8",
+      "verified_before_finalization": {
+        "sha256": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8",
+        "bytes": 28828
+      },
+      "frozen_matches": true,
+      "verified_after_finalization": {
+        "sha256": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8",
+        "bytes": 28828
+      }
+    }
+  ],
+  "standards_sources": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/README.md",
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "bytes": 10871,
+      "source": "packages checkout"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "bytes": 47357,
+      "source": "packages checkout"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/docs/object-storage-delivery.md",
+      "sha256": "373c59bf878ccc78deab15b45f2cc131af2f58c6716c05405ee0f7a5fd7157de",
+      "bytes": 22477,
+      "source": "packages checkout"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/.github/CODEOWNERS",
+      "sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2",
+      "bytes": 27,
+      "source": "packages checkout"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284,
+      "source": "user-provided root working agreement; read from parent checkout"
+    }
+  ],
+  "discovery": {
+    "command": "rg --files --hidden --no-ignore -g !.git -g AGENTS.md -g FLOW.md -g CONTEXT.md -g CONTRIBUTING* -g CODING*",
+    "package_matches": [],
+    "code_review_skill": {
+      "path": "/Users/tt/.agents/skills/code-review/SKILL.md",
+      "sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143",
+      "bytes": 7201
+    }
+  },
+  "protected_source_binding": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-repair-v2/protected-source-binding.json",
+    "sha256": "eebf2aa65c7292dea0340e2645f75bd536b45d8400057cecb4fa23ab89fab902",
+    "bytes": 18931,
+    "rechecked_count": 121,
+    "all_match": true
+  },
+  "author_validation_summary": {
+    "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-repair-v2/validation-summary.json",
+    "sha256": "facfbbf9487290293a58aca5cb9e4be2ba7da7515399ee581306b02de6146c53",
+    "bytes": 3385,
+    "independently_rerun": false
+  },
+  "source_changed_by_review": false,
+  "tests_run_by_review": false,
+  "cloud_or_network_calls": false
+}

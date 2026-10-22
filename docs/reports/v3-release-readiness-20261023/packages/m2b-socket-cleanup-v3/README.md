@@ -1,0 +1,3 @@
+# M2b explicit socket cleanup
+
+Frozen seven-file implementation locally committed as 62868baf1a48a7d94dea402dff914447ae3460c3; only two test files differ from preserved v2. A zero ResourceWarning assertion first failed in all four guard scenarios, then all 16 input tests passed after explicitly closing probe sockets. The exception, independent counts and refusal semantics are unchanged. Spec/Standards incremental review have zero findings. The final source still requires Linux native/SDK CI; v2 native20 and its earlier unknown failure are preserved separately. No cloud or production activation.

@@ -1,0 +1,177 @@
+{
+  "recorded_at_utc": "2026-10-21T21:25:58.006332+00:00",
+  "command_receipts": [
+    {
+      "name": "sdk-contract-first-red",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": 120
+    },
+    {
+      "name": "workflow-first-red",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": 120
+    },
+    {
+      "name": "workflow-revised-first-red",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": null
+    },
+    {
+      "name": "refresh-first-red",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": 120
+    },
+    {
+      "name": "refresh-review-red",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": null
+    },
+    {
+      "name": "refresh-distinguishing-red",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": null
+    },
+    {
+      "name": "driver-first-red",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": null
+    },
+    {
+      "name": "native-seam-first-red",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": null
+    },
+    {
+      "name": "sdk-first-green",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": null
+    },
+    {
+      "name": "sdk-green",
+      "exit_code": 0,
+      "terminal": true,
+      "deadline_seconds": null
+    },
+    {
+      "name": "bounds-repair-red",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": null
+    },
+    {
+      "name": "sideeffects-red",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": null
+    },
+    {
+      "name": "cleanup-red",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": null
+    },
+    {
+      "name": "sdk-repair-green",
+      "exit_code": 0,
+      "terminal": true,
+      "deadline_seconds": null
+    },
+    {
+      "name": "input-repair-green",
+      "exit_code": 0,
+      "terminal": true,
+      "deadline_seconds": null
+    },
+    {
+      "name": "contracts-first",
+      "exit_code": 0,
+      "terminal": true,
+      "deadline_seconds": 90
+    },
+    {
+      "name": "default-first",
+      "exit_code": 0,
+      "terminal": true,
+      "deadline_seconds": 600
+    },
+    {
+      "name": "native-attempt-1/command.json",
+      "exit_code": 0,
+      "terminal": true,
+      "deadline_seconds": 900
+    },
+    {
+      "name": "native-attempt-1/sdk-command.json",
+      "exit_code": 1,
+      "terminal": true,
+      "deadline_seconds": 300
+    },
+    {
+      "name": "native-attempt-2/command.json",
+      "exit_code": 0,
+      "terminal": true,
+      "deadline_seconds": 900
+    },
+    {
+      "name": "native-attempt-2/sdk-command.json",
+      "exit_code": 0,
+      "terminal": true,
+      "deadline_seconds": 300
+    }
+  ],
+  "native_verification_commands": {
+    "attempt1": 9,
+    "attempt2": 9,
+    "all_exit_zero_and_not_timed_out": true
+  },
+  "independent_cleanup": {
+    "container_queries": [
+      {
+        "command": [
+          "docker",
+          "container",
+          "ls",
+          "--all",
+          "--filter",
+          "name=^/wk-m2b-native-1$",
+          "--format",
+          "{{.Names}}"
+        ],
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "docker",
+          "container",
+          "ls",
+          "--all",
+          "--filter",
+          "name=^/wk-m2b-native-2$",
+          "--format",
+          "{{.Names}}"
+        ],
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    ],
+    "owned_scratch_absent": {
+      "native-attempt-1": true,
+      "native-attempt-2": true
+    },
+    "read_only": true
+  },
+  "review_started_tests_or_background_processes": false,
+  "limitation": "Exact named containers and owned scratch were checked; no OS-wide process inventory or live provider inventory is claimed."
+}

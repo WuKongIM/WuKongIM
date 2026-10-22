@@ -1,0 +1,36 @@
+{
+  "containers": [
+    {
+      "command": [
+        "docker",
+        "container",
+        "ls",
+        "--all",
+        "--filter",
+        "name=^/wk-m2b-native-1$",
+        "--format",
+        "{{.Names}}"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "terminal": true
+    },
+    {
+      "command": [
+        "docker",
+        "container",
+        "ls",
+        "--all",
+        "--filter",
+        "name=^/wk-m2b-native-2$",
+        "--format",
+        "{{.Names}}"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "terminal": true
+    }
+  ],
+  "native_work_absent": true,
+  "existing_M1_public_export_preserved": true
+}

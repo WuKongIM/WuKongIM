@@ -1,0 +1,52 @@
+--- v2/tests/provider_sdk/native_object_delivery_sdk_drill.py
++++ v3/tests/provider_sdk/native_object_delivery_sdk_drill.py
+@@ -540,7 +540,9 @@
+         raise RuntimeError('provider network forbidden')
+     try:
+         with mock.patch.object(socket.socket,'connect',side_effect=blocked):
+-            refused(lambda:socket.create_connection(('127.0.0.1',9),timeout=1))
++            with socket.socket() as probe:
++                probe.settimeout(1)
++                refused(lambda:probe.connect(('127.0.0.1',9)))
+             require(counts['self_check_attempts']==1,'network guard self-check failed');checking=False
+             sdk_cases(args,report)
+         require(counts['unexpected_attempts']==0,'unexpected provider network attempt')
+--- v2/tests/test_object_storage_delivery_inputs.py
++++ v3/tests/test_object_storage_delivery_inputs.py
+@@ -256,23 +256,33 @@
+ 
+     def test_native_sdk_guard_cannot_be_swallowed_by_refusal_or_provider_error(self):
+         import sys
++        import gc
++        import warnings
+         spec=importlib.util.spec_from_file_location('native_sdk_drill',ROOT/'tests/provider_sdk/native_object_delivery_sdk_drill.py')
+         driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
+         for mode in ('clean','refused','converted','primary_error'):
+             with self.subTest(mode=mode),tempfile.TemporaryDirectory() as temp:
+                 root=Path(temp);work=root/'native-sdk-work';work.mkdir();bundle=work/'bundle.json';bundle.write_text('{}');output=root/'receipt.json'
++                def attempted_connection():
++                    with socket.socket() as probe:
++                        probe.settimeout(1)
++                        probe.connect(('127.0.0.1',9))
+                 def cases(args,report):
+                     if mode in ('refused','primary_error'):
+-                        driver.refused(lambda:socket.create_connection(('127.0.0.1',9),timeout=1))
++                        driver.refused(attempted_connection)
+                     elif mode=='converted':
+                         def wrapped():
+-                            try:socket.create_connection(('127.0.0.1',9),timeout=1)
++                            try:attempted_connection()
+                             except Exception:raise ValueError('SDK converted refusal') from None
+                         driver.refused(wrapped)
+                     if mode=='primary_error':raise KeyError('original stage error')
+                     report['cases']=[{'case':name,'passed':True} for name in driver.CASES[:19]]
+                 argv=['driver','sdk','--source-sha',HEAD,'--bundle',str(bundle),'--bundle-sha256','0'*64,'--output',str(output)]
+-                with mock.patch.object(sys,'argv',argv),mock.patch.object(driver,'sdk_cases',side_effect=cases):code=driver.main()
++                with warnings.catch_warnings(record=True) as observed:
++                    warnings.simplefilter('always',ResourceWarning)
++                    with mock.patch.object(sys,'argv',argv),mock.patch.object(driver,'sdk_cases',side_effect=cases):code=driver.main()
++                    gc.collect()
++                self.assertEqual([str(item.message) for item in observed if issubclass(item.category,ResourceWarning)],[])
+                 report=json.loads(output.read_bytes());self.assertEqual(code,0 if mode=='clean' else 1)
+                 self.assertEqual(report['network_guard'],{'self_check_attempts':1,'unexpected_attempts':0 if mode=='clean' else 1,'passed':mode=='clean'})
+                 if mode=='primary_error':self.assertEqual(report['error_type'],'KeyError')

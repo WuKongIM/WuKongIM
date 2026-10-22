@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/tmp/wukongim-v3-readiness-20261021/packages/provider-adapter-implementation/locked-venv/bin/python",
+    "-B",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "--receipt",
+    "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-repair-green-receipt.json"
+  ],
+  "exit_code": 0,
+  "terminal": true
+}

@@ -1,0 +1,38 @@
+{
+  "verdict": "Design direction is valid; implementation acceptance remains pending.",
+  "blockers_requiring_api_or_permission_expansion": [],
+  "required_explicit_constraints": [
+    {
+      "id": "R1",
+      "topic": "Raw canonical URL identity",
+      "requirement": "Validate original strings before urlsplit side effects. Reject ASCII control/whitespace, empty query/fragment markers, percent escapes and noncanonical authority/path; do not silently strip or normalize. Root/trailing slash support must not loosen shared object-key safe_path."
+    },
+    {
+      "id": "R2",
+      "topic": "Exact per-group and per-round response shape",
+      "requirement": "Tasks must be a list of dict rows and TotalCount a nonnegative true int, not bool/string/float; exact row count. Each queried group must account for exactly its queried IDs; validate per-row URL is expected and unconsumed before mapping. A full round covers each URL once and all IDs. Bound total rows by requested URL count. Foreign IDs from another valid group still reject."
+    },
+    {
+      "id": "R3",
+      "topic": "Submission ID envelope and write evidence",
+      "requirement": "Each batch response has 1..batch-size canonical positive ASCII decimal IDs, unique within that response; cross-batch overlap is allowed and deduplicated in first-seen order. Record attempted before write. If any submission or query fails, no further submissions/replay/public progression, keep incomplete and known counts/IDs if available."
+    }
+  ],
+  "nonblocking_design_limits": [
+    {
+      "id": "L1",
+      "topic": "Whole-operation timing",
+      "detail": "For 1000 unique IDs,20 writes and100 query groups per round: default3polls can require300 Describe calls; max10polls1000 calls. Per-request timeouts and poll count do not imply a short total deadline. Existing TEST ONLY driver outer bound must be explicit; adding a provider-wide deadline is a separately scoped decision."
+    },
+    {
+      "id": "L2",
+      "topic": "Aggregated extra URLs and eventual visibility",
+      "detail": "Strict equality intentionally rejects extra/missing rows, including possible same-domain same-second foreign submissions or incomplete visibility. This stops success claims but does not undo the already accepted refresh or prove production availability."
+    },
+    {
+      "id": "L3",
+      "topic": "Sampling and authority",
+      "detail": "One supplied observed4row task supports repeated TaskId row shape, not every CDN response. No production flags may become true and no broad all-task listing/fallback/implicit retry is justified."
+    }
+  ]
+}

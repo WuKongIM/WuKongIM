@@ -1,0 +1,9 @@
+{
+  "implementation_exists": false,
+  "control_exists": false,
+  "tests": {
+    "tests/test_object_storage_publication.py": "5d1715b9262190c5d9ee59891347f0b1d0e8a6ac7d576d8080a3bd0a9a13c0ba",
+    "tests/provider_sdk/test_object_storage_publication.py": "dd3626c216c94785d9c4af05ba143c4bee056fc5938f3ea944310cbecdc57e7b"
+  },
+  "failure_inventory_sha256": "ee60325e95acafc08310df004dd2e0bc3fb765ea04e46aee663a3237cd72fdfe"
+}

@@ -1,0 +1,38 @@
+test_actual_staged_edit_refuses_before_any_http (__main__.FreshRealGit.test_actual_staged_edit_refuses_before_any_http) ... ok
+test_actual_tracked_helper_edit_refuses_before_any_http (__main__.FreshRealGit.test_actual_tracked_helper_edit_refuses_before_any_http) ... ok
+test_actual_untracked_file_refuses_before_any_http (__main__.FreshRealGit.test_actual_untracked_file_refuses_before_any_http) ... ok
+test_clean_executor_reaches_real_fresh_transport_then_refuses_current_main_drift (__main__.FreshRealGit.test_clean_executor_reaches_real_fresh_transport_then_refuses_current_main_drift) ... FAIL
+test_committed_changed_source_is_not_old_executor (__main__.FreshRealGit.test_committed_changed_source_is_not_old_executor) ... ok
+test_original_plan_digest_and_test_only_input_refuse_without_http (__main__.FreshRealGit.test_original_plan_digest_and_test_only_input_refuse_without_http) ... ok
+test_wrong_head_refuses_before_any_http (__main__.FreshRealGit.test_wrong_head_refuses_before_any_http) ... ok
+test_exact_bytes_canonical_host_sni_and_escaped_path_query_are_preserved (__main__.ProbeTLS.test_exact_bytes_canonical_host_sni_and_escaped_path_query_are_preserved) ... ok
+test_headers_have_a_hard_bound (__main__.ProbeTLS.test_headers_have_a_hard_bound) ... ok
+test_http_error_is_not_success (__main__.ProbeTLS.test_http_error_is_not_success) ... ok
+test_mismatched_short_oversized_encoded_or_cache_response_fails (__main__.ProbeTLS.test_mismatched_short_oversized_encoded_or_cache_response_fails) ... ok
+test_proxy_and_ca_environment_do_not_override_explicit_fixture_transport (__main__.ProbeTLS.test_proxy_and_ca_environment_do_not_override_explicit_fixture_transport) ... ok
+test_redirect_is_not_followed (__main__.ProbeTLS.test_redirect_is_not_followed) ... ok
+test_test_transport_refuses_external_target_and_unbounded_timeout (__main__.ProbeTLS.test_test_transport_refuses_external_target_and_unbounded_timeout) ... ok
+test_timeout_and_streaming_have_total_deadline_and_cleanup (__main__.ProbeTLS.test_timeout_and_streaming_have_total_deadline_and_cleanup) ... ok
+test_untrusted_ca_is_rejected_by_actual_tls (__main__.ProbeTLS.test_untrusted_ca_is_rejected_by_actual_tls) ... ok
+test_wrong_san_is_rejected_by_actual_tls (__main__.ProbeTLS.test_wrong_san_is_rejected_by_actual_tls) ... ok
+
+======================================================================
+FAIL: test_clean_executor_reaches_real_fresh_transport_then_refuses_current_main_drift (__main__.FreshRealGit.test_clean_executor_reaches_real_fresh_transport_then_refuses_current_main_drift)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/provider_sdk/test_object_storage_publication.py", line 86, in test_clean_executor_reaches_real_fresh_transport_then_refuses_current_main_drift
+    self.assertEqual(self.http_requests, ['https://api.github.com/repos/WuKongIM/packages/git/ref/heads/main'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['https://api.github.com/repos/WuKongIM/packages/git/ref/heads/main']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'https://api.github.com/repos/WuKongIM/packages/git/ref/heads/main'
+
+- []
++ ['https://api.github.com/repos/WuKongIM/packages/git/ref/heads/main']
+
+----------------------------------------------------------------------
+Ran 17 tests in 3.586s
+
+FAILED (failures=1)

@@ -1,0 +1,24 @@
+# M2b: complete TEST ONLY native SDK fixture and exact File refresh
+
+Seven files, uncommitted, on packages `7255102de81b45c23d52e908ccdde1b7799ee3f5` / tree `cd49a22102235d60bda1a703a5b1145ab112c40e`. Exact worktree, source hashes, copied source and complete patch are in source-freeze.json. No push, PR, workflow dispatch, cloud/provider call, resource purchase or signing-key generation occurred. Existing M1 public exports were read; production keys were never accessed.
+
+## Result and limits
+
+Native attempt2 prepared actual signed preview/stable A/B through unchanged verifiers, seal/resolve helpers, v2 planner and materializer, then the official locked SDK HTTP fixture passed20/20 cases. A/B retain153 objects and178 routes each, all306 logical create-only/GET operations,152 exact shared conflicts and154 unique keys;17 rewrite configurations per generation preserve source IDs. Each generation submits all178 exact File URLs in50/50/50/28 batches, then verifies aggregate task coverage. The final receipt contains315 PUT attempts and30 refresh submissions including deliberate failure cases; these are dummy adapter effects, never cloud effects.
+
+SDK46/0skip, input/workflow13/0skip and existing contract4 tests passed. Default suite terminal status is recorded separately in validation-summary.json. Existing native29/candidate31/stable49 workflow commands, limits and bytes are unchanged after removing the new step block; these suites were not redundantly run locally and remain mandatory in subsequent CI. This is not a full release/public-client result.
+
+Both owned native containers are absent and both scratch trees removed (cleanup-observation.json); commands have explicit900s native/300s SDK limits. Native uses unchanged init,1 CPU,512MiB RAM,128 PID,512MiB tmpfs with no network. The host SDK phase rejects socket connects and uses only its injected HTTP adapter; no host cgroup cap is claimed. Native signatures are real TEST ONLY signatures; source attestation is a synthetic byte anchor. Every production/GitHub/fresh/public-client/cloud/live-routing/activation verification flag remains false. Original fresh TEST ONLY and activation calls actually refuse.
+
+## Preserved chronology
+
+1. Original six-file unsupported-refresh plan and tests produced sdk-contract-first-red (36 tests: old34 pass, two missing-driver errors) and workflow-first-red (old10 pass, two missing-wiring failures). These have not been rewritten.
+2. Root observed an existing CDN task through official read-only Explorer: four separate URL rows share one TaskId, including root/trailing-slash File URLs. refresh-observation-binding.json binds the finite observation; it is UI-extracted JSON, not raw HTTP. No new refresh was issued. Root authorized the seventh Provider.refresh file. The fixture substitutes the explicit dummy domain while preserving observed path/row/task shape.
+3. Refresh matrices/tests were written and run against unchanged Provider: refresh-first-red42, review-red43, distinguishing-red44. These include late invalid URLs, global-complete but wrong query groups, partial ID overlap, strict types, stable URL→ID mappings, URL/control-byte rejection and no repeated writes.
+4. Driver case assertion bodies were saved before operational helpers. driver-first-red is an intentional scaffold exit and is not native verification evidence. native-seam-first-red actually invokes the case and fails at the absent read_public_exports helper. No verifier was mocked.
+5. sdk-first-green is the first implementation attempt **and failed**: the prewritten `//` case caught unsafe trimming. sdk-green is its first actual44-test green. File names do not supersede recorded exit codes.
+6. Native attempt1 passed preparation. Its first SDK run passed cases1–10 (including all306 logical object operations), then the test itself selected a generated object without a source field and raised KeyError. The original receipt lacks a full attempt transcript; it is not retroactively filled. The selector now explicitly chooses a source-bearing object.
+7. Root caught accidental polling-limit expansion; bounds-repair-red precedes restoring original10 polls/5 seconds. It also proves cumulative per-round rows stop at the URL bound. sideeffects-red precedes unconditional finally capture; cleanup-red executes the generated cleanup shell against a failing Docker stub before the observed-container cleanup fix. All old red artifacts remain.
+8. Native attempt2/SDK20, SDK46, inputs13 and contract4 are the repaired green results. No external CI was retried. Default suite result is separate.
+
+The earlier D2 historical process P2 (two HTTP tests written after their code) remains historical; this change does not erase or reinterpret it. No production publisher or new approval platform was introduced. Actual CDN PCRE/query/propagation, production authentication and public installed clients remain unverified.

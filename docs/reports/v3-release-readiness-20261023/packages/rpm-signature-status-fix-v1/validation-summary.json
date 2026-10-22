@@ -1,0 +1,98 @@
+{
+  "focused": {
+    "command": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "tests.test_verify_production_package_site",
+      "-v"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 1.5585783749702387,
+    "source_sha256": "aed022731b14eb58ba58150d48083473c12fc6801003518723b771f85eff072b"
+  },
+  "native": {
+    "schema": "wukongim.rpm-status-native-regression/v1",
+    "test_only": true,
+    "new_signing": false,
+    "package_installation": false,
+    "candidate": "74EFD0E92A1B959B3128AA330D74A4E95F793D67",
+    "certificate_sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab",
+    "verifier_sha256": "aed022731b14eb58ba58150d48083473c12fc6801003518723b771f85eff072b",
+    "scratch_removed": true,
+    "cases": [
+      {
+        "case": "good",
+        "sha256": "c929628919a768d5a9ad111e3e48ab3d2f0b556bb3a8b05a5ea8b513a1d4043c",
+        "verified_signer": "74EFD0E92A1B959B3128AA330D74A4E95F793D67",
+        "passed": true
+      },
+      {
+        "case": "bad",
+        "sha256": "c929628919a768d5a9ad111e3e48ab3d2f0b556bb3a8b05a5ea8b513a1d4043c",
+        "verified_signer": "74EFD0E92A1B959B3128AA330D74A4E95F793D67",
+        "passed": true
+      },
+      {
+        "case": "NOKEY",
+        "sha256": "c929628919a768d5a9ad111e3e48ab3d2f0b556bb3a8b05a5ea8b513a1d4043c",
+        "verified_signer": "74EFD0E92A1B959B3128AA330D74A4E95F793D67",
+        "passed": true
+      },
+      {
+        "case": "NOT OK",
+        "sha256": "c929628919a768d5a9ad111e3e48ab3d2f0b556bb3a8b05a5ea8b513a1d4043c",
+        "verified_signer": "74EFD0E92A1B959B3128AA330D74A4E95F793D67",
+        "passed": true
+      },
+      {
+        "case": "signature",
+        "sha256": "c929628919a768d5a9ad111e3e48ab3d2f0b556bb3a8b05a5ea8b513a1d4043c",
+        "verified_signer": "74EFD0E92A1B959B3128AA330D74A4E95F793D67",
+        "passed": true
+      },
+      {
+        "case": "corrupt-payload",
+        "accepted": false,
+        "passed": true
+      },
+      {
+        "case": "unsigned",
+        "accepted": false,
+        "passed": true
+      },
+      {
+        "case": "wrong-certificate",
+        "accepted": false,
+        "passed": true
+      }
+    ],
+    "passed": true
+  },
+  "default": {
+    "command": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_*.py"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 140.10088616702706
+  },
+  "contracts": {
+    "command": [
+      "bash",
+      "tests/contract.sh"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 1.057173207984306
+  },
+  "source_freeze_sha256": "a7794bca01f11476c9b93b2daa3a20a850cb6615bdc69c8ea8a77410e18dcfb7",
+  "root_cause_limit": "This independent path parsing bug does not establish the cause of the earlier unrecorded native failure."
+}

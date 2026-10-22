@@ -1,0 +1,6 @@
+{
+  "first_checker_sha256": "86a735c3f8f2464f474917cc4b158bb34a48b26fcd7c5391f999a1d22ab64fd8",
+  "first_result": "assertion failed on required EOF for a 409 PUT",
+  "cause": "Reviewer checker incorrectly required upload-body consumption even when create-only PUT returns 409 before reading the request stream. Frozen observer accurately records 152 conflicts as zero consumed bytes and EOF false. This is not an implementation or native-test failure.",
+  "correction": "Check full request facts for 200 PUTs; check truthful zero/unconsumed stream and already_exists outcome for 409 PUTs; require full matching GET for all 306."
+}

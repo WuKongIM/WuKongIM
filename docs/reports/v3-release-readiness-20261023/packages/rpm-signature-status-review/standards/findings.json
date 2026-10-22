@@ -1,0 +1,29 @@
+{
+  "axis": "Standards",
+  "mandatory_violations": [],
+  "baseline_heuristics": [],
+  "counts": {
+    "mandatory": 0,
+    "heuristic": 0
+  },
+  "baseline_reviewed": {
+    "Mysterious Name": "No finding; status, header, signatures and diagnostics identify their roles.",
+    "Duplicated Code": "No actionable finding; one test helper owns command-result assembly, explicit status strings keep test cases readable.",
+    "Feature Envy": "No finding; parsing stays with the candidate-only verifier that owns the subprocess result.",
+    "Data Clumps": "No finding; typed helper arguments represent varied test inputs, not a new production aggregate.",
+    "Primitive Obsession": "No finding; bytes and textual key IDs are the external tool protocol.",
+    "Repeated Switches": "No finding; no repeated dispatch was added.",
+    "Shotgun Surgery": "No finding; one verifier hunk, its focused cases and changelog describe one behavior.",
+    "Divergent Change": "No finding; the verifier changes for the single path/status separation defect.",
+    "Speculative Generality": "No finding; no generic framework or unused extension seam introduced.",
+    "Message Chains": "No finding; no hidden long navigation added.",
+    "Middle Man": "No finding; the test helper assembles command outcomes and invokes the actual parser.",
+    "Refused Bequest": "No finding; no new inheritance or implementation contract introduced."
+  },
+  "limitations": [
+    "No full test suite rerun by reviewer.",
+    "Author RED/GREEN/native receipts inspected; default suite completion not asserted.",
+    "Original earlier native failure remains unexplained; no causal attribution to this defect."
+  ],
+  "spec_report_read": false
+}

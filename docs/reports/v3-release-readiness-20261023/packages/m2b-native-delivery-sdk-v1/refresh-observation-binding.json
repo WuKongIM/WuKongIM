@@ -1,0 +1,7 @@
+{
+  "directory": "/tmp/wukongim-v3-readiness-20261021/packages/refresh-task-live-readonly-observation",
+  "manifest_sha256": "f6630eb65c38160857514435837baf8db78befc9232b60a527b2b39e022efea2",
+  "provenance": "UI-observed official Explorer result, not raw HTTP",
+  "no_provider_calls_by_implementation": true,
+  "fixture_domain_substitution": "Observed docs.githubim.com path/task shape is replayed against explicit dummy packages.githubim.com resource"
+}

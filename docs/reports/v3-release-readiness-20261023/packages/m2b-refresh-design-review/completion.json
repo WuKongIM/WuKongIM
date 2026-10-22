@@ -1,0 +1,10 @@
+{
+  "at_utc": "2026-10-21T21:12:11.721824+00:00",
+  "review_read_only": true,
+  "worktree_edits": false,
+  "cloud_api_calls": false,
+  "tests_or_sdk_invoked": false,
+  "base_source_hashes_immutable": true,
+  "author_wip_preserved": true,
+  "all_own_commands_terminal": true
+}

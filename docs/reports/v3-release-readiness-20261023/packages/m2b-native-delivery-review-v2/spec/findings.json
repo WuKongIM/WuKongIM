@@ -1,0 +1,33 @@
+{
+  "axis": "Spec",
+  "open_findings": [],
+  "closed_prior_findings": [
+    {
+      "priority": "P2",
+      "title": "Required public evidence is discarded",
+      "evidence": "public-receipt-verification.json"
+    },
+    {
+      "priority": "P2",
+      "title": "A forbidden socket attempt can satisfy an expected refusal",
+      "evidence": "bounded-probes.json: swallowed, converted"
+    },
+    {
+      "priority": "P2",
+      "title": "Cleanup failure prevents the incomplete receipt",
+      "evidence": "bounded-probes.json: primary_and_cleanup, cleanup_only, cleanup_noop"
+    }
+  ],
+  "non_blocking_observations": [
+    {
+      "file": "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "line": 543,
+      "title": "Explicitly close the self-check socket",
+      "description": "Each bounded helper invocation reproduces one ResourceWarning because RuntimeError bypasses socket.create_connection OSError cleanup. Prefer context-managed socket.connect inside the current guard. No actual connection occurred; no remaining Spec P2."
+    }
+  ],
+  "validation_limitations": [
+    "No independent SDK/native execution; original first native failure remains unexplained.",
+    "Reviewer receipt checker initially over-required consumed body for 409 PUT; method correction retained separately."
+  ]
+}

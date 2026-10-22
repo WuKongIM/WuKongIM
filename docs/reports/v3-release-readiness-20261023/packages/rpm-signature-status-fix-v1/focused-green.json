@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "tests.test_verify_production_package_site",
+    "-v"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 1.5585783749702387,
+  "source_sha256": "aed022731b14eb58ba58150d48083473c12fc6801003518723b771f85eff072b"
+}

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_object_storage_delivery_inputs.py",
+    "-v"
+  ],
+  "timeout_seconds": 120,
+  "exit_code": 1,
+  "terminal": true,
+  "elapsed_seconds": 2.238,
+  "driver_absent": true
+}

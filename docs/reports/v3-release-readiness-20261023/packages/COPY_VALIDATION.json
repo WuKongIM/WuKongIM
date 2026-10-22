@@ -1,0 +1,14 @@
+{
+  "schema": "wukongim.finite_evidence_copy_validation/v1",
+  "validated_at_utc": "2026-10-22T17:25:32.220336+00:00",
+  "selected_scope_count": 15,
+  "selected_file_count": 322,
+  "selected_bytes": 5468137,
+  "all_selected_original_finite_manifests_verified": true,
+  "nested_rpm_review_hash_scopes_verified_independently": true,
+  "source_bytes_unchanged_during_copy": true,
+  "all_copied_target_bytes_equal_sources": true,
+  "all_old_tracked_entries_equal": true,
+  "missing_or_unverifiable_groups": [],
+  "old_failures_unknowns_resource_warnings_and_test_order": "Retained byte for byte in copied source records; no narrative rewritten."
+}

@@ -1,0 +1,176 @@
+{
+  "schema": "read-only-production-gap-review/v1",
+  "at": "2026-10-21T21:31:54.596595+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler",
+  "head": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+  "tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "reported_main_sha": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "main_is_frozen_observation_not_refreshed": true,
+  "source_tree_matches_plan": true,
+  "tracked_untracked_clean": true,
+  "plan_files_checked": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/after-m2b-production-gap-plan/README.md",
+      "bytes": 14463,
+      "sha256": "248db4d4e672434a7404cab767ce4e8cf5da5ccae3abd4c03f39bf3097f63e4c"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/after-m2b-production-gap-plan/failure-matrix.md",
+      "bytes": 3546,
+      "sha256": "349ee80c7f123ff5b93db78364807419f5442aee1f36b49a4cde1a91e73f9e8c"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/after-m2b-production-gap-plan/external-inputs.json",
+      "bytes": 3330,
+      "sha256": "493f63f5ecfa44adff3be54d5d8371ff32bbd5375eaa05d99cc5c77553fe1c55"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/after-m2b-production-gap-plan/official-sources.md",
+      "bytes": 1098,
+      "sha256": "fb0047b5ee8897f6a33b38633433faa59a39d9522c2f94dcc64a74af6c8c84c9"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/after-m2b-production-gap-plan/github-observation.json",
+      "bytes": 854,
+      "sha256": "7a83497b911d50a382554b68e4591817bb7b57ff5f5f6f74d2f5d909ff69a4b2"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/after-m2b-production-gap-plan/source-freeze.json",
+      "bytes": 7074,
+      "sha256": "a5ecfaf3663fd480e512cdfadaf2977062114dd6d22384bd26dee62029376347"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/after-m2b-production-gap-plan/ARCHIVE_ALLOWLIST.txt",
+      "bytes": 145,
+      "sha256": "182aed6d46b649545234738883965665aa0bfb5757c569caf94bba51ba176e49"
+    }
+  ],
+  "source_files_checked": [
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "sha256": "17ca5ff3878ccaf838f70e77b909b70b6920c3fd644ad010e24c59bb8ffa332d",
+      "bytes": 27342
+    },
+    {
+      "path": "scripts/verify-object-storage-delivery-inputs.py",
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2",
+      "bytes": 11718
+    },
+    {
+      "path": "scripts/verify-stable-seal-inputs.py",
+      "sha256": "e84b8f6f44dc69f75b5e6a10967536c186fdd18c6d92256fd7d77b0e35b85b2e",
+      "bytes": 21424
+    },
+    {
+      "path": "scripts/resolve-source-release.py",
+      "sha256": "5102851ab7b8ae84b3e8f1c6e5466fc7c9e7774ff6cee5f86530af57d7d5f0f9",
+      "bytes": 23044
+    },
+    {
+      "path": "scripts/resolve-audit-release.py",
+      "sha256": "553af0b22f37b4120c3b206a6f67d7035c483501289fac5e9824ad4ddc59e4cb",
+      "bytes": 25685
+    },
+    {
+      "path": "scripts/verify-source-attestations.py",
+      "sha256": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0",
+      "bytes": 22527
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "sha256": "e32d0dc4eb8f8312900c5c4a332d89fc41e75101944dfaef7dd8b5724a7e6ecc",
+      "bytes": 88596
+    },
+    {
+      "path": "scripts/prepare-object-storage-delivery.py",
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401",
+      "bytes": 26015
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+      "bytes": 38978
+    },
+    {
+      "path": "scripts/validate-control.py",
+      "sha256": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+      "bytes": 44355
+    },
+    {
+      "path": "scripts/compose-package-site.py",
+      "sha256": "cfe6190bff223b5e1b9eb6fa7df994cbbb33e54f626802df8ed26e73bc3a9da7",
+      "bytes": 125707
+    },
+    {
+      "path": "docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "bytes": 47357
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "sha256": "cc28ac4749635c27ead05fd0ee0b2a50d532b5fa268d23bbd36c918ad6fd8ebb",
+      "bytes": 13654
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b",
+      "bytes": 18618
+    },
+    {
+      "path": "manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "bytes": 2579
+    },
+    {
+      "path": "manifests/source-read.json",
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8",
+      "bytes": 381
+    },
+    {
+      "path": "manifests/audit-access.json",
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d",
+      "bytes": 785
+    },
+    {
+      "path": ".github/workflows/source-release-preflight.yml",
+      "sha256": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b",
+      "bytes": 6270
+    },
+    {
+      "path": ".github/workflows/native-package-cli-acceptance.yml",
+      "sha256": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814",
+      "bytes": 5321
+    },
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "bytes": 1660
+    },
+    {
+      "path": "README.md",
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "bytes": 10871
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "sha256": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55",
+      "bytes": 15586
+    }
+  ],
+  "local_AGENTS_FLOW_CONTRIBUTING": [],
+  "parent_AGENTS_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+  "skill": {
+    "path": "/Users/tt/.agents/skills/codebase-design/SKILL.md",
+    "sha256": "2c20617f87ec8af6a434859f381b2f061a69b530444e74eb39e78bb016a6d1e2"
+  },
+  "M2b_status": "Parent reports 3 P2 repairs pending v2; not read, accepted or treated as merged by this review.",
+  "actions": {
+    "tests": false,
+    "source_writes": false,
+    "provider_API": false,
+    "credentials": false,
+    "GitHub_API": false,
+    "official_documentation_reads": true
+  },
+  "all_commands_terminal": true
+}

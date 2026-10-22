@@ -1,0 +1,14 @@
+test_any_non_null_disabled_binding_refused (test_object_storage_publication.DisabledPublication.test_any_non_null_disabled_binding_refused) ... ok
+test_both_operations_refuse_before_reading_missing_inputs_or_writing_output (test_object_storage_publication.DisabledPublication.test_both_operations_refuse_before_reading_missing_inputs_or_writing_output) ... ok
+test_checked_in_control_is_exactly_disabled_and_unknown (test_object_storage_publication.DisabledPublication.test_checked_in_control_is_exactly_disabled_and_unknown) ... ok
+test_cli_has_no_override_for_provenance_control_credentials_or_tls (test_object_storage_publication.DisabledPublication.test_cli_has_no_override_for_provenance_control_credentials_or_tls) ... ok
+test_control_json_requires_single_keys_bounded_regular_file (test_object_storage_publication.DisabledPublication.test_control_json_requires_single_keys_bounded_regular_file) ... ok
+test_enabled_control_does_not_unlock_unimplemented_production (test_object_storage_publication.DisabledPublication.test_enabled_control_does_not_unlock_unimplemented_production) ... ok
+test_integration_workflow_explicitly_runs_non_discovered_suite (test_object_storage_publication.DisabledPublication.test_integration_workflow_explicitly_runs_non_discovered_suite) ... ok
+test_probe_rejects_unsafe_request_or_resource_before_transport (test_object_storage_publication.DisabledPublication.test_probe_rejects_unsafe_request_or_resource_before_transport) ... ok
+test_schema_backend_extra_fields_and_non_boolean_authority_refused (test_object_storage_publication.DisabledPublication.test_schema_backend_extra_fields_and_non_boolean_authority_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 1.155s
+
+OK

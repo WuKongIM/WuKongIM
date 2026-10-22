@@ -1,0 +1,16 @@
+{
+  "base_sha": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "patch_sha256": "ce7f8e4974bfed061e15f5d180229f5077ba4728d076c38c7bc40dd02e4184a9",
+  "files": {
+    "scripts/publish-object-storage-delivery.py": "8e3904da2d60fe939ee3eb5b63fa12a9c0505649bde4ff4b745fd071ff003696",
+    "manifests/object-storage-publication.json": "11bb85409ff49e7adb6ae1b7afd9a73193b50c53c441352c8b404dd71b269143",
+    "tests/test_object_storage_publication.py": "5d1715b9262190c5d9ee59891347f0b1d0e8a6ac7d576d8080a3bd0a9a13c0ba",
+    "tests/provider_sdk/test_object_storage_publication.py": "90fe9ac49c426a8de7e19e7101b7332aaae13b3f6a1631a0296aa1b439f508f8",
+    ".github/workflows/object-storage-provider-contract.yml": "a61dd882f5b8bb7f56d0089ef755f5de059ee9d38086d66910dd2272d63a31c3",
+    "docs/object-storage-delivery.md": "697df6569d5fe5f8f5f7c89bd4cf83f6049a8083e745f831ee8570db0a85709e",
+    "docs/release-contract.md": "07b441e0b0dbf5f6de93374c92d83a198246678efdbcd81bbe7ee599951f10d2",
+    "CHANGELOG.md": "56f8cb552e67aef3ba1a08f942a7b94eec412faddd042bad56a3d575f556c967"
+  },
+  "production_enabled": false,
+  "sdk_composition_complete": false
+}

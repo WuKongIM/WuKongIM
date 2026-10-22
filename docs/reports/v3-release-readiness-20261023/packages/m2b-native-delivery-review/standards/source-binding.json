@@ -1,0 +1,1082 @@
+{
+  "review": "Independent Standards axis only; Spec reports not read",
+  "reviewed_at_utc": "2026-10-21T21:25:58.008902+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk",
+  "base_head": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "branch_commits": [],
+  "staged": [],
+  "source_freeze_sha256": "123aa28a8aa8e38e8f3f3a53298b4201825db6e2f578dfbb984770375f21d831",
+  "full_patch_sha256": "c4c90a6fc27d8f0ce3ae5567f3b1c3f27b5885a64eaba8fc31f4095e9d8574b8",
+  "full_patch_matches_working_tracked_plus_untracked": true,
+  "sources": [
+    {
+      "path": "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "before_sha256": null,
+      "after_sha256": "3d9512ae4b0024de4dd0dbec2a395e3d94c3e67d377fd6f27ec180fc51c289a0",
+      "bytes": 27422,
+      "frozen_matches": true
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "before_sha256": "7c16af29a46fe882ec04e37b1179261b3dbf5e301b76f6dd26bc52f7607dc768",
+      "after_sha256": "dadf907845abb09c3374dd2cd57b2ab6a84f8e6a3130ec2f232921c1a8b4e7a2",
+      "bytes": 55926,
+      "frozen_matches": true
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "before_sha256": "33a1c6aa2121d004011abed17ec74b507f694181c2d7510558473c3ce1371d55",
+      "after_sha256": "6240e56b9fd43b01d02d7ca2ac3b5bd41b108bed9c9cedf53d5756baf2a92210",
+      "bytes": 19236,
+      "frozen_matches": true
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "before_sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+      "after_sha256": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+      "bytes": 21899,
+      "frozen_matches": true
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "before_sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b",
+      "after_sha256": "c1062fef4d675425cfbe2665f310f15ad59e39637b6e7227a2a5e5fd70688027",
+      "bytes": 21249,
+      "frozen_matches": true
+    },
+    {
+      "path": "CHANGELOG.md",
+      "before_sha256": "b46e8bd869f6c9d05e95311a9a76578c7e7159c6d38cea3340367a13de9512f0",
+      "after_sha256": "e91f5ad28e6c30135f4ed3f3be2c7cbbd3a42a38e2bedf7a8f7e9c1bb26887ed",
+      "bytes": 4426,
+      "frozen_matches": true
+    },
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "before_sha256": "17ca5ff3878ccaf838f70e77b909b70b6920c3fd644ad010e24c59bb8ffa332d",
+      "after_sha256": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8",
+      "bytes": 28828,
+      "frozen_matches": true
+    }
+  ],
+  "status_porcelain": [
+    " M .github/workflows/native-package-repository-drill.yml",
+    " M CHANGELOG.md",
+    " M docs/object-storage-delivery.md",
+    " M scripts/aliyun-object-storage-provider.py",
+    " M tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    " M tests/test_object_storage_delivery_inputs.py",
+    "?? tests/provider_sdk/native_object_delivery_sdk_drill.py"
+  ],
+  "untracked": [
+    "tests/provider_sdk/native_object_delivery_sdk_drill.py"
+  ],
+  "rules": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "authority": "explicit user governing standards"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.github/workflows/README.md",
+      "sha256": "da3169575287bdc526833bd45b1a8bb7a117794b20d6aa83cb059934be29fef7",
+      "authority": "explicit user governing standards"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/README.md",
+      "before_sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "after_sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/docs/release-contract.md",
+      "before_sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "after_sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/docs/object-storage-delivery.md",
+      "before_sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b",
+      "after_sha256": "c1062fef4d675425cfbe2665f310f15ad59e39637b6e7227a2a5e5fd70688027"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/.github/CODEOWNERS",
+      "before_sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2",
+      "after_sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2"
+    },
+    {
+      "path": "/Users/tt/.agents/skills/code-review/SKILL.md",
+      "sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143",
+      "applied_axis": "Standards; all 12 smells as nonmandatory heuristics"
+    }
+  ],
+  "repository_AGENTS_FLOW_CONTEXT": [],
+  "governing_root_user_AGENTS_applied": true,
+  "static_checks": {
+    "provider_AST_outside_refresh_identical": true,
+    "old_native_workflow_byte_identical_after_removing_only_new_block": true,
+    "protected_path_count": 121,
+    "all_protected_bytes_identical_to_base": true,
+    "old_sdk_methods": 34,
+    "old_sdk_methods_byte_identical": 33,
+    "authorized_old_test_change": "Rename root/directory rejection test and remove only now-authorized exact root URL rejection; positive root/trailing File behavior covered.",
+    "final_sdk_methods": 46,
+    "native_prehelper_assertions": "native_cases and cleanup_case unchanged; sdk_cases only source-bearing fixture selection correction and new unconditional attempt observation bookkeeping differ from saved pre-helper body.",
+    "max_refresh_urls": 1000,
+    "submission_batch": 50,
+    "query_id_batch": 10,
+    "max_polls_preserved": 10,
+    "max_poll_interval_preserved_seconds": 5
+  },
+  "protected_source_hashes": [
+    {
+      "path": ".github/CODEOWNERS",
+      "sha256": "28707860988eed21f4ed5e8962461032e1acfb64a41665cd0ef08d36e59aefa2"
+    },
+    {
+      "path": ".github/workflows/native-package-audit-bind.yml",
+      "sha256": "a515e1468947a3b6a69bd6af339600c8ae5c57e38810c230d2ae76e4e9e7323e"
+    },
+    {
+      "path": ".github/workflows/native-package-audit-draft.yml",
+      "sha256": "ece6b0ea24d4574fd7f5f0d5c0e94cefe7549a9676645b4e26f06ba3da9a9281"
+    },
+    {
+      "path": ".github/workflows/native-package-cli-acceptance.yml",
+      "sha256": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814"
+    },
+    {
+      "path": ".github/workflows/native-package-immutable-public-reverify.yml",
+      "sha256": "2cffc62fe62865b1fd847b2f7d376d04be475f9d153d721e74a82f13d27b6432"
+    },
+    {
+      "path": ".github/workflows/native-package-publish.yml",
+      "sha256": "1941db10672d3623a679e3519e68f66dce851c31d4e133b40d1dcb991091662f"
+    },
+    {
+      "path": ".github/workflows/native-package-signing-preflight.yml",
+      "sha256": "e181a5beef86b6ffa107493dba1d1f5219df354a53b7b1394b3a351b3cfaaf81"
+    },
+    {
+      "path": ".github/workflows/native-package-signing-toolchain.yml",
+      "sha256": "c44a0ddd59baa058216dcf46b3f694d1c7ebe7a98b342ba2d13b4047aab4e4d1"
+    },
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa"
+    },
+    {
+      "path": ".github/workflows/pages.yml",
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719"
+    },
+    {
+      "path": ".github/workflows/source-release-preflight.yml",
+      "sha256": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "082fe603e5f2a151808fc625671d4cf2e0c453086e9572569555bfc5865a8c87"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "path": "README.md",
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849"
+    },
+    {
+      "path": "SECURITY.md",
+      "sha256": "9c6903b38838cb47ef6a4428bd7fcd4555645f2781d707b21b7fa2b1881169ea"
+    },
+    {
+      "path": "docs/object-storage-planning.md",
+      "sha256": "a73932c46b2904498a025476dbed6aeae6fa224862074a672d2c69bed94472c6"
+    },
+    {
+      "path": "docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    {
+      "path": "docs/stable-audit-transport.md",
+      "sha256": "cc28ac4749635c27ead05fd0ee0b2a50d532b5fa268d23bbd36c918ad6fd8ebb"
+    },
+    {
+      "path": "keys/README.md",
+      "sha256": "18c569c10461941353d8c7504d52a91b567dc2792f04442f4446d0c87c62f408"
+    },
+    {
+      "path": "keys/apt-preview.asc",
+      "sha256": "04d1806146c5a3dd38ad8a22d63d763a772a52ea9a60bc68d9a8c818752a8886"
+    },
+    {
+      "path": "keys/apt-stable.asc",
+      "sha256": "22ab0142f8a52d02099bb884ed3d945d84e362a5abadcd7f56b241417e7c2949"
+    },
+    {
+      "path": "keys/rpm-preview.asc",
+      "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875"
+    },
+    {
+      "path": "keys/rpm-stable.asc",
+      "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e"
+    },
+    {
+      "path": "manifests/audit-access.json",
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d"
+    },
+    {
+      "path": "manifests/bootstrap-packages.json",
+      "sha256": "020ded60c52973f5ff495775d2026d772a5f64191271548888b0d3358baae831"
+    },
+    {
+      "path": "manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    },
+    {
+      "path": "manifests/preview-signing.json",
+      "sha256": "fae89e1810818bcb89d5e43dddf784a4e0010e31ab72b83e67f67405c8a1fec9"
+    },
+    {
+      "path": "manifests/signing-toolchain.json",
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99"
+    },
+    {
+      "path": "manifests/source-read.json",
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8"
+    },
+    {
+      "path": "manifests/stable-public-keys.json",
+      "sha256": "bdd3936b97ef697e0efa206a190be11f0712a283a5eefbf0ebec4a9d2b491b41"
+    },
+    {
+      "path": "manifests/trusted-toolchain.json",
+      "sha256": "2ea3ea68c62a91acbb52d995abe2bc5714853554b49c028c1fdb737cb7d8dfb6"
+    },
+    {
+      "path": "requirements-object-storage-provider.lock",
+      "sha256": "0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b"
+    },
+    {
+      "path": "scripts/archive-package-snapshot.py",
+      "sha256": "b7cb150281235ba6f4c6af9c64ef5897f42c7b5b7beec297c7f7f934e08446a6"
+    },
+    {
+      "path": "scripts/bind-audit-release.py",
+      "sha256": "6e26cf867d7663825f6d76ce87ce4940b703bbe59b006989cf0cee9af14332be"
+    },
+    {
+      "path": "scripts/build-repository-bootstrap-packages.py",
+      "sha256": "4be7b0d5542446b097565f613ecf45bc7c9307409ea122b38495c5fa001d9a8c"
+    },
+    {
+      "path": "scripts/compose-package-site.py",
+      "sha256": "cfe6190bff223b5e1b9eb6fa7df994cbbb33e54f626802df8ed26e73bc3a9da7"
+    },
+    {
+      "path": "scripts/derive-rpm-allowlists.py",
+      "sha256": "4cade66db6133824e14a1d61b5d80a2440a96e2696e4c53b12cf210a366aeffe"
+    },
+    {
+      "path": "scripts/package-audit-receipt.py",
+      "sha256": "3f6f95ba26dc11df701e4dc13e2dadc55b140599c1eec6a43f2f994c43953475"
+    },
+    {
+      "path": "scripts/plan-object-storage-publication.py",
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200"
+    },
+    {
+      "path": "scripts/plan-package-publication.py",
+      "sha256": "c98e38028c920edfb0a9b2b6397b07e2423ae1e79b1966a32a1e29abf008dfff"
+    },
+    {
+      "path": "scripts/prepare-object-storage-delivery.py",
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401"
+    },
+    {
+      "path": "scripts/prepare-package-site.py",
+      "sha256": "bdb84c3870df278a3b02943ba14e056aeec692592cbb96d221520ecfa2a747fd"
+    },
+    {
+      "path": "scripts/resolve-audit-release.py",
+      "sha256": "553af0b22f37b4120c3b206a6f67d7035c483501289fac5e9824ad4ddc59e4cb"
+    },
+    {
+      "path": "scripts/resolve-source-release.py",
+      "sha256": "5102851ab7b8ae84b3e8f1c6e5466fc7c9e7774ff6cee5f86530af57d7d5f0f9"
+    },
+    {
+      "path": "scripts/seal-audit-release.py",
+      "sha256": "156d350c65eb1cf2de0f658c252ca96f4d86aee5843cf5cb869a4d6649895012"
+    },
+    {
+      "path": "scripts/sign-package-family.py",
+      "sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0"
+    },
+    {
+      "path": "scripts/validate-control.py",
+      "sha256": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b"
+    },
+    {
+      "path": "scripts/validate-installed-wkcli.py",
+      "sha256": "c4c73f4ef4de8e84f8947cdffe0194ab8ee38f4844fcd707219ff8299dc4d8e0"
+    },
+    {
+      "path": "scripts/validate-production-package-clients.py",
+      "sha256": "e32d0dc4eb8f8312900c5c4a332d89fc41e75101944dfaef7dd8b5724a7e6ecc"
+    },
+    {
+      "path": "scripts/validate-signing-material.py",
+      "sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4"
+    },
+    {
+      "path": "scripts/verify-object-storage-delivery-inputs.py",
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2"
+    },
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "sha256": "71f1d4f4ae9f83fafa20fe690593b618e9e36a65dcecd3be7cc94e7bd304424f"
+    },
+    {
+      "path": "scripts/verify-source-attestations.py",
+      "sha256": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0"
+    },
+    {
+      "path": "scripts/verify-source-package-metadata.py",
+      "sha256": "137780ee6705a3ec9b6531ee1fc484c6e93ba2b74cc6c98bfb668ceb0a9aae1a"
+    },
+    {
+      "path": "scripts/verify-stable-seal-inputs.py",
+      "sha256": "e84b8f6f44dc69f75b5e6a10967536c186fdd18c6d92256fd7d77b0e35b85b2e"
+    },
+    {
+      "path": "site/index.html",
+      "sha256": "2ba98f220e612423af3894d98b3d334a8c84cef162e760b39ea7c55e9d46d6d3"
+    },
+    {
+      "path": "site/status.json",
+      "sha256": "fd3d2dd70c1d02eb9e72417a5ce2e9be3fe6f04e8f5c9bd9a134f18940148086"
+    },
+    {
+      "path": "tests/contract.sh",
+      "sha256": "9db355d7dd66cd6a584cf5b6835da4837f9e52d132dd7752a03e02d907ba7b44"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_checksums.txt",
+      "sha256": "4f69155131cfdadf7e6c326753701aabe32150651b32b56f7f4e9265da25453e"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_darwin_amd64.tar.gz",
+      "sha256": "a65d7da7f673cdc77c915c4d0e4bbbe9647c1b561c5b6bf008c8dc2e50bfc632"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_darwin_arm64.tar.gz",
+      "sha256": "f8f15594db2e88c5ee0a9bae453e9a94cd542f78f89a8dfb0caa54d8639ce032"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_amd64.deb",
+      "sha256": "76649682a12752f30e405e3ccbf23c18f10b8a48f9f1ec91a93be6d8b860eba4"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_amd64.rpm",
+      "sha256": "a82d21400b86c0f3283be25333bb0740a9b0ec66dc97a1620918b07c06e5d634"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_amd64.tar.gz",
+      "sha256": "35748f3955e78cec41339905a2fdfb24aeb002203a7ec448084fdc4611d63237"
+    },
+    {
+      "path": "tests/fixtures/source-release/wukongim_3.1.0-rc.1_linux_arm64.tar.gz",
+      "sha256": "ca79b2494783d25f81c679453eb39998ba6af31f9f2b0c1943273fdb9ebfa290"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/README.md",
+      "sha256": "84e17d55217dc82027fd1d2065dcd49e1699cebe4365398002710e69c67a01d1"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/native-v3-unregistered.tar.gz",
+      "sha256": "6bfc89f1dbe171b2f3a09998709fe9bfb0c406b962ee0f031ca66425b22377eb"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/native-v3.tar.gz",
+      "sha256": "8c2ae86db7c9d5e2118d1f7b3788baa4080b26435c48b318ec0afadf5e0f670b"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/original-v2-empty.tar.gz",
+      "sha256": "fdf6886c79d84fef0a17e35d57d08b5a6ab4a688a985f10d036c7fba3dea3d62"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/scenario.yaml",
+      "sha256": "a46928a74c7378b859427d9b5b5d7b88911ac750bc2b19b4de46061e9bf9eebc"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/sha256.json",
+      "sha256": "76a729dc8666f668aa480f86585ab359f2fb3ca3d9c6c2a05bef4a61d62ed0fc"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/target.yaml",
+      "sha256": "994d95122863eb5dc9029a61181cf51686ef466dafe99ab1a35cb5a35a16b16e"
+    },
+    {
+      "path": "tests/fixtures/wkcli-acceptance/workers.yaml",
+      "sha256": "83bce5c1ea306ac0b369616ffb869fc42608f5ce7fa5b7f16643f23ab1ebb2f4"
+    },
+    {
+      "path": "tests/native_bootstrap_preparation_drill.py",
+      "sha256": "2531ca427208fff207f5b366e852a161e47214542efae3d5691f2900f77d0ae8"
+    },
+    {
+      "path": "tests/native_local_signing_drill.py",
+      "sha256": "1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578"
+    },
+    {
+      "path": "tests/native_object_delivery_fixture_drill.py",
+      "sha256": "674bf8b06cedfb9811396dde1acf68a403947eae031207b26d1516cd4bf53884"
+    },
+    {
+      "path": "tests/native_source_metadata_drill.py",
+      "sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b"
+    },
+    {
+      "path": "tests/native_stable_candidate_drill.py",
+      "sha256": "25906872a2df8e64a227eb3b51ff50dd5ab81052bca656ca1365c166b47bee3e"
+    },
+    {
+      "path": "tests/native_stable_clients_drill.py",
+      "sha256": "4cc84183e5eba1a587067c55191d9c232f14ad3a3751878ac0d05e04f8c9ddeb"
+    },
+    {
+      "path": "tests/native_stable_seal_transport_drill.py",
+      "sha256": "fba5187558f2b8808e0faf4c966732f0a71859560490eed62ffcd953b93b72c3"
+    },
+    {
+      "path": "tests/provider_sdk/fixtures/native-composite-routes.json",
+      "sha256": "b135eddc8b6691dfa983e2c5ed606aaa4ca3f877d6d03b391ef3949b79026ef8"
+    },
+    {
+      "path": "tests/stable_audit_fixture.py",
+      "sha256": "5e00526ca4c0f528320746c24b8b4f47b3d5957805a58b6a811ec80a22f70b3a"
+    },
+    {
+      "path": "tests/test_archive_package_snapshot.py",
+      "sha256": "6eab8c2edfd5ad3f28960d9a9c139e5b75b3d8086539dbfa9fcf06084e65fe7c"
+    },
+    {
+      "path": "tests/test_bind_audit_release.py",
+      "sha256": "f4ed3e0b13f2c3d222849a7efbcb79da3d0522ea8a173f5d6c2768e83f279c00"
+    },
+    {
+      "path": "tests/test_build_repository_bootstrap_packages.py",
+      "sha256": "e6378af9050733a96e01f6b381d4502ab781eb61918e2d2d94bfaa8cb49ccd96"
+    },
+    {
+      "path": "tests/test_compose_package_site.py",
+      "sha256": "cd43e18a1d39bc762e88e5e63e576ae8458d1acb4ed44207b946a13b7a82c29d"
+    },
+    {
+      "path": "tests/test_composite_storage_plan.py",
+      "sha256": "d3eb4f3551d9c0fccc256a9456c37e247236c2c482da45263cc8f373135746fd"
+    },
+    {
+      "path": "tests/test_derive_rpm_allowlists.py",
+      "sha256": "dffe776b870fb7b0a77da3f5d15e33ab8c64a70d37884d9a3393056c3b7d9035"
+    },
+    {
+      "path": "tests/test_installed_cli_acceptance.py",
+      "sha256": "d2fe3bfd58f1f74ebc03d989dd928dd134d2723f09605a7c878ef644ac542cb0"
+    },
+    {
+      "path": "tests/test_native_bootstrap_preparation_drill.py",
+      "sha256": "3b309f37b45cf0cbd7b2a6705aa690eac29ab20437ed4b143a836810a34d8196"
+    },
+    {
+      "path": "tests/test_native_local_signing_drill.py",
+      "sha256": "eb30cc500ad7dc19207370e08cb3f893c0bc2e95a1e797e1b72b858997f9c7f0"
+    },
+    {
+      "path": "tests/test_native_object_delivery_fixture_workflow.py",
+      "sha256": "6e4f713a6f32179cab44bb3cb697dea2a5a4d176033272fa4e37fcfeac5b4066"
+    },
+    {
+      "path": "tests/test_native_stable_candidate_drill.py",
+      "sha256": "ef8c1a912bfd339140819c37d072c06025304f63d9212b48c69fa66f76a378d4"
+    },
+    {
+      "path": "tests/test_native_stable_clients_drill.py",
+      "sha256": "8bff9b809f55bdef412aef8afd20169c82e725d145a76af0bfe726013c32caf9"
+    },
+    {
+      "path": "tests/test_object_storage_delivery.py",
+      "sha256": "7cf8adca922542544bc6fe3f717c228a34805c7e86fca1caa3803b348d42c71b"
+    },
+    {
+      "path": "tests/test_package_audit_receipt.py",
+      "sha256": "fb12ce0a34d5b4e639b94543644da93856603044f38b2e84585abc28a13cafbe"
+    },
+    {
+      "path": "tests/test_plan_object_storage_publication.py",
+      "sha256": "96320d5bb6ec063763bc893e9963a35caf6de1567eb99411d010b39e18f6b2d1"
+    },
+    {
+      "path": "tests/test_plan_package_publication.py",
+      "sha256": "94c3149481e2ffc35a18295ff9836e144b5616353bcb542fed18f08105d97574"
+    },
+    {
+      "path": "tests/test_prepare_package_site.py",
+      "sha256": "8c02bc529811210bfb3465fc7169861389427378ff471e25e83526a856750795"
+    },
+    {
+      "path": "tests/test_resolve_audit_release.py",
+      "sha256": "52f7cc981ddcf884760e1f9651fcc482c3b79c1f50a571bb65be621c450fe376"
+    },
+    {
+      "path": "tests/test_resolve_source_release.py",
+      "sha256": "b091e4920df9a966045aad9d417627189811ea91f7547eb0ba84762a613404a1"
+    },
+    {
+      "path": "tests/test_seal_audit_release.py",
+      "sha256": "82db4b4c3aebf30622bd53f12180c17de0658a0d3077566814b2b73171b71551"
+    },
+    {
+      "path": "tests/test_sign_package_family.py",
+      "sha256": "65b79602daadd672a8628b82aa50df3d0819c0c07e6f20efd3fa10f26f222cb1"
+    },
+    {
+      "path": "tests/test_source_channel_classification.py",
+      "sha256": "745bf97a2fad33d3ea21b59a8a2f4999b49ee97b2799c1114bbc2eed00f01b2d"
+    },
+    {
+      "path": "tests/test_source_preflight_workflow.py",
+      "sha256": "a7b84fce05a39b38c63beda3ddc4629b896fbfbc75922684610376dcb385fee0"
+    },
+    {
+      "path": "tests/test_stable_audit_transport.py",
+      "sha256": "5766e360fd682cc0204a3440e7ce1f92791be185d385f211667e8e3c4b686f13"
+    },
+    {
+      "path": "tests/test_stable_bootstrap_preparation.py",
+      "sha256": "5d3f5a42404aefc11f2de5be5f861c7570223fb8d12f8488ca9ef25b6ed7ad48"
+    },
+    {
+      "path": "tests/test_stable_candidate_audit.py",
+      "sha256": "9c38da55121e5be00c4f7c15732e473aa73e46040d027e420c7614be2e6da8f8"
+    },
+    {
+      "path": "tests/test_stable_candidate_closure.py",
+      "sha256": "fe18b11699505544e037c33e6062fb0bd2dd74126e5a1036a063dd71c63d309b"
+    },
+    {
+      "path": "tests/test_stable_candidate_prepare.py",
+      "sha256": "d0e59eee543c88904c1b40e0914931c10e19fc04af0365af23e9398a68cf55fb"
+    },
+    {
+      "path": "tests/test_stable_candidate_verifier.py",
+      "sha256": "06eddf0f09285f2f7eb96d5a622dcdf6d0694015708fd476f0418cc38db32585"
+    },
+    {
+      "path": "tests/test_stable_offline_candidate.py",
+      "sha256": "53656d73f83b8ab1fe5c69be94f2a7952a707b2954ced6f8f37c434bb9b36d3c"
+    },
+    {
+      "path": "tests/test_stable_public_keys.py",
+      "sha256": "2a18798d4b7af6d7876b21f9a6030238db43f59227b05d04f681a71c0245e23e"
+    },
+    {
+      "path": "tests/test_stable_seal_inputs.py",
+      "sha256": "f27b31af2c0344dcae5f4dcdd347f827bd55f1aa1d04c34eb719d82a185e617f"
+    },
+    {
+      "path": "tests/test_validate_control.py",
+      "sha256": "462aabcc1c08519b14e8503b9667d76f937451ad1954c01e1b792a0d8af56618"
+    },
+    {
+      "path": "tests/test_validate_production_package_clients.py",
+      "sha256": "1a7f46b9bfd9d9b7cc470449eac6bf52828499ec43a9bd3b39ca7d8cfd046e41"
+    },
+    {
+      "path": "tests/test_validate_signing_material.py",
+      "sha256": "ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe"
+    },
+    {
+      "path": "tests/test_verify_production_package_site.py",
+      "sha256": "f7cb017611a24d47eb6e6c80ce0359126ff7276b3049fdd760555f8bd07aa928"
+    },
+    {
+      "path": "tests/test_verify_source_attestations.py",
+      "sha256": "71c91cb0fe3b7194f6ce7e2e3bd1e8c8f8fe42b50e50787ec3d79a8560fc6a26"
+    },
+    {
+      "path": "tests/test_verify_source_package_metadata.py",
+      "sha256": "5b97c01d0e10e7aa3f20cc0a82164d9e55eeec65faa29dfde1f0ca45b0d03cea"
+    },
+    {
+      "path": "toolchain/native-package-signing/Dockerfile",
+      "sha256": "45c8d63f5580e51db968d70fb62777fa9a05c6e0ed019032f6365e491a1481bd"
+    }
+  ],
+  "hard_findings": [],
+  "heuristic_findings": [],
+  "smell_assessment": [
+    {
+      "name": "Mysterious Name",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "assessment": "No responsibility-obscuring public name in changed interface.",
+      "new_actionable_finding": false
+    },
+    {
+      "name": "Duplicated Code",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "assessment": "The new transport fixture specializes refresh; unchanged compiler duplication is outside this delta. No new actionable repeated business logic.",
+      "new_actionable_finding": false
+    },
+    {
+      "name": "Feature Envy",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "assessment": "Reading adapter observations is the explicit test seam.",
+      "new_actionable_finding": false
+    },
+    {
+      "name": "Data Clumps",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "assessment": "Repeated fixture inputs are confined to one bounded test harness.",
+      "new_actionable_finding": false
+    },
+    {
+      "name": "Primitive Obsession",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "assessment": "Wire JSON fields intentionally retain their schema representation.",
+      "new_actionable_finding": false
+    },
+    {
+      "name": "Repeated Switches",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "assessment": "Fault dispatch remains in the purpose-built HTTP fixture.",
+      "new_actionable_finding": false
+    },
+    {
+      "name": "Shotgun Surgery",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "assessment": "Seven files follow one feature/test/workflow/documentation boundary.",
+      "new_actionable_finding": false
+    },
+    {
+      "name": "Divergent Change",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "assessment": "Native preparation and SDK execution are explicit phases of the same acceptance driver.",
+      "new_actionable_finding": false
+    },
+    {
+      "name": "Speculative Generality",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "assessment": "No generalized writer, activation framework or unused extension mechanism was introduced.",
+      "new_actionable_finding": false
+    },
+    {
+      "name": "Message Chains",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "assessment": "No new navigation chain exposing hidden production internals.",
+      "new_actionable_finding": false
+    },
+    {
+      "name": "Middle Man",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "assessment": "Small local wrappers bind harness context or add fences.",
+      "new_actionable_finding": false
+    },
+    {
+      "name": "Refused Bequest",
+      "judgment_only": true,
+      "repository_rules_override": true,
+      "assessment": "RefreshWire specializes refresh while reusing ordinary resource/object handling.",
+      "new_actionable_finding": false
+    }
+  ],
+  "evidence_boundaries": [
+    "Driver scaffold RED is not native verification; actual missing-helper native seam RED retained.",
+    "First SDK file named green had exit 1 and remains failed.",
+    "Native first attempt KeyError and missing attempt transcript retained without retroactive rewrite.",
+    "Later bounds/sideeffects/cleanup repairs have retained RED receipts before corresponding fixes.",
+    "Frozen source initially said default pending; final validation summary and actual terminal default log supersede only that status, not frozen source bytes.",
+    "Linux existing native29/candidate31/stable49 remain pending subsequent CI.",
+    "Official Explorer refresh observation is UI-derived, not raw HTTP; no production delivery or live routing proof."
+  ],
+  "tests_rerun": false,
+  "CI_cloud_source_writes": false,
+  "finite_evidence_manifest": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/README.md",
+      "bytes": 4912,
+      "sha256": "4fdc4f0ea242c6af403ae369f116907dc51e985b6bd0f9a3641816390df24478"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/bounds-repair-red-receipt.json",
+      "bytes": 3476,
+      "sha256": "a118dcc76089e7e9de0faf04fef5dd7d68dcb982b89b8dbc41f080ac51238b82"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/bounds-repair-red-tests.py",
+      "bytes": 54955,
+      "sha256": "c93286e5114684be13ea1e6f0a0acb2f8a3f4808526b950099d6ddb08820db47"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/bounds-repair-red.json",
+      "bytes": 369,
+      "sha256": "fa6ae3f2e2abdcd5e06c8f9dd7844216928f9d87a6577c8fb67d7ef99df31e52"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/bounds-repair-red.log",
+      "bytes": 14075,
+      "sha256": "fbff0d65f9922e6afb97230172b291566f3c68464958518f6948d3218fa5c9e4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/cleanup-observation.json",
+      "bytes": 646,
+      "sha256": "c309ba01ceca25744c4319a26dba340f8ea37a65b61ad858164d0b4d037d8928"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/cleanup-red.json",
+      "bytes": 216,
+      "sha256": "8dfcbcd1afae7e0cac9609f164485abe479d612c1cdf7b31737c02b91e89d542"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/cleanup-red.log",
+      "bytes": 3400,
+      "sha256": "356867ec84b40c1acb571393e141db2af80c20854341680f0678d3d17b24d157"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/contracts-first.json",
+      "bytes": 151,
+      "sha256": "91eaca86f2ee668ac4d8f5c7ec5762a07353ad22ec2f1efba16b3cb8046dcb82"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/contracts-first.log",
+      "bytes": 176,
+      "sha256": "92a969f610380ddf92e95a89724350e1444d898dab2bf7a13efc9b1c9c5c17c6"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/default-first.json",
+      "bytes": 234,
+      "sha256": "62a90ffc4966820631f5caa4e3a4dfcfc9fe02cfdf980675b6f1a86c99469164"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/default-first.log",
+      "bytes": 2306,
+      "sha256": "4c1172232bb5c060e7544098456b35ca9deb39503780f116508b07881c684a1d"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/driver-all-cases-before-helpers.py",
+      "bytes": 14315,
+      "sha256": "0ef03cd83d180062462478f7b4941e8c8e8d83b1544279c6a76840290a89bd27"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/driver-all-cases-before-implementation.py",
+      "bytes": 13622,
+      "sha256": "d8593f79504319f12c9647777dcbcbaa03c60b1109596a34345918d5d57a712f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/driver-first-red.json",
+      "bytes": 401,
+      "sha256": "4603a2432defed9551ac03acb9325a5fb4a449519e9864ed47017259e7a875c0"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/driver-first-red.log",
+      "bytes": 47,
+      "sha256": "77a45d3a7a9a8e0496b0c69c6c92dd10f0eab3882bc61f5bf5189419e814d58f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/failure-matrix.md",
+      "bytes": 5602,
+      "sha256": "bf1f44f24fd7c5e07a30780c6b370a743621dfc33dff241adb03a2a5d566813c"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/implementation.patch",
+      "bytes": 62497,
+      "sha256": "c4c90a6fc27d8f0ce3ae5567f3b1c3f27b5885a64eaba8fc31f4095e9d8574b8"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/initial-binding.json",
+      "bytes": 15585,
+      "sha256": "388e90e5c900a994d8d7a0ad86acac22050984286ae00f4ca9bb68121c6de6d8"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/input-repair-green.json",
+      "bytes": 216,
+      "sha256": "2ebf87e0a99d385246c5cd1bfd1d44e8d31461f3cf1a183d38338c9205a38664"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/input-repair-green.log",
+      "bytes": 2688,
+      "sha256": "2959ba01df4c3cb15dc4b8cd39c27aafe318dee821585c4f466e984b51f3a86e"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-1/command.json",
+      "bytes": 1994,
+      "sha256": "2bb5a2c2ddc5dd5ad9fe0b930f5b0501eccef59c7f579a49394c6e9f9540c164"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-1/native-preparation.json",
+      "bytes": 21229,
+      "sha256": "736d4be0e271558b1319d8261d7c067fbb46bd8358d9e5dee3bbd849b6bac6e7"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-1/native-sdk-result.json",
+      "bytes": 1386,
+      "sha256": "ae6d5af61560d65d13ea4936d9b6063afe3fbcbdef2bd381024b6de3da57a246"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-1/native.log",
+      "bytes": 196,
+      "sha256": "1d2f88ba37add30a2836a5750d4e918ed9d0b7f59af0479feb9170e5d3897fec"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-1/prepared-bundle.json",
+      "bytes": 112511,
+      "sha256": "8c78ee2e70ee3e24d05f0e2488d5529811fd2503989fa0dea11ddfa5935e3db9"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-1/sdk-command.json",
+      "bytes": 756,
+      "sha256": "ee05ee3db16f042f94ea37c528259c292d1bd3f31407c4fcb5f3689503a8bfd5"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-1/sdk.log",
+      "bytes": 157,
+      "sha256": "5fcd0cfab8526de929665effe18a06422624615a4302a21318aab16fc40bf7d4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-2/command.json",
+      "bytes": 1952,
+      "sha256": "5ce9074227a2d844a5bfebb62f29967f06946b8d807189df93586bd2b0eb0b3f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-2/native-preparation.json",
+      "bytes": 21229,
+      "sha256": "7e3e93be766d8d446b82987eb87e7a345d721f88da0316d41cd45b26a4c4f8f5"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-2/native-sdk-result.json",
+      "bytes": 61098,
+      "sha256": "0aeea39d74a6e67aa1f0d8f22984bb793c96c3be81082eb3a501fec4b9719808"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-2/native.log",
+      "bytes": 196,
+      "sha256": "a94cfa58c558ec3f67a7fc3d647f4512bad1796ff359b86818821f45cefba295"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-2/prepared-bundle.json",
+      "bytes": 112511,
+      "sha256": "9b266e8ed9f282934e1f190097c6f291876942f877b1dc42b95265d60d23ef03"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-2/sdk-command.json",
+      "bytes": 754,
+      "sha256": "4c63ca8e87c39bd472015e87a8ac4332930fd79a906e3f1a144f98e3f4085ba9"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-attempt-2/sdk.log",
+      "bytes": 147,
+      "sha256": "b9da9f34e492986c839a02bb875f2bbc788df7f3855908eb8f444acc6f2ec698"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-seam-first-red.json",
+      "bytes": 704,
+      "sha256": "02567ac08509792aa2997079d9d5e6ca30e9323cd00b88e7fc584cc086737de4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/native-seam-first-red.log",
+      "bytes": 1377,
+      "sha256": "a1f97a70db4e2c66e99166e13b59c26049792dd49c7f8390a4892eef551b2af4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/protected-source-binding.json",
+      "bytes": 18613,
+      "sha256": "36f8ef49ce3b62faece0e7f96dc16df6e3b3359c12ec9867702e0055760036ab"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-distinguishing-red-receipt.json",
+      "bytes": 3404,
+      "sha256": "de17bf1ccccf6b40f6a301896171471dcf4b07d928f1913abb4b316937de7645"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-distinguishing-red-tests.py",
+      "bytes": 53983,
+      "sha256": "bb56cfca1ceb0e7bf103bbeafbb6e571e1cdefaa1ac14388868bcc8a7f960c24"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-distinguishing-red.json",
+      "bytes": 408,
+      "sha256": "dad2b16296b907644cd2e8e6cf00bbea0d300673f741a83114a56e11a95ee043"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-distinguishing-red.log",
+      "bytes": 26278,
+      "sha256": "4517c18d600b80745d9dd6bdcbbaf565ed3dd8cac7b50363c5362e507cb8e0bb"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-failure-matrix.md",
+      "bytes": 1733,
+      "sha256": "30b728c95f1b6d752cbe49bafa1bdc916223973a9f711d0290c457e16dc30c19"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-first-red-receipt.json",
+      "bytes": 3277,
+      "sha256": "f0721d7ad00c0b9346750e2fe3bbd5cb9a0008c92b46f6f96248441f3158f9d8"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-first-red.json",
+      "bytes": 495,
+      "sha256": "3f7ea996504f772df6e6920cee0f8463f0c2e9b0cb6cbb6522947be199f80642"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-first-red.log",
+      "bytes": 23465,
+      "sha256": "ea710b93b061ae893e594086a7853752948ba76f77bb7c50e98e986dcbe27671"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-observation-binding.json",
+      "bytes": 456,
+      "sha256": "8f3460b6ed88306ecef174acc1dd53386fbb6c9fee0ee68a10844b846d2e8783"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-review-red-receipt.json",
+      "bytes": 3330,
+      "sha256": "b9acecca2be0abe61765cbd510a48bcf2b458eb28a7a3be77b70c7efef339952"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-review-red-tests.py",
+      "bytes": 53210,
+      "sha256": "14003e39ca7c87fc58c260ab2b187ca0140487cb6bc8770eb153413a6c998def"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-review-red.json",
+      "bytes": 400,
+      "sha256": "8d5a2c3b7e2825c03fcf307a58e84b05ea40631f156afcc9b7a6a5f1f2004513"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-review-red.log",
+      "bytes": 24033,
+      "sha256": "7388484a8a59525dd5d5a8d4dd6f662d38533ef3d0e6154dc4df776442ac47e7"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-scope-binding.json",
+      "bytes": 15642,
+      "sha256": "af29fb943b43e41142a6537b2468737cfa043b9eb35a9e0827144430b1682dcd"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-contract-first-red-receipt.json",
+      "bytes": 2846,
+      "sha256": "9c4103637a1bc211810cbd0228766a207999c341e0a090f107dc471982a317bd"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-contract-first-red.json",
+      "bytes": 453,
+      "sha256": "20b576cc4b5f7db10d798279f8177db24573fe383b471e51dc9794506cf7c689"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-contract-first-red.log",
+      "bytes": 11034,
+      "sha256": "80f6dc9bd61b5a6472e6548f72f9eea4cdd83e0bd8d3d52963809c781541af5f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-first-green-receipt.json",
+      "bytes": 3404,
+      "sha256": "d60da159d6aca613f421b8581df41da4d3b4b120aacf484ef85038aa700e261e"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-first-green.json",
+      "bytes": 367,
+      "sha256": "dd43c4a492a480ce77f7cdfba371496426cfd0e90939f45d2a8dccc0a4c4dd2b"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-first-green.log",
+      "bytes": 13359,
+      "sha256": "052ec47b49591af8dc99158e63480848454de88bbf6597b1b2daab186eca1cc3"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-green-receipt.json",
+      "bytes": 3404,
+      "sha256": "c554c48ce5caec6dd0f92374c933339507e4289bfd1a7e7e4d31edf6d996ab58"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-green.json",
+      "bytes": 361,
+      "sha256": "893ec2aaad58f90e950640dcf351e4c2aab242219b42ae945d2a7d925cb60524"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-green.log",
+      "bytes": 10527,
+      "sha256": "e72a04452f8abd716e0ee052517d4c69d0b9015ae6f3e9e0ba6755feeb3316e3"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-repair-green-receipt.json",
+      "bytes": 3553,
+      "sha256": "7deaab7b1a91afc7a42552fda8159f6ff419943c2e52812b183fb7c4266bb870"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-repair-green.json",
+      "bytes": 368,
+      "sha256": "06de63158ec03d050200ba6c0d102d4fdb6e6b49d9a70b50a3a0ee437d773040"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sdk-repair-green.log",
+      "bytes": 11032,
+      "sha256": "a5f0d55e7bba0844dd80ca4b1506c7458dc35b9d0001a3911f23193016451cf9"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sideeffects-red-receipt.json",
+      "bytes": 3553,
+      "sha256": "62de7d9794eb1ffe619d3424846f0529f73500d0b51bcf51f90172ecabe67cab"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sideeffects-red.json",
+      "bytes": 367,
+      "sha256": "5007f263ac405b48ab5a9e9431bd6c71ad5ca9d9e13ff1fc1a58a7c2a214fb45"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/sideeffects-red.log",
+      "bytes": 15159,
+      "sha256": "80a129c4fbf2cab08f5f7acca2860fd8afcbcb9de827ee96787266e2628ebab8"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/source-freeze.json",
+      "bytes": 1897,
+      "sha256": "123aa28a8aa8e38e8f3f3a53298b4201825db6e2f578dfbb984770375f21d831"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/validation-summary.json",
+      "bytes": 1278,
+      "sha256": "de4fcd4c9ef1155506f23262dccecfd17c63309ddf3feb5e7e8db2c7d650b26c"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/workflow-first-red.json",
+      "bytes": 295,
+      "sha256": "2c619a8c29c2a4fe8ad569e2d484a01a5e2a6843967939d88ef21fe40c9730c1"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/workflow-first-red.log",
+      "bytes": 22162,
+      "sha256": "91671ef10b9fa8d2629dde7abcbcef30c9b7b1aeef5eb984b8c850248a1b0159"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/workflow-revised-first-red.json",
+      "bytes": 246,
+      "sha256": "a4b036e5bfd1fad5a606d6b0e4174415446697d1dda8cb44aa2bdda16a94f4cd"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/workflow-revised-first-red.log",
+      "bytes": 22162,
+      "sha256": "d4a56608f874f3c14910bd4f11cf582352230533056ccc4d82ad523ea9f0ab1f"
+    }
+  ]
+}

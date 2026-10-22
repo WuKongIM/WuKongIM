@@ -1,0 +1,24 @@
+{
+  "base": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status",
+  "commit_list": [],
+  "diff_command": "git diff HEAD; git ls-files --others --exclude-standard",
+  "files": [
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "sha256": "aed022731b14eb58ba58150d48083473c12fc6801003518723b771f85eff072b",
+      "bytes": 77446
+    },
+    {
+      "path": "tests/test_verify_production_package_site.py",
+      "sha256": "5abf2d0cd14479697414d30020043421af620a36347a62a865faf5fc7f3b3006",
+      "bytes": 51330
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "6e68a918b61a48c56a5308ba96bf83c6b59709def6784365f261ff5f896b77ad",
+      "bytes": 4335
+    }
+  ],
+  "patch_sha256": "ba465186dd9e93e09b3e357a4c635fa5c173ca746e2c9bce89cdd5b2ca5a318a"
+}

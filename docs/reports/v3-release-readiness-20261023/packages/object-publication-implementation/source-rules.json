@@ -1,0 +1,30 @@
+{
+  "base_sha": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "base_tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "governing_root_sha": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "applicable_files_sha256": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  "review_manifest_sha256": "acc0877bd3c3bd2f17ad121fce7dce2ea2813c569dc347dcdb6628299e894bd5",
+  "scope": [
+    "scripts/publish-object-storage-delivery.py",
+    "manifests/object-storage-publication.json",
+    "tests/test_object_storage_publication.py",
+    "tests/provider_sdk/test_object_storage_publication.py",
+    ".github/workflows/object-storage-provider-contract.yml",
+    "docs/object-storage-delivery.md",
+    "docs/release-contract.md",
+    "CHANGELOG.md"
+  ],
+  "test_seams": [
+    "fixed disabled production CLI/current control",
+    "original fresh validator + real clean Git/HTTP transport boundary",
+    "read-only HTTPS probe + actual loopback TLS server"
+  ],
+  "deferred": [
+    "M2b final source integration",
+    "SDK positive upload/activate orchestration",
+    "production provenance/publication"
+  ],
+  "tdd_override": "User requires all relevant tests first; this takes precedence over skill vertical-slice suggestion."
+}

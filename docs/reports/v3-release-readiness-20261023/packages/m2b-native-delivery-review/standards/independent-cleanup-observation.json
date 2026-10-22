@@ -1,0 +1,39 @@
+{
+  "container_queries": [
+    {
+      "command": [
+        "docker",
+        "container",
+        "ls",
+        "--all",
+        "--filter",
+        "name=^/wk-m2b-native-1$",
+        "--format",
+        "{{.Names}}"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "container",
+        "ls",
+        "--all",
+        "--filter",
+        "name=^/wk-m2b-native-2$",
+        "--format",
+        "{{.Names}}"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "owned_scratch_absent": {
+    "native-attempt-1": true,
+    "native-attempt-2": true
+  },
+  "read_only": true
+}

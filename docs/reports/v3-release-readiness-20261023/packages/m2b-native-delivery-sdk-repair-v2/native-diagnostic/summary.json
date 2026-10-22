@@ -1,0 +1,24 @@
+{
+  "original_failure": "native-first/materialize-B failed; original rpmkeys output/path not captured",
+  "original_cause": "unknown",
+  "transparent_replay_exit_code": 0,
+  "rpm_calls": 60,
+  "rpmkeys_calls": 8,
+  "all_tool_exits_zero": true,
+  "observed_cgroup_last": {
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+    "pids.current": "3\n",
+    "pids.max": "128\n",
+    "pids.events": "max 0\n"
+  },
+  "paired_probe_original_function": [
+    true,
+    false
+  ],
+  "paired_probe_rpmkeys_exits": [
+    0,
+    0
+  ],
+  "independent_bug_confirmed": "Whole stdout/stderr substring rejection makes a package path containing bad fail despite successful cryptographic signature verification. This does not uniquely explain the first failure.",
+  "production_verifier_modified": false
+}

@@ -1,0 +1,74 @@
+{
+  "phase": "independent_disabled_boundary_and_readonly_probe",
+  "base_sha": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "unit_first": {
+    "tests": 9,
+    "passed": 9,
+    "failed": 0
+  },
+  "integration_first": {
+    "tests": 17,
+    "passed": 16,
+    "failed": 1,
+    "cause": "Fixture /var symlink was correctly refused before GitHub; resolved fixture path only."
+  },
+  "integration_final": {
+    "cloud_verified": false,
+    "errors": 0,
+    "failures": 0,
+    "native_provenance_verified": false,
+    "production_enabled": false,
+    "publication_verified": false,
+    "real_git_and_loopback_tls_only": true,
+    "schema": "wukongim.object_publication_contract/v1",
+    "skipped": 0,
+    "successful": true,
+    "tests_run": 17
+  },
+  "related_module_invocation": {
+    "valid_invocation": false,
+    "new_fast_cases_passed": 9,
+    "existing_suite_loader_errors": 1,
+    "reason": "Existing flat test_stable_seal_inputs import needs discovery; full discovery below verifies it."
+  },
+  "full_default_first": {
+    "tests": 590,
+    "passed": 589,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 1,
+    "duration_seconds": 142.406,
+    "skip_reasons": [
+      "real RPM build tools are unavailable"
+    ],
+    "original_fresh_suite_passed": 10,
+    "new_fast_suite_passed": 9,
+    "note": "Negative drill tests intentionally print passed:false fixture diagnostics; unittest terminal is OK."
+  },
+  "contract": {
+    "passed": true,
+    "nested_tests": 4
+  },
+  "validate_control": {
+    "passed": true
+  },
+  "diff_check": {
+    "passed": true
+  },
+  "production_enabled": false,
+  "sdk_composition_complete": false,
+  "production_provenance_verified": false,
+  "public_four_clients_run": false,
+  "cloud_called": false,
+  "commit_push_pr_ci": false,
+  "worktree_status": [
+    " M .github/workflows/object-storage-provider-contract.yml",
+    " M CHANGELOG.md",
+    " M docs/object-storage-delivery.md",
+    " M docs/release-contract.md",
+    "?? manifests/object-storage-publication.json",
+    "?? scripts/publish-object-storage-delivery.py",
+    "?? tests/provider_sdk/test_object_storage_publication.py",
+    "?? tests/test_object_storage_publication.py"
+  ]
+}

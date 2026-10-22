@@ -1,0 +1,529 @@
+--- a/tests/provider_sdk/native_object_delivery_sdk_drill.py
++++ b/tests/provider_sdk/native_object_delivery_sdk_drill.py
+@@ -64,6 +64,118 @@
+     return bundle
+ 
+ 
++class ObservedRead:
++    """Observe only consumed bytes; close and read(0) never establish EOF."""
++    def __init__(self,raw,record,on_eof=None):
++        self.raw=raw;self.record=record;self.sha=hashlib.sha256();self.on_eof=on_eof
++        self.buffer=bytearray() if on_eof else None
++        record.update(bytes_read=0,sha256=self.sha.hexdigest(),eof=False)
++
++    def __getattr__(self,name):return getattr(self.raw,name)
++
++    def read(self,size=-1,*args,**kwargs):
++        try:chunk=self.raw.read(size,*args,**kwargs)
++        except Exception as error:
++            self.record['error_type']=type(error).__name__;raise
++        if chunk:
++            self.record['bytes_read']+=len(chunk);self.sha.update(chunk);self.record['sha256']=self.sha.hexdigest()
++            if self.buffer is not None:
++                require(len(self.buffer)+len(chunk)<=8*1024*1024,'response observation exceeds bound');self.buffer.extend(chunk)
++        elif size!=0:
++            self.record['eof']=True
++            if self.on_eof is not None:self.on_eof(bytes(self.buffer))
++        return chunk
++
++
++class ObservedAdapter:
++    """Observe the fixture's actual HTTP responses without draining or replaying."""
++    ACTIONS=('DescribeCdnDomainDetail','DescribeCdnDomainConfigs','BatchSetCdnDomainConfig','RefreshObjectCaches','DescribeRefreshTaskById')
++    def __init__(self,wire):self.wire=wire;self.observations=[];self.operations=[]
++    def __getattr__(self,name):return getattr(self.wire,name)
++    def close(self):return self.wire.close()
++
++    def send(self,request,**kwargs):
++        from urllib.parse import parse_qs,urlsplit
++        parsed=urlsplit(request.url);query=parse_qs(parsed.query,keep_blank_values=True)
++        if request.body and parsed.hostname in ('cdn.aliyuncs.com','sts.aliyuncs.com'):
++            query.update(parse_qs(request.body.decode() if isinstance(request.body,bytes) else request.body))
++        action=query.get('Action',[''])[0]
++        is_object=not action and not parsed.query and request.method in ('GET','PUT')
++        if action not in self.ACTIONS and not is_object:return self.wire.send(request,**kwargs)
++        row={'method':request.method,'action':action or 'object','object_key':parsed.path[1:] if is_object else None,'request':{}}
++        require(len(self.observations)<2000,'exchange observation count exceeded');self.observations.append(row)
++        for name in ('DomainName','DomainNames','ObjectType','TaskId'):
++            if name in query:row['request'][name]=query[name][0]
++        if 'ObjectPath' in query:row['request']['ObjectPath']=query['ObjectPath'][0].split('\n')
++        if 'Functions' in query:row['request']['Functions']=json.loads(query['Functions'][0])
++        if is_object and request.method=='PUT':
++            row['request'].update(cache_control=request.headers.get('Cache-Control'),content_length=request.headers.get('Content-Length'),forbid_overwrite=request.headers.get('x-oss-forbid-overwrite'))
++            row['request_body']={}
++            if hasattr(request.body,'read'):request.body=ObservedRead(request.body,row['request_body'])
++            elif isinstance(request.body,bytes):
++                raw=request.body;row['request_body'].update(bytes_read=len(raw),sha256=hashlib.sha256(raw).hexdigest(),eof=False)
++            else:
++                body=request.body;record=row['request_body'];sha=hashlib.sha256()
++                record.update(bytes_read=0,sha256=sha.hexdigest(),eof=False)
++                def chunks():
++                    try:
++                        for chunk in body:
++                            record['bytes_read']+=len(chunk);sha.update(chunk);record['sha256']=sha.hexdigest();yield chunk
++                        record['eof']=True
++                    except Exception as error:
++                        record['error_type']=type(error).__name__;raise
++                request.body=chunks()
++        try:response=self.wire.send(request,**kwargs)
++        except Exception as error:
++            row['error_type']=type(error).__name__;raise
++        row['status']=response.status_code
++        if is_object:row['response']={'cache_control':response.headers.get('Cache-Control'),'content_length':response.headers.get('Content-Length')}
++        row['stream']={}
++        def complete(raw):
++            try:row['response']=public_rpc_response(action,json.loads(raw))
++            except (ValueError,TypeError,KeyError):row['response_decode_error']=True
++        response.raw=ObservedRead(response.raw,row['stream'],complete if action else None)
++        return response
++
++
++def public_rpc_response(action,value):
++    """Keep explicit public protocol fields; never exception messages or credentials."""
++    def selected(row,keys):
++        return {key:copy.deepcopy(row[key]) for key in keys if key in row} if isinstance(row,dict) else {'invalid_row_type':type(row).__name__}
++    if action=='DescribeRefreshTaskById':
++        result=selected(value,('TotalCount',))
++        if 'Tasks' in value:
++            result['Tasks']=[selected(row,('TaskId','ObjectPath','ObjectType','Status','Process','CreationTime')) for row in value['Tasks']] if isinstance(value['Tasks'],list) else {'invalid_tasks_type':type(value['Tasks']).__name__}
++        return result
++    if action=='RefreshObjectCaches':return selected(value,('RefreshTaskId',))
++    if action=='BatchSetCdnDomainConfig':
++        rows=value.get('DomainConfigList',{}).get('DomainConfigModel',[])
++        return {'DomainConfigList':{'DomainConfigModel':[selected(row,('ConfigId','DomainName','FunctionName')) for row in rows]}}
++    if action=='DescribeCdnDomainConfigs':
++        rows=[]
++        for row in value.get('DomainConfigs',{}).get('DomainConfig',[]):
++            entry=selected(row,('ConfigId','FunctionName','Status','ParentId'))
++            entry['FunctionArgs']={'FunctionArg':[selected(arg,('ArgName','ArgValue')) for arg in row.get('FunctionArgs',{}).get('FunctionArg',[])]};rows.append(entry)
++        return {'DomainConfigs':{'DomainConfig':rows}}
++    detail=value.get('GetDomainDetailModel',{});result=selected(detail,('DomainName','Cname','DomainStatus'))
++    result['SourceModels']={'SourceModel':[selected(row,('Type','Content','Port','Priority','Weight','Enabled')) for row in detail.get('SourceModels',{}).get('SourceModel',[])]}
++    return {'GetDomainDetailModel':result}
++
++
++def observe_operation(adapter,details,action):
++    """Retain expected bindings and partial actual outcomes before scratch removal."""
++    row={**copy.deepcopy(details),'state':'incomplete','first_exchange':len(adapter.observations)}
++    require(len(adapter.operations)<1000,'operation observation count exceeded');adapter.operations.append(row)
++    try:
++        result=action();row['result']=copy.deepcopy(result)
++        if not isinstance(result,dict) or result.get('state')!='incomplete':row['state']='complete'
++        return result
++    except Exception as error:
++        row['error_type']=type(error).__name__;raise
++    finally:
++        row.update(copy.deepcopy(details));row['end_exchange']=len(adapter.observations)
++
++
+ def sdk_cases(args,report):
+     """All assertions are against actual SDK requests, bytes and public receipts."""
+     contracts=module(ROOT/'tests/provider_sdk/test_aliyun_object_storage_provider.py')
+@@ -72,11 +184,16 @@
+     report['cases']=copy.deepcopy(bundle['native_cases'])
+     a=read_json(Path(bundle['generations']['A']['delivery']));b=read_json(Path(bundle['generations']['B']['delivery']))
+     report['resource_intent_sha256']=bundle['resource_intent_sha256'];report['sdk_resource_sha256']=bundle['sdk_resource_sha256']
++    report['native_bindings']={'export_source_sha':bundle['export_source_sha'],'current_control':read_json(Path(bundle['current_control'])),
++        'resource_intent_sha256':bundle['resource_intent_sha256'],'sdk_resource_sha256':bundle['sdk_resource_sha256'],
++        'generations':{label:{'inputs':read_json(Path(data['inputs'])),'inputs_sha256':bundle['files'][data['inputs']]['sha256'],
++            'plan_sha256':data['plan_sha256'],'client_requests':generation(bundle,label)['client_requests'],
++            'planner_verification':generation(bundle,label)['planner_verification']} for label,data in bundle['generations'].items()}}
+     owned=[];observed=[]
+     def client(wire=None):
+-        wire=wire or contracts.Wire()
+-        value=provider.Provider(resource=contracts.RESOURCE,access_key_id='FIXTURE-AK',access_key_secret=contracts.SECRET,security_token=contracts.TOKEN,http_adapter=wire)
+-        owned.append(value);observed.append(wire);return value,wire
++        wire=wire or contracts.Wire();adapter=ObservedAdapter(wire);wire.evidence=adapter
++        value=provider.Provider(resource=contracts.RESOURCE,access_key_id='FIXTURE-AK',access_key_secret=contracts.SECRET,security_token=contracts.TOKEN,http_adapter=adapter)
++        owned.append(value);observed.append(adapter);return value,wire
+     def case(name,action):
+         report['stage']=name;action();report['cases'].append({'case':name,'passed':True})
+     def writes(wire):return [row for row in wire.requests if row[0].method=='PUT' or row[2] in ('BatchSetCdnDomainConfig','RefreshObjectCaches')]
+@@ -181,15 +298,16 @@
+             for label,delivery in (('A',a),('B',b)):
+                 c,w=client(contracts.RefreshWire());result=refresh_generation(bundle,args,label,c,w)
+                 assert result['state']=='tasks_complete' and result['task_ids']==['33643947491']
+-                assert [row['ObjectPath'] for row in w.rows]==refresh_scope(delivery['routes'])['urls']
+-                assert len(w.rows)==178 and w.submissions==4 and w.polls==1
++                responses=[row['response'] for row in w.evidence.observations if row['action']=='DescribeRefreshTaskById']
++                assert [row['ObjectPath'] for response in responses for row in response['Tasks']]==refresh_scope(delivery['routes'])['urls']
++                assert sum(len(response['Tasks']) for response in responses)==178 and w.submissions==4 and w.polls==1
+         case(CASES[16],full_refresh)
+         def aggregate_faults():
+             for fault in ('missing','duplicate','total','foreign_url','submit_timeout','query_timeout'):
+                 c,w=client(contracts.RefreshWire(fault=fault));refused(lambda:refresh_generation(bundle,args,'A',c,w))
+                 assert w.submissions==(2 if fault=='submit_timeout' else 4)
+                 assert 0<len(writes(w))<=4
+-                report.setdefault('incomplete_observations',[]).append({'fault':fault,'state':'incomplete','submissions_attempted':w.submissions,'task_rows_observed':len(w.rows),'repeated_writes':False})
++                report.setdefault('incomplete_observations',[]).append({'fault':fault,'state':'incomplete','submissions_attempted':w.submissions,'task_rows_observed':sum(len(row.get('response',{}).get('Tasks',[])) for row in w.evidence.observations if row['action']=='DescribeRefreshTaskById'),'repeated_writes':False})
+         case(CASES[17],aggregate_faults)
+         def production_refused():
+             fresh=module(ROOT/'scripts/verify-object-storage-delivery-inputs.py')
+@@ -200,8 +318,15 @@
+         report['route_counts']={'A':178,'B':178};report['config_rule_counts']={'A':17,'B':17}
+         report['sdk_transport_observations']=sanitized(wire)
+     finally:
+-        record_attempts(report,observed)
+-        for value in owned:value.close()
++        pending=sys.exc_info()[0] is not None;errors=[]
++        try:record_attempts(report,observed)
++        except Exception as error:errors.append({'operation':'record_attempts','error_type':type(error).__name__})
++        for value in owned:
++            try:value.close()
++            except Exception as error:errors.append({'operation':'client_close','error_type':type(error).__name__})
++        if errors:
++            report['sdk_cleanup_errors']=errors
++            if not pending:raise RuntimeError('SDK cleanup incomplete')
+ 
+ 
+ def cleanup_case(args,report):
+@@ -327,18 +452,29 @@
+ 
+ 
+ def send_object(bundle,args,label,item,client,wire):
+-    fixture_fence(bundle,args,client)
+-    require(item in generation(bundle,label)['objects'],'object generation/source binding differs')
+-    return client.put_create_only(item['object_key'],Path(bundle['generations'][label]['root'])/item['materialized_file'],
+-                                  {key:item[key] for key in ('sha256','size','cache_control')})
++    details={'kind':'object','generation':label,'object':{key:copy.deepcopy(value) for key,value in item.items() if key not in ('materialized_file','content_utf8')},
++             'inputs_sha256':bundle['files'][bundle['generations'][label]['inputs']]['sha256'],'plan_sha256':bundle['generations'][label]['plan_sha256']}
++    def action():
++        fixture_fence(bundle,args,client)
++        require(item in generation(bundle,label)['objects'],'object generation/source binding differs')
++        return client.put_create_only(item['object_key'],Path(bundle['generations'][label]['root'])/item['materialized_file'],
++                                      {key:item[key] for key in ('sha256','size','cache_control')})
++    return observe_operation(wire.evidence,details,action)
+ 
+ 
+ def apply_configuration(bundle,args,label,client,wire,before,managed):
+-    fixture_fence(bundle,args,client)
+-    result=client.apply_rewrites(generation(bundle,label)['routes'],before=before,managed_ids=managed)
+-    if result['state']=='readback_verified':
+-        result['config_ids']=[str(row['ConfigId']) for row in client.read_configuration()['configs'] if row['FunctionName']=='back_to_origin_url_rewrite']
+-    return result
++    details={'kind':'config','generation':label,'before':copy.deepcopy(before),'managed_ids':list(managed)}
++    def action():
++        try:
++            fixture_fence(bundle,args,client)
++            result=client.apply_rewrites(generation(bundle,label)['routes'],before=before,managed_ids=managed)
++            if result['state']=='readback_verified':
++                result['config_ids']=[str(row['ConfigId']) for row in client.read_configuration()['configs'] if row['FunctionName']=='back_to_origin_url_rewrite']
++            return result
++        finally:
++            try:details['after']=client.read_configuration()
++            except Exception as error:details['after_error_type']=type(error).__name__
++    return observe_operation(wire.evidence,details,action)
+ 
+ 
+ def refresh_scope(routes):
+@@ -348,8 +484,11 @@
+ 
+ 
+ def refresh_generation(bundle,args,label,client,wire):
+-    fixture_fence(bundle,args,client)
+-    return client.refresh(refresh_scope(generation(bundle,label)['routes'])['urls'],max_polls=2,poll_interval=0)
++    details={'kind':'refresh','generation':label,'urls':refresh_scope(generation(bundle,label)['routes'])['urls'],'object_type':'File'}
++    def action():
++        fixture_fence(bundle,args,client)
++        return client.refresh(details['urls'],max_polls=2,poll_interval=0)
++    return observe_operation(wire.evidence,details,action)
+ 
+ 
+ def url_path(url):
+@@ -368,6 +507,8 @@
+     rows=[row for wire in wires for row in sanitized(wire)]
+     require(len(rows)<=2000,'attempt observation bound exceeded')
+     report['sdk_transport_observations']=rows
++    report['sdk_exchange_observations']=[{'wire':index,**copy.deepcopy(row)} for index,wire in enumerate(wires) if isinstance(wire,ObservedAdapter) for row in wire.observations]
++    report['operation_receipts']=[{'wire':index,**copy.deepcopy(row)} for index,wire in enumerate(wires) if isinstance(wire,ObservedAdapter) for row in wire.operations]
+     report['object_put_attempts']=sum(row['method']=='PUT' for row in rows)
+     report['refresh_submit_attempts']=sum(row['action']=='RefreshObjectCaches' for row in rows)
+ 
+@@ -378,6 +519,47 @@
+             and report['scratch_removed'] is True,'fixture receipt incomplete')
+     require(report['cases']==[{'case':name,'passed':True} for name in CASES],'fixture cases incomplete')
+     require(set(report['verification'])==set(FALSE_FIELDS) and all(value is False for value in report['verification'].values()),'production claims forbidden')
++
++
++def stage_failure(report,error):
++    """Keep the first stage error; cleanup has a separate receipt."""
++    import traceback
++    frames=traceback.extract_tb(error.__traceback__);frame=frames[-1] if frames else None
++    if 'error_type' not in report:
++        report['error_type']=type(error).__name__
++        if frame:report['failure_location']={'file':Path(frame.filename).name,'line':frame.lineno,'function':frame.name}
++        report['error']='TEST ONLY fixture operation failed; stage identifies boundary'
++    report['passed']=False;report['state']='incomplete'
++
++
++def guarded_sdk(args,report):
++    """Count forbidden attempts independently of expected-refusal classification."""
++    counts={'self_check_attempts':0,'unexpected_attempts':0,'passed':False};checking=True
++    def blocked(*unused,**kwargs):
++        counts['self_check_attempts' if checking else 'unexpected_attempts']+=1
++        raise RuntimeError('provider network forbidden')
++    try:
++        with mock.patch.object(socket.socket,'connect',side_effect=blocked):
++            refused(lambda:socket.create_connection(('127.0.0.1',9),timeout=1))
++            require(counts['self_check_attempts']==1,'network guard self-check failed');checking=False
++            sdk_cases(args,report)
++        require(counts['unexpected_attempts']==0,'unexpected provider network attempt')
++    finally:
++        counts['passed']=counts['self_check_attempts']==1 and counts['unexpected_attempts']==0
++        report['network_guard']=counts
++
++
++def write_report(path,report):
++    """Preserve a finite incomplete receipt even if detailed evidence overflows."""
++    raw=canonical(report)
++    if len(raw)>8*1024*1024:
++        keep=('schema','test_only','source_sha','skips','stage','scratch_removed','verification','error_type','failure_location',
++              'error','cleanup','network_guard','object_put_attempts','refresh_submit_attempts','sdk_cleanup_errors')
++        fallback={key:report[key] for key in keep if key in report}
++        fallback.update(passed=False,state='incomplete',receipt_error='ReceiptLimit',
++                        omitted_evidence_bytes=len(raw),omitted_evidence_sha256=hashlib.sha256(raw).hexdigest())
++        report.clear();report.update(fallback);raw=canonical(report)
++    require(len(raw)<=8*1024*1024,'finite receipt exceeds bound');path.write_bytes(raw)
+ 
+ 
+ def main():
+@@ -388,30 +570,31 @@
+     phase=sub.choices['sdk'];phase.add_argument('--bundle',type=Path,required=True);phase.add_argument('--bundle-sha256',required=True)
+     args=parser.parse_args();report={'schema':'wukongim.native_sdk_drill/v1','test_only':True,'source_sha':args.source_sha,
+         'passed':False,'cases':[],'skips':0,'state':'incomplete','stage':args.phase,'scratch_removed':False,'verification':dict.fromkeys(FALSE_FIELDS,False),'commands':[]}
++    sdk_complete=False
+     try:
+         if args.phase=='prepare':
+             bundle=native_cases(args,report);bundle['native_cases']=copy.deepcopy(report['cases'])
+             target=args.work_dir/'bundle.json';target.write_bytes(canonical(bundle));report['bundle_sha256']=facts(target)['sha256'];report['state']='native_prepared';report['passed']=True
+         else:
+             require(args.bundle.name=='bundle.json' and args.bundle.parent.name=='native-sdk-work','owned bundle directory required')
+-            with mock.patch.object(socket.socket,'connect',side_effect=RuntimeError('provider network forbidden')):
+-                refused(lambda:socket.create_connection(('127.0.0.1',9),timeout=1))
+-                sdk_cases(args,report)
+-            shutil.rmtree(args.bundle.parent)
+-            report.update(passed=True,state='fixture_complete',stage='sdk_fixture_complete')
+-            cleanup_case(args,report)
+-    except Exception as error:
+-        import traceback
+-        frame=traceback.extract_tb(error.__traceback__)[-1]
+-        report['failure_location']={'file':Path(frame.filename).name,'line':frame.lineno,'function':frame.name}
+-        report['error_type']=type(error).__name__;report['passed']=False;report['state']='incomplete'
+-        # Fixed errors only; provider/SDK exceptions may contain dummy credentials.
+-        report['error']='TEST ONLY fixture operation failed; stage identifies boundary'
++            guarded_sdk(args,report);sdk_complete=True
++    except Exception as error:stage_failure(report,error)
+     finally:
+         if args.phase=='sdk' and args.bundle.name=='bundle.json' and args.bundle.parent.name=='native-sdk-work':
+-            if args.bundle.parent.exists():shutil.rmtree(args.bundle.parent)
+-            report['scratch_removed']=not args.bundle.parent.exists()
+-        raw=canonical(report);require(len(raw)<=8*1024*1024,'receipt exceeds bound');args.output.write_bytes(raw)
++            cleanup={'attempted':True,'removed':False}
++            try:
++                if args.bundle.parent.exists():shutil.rmtree(args.bundle.parent)
++                cleanup['removed']=not args.bundle.parent.exists()
++                if not cleanup['removed']:cleanup['error_type']='CleanupIncomplete'
++            except Exception as error:cleanup['error_type']=type(error).__name__
++            report['cleanup']=cleanup;report['scratch_removed']=cleanup['removed']
++            if not cleanup['removed']:
++                report['passed']=False;report['state']='incomplete'
++            elif sdk_complete:
++                try:
++                    report.update(passed=True,state='fixture_complete',stage='sdk_fixture_complete');cleanup_case(args,report)
++                except Exception as error:stage_failure(report,error)
++        write_report(args.output,report)
+     print(json.dumps({key:report.get(key) for key in ('passed','state','stage','error_type','bundle_sha256','scratch_removed')}))
+     return 0 if report['passed'] else 1
+ 
+--- a/tests/provider_sdk/test_aliyun_object_storage_provider.py
++++ b/tests/provider_sdk/test_aliyun_object_storage_provider.py
+@@ -730,6 +730,78 @@
+         self.assertNotIn(SECRET,json.dumps(report));self.assertNotIn(TOKEN,json.dumps(report))
+         self.assertEqual(report['state'],'incomplete')
+ 
++    def test_native_sdk_evidence_keeps_actual_object_bytes_eof_and_source_identity(self):
++        spec=importlib.util.spec_from_file_location('native_sdk_drill',ROOT/'tests/provider_sdk/native_object_delivery_sdk_drill.py')
++        driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
++        for fault in (None,'truncated','interrupted','cache'):
++            with self.subTest(fault=fault):
++                wire=Wire();wire.get_fault=fault;adapter=driver.ObservedAdapter(wire)
++                client=self.p.Provider(resource=RESOURCE,access_key_id='FIXTURE-AK',access_key_secret=SECRET,security_token=TOKEN,http_adapter=adapter)
++                self.addCleanup(client.close)
++                detail={'kind':'object','generation':'A','object':{'object_key':KEY,**FACTS,'source':{'audit_release_id':4242,'member':'site/example.rpm'}}}
++                action=lambda:driver.observe_operation(adapter,detail,lambda:client.put_create_only(KEY,self.path,FACTS))
++                if fault:
++                    with self.assertRaises(self.p.ProviderError):action()
++                else:action()
++                report={};driver.record_attempts(report,[adapter]);operation=report['operation_receipts'][0]
++                self.assertEqual(operation['object'],detail['object'])
++                self.assertEqual(operation['state'],'incomplete' if fault else 'complete')
++                put=next(row for row in report['sdk_exchange_observations'] if row['method']=='PUT')
++                get=next(row for row in report['sdk_exchange_observations'] if row['method']=='GET' and row['object_key']==KEY)
++                self.assertEqual(put['request_body']['sha256'],FACTS['sha256'])
++                self.assertEqual(put['request']['forbid_overwrite'],'true')
++                self.assertEqual(get['response']['cache_control'],'wrong' if fault=='cache' else FACTS['cache_control'])
++                if fault in ('interrupted','cache'):self.assertFalse(get['stream']['eof']);self.assertEqual(get['stream']['bytes_read'],0)
++                else:
++                    expected=DATA[:-1] if fault else DATA
++                    self.assertTrue(get['stream']['eof']);self.assertEqual(get['stream']['bytes_read'],len(expected))
++                    self.assertEqual(get['stream']['sha256'],hashlib.sha256(expected).hexdigest())
++                if not fault:self.assertEqual({key:operation['result']['readback'][key] for key in FACTS},FACTS)
++                self.assertNotIn(SECRET,json.dumps(report));self.assertNotIn(TOKEN,json.dumps(report))
++                self.assertLess(len(json.dumps(report)),8*1024*1024)
++
++    def test_native_sdk_observation_does_not_infer_eof_or_lose_timeout_attempt(self):
++        spec=importlib.util.spec_from_file_location('native_sdk_drill',ROOT/'tests/provider_sdk/native_object_delivery_sdk_drill.py')
++        driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
++        wire=Wire();wire.objects[KEY]=(DATA,FACTS['cache_control']);adapter=driver.ObservedAdapter(wire)
++        request=requests.Request('GET','https://fixture-package-bucket.oss-cn-hangzhou.aliyuncs.com/'+KEY).prepare()
++        response=adapter.send(request);self.assertEqual(response.raw.read(0),b'');response.close()
++        report={};driver.record_attempts(report,[adapter]);stream=report['sdk_exchange_observations'][0]['stream']
++        self.assertFalse(stream['eof']);self.assertEqual(stream['bytes_read'],0)
++        wire=Wire();wire.put_fault='timeout_after';adapter=driver.ObservedAdapter(wire)
++        client=self.p.Provider(resource=RESOURCE,access_key_id='FIXTURE-AK',access_key_secret=SECRET,security_token=TOKEN,http_adapter=adapter);self.addCleanup(client.close)
++        result=client.put_create_only(KEY,self.path,FACTS);self.assertEqual(result['outcome'],'unknown_readback_verified')
++        report={};driver.record_attempts(report,[adapter]);put=next(row for row in report['sdk_exchange_observations'] if row['method']=='PUT')
++        self.assertEqual(put['error_type'],'ReadTimeout');self.assertNotIn('response',put)
++        self.assertEqual(put['request_body']['sha256'],FACTS['sha256']);self.assertEqual(report['object_put_attempts'],1)
++
++    def test_native_sdk_evidence_keeps_actual_config_and_refresh_responses_on_failure(self):
++        spec=importlib.util.spec_from_file_location('native_sdk_drill',ROOT/'tests/provider_sdk/native_object_delivery_sdk_drill.py')
++        driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
++        urls=['https://packages.githubim.com'+path for path in ('/','/zh/','/en/','/api/search')]
++        for fault,count in (('missing',3),('duplicate',5)):
++            with self.subTest(fault=fault):
++                wire=RefreshWire(fault=fault);adapter=driver.ObservedAdapter(wire)
++                client=self.p.Provider(resource=RESOURCE,access_key_id='FIXTURE-AK',access_key_secret=SECRET,security_token=TOKEN,http_adapter=adapter);self.addCleanup(client.close)
++                with self.assertRaises(self.p.ProviderError):
++                    driver.observe_operation(adapter,{'kind':'refresh','urls':urls},lambda:client.refresh(urls,max_polls=1,poll_interval=0))
++                report={};driver.record_attempts(report,[adapter]);exchanges=report['sdk_exchange_observations']
++                submitted=next(row for row in exchanges if row['action']=='RefreshObjectCaches')
++                response=next(row for row in exchanges if row['action']=='DescribeRefreshTaskById')['response']
++                self.assertEqual(submitted['request']['ObjectPath'],urls)
++                self.assertEqual(response['TotalCount'],count);self.assertEqual(len(response['Tasks']),count)
++                self.assertEqual(len(wire.rows),4);self.assertEqual(report['operation_receipts'][0]['state'],'incomplete')
++                self.assertNotIn(SECRET,json.dumps(report));self.assertNotIn(TOKEN,json.dumps(report))
++        wire=Wire();wire.batch_fault='timeout';adapter=driver.ObservedAdapter(wire)
++        client=self.p.Provider(resource=RESOURCE,access_key_id='FIXTURE-AK',access_key_secret=SECRET,security_token=TOKEN,http_adapter=adapter);self.addCleanup(client.close)
++        before=client.read_configuration();result=driver.observe_operation(adapter,{'kind':'config','before':before},lambda:client.apply_rewrites([route()],before=before,managed_ids=[]))
++        report={};driver.record_attempts(report,[adapter]);self.assertEqual(result['state'],'incomplete')
++        snapshots=[row['response']['DomainConfigs']['DomainConfig'] for row in report['sdk_exchange_observations'] if row['action']=='DescribeCdnDomainConfigs']
++        self.assertEqual(len(snapshots[0]),4);self.assertEqual(len(snapshots[-1]),5)
++        batch=next(row for row in report['sdk_exchange_observations'] if row['action']=='BatchSetCdnDomainConfig')
++        self.assertEqual(batch['error_type'],'ReadTimeout');self.assertNotIn('response',batch)
++        self.assertEqual(report['operation_receipts'][0]['state'],'incomplete')
++
+     def test_native_sdk_driver_preserves_full_exact_file_refresh_coverage(self):
+         spec=importlib.util.spec_from_file_location('native_sdk_drill',ROOT/'tests/provider_sdk/native_object_delivery_sdk_drill.py')
+         driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
+--- a/tests/test_object_storage_delivery_inputs.py
++++ b/tests/test_object_storage_delivery_inputs.py
+@@ -254,6 +254,73 @@
+             self.assertEqual(json.loads((root/'native-sdk-evidence/cleanup.json').read_text()),
+                              {'owned_work_removed':True,'owned_container_removed':True})
+ 
++    def test_native_sdk_guard_cannot_be_swallowed_by_refusal_or_provider_error(self):
++        import sys
++        spec=importlib.util.spec_from_file_location('native_sdk_drill',ROOT/'tests/provider_sdk/native_object_delivery_sdk_drill.py')
++        driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
++        for mode in ('clean','refused','converted','primary_error'):
++            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as temp:
++                root=Path(temp);work=root/'native-sdk-work';work.mkdir();bundle=work/'bundle.json';bundle.write_text('{}');output=root/'receipt.json'
++                def cases(args,report):
++                    if mode in ('refused','primary_error'):
++                        driver.refused(lambda:socket.create_connection(('127.0.0.1',9),timeout=1))
++                    elif mode=='converted':
++                        def wrapped():
++                            try:socket.create_connection(('127.0.0.1',9),timeout=1)
++                            except Exception:raise ValueError('SDK converted refusal') from None
++                        driver.refused(wrapped)
++                    if mode=='primary_error':raise KeyError('original stage error')
++                    report['cases']=[{'case':name,'passed':True} for name in driver.CASES[:19]]
++                argv=['driver','sdk','--source-sha',HEAD,'--bundle',str(bundle),'--bundle-sha256','0'*64,'--output',str(output)]
++                with mock.patch.object(sys,'argv',argv),mock.patch.object(driver,'sdk_cases',side_effect=cases):code=driver.main()
++                report=json.loads(output.read_bytes());self.assertEqual(code,0 if mode=='clean' else 1)
++                self.assertEqual(report['network_guard'],{'self_check_attempts':1,'unexpected_attempts':0 if mode=='clean' else 1,'passed':mode=='clean'})
++                if mode=='primary_error':self.assertEqual(report['error_type'],'KeyError')
++                self.assertTrue(report['scratch_removed'])
++
++    def test_native_sdk_cleanup_failure_preserves_original_error_and_finite_receipt(self):
++        import sys
++        spec=importlib.util.spec_from_file_location('native_sdk_drill',ROOT/'tests/provider_sdk/native_object_delivery_sdk_drill.py')
++        driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
++        for original,cleanup in ((True,'raise'),(False,'raise'),(True,'noop')):
++            with self.subTest(original=original,cleanup=cleanup),tempfile.TemporaryDirectory() as temp:
++                root=Path(temp);work=root/'native-sdk-work';work.mkdir();bundle=work/'bundle.json';bundle.write_text('{}');output=root/'receipt.json'
++                def cases(args,report):
++                    report['object_put_attempts']=7
++                    if original:raise KeyError('original stage error')
++                    report['cases']=[{'case':name,'passed':True} for name in driver.CASES[:19]]
++                argv=['driver','sdk','--source-sha',HEAD,'--bundle',str(bundle),'--bundle-sha256','0'*64,'--output',str(output)]
++                outer=None
++                with mock.patch.object(sys,'argv',argv),mock.patch.object(driver,'sdk_cases',side_effect=cases),mock.patch.object(driver.shutil,'rmtree',side_effect=PermissionError('cleanup failed') if cleanup=='raise' else None):
++                    try:code=driver.main()
++                    except Exception as error:outer=type(error).__name__
++                self.assertIsNone(outer);self.assertEqual(code,1);self.assertTrue(output.is_file())
++                report=json.loads(output.read_bytes());self.assertEqual(report['state'],'incomplete');self.assertFalse(report['passed'])
++                self.assertEqual(report['object_put_attempts'],7);self.assertFalse(report['scratch_removed'])
++                self.assertEqual(report['cleanup']['error_type'],'PermissionError' if cleanup=='raise' else 'CleanupIncomplete')
++                if original:self.assertEqual(report['error_type'],'KeyError')
++                self.assertLess(output.stat().st_size,8*1024*1024)
++
++    def test_native_sdk_oversize_evidence_still_emits_incomplete_receipt(self):
++        import sys
++        spec=importlib.util.spec_from_file_location('native_sdk_drill',ROOT/'tests/provider_sdk/native_object_delivery_sdk_drill.py')
++        driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
++        with tempfile.TemporaryDirectory() as temp:
++            root=Path(temp);work=root/'native-sdk-work';work.mkdir();bundle=work/'bundle.json';bundle.write_text('{}');output=root/'receipt.json'
++            def cases(args,report):
++                report['excessive_evidence']='x'*(8*1024*1024)
++                report['object_put_attempts']=7
++                raise KeyError('original stage error')
++            argv=['driver','sdk','--source-sha',HEAD,'--bundle',str(bundle),'--bundle-sha256','0'*64,'--output',str(output)]
++            outer=None
++            with mock.patch.object(sys,'argv',argv),mock.patch.object(driver,'sdk_cases',side_effect=cases):
++                try:code=driver.main()
++                except Exception as error:outer=type(error).__name__
++            self.assertIsNone(outer);self.assertEqual(code,1);report=json.loads(output.read_bytes())
++            self.assertFalse(report['passed']);self.assertEqual(report['state'],'incomplete')
++            self.assertEqual(report['error_type'],'KeyError');self.assertEqual(report['receipt_error'],'ReceiptLimit')
++            self.assertEqual(report['object_put_attempts'],7);self.assertLess(output.stat().st_size,8*1024*1024)
++
+     def test_native_sdk_driver_is_explicit_test_only_and_ci_requires_all_cases(self):
+         text=(ROOT/'.github/workflows/native-package-repository-drill.yml').read_text()
+         self.assertIn('(.cases | length) == 20',text)
+--- a/docs/object-storage-delivery.md
++++ b/docs/object-storage-delivery.md
+@@ -333,3 +333,22 @@
+ it has no claimed container cgroup limit. Fixed input/file counts and 64 MiB
+ fixture/8 MiB receipt limits bound its work. Always-run cleanup removes owned
+ work and the venv; CI archives only the finite preparation, SDK and cleanup JSON.
++
++
++The SDK receipt retains each object's expected source/input/plan binding, actual
++PUT outcome/status and consumed request-byte facts, and complete GET result plus
++observed byte count, SHA-256, cache headers and EOF. Closing a stream, an empty
++`read(0)`, or an interruption cannot establish EOF. Configuration observations
++include before/after bodies and batch results. Refresh evidence preserves exact
++submitted URLs and the actual SDK-consumed Tasks/TotalCount rows, including
++missing/duplicate rows and unknown outcomes; fixture backend state is never a
++substitute. Only explicit public fields are retained, without signed URLs,
++authorization headers, tokens, payload bytes or arbitrary error messages.
++
++A one-attempt network-guard self-check is separate from the SDK stage. Every
++unexpected connect attempt is counted independently of exceptions and makes the
++run fail, even if an expected-refusal test or SDK wrapper absorbs the exception.
++Stage errors and cleanup errors are separate receipt fields; cleanup failure
++preserves earlier attempts, emits an incomplete receipt and returns nonzero.
++If evidence exceeds 8 MiB, a bounded incomplete receipt records the omitted
++size/digest and error rather than reporting success.
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,6 +4,7 @@
+ 
+ - Verify complete native delivery fixtures through the official SDK without cloud
+   access, and validate exact File refresh coverage across aggregated task IDs.
++  Keep bounded public SDK responses and preserve failures through cleanup.
+   Production authentication, public-client acceptance and activation remain unverified.
+ 
+ - Compile larger finite native route tables into bounded offline CDN candidates

@@ -1,0 +1,13 @@
+README.md
+spec/PUBLIC_ALLOWLIST
+spec/SHA256SUMS
+spec/findings.json
+spec/manifest.json
+spec/parser-replay.json
+spec/parser_replay.py
+spec/report.md
+spec/source-binding.json
+standards/SHA256SUMS
+standards/findings.json
+standards/report.md
+standards/source-binding.json

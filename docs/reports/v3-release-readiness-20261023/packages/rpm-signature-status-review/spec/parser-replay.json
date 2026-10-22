@@ -1,0 +1,168 @@
+{
+  "scope": "Parser-only bounded replay through actual frozen function, with run_command replaced by sealed prior outputs / explicitly synthetic mutations. It does not prove cryptographic success; author native eight-case result is separate.",
+  "cases": [
+    {
+      "case": "original-good",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "source_stdout_sha256": "028a93a5f78d47f79c1cda3735abf125e267d31a21f352ee54c2f3ccdcb66e71",
+      "source_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "original-bad",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "source_stdout_sha256": "8ff1b9a2c595f0437f038b1bb14f1a9129eda5098e77a09f239587535a825af1",
+      "source_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "NOKEY-stdout",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "source_stdout_sha256": "f9a19129ec22a410f7b12468a980591159e854e6f9f9352a2e53c8345ada5abf",
+      "source_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "NOKEY-stderr",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "source_stdout_sha256": "028a93a5f78d47f79c1cda3735abf125e267d31a21f352ee54c2f3ccdcb66e71",
+      "source_stderr_sha256": "ad2cbd11960dca09e9f5259430297669534830324d94a9a2d9add90e2f502f59",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "NOT OK-stdout",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "source_stdout_sha256": "4e19083c32bfce41aca6b26d26ebd1cdd1c6941038a9d6061fd2c692b544c9cd",
+      "source_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "NOT OK-stderr",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "source_stdout_sha256": "028a93a5f78d47f79c1cda3735abf125e267d31a21f352ee54c2f3ccdcb66e71",
+      "source_stderr_sha256": "046ced6dfd3ff92a38250fb29e4171669df4ca80fb07a54e3373780cd6ded27b",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "BAD-stdout",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "source_stdout_sha256": "b96439bcbf01de0310648831faf9a6ac4ed48ac15ba34230ee2a9552e74ff4be",
+      "source_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "BAD-stderr",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "source_stdout_sha256": "028a93a5f78d47f79c1cda3735abf125e267d31a21f352ee54c2f3ccdcb66e71",
+      "source_stderr_sha256": "cbe91b8d5d56a2513eeb236476e61db06f9da245975ce3aab5ff47bd4f2561ec",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "nonzero-with-valid-line",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "source_stdout_sha256": "028a93a5f78d47f79c1cda3735abf125e267d31a21f352ee54c2f3ccdcb66e71",
+      "source_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "wrong-header",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "source_stdout_sha256": "36bb602329e8688e657ed9a72c96ab390d355a7010911aa5a643f92865948d87",
+      "source_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "unsigned-signature-path",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "source_stdout_sha256": "328c6250f14a3ac43bfc55607d7c4ac3e1d1a9316b78a60be878f3bf7a9226b9",
+      "source_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "unsupported-SHA1",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "source_stdout_sha256": "35da71c2517e886b12ffb8d053fd168bbc9b32e458d68c9ff1c06e58e8cd4244",
+      "source_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "duplicate-signature",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "source_stdout_sha256": "e6174c1b28181136976678e5a3e10f2cd868ae4d24f12972a04b38210ff49792",
+      "source_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "wrong-candidate",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "source_stdout_sha256": "028a93a5f78d47f79c1cda3735abf125e267d31a21f352ee54c2f3ccdcb66e71",
+      "source_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    },
+    {
+      "case": "key-id-bad-hex",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "source_stdout_sha256": "3ae8299073ba97c3a9380a501a0575ff500c34d18b54c329a7fa8014f8ce13ce",
+      "source_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command_calls": 3,
+      "no_real_native_tool_calls": true
+    }
+  ],
+  "source_hashes_before": {
+    "scripts/verify-production-package-site.py": "aed022731b14eb58ba58150d48083473c12fc6801003518723b771f85eff072b",
+    "tests/test_verify_production_package_site.py": "5abf2d0cd14479697414d30020043421af620a36347a62a865faf5fc7f3b3006",
+    "CHANGELOG.md": "6e68a918b61a48c56a5308ba96bf83c6b59709def6784365f261ff5f896b77ad"
+  },
+  "source_hashes_after": {
+    "scripts/verify-production-package-site.py": "aed022731b14eb58ba58150d48083473c12fc6801003518723b771f85eff072b",
+    "tests/test_verify_production_package_site.py": "5abf2d0cd14479697414d30020043421af620a36347a62a865faf5fc7f3b3006",
+    "CHANGELOG.md": "6e68a918b61a48c56a5308ba96bf83c6b59709def6784365f261ff5f896b77ad"
+  },
+  "source_unchanged": true,
+  "no_real_native_tool_calls": true,
+  "no_network_calls": true
+}

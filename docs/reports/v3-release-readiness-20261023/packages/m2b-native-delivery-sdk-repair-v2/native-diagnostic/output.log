@@ -1,0 +1,1 @@
+{"cloud_verified":false,"inputs_sha256":"29658da7bc26f115539a94c27ceca23d05131ea5ee5a30cff1df5b733a86ff12","mode":"dry_run","plan_schema":"wukongim.object_storage_publication_plan/v2","plan_sha256":"ac5784370093e3903a0dc6447cbef57621c3ccba9615b615892d83692bb5917f","production_enabled":false,"publication_verified":false,"schema":"wukongim.object_storage_delivery_preparation/v1"}

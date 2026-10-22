@@ -1,0 +1,188 @@
+{
+  "receipt": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-repair-v2/native-validation/native-sdk.json",
+  "receipt_sha256": "15b1458a518423acc4dd410e94e2ea2cb8e836e007af1e346b71dc7660effa44",
+  "receipt_bytes": 2174051,
+  "independent_manifest": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/tests/provider_sdk/fixtures/native-composite-routes.json",
+  "independent_manifest_sha256": "b135eddc8b6691dfa983e2c5ed606aaa4ca3f877d6d03b391ef3949b79026ef8",
+  "object_checks": [
+    {
+      "generation": "A",
+      "objects": 153,
+      "ordered_exact_native_manifest_match": true,
+      "actual_create_only_and_response_accurate": true,
+      "actual_full_get_eof_sha_size_cache_match": true
+    },
+    {
+      "generation": "B",
+      "objects": 153,
+      "ordered_exact_native_manifest_match": true,
+      "actual_create_only_and_response_accurate": true,
+      "actual_full_get_eof_sha_size_cache_match": true
+    }
+  ],
+  "configuration_checks": [
+    {
+      "generation": "A",
+      "wire": 0,
+      "state": "complete",
+      "before_and_after_present": true,
+      "after_bound_to_actual_sdk_response": true
+    },
+    {
+      "generation": "B",
+      "wire": 0,
+      "state": "complete",
+      "before_and_after_present": true,
+      "after_bound_to_actual_sdk_response": true
+    },
+    {
+      "generation": "A",
+      "wire": 16,
+      "state": "incomplete",
+      "before_and_after_present": true,
+      "after_bound_to_actual_sdk_response": true
+    },
+    {
+      "generation": "A",
+      "wire": 16,
+      "state": "incomplete",
+      "before_and_after_present": true,
+      "after_bound_to_actual_sdk_response": true
+    },
+    {
+      "generation": "A",
+      "wire": 17,
+      "state": "incomplete",
+      "before_and_after_present": true,
+      "after_bound_to_actual_sdk_response": true
+    },
+    {
+      "generation": "A",
+      "wire": 18,
+      "state": "incomplete",
+      "before_and_after_present": true,
+      "after_bound_to_actual_sdk_response": true
+    },
+    {
+      "generation": "A",
+      "wire": 19,
+      "state": "incomplete",
+      "before_and_after_present": true,
+      "after_bound_to_actual_sdk_response": true
+    },
+    {
+      "generation": "A",
+      "wire": 20,
+      "state": "incomplete",
+      "before_and_after_present": true,
+      "after_bound_to_actual_sdk_response": true
+    },
+    {
+      "generation": "A",
+      "wire": 21,
+      "state": "incomplete",
+      "before_and_after_present": true,
+      "after_bound_to_actual_sdk_response": true
+    },
+    {
+      "generation": "A",
+      "wire": 22,
+      "state": "incomplete",
+      "before_and_after_present": true,
+      "after_bound_to_actual_sdk_response": true
+    },
+    {
+      "generation": "A",
+      "wire": 23,
+      "state": "incomplete",
+      "before_and_after_present": true,
+      "after_bound_to_actual_sdk_response": true
+    }
+  ],
+  "refresh_checks": [
+    {
+      "wire": 24,
+      "state": "complete",
+      "exact_requested_scope": true,
+      "submitted_url_count": 178,
+      "actual_response_rows": 178,
+      "request_types": [
+        "File"
+      ]
+    },
+    {
+      "wire": 25,
+      "state": "complete",
+      "exact_requested_scope": true,
+      "submitted_url_count": 178,
+      "actual_response_rows": 178,
+      "request_types": [
+        "File"
+      ]
+    },
+    {
+      "wire": 26,
+      "state": "incomplete",
+      "exact_requested_scope": true,
+      "submitted_url_count": 178,
+      "actual_response_rows": 177,
+      "request_types": [
+        "File"
+      ]
+    },
+    {
+      "wire": 27,
+      "state": "incomplete",
+      "exact_requested_scope": true,
+      "submitted_url_count": 178,
+      "actual_response_rows": 179,
+      "request_types": [
+        "File"
+      ]
+    },
+    {
+      "wire": 28,
+      "state": "incomplete",
+      "exact_requested_scope": true,
+      "submitted_url_count": 178,
+      "actual_response_rows": 178,
+      "request_types": [
+        "File"
+      ]
+    },
+    {
+      "wire": 29,
+      "state": "incomplete",
+      "exact_requested_scope": true,
+      "submitted_url_count": 178,
+      "actual_response_rows": 178,
+      "request_types": [
+        "File"
+      ]
+    },
+    {
+      "wire": 30,
+      "state": "incomplete",
+      "exact_requested_scope": true,
+      "submitted_url_count": 100,
+      "actual_response_rows": 0,
+      "request_types": [
+        "File"
+      ]
+    },
+    {
+      "wire": 31,
+      "state": "incomplete",
+      "exact_requested_scope": true,
+      "submitted_url_count": 178,
+      "actual_response_rows": 0,
+      "request_types": [
+        "File"
+      ]
+    }
+  ],
+  "no_true_production_claims": true,
+  "native_sdk_rerun": false,
+  "actual_exchange_count": 768,
+  "operation_count": 345
+}

@@ -1,0 +1,38 @@
+test_audit_identity_binds_ids_bytes_and_immutable_state_not_observation_time (test_object_storage_delivery_inputs.FreshInputContract.test_audit_identity_binds_ids_bytes_and_immutable_state_not_observation_time) ... ok
+test_current_historical_candidate_and_seal_controls_remain_distinct (test_object_storage_delivery_inputs.FreshInputContract.test_current_historical_candidate_and_seal_controls_remain_distinct) ... ok
+test_fence_rechecks_exact_fresh_anchors_and_local_digests (test_object_storage_delivery_inputs.FreshInputContract.test_fence_rechecks_exact_fresh_anchors_and_local_digests) ... ok
+test_library_has_no_production_entrypoint_or_history_execution (test_object_storage_delivery_inputs.FreshInputContract.test_library_has_no_production_entrypoint_or_history_execution) ... ok
+test_nonancestor_seal_current_main_and_historical_blob_fail_closed (test_object_storage_delivery_inputs.FreshInputContract.test_nonancestor_seal_current_main_and_historical_blob_fail_closed) ... ok
+test_original_plan_digest_is_checked_before_github_or_any_writer (test_object_storage_delivery_inputs.FreshInputContract.test_original_plan_digest_is_checked_before_github_or_any_writer) ... ok
+test_test_only_composite_and_arbitrary_authority_are_rejected (test_object_storage_delivery_inputs.FreshInputContract.test_test_only_composite_and_arbitrary_authority_are_rejected) ... ok
+test_helper_failure_main_ancestry_and_audit_id_drift_are_not_verified (test_object_storage_delivery_inputs.FreshPreviewWire.test_helper_failure_main_ancestry_and_audit_id_drift_are_not_verified) ... ok
+test_v1_uses_seven_downloads_two_native_helpers_and_exact_audit_pair (test_object_storage_delivery_inputs.FreshPreviewWire.test_v1_uses_seven_downloads_two_native_helpers_and_exact_audit_pair) ... ok
+test_native_sdk_cleanup_failure_preserves_original_error_and_finite_receipt (test_object_storage_delivery_inputs.NativeSdkWorkflowContract.test_native_sdk_cleanup_failure_preserves_original_error_and_finite_receipt) ... /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/tests/provider_sdk/native_object_delivery_sdk_drill.py:339: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('0.0.0.0', 0)>
+  except (ValueError,RuntimeError,OSError):return
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_native_sdk_cleanup_rejects_docker_observation_failure (test_object_storage_delivery_inputs.NativeSdkWorkflowContract.test_native_sdk_cleanup_rejects_docker_observation_failure) ... ok
+test_native_sdk_driver_is_explicit_test_only_and_ci_requires_all_cases (test_object_storage_delivery_inputs.NativeSdkWorkflowContract.test_native_sdk_driver_is_explicit_test_only_and_ci_requires_all_cases) ... ok
+test_native_sdk_guard_cannot_be_swallowed_by_refusal_or_provider_error (test_object_storage_delivery_inputs.NativeSdkWorkflowContract.test_native_sdk_guard_cannot_be_swallowed_by_refusal_or_provider_error) ... /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/tests/provider_sdk/native_object_delivery_sdk_drill.py:339: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('0.0.0.0', 0)>
+  except (ValueError,RuntimeError,OSError):return
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_native_sdk_oversize_evidence_still_emits_incomplete_receipt (test_object_storage_delivery_inputs.NativeSdkWorkflowContract.test_native_sdk_oversize_evidence_still_emits_incomplete_receipt) ... /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/tests/provider_sdk/native_object_delivery_sdk_drill.py:339: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('0.0.0.0', 0)>
+  except (ValueError,RuntimeError,OSError):return
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_native_sdk_reuses_public_exports_with_bounded_two_phase_cleanup (test_object_storage_delivery_inputs.NativeSdkWorkflowContract.test_native_sdk_reuses_public_exports_with_bounded_two_phase_cleanup) ... ok
+test_sdk_dependencies_and_ci_are_mandatory_without_cloud_permissions (test_object_storage_delivery_inputs.ProviderWorkflowContract.test_sdk_dependencies_and_ci_are_mandatory_without_cloud_permissions) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 1.762s
+
+OK
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "KeyError", "bundle_sha256": null, "scratch_removed": false}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": null, "bundle_sha256": null, "scratch_removed": false}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "KeyError", "bundle_sha256": null, "scratch_removed": false}
+{"passed": true, "state": "fixture_complete", "stage": "sdk_fixture_complete", "error_type": null, "bundle_sha256": null, "scratch_removed": true}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "ValueError", "bundle_sha256": null, "scratch_removed": true}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "ValueError", "bundle_sha256": null, "scratch_removed": true}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "KeyError", "bundle_sha256": null, "scratch_removed": true}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "KeyError", "bundle_sha256": null, "scratch_removed": true}

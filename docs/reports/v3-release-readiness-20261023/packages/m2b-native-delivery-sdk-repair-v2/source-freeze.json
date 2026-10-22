@@ -1,0 +1,53 @@
+{
+  "schema": "wukongim.frozen-source/v1",
+  "base": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "base_tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk",
+  "branch": "codex/native-delivery-sdk",
+  "files": [
+    {
+      "path": "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "sha256": "6cbb8e7c726bdd7057ba1a449cd97c10ce8e7e44d82301042026cf4ee462e2da",
+      "bytes": 39380
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "sha256": "84d85a0fc96a21f40c1d14258636fab69782dccbe69c6221a253594383e71c01",
+      "bytes": 62901
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "sha256": "3c133e5a0aa23856f02e420d372174720e1434ed3199607559d66d0c354b4524",
+      "bytes": 24778
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "sha256": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+      "bytes": 21899
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "sha256": "373c59bf878ccc78deab15b45f2cc131af2f58c6716c05405ee0f7a5fd7157de",
+      "bytes": 22477
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "071bb40ed2c05742f3fd6c60dcbbdf034dea42cb472a9832f1709a86dc93c945",
+      "bytes": 4501
+    },
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "sha256": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8",
+      "bytes": 28828
+    }
+  ],
+  "patch_sha256": "c9e177e835ac976af8d06f87b8ebbbb18cabe547d2357321e6ca824ddcb6f940",
+  "patch_bytes": 88619,
+  "repair_diff_sha256": "f0603d91364947b2d0a858e99fe0714a5d0d086236d38a994dde6858964051c3",
+  "scope_exact": true,
+  "untracked": [
+    "tests/provider_sdk/native_object_delivery_sdk_drill.py"
+  ],
+  "commits_created": false,
+  "validation_status": "See separate validation-summary.json; source immutable after this freeze."
+}

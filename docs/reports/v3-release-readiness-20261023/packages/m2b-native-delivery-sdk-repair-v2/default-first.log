@@ -1,0 +1,26 @@
+......................................s..................................................................................................................................................................................../Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/tests/provider_sdk/native_object_delivery_sdk_drill.py:349: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('0.0.0.0', 0)>
+  except (ValueError,RuntimeError,OSError):return
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.../Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/tests/provider_sdk/native_object_delivery_sdk_drill.py:349: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('0.0.0.0', 0)>
+  except (ValueError,RuntimeError,OSError):return
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/tests/provider_sdk/native_object_delivery_sdk_drill.py:349: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('0.0.0.0', 0)>
+  except (ValueError,RuntimeError,OSError):return
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+............................................................................................................................................................................................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 587 tests in 136.953s
+
+OK (skipped=1)
+{"passed": false, "cases": 0, "failure": "required native tool unavailable: gpg", "scratch_removed": true}
+{"cases": [], "control_files": {"manifests/signing-toolchain.json": {"sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99", "size": 295}, "scripts/sign-package-family.py": {"sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0", "size": 38244}, "scripts/validate-signing-material.py": {"sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4", "size": 34568}, "tests/native_local_signing_drill.py": {"sha256": "1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578", "size": 22961}, "tests/native_source_metadata_drill.py": {"sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b", "size": 12447}, "tests/test_validate_signing_material.py": {"sha256": "ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe", "size": 24911}}, "failure": {"case": "rpm-files", "exit_code": 1, "family": "rpm", "input_mode": "files", "message": "no recognized signer diagnostic"}, "passed": false, "payloads_executed": false, "production_keys_used": false, "published": false, "schema": "wukongim/test-only-native-local-signing/v1", "source_provenance_verified": false, "test_only": true, "tool_versions": {"createrepo_c": "TEST ONLY version", "dpkg-deb": "TEST ONLY version", "gpg": "TEST ONLY version", "rpm": "TEST ONLY version"}}
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}
+{"passed": false, "cases": 0, "failure": {"type": "RuntimeError", "stage": "preflight"}}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "KeyError", "bundle_sha256": null, "scratch_removed": false}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": null, "bundle_sha256": null, "scratch_removed": false}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "KeyError", "bundle_sha256": null, "scratch_removed": false}
+{"passed": true, "state": "fixture_complete", "stage": "sdk_fixture_complete", "error_type": null, "bundle_sha256": null, "scratch_removed": true}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "ValueError", "bundle_sha256": null, "scratch_removed": true}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "ValueError", "bundle_sha256": null, "scratch_removed": true}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "KeyError", "bundle_sha256": null, "scratch_removed": true}
+{"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "KeyError", "bundle_sha256": null, "scratch_removed": true}

@@ -1,0 +1,67 @@
+{
+  "run_during_review": false,
+  "tests_first_required": true,
+  "matrix": [
+    {
+      "id": 1,
+      "name": "observed-four",
+      "acceptance": "4 exact URLs incl root/trailing slash→1 ID→4 file Complete rows; return1 ID and false production flags"
+    },
+    {
+      "id": 2,
+      "name": "shared-across-batches",
+      "acceptance": "51 and178 URLs→2/4 submissions, shared same ID; all writes finish before first query; exact no-omission scope"
+    },
+    {
+      "id": 3,
+      "name": "overlapping-new-ids",
+      "acceptance": "batchA IDs[a,b],batchB[b,c]; first-seen[a,b,c], query each once; same ID may own members from both batches"
+    },
+    {
+      "id": 4,
+      "name": "multiple-query-groups",
+      "acceptance": ">10 IDs with multiple rows each; group sizes≤10, correct per-group membership; shuffled rows do not change binding"
+    },
+    {
+      "id": 5,
+      "name": "legacy-and-ceilings",
+      "acceptance": "legacy11 URLs/11IDs still order and10+1; 50/51/1000 boundaries;1001 rejects before any write"
+    },
+    {
+      "id": 6,
+      "name": "full-url-preflight",
+      "acceptance": "bad finalURL after50valid must reject with0Refresh writes; duplicates/nonstring/non-list reject; \n/\r/\t/NUL/space/empty? or#/userinfo/port/case/percent/dot/emptysegments reject; root andsingletrailing slash remain File"
+    },
+    {
+      "id": 7,
+      "name": "id-shape",
+      "acceptance": "missing/null/number/nonstring/empty/comma-empty/zero/nondecimal/Unicode/duplicate-within-response/too-manyIDs reject without retry; sharedacrossbatches succeeds"
+    },
+    {
+      "id": 8,
+      "name": "query-envelope",
+      "acceptance": "missing/null/non-listTasks; non-dictrow; missing/non-int/bool/float/negative/mismatchedTotalCount fail; no inferred pagination success"
+    },
+    {
+      "id": 9,
+      "name": "coverage-and-identity",
+      "acceptance": "missingURL,duplicateURL(sameID anddifferentID),foreignURL,foreignID,unusedID,IDfromothergroup,missingkeys/nonstringfields fail; no dict/set collapse"
+    },
+    {
+      "id": 10,
+      "name": "status-and-rounds",
+      "acceptance": "Refreshing thenComplete withsameURL→ID passes; persistentRefreshing bounded failure; Failed/Canceled/Timeout/unknown/typeDirectory reject; reordering stable butURL→IDchange fails"
+    },
+    {
+      "id": 11,
+      "name": "unknown-submit-or-query",
+      "acceptance": "first/second submit timeout/exception/badresponse andlaterquery exception; no replay/no furtherwrite; retain incomplete and pre-call write_attempted"
+    },
+    {
+      "id": 12,
+      "name": "driver-and-artifact",
+      "acceptance": "full178routes unchanged inclroot/tails; unknownrefresh cannot reachpublic/client stages; exactattempt/knownIDs retained if available; TESTONLY/productionfalse; cleanupverified and repeatable receipt under originalouterbudget"
+    }
+  ],
+  "existing_wip_coverage_note": "Author draft already covers observed4URLs,178scope,1000ceiling,aggregation/uniqueIDs,foreign/missing/duplicate rows,TotalCount missing/mismatch,mapping drift,submit/querytimeout. Extend malformed type,raw tab/CR/empty-delimiter,overlapping batch IDs and cross-group mismatch seams rather than replacing real SDK-boundary fixtures."
+}

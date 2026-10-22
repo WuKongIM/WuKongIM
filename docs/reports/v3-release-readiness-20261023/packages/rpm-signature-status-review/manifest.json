@@ -1,0 +1,75 @@
+{
+  "schema": "wukongim.public-evidence-manifest/v1",
+  "files": [
+    {
+      "path": "PUBLIC_ALLOWLIST.txt",
+      "bytes": 267,
+      "sha256": "33dce2c0cda364b23408b7944245837747412086f604b4e9444599a69089730e"
+    },
+    {
+      "path": "README.md",
+      "bytes": 327,
+      "sha256": "c0775a4681e2d8afaebb22a75465be0d9d4faeb1ed2ba869db4bab22c7e52729"
+    },
+    {
+      "path": "spec/PUBLIC_ALLOWLIST",
+      "bytes": 94,
+      "sha256": "28f06c0544e69b12be5170a318c319fd359ad4afe26f491dfef0ac6a4c3572e0"
+    },
+    {
+      "path": "spec/SHA256SUMS",
+      "bytes": 573,
+      "sha256": "a70b034bea75fff4063027942113b768629496bee3ca9fb937628f8cff348369"
+    },
+    {
+      "path": "spec/findings.json",
+      "bytes": 467,
+      "sha256": "643c5e9c1fad9a877db003dbde6f91f5c2c8657ac441297cfa3ab70139c250f1"
+    },
+    {
+      "path": "spec/manifest.json",
+      "bytes": 835,
+      "sha256": "5f05ff00ae04b22cea5e03bc0af3067b637f5ed8c30f39fad760623cf9ce25db"
+    },
+    {
+      "path": "spec/parser-replay.json",
+      "bytes": 6725,
+      "sha256": "e0227a0b8041ed38b763ad94e0023dca52552020a669e781ad885dadda5e8997"
+    },
+    {
+      "path": "spec/parser_replay.py",
+      "bytes": 3602,
+      "sha256": "86d5b8c722b4b64f1ae0b3504f05415175e09e7763182313685ec61f01752336"
+    },
+    {
+      "path": "spec/report.md",
+      "bytes": 2143,
+      "sha256": "510d9a967839769af2a22c699bc3709c868e812bdb2f157b996d71482d5e4cf9"
+    },
+    {
+      "path": "spec/source-binding.json",
+      "bytes": 6269,
+      "sha256": "ae2d3fee4e9a0f569243bbe93ec2705f0c8eababb2bb2c9af2b50e1c039f3b2f"
+    },
+    {
+      "path": "standards/SHA256SUMS",
+      "bytes": 242,
+      "sha256": "6f79499c93637bf121b8734f951418b8b590f41576cf0768979c1e74742731c6"
+    },
+    {
+      "path": "standards/findings.json",
+      "bytes": 1705,
+      "sha256": "427a6adb2429f0ac86e28bd423178783fbfc6e1425e28bfc167f73e0d41169bb"
+    },
+    {
+      "path": "standards/report.md",
+      "bytes": 1831,
+      "sha256": "70bea050c84aebbf7116bcd2e048b127ff05c4dbdd520ea8b64c1bcb12fb8b61"
+    },
+    {
+      "path": "standards/source-binding.json",
+      "bytes": 6232,
+      "sha256": "e69d3f486874f4471721ae65afa3f1793430d3a54d31ff74ccb36796ec5e0c8a"
+    }
+  ]
+}

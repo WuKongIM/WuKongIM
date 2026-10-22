@@ -1,0 +1,13 @@
+{
+  "cloud_verified": false,
+  "errors": 0,
+  "failures": 0,
+  "native_provenance_verified": false,
+  "production_enabled": false,
+  "publication_verified": false,
+  "real_git_and_loopback_tls_only": true,
+  "schema": "wukongim.object_publication_contract/v1",
+  "skipped": 0,
+  "successful": true,
+  "tests_run": 17
+}

@@ -1,0 +1,47 @@
+{
+  "base": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "source_freeze_sha256": "123aa28a8aa8e38e8f3f3a53298b4201825db6e2f578dfbb984770375f21d831",
+  "patch_sha256": "c4c90a6fc27d8f0ce3ae5567f3b1c3f27b5885a64eaba8fc31f4095e9d8574b8",
+  "default": {
+    "tests_run": 584,
+    "passed": 583,
+    "skipped": 1,
+    "skip_reason": "existing real RPM build tools unavailable",
+    "exit_code": 0,
+    "terminal": true
+  },
+  "sdk": {
+    "tests_run": 46,
+    "passed": 46,
+    "skips": 0
+  },
+  "inputs": {
+    "tests_run": 13,
+    "passed": 13,
+    "skips": 0
+  },
+  "contracts": {
+    "tests_run": 4,
+    "passed": 4
+  },
+  "native_sdk": {
+    "cases": 20,
+    "passed": 20,
+    "skips": 0,
+    "native_elapsed_seconds": 36.296,
+    "sdk_elapsed_seconds": 5.766,
+    "first_attempt_retained": true
+  },
+  "rpm_tool_observation": {
+    "rpm": null,
+    "rpmbuild": null
+  },
+  "old_native29_candidate31_stable49": "commands and triggers preserved; not redundantly run in this local task; required in subsequent CI",
+  "all_collected_commands_terminal": true,
+  "owned_containers_absent": true,
+  "owned_scratch_removed": true,
+  "source_unchanged_since_freeze": true,
+  "source_commit_created": false,
+  "push_or_PR_or_cloud_call": false,
+  "production_release_verified": false
+}

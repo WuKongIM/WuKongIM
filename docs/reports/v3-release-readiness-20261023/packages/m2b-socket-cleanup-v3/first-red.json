@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_object_storage_delivery_inputs.py",
+    "-v"
+  ],
+  "exit_code": 1,
+  "elapsed_seconds": 1.7200346249737777,
+  "driver_sha256": "6cbb8e7c726bdd7057ba1a449cd97c10ce8e7e44d82301042026cf4ee462e2da"
+}

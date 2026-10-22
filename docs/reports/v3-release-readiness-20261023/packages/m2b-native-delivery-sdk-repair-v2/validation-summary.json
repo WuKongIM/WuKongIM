@@ -1,0 +1,124 @@
+{
+  "source_freeze_sha256": "aa9afd07b187741be04969a0477b07a7a4f735f3e2c1316ac9c37068f0cdc4a9",
+  "SDK_contracts": {
+    "tests": 49,
+    "passed": 49,
+    "skips": 0
+  },
+  "input_contracts": {
+    "tests": 16,
+    "passed": 16,
+    "skips": 0
+  },
+  "default": {
+    "tests": 587,
+    "passed": 586,
+    "existing_local_RPM_tool_skip": 1,
+    "resource_warning_count": 3
+  },
+  "shell_contracts": {
+    "tests": 4,
+    "passed": 4
+  },
+  "native_first": {
+    "exit_code": 1,
+    "stage": "materialize-B",
+    "cause": "unknown",
+    "SDK_started": false
+  },
+  "diagnostic_replay": {
+    "exit_code": 0,
+    "instrumented": true,
+    "original_failure_explained": false
+  },
+  "independent_path_pair": {
+    "same_signed_bytes": true,
+    "good_result": true,
+    "bad_result": false,
+    "both_rpmkeys_exit_zero": true,
+    "production_verifier_changed": false
+  },
+  "native_validation": {
+    "native_exit_code": 0,
+    "sdk_exit_code": 0,
+    "tests": 20,
+    "passed": 20,
+    "skips": 0,
+    "instrumented": false,
+    "same_frozen_source": true,
+    "receipt_bytes": 2174051,
+    "receipt_sha256": "15b1458a518423acc4dd410e94e2ea2cb8e836e007af1e346b71dc7660effa44",
+    "object_receipts_verified": 306,
+    "actual_exchanges": 768,
+    "bound_operations": 345,
+    "PUT_attempts": 315,
+    "refresh_submit_attempts": 30,
+    "network_guard": {
+      "passed": true,
+      "self_check_attempts": 1,
+      "unexpected_attempts": 0
+    },
+    "cleanup": {
+      "attempted": true,
+      "removed": true
+    },
+    "incomplete_observations": [
+      {
+        "fault": "missing",
+        "repeated_writes": false,
+        "state": "incomplete",
+        "submissions_attempted": 4,
+        "task_rows_observed": 177
+      },
+      {
+        "fault": "duplicate",
+        "repeated_writes": false,
+        "state": "incomplete",
+        "submissions_attempted": 4,
+        "task_rows_observed": 179
+      },
+      {
+        "fault": "total",
+        "repeated_writes": false,
+        "state": "incomplete",
+        "submissions_attempted": 4,
+        "task_rows_observed": 178
+      },
+      {
+        "fault": "foreign_url",
+        "repeated_writes": false,
+        "state": "incomplete",
+        "submissions_attempted": 4,
+        "task_rows_observed": 178
+      },
+      {
+        "fault": "submit_timeout",
+        "repeated_writes": false,
+        "state": "incomplete",
+        "submissions_attempted": 2,
+        "task_rows_observed": 0
+      },
+      {
+        "fault": "query_timeout",
+        "repeated_writes": false,
+        "state": "incomplete",
+        "submissions_attempted": 4,
+        "task_rows_observed": 0
+      }
+    ],
+    "production_verification": {
+      "activation_authorized": false,
+      "cloud_verified": false,
+      "fresh_production_auth_verified": false,
+      "github_provenance_verified": false,
+      "production_enabled": false,
+      "public_clients_verified": false,
+      "publication_verified": false,
+      "wire_equivalence_verified": false
+    }
+  },
+  "all_commands_terminal": true,
+  "no_commit_push_cloud": true,
+  "historical_process_P2_preserved": true,
+  "resource_warning_limitation": "Explicit socket self-check currently raises RuntimeError through create_connection; default first green records three unclosed-socket ResourceWarnings. Root requested preservation for independent review, no source change after freeze."
+}

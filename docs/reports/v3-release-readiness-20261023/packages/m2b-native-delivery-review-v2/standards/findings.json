@@ -1,0 +1,41 @@
+{
+  "axis": "Standards",
+  "scope": "base plus working copy including untracked driver",
+  "mandatory_violations": [],
+  "baseline_heuristics": [],
+  "counts": {
+    "new_mandatory": 0,
+    "new_heuristics": 0
+  },
+  "baseline_reviewed": {
+    "Mysterious Name": "No actionable naming issue; fixture and evidence terms follow existing contracts.",
+    "Duplicated Code": "Explicit failure cases and finite field projections clarify distinct protocol shapes; no new actionable extraction.",
+    "Feature Envy": "Observer and fixture helpers belong to test seam and retain actual wire observations.",
+    "Data Clumps": "Bundle, resource and receipt dictionaries preserve existing JSON contracts.",
+    "Primitive Obsession": "String identities and byte facts implement fixed external schemas, not a new domain model.",
+    "Repeated Switches": "Fault selection is deliberate finite fixture behavior; no repeated product dispatch introduced.",
+    "Shotgun Surgery": "Seven files cover provider contract, isolated fixture, workflow, tests and operator documentation.",
+    "Divergent Change": "Added driver has one bounded native-to-SDK verification responsibility.",
+    "Speculative Generality": "New wrappers and helpers support exercised current failure boundaries.",
+    "Message Chains": "No actionable hidden navigation chain in changed code.",
+    "Middle Man": "Transport wrappers observe actual bytes and effects; they are not pure delegation.",
+    "Refused Bequest": "RefreshWire extends the existing fixture while preserving unrelated Wire operations."
+  },
+  "retained_nonfinding_limitations": [
+    {
+      "kind": "existing_tool_warning",
+      "location": "tests/provider_sdk/native_object_delivery_sdk_drill.py:535",
+      "detail": "RuntimeError from patched connect can bypass create_connection OSError cleanup. Author default log records three ResourceWarnings. Not duplicated as a code-review finding because tooling already exposes it; explicit socket ownership would remove warning."
+    },
+    {
+      "kind": "historical_process_deviation",
+      "detail": "Earlier D2 two tests-after-code P2 is retained by v1/v2 README; v2 complete RED snapshots precede its repair. No claim that history is repaired."
+    },
+    {
+      "kind": "validation_limit",
+      "detail": "Original native-first materialize-B cause remains unknown. Existing verifier good/bad-path false rejection is outside this seven-file diff; passing later run does not explain original failure."
+    }
+  ],
+  "tests_rerun_by_reviewer": false,
+  "spec_reports_read": false
+}

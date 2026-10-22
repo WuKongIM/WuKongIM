@@ -1,0 +1,48 @@
+{
+  "provider_refresh_max_urls": 1000,
+  "submit_batch_size": 50,
+  "all_urls_preflight_before_any_submit": true,
+  "all_submissions_before_queries": true,
+  "task_ids": "first-seen order, deduplicated across batches",
+  "query_ids_per_group": 10,
+  "response_contract": "TotalCount equals rows; requested URLs exactly once per full poll; every returned ID used and no foreign ID; URL-to-ID stable across polls",
+  "file_urls": "Root and trailing slash accepted as File, not inferred Directory",
+  "errors": "No automatic retry of errors; driver preserves attempted writes and incomplete",
+  "legacy": "Old <=50 independent-ID order compatible",
+  "observation_source": "Parent message reporting a read-only official UI query of existing docs task; reviewer did not call cloud API or independently read raw UI archive.",
+  "reported_real_observation": {
+    "TaskId": "33643947491",
+    "TotalCount": 4,
+    "RequestId": "01A16048-EE37-5932-9795-C364DE421ADB",
+    "rows": [
+      {
+        "TaskId": "33643947491",
+        "ObjectPath": "https://docs.githubim.com/",
+        "ObjectType": "file",
+        "Status": "Complete",
+        "Process": "100%"
+      },
+      {
+        "TaskId": "33643947491",
+        "ObjectPath": "https://docs.githubim.com/zh/",
+        "ObjectType": "file",
+        "Status": "Complete",
+        "Process": "100%"
+      },
+      {
+        "TaskId": "33643947491",
+        "ObjectPath": "https://docs.githubim.com/en/",
+        "ObjectType": "file",
+        "Status": "Complete",
+        "Process": "100%"
+      },
+      {
+        "TaskId": "33643947491",
+        "ObjectPath": "https://docs.githubim.com/api/search",
+        "ObjectType": "file",
+        "Status": "Complete",
+        "Process": "100%"
+      }
+    ]
+  }
+}

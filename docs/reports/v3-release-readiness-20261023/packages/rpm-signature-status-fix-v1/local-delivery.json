@@ -1,0 +1,9 @@
+{
+  "head": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+  "tree": "306e2cd808742a9effb981fd679d2153cbcf29a4",
+  "branch": "codex/rpm-signature-status",
+  "status": "",
+  "created_pull_request": "https://github.com/WuKongIM/packages/pull/79",
+  "merge_authorization": "Standing user authorization: future reviewed/validated PRs may merge without repeated confirmation.",
+  "ci_acceptance": "pending; separate first-generation receipts required"
+}

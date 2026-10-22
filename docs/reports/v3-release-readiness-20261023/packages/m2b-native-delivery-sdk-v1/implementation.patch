@@ -1,0 +1,930 @@
+diff --git a/.github/workflows/native-package-repository-drill.yml b/.github/workflows/native-package-repository-drill.yml
+index c2d1432..f45b022 100644
+--- a/.github/workflows/native-package-repository-drill.yml
++++ b/.github/workflows/native-package-repository-drill.yml
+@@ -238,6 +238,78 @@ jobs:
+           if-no-files-found: warn
+           retention-days: 30
+ 
++      - name: Prepare verified native SDK object fixtures
++        shell: bash
++        run: |
++          set -euo pipefail
++          image="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"
++          fixture_output="$RUNNER_TEMP/native-delivery-fixture"
++          sdk_work="$RUNNER_TEMP/native-sdk-work"
++          sdk_evidence="$RUNNER_TEMP/native-sdk-evidence"
++          mkdir "$sdk_work" "$sdk_evidence"
++          chmod 0777 "$sdk_work" "$sdk_evidence"
++          container="wk-native-sdk-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
++          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
++          trap 'exit 130' INT
++          trap 'exit 143' TERM
++          timeout --signal=TERM --kill-after=10s 15m docker run --rm --name "$container" \
++            --platform linux/amd64 --init --network none --read-only --cap-drop ALL \
++            --security-opt no-new-privileges --user 65532:65532 \
++            --cpus 1 --memory 512m --pids-limit 128 \
++            --tmpfs /tmp:rw,nosuid,nodev,size=536870912 \
++            --volume "$GITHUB_WORKSPACE:/control:ro" \
++            --volume "$fixture_output:$fixture_output:ro" \
++            --volume "$sdk_work:$sdk_work" --volume "$sdk_evidence:$sdk_evidence" \
++            --workdir /tmp "$image" \
++            python3 -B /control/tests/provider_sdk/native_object_delivery_sdk_drill.py prepare \
++            --public-dir "$fixture_output" --work-dir "$sdk_work" \
++            --expected-export-source "$GITHUB_SHA" --source-sha "$GITHUB_SHA" \
++            --output "$sdk_evidence/native-preparation.json"
++          jq -e --arg source "$GITHUB_SHA" '.passed == true and .source_sha == $source and .state == "native_prepared" and (.cases | length) == 2' \
++            "$sdk_evidence/native-preparation.json" >/dev/null
++
++      - name: Verify all native objects through the locked SDK HTTP fixture
++        shell: bash
++        run: |
++          set -euo pipefail
++          sdk_work="$RUNNER_TEMP/native-sdk-work"
++          sdk_evidence="$RUNNER_TEMP/native-sdk-evidence"
++          python3 -m venv "$RUNNER_TEMP/native-sdk-venv"
++          timeout 240 "$RUNNER_TEMP/native-sdk-venv/bin/python" -m pip install --require-hashes -r requirements-object-storage-provider.lock
++          bundle_sha="$(jq -er '.bundle_sha256' "$sdk_evidence/native-preparation.json")"
++          timeout 300 "$RUNNER_TEMP/native-sdk-venv/bin/python" -B tests/provider_sdk/native_object_delivery_sdk_drill.py sdk \
++            --bundle "$sdk_work/bundle.json" --bundle-sha256 "$bundle_sha" \
++            --source-sha "$GITHUB_SHA" --output "$sdk_evidence/native-sdk-result.json"
++          jq -e --arg source "$GITHUB_SHA" '.test_only == true and .source_sha == $source and .passed == true and .skips == 0 and (.cases | length) == 20 and all(.cases[]; .passed == true) and .state == "fixture_complete" and .stage == "sdk_fixture_complete" and .scratch_removed == true and all(.verification[]; . == false)' \
++            "$sdk_evidence/native-sdk-result.json" >/dev/null
++
++      - name: Remove owned native SDK fixture work
++        if: always()
++        shell: bash
++        run: |
++          set -euo pipefail
++          sdk_work="$RUNNER_TEMP/native-sdk-work"
++          container="wk-native-sdk-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
++          docker rm --force "$container" >/dev/null 2>&1 || true
++          remaining="$(docker container ls --all --filter "name=^/${container}$" --format '{{.Names}}')"
++          test -z "$remaining"
++          rm -rf -- "$sdk_work" "$RUNNER_TEMP/native-sdk-venv"
++          mkdir -p "$RUNNER_TEMP/native-sdk-evidence"
++          test ! -e "$sdk_work"
++          printf '%s\n' '{"owned_work_removed":true,"owned_container_removed":true}' > "$RUNNER_TEMP/native-sdk-evidence/cleanup.json"
++
++      - name: Preserve bounded native SDK fixture receipts
++        if: always()
++        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        with:
++          name: native-object-delivery-sdk-test-only
++          path: |
++            ${{ runner.temp }}/native-sdk-evidence/native-preparation.json
++            ${{ runner.temp }}/native-sdk-evidence/native-sdk-result.json
++            ${{ runner.temp }}/native-sdk-evidence/cleanup.json
++          if-no-files-found: error
++          retention-days: 7
++
+       - name: Set up fixed GoReleaser toolchain
+         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+         with:
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d3df208..45b17e9 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,10 @@
+ 
+ ## Unreleased
+ 
++- Verify complete native delivery fixtures through the official SDK without cloud
++  access, and validate exact File refresh coverage across aggregated task IDs.
++  Production authentication, public-client acceptance and activation remain unverified.
++
+ - Compile larger finite native route tables into bounded offline CDN candidates
+   while preserving exact paths and legacy literal rules. Live routing and
+   production activation remain unverified and disabled.
+diff --git a/docs/object-storage-delivery.md b/docs/object-storage-delivery.md
+index 425f3bb..8c98064 100644
+--- a/docs/object-storage-delivery.md
++++ b/docs/object-storage-delivery.md
+@@ -230,10 +230,20 @@ outcomes. It refuses unmanaged rewrites, deletion, unknown functions/groups or
+ observed drift; it neither implements a transaction nor guarantees atomic POP
+ changes. The complete raw configuration observation is available to its caller.
+ 
+-Refresh primitives accept exact canonical file URLs and query only returned task
+-IDs (at most ten per query); exact URL/type/ID and Complete status are required.
+-They do not prove public origin/cache/TLS readiness. RefreshTaskById requires
+-read permission on Resource `*`; do not misdescribe it as domain scoped.
++Refresh accepts at most 1,000 unique, exact canonical File URLs, including `/`
++and a single trailing slash. It rejects whitespace, control characters, query
++strings, fragments, traversal and empty path segments before submitting anything.
++It submits at most 50 URLs per call, then queries at most 10 returned IDs per call.
++Different submissions may share IDs; first-seen ID order is preserved. Every
++query must report an integer TotalCount equal to its rows and exactly its requested
++ID set. Across a complete poll, every requested URL must occur once, with a stable
++URL-to-ID mapping and file type. No Directory operation is inferred. Only all
++Complete rows satisfy the task contract. At most 20 submissions and 100 queries
++per poll are possible; max_polls is bounded at 10 and poll_interval at 5 seconds. poll_interval is pacing, not a
++total operation deadline. Callers must impose a deadline. Submission/query errors
++are not retried and may leave effects; success proves neither public origin,
++cache/TLS readiness nor live route equivalence. RefreshTaskById requires read
++permission on Resource `*`; it is not domain scoped.
+ 
+ Fresh input authentication recomputes the original v1/v2 plan, authenticates
+ historical controls, reads exact immutable audit/tag/assets, and runs the
+@@ -293,3 +303,33 @@ GPG agents, and checks both receipts. It
+ uploads only public JSON evidence. Existing native candidate 31 and four-client
+ 49-case commands and deadlines remain separate and unchanged. The production
+ producers, validators, channels and keys are unchanged.
++
++
++## TEST ONLY native SDK fixture
++
++`tests/provider_sdk/native_object_delivery_sdk_drill.py` reuses the same native
++job's public M1 exports. Its `prepare` phase reruns native signature/metadata
++verification and the unchanged v2 planner/materializer, preserving A/B's 153
++objects and 178 routes. It binds original input/plan bytes, public source files,
++the separate synthetic current-control observation, disabled resource intent,
++and explicit dummy SDK resource. It generates no signing keys.
++
++The `sdk` phase uses the locked official SDK and an instance HTTP fixture with
++network connects refused. All 306 A/B object operations perform create-only PUT
++and complete GET verification (152 exact shared conflicts, 154 unique keys).
++Both 17-rule configurations and every exact refresh URL are checked. Aggregate
++responses use the observed one-URL-per-row/repeated-TaskId shape. Failure cases
++retain attempted effects; expected refusal is never a publication success.
++
++The 20-case receipt says `fixture_complete` only after owned scratch removal.
++Production, source authentication, public-client, cloud, live routing and
++activation fields remain false; the actual fresh TEST ONLY and activation
++entrypoints still refuse. These data-only packages do not prove installed CLI
++acceptance. Existing 29/31/49 native suites keep their original commands.
++
++The native preparation keeps the M1 container's init, network isolation,
++1 CPU/512 MiB/128 PID/512 MiB tmpfs and 15-minute limit. A separate host SDK phase
++installs the existing hash lock within 240 seconds and runs within 300 seconds;
++it has no claimed container cgroup limit. Fixed input/file counts and 64 MiB
++fixture/8 MiB receipt limits bound its work. Always-run cleanup removes owned
++work and the venv; CI archives only the finite preparation, SDK and cleanup JSON.
+diff --git a/scripts/aliyun-object-storage-provider.py b/scripts/aliyun-object-storage-provider.py
+index f584416..f459b7f 100644
+--- a/scripts/aliyun-object-storage-provider.py
++++ b/scripts/aliyun-object-storage-provider.py
+@@ -401,30 +401,56 @@ class Provider:
+         return receipt
+ 
+     def refresh(self, urls, *, max_polls=3, poll_interval=1):
+-        """Refresh exact file URLs and accept only this request's exact complete tasks."""
+-        require(isinstance(urls,list) and 0<len(urls)<=50 and len(set(urls))==len(urls),'bounded unique URLs required')
++        """Verify an exact File URL set, including repeated aggregate task IDs.
++
++        Submit the entire bounded set before polling: later batches can share
++        earlier IDs. Exceptions after submission never imply rollback. The
++        caller supplies the total deadline; poll_interval only paces polls.
++        """
++        require(isinstance(urls,list) and 0<len(urls)<=1000
++                and all(isinstance(url,str) for url in urls)
++                and len(set(urls))==len(urls),'bounded unique URLs required')
+         require(type(max_polls) is int and 1<=max_polls<=10 and 0<=poll_interval<=5,'bounded polling required')
+         for url in urls:
++            require(not any(character.isspace() or ord(character)<32 or ord(character)==127 for character in url)
++                    and '?' not in url and '#' not in url,'exact canonical file URL required')
+             parsed=urlsplit(url)
+-            require(url.startswith('https://'+self.resource['domain']+'/') and parsed.netloc==self.resource['domain']
+-                    and not parsed.query and not parsed.fragment and parsed.path!='/' and not parsed.path.endswith('/'),'exact canonical file URL required')
+-            safe_path(parsed.path,True)
++            require(url=='https://'+self.resource['domain']+parsed.path
++                    and parsed.netloc==self.resource['domain'] and '//' not in parsed.path,
++                    'exact canonical file URL required')
++            # A trailing slash names an exact File URL; never infer Directory.
++            path=parsed.path[:-1] if parsed.path!='/' and parsed.path.endswith('/') else parsed.path
++            safe_path(path,True)
+         self.observe_resource()
+-        raw=self._call(RefreshObjectCachesRequest,ObjectPath='\n'.join(urls),ObjectType='File').get('RefreshTaskId','')
+-        ids=raw.split(',');require(len(ids)==len(urls) and len(set(ids))==len(ids) and all(x.isdecimal() and int(x)>0 for x in ids),'refresh task IDs incomplete')
++        ids=[]
++        for start in range(0,len(urls),50):
++            group=urls[start:start+50]
++            raw=self._call(RefreshObjectCachesRequest,ObjectPath='\n'.join(group),ObjectType='File').get('RefreshTaskId','')
++            require(isinstance(raw,str),'refresh task IDs incomplete')
++            returned=raw.split(',')
++            require(0<len(returned)<=len(group) and len(set(returned))==len(returned)
++                    and all(re.fullmatch(r'[1-9][0-9]{0,31}',value) for value in returned),'refresh task IDs incomplete')
++            ids.extend(value for value in returned if value not in ids)
+         bindings=None
+         for attempt in range(max_polls):
+             rows=[]
+             for start in range(0,len(ids),10):
+                 group=ids[start:start+10]
+-                response=self._call(DescribeRefreshTaskByIdRequest,TaskId=','.join(group));batch=response.get('Tasks',[])
+-                require(len(batch)==len(group) and {str(x.get('TaskId')) for x in batch}==set(group),'foreign/missing refresh task')
++                response=self._call(DescribeRefreshTaskByIdRequest,TaskId=','.join(group));batch=response.get('Tasks')
++                require(isinstance(batch,list) and len(group)<=len(batch)<=len(urls)
++                        and type(response.get('TotalCount')) is int and response['TotalCount']==len(batch)
++                        and all(isinstance(row,dict) for row in batch)
++                        and {str(row.get('TaskId')) for row in batch}==set(group),'foreign/missing refresh task')
++                require(len(rows)+len(batch)<=len(urls),'refresh rows exceed requested URL bound')
+                 rows.extend(batch)
+-            mapping={str(x['TaskId']):x.get('ObjectPath') for x in rows}
+-            require(len(rows)==len(ids) and set(mapping.values())==set(urls) and (bindings is None or mapping==bindings),'refresh URL identity differs')
++            paths=[row.get('ObjectPath') for row in rows]
++            require(all(isinstance(path,str) for path in paths) and len(paths)==len(set(paths))
++                    and set(paths)==set(urls),'refresh URL identity differs')
++            mapping={row['ObjectPath']:str(row['TaskId']) for row in rows}
++            require(bindings is None or mapping==bindings,'refresh URL identity differs')
+             bindings=mapping
+-            require(all(x.get('ObjectType')=='file' and x.get('Status') in ('Complete','Refreshing') for x in rows),'refresh failed or ambiguous')
+-            if all(x['Status']=='Complete' for x in rows):return {'state':'tasks_complete','task_ids':ids,**FALSE_FIELDS}
++            require(all(row.get('ObjectType')=='file' and row.get('Status') in ('Complete','Refreshing') for row in rows),'refresh failed or ambiguous')
++            if all(row['Status']=='Complete' for row in rows):return {'state':'tasks_complete','task_ids':ids,**FALSE_FIELDS}
+             if attempt+1<max_polls:time.sleep(poll_interval)
+         raise ProviderError('refresh deadline exhausted')
+ 
+diff --git a/tests/provider_sdk/test_aliyun_object_storage_provider.py b/tests/provider_sdk/test_aliyun_object_storage_provider.py
+index c3c62a0..3be3a84 100644
+--- a/tests/provider_sdk/test_aliyun_object_storage_provider.py
++++ b/tests/provider_sdk/test_aliyun_object_storage_provider.py
+@@ -171,6 +171,60 @@ class Wire(BaseAdapter):
+         return response
+ 
+ 
++class RefreshWire(Wire):
++    """Observed aggregate shape: one exact URL per row, repeated task ID."""
++    def __init__(self, mode='aggregate', fault=None):
++        super().__init__(); self.mode=mode; self.fault=fault; self.rows=[]; self.submissions=0
++
++    def send(self, request, **kwargs):
++        q=parse_qs(urlsplit(request.url).query,keep_blank_values=True)
++        if request.body:
++            q.update(parse_qs(request.body.decode() if isinstance(request.body,bytes) else request.body))
++        action=q.get('Action',[''])[0]
++        if action not in ('RefreshObjectCaches','DescribeRefreshTaskById'):
++            return super().send(request,**kwargs)
++        self.requests.append((request,kwargs,action,q)); result={'RequestId':'fixture-aggregate-request'}
++        if action=='RefreshObjectCaches':
++            self.submissions+=1; ids=[]
++            for url in q['ObjectPath'][0].split('\n'):
++                number=len(self.rows)
++                task=str(33643947491 if self.mode=='aggregate' else (601 if number<25 else 501 if number<75 else 701) if self.mode=='overlap' else 501+number//2 if self.mode=='pairs' else 501+number)
++                if task not in ids:ids.append(task)
++                self.rows.append(dict(TaskId=task,ObjectPath=url,ObjectType='file',Status='Complete',Process='100%'))
++            if self.fault=='submit_timeout' and self.submissions==2:raise requests.ReadTimeout(TOKEN)
++            if self.fault=='submit_ids':ids=['0']
++            if self.fault=='duplicate_ids':ids+=ids
++            result['RefreshTaskId']=','.join(ids)
++        else:
++            self.polls+=1; group=q['TaskId'][0].split(',')
++            selected=[{'501':'521','521':'501'}.get(task,task) for task in group] if self.fault=='swap_groups' else group
++            rows=copy.deepcopy([row for row in self.rows if row['TaskId'] in selected])
++            if self.fault=='missing':rows=rows[:-1]
++            elif self.fault=='duplicate':rows+=rows[:1]
++            elif self.fault=='foreign_id':rows[0]['TaskId']='999999'
++            elif self.fault=='foreign_url':rows[0]['ObjectPath']='https://packages.githubim.com/foreign'
++            elif self.fault=='unused_id':rows=[row for row in rows if row['TaskId']!=group[-1]]
++            elif self.fault=='directory':rows[0]['ObjectType']='directory'
++            elif self.fault=='newline_shape':rows[0]['ObjectPath']+='\nhttps://packages.githubim.com/foreign'
++            elif self.fault=='mapping_drift':
++                if self.polls==1:rows[0]['Status']='Refreshing'
++                else:rows[0]['TaskId'],rows[-1]['TaskId']=rows[-1]['TaskId'],rows[0]['TaskId']
++            elif self.fault=='query_timeout':raise requests.ReadTimeout(TOKEN)
++            result.update(Tasks=rows,TotalCount=len(rows)+(1 if self.fault=='total' else 0))
++            if self.fault=='missing_total':del result['TotalCount']
++            if self.fault=='boolean_total':result['TotalCount']=True
++            if self.fault=='string_total':result['TotalCount']=str(len(rows))
++            if self.fault=='dict_tasks':result['Tasks']={}
++            if self.fault=='nonobject_row':result['Tasks']=['bad']
++            if self.fault=='other_group_id':result['Tasks'][0]['TaskId']='521'
++            if self.fault=='cumulative_rows':
++                result['Tasks']=[{**row,'TaskId':group[i%len(group)]} for i,row in enumerate(self.rows)]
++                result['TotalCount']=len(result['Tasks'])
++        response=requests.Response(); response.status_code=200; response.headers['Content-Type']='application/json'
++        response.request=request; response.url=request.url; response.raw=io.BytesIO(json.dumps(result).encode()); response._content=False
++        return response
++
++
+ class ProviderContract(unittest.TestCase):
+     def setUp(self):
+         self.socket_guard=mock.patch.object(socket.socket,'connect',side_effect=AssertionError('provider network forbidden'))
+@@ -399,11 +453,96 @@ class ProviderContract(unittest.TestCase):
+         self.w.refresh_fault='progress';self.w.polls=0
+         self.assertEqual(self.client.refresh(['https://packages.githubim.com/repo'],max_polls=2,poll_interval=0)['state'],'tasks_complete')
+ 
+-    def test_refresh_foreign_or_directory_urls_rejected_without_write(self):
+-        for urls in (['https://other.invalid/repo'],['https://packages.githubim.com/'],['https://packages.githubim.com/repo?x=1'],['https://packages.githubim.com/repo']*2):
++    def test_refresh_foreign_or_ambiguous_file_urls_rejected_without_write(self):
++        # Root/trailing slash File support is covered by the observed aggregate test.
++        for urls in (['https://other.invalid/repo'],['https://packages.githubim.com/repo?x=1'],['https://packages.githubim.com/repo']*2):
+             with self.assertRaises(self.p.ProviderError):self.client.refresh(urls,max_polls=1,poll_interval=0)
+         self.assertFalse(self.writes())
+ 
++    def refresh_client(self, mode='aggregate', fault=None):
++        wire=RefreshWire(mode,fault)
++        client=self.p.Provider(resource=RESOURCE,access_key_id='FIXTURE-AK',access_key_secret=SECRET,security_token=TOKEN,http_adapter=wire)
++        self.addCleanup(client.close);return client,wire
++
++    def test_refresh_observed_four_file_urls_share_one_task_including_root(self):
++        client,wire=self.refresh_client()
++        urls=['https://packages.githubim.com'+path for path in ('/','/zh/','/en/','/api/search')]
++        result=client.refresh(urls,max_polls=1,poll_interval=0)
++        self.assertEqual(result['state'],'tasks_complete');self.assertEqual(result['task_ids'],['33643947491'])
++        self.assertEqual([r[3]['ObjectType'] for r in wire.requests if r[2]=='RefreshObjectCaches'],[['File']])
++        self.assertEqual([row['ObjectPath'] for row in wire.rows],urls)
++        for key in self.p.FALSE_FIELDS:self.assertFalse(result[key])
++
++    def test_refresh_all_native_urls_submit_before_aggregate_query_without_omission(self):
++        client,wire=self.refresh_client()
++        urls=['https://packages.githubim.com'+row['public_uri'] for row in native_routes_fixture()['generations']['A']['delivery.json']['routes']]
++        result=client.refresh(urls,max_polls=1,poll_interval=0)
++        submits=[r for r in wire.requests if r[2]=='RefreshObjectCaches']
++        self.assertEqual([len(r[3]['ObjectPath'][0].split('\n')) for r in submits],[50,50,50,28])
++        self.assertEqual([url for r in submits for url in r[3]['ObjectPath'][0].split('\n')],urls)
++        self.assertEqual([r[2] for r in wire.requests if r[2] in ('RefreshObjectCaches','DescribeRefreshTaskById')],['RefreshObjectCaches']*4+['DescribeRefreshTaskById'])
++        self.assertEqual(result['task_ids'],['33643947491'])
++
++    def test_refresh_aggregate_pairs_and_legacy_independent_ids_keep_query_limit(self):
++        urls=['https://packages.githubim.com/p'+str(i) for i in range(52)]
++        for mode,count,batches in (('pairs',26,[10,10,6]),('unique',52,[10,10,10,10,10,2])):
++            with self.subTest(mode=mode):
++                client,wire=self.refresh_client(mode)
++                result=client.refresh(urls,max_polls=1,poll_interval=0)
++                self.assertEqual(result['task_ids'],[str(501+i) for i in range(count)])
++                self.assertEqual([len(r[3]['TaskId'][0].split(',')) for r in wire.requests if r[2]=='DescribeRefreshTaskById'],batches)
++
++    def test_refresh_full_set_bounds_and_all_urls_preflight_before_any_submit(self):
++        client,wire=self.refresh_client();prefix='https://packages.githubim.com'
++        for urls in ([],[prefix+'/p'+str(i) for i in range(1001)],
++                     [prefix+'/ok']*2,[prefix+'/p'+str(i) for i in range(50)]+[prefix+'/bad?'],*([prefix+'/ok',prefix+path] for path in ('//','/a//','/a/../','/a/./','/a?x=1','/a?','/a#f','/a#','/a\n','/a\r','/a\t','/ a','/%2f'))):
++            with self.subTest(urls=urls[:2]),self.assertRaises(self.p.ProviderError):client.refresh(urls,max_polls=1,poll_interval=0)
++        self.assertFalse([r for r in wire.requests if r[2]=='RefreshObjectCaches'])
++        urls=[prefix+'/p'+str(i) for i in range(1000)]
++        self.assertEqual(client.refresh(urls,max_polls=1,poll_interval=0)['state'],'tasks_complete')
++        self.assertEqual(wire.submissions,20)
++
++    def test_refresh_aggregate_coverage_totalcount_and_foreign_rows_fail_closed(self):
++        urls=['https://packages.githubim.com/p'+str(i) for i in range(4)]
++        for fault in ('missing','duplicate','foreign_id','foreign_url','unused_id','directory','newline_shape','total','missing_total','boolean_total','string_total','dict_tasks','nonobject_row','mapping_drift'):
++            with self.subTest(fault=fault):
++                client,wire=self.refresh_client('pairs',fault)
++                with self.assertRaises(self.p.ProviderError):client.refresh(urls,max_polls=2,poll_interval=0)
++                self.assertEqual(wire.submissions,1);self.assertLessEqual(wire.polls,2)
++
++    def test_refresh_rejects_ids_from_another_query_group(self):
++        client,wire=self.refresh_client('pairs','swap_groups')
++        urls=['https://packages.githubim.com/p'+str(i) for i in range(52)]
++        with self.assertRaises(self.p.ProviderError):client.refresh(urls,max_polls=1,poll_interval=0)
++        self.assertEqual(wire.submissions,2);self.assertEqual(wire.polls,1)
++
++    def test_refresh_cross_batch_partial_id_overlap_preserves_first_seen_order(self):
++        client,wire=self.refresh_client('overlap')
++        urls=['https://packages.githubim.com/p'+str(i) for i in range(100)]
++        result=client.refresh(urls,max_polls=1,poll_interval=0)
++        self.assertEqual(result['task_ids'],['601','501','701'])
++        self.assertEqual([r[3]['TaskId'][0] for r in wire.requests if r[2]=='DescribeRefreshTaskById'],['601,501,701'])
++        self.assertEqual(wire.submissions,2)
++
++    def test_refresh_preserves_poll_bounds_and_rejects_cumulative_rows_early(self):
++        client,wire=self.refresh_client()
++        for kwargs in ({'max_polls':11},{'poll_interval':6}):
++            with self.subTest(kwargs=kwargs),self.assertRaises(self.p.ProviderError):
++                client.refresh(['https://packages.githubim.com/p'],**kwargs)
++        self.assertFalse([row for row in wire.requests if row[2]=='RefreshObjectCaches'])
++        client,wire=self.refresh_client('unique','cumulative_rows')
++        urls=['https://packages.githubim.com/p'+str(i) for i in range(51)]
++        with self.assertRaises(self.p.ProviderError):client.refresh(urls,max_polls=1,poll_interval=0)
++        self.assertEqual(wire.submissions,2);self.assertEqual(wire.polls,2)
++
++    def test_refresh_unknown_submit_and_query_never_repeat_sideeffects(self):
++        urls=['https://packages.githubim.com/p'+str(i) for i in range(51)]
++        for fault,count in (('submit_timeout',2),('query_timeout',2),('submit_ids',1),('duplicate_ids',1)):
++            with self.subTest(fault=fault):
++                client,wire=self.refresh_client('aggregate',fault)
++                with self.assertRaises(self.p.ProviderError):client.refresh(urls,max_polls=2,poll_interval=0)
++                self.assertEqual(wire.submissions,count)
++
+ 
+     def test_native_route_fixture_has_exact_public_provenance_and_object_facts(self):
+         path=ROOT/'tests/provider_sdk/fixtures/native-composite-routes.json'
+@@ -579,6 +718,44 @@ class ProviderContract(unittest.TestCase):
+                 self.assertFalse(self.writes())
+ 
+ 
++    def test_native_sdk_failure_receipt_retains_observed_attempts_without_secrets(self):
++        spec=importlib.util.spec_from_file_location('native_sdk_drill',ROOT/'tests/provider_sdk/native_object_delivery_sdk_drill.py')
++        driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
++        self.client.put_create_only(KEY,self.path,FACTS)
++        self.w.batch_fault='timeout';result=self.client.apply_rewrites([route()],before=self.client.read_configuration(),managed_ids=[])
++        self.assertEqual(result['state'],'incomplete')
++        report={'state':'incomplete'};driver.record_attempts(report,[self.w])
++        self.assertEqual(report['object_put_attempts'],1)
++        self.assertEqual([row['action'] for row in report['sdk_transport_observations']],['object','BatchSetCdnDomainConfig'])
++        self.assertNotIn(SECRET,json.dumps(report));self.assertNotIn(TOKEN,json.dumps(report))
++        self.assertEqual(report['state'],'incomplete')
++
++    def test_native_sdk_driver_preserves_full_exact_file_refresh_coverage(self):
++        spec=importlib.util.spec_from_file_location('native_sdk_drill',ROOT/'tests/provider_sdk/native_object_delivery_sdk_drill.py')
++        driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
++        rows=native_routes_fixture()['generations']['A']['delivery.json']['routes']
++        result=driver.refresh_scope(rows)
++        self.assertEqual(result['urls'],['https://packages.githubim.com'+r['public_uri'] for r in rows])
++        self.assertEqual(len(result['urls']),178);self.assertEqual(result['object_type'],'File')
++        self.assertFalse(result['coverage_verified']);self.assertIn('https://packages.githubim.com/',result['urls'])
++        with self.assertRaises(ValueError):driver.refresh_scope(rows+[rows[0]])
++        self.assertFalse(self.writes())
++
++    def test_native_sdk_driver_receipt_never_upgrades_fixture_success_to_publication(self):
++        spec=importlib.util.spec_from_file_location('native_sdk_drill',ROOT/'tests/provider_sdk/native_object_delivery_sdk_drill.py')
++        driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
++        report={'test_only':True,'passed':True,'cases':[{'case':name,'passed':True} for name in driver.CASES],
++                'skips':0,'state':'fixture_complete','stage':'sdk_fixture_complete','scratch_removed':True,
++                'verification':{key:False for key in driver.FALSE_FIELDS}}
++        self.assertEqual(len(driver.CASES),20);driver.validate_report(report)
++        for change in ({'cases':[]},{'cases':report['cases'][:-1]},{'cases':report['cases']+[report['cases'][0]]},
++                       {'skips':1},{'state':'complete'},{'scratch_removed':False},{'test_only':False}):
++            with self.assertRaises(ValueError):driver.validate_report({**report,**change})
++        for key in driver.FALSE_FIELDS:
++            with self.assertRaises(ValueError):driver.validate_report({**report,'verification':{**report['verification'],key:True}})
++        self.assertFalse(self.writes())
++
++
+ if __name__=='__main__':
+     import sys
+     import importlib.metadata
+diff --git a/tests/test_object_storage_delivery_inputs.py b/tests/test_object_storage_delivery_inputs.py
+index ee35339..4d96b47 100644
+--- a/tests/test_object_storage_delivery_inputs.py
++++ b/tests/test_object_storage_delivery_inputs.py
+@@ -214,4 +214,56 @@ class FreshPreviewWire(unittest.TestCase):
+                 with self.assertRaises(ValueError):self.verify(previous=first)
+ 
+ 
++class NativeSdkWorkflowContract(unittest.TestCase):
++    def test_native_sdk_reuses_public_exports_with_bounded_two_phase_cleanup(self):
++        text=(ROOT/'.github/workflows/native-package-repository-drill.yml').read_text()
++        start=text.index('      - name: Prepare verified native SDK object fixtures')
++        end=text.index('      - name: Set up fixed GoReleaser toolchain',start)
++        block=text[start:end]
++        self.assertLess(text.index('native_object_delivery_fixture_drill.py'),start)
++        for required in ('native_object_delivery_sdk_drill.py prepare','native_object_delivery_sdk_drill.py sdk',
++                         '--init','--network none','--read-only','--user 65532:65532','--cpus 1 --memory 512m --pids-limit 128',
++                         'size=536870912','15m docker run','timeout 240','--require-hashes','timeout 300',
++                         '--expected-export-source "$GITHUB_SHA"','--bundle-sha256','--source-sha "$GITHUB_SHA"',
++                         'native-delivery-fixture','native-sdk-result.json','if: always()',
++                         'if-no-files-found: error','docker rm --force','rm -rf -- "$sdk_work"'):
++            self.assertIn(required,block)
++        for forbidden in ('export_delivery_generations','secrets.','id-token:','actions: write','continue-on-error:'):
++            self.assertNotIn(forbidden,block)
++        self.assertIn('timeout-minutes: 60',text)
++
++    def test_native_sdk_cleanup_rejects_docker_observation_failure(self):
++        import os
++        import subprocess
++        text=(ROOT/'.github/workflows/native-package-repository-drill.yml').read_text()
++        start=text.index('      - name: Remove owned native SDK fixture work')
++        end=text.index('      - name:',start+10)
++        block=text[start:end];body=block.split('        run: |\n',1)[1]
++        script='\n'.join(line[10:] for line in body.splitlines() if line.startswith('          '))
++        with tempfile.TemporaryDirectory() as temp:
++            root=Path(temp);binary=root/'bin';binary.mkdir();docker=binary/'docker'
++            docker.write_text('#!/bin/sh\nexit 41\n');docker.chmod(0o755)
++            env={**os.environ,'PATH':str(binary)+':'+os.environ['PATH'],'RUNNER_TEMP':str(root),
++                 'GITHUB_RUN_ID':'fixture','GITHUB_RUN_ATTEMPT':'1'}
++            result=subprocess.run(['bash','-c',script],env=env,capture_output=True,timeout=10)
++            self.assertNotEqual(result.returncode,0)
++            self.assertFalse((root/'native-sdk-evidence/cleanup.json').exists())
++            docker.write_text('#!/bin/sh\nexit 0\n')
++            result=subprocess.run(['bash','-c',script],env=env,capture_output=True,timeout=10)
++            self.assertEqual(result.returncode,0,result.stderr)
++            self.assertEqual(json.loads((root/'native-sdk-evidence/cleanup.json').read_text()),
++                             {'owned_work_removed':True,'owned_container_removed':True})
++
++    def test_native_sdk_driver_is_explicit_test_only_and_ci_requires_all_cases(self):
++        text=(ROOT/'.github/workflows/native-package-repository-drill.yml').read_text()
++        self.assertIn('(.cases | length) == 20',text)
++        self.assertIn('.state == "fixture_complete"',text)
++        self.assertIn('.stage == "sdk_fixture_complete"',text)
++        self.assertIn('.scratch_removed == true',text)
++        spec=importlib.util.spec_from_file_location('native_sdk_drill',ROOT/'tests/provider_sdk/native_object_delivery_sdk_drill.py')
++        driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
++        self.assertEqual(len(driver.CASES),20)
++        self.assertEqual(len(set(driver.CASES)),20)
++
++
+ if __name__=='__main__':unittest.main()
+diff --git a/tests/provider_sdk/native_object_delivery_sdk_drill.py b/tests/provider_sdk/native_object_delivery_sdk_drill.py
+new file mode 100644
+index 0000000..5300e13
+--- /dev/null
++++ b/tests/provider_sdk/native_object_delivery_sdk_drill.py
+@@ -0,0 +1,419 @@
++#!/usr/bin/env python3
++"""TEST ONLY native materialization and official SDK HTTP transport fixture.
++
++No production authentication, public client, live CDN or activation claim.
++The prepare stage consumes public M1 exports; it never generates signing keys.
++"""
++from __future__ import annotations
++import argparse
++import copy
++import hashlib
++import importlib.util
++import json
++import os
++from pathlib import Path
++import shutil
++import socket
++import sys
++import tempfile
++import time
++from unittest import mock
++
++ROOT=Path(__file__).resolve().parents[2]
++sys.path.insert(0,str(ROOT));sys.path.insert(0,str(ROOT/'tests'))
++CASES=(
++ 'native-public-binding','native-composite-materialization','sdk-all-objects-A','sdk-all-objects-B',
++ 'sdk-object-resource-fence','sdk-local-object-drift','sdk-unknown-put-no-retry','sdk-full-get-failures',
++ 'sdk-initial-input-current-fence','sdk-mid-object-drift','sdk-generation-source-binding',
++ 'sdk-full-config-A','sdk-config-A-B-reuse','sdk-config-fresh-fence','sdk-config-removal-unsupported',
++ 'sdk-config-incomplete-sideeffects','sdk-full-refresh-set','sdk-aggregate-task-coverage',
++ 'sdk-production-boundaries-refuse','driver-ci-receipt-cleanup')
++FALSE_FIELDS=('production_enabled','publication_verified','cloud_verified','wire_equivalence_verified',
++              'github_provenance_verified','fresh_production_auth_verified','public_clients_verified','activation_authorized')
++
++
++def native_cases(args,report):
++    """Exercise public export identity and unchanged native materialization seams."""
++    exports=read_public_exports(args.public_dir,args.expected_export_source)
++    for source in ('0'*40,'bad'):
++        refused(lambda:read_public_exports(args.public_dir,source))
++    with tempfile.TemporaryDirectory(prefix='wk-sdk-bad-export-') as temp:
++        target=Path(temp);shutil.copyfile(args.public_dir/'result.json',target/'result.json')
++        refused(lambda:read_public_exports(target,args.expected_export_source))
++        for key,value in (('secret_tree_removed',False),('test_only',False),('data_only',False),('source_provenance_verified',True)):
++            changed=copy.deepcopy(exports);changed[key]=value
++            (target/'fixture-export.json').write_bytes(canonical(changed))
++            refused(lambda:read_public_exports(target,args.expected_export_source))
++    report['cases'].append({'case':CASES[0],'passed':True})
++    bundle=prepare_bundle(args,exports,report)
++    assert set(bundle['generations'])=={'A','B'}
++    for label in ('A','B'):
++        data=bundle['generations'][label];delivery=read_json(Path(data['delivery']))
++        plan=read_json(Path(data['plan']))
++        assert len(delivery['objects'])==153 and len(delivery['routes'])==178
++        assert delivery['planner_verification']==plan['verification']
++        expected={x['object_key']:x for name in ('snapshot_objects','immutable_aliases','generated_objects') for x in plan[name]}
++        assert set(expected)=={x['object_key'] for x in delivery['objects']}
++        for item in delivery['objects']:
++            assert all(item[key]==value for key,value in expected[item['object_key']].items())
++            assert facts(Path(data['root'])/item['materialized_file'])=={key:item[key] for key in ('sha256','size')}
++        assert [x['audit_release_id'] for x in delivery['client_requests']]==[10,4242 if label=='A' else 4243]
++        assert all(delivery[key] is False for key in ('production_enabled','publication_verified','cloud_verified'))
++    assert bundle['resource_intent_sha256']!=bundle['sdk_resource_sha256']
++    report['cases'].append({'case':CASES[1],'passed':True})
++    return bundle
++
++
++def sdk_cases(args,report):
++    """All assertions are against actual SDK requests, bytes and public receipts."""
++    contracts=module(ROOT/'tests/provider_sdk/test_aliyun_object_storage_provider.py')
++    provider=module(ROOT/'scripts/aliyun-object-storage-provider.py')
++    bundle=load_bundle(args.bundle,args.bundle_sha256,args.source_sha)
++    report['cases']=copy.deepcopy(bundle['native_cases'])
++    a=read_json(Path(bundle['generations']['A']['delivery']));b=read_json(Path(bundle['generations']['B']['delivery']))
++    report['resource_intent_sha256']=bundle['resource_intent_sha256'];report['sdk_resource_sha256']=bundle['sdk_resource_sha256']
++    owned=[];observed=[]
++    def client(wire=None):
++        wire=wire or contracts.Wire()
++        value=provider.Provider(resource=contracts.RESOURCE,access_key_id='FIXTURE-AK',access_key_secret=contracts.SECRET,security_token=contracts.TOKEN,http_adapter=wire)
++        owned.append(value);observed.append(wire);return value,wire
++    def case(name,action):
++        report['stage']=name;action();report['cases'].append({'case':name,'passed':True})
++    def writes(wire):return [row for row in wire.requests if row[0].method=='PUT' or row[2] in ('BatchSetCdnDomainConfig','RefreshObjectCaches')]
++    def put_rows(wire):return [row for row in wire.requests if row[0].method=='PUT']
++    def checked_object(label,item,c,w):
++        return send_object(bundle,args,label,item,c,w)
++    shared,wire=client()
++    outcomes={}
++    try:
++        def all_objects(label,delivery):
++            start=len(put_rows(wire));results=[]
++            for item in delivery['objects']:results.append(checked_object(label,item,shared,wire))
++            assert len(put_rows(wire))-start==153
++            assert [url_path(row[0].url) for row in put_rows(wire)[start:]]==[item['object_key'] for item in delivery['objects']]
++            for item in delivery['objects']:
++                data,cache=wire.objects[item['object_key']]
++                assert len(data)==item['size'] and hashlib.sha256(data).hexdigest()==item['sha256'] and cache==item['cache_control']
++            assert all(row['readback']['size']==item['size'] for row,item in zip(results,delivery['objects']))
++            assert all(all(row[k] is False for k in provider.FALSE_FIELDS) for row in results)
++            outcomes[label]=[row['outcome'] for row in results]
++            if label=='A':assert len(wire.objects)==153
++            else:assert len(wire.objects)==154 and outcomes[label].count('already_exists')==152
++        case(CASES[2],lambda:all_objects('A',a));case(CASES[3],lambda:all_objects('B',b))
++        item=a['objects'][0]
++        def resource_fence():
++            for field,value in (('owner','000'),('principal','wrong'),('versioning',b'<VersioningConfiguration><Status>Suspended</Status></VersioningConfiguration>')):
++                c,w=client();setattr(w,field,value);refused(lambda:checked_object('A',item,c,w));assert not writes(w)
++        case(CASES[4],resource_fence)
++        def local_drift():
++            c,w=client();path=Path(bundle['generations']['A']['root'])/item['materialized_file']
++            original=path.read_bytes()
++            try:
++                path.write_bytes(original+b'drift');refused(lambda:checked_object('A',item,c,w));assert not writes(w)
++            finally:path.write_bytes(original)
++            link=path.with_name(path.name+'.link');os.link(path,link)
++            try:refused(lambda:checked_object('A',item,c,w));assert not writes(w)
++            finally:link.unlink()
++        case(CASES[5],local_drift)
++        def unknown_put():
++            for fault in ('timeout_before','timeout_after'):
++                c,w=client();w.put_fault=fault
++                if fault=='timeout_before':refused(lambda:checked_object('A',item,c,w));assert not w.objects
++                else:assert checked_object('A',item,c,w)['outcome']=='unknown_readback_verified'
++                assert len(put_rows(w))==1
++        case(CASES[6],unknown_put)
++        def bad_get():
++            for fault in ('truncated','overlong','digest','cache','encoding','interrupted'):
++                c,w=client();w.get_fault=fault;refused(lambda:checked_object('A',item,c,w))
++                assert len(put_rows(w))==1 and len(w.objects)==1
++        case(CASES[7],bad_get)
++        def initial_fences():
++            c,w=client();refused(lambda:load_bundle(args.bundle,'0'*64,args.source_sha))
++            for path in (Path(bundle['current_control']),Path(bundle['generations']['A']['inputs']),Path(bundle['generations']['A']['plan'])):
++                original=path.read_bytes()
++                try:path.write_bytes(original+b' ');refused(lambda:checked_object('A',item,c,w));assert not writes(w)
++                finally:path.write_bytes(original)
++        case(CASES[8],initial_fences)
++        def mid_drift():
++            c,w=client();checked_object('A',item,c,w);path=Path(bundle['current_control']);original=path.read_bytes()
++            try:
++                path.write_bytes(original+b' ');refused(lambda:checked_object('A',a['objects'][1],c,w));assert len(put_rows(w))==1 and len(w.objects)==1
++            finally:path.write_bytes(original)
++        case(CASES[9],mid_drift)
++        def source_binding():
++            c,w=client();changed=copy.deepcopy(next(row for row in a['objects'] if 'source' in row));changed['source']['audit_release_id']=999
++            refused(lambda:checked_object('A',changed,c,w));assert not writes(w)
++            mirror=next(row for row in b['objects'] if row['object_key'] not in {x['object_key'] for x in a['objects']})
++            refused(lambda:checked_object('A',mirror,c,w));assert not writes(w)
++        case(CASES[10],source_binding)
++        config_results={}
++        def config_a():
++            before=shared.read_configuration();result=apply_configuration(bundle,args,'A',shared,wire,before,[])
++            assert result['state']=='readback_verified';config_results['A']=result
++            functions=provider.compile_rewrites(a['routes']);assert len(functions)==17
++            assert contracts.inverse_finite_rules(functions)=={x['public_uri']:'/'+x['object_key'] for x in a['routes']}
++            assert len([r for r in wire.requests if r[2]=='BatchSetCdnDomainConfig'])==1
++        case(CASES[11],config_a)
++        def config_b():
++            result=apply_configuration(bundle,args,'B',shared,wire,shared.read_configuration(),config_results['A']['config_ids'])
++            assert result['state']=='readback_verified' and result['config_ids']==config_results['A']['config_ids'];config_results['B']=result
++            left=provider.compile_rewrites(a['routes']);right=provider.compile_rewrites(b['routes'])
++            assert [x['functionArgs'][0] for x in left]==[x['functionArgs'][0] for x in right]
++            assert sum(x!=y for x,y in zip(left,right))==2
++        case(CASES[12],config_b)
++        def config_fence():
++            c,w=client();before=c.read_configuration();before['configs']=[]
++            refused(lambda:apply_configuration(bundle,args,'A',c,w,before,[]));assert not writes(w)
++            before=c.read_configuration();w.configs.append(contracts.config('unmanaged',{'x':'y'},99))
++            refused(lambda:apply_configuration(bundle,args,'A',c,w,before,[]));assert not writes(w)
++        case(CASES[13],config_fence)
++        def deletion():
++            c,w=client();result=c.apply_rewrites([contracts.route()],before=c.read_configuration(),managed_ids=[]);ids=[str(row['ConfigId']) for row in c.read_configuration()['configs'] if row['FunctionName']==provider.FUNCTION];before=len(writes(w))
++            refused(lambda:apply_configuration(bundle,args,'A',c,w,c.read_configuration(),ids));assert len(writes(w))==before
++        case(CASES[14],deletion)
++        def partial_config():
++            for fault in ('zero','missing','duplicate','wrongid','partial','timeout'):
++                c,w=client();w.batch_fault=fault;result=apply_configuration(bundle,args,'A',c,w,c.read_configuration(),[])
++                assert result['state']=='incomplete' and result['batches_attempted']==1
++                assert len(writes(w))==1 and not any(r[2]=='RefreshObjectCaches' for r in w.requests)
++        case(CASES[15],partial_config)
++        def full_refresh():
++            for label,delivery in (('A',a),('B',b)):
++                c,w=client(contracts.RefreshWire());result=refresh_generation(bundle,args,label,c,w)
++                assert result['state']=='tasks_complete' and result['task_ids']==['33643947491']
++                assert [row['ObjectPath'] for row in w.rows]==refresh_scope(delivery['routes'])['urls']
++                assert len(w.rows)==178 and w.submissions==4 and w.polls==1
++        case(CASES[16],full_refresh)
++        def aggregate_faults():
++            for fault in ('missing','duplicate','total','foreign_url','submit_timeout','query_timeout'):
++                c,w=client(contracts.RefreshWire(fault=fault));refused(lambda:refresh_generation(bundle,args,'A',c,w))
++                assert w.submissions==(2 if fault=='submit_timeout' else 4)
++                assert 0<len(writes(w))<=4
++                report.setdefault('incomplete_observations',[]).append({'fault':fault,'state':'incomplete','submissions_attempted':w.submissions,'task_rows_observed':len(w.rows),'repeated_writes':False})
++        case(CASES[17],aggregate_faults)
++        def production_refused():
++            fresh=module(ROOT/'scripts/verify-object-storage-delivery-inputs.py')
++            refused(lambda:fresh.verify_delivery_inputs(inputs=Path(bundle['generations']['A']['inputs']),expected_plan_sha256=bundle['generations']['A']['plan_sha256'],executor_sha=args.source_sha))
++            refused(lambda:shared.activate());assert all(v is False for v in report['verification'].values())
++        case(CASES[18],production_refused)
++        report['object_operations']={'A':153,'B':153,'shared_exact_conflicts':152,'unique_objects':len(wire.objects)}
++        report['route_counts']={'A':178,'B':178};report['config_rule_counts']={'A':17,'B':17}
++        report['sdk_transport_observations']=sanitized(wire)
++    finally:
++        record_attempts(report,observed)
++        for value in owned:value.close()
++
++
++def cleanup_case(args,report):
++    """Cleanup/receipt is a real final assertion, not an expected skipped case."""
++    assert not args.bundle.parent.exists()
++    assert len(report['cases'])==19 and len({row['case'] for row in report['cases']})==19
++    report['cases'].append({'case':CASES[19],'passed':True})
++    report['scratch_removed']=True
++    validate_report(report)
++    for change in ({'cases':[]},{'skips':1},{'test_only':False},{'scratch_removed':False}):
++        refused(lambda:validate_report({**report,**change}))
++
++
++def require(condition,message):
++    if not condition:raise ValueError(message)
++
++
++def refused(action):
++    try:action()
++    except (ValueError,RuntimeError,OSError):return
++    raise AssertionError('expected refusal did not happen')
++
++
++def canonical(value):return json.dumps(value,sort_keys=True,separators=(',',':')).encode()+b'\n'
++def digest(value):return hashlib.sha256(canonical(value)).hexdigest()
++
++
++def facts(path):
++    import stat
++    metadata=path.lstat()
++    require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink==1 and metadata.st_size<=64*1024*1024,'bounded regular file required')
++    raw=path.read_bytes();return {'sha256':hashlib.sha256(raw).hexdigest(),'size':len(raw)}
++
++
++def read_json(path):
++    require(facts(path)['size']<=8*1024*1024,'JSON exceeds limit')
++    return json.loads(path.read_bytes())
++
++
++def module(path):
++    spec=importlib.util.spec_from_file_location(path.stem.replace('-','_'),path)
++    value=importlib.util.module_from_spec(spec);spec.loader.exec_module(value);return value
++
++
++def read_public_exports(public,source):
++    report=read_json(public/'result.json');exports=read_json(public/'fixture-export.json')
++    require(report['source_sha']==source and len(source)==40 and set(source)<=set('0123456789abcdef')
++            and report['passed'] is True and report['scratch_removed'] is True
++            and len(report['cases'])==29 and all(row['passed'] is True for row in report['cases']), 'public native source/receipt differs')
++    require(all(exports[key] is True for key in ('test_only','data_only','secret_tree_removed'))
++            and exports['source_provenance_verified'] is False,'public export claims differ')
++    require(report['verification']['native_preview_verified'] is True
++            and report['verification']['native_stable_verified'] is True
++            and report['verification']['fresh_production_auth_verified'] is False,'native verification receipt differs')
++    return exports
++
++
++def source_files():
++    return sorted([*ROOT.glob('scripts/*.py'),ROOT/'tests/native_stable_clients_drill.py',
++        ROOT/'tests/native_stable_candidate_drill.py',ROOT/'tests/native_object_delivery_fixture_drill.py',
++        ROOT/'tests/stable_audit_fixture.py',ROOT/'tests/test_plan_object_storage_publication.py',
++        ROOT/'tests/test_stable_offline_candidate.py',Path(__file__),
++        ROOT/'tests/provider_sdk/test_aliyun_object_storage_provider.py',ROOT/'requirements-object-storage-provider.lock'])
++
++
++def prepare_bundle(args,exports,report):
++    import native_object_delivery_fixture_drill as fixture
++    import native_stable_clients_drill as clients
++    require(sys.platform=='linux' and os.geteuid()!=0,'non-root isolated native Linux required')
++    work=args.work_dir;require(work.name=='native-sdk-work' and work.is_dir() and not list(work.iterdir()),'empty owned native-sdk-work required')
++    scratch=work/'prepared';scratch.mkdir();public=args.public_dir/'fixtures'
++    preview=fixture.Preview(public,exports['preview']);descriptor=preview.descriptor();control=Path(descriptor['control_dir'])
++    archive=clients.module('scripts/archive-package-snapshot.py');extracted=scratch/'preview-extracted'
++    archive.extract_snapshot(archive_path=preview.archive,output_dir=extracted,max_members=archive.DEFAULT_MAX_MEMBERS,max_total_size=1024*1024*1024)
++    command=[sys.executable,'-B',str(ROOT/'scripts/verify-production-package-site.py'),'--site-root',str(extracted/'site'),
++        '--snapshot',str(extracted/'audit/snapshot.json'),'--channels',str(control/'manifests/channels.json'),
++        '--signing',str(control/'manifests/preview-signing.json'),'--apt-public-cert',str(control/'keys/apt-preview.asc'),
++        '--rpm-public-cert',str(control/'keys/rpm-preview.asc')]
++    result=clients.run_command(report,'native-preview',command,timeout=180);require(result.returncode==0,'native preview failed')
++    descriptors,plans,inputs,used=clients.seal_generations(exports,public,scratch,report,preview=preview)
++    require(used is preview,'real native preview required')
++    resource=work/'resource-intent.json';resource.write_bytes(canonical(fixture.RESOURCE))
++    current=work/'current-control.json';current.write_bytes(canonical({'source_sha':args.source_sha,'test_only':True,'production_authority':False}))
++    sdk_resource=dict(account_id='1234567890123456',principal_arn='acs:ram::1234567890123456:role/fixture',identity_type='AssumedRoleUser',
++        bucket='fixture-package-bucket',region='cn-hangzhou',endpoint='https://oss-cn-hangzhou.aliyuncs.com',domain='packages.githubim.com',cname='packages.githubim.com.w.kunlunaq.com')
++    bundle={'schema':'wukongim.native_sdk_fixture/v1','test_only':True,'source_sha':args.source_sha,
++        'export_source_sha':args.expected_export_source,'current_control':str(current),'resource_intent_sha256':digest(fixture.RESOURCE),
++        'sdk_resource_sha256':digest(sdk_resource),'generations':{},'native_cases':[]}
++    for label in ('A','B'):
++        target=work/label;plan_sha=hashlib.sha256(canonical(plans[label])).hexdigest()
++        command=[sys.executable,'-B',str(ROOT/'scripts/prepare-object-storage-delivery.py'),'--inputs',str(inputs[label]),
++            '--expected-plan-sha256',plan_sha,'--output-dir',str(target),'--resource-intent',str(resource),'--max-routes','10000','--composite','--test-only']
++        result=clients.run_command(report,'materialize-'+label,command,timeout=180);require(result.returncode==0,'native materialization failed')
++        bundle['generations'][label]={'root':str(target),'delivery':str(target/'delivery.json'),'plan':str(target/'transport-plan.json'),
++            'plan_sha256':plan_sha,'inputs':str(inputs[label])}
++    # Bind public inputs and prepared bytes separately from synthetic SDK resource identity.
++    paths=sorted({p for parent in (args.public_dir,work) for p in parent.rglob('*') if p.is_file()})
++    require(len(paths)<=2000,'fixture file count exceeds bound')
++    bundle['files']={str(path):facts(path) for path in paths}
++    bundle['source_files']={str(path.relative_to(ROOT)):facts(path) for path in source_files()}
++    require(sum(value['size'] for value in bundle['files'].values())<=64*1024*1024,'fixture bytes exceed bound')
++    return bundle
++
++
++def load_bundle(path,expected,source):
++    require(facts(path)['sha256']==expected,'bundle digest differs')
++    value=read_json(path)
++    require(value['schema']=='wukongim.native_sdk_fixture/v1' and value['test_only'] is True and value['source_sha']==source,'bundle identity differs')
++    require(value['native_cases']==[{'case':name,'passed':True} for name in CASES[:2]],'native cases missing')
++    require(0<len(value['files'])<=2000,'fixture file count differs')
++    for name,wanted in value['files'].items():require(facts(Path(name))==wanted,'bound fixture bytes differ')
++    require(set(value['source_files'])=={str(path.relative_to(ROOT)) for path in source_files()},'executor source set differs')
++    for name,wanted in value['source_files'].items():require(facts(ROOT/name)==wanted,'executor source bytes differ')
++    return value
++
++
++def fixture_fence(bundle,args,client):
++    require(load_bundle(args.bundle,args.bundle_sha256,args.source_sha)==bundle,'input/current-control changed')
++    require(digest(client.resource)==bundle['sdk_resource_sha256'],'SDK resource binding differs')
++
++
++def generation(bundle,label):return read_json(Path(bundle['generations'][label]['delivery']))
++
++
++def send_object(bundle,args,label,item,client,wire):
++    fixture_fence(bundle,args,client)
++    require(item in generation(bundle,label)['objects'],'object generation/source binding differs')
++    return client.put_create_only(item['object_key'],Path(bundle['generations'][label]['root'])/item['materialized_file'],
++                                  {key:item[key] for key in ('sha256','size','cache_control')})
++
++
++def apply_configuration(bundle,args,label,client,wire,before,managed):
++    fixture_fence(bundle,args,client)
++    result=client.apply_rewrites(generation(bundle,label)['routes'],before=before,managed_ids=managed)
++    if result['state']=='readback_verified':
++        result['config_ids']=[str(row['ConfigId']) for row in client.read_configuration()['configs'] if row['FunctionName']=='back_to_origin_url_rewrite']
++    return result
++
++
++def refresh_scope(routes):
++    urls=['https://packages.githubim.com'+row['public_uri'] for row in routes]
++    require(0<len(urls)<=1000 and len(set(urls))==len(urls),'exact unique refresh routes required')
++    return {'urls':urls,'object_type':'File','coverage_verified':False}
++
++
++def refresh_generation(bundle,args,label,client,wire):
++    fixture_fence(bundle,args,client)
++    return client.refresh(refresh_scope(generation(bundle,label)['routes'])['urls'],max_polls=2,poll_interval=0)
++
++
++def url_path(url):
++    from urllib.parse import urlsplit
++    return urlsplit(url).path[1:]
++
++
++def sanitized(wire):
++    # Never serialize signed URLs, headers, credential-bearing requests or exception text.
++    return [{'method':row[0].method,'action':row[2] or 'object','object_key':url_path(row[0].url) if not row[2] else None}
++            for row in wire.requests if row[0].method=='PUT' or row[2] in ('BatchSetCdnDomainConfig','RefreshObjectCaches')]
++
++
++def record_attempts(report,wires):
++    """Preserve all observed writes even when an assertion interrupts a stage."""
++    rows=[row for wire in wires for row in sanitized(wire)]
++    require(len(rows)<=2000,'attempt observation bound exceeded')
++    report['sdk_transport_observations']=rows
++    report['object_put_attempts']=sum(row['method']=='PUT' for row in rows)
++    report['refresh_submit_attempts']=sum(row['action']=='RefreshObjectCaches' for row in rows)
++
++
++def validate_report(report):
++    require(report['test_only'] is True and report['passed'] is True and report['skips']==0
++            and report['state']=='fixture_complete' and report['stage']=='sdk_fixture_complete'
++            and report['scratch_removed'] is True,'fixture receipt incomplete')
++    require(report['cases']==[{'case':name,'passed':True} for name in CASES],'fixture cases incomplete')
++    require(set(report['verification'])==set(FALSE_FIELDS) and all(value is False for value in report['verification'].values()),'production claims forbidden')
++
++
++def main():
++    parser=argparse.ArgumentParser(description=__doc__);sub=parser.add_subparsers(dest='phase',required=True)
++    for name in ('prepare','sdk'):
++        phase=sub.add_parser(name);phase.add_argument('--source-sha',required=True);phase.add_argument('--output',type=Path,required=True)
++    phase=sub.choices['prepare'];phase.add_argument('--public-dir',type=Path,required=True);phase.add_argument('--work-dir',type=Path,required=True);phase.add_argument('--expected-export-source',required=True)
++    phase=sub.choices['sdk'];phase.add_argument('--bundle',type=Path,required=True);phase.add_argument('--bundle-sha256',required=True)
++    args=parser.parse_args();report={'schema':'wukongim.native_sdk_drill/v1','test_only':True,'source_sha':args.source_sha,
++        'passed':False,'cases':[],'skips':0,'state':'incomplete','stage':args.phase,'scratch_removed':False,'verification':dict.fromkeys(FALSE_FIELDS,False),'commands':[]}
++    try:
++        if args.phase=='prepare':
++            bundle=native_cases(args,report);bundle['native_cases']=copy.deepcopy(report['cases'])
++            target=args.work_dir/'bundle.json';target.write_bytes(canonical(bundle));report['bundle_sha256']=facts(target)['sha256'];report['state']='native_prepared';report['passed']=True
++        else:
++            require(args.bundle.name=='bundle.json' and args.bundle.parent.name=='native-sdk-work','owned bundle directory required')
++            with mock.patch.object(socket.socket,'connect',side_effect=RuntimeError('provider network forbidden')):
++                refused(lambda:socket.create_connection(('127.0.0.1',9),timeout=1))
++                sdk_cases(args,report)
++            shutil.rmtree(args.bundle.parent)
++            report.update(passed=True,state='fixture_complete',stage='sdk_fixture_complete')
++            cleanup_case(args,report)
++    except Exception as error:
++        import traceback
++        frame=traceback.extract_tb(error.__traceback__)[-1]
++        report['failure_location']={'file':Path(frame.filename).name,'line':frame.lineno,'function':frame.name}
++        report['error_type']=type(error).__name__;report['passed']=False;report['state']='incomplete'
++        # Fixed errors only; provider/SDK exceptions may contain dummy credentials.
++        report['error']='TEST ONLY fixture operation failed; stage identifies boundary'
++    finally:
++        if args.phase=='sdk' and args.bundle.name=='bundle.json' and args.bundle.parent.name=='native-sdk-work':
++            if args.bundle.parent.exists():shutil.rmtree(args.bundle.parent)
++            report['scratch_removed']=not args.bundle.parent.exists()
++        raw=canonical(report);require(len(raw)<=8*1024*1024,'receipt exceeds bound');args.output.write_bytes(raw)
++    print(json.dumps({key:report.get(key) for key in ('passed','state','stage','error_type','bundle_sha256','scratch_removed')}))
++    return 0 if report['passed'] else 1
++
++
++if __name__=='__main__':raise SystemExit(main())

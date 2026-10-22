@@ -1,0 +1,179 @@
+{
+  "probe_scope": "stdlib-only main/guard/cleanup boundaries; sdk_cases replaced, no SDK/native/provider execution; connect intercepted by frozen guard before OS",
+  "probes": [
+    {
+      "mode": "clean",
+      "exit_code": 0,
+      "state": "fixture_complete",
+      "error_type": null,
+      "cleanup": {
+        "attempted": true,
+        "removed": true
+      },
+      "network_guard": {
+        "passed": true,
+        "self_check_attempts": 1,
+        "unexpected_attempts": 0
+      },
+      "attempts_preserved": true,
+      "receipt_bytes": 1663,
+      "selfcheck_resource_warnings": [
+        {
+          "category": "ResourceWarning",
+          "message": "unclosed <socket.socket fd=3, family=2, type=1, proto=6,",
+          "file": "native_object_delivery_sdk_drill.py",
+          "line": 349
+        }
+      ]
+    },
+    {
+      "mode": "swallowed",
+      "exit_code": 1,
+      "state": "incomplete",
+      "error_type": "ValueError",
+      "cleanup": {
+        "attempted": true,
+        "removed": true
+      },
+      "network_guard": {
+        "passed": false,
+        "self_check_attempts": 1,
+        "unexpected_attempts": 1
+      },
+      "attempts_preserved": true,
+      "receipt_bytes": 1787,
+      "selfcheck_resource_warnings": [
+        {
+          "category": "ResourceWarning",
+          "message": "unclosed <socket.socket fd=3, family=2, type=1, proto=6,",
+          "file": "native_object_delivery_sdk_drill.py",
+          "line": 349
+        }
+      ]
+    },
+    {
+      "mode": "converted",
+      "exit_code": 1,
+      "state": "incomplete",
+      "error_type": "ValueError",
+      "cleanup": {
+        "attempted": true,
+        "removed": true
+      },
+      "network_guard": {
+        "passed": false,
+        "self_check_attempts": 1,
+        "unexpected_attempts": 1
+      },
+      "attempts_preserved": true,
+      "receipt_bytes": 1787,
+      "selfcheck_resource_warnings": [
+        {
+          "category": "ResourceWarning",
+          "message": "unclosed <socket.socket fd=3, family=2, type=1, proto=6,",
+          "file": "native_object_delivery_sdk_drill.py",
+          "line": 349
+        }
+      ]
+    },
+    {
+      "mode": "primary_and_cleanup",
+      "exit_code": 1,
+      "state": "incomplete",
+      "error_type": "KeyError",
+      "cleanup": {
+        "attempted": true,
+        "error_type": "PermissionError",
+        "removed": false
+      },
+      "network_guard": {
+        "passed": true,
+        "self_check_attempts": 1,
+        "unexpected_attempts": 0
+      },
+      "attempts_preserved": true,
+      "receipt_bytes": 842,
+      "selfcheck_resource_warnings": [
+        {
+          "category": "ResourceWarning",
+          "message": "unclosed <socket.socket fd=3, family=2, type=1, proto=6,",
+          "file": "native_object_delivery_sdk_drill.py",
+          "line": 349
+        }
+      ]
+    },
+    {
+      "mode": "cleanup_only",
+      "exit_code": 1,
+      "state": "incomplete",
+      "error_type": null,
+      "cleanup": {
+        "attempted": true,
+        "error_type": "PermissionError",
+        "removed": false
+      },
+      "network_guard": {
+        "passed": true,
+        "self_check_attempts": 1,
+        "unexpected_attempts": 0
+      },
+      "attempts_preserved": true,
+      "receipt_bytes": 1623,
+      "selfcheck_resource_warnings": [
+        {
+          "category": "ResourceWarning",
+          "message": "unclosed <socket.socket fd=3, family=2, type=1, proto=6,",
+          "file": "native_object_delivery_sdk_drill.py",
+          "line": 349
+        }
+      ]
+    },
+    {
+      "mode": "cleanup_noop",
+      "exit_code": 1,
+      "state": "incomplete",
+      "error_type": null,
+      "cleanup": {
+        "attempted": true,
+        "error_type": "CleanupIncomplete",
+        "removed": false
+      },
+      "network_guard": {
+        "passed": true,
+        "self_check_attempts": 1,
+        "unexpected_attempts": 0
+      },
+      "attempts_preserved": true,
+      "receipt_bytes": 1625,
+      "selfcheck_resource_warnings": [
+        {
+          "category": "ResourceWarning",
+          "message": "unclosed <socket.socket fd=3, family=2, type=1, proto=6,",
+          "file": "native_object_delivery_sdk_drill.py",
+          "line": 349
+        }
+      ]
+    }
+  ],
+  "source_hashes_before": {
+    "tests/provider_sdk/native_object_delivery_sdk_drill.py": "6cbb8e7c726bdd7057ba1a449cd97c10ce8e7e44d82301042026cf4ee462e2da",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py": "84d85a0fc96a21f40c1d14258636fab69782dccbe69c6221a253594383e71c01",
+    "tests/test_object_storage_delivery_inputs.py": "3c133e5a0aa23856f02e420d372174720e1434ed3199607559d66d0c354b4524",
+    ".github/workflows/native-package-repository-drill.yml": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+    "docs/object-storage-delivery.md": "373c59bf878ccc78deab15b45f2cc131af2f58c6716c05405ee0f7a5fd7157de",
+    "CHANGELOG.md": "071bb40ed2c05742f3fd6c60dcbbdf034dea42cb472a9832f1709a86dc93c945",
+    "scripts/aliyun-object-storage-provider.py": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8"
+  },
+  "source_hashes_after": {
+    "tests/provider_sdk/native_object_delivery_sdk_drill.py": "6cbb8e7c726bdd7057ba1a449cd97c10ce8e7e44d82301042026cf4ee462e2da",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py": "84d85a0fc96a21f40c1d14258636fab69782dccbe69c6221a253594383e71c01",
+    "tests/test_object_storage_delivery_inputs.py": "3c133e5a0aa23856f02e420d372174720e1434ed3199607559d66d0c354b4524",
+    ".github/workflows/native-package-repository-drill.yml": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+    "docs/object-storage-delivery.md": "373c59bf878ccc78deab15b45f2cc131af2f58c6716c05405ee0f7a5fd7157de",
+    "CHANGELOG.md": "071bb40ed2c05742f3fd6c60dcbbdf034dea42cb472a9832f1709a86dc93c945",
+    "scripts/aliyun-object-storage-provider.py": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8"
+  },
+  "source_unchanged": true,
+  "actual_network_connections": 0,
+  "owned_scratch_removed": true
+}

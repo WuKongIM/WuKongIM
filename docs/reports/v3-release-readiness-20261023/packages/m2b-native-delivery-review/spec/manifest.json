@@ -1,0 +1,40 @@
+{
+  "schema": "finite-review-archive/v1",
+  "created_at_utc": "2026-10-21T21:25:04.642114+00:00",
+  "axis": "Spec",
+  "findings": 3,
+  "highest_priority": "P2",
+  "source_unchanged": true,
+  "files": [
+    {
+      "path": "spec.md",
+      "bytes": 2141,
+      "sha256": "ddf95324b74ccfaa95083a7d44f2fbd58ffc1da57dae7713a5cb2be8e8cee67d"
+    },
+    {
+      "path": "source-binding.json",
+      "bytes": 5449,
+      "sha256": "ccbf021aa7d226a1c81d7b8190779f305d2a744e4a2155fad3891e14b44563db"
+    },
+    {
+      "path": "findings.json",
+      "bytes": 3570,
+      "sha256": "f53859f0e558b5f3f146373897761685d3281755f513d2dd2068265b2cbcdfff"
+    },
+    {
+      "path": "validation-observations.json",
+      "bytes": 3940,
+      "sha256": "3e72898f93aad1a744c601e3dc208216979694efc6fda6e0b39d1869eaacd4e5"
+    },
+    {
+      "path": "bounded-helper-probes.json",
+      "bytes": 841,
+      "sha256": "6058e2455d39f7a679948d17ff3715e6ef0f2ddce0921a79c4000b6ca23c5119"
+    },
+    {
+      "path": "probe-method.md",
+      "bytes": 1321,
+      "sha256": "fa6462c1382b20c39eaef0440b4baf495d0319a625cc791025312ef1ce5628fb"
+    }
+  ]
+}

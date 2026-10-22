@@ -1,0 +1,20 @@
+{
+  "test_only": true,
+  "new_signing": false,
+  "source_package": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-repair-v2/native-diagnostic/materialized-B/archives/4243/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm",
+  "certificate_sha256": "9089aeadfb1165abccf82c0853a434036c74096974d2df9d09a19e0ab5b3f1ab",
+  "candidate": "74EFD0E92A1B959B3128AA330D74A4E95F793D67",
+  "cases": [
+    {
+      "path": "/tmp/wk-path-pair-hifqkdh6/good/fixture.rpm",
+      "sha256": "c929628919a768d5a9ad111e3e48ab3d2f0b556bb3a8b05a5ea8b513a1d4043c",
+      "original_function_result": true
+    },
+    {
+      "path": "/tmp/wk-path-pair-hifqkdh6/bad/fixture.rpm",
+      "sha256": "c929628919a768d5a9ad111e3e48ab3d2f0b556bb3a8b05a5ea8b513a1d4043c",
+      "original_function_result": false
+    }
+  ],
+  "limitation": "Independent paired probe; original failure package path was not retained and original cause remains unknown."
+}

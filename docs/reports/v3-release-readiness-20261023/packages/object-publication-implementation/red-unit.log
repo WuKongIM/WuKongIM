@@ -1,0 +1,149 @@
+test_any_non_null_disabled_binding_refused (test_object_storage_publication.DisabledPublication.test_any_non_null_disabled_binding_refused) ... ERROR
+test_both_operations_refuse_before_reading_missing_inputs_or_writing_output (test_object_storage_publication.DisabledPublication.test_both_operations_refuse_before_reading_missing_inputs_or_writing_output) ... ERROR
+test_checked_in_control_is_exactly_disabled_and_unknown (test_object_storage_publication.DisabledPublication.test_checked_in_control_is_exactly_disabled_and_unknown) ... ERROR
+test_cli_has_no_override_for_provenance_control_credentials_or_tls (test_object_storage_publication.DisabledPublication.test_cli_has_no_override_for_provenance_control_credentials_or_tls) ... ERROR
+test_control_json_requires_single_keys_bounded_regular_file (test_object_storage_publication.DisabledPublication.test_control_json_requires_single_keys_bounded_regular_file) ... ERROR
+test_enabled_control_does_not_unlock_unimplemented_production (test_object_storage_publication.DisabledPublication.test_enabled_control_does_not_unlock_unimplemented_production) ... ERROR
+test_integration_workflow_explicitly_runs_non_discovered_suite (test_object_storage_publication.DisabledPublication.test_integration_workflow_explicitly_runs_non_discovered_suite) ... ERROR
+test_probe_rejects_unsafe_request_or_resource_before_transport (test_object_storage_publication.DisabledPublication.test_probe_rejects_unsafe_request_or_resource_before_transport) ... ERROR
+test_schema_backend_extra_fields_and_non_boolean_authority_refused (test_object_storage_publication.DisabledPublication.test_schema_backend_extra_fields_and_non_boolean_authority_refused) ... ERROR
+
+======================================================================
+ERROR: test_any_non_null_disabled_binding_refused (test_object_storage_publication.DisabledPublication.test_any_non_null_disabled_binding_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 34, in setUp
+    self.p = load()
+             ~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_both_operations_refuse_before_reading_missing_inputs_or_writing_output (test_object_storage_publication.DisabledPublication.test_both_operations_refuse_before_reading_missing_inputs_or_writing_output)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 34, in setUp
+    self.p = load()
+             ~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_checked_in_control_is_exactly_disabled_and_unknown (test_object_storage_publication.DisabledPublication.test_checked_in_control_is_exactly_disabled_and_unknown)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 34, in setUp
+    self.p = load()
+             ~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_cli_has_no_override_for_provenance_control_credentials_or_tls (test_object_storage_publication.DisabledPublication.test_cli_has_no_override_for_provenance_control_credentials_or_tls)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 34, in setUp
+    self.p = load()
+             ~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_control_json_requires_single_keys_bounded_regular_file (test_object_storage_publication.DisabledPublication.test_control_json_requires_single_keys_bounded_regular_file)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 34, in setUp
+    self.p = load()
+             ~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_enabled_control_does_not_unlock_unimplemented_production (test_object_storage_publication.DisabledPublication.test_enabled_control_does_not_unlock_unimplemented_production)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 34, in setUp
+    self.p = load()
+             ~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_integration_workflow_explicitly_runs_non_discovered_suite (test_object_storage_publication.DisabledPublication.test_integration_workflow_explicitly_runs_non_discovered_suite)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 34, in setUp
+    self.p = load()
+             ~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_probe_rejects_unsafe_request_or_resource_before_transport (test_object_storage_publication.DisabledPublication.test_probe_rejects_unsafe_request_or_resource_before_transport)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 34, in setUp
+    self.p = load()
+             ~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_schema_backend_extra_fields_and_non_boolean_authority_refused (test_object_storage_publication.DisabledPublication.test_schema_backend_extra_fields_and_non_boolean_authority_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 34, in setUp
+    self.p = load()
+             ~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/scripts/publish-object-storage-delivery.py'
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.002s
+
+FAILED (errors=9)

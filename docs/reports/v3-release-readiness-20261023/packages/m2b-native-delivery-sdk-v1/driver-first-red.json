@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+    "prepare"
+  ],
+  "exit_code": 1,
+  "terminal": true,
+  "elapsed_seconds": 0.0481310419854708,
+  "tests_sha256": "d8593f79504319f12c9647777dcbcbaa03c60b1109596a34345918d5d57a712f",
+  "scope": "20-case test assertions authored before operational helpers; actual native validation has not run"
+}

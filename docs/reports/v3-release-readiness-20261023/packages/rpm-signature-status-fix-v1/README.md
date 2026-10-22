@@ -1,0 +1,3 @@
+# RPM signature-status repair
+
+Frozen three-file implementation at packages b100f91a59902ad8d93b0632f9c84f3f7468e5f2 (PR #79). Tests were written before the parser change: 35 focused tests first produced 10 failing subcases, then passed. Complete local suite: 587 run, 586 pass, one existing Mac RPM-tool skip; four repository contracts pass. The existing signed public B fixture verifies under five paths, while corrupted, unsigned and wrong-certificate inputs reject (8/8 native Linux); no signing or package installation. Both independent review axes have zero findings. Linux PR CI and merge remain pending in this historical snapshot. The earlier unobserved native failure remains unknown.

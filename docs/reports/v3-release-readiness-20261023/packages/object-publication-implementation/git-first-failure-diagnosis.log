@@ -1,0 +1,6 @@
+actual clean status: ''
+prepare-object-storage-delivery.py 63 CompositionError delivery inputs parent must be a real directory
+verify-object-storage-delivery-inputs.py 130 CompositionError delivery inputs parent must be a real directory
+verify-object-storage-delivery-inputs.py 180 InputError fresh delivery input authentication failed
+final fresh delivery input authentication failed
+http_requests []

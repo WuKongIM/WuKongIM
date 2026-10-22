@@ -1,0 +1,30 @@
+{
+  "observed_at": "2026-10-21T21:21:24.964479+00:00",
+  "method": "gh api GET metadata only; no credential export",
+  "repositories": [
+    {
+      "full_name": "WuKongIM/WuKongIM",
+      "private": false,
+      "visibility": "public",
+      "default_branch": "main"
+    },
+    {
+      "full_name": "WuKongIM/packages",
+      "private": false,
+      "visibility": "public",
+      "default_branch": "main"
+    }
+  ],
+  "packages_main": {
+    "ref": "refs/heads/main",
+    "object": {
+      "sha": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+      "type": "commit"
+    }
+  },
+  "limitations": [
+    "No production source/candidate/audit verification was performed.",
+    "Public metadata does not demonstrate gh attestation without a read token.",
+    "Cloud inventory reused from parent-confirmed read-only observations; not freshly queried here."
+  ]
+}

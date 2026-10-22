@@ -1,0 +1,138 @@
+test_apt_and_repomd_require_exact_current_fingerprint (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_apt_and_repomd_require_exact_current_fingerprint) ... ok
+test_apt_bootstrap_content_inspector_enforces_exact_repository_files (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_apt_bootstrap_content_inspector_enforces_exact_repository_files) ... ok
+test_bootstrap_manifest_and_direct_downloads_fail_closed (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_bootstrap_manifest_and_direct_downloads_fail_closed) ... ok
+test_bootstrap_package_headers_are_bound_to_manifest_identity (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_bootstrap_package_headers_are_bound_to_manifest_identity) ... ok
+test_bootstrap_packages_are_mandatory_members_of_both_indexes (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_bootstrap_packages_are_mandatory_members_of_both_indexes) ... ok
+test_bootstrap_static_content_inspection_is_mandatory (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_bootstrap_static_content_inspection_is_mandatory) ... ok
+test_new_rpm_requires_current_and_rejects_next_or_historical (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_new_rpm_requires_current_and_rejects_next_or_historical) ... ok
+test_only_the_exact_first_bootstrap_audit_may_omit_repo_entrypoint (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_only_the_exact_first_bootstrap_audit_may_omit_repo_entrypoint) ... ok
+test_only_the_exact_prebootstrap_audit_may_omit_bootstrap_packages (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_only_the_exact_prebootstrap_audit_may_omit_bootstrap_packages) ... ok
+test_preserved_rpm_accepts_current_or_historical_but_never_next (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_preserved_rpm_accepts_current_or_historical_but_never_next) ... ok
+test_preserved_rpm_rejects_revoked_or_expired_historical_issuer (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_preserved_rpm_rejects_revoked_or_expired_historical_issuer) ... ok
+test_read_only_gpg_checks_always_use_an_explicit_home (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_read_only_gpg_checks_always_use_an_explicit_home) ... ok
+test_rejects_actual_deb_or_rpm_header_identity_mismatch (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rejects_actual_deb_or_rpm_header_identity_mismatch) ... ok
+test_rejects_extra_apt_policy_headers_and_future_date (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rejects_extra_apt_policy_headers_and_future_date) ... ok
+test_rejects_extra_file_symlink_and_unsafe_path (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rejects_extra_file_symlink_and_unsafe_path) ... ok
+test_rejects_inconsistent_weak_apt_checksum_section (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rejects_inconsistent_weak_apt_checksum_section) ... ok
+test_rejects_signed_but_semantically_wrong_apt_metadata (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rejects_signed_but_semantically_wrong_apt_metadata) ... ok
+test_rejects_signed_but_semantically_wrong_rpm_metadata (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rejects_signed_but_semantically_wrong_rpm_metadata) ... ok
+test_rejects_site_key_substitution (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rejects_site_key_substitution) ... ok
+test_rejects_tampered_payload_or_metadata (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rejects_tampered_payload_or_metadata) ... ok
+test_rejects_wrong_or_duplicate_apt_release_policy_header (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rejects_wrong_or_duplicate_apt_release_policy_header) ... ok
+test_repository_setup_entrypoint_is_exact_and_in_the_site_closure (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_repository_setup_entrypoint_is_exact_and_in_the_site_closure) ... ok
+test_rpm_bootstrap_content_inspector_is_bounded_and_data_only (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_bootstrap_content_inspector_is_bounded_and_data_only) ... ok
+test_rpm_candidate_export_is_armored_for_rpm_import (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_candidate_export_is_armored_for_rpm_import) ... ok
+test_rpm_candidate_export_isolates_real_rotation_subkeys (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_candidate_export_isolates_real_rotation_subkeys) ... ok
+test_rpm_hashed_claim_must_equal_candidate_only_crypto_success (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_hashed_claim_must_equal_candidate_only_crypto_success) ... ok
+test_rpm_packet_requires_full_issuer_and_sha256_not_sha512 (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_packet_requires_full_issuer_and_sha256_not_sha512) ... ok
+test_rpm_signature_status_rejects_command_and_crypto_failures (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_rejects_command_and_crypto_failures) ... ok
+test_rpm_signature_status_requires_exact_package_header (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_requires_exact_package_header) ... 
+  test_rpm_signature_status_requires_exact_package_header (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_requires_exact_package_header) (header=b'') ... FAIL
+  test_rpm_signature_status_requires_exact_package_header (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_requires_exact_package_header) (header=b'other.rpm:\n') ... FAIL
+test_rpm_signature_status_requires_one_exact_candidate_sha256_row (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_requires_one_exact_candidate_sha256_row) ... 
+  test_rpm_signature_status_requires_one_exact_candidate_sha256_row (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_requires_one_exact_candidate_sha256_row) (status=b'    Header V4 RSA/SHA256 Signature, key ID DDDDDDDD: OK\n    Header V4 RSA/SHA256 Signature, key ID DDDDDDDD: OK\n') ... FAIL
+  test_rpm_signature_status_requires_one_exact_candidate_sha256_row (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_requires_one_exact_candidate_sha256_row) (status=b'    Header V4 RSA/SHA1 Signature, key ID DDDDDDDD: OK\n') ... FAIL
+  test_rpm_signature_status_requires_one_exact_candidate_sha256_row (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_requires_one_exact_candidate_sha256_row) (status=b'    Header V4 RSA/SHA256 Signature, key ID 00000000: OK\n') ... FAIL
+test_rpm_signature_word_in_filename_does_not_prove_a_signature (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_word_in_filename_does_not_prove_a_signature) ... FAIL
+test_rpm_valid_key_id_may_contain_bad_hexadecimal_digits (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_valid_key_id_may_contain_bad_hexadecimal_digits) ... FAIL
+test_rpm_valid_signature_is_independent_of_path_words (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_valid_signature_is_independent_of_path_words) ... 
+  test_rpm_valid_signature_is_independent_of_path_words (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_valid_signature_is_independent_of_path_words) (directory='bad') ... FAIL
+  test_rpm_valid_signature_is_independent_of_path_words (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_valid_signature_is_independent_of_path_words) (directory='NOKEY') ... FAIL
+  test_rpm_valid_signature_is_independent_of_path_words (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_valid_signature_is_independent_of_path_words) (directory='NOT OK') ... FAIL
+test_update_bootstrap_requires_new_packages_and_no_source_evidence (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_update_bootstrap_requires_new_packages_and_no_source_evidence) ... ok
+test_valid_add_release_site_is_fully_closed (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_valid_add_release_site_is_fully_closed) ... ok
+
+======================================================================
+FAIL: test_rpm_signature_status_requires_exact_package_header (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_requires_exact_package_header) (header=b'')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/tests/test_verify_production_package_site.py", line 1000, in test_rpm_signature_status_requires_exact_package_header
+    self.assertFalse(self.candidate_status(Path("fixture.rpm"), status, header=header))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_rpm_signature_status_requires_exact_package_header (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_requires_exact_package_header) (header=b'other.rpm:\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/tests/test_verify_production_package_site.py", line 1000, in test_rpm_signature_status_requires_exact_package_header
+    self.assertFalse(self.candidate_status(Path("fixture.rpm"), status, header=header))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_rpm_signature_status_requires_one_exact_candidate_sha256_row (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_requires_one_exact_candidate_sha256_row) (status=b'    Header V4 RSA/SHA256 Signature, key ID DDDDDDDD: OK\n    Header V4 RSA/SHA256 Signature, key ID DDDDDDDD: OK\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/tests/test_verify_production_package_site.py", line 1018, in test_rpm_signature_status_requires_one_exact_candidate_sha256_row
+    self.assertFalse(self.candidate_status(Path("fixture.rpm"), invalid))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_rpm_signature_status_requires_one_exact_candidate_sha256_row (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_requires_one_exact_candidate_sha256_row) (status=b'    Header V4 RSA/SHA1 Signature, key ID DDDDDDDD: OK\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/tests/test_verify_production_package_site.py", line 1018, in test_rpm_signature_status_requires_one_exact_candidate_sha256_row
+    self.assertFalse(self.candidate_status(Path("fixture.rpm"), invalid))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_rpm_signature_status_requires_one_exact_candidate_sha256_row (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_status_requires_one_exact_candidate_sha256_row) (status=b'    Header V4 RSA/SHA256 Signature, key ID 00000000: OK\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/tests/test_verify_production_package_site.py", line 1018, in test_rpm_signature_status_requires_one_exact_candidate_sha256_row
+    self.assertFalse(self.candidate_status(Path("fixture.rpm"), invalid))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_rpm_signature_word_in_filename_does_not_prove_a_signature (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_signature_word_in_filename_does_not_prove_a_signature)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/tests/test_verify_production_package_site.py", line 994, in test_rpm_signature_word_in_filename_does_not_prove_a_signature
+    self.assertFalse(self.candidate_status(Path("signature.rpm"), b"    Payload SHA256 digest: OK\n"))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_rpm_valid_key_id_may_contain_bad_hexadecimal_digits (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_valid_key_id_may_contain_bad_hexadecimal_digits)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/tests/test_verify_production_package_site.py", line 991, in test_rpm_valid_key_id_may_contain_bad_hexadecimal_digits
+    self.assertTrue(self.candidate_status(Path("fixture.rpm"), status, candidate=candidate))
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_rpm_valid_signature_is_independent_of_path_words (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_valid_signature_is_independent_of_path_words) (directory='bad')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/tests/test_verify_production_package_site.py", line 986, in test_rpm_valid_signature_is_independent_of_path_words
+    self.assertTrue(self.candidate_status(Path("/tmp") / directory / "fixture.rpm", status))
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_rpm_valid_signature_is_independent_of_path_words (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_valid_signature_is_independent_of_path_words) (directory='NOKEY')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/tests/test_verify_production_package_site.py", line 986, in test_rpm_valid_signature_is_independent_of_path_words
+    self.assertTrue(self.candidate_status(Path("/tmp") / directory / "fixture.rpm", status))
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_rpm_valid_signature_is_independent_of_path_words (tests.test_verify_production_package_site.VerifyProductionPackageSiteTest.test_rpm_valid_signature_is_independent_of_path_words) (directory='NOT OK')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/tests/test_verify_production_package_site.py", line 986, in test_rpm_valid_signature_is_independent_of_path_words
+    self.assertTrue(self.candidate_status(Path("/tmp") / directory / "fixture.rpm", status))
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 35 tests in 1.551s
+
+FAILED (failures=10)

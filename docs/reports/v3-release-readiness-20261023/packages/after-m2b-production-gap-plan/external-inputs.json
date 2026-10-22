@@ -1,0 +1,70 @@
+{
+  "status": "proposal_only_no_external_authorization",
+  "resource_budget_proposal": {
+    "amount_cny": 100,
+    "days": 7,
+    "approved": false,
+    "covered_by_existing_ecs_budget": false
+  },
+  "provider_resource_exact_fields": {
+    "account_id": null,
+    "principal_arn": null,
+    "identity_type": null,
+    "bucket": null,
+    "region": null,
+    "endpoint": null,
+    "domain": "packages.githubim.com",
+    "cname": null
+  },
+  "role_binding_note": "Use explicit uploader and activator temporary credentials/observed principals separately; same account/bucket/domain tuple, separately hashed resource bindings. No key discovery.",
+  "runtime_credential_fields": [
+    "access_key_id",
+    "access_key_secret",
+    "security_token",
+    "source_token (read-only; existing source-reader path)",
+    "package_token (read-only published facts)"
+  ],
+  "credentials_persisted_or_read_in_this_review": false,
+  "new_public_control_fields_proposed": [
+    "enabled=false until authorized",
+    "backend=oss-cdn",
+    "operation=upload or activate",
+    "channel=preview or composite",
+    "transport_inputs_sha256",
+    "transport_plan_sha256",
+    "current/retained exact audit and target identities",
+    "uploader resource binding",
+    "activator resource binding",
+    "managed_config_ids",
+    "expected_configuration_sha256"
+  ],
+  "no_self_referential_executor_sha": "Expected executor SHA is supplied to the run and checked against clean HEAD and fresh main; not embedded into its own commit.",
+  "live_inputs_still_required": {
+    "production_source_release_id": null,
+    "exact_version_source_sha": null,
+    "reviewed_candidate_and_immutable_audit_tuple": null,
+    "bucket_name_availability_owner_acl_never_versioned": null,
+    "actual_oss_data_api_reachability_default_or_custom_endpoint": null,
+    "actual_cdn_cname_scope_origin_private_auth_configs": null,
+    "managed_config_ids_before_body_digest": null,
+    "origin_role_policy_version_and_effective_scope": null,
+    "icp_ownership_dns_record_id_line_old_value_ttl_caa": null,
+    "new_packages_tls_certificate_id_san_validity_deployment": null,
+    "actual_prices_and_budget_approval": null,
+    "live_route_alias_snapshot_root_query_cache_proof": null
+  },
+  "permission_diff_corrections_to_old_resource_proposal": [
+    "Provider.observe_resource calls STS GetCallerIdentity plus OSS GetBucketInfo/GetBucketVersioning. Uploader and activator paths both call observe_resource; the latter therefore needs these bucket reads, not OSS Put/Delete.",
+    "Uploader needs existing exact-prefix PutObject/GetObject plus bucket-level identity/versioning reads; no List/Delete/ACL/versioning mutation added.",
+    "Activator needs current CDN reads, BatchSetCdnDomainConfig, RefreshObjectCaches and DescribeRefreshTaskById; ById Resource:* read is an explicit exception, not falsely domain scoped.",
+    "Private origin role, TLS/DNS and provisioning policy remain separately reviewed external diffs; no RAM management rights in the daily publisher."
+  ],
+  "facts_not_to_guess": [
+    "actual ARN/UID/token expiration",
+    "new bucket existence/name availability",
+    "CDN CNAME from docs domain",
+    "private-origin function args/role policy",
+    "custom OSS endpoint requirements",
+    "fresh full task aggregation beyond observed M2b sample"
+  ]
+}

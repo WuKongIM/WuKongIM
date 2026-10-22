@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_*.py"
+  ],
+  "exit_code": 0,
+  "deadline_seconds": 600,
+  "elapsed_seconds": 139.507,
+  "terminal": true
+}

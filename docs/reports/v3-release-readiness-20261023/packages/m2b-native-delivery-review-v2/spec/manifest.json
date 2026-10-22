@@ -1,0 +1,46 @@
+{
+  "schema": "wukongim.finite_public_review/v1",
+  "axis": "Spec",
+  "files": [
+    {
+      "path": "report.md",
+      "bytes": 2363,
+      "sha256": "fbf9c799042390b0c1615ca607def39e40a4f15a78d05f661ca8c1e9369a7958"
+    },
+    {
+      "path": "findings.json",
+      "bytes": 1314,
+      "sha256": "9b96ec9777d565057816dda1e93c080e6139074938019e98c069c2743d9a4b2e"
+    },
+    {
+      "path": "source-binding.json",
+      "bytes": 6124,
+      "sha256": "13e7f09ee9830fff8ca7e72a1d41a0fa69284fe98dab90b0c329d508c7f0486b"
+    },
+    {
+      "path": "bounded_probe.py",
+      "bytes": 3874,
+      "sha256": "db99f2079da3be8cb59a8299d4f5ea3b5bcb809fa1b3901ef453bd04344577d1"
+    },
+    {
+      "path": "bounded-probes.json",
+      "bytes": 6072,
+      "sha256": "13e990d0f6afbad58e676ff9777e1194362aadca0321a47315beebf2d9fdfce4"
+    },
+    {
+      "path": "check_public_receipt.py",
+      "bytes": 4967,
+      "sha256": "6ee5aeba1e6503c2effdbd0ab9be9505e721c27e9ecdd3718cc3d94f8e45aa7b"
+    },
+    {
+      "path": "public-receipt-verification.json",
+      "bytes": 4785,
+      "sha256": "3d7651f3b300dd7f9ebba9d55f9426a4bdd4077ed97644844646fc335cebca58"
+    },
+    {
+      "path": "probe-method-correction.json",
+      "bytes": 631,
+      "sha256": "9d08036ee73963887ea566096fa46dce939871bd2f4f0b0d2e60059716f752f0"
+    }
+  ]
+}

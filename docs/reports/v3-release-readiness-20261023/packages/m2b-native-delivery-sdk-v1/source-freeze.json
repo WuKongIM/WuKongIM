@@ -1,0 +1,52 @@
+{
+  "schema": "wukongim.frozen-source/v1",
+  "base": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "base_tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk",
+  "branch": "codex/native-delivery-sdk",
+  "files": [
+    {
+      "path": "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "sha256": "3d9512ae4b0024de4dd0dbec2a395e3d94c3e67d377fd6f27ec180fc51c289a0",
+      "bytes": 27422
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "sha256": "dadf907845abb09c3374dd2cd57b2ab6a84f8e6a3130ec2f232921c1a8b4e7a2",
+      "bytes": 55926
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "sha256": "6240e56b9fd43b01d02d7ca2ac3b5bd41b108bed9c9cedf53d5756baf2a92210",
+      "bytes": 19236
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "sha256": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+      "bytes": 21899
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "sha256": "c1062fef4d675425cfbe2665f310f15ad59e39637b6e7227a2a5e5fd70688027",
+      "bytes": 21249
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "e91f5ad28e6c30135f4ed3f3be2c7cbbd3a42a38e2bedf7a8f7e9c1bb26887ed",
+      "bytes": 4426
+    },
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "sha256": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8",
+      "bytes": 28828
+    }
+  ],
+  "patch_sha256": "c4c90a6fc27d8f0ce3ae5567f3b1c3f27b5885a64eaba8fc31f4095e9d8574b8",
+  "patch_bytes": 62497,
+  "scope_exact": true,
+  "untracked": [
+    "tests/provider_sdk/native_object_delivery_sdk_drill.py"
+  ],
+  "commits_created": false,
+  "validation_status": "native20 SDK46 input13 contract4 terminal green; default pending"
+}

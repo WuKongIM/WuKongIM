@@ -1,0 +1,106 @@
+{
+  "frozen_at": "2026-10-21T21:21:24.966500+00:00",
+  "read_only_worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-route-compiler",
+  "worktree_sha": "1fb1c6ea077fd260c373434c1a3c368a7952defd",
+  "live_main_sha": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "shared_tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "worktree_clean": true,
+  "files": {
+    "scripts/aliyun-object-storage-provider.py": {
+      "sha256": "17ca5ff3878ccaf838f70e77b909b70b6920c3fd644ad010e24c59bb8ffa332d",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/scripts/aliyun-object-storage-provider.py#L1"
+    },
+    "scripts/verify-object-storage-delivery-inputs.py": {
+      "sha256": "6d938a0922fc13a0b485d6c44dd4eb4492714e5b3495c9f03b181935f604b0c2",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/scripts/verify-object-storage-delivery-inputs.py#L1"
+    },
+    "scripts/verify-stable-seal-inputs.py": {
+      "sha256": "e84b8f6f44dc69f75b5e6a10967536c186fdd18c6d92256fd7d77b0e35b85b2e",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/scripts/verify-stable-seal-inputs.py#L1"
+    },
+    "scripts/resolve-source-release.py": {
+      "sha256": "5102851ab7b8ae84b3e8f1c6e5466fc7c9e7774ff6cee5f86530af57d7d5f0f9",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/scripts/resolve-source-release.py#L1"
+    },
+    "scripts/resolve-audit-release.py": {
+      "sha256": "553af0b22f37b4120c3b206a6f67d7035c483501289fac5e9824ad4ddc59e4cb",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/scripts/resolve-audit-release.py#L1"
+    },
+    "scripts/verify-source-attestations.py": {
+      "sha256": "410aaa7cbe9b04220209803ec7c39a66ef176bc95aa69d6d3c8158c1836b6ea0",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/scripts/verify-source-attestations.py#L1"
+    },
+    "scripts/validate-production-package-clients.py": {
+      "sha256": "e32d0dc4eb8f8312900c5c4a332d89fc41e75101944dfaef7dd8b5724a7e6ecc",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/scripts/validate-production-package-clients.py#L1"
+    },
+    "scripts/prepare-object-storage-delivery.py": {
+      "sha256": "54519dba7c7a1a85d8efc67cc0811d1f533e9e61068eb1c1e5b8c5f4f854f401",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/scripts/prepare-object-storage-delivery.py#L1"
+    },
+    "scripts/plan-object-storage-publication.py": {
+      "sha256": "db2b238c930a8502dc7aaef9766ada53d2e4f69bc5e7fadddf37078bb0ca8200",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/scripts/plan-object-storage-publication.py#L1"
+    },
+    "scripts/validate-control.py": {
+      "sha256": "e7f14650634f3c24c2c67fdda6b3a7aa944ef22173f48f7cf0e17d98d9163c7b",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/scripts/validate-control.py#L1"
+    },
+    "scripts/compose-package-site.py": {
+      "sha256": "cfe6190bff223b5e1b9eb6fa7df994cbbb33e54f626802df8ed26e73bc3a9da7",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/scripts/compose-package-site.py#L1"
+    },
+    "docs/release-contract.md": {
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/docs/release-contract.md#L1"
+    },
+    "docs/stable-audit-transport.md": {
+      "sha256": "cc28ac4749635c27ead05fd0ee0b2a50d532b5fa268d23bbd36c918ad6fd8ebb",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/docs/stable-audit-transport.md#L1"
+    },
+    "docs/object-storage-delivery.md": {
+      "sha256": "e95cc87b2d9ee8fe5d10847b758fbaf7c6177081ce57d228cf7e689f58119a5b",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/docs/object-storage-delivery.md#L1"
+    },
+    "manifests/channels.json": {
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/manifests/channels.json#L1"
+    },
+    "manifests/source-read.json": {
+      "sha256": "f46fe185c34c584e9de88e0e774af0c8e1ba606f44c721766aa9cff58c0320d8",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/manifests/source-read.json#L1"
+    },
+    "manifests/audit-access.json": {
+      "sha256": "2189140012922529dc17d68fc486b2dadc254562602aea6d0b851885bbf1735d",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/manifests/audit-access.json#L1"
+    },
+    ".github/workflows/source-release-preflight.yml": {
+      "sha256": "8a0608868512afe733c39c0311b24292205525dc5ea5c1865c33228f70b3208b",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/.github/workflows/source-release-preflight.yml#L1"
+    },
+    ".github/workflows/native-package-cli-acceptance.yml": {
+      "sha256": "5beeee2ab26acc16bbe10ef318f75cb37182ecb5b68630856d9a5273892aa814",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/.github/workflows/native-package-cli-acceptance.yml#L1"
+    },
+    ".github/workflows/object-storage-provider-contract.yml": {
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "github_url": "https://github.com/WuKongIM/packages/blob/7255102de81b45c23d52e908ccdde1b7799ee3f5/.github/workflows/object-storage-provider-contract.yml#L1"
+    }
+  },
+  "applicable_rules": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  "packages_AGENTS_FLOW": [],
+  "source_reports": {
+    "storage-resource-proposal/proposal.md": "d3164f6a4410003692d68ff35863311ba7b852856f7a7e7e106b314ada6df4f1",
+    "storage-current-readonly/README.md": "704cdba4ca5aafda964b62487485b0d791204c36ac5a457b33db1474db2d4305",
+    "storage-readonly-followup/README.md": "05872bc7d8c1075f7f36cda628bcc2b0fa424136193ca6d7f65b8cfcf7418759",
+    "provider-m2b-plan/README.md": "58f6ed0cfaf56b37a88de781eb1e15a6e0e9e9744e68b5722b5e332598937fac",
+    "provider-native-route-plan-review/reviewed-plan.md": "34908f697987f96ada73e999a9c851ad72b15f8d4540709134f3c4c66e8cfc8a",
+    "m2b-refresh-design-review/README.md": "9fe7e2c3d2b9809163157f2fe4557aaa33bb39132057b38ba271f9a68a6fae25"
+  },
+  "m2b_author_worktree_accessed": false,
+  "tests_run": false,
+  "cloud_calls": false,
+  "private_key_keychain_nas_access": false
+}

@@ -1,0 +1,133 @@
+test_actual_staged_edit_refuses_before_any_http (__main__.FreshRealGit.test_actual_staged_edit_refuses_before_any_http) ... ERROR
+test_actual_tracked_helper_edit_refuses_before_any_http (__main__.FreshRealGit.test_actual_tracked_helper_edit_refuses_before_any_http) ... ERROR
+test_actual_untracked_file_refuses_before_any_http (__main__.FreshRealGit.test_actual_untracked_file_refuses_before_any_http) ... ERROR
+test_clean_executor_reaches_real_fresh_transport_then_refuses_current_main_drift (__main__.FreshRealGit.test_clean_executor_reaches_real_fresh_transport_then_refuses_current_main_drift) ... ERROR
+test_committed_changed_source_is_not_old_executor (__main__.FreshRealGit.test_committed_changed_source_is_not_old_executor) ... ERROR
+test_original_plan_digest_and_test_only_input_refuse_without_http (__main__.FreshRealGit.test_original_plan_digest_and_test_only_input_refuse_without_http) ... ERROR
+test_wrong_head_refuses_before_any_http (__main__.FreshRealGit.test_wrong_head_refuses_before_any_http) ... ERROR
+setUpClass (__main__.ProbeTLS) ... ERROR
+
+======================================================================
+ERROR: test_actual_staged_edit_refuses_before_any_http (__main__.FreshRealGit.test_actual_staged_edit_refuses_before_any_http)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/provider_sdk/test_object_storage_publication.py", line 55, in setUp
+    self.p = load(self.repo / 'scripts/publish-object-storage-delivery.py')
+             ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-publication-git-9ef4amyn/executor/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_actual_tracked_helper_edit_refuses_before_any_http (__main__.FreshRealGit.test_actual_tracked_helper_edit_refuses_before_any_http)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/provider_sdk/test_object_storage_publication.py", line 55, in setUp
+    self.p = load(self.repo / 'scripts/publish-object-storage-delivery.py')
+             ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-publication-git-yoflwee8/executor/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_actual_untracked_file_refuses_before_any_http (__main__.FreshRealGit.test_actual_untracked_file_refuses_before_any_http)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/provider_sdk/test_object_storage_publication.py", line 55, in setUp
+    self.p = load(self.repo / 'scripts/publish-object-storage-delivery.py')
+             ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-publication-git-hl3ptijt/executor/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_clean_executor_reaches_real_fresh_transport_then_refuses_current_main_drift (__main__.FreshRealGit.test_clean_executor_reaches_real_fresh_transport_then_refuses_current_main_drift)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/provider_sdk/test_object_storage_publication.py", line 55, in setUp
+    self.p = load(self.repo / 'scripts/publish-object-storage-delivery.py')
+             ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-publication-git-yja8n0j3/executor/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_committed_changed_source_is_not_old_executor (__main__.FreshRealGit.test_committed_changed_source_is_not_old_executor)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/provider_sdk/test_object_storage_publication.py", line 55, in setUp
+    self.p = load(self.repo / 'scripts/publish-object-storage-delivery.py')
+             ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-publication-git-x1gs4oyx/executor/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_original_plan_digest_and_test_only_input_refuse_without_http (__main__.FreshRealGit.test_original_plan_digest_and_test_only_input_refuse_without_http)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/provider_sdk/test_object_storage_publication.py", line 55, in setUp
+    self.p = load(self.repo / 'scripts/publish-object-storage-delivery.py')
+             ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-publication-git-psjcct25/executor/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: test_wrong_head_refuses_before_any_http (__main__.FreshRealGit.test_wrong_head_refuses_before_any_http)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/provider_sdk/test_object_storage_publication.py", line 55, in setUp
+    self.p = load(self.repo / 'scripts/publish-object-storage-delivery.py')
+             ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-publication-git-eaz8_1gm/executor/scripts/publish-object-storage-delivery.py'
+
+======================================================================
+ERROR: setUpClass (__main__.ProbeTLS)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/provider_sdk/test_object_storage_publication.py", line 141, in setUpClass
+    cls.p = load()
+            ~~~~^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_publication.py", line 20, in load
+    spec.loader.exec_module(value)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1159, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/scripts/publish-object-storage-delivery.py'
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.532s
+
+FAILED (errors=8)

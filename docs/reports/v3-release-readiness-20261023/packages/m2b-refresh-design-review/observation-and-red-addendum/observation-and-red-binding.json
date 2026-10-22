@@ -1,0 +1,60 @@
+{
+  "observed_at_utc": "2026-10-21T21:13:42.970628+00:00",
+  "live_observation_manifest_sha256": "f6630eb65c38160857514435837baf8db78befc9232b60a527b2b39e022efea2",
+  "live_observation_files": [
+    {
+      "path": "README.md",
+      "bytes": 1533,
+      "sha256": "6a7c3584d008756365146fd745b7086df19709586921b20aaf8e791b67885d74",
+      "verified": true
+    },
+    {
+      "path": "observed-response.json",
+      "bytes": 1090,
+      "sha256": "ae07ec20cb799114c19a9b711e3d1c29113cc5f68fbd11ef08e81534cbba4121",
+      "verified": true
+    },
+    {
+      "path": "provenance.json",
+      "bytes": 1567,
+      "sha256": "6607e5c1fb6a8cd17a6968663ef074a5813a6edd7c0252b8e9d4e5496d959851",
+      "verified": true
+    }
+  ],
+  "observed_shape_verified_in_retained_ui_archive": true,
+  "capture_boundary": "Official Explorer visible troubleshooting-link JSON; not raw network bytes. This reviewer read the archive only, did not query API or inspect browser.",
+  "query_request_id": "01A16048-EE37-5932-9795-C364DE421ADB",
+  "task_id": "33643947491",
+  "row_count": 4,
+  "red_files": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-review-red-receipt.json",
+      "bytes": 3330,
+      "sha256": "b9acecca2be0abe61765cbd510a48bcf2b458eb28a7a3be77b70c7efef339952"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-review-red-tests.py",
+      "bytes": 53210,
+      "sha256": "14003e39ca7c87fc58c260ab2b187ca0140487cb6bc8770eb153413a6c998def"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-review-red.json",
+      "bytes": 400,
+      "sha256": "8d5a2c3b7e2825c03fcf307a58e84b05ea40631f156afcc9b7a6a5f1f2004513"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/refresh-review-red.log",
+      "bytes": 24033,
+      "sha256": "7388484a8a59525dd5d5a8d4dd6f662d38533ef3d0e6154dc4df776442ac47e7"
+    }
+  ],
+  "red_summary": {
+    "checkout_sha": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+    "errors": 4,
+    "failures": 6,
+    "provider_network_allowed": false,
+    "skips": 0,
+    "tests": 43
+  },
+  "red_interpretation": "43methodtests,4error events and6failure events may include subtests; these counts do not imply10distinct failed methods. Existing original RED remains unchanged."
+}

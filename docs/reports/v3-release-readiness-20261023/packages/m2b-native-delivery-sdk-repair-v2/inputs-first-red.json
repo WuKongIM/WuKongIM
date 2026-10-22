@@ -1,0 +1,18 @@
+{
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_object_storage_delivery_inputs.py",
+    "-v"
+  ],
+  "exit_code": 1,
+  "terminal": true,
+  "elapsed_seconds": 2.030955374997575,
+  "implementation_unchanged_from_v1": true
+}

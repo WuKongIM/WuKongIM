@@ -1,0 +1,45 @@
+{
+  "base": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "v1_manifest_sha256": "a12f9023191e60eda02aea80f4ed519155fa64836e5ab59541204aeee8017a53",
+  "v1_source_freeze_sha256": "123aa28a8aa8e38e8f3f3a53298b4201825db6e2f578dfbb984770375f21d831",
+  "source_scope": [
+    {
+      "path": "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "sha256": "3d9512ae4b0024de4dd0dbec2a395e3d94c3e67d377fd6f27ec180fc51c289a0",
+      "bytes": 27422
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "sha256": "dadf907845abb09c3374dd2cd57b2ab6a84f8e6a3130ec2f232921c1a8b4e7a2",
+      "bytes": 55926
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "sha256": "6240e56b9fd43b01d02d7ca2ac3b5bd41b108bed9c9cedf53d5756baf2a92210",
+      "bytes": 19236
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "sha256": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+      "bytes": 21899
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "sha256": "c1062fef4d675425cfbe2665f310f15ad59e39637b6e7227a2a5e5fd70688027",
+      "bytes": 21249
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "e91f5ad28e6c30135f4ed3f3be2c7cbbd3a42a38e2bedf7a8f7e9c1bb26887ed",
+      "bytes": 4426
+    },
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "sha256": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8",
+      "bytes": 28828
+    }
+  ],
+  "spec_report_sha256": "ddf95324b74ccfaa95083a7d44f2fbd58ffc1da57dae7713a5cb2be8e8cee67d",
+  "no_source_changes_yet": true
+}

@@ -1,0 +1,20 @@
+{
+  "source_sha256": "3d9512ae4b0024de4dd0dbec2a395e3d94c3e67d377fd6f27ec180fc51c289a0",
+  "scope": "Two bounded stdlib helper probes, no SDK import, cloud request or full suite; no source changes.",
+  "probes": [
+    {
+      "name": "unexpected_socket_inside_refused",
+      "network_connect_intercepted": 1,
+      "actual_socket_connect_calls": 0,
+      "refused_returned_normally": true,
+      "expected_by_driver_failure_spec": "unexpected network attempt must fail driver, not satisfy expected-refusal case"
+    },
+    {
+      "name": "cleanup_failure_after_stage_error",
+      "outer_exception": "PermissionError",
+      "receipt_exists": false,
+      "owned_scratch_still_exists_before_probe_cleanup": true,
+      "expected_by_driver_failure_spec": "preserve incomplete receipt and original stage even when cleanup fails"
+    }
+  ]
+}

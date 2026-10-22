@@ -1,0 +1,9 @@
+{
+  "head": "62868baf1a48a7d94dea402dff914447ae3460c3",
+  "tree": "3ab1172b2745ccfcfe396470dafb4df045651f83",
+  "branch": "codex/native-delivery-sdk",
+  "status": "",
+  "created_pull_request": null,
+  "merge_authorization": "Standing user authorization: future reviewed/validated PRs may merge without repeated confirmation.",
+  "ci_acceptance": "pending; separate first-generation receipts required"
+}

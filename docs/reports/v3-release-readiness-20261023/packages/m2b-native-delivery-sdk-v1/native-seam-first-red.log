@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import importlib.util;from types import SimpleNamespace;from pathlib import Path;s=importlib.util.spec_from_file_location('d','tests/provider_sdk/native_object_delivery_sdk_drill.py');d=importlib.util.module_from_spec(s);s.loader.exec_module(d);d.native_cases(SimpleNamespace(public_dir=Path('/tmp/wukongim-v3-readiness-20261021/packages/provider-preview-fixture-implementation/ci-init-native-1'),expected_export_source='be32eb375e3c77dc5b3d1070fd798c281ae2d3bc'),{'cases':[]})
+                                                                                                                                                                                                                                                         ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-native-delivery-sdk/tests/provider_sdk/native_object_delivery_sdk_drill.py", line 37, in native_cases
+    exports=read_public_exports(args.public_dir,args.expected_export_source)
+            ^^^^^^^^^^^^^^^^^^^
+NameError: name 'read_public_exports' is not defined

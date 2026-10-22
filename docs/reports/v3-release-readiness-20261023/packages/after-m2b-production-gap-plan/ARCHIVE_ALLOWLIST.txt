@@ -1,0 +1,8 @@
+README.md
+failure-matrix.md
+external-inputs.json
+official-sources.md
+github-observation.json
+source-freeze.json
+ARCHIVE_ALLOWLIST.txt
+SHA256SUMS

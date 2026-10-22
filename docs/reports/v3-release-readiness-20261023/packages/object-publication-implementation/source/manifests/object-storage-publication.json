@@ -1,0 +1,14 @@
+{
+  "schema": "wukongim.object_storage_publication/v1",
+  "enabled": false,
+  "backend": "aliyun_oss_cdn",
+  "operation": null,
+  "channel": null,
+  "inputs_sha256": null,
+  "plan_sha256": null,
+  "targets": null,
+  "uploader": null,
+  "activator": null,
+  "expected_configuration_sha256": null,
+  "managed_config_ids": null
+}

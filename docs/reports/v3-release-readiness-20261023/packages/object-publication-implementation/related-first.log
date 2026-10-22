@@ -1,0 +1,27 @@
+test_object_storage_delivery_inputs (unittest.loader._FailedTest.test_object_storage_delivery_inputs) ... ERROR
+test_any_non_null_disabled_binding_refused (tests.test_object_storage_publication.DisabledPublication.test_any_non_null_disabled_binding_refused) ... ok
+test_both_operations_refuse_before_reading_missing_inputs_or_writing_output (tests.test_object_storage_publication.DisabledPublication.test_both_operations_refuse_before_reading_missing_inputs_or_writing_output) ... ok
+test_checked_in_control_is_exactly_disabled_and_unknown (tests.test_object_storage_publication.DisabledPublication.test_checked_in_control_is_exactly_disabled_and_unknown) ... ok
+test_cli_has_no_override_for_provenance_control_credentials_or_tls (tests.test_object_storage_publication.DisabledPublication.test_cli_has_no_override_for_provenance_control_credentials_or_tls) ... ok
+test_control_json_requires_single_keys_bounded_regular_file (tests.test_object_storage_publication.DisabledPublication.test_control_json_requires_single_keys_bounded_regular_file) ... ok
+test_enabled_control_does_not_unlock_unimplemented_production (tests.test_object_storage_publication.DisabledPublication.test_enabled_control_does_not_unlock_unimplemented_production) ... ok
+test_integration_workflow_explicitly_runs_non_discovered_suite (tests.test_object_storage_publication.DisabledPublication.test_integration_workflow_explicitly_runs_non_discovered_suite) ... ok
+test_probe_rejects_unsafe_request_or_resource_before_transport (tests.test_object_storage_publication.DisabledPublication.test_probe_rejects_unsafe_request_or_resource_before_transport) ... ok
+test_schema_backend_extra_fields_and_non_boolean_authority_refused (tests.test_object_storage_publication.DisabledPublication.test_schema_backend_extra_fields_and_non_boolean_authority_refused) ... ok
+
+======================================================================
+ERROR: test_object_storage_delivery_inputs (unittest.loader._FailedTest.test_object_storage_delivery_inputs)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_object_storage_delivery_inputs
+Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/loader.py", line 137, in loadTestsFromName
+    module = __import__(module_name)
+  File "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-object-publication/tests/test_object_storage_delivery_inputs.py", line 12, in <module>
+    from test_stable_seal_inputs import GitObjects, HEAD, HISTORY, TREE
+ModuleNotFoundError: No module named 'test_stable_seal_inputs'
+
+
+----------------------------------------------------------------------
+Ran 10 tests in 1.152s
+
+FAILED (errors=1)

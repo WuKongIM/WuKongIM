@@ -1,0 +1,142 @@
+{
+  "schema": "wukongim.spec-review-binding/v1",
+  "axis": "Spec",
+  "completed_at_utc": "2026-10-22T17:17:15.466439+00:00",
+  "base": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "head": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "tree": "cd49a22102235d60bda1a703a5b1145ab112c40e",
+  "diff_command": "git diff 7255102de81b45c23d52e908ccdde1b7799ee3f5 --",
+  "tracked_diff_sha256": "ba465186dd9e93e09b3e357a4c635fa5c173ca746e2c9bce89cdd5b2ca5a318a",
+  "untracked_command": "git ls-files --others --exclude-standard",
+  "untracked": [],
+  "commit_list": [],
+  "files": [
+    {
+      "path": "scripts/verify-production-package-site.py",
+      "sha256": "aed022731b14eb58ba58150d48083473c12fc6801003518723b771f85eff072b",
+      "bytes": 77446,
+      "initial_sha256": "aed022731b14eb58ba58150d48083473c12fc6801003518723b771f85eff072b",
+      "final_sha256": "aed022731b14eb58ba58150d48083473c12fc6801003518723b771f85eff072b",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_verify_production_package_site.py",
+      "sha256": "5abf2d0cd14479697414d30020043421af620a36347a62a865faf5fc7f3b3006",
+      "bytes": 51330,
+      "initial_sha256": "5abf2d0cd14479697414d30020043421af620a36347a62a865faf5fc7f3b3006",
+      "final_sha256": "5abf2d0cd14479697414d30020043421af620a36347a62a865faf5fc7f3b3006",
+      "unchanged": true
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "6e68a918b61a48c56a5308ba96bf83c6b59709def6784365f261ff5f896b77ad",
+      "bytes": 4335,
+      "initial_sha256": "6e68a918b61a48c56a5308ba96bf83c6b59709def6784365f261ff5f896b77ad",
+      "final_sha256": "6e68a918b61a48c56a5308ba96bf83c6b59709def6784365f261ff5f896b77ad",
+      "unchanged": true
+    }
+  ],
+  "inputs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/failure-matrix.md",
+      "sha256": "0198e350ed083856d675d0b9a4e0f8392407f8f584a234d7ad68e9bdcb42abca",
+      "bytes": 1476
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/source-freeze.json",
+      "sha256": "a7794bca01f11476c9b93b2daa3a20a850cb6615bdc69c8ea8a77410e18dcfb7",
+      "bytes": 867
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/implementation.patch",
+      "sha256": "ba465186dd9e93e09b3e357a4c635fa5c173ca746e2c9bce89cdd5b2ca5a318a",
+      "bytes": 6275
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/focused-first-red.json",
+      "sha256": "86b1368059f8ff949ccad9f6515b18d0d67a544c91818e5170ea7fb9d419761b",
+      "bytes": 363
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/focused-first-red.log",
+      "sha256": "d7b74ae959abc219e0800cf3ed835d4f5fcd7991e998325da53a7580429076ff",
+      "bytes": 17451
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/focused-green.json",
+      "sha256": "94b36b454c54240289c2fb2fbf5be71506fc117ddef90924cf29e04a6d2e8011",
+      "bytes": 278
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/focused-green.log",
+      "sha256": "7727825cf1d15d378c44455ce92bc660ca03e1b088c73b6c997377fad336b03a",
+      "bytes": 7044
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/native-result.json",
+      "sha256": "b8c432a5698c8566b90e93b9d7e45c60dfe660c50f55c55f67100adaa093c829",
+      "bytes": 1762
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/native-command.json",
+      "sha256": "0819a09412ec940b0f12f08e5b654a4412cc478a3b0d9438d778dfccbac22b80",
+      "bytes": 1189
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/native-rpm-path-probe.py",
+      "sha256": "fc6c2e22280e89b5a93008e389b0fcd1416b718f38628ce65603b19d509585a2",
+      "bytes": 2660
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/default-first.json",
+      "sha256": "39c5dd3674a0cb777e63ed9fc768881bb2c6ed876cd04c83658e98b9dc159403",
+      "bytes": 198
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/default-first.log",
+      "sha256": "560ec17477f255507933ff0939af0df77e4ec345d0cc16affbce32a320d533a3",
+      "bytes": 2309
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/contracts-first.json",
+      "sha256": "dd09d9c4db4f131baf9852cc2c43c074b69cb953dfd98afc925706e089c007ff",
+      "bytes": 117
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/packages/rpm-signature-status-fix-v1/contracts-first.log",
+      "sha256": "a6173884c66c1c796331db47079cffe2a89301226aba5112c2b74e7fc2ce5070",
+      "bytes": 176
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-repair-v2/native-diagnostic/path-pair/result.json",
+      "sha256": "14f22b1a13fea15ac29e145c7215562a47f65722fbd3cd27d73712357b911434",
+      "bytes": 955
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-repair-v2/native-diagnostic/path-pair/rpm-observations.jsonl",
+      "sha256": "7c0a4282834baaf5990efec3ec31a246c962f2a0a65df8695ca8062fc4f44eb9",
+      "bytes": 6997
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "bytes": 47357
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/packages-rpm-signature-status/manifests/signing-toolchain.json",
+      "sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99",
+      "bytes": 295
+    }
+  ],
+  "flow_discovery": "No AGENTS.md, FLOW.md or CONTEXT.md in independent packages worktree.",
+  "constraints": {
+    "source_modified": false,
+    "standards_report_read": false,
+    "native_tests_rerun": false,
+    "cloud_calls": 0,
+    "network_calls": 0,
+    "containers_started": 0,
+    "bounded_parser_replays": 15,
+    "source_unchanged": true
+  }
+}

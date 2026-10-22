@@ -1,0 +1,20 @@
+#!/usr/bin/python3
+import json,os,sys,subprocess,time,hashlib
+from pathlib import Path
+name=Path(sys.argv[0]).name
+real='/usr/bin/'+name
+assert name in ('rpm','rpmkeys') and Path(real).is_file()
+def cg():
+ result={}
+ for n in ('memory.events','pids.current','pids.max','pids.events'):
+  p=Path('/sys/fs/cgroup')/n
+  result[n]=p.read_text() if p.exists() else None
+ return result
+before=cg();started=time.monotonic()
+p=subprocess.run([real,*sys.argv[1:]],capture_output=True)
+row={'argv':[real,*sys.argv[1:]],'exit_code':p.returncode,'elapsed_seconds':time.monotonic()-started,'cgroup_before':before,'cgroup_after':cg()}
+for k,b in [('stdout',p.stdout),('stderr',p.stderr)]:
+ row[k]=b[:16384].decode('utf-8','replace');row[k+'_size']=len(b);row[k+'_sha256']=hashlib.sha256(b).hexdigest();row[k+'_truncated']=len(b)>16384
+with open(os.environ['WK_DIAGNOSTIC_LOG'],'a') as f:f.write(json.dumps(row,separators=(',',':'))+'\n')
+sys.stdout.buffer.write(p.stdout);sys.stderr.buffer.write(p.stderr)
+sys.exit(p.returncode)

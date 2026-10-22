@@ -1,0 +1,56 @@
+{
+  "axis": "Spec",
+  "finding_count": 3,
+  "open_findings": [
+    {
+      "id": "SPEC-P2-1",
+      "priority": 2,
+      "title": "Retain verifiable object/configuration/refresh facts",
+      "file": "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "line_start": 360,
+      "line_end": 363,
+      "category": "missing required evidence",
+      "spec": {
+        "path": "/tmp/wukongim-v3-readiness-20261021/packages/provider-m2b-plan/README.md",
+        "line": 48,
+        "quote": "公开收据绑定 exact source/lock/image/tools、每个object及观测PUT/GET、全部config before/after、URL完整集合/拒绝原因、部分副作用和cleanup。"
+      },
+      "observed": "The 354 rows in the successful public SDK receipt contain only method/action/object_key. GET readback facts, configuration before/after, and exact refresh URL/task coverage are not retained. They exist in local execution assertions; counts are not equivalent reviewable evidence. The work bundle is removed and not uploaded by CI.",
+      "minimal_remedy": "Persist bounded sanitized per-generation object manifest and actual PUT/full-GET facts, complete configuration before/after/readback and exact refresh URLs/task rows; omit headers/tokens/raw signed URLs. Preserve partial facts on failure."
+    },
+    {
+      "id": "SPEC-P2-2",
+      "priority": 2,
+      "title": "Fail the SDK stage on an unexpected blocked socket attempt",
+      "file": "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "line_start": 397,
+      "line_end": 399,
+      "category": "incorrect failure semantics",
+      "spec": {
+        "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/failure-matrix.md",
+        "line": 28,
+        "quote": "socket尝试、cleanup失败、日志超限 | driver非零、always有限收据"
+      },
+      "observed": "The network guard raises RuntimeError, which refused() accepts. The helper probe intercepted one unexpected connect and refused() returned normally; zero actual connects occurred. Provider exception wrapping can also convert the guard error to ProviderError/ValueError, so narrowing refused() alone is insufficient.",
+      "minimal_remedy": "Keep a bounded guard-attempt counter outside exception classification. Separate the intentional guard self-check, then require zero unexpected attempts for the entire SDK stage, with incomplete receipt and nonzero outcome on violation."
+    },
+    {
+      "id": "SPEC-P2-3",
+      "priority": 2,
+      "title": "Write an incomplete receipt even if scratch cleanup fails",
+      "file": "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "line_start": 410,
+      "line_end": 414,
+      "category": "incorrect failure semantics",
+      "spec": {
+        "path": "/tmp/wukongim-v3-readiness-20261021/packages/m2b-native-delivery-sdk-v1/failure-matrix.md",
+        "line": 28,
+        "quote": "cleanup失败、日志超限 | driver非零、always有限收据"
+      },
+      "observed": "shutil.rmtree() in finally can raise before output.write_bytes(). The probe injected a prior stage ValueError then a cleanup PermissionError: main raised PermissionError and no receipt existed. This loses the original failure and any side-effect observations.",
+      "minimal_remedy": "Capture cleanup failure separately, mark incomplete/scratch_removed=false, preserve the original stage error and attempts, and still serialize the bounded receipt before returning nonzero."
+    }
+  ],
+  "refresh_contract_new_findings": 0,
+  "scope_creep_findings": 0
+}

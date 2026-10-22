@@ -1,0 +1,8 @@
+{
+  "payload_count": 2,
+  "payload_bytes": 4582,
+  "manifest_sha256": "3a5bca04038af9eeb17cb2e8eab98bd3d5e75d223ff528b8f7dc969d7a7b700a",
+  "allowlist_sha256": "6633f1e0dab0e1a791ee94463dd5c1699b0b70ddc3850306c537ab11113a8276",
+  "completed_at_utc": "2026-10-21T21:13:42.971614+00:00",
+  "design_implementable": true
+}
