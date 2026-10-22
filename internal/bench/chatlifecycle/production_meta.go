@@ -133,7 +133,12 @@ func metaCheckpointFailure(reason string, cause error) error {
 	case errors.Is(cause, context.DeadlineExceeded):
 		reason = "context_deadline"
 	}
-	return newFinalizationError("meta_checkpoint", reason, cause)
+	diagnostic := FinalizationFailure{Stage: "meta_checkpoint", Reason: reason}
+	var metricsFailure *productionMetaMetricsFailure
+	if reason == "metrics_fetch" && errors.As(cause, &metricsFailure) && metricsFailure != nil {
+		diagnostic.MetricsFetch = metricsFailure.diagnostic.bounded()
+	}
+	return &finalizationError{diagnostic: diagnostic, cause: cause}
 }
 
 // collectSettledMetrics gives authoritative counters one short bounded window
@@ -289,11 +294,11 @@ func collectProductionMetaMetrics(
 			results <- result{index: index, snapshot: snapshot, err: err}
 		}()
 	}
-	failed := false
+	var causes [coordinatorWorkerCount]error
 	for range coordinatorWorkerCount {
 		result := <-results
 		if result.err != nil {
-			failed = true
+			causes[result.index] = result.err
 		} else {
 			snapshots[result.index] = result.snapshot
 		}
@@ -301,8 +306,15 @@ func collectProductionMetaMetrics(
 	if err := ctx.Err(); err != nil {
 		return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
 	}
-	if failed {
-		return [coordinatorWorkerCount]target.MetricsSnapshot{}, ErrLifecycleHarnessInvalid
+	failure := productionMetaMetricsFailure{causes: causes}
+	for index, cause := range causes {
+		if cause != nil {
+			failure.diagnostic.SourceMask |= 1 << index
+			failure.diagnostic.Kinds[index] = target.MetricsFailure(cause)
+		}
+	}
+	if failure.diagnostic.SourceMask != 0 {
+		return [coordinatorWorkerCount]target.MetricsSnapshot{}, &failure
 	}
 	return snapshots, nil
 }

@@ -1963,6 +1963,13 @@ specification, runbook, report, or module documentation; link to them when neede
   same closed diagnostic envelope. They retain private cause chains, the
   three-source join and existing bounded settle attempts. These diagnostics
   cannot reconstruct missing worker vectors or certify a complete report.
+  A failed metrics round additionally projects a three-position source mask and
+  closed kinds in `observation.service_nodes` order, never physical node IDs or
+  raw endpoint errors. The target client retains its original causal chain;
+  the three-source aggregate deliberately unwraps only harness-invalid while
+  retaining the three source causes privately, so child context/product errors
+  cannot change the existing classification. Address fallback success clears
+  prior failure kinds; HTTP/parser limits, joining and settle policy are unchanged.
 
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
