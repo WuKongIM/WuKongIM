@@ -66,6 +66,7 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 	reg.Gateway.ObserveAsyncSendDispatchWait("wkproto", 2*time.Millisecond)
 	reg.Gateway.ObserveAsyncSendBatch(8, 256, 500*time.Microsecond)
 	reg.Gateway.Sendack("system_error", "batch_result_error", "timeout")
+	reg.Gateway.Sendack("system_busy", "batch_result_error", "route_not_ready")
 	reg.Gateway.Sendack("surprising raw reason", "uid-leaking source", "uid-leaking error")
 	reg.Gateway.ConnectionClosed("tcp")
 	reg.Gateway.ConnectionClosedReason("tcp", "peer_closed")
@@ -188,6 +189,13 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 	}).GetHistogram().GetSampleCount())
 
 	sendacks := requireMetricFamily(t, families, "wukongim_gateway_sendacks_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, sendacks, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"reason":    "system_busy",
+		"source":    "batch_result_error",
+		"class":     "route_not_ready",
+	}).GetCounter().GetValue())
 	require.Equal(t, float64(1), findMetricByLabels(t, sendacks, map[string]string{
 		"node_id":   "1",
 		"node_name": "node-1",

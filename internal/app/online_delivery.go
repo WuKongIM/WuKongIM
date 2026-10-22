@@ -61,6 +61,8 @@ func (o *onlineDeliveryObserver) ObservePlanTerminal(event runtimedelivery.PlanT
 			wklog.Result(string(event.Result)),
 			wklog.String("phase", string(event.Failure.Phase)),
 			wklog.String("mode", onlineDeliveryModeLabel(event.Mode)),
+			wklog.Uint64("messageID", event.MessageID),
+			wklog.MessageSeq(event.MessageSeq),
 			wklog.Int("recipients", event.Recipients),
 			wklog.UID(event.Failure.RecipientUID),
 			wklog.Uint64("ownerNodeID", event.Failure.OwnerNodeID),

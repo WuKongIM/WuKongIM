@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Distinguish busy SEND acknowledgements in metrics and include exact message
+  identities in existing incomplete online-delivery warnings.
+  / 指标单独标识发送繁忙回执，在线投递未完成告警补充精确消息编号与序号。
+
 - Capture registered Go, process and Channel counters in cloud terminal evidence,
   so missing metric coverage remains distinguishable from a zero value.
   / 云端终态诊断按实际导出名称收集 Go、进程和频道计数指标，明确区分缺失覆盖与零值。

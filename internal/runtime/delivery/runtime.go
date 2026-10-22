@@ -497,6 +497,7 @@ func (r *Runtime) runPlan(runCtx context.Context, plan onlinedelivery.RecipientD
 		r.inflight.Add(-1)
 		r.observePressure()
 		r.observePlanTerminal(PlanTerminalEvent{
+			MessageID: plan.Event.MessageID, MessageSeq: plan.Event.MessageSeq,
 			Result: result, Mode: plan.Mode, Recipients: plan.RecipientCount(),
 			Duration: positiveRuntimeDuration(time.Since(started)), Failure: failure,
 		})

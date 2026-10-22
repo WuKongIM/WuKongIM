@@ -162,6 +162,10 @@ const (
 
 // PlanTerminalEvent describes terminal processing for accepted plan work.
 type PlanTerminalEvent struct {
+	// MessageID identifies the plan's immutable message for logs, never metric labels.
+	MessageID uint64
+	// MessageSeq preserves the plan's sequence, including zero for transient delivery.
+	MessageSeq uint64
 	// Result is the bounded terminal outcome.
 	Result ObservationResult
 	// Mode preserves the plan's explicit Durable or Transient semantics.

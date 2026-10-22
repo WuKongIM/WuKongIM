@@ -1058,6 +1058,11 @@ specification, runbook, report, or module documentation; link to them when neede
   asynchronous effects; its cursor is only a progress hint, and losing it may
   duplicate replay. Delivery, RECVACK, webhook completion, and business execution
   are not implied by SENDACK.
+- SENDACK metrics retain the fixed `system_busy` reason for bounded admission
+  pressure. Incomplete online-delivery warnings carry exact uint64 `messageID`
+  and `messageSeq` from the immutable plan; these identities never become metric
+  labels. A matched warning explains terminal delivery failure, not lost durable
+  storage or a confirmed root cause.
 - Gateway receive ACK and session-close feedback use the Online Delivery
   runtime FeedbackHandler directly. App binds the optional port; gateway owns
   frame mapping and the runtime owns exact-session ACK cleanup. The temporary
