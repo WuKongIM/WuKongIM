@@ -1,0 +1,19 @@
+{
+  "at_premerge_utc": "2026-10-22T21:25:58.361057+00:00",
+  "pr": 1028,
+  "head": "3d243bccc8caed21a8719071ad7c1883156713c2",
+  "base": "2ab3e1a8bd95670603bc38314036c797a5124682",
+  "merge": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+  "tree": "763f8432135e6b94df28451a43a4a635c7aba2a0",
+  "merged_at": "2026-10-22T21:26:01Z",
+  "checks": {
+    "success": 16,
+    "event_skipped": 2
+  },
+  "protection_and_rulesets_unchanged": true,
+  "review_workflows_remain_disabled": true,
+  "ordinary_merge_no_admin_bypass": true,
+  "branch_tip_ancestor_verified": true,
+  "clean_worktree_and_local_branch_removed": true,
+  "primary_checkout_not_modified": true
+}

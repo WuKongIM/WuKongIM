@@ -1,0 +1,20 @@
+{
+  "inputs_before_after_equal": {
+    "node-2-cpu.pb.gz": {
+      "sha256": "06857d46d09326890baf0b117a1d833f594acc77e19a205abe487a8fba78876b",
+      "bytes": 22368,
+      "mtime_ns": 1792703348435815340
+    },
+    "node-2-goroutine.pb.gz": {
+      "sha256": "543c9232ebad5ff0cc61af1d2c7e2beab837bd41a6345ae2407d33ce13c11dd8",
+      "bytes": 21437,
+      "mtime_ns": 1792703343293836477
+    }
+  },
+  "exit_status": 0,
+  "argv": [
+    "/opt/homebrew/opt/python@3.13/bin/python3.13",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/rate500-offline-profiles-v1/classify_selected.py"
+  ],
+  "bounded_decompressed_profile_bytes": 4194304
+}

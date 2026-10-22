@@ -1,0 +1,21 @@
+[
+  {
+    "event": "launcher_started",
+    "elapsed_seconds": 0.244065250037238,
+    "at_utc": "2026-10-22T21:04:45.641154+00:00",
+    "pgid": 18742
+  },
+  {
+    "event": "all_user_first_grant_barrier",
+    "elapsed_seconds": 258.01115925004706,
+    "at_utc": "2026-10-22T21:09:03.408860+00:00",
+    "original_started_at": "2026-10-23T05:08:58.095096+08:00",
+    "target": 10000
+  },
+  {
+    "event": "coordinator_terminal",
+    "elapsed_seconds": 274.5780135419918,
+    "at_utc": "2026-10-22T21:09:19.975750+00:00",
+    "coordinator_exit_status": 8
+  }
+]

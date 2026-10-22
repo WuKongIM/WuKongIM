@@ -1,0 +1,654 @@
+[
+  {
+    "group": "delivery_runWorker",
+    "category": "idle_plan_dequeue",
+    "count": 291,
+    "frames": [
+      {
+        "function": "runtime.gopark",
+        "file": "runtime/proc.go",
+        "line": 460
+      },
+      {
+        "function": "runtime.selectgo",
+        "file": "runtime/select.go",
+        "line": 351
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*orderedPlanQueue).dequeue",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/plan_queue.go",
+        "line": 147
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 475
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 269
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+        "line": 471
+      },
+      {
+        "function": "runtime/pprof.Do",
+        "file": "runtime/pprof/runtime.go",
+        "line": 51
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+        "line": 468
+      }
+    ]
+  },
+  {
+    "group": "delivery_runWorker",
+    "category": "presence_cold_lane_select",
+    "count": 12,
+    "frames": [
+      {
+        "function": "runtime.gopark",
+        "file": "runtime/proc.go",
+        "line": 460
+      },
+      {
+        "function": "runtime.selectgo",
+        "file": "runtime/select.go",
+        "line": 351
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+        "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/recovery.go",
+        "line": 132
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/recovery.go",
+        "line": 62
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/recovery.go",
+        "line": 94
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceDirectoryAuthority).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence_directory.go",
+        "line": 118
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 434
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func2",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 500
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 560
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 570
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 496
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 363
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*App).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/lookup.go",
+        "line": 65
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/delivery.(*PresenceResolver).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/delivery/online_presence.go",
+        "line": 45
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 521
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runPlan",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 506
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 479
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 269
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+        "line": 471
+      },
+      {
+        "function": "runtime/pprof.Do",
+        "file": "runtime/pprof/runtime.go",
+        "line": 51
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+        "line": 468
+      }
+    ]
+  },
+  {
+    "group": "delivery_runWorker",
+    "category": "presence_parallel_leader_join",
+    "count": 9,
+    "frames": [
+      {
+        "function": "runtime.gopark",
+        "file": "runtime/proc.go",
+        "line": 460
+      },
+      {
+        "function": "runtime.goparkunlock",
+        "file": "runtime/proc.go",
+        "line": 466
+      },
+      {
+        "function": "runtime.semacquire1",
+        "file": "runtime/sema.go",
+        "line": 192
+      },
+      {
+        "function": "sync.runtime_SemacquireWaitGroup",
+        "file": "runtime/sema.go",
+        "line": 114
+      },
+      {
+        "function": "sync.(*WaitGroup).Wait",
+        "file": "sync/waitgroup.go",
+        "line": 206
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 571
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 496
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 363
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*App).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/lookup.go",
+        "line": 65
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/delivery.(*PresenceResolver).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/delivery/online_presence.go",
+        "line": 45
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 521
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runPlan",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 506
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 479
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 269
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+        "line": 471
+      },
+      {
+        "function": "runtime/pprof.Do",
+        "file": "runtime/pprof/runtime.go",
+        "line": 51
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+        "line": 468
+      }
+    ]
+  },
+  {
+    "group": "delivery_runWorker",
+    "category": "owner_push_parallel_join_or_inline",
+    "count": 4,
+    "frames": [
+      {
+        "function": "runtime.gopark",
+        "file": "runtime/proc.go",
+        "line": 460
+      },
+      {
+        "function": "runtime.selectgo",
+        "file": "runtime/select.go",
+        "line": 351
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Call",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn/conn.go",
+        "line": 207
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/transport.(*Client).CallOwned",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/transport/client.go",
+        "line": 120
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/transport.(*Client).Call",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/transport/client.go",
+        "line": 87
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportClient).CallShard",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/cluster/net/transport.go",
+        "line": 186
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportClient).Call",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/cluster/net/transport.go",
+        "line": 174
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).CallRPC",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/cluster/node.go",
+        "line": 565
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).PushBatch",
+        "file": "github.com/WuKongIM/WuKongIM/internal/access/node/delivery_rpc.go",
+        "line": 56
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).PushOwner",
+        "file": "github.com/WuKongIM/WuKongIM/internal/access/node/delivery_rpc.go",
+        "line": 77
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).pushOwnerRemote",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 728
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).routeOwnerPush",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 709
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).pushWithRetry",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 668
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 574
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.runBoundedRuntime",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 1153
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 595
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runPlan",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 506
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 479
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 269
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+        "line": 471
+      },
+      {
+        "function": "runtime/pprof.Do",
+        "file": "runtime/pprof/runtime.go",
+        "line": 51
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+        "line": 468
+      }
+    ]
+  },
+  {
+    "group": "delivery_runWorker",
+    "category": "presence_remote_authority_RPC",
+    "count": 3,
+    "frames": [
+      {
+        "function": "runtime.gopark",
+        "file": "runtime/proc.go",
+        "line": 460
+      },
+      {
+        "function": "runtime.selectgo",
+        "file": "runtime/select.go",
+        "line": 351
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Call",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn/conn.go",
+        "line": 207
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/transport.(*Client).CallOwned",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/transport/client.go",
+        "line": 120
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/transport.(*Client).Call",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/transport/client.go",
+        "line": 87
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportClient).CallShard",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/cluster/net/transport.go",
+        "line": 186
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportClient).Call",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/cluster/net/transport.go",
+        "line": 174
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).CallRPC",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/cluster/node.go",
+        "line": 565
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/access/node/presence_rpc.go",
+        "line": 704
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 454
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func2",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 500
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 560
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 570
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 496
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 363
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*App).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/lookup.go",
+        "line": 65
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/delivery.(*PresenceResolver).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/delivery/online_presence.go",
+        "line": 45
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 521
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runPlan",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 506
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 479
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 269
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+        "line": 471
+      },
+      {
+        "function": "runtime/pprof.Do",
+        "file": "runtime/pprof/runtime.go",
+        "line": 51
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+        "line": 468
+      }
+    ]
+  },
+  {
+    "group": "delivery_runWorker",
+    "category": "presence_owner_recovery_RPC",
+    "count": 1,
+    "frames": [
+      {
+        "function": "runtime.gopark",
+        "file": "runtime/proc.go",
+        "line": 460
+      },
+      {
+        "function": "runtime.selectgo",
+        "file": "runtime/select.go",
+        "line": 351
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Call",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn/conn.go",
+        "line": 207
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/transport.(*Client).CallOwned",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/transport/client.go",
+        "line": 120
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/transport.(*Client).Call",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/transport/client.go",
+        "line": 87
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportClient).CallShard",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/cluster/net/transport.go",
+        "line": 186
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportClient).Call",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/cluster/net/transport.go",
+        "line": 174
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).CallRPC",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/cluster/node.go",
+        "line": 565
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).ReadOwnerRoutesByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/access/node/presence_owner_recovery_batch.go",
+        "line": 60
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence_recovery.go",
+        "line": 196
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).RecoverRoutesByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence_recovery.go",
+        "line": 106
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+        "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/recovery.go",
+        "line": 167
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/recovery.go",
+        "line": 62
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/recovery.go",
+        "line": 94
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceDirectoryAuthority).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence_directory.go",
+        "line": 118
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 434
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func2",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 500
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 560
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 570
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 496
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence.go",
+        "line": 363
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*App).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/lookup.go",
+        "line": 65
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/infra/delivery.(*PresenceResolver).EndpointsByTargets",
+        "file": "github.com/WuKongIM/WuKongIM/internal/infra/delivery/online_presence.go",
+        "line": 45
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 521
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runPlan",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 506
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 479
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1",
+        "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+        "line": 269
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+        "line": 471
+      },
+      {
+        "function": "runtime/pprof.Do",
+        "file": "runtime/pprof/runtime.go",
+        "line": 51
+      },
+      {
+        "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+        "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+        "line": 468
+      }
+    ]
+  }
+]

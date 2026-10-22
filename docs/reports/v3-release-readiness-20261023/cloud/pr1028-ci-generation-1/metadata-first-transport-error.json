@@ -1,0 +1,22 @@
+{
+  "kind": "readonly_GitHub_metadata_transport_failure",
+  "snapshot": "20261022T211024Z",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/runs/39854388530",
+  "gh_exit_code": 1,
+  "stderr": "Get \"https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39854388530\": EOF\n",
+  "not_a_ci_failure": true,
+  "partial_snapshot_files_retained": [
+    "artifacts-39854388495.json",
+    "artifacts-39854388522.json",
+    "artifacts-39854388556.json",
+    "head-runs.json",
+    "jobs-39854388495.json",
+    "jobs-39854388522.json",
+    "jobs-39854388556.json",
+    "pr.json",
+    "run-39854388495.json",
+    "run-39854388522.json",
+    "run-39854388556.json"
+  ],
+  "handling": "Do not mutate or rerun CI. Preserve this partial polling snapshot, then continue normal backed-off read-only monitoring. No passing run or missing metadata is inferred from this failed read."
+}

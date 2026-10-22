@@ -1,0 +1,37 @@
+{
+  "snapshot": "20261022T210845Z",
+  "logs": [
+    {
+      "id": 120088656998,
+      "name": "Emit credential-free wake-up",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 2092,
+      "sha256": "1bbe8038d274d36c76735518fc75ec28dc4d565b4390bcc7b45b08c6435a4c41",
+      "actual_checkout_candidates": []
+    },
+    {
+      "id": 120088657675,
+      "name": "PR performance baseline evidence",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 71557,
+      "sha256": "004fab40ff14b9b94012113884bffb84b342f92df710c2aa2bf1c4c6dcc4bc39",
+      "actual_checkout_candidates": [
+        "11e66c4e3f45a01750741e225f2feb246e60e8c0"
+      ]
+    },
+    {
+      "id": 120088658048,
+      "name": "PR messaging unit and race",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 81104,
+      "sha256": "4407496dceb3a43df4200d9efecec2e5915d22f190a8da2fd19d58469c2cc81c",
+      "actual_checkout_candidates": [
+        "11e66c4e3f45a01750741e225f2feb246e60e8c0"
+      ]
+    }
+  ],
+  "artifacts": []
+}

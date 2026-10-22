@@ -1,0 +1,42 @@
+{
+  "report/worker-evidence.json": {
+    "bytes": 4114,
+    "mtime_ns": 1792703359858684761,
+    "sha256": "433db7d46b30ea6ad94855fce7611ad7c70f6b03cd8be5f864baa3966cb86408"
+  },
+  "report/run-start.json": {
+    "bytes": 391,
+    "mtime_ns": 1792703338105434540,
+    "sha256": "95f41c939e00ee7711b556977fd05953cae40de380ba928697013409fc879578"
+  },
+  "safe-retained-worker-cuts.json": {
+    "bytes": 13010,
+    "mtime_ns": 1792703534411191966,
+    "sha256": "3a9c133012639bc18fd28dcfab5bd571b145d2bd08ea70c6bab53ea2d26edc30"
+  },
+  "logs/service-1.log": {
+    "bytes": 34300,
+    "mtime_ns": 1792703355625655202,
+    "sha256": "536ee7efcc242425191abc42b7eac8bb67fc8f244e47460407481e62adcde761"
+  },
+  "logs/service-2.log": {
+    "bytes": 38905,
+    "mtime_ns": 1792703355876952910,
+    "sha256": "2b5250a9cdeabe8a4aa321504c0bff9c4c06621fac495d197f01b413f92537cf"
+  },
+  "logs/service-3.log": {
+    "bytes": 37948,
+    "mtime_ns": 1792703355841882079,
+    "sha256": "d6e594506a9fd5872dec60eed575fbde7bae9c79172f34b83e1566052d6f1c3b"
+  },
+  "evidence/metrics-first-measured-node2.prom": {
+    "bytes": 984069,
+    "mtime_ns": 1792703343622190357,
+    "sha256": "0ae23ccfd4e445c1a1720e2634ba0a0d318bf020433fef322288db6a390e260b"
+  },
+  "evidence/metrics-terminal-node2.prom": {
+    "bytes": 1005117,
+    "mtime_ns": 1792703359985581018,
+    "sha256": "698cb46ec151311587909f9d644b1ce4e703a8c13c8c2a2f4e87545cc0cb758e"
+  }
+}

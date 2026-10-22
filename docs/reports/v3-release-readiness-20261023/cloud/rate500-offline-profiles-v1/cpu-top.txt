@@ -1,0 +1,68 @@
+File: wukongim
+Type: cpu
+Time: 2026-10-23 05:08:58 CST
+Duration: 10.13s, Total samples = 2.19s (21.61%)
+Showing nodes accounting for 2.01s, 91.78% of 2.19s total
+Dropped 220 nodes (cum <= 0.01s)
+Showing top 60 nodes out of 224
+      flat  flat%   sum%        cum   cum%
+     1.03s 47.03% 47.03%      1.03s 47.03%  syscall.syscallX
+     0.39s 17.81% 64.84%      0.39s 17.81%  syscall.syscall
+     0.17s  7.76% 72.60%      0.17s  7.76%  syscall.syscall6
+     0.12s  5.48% 78.08%      0.12s  5.48%  runtime.madvise
+     0.08s  3.65% 81.74%      0.08s  3.65%  runtime.fcntl
+     0.06s  2.74% 84.47%      0.06s  2.74%  runtime.kevent
+     0.03s  1.37% 85.84%      0.03s  1.37%  runtime.memclrNoHeapPointers
+     0.03s  1.37% 87.21%      0.03s  1.37%  runtime.usleep
+     0.02s  0.91% 88.13%      0.02s  0.91%  cmpbody
+     0.02s  0.91% 89.04%      0.04s  1.83%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel
+     0.01s  0.46% 89.50%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/pkg/workqueue.(*BoundedBatchPool[go.shape.struct { github.com/WuKongIM/WuKongIM/pkg/channel/worker.task github.com/WuKongIM/WuKongIM/pkg/channel/worker.Task; github.com/WuKongIM/WuKongIM/pkg/channel/worker.enqueuedAt time.Time }]).runBatch
+     0.01s  0.46% 89.95%      0.02s  0.91%  internal/runtime/maps.(*Map).Delete
+     0.01s  0.46% 90.41%      0.03s  1.37%  runtime.findObject
+     0.01s  0.46% 90.87%      0.02s  0.91%  runtime.greyobject
+     0.01s  0.46% 91.32%      0.03s  1.37%  runtime.mallocgcSmallNoscan
+     0.01s  0.46% 91.78%      0.08s  3.65%  runtime.scanobject
+         0     0% 91.78%      0.02s  0.91%  bytes.Compare
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/access/api.(*Server).handleMetrics
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).debugBearerMiddleware.func2
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).restoreMaintenanceMiddleware.func3
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/access/api.New.openCORSMiddleware.func1
+         0     0% 91.78%      0.04s  1.83%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*Handler).writeSendack
+         0     0% 91.78%      0.04s  1.83%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func1
+         0     0% 91.78%      0.04s  1.83%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func1.1
+         0     0% 91.78%      0.04s  1.83%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func2
+         0     0% 91.78%      0.04s  1.83%  github.com/WuKongIM/WuKongIM/internal/access/gateway.writeSendack
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).HandlePresenceAuthorityRPC
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).handlePresenceEndpointsByTargets
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).EndpointsByTargets
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/app.nodeRPCHandlerFunc.HandleRPC
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).EndpointsByTargets
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func1
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func2
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceDirectoryAuthority).EndpointsByTargets
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches.func1 (inline)
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/infra/delivery.(*PresenceResolver).EndpointsByTargets
+         0     0% 91.78%      0.04s  1.83%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*OrderedSubmitter).run
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).runCommit.func1
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).runCommit.func1.1
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*workerPool).submitWithCompletion.func2
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.commitEffect.run
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.dispatchCommittedRecipientsForTarget (inline)
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.dispatchRecipientsForTarget
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.dispatchSubscriberSnapshot
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runPlan
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker
+         0     0% 91.78%      0.04s  1.83%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).admitSendBatchLane.func1
+         0     0% 91.78%      0.04s  1.83%  github.com/WuKongIM/WuKongIM/internal/usecase/message.(*sendBatchPublication).finishItem
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*App).EndpointsByTargets
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets.func1 (inline)
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*runtimeRepairOwner).repair
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*runtimeRepairOwner).runWorker
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*runtimeRepairOwner).waitForRepairFrontier
+         0     0% 91.78%      0.02s  0.91%  github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*storeAdapter).Load

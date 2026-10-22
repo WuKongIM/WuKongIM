@@ -1,0 +1,34 @@
+{
+  "event_counts": {
+    "start": 7,
+    "run": 1323,
+    "output": 3164,
+    "pass": 1324,
+    "pause": 249,
+    "cont": 249,
+    "skip": 6
+  },
+  "test_pass_events": 1317,
+  "package_pass_events": 7,
+  "counts_include_subtests": true,
+  "failure_events": [],
+  "original_log_sha256": "512971bbdae60840881ae22733fb85d8ee86b6da1dc16db50c604c559fc4323a",
+  "result": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 2299,
+    "output_bytes": 1506987,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 2299,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 521.477
+  }
+}

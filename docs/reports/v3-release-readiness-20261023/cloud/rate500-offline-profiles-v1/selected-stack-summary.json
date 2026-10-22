@@ -1,0 +1,151 @@
+{
+  "goroutine": {
+    "file_sha256": "543c9232ebad5ff0cc61af1d2c7e2beab837bd41a6345ae2407d33ce13c11dd8",
+    "bytes": 21437,
+    "time_utc": "2026-10-22T21:09:03.284063000Z",
+    "time_unix_nanos": "1792703343284063000",
+    "duration_nanos": "0",
+    "end_utc": "2026-10-22T21:09:03.284063000Z",
+    "period": 1,
+    "types": [
+      {
+        "type": "goroutine",
+        "unit": "count"
+      }
+    ]
+  },
+  "cpu": {
+    "file_sha256": "06857d46d09326890baf0b117a1d833f594acc77e19a205abe487a8fba78876b",
+    "bytes": 22368,
+    "time_utc": "2026-10-22T21:08:58.263777000Z",
+    "time_unix_nanos": "1792703338263777000",
+    "duration_nanos": "10134447333",
+    "end_utc": "2026-10-22T21:09:08.398224333Z",
+    "period": 10000000,
+    "types": [
+      {
+        "type": "samples",
+        "unit": "count"
+      },
+      {
+        "type": "cpu",
+        "unit": "nanoseconds"
+      }
+    ]
+  },
+  "total_goroutine_count": 2574,
+  "distinct_aggregated_stacks": 141,
+  "category_counts_overlapping": {
+    "permission_cohort": 68,
+    "slot_read_barrier": 79,
+    "transport_call": 142,
+    "presence_recover_page": 47,
+    "delivery_plan_processing": 29,
+    "storage_coordinator_run": 2,
+    "presence_owner_recovery": 2,
+    "presence_owner_read": 2,
+    "storage_publish_wait": 1
+  },
+  "selected_matching_line_counts": [
+    {
+      "category": "permission_cohort",
+      "function": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadSendPermissionMetadataBatch",
+      "file": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy/send_permission_cohort.go",
+      "line": 187,
+      "count": 47
+    },
+    {
+      "category": "slot_read_barrier",
+      "function": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).readBarrier",
+      "file": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft/read_barrier.go",
+      "line": 96,
+      "count": 79
+    },
+    {
+      "category": "transport_call",
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Call",
+      "file": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn/conn.go",
+      "line": 207,
+      "count": 142
+    },
+    {
+      "category": "presence_recover_page",
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+      "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/recovery.go",
+      "line": 132,
+      "count": 45
+    },
+    {
+      "category": "permission_cohort",
+      "function": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadSendPermissionMetadataBatch.func3",
+      "file": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy/send_permission_cohort.go",
+      "line": 184,
+      "count": 21
+    },
+    {
+      "category": "delivery_plan_processing",
+      "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan",
+      "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+      "line": 521,
+      "count": 25
+    },
+    {
+      "category": "delivery_plan_processing",
+      "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan.func1",
+      "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+      "line": 574,
+      "count": 4
+    },
+    {
+      "category": "delivery_plan_processing",
+      "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan",
+      "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+      "line": 595,
+      "count": 4
+    },
+    {
+      "category": "storage_coordinator_run",
+      "function": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+      "file": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit/coordinator.go",
+      "line": 403,
+      "count": 1
+    },
+    {
+      "category": "presence_owner_read",
+      "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage",
+      "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence_recovery.go",
+      "line": 196,
+      "count": 2
+    },
+    {
+      "category": "presence_owner_recovery",
+      "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).RecoverRoutesByTargets",
+      "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence_recovery.go",
+      "line": 106,
+      "count": 2
+    },
+    {
+      "category": "presence_recover_page",
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+      "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/recovery.go",
+      "line": 167,
+      "count": 2
+    },
+    {
+      "category": "storage_publish_wait",
+      "function": "github.com/cockroachdb/pebble/v2.(*commitPipeline).publish",
+      "file": "github.com/cockroachdb/pebble/v2@v2.1.4/commit.go",
+      "line": 492,
+      "count": 1
+    },
+    {
+      "category": "storage_coordinator_run",
+      "function": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+      "file": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit/coordinator.go",
+      "line": 413,
+      "count": 1
+    }
+  ],
+  "selected_stack_count": 20,
+  "scope": "one node, one point; counts are not elapsed/off-CPU durations; overlapping categories must not be added"
+}

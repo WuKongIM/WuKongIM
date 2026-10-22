@@ -1,0 +1,9 @@
+{
+  "schema": "wukongim/local500-offline-read-immutability/v1",
+  "original_files_checked": 8,
+  "bytes_mtime_sha256_unchanged": true,
+  "before_inventory_sha256": "b617b7fb0ad23fb058b59851db92b672a8c8731a471ffb237a41c637db1e6d85",
+  "after_inventory_sha256": "b617b7fb0ad23fb058b59851db92b672a8c8731a471ffb237a41c637db1e6d85",
+  "original12payload_manifest_sha256": "c922ea4e68e5046fc3c890a46980dae43c65b51163b98a569f0ee5e6dace1c0f",
+  "DB_or_profile_or_product_requests": 0
+}

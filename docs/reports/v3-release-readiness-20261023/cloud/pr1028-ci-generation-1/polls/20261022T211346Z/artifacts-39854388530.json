@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12457789283,
+      "node_id": "MDg6QXJ0aWZhY3QxMjQ1Nzc4OTI4Mw==",
+      "name": "wukongim-native-package-preview-39854388530",
+      "size_in_bytes": 77858326,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12457789283",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12457789283/zip",
+      "expired": false,
+      "digest": "sha256:11f9a3b92a0338a1aa2defee273a3d7dc3dcdf7c95a21c1ef9e42463b1c92ac0",
+      "created_at": "2026-10-22T21:10:26Z",
+      "updated_at": "2026-10-22T21:10:26Z",
+      "expires_at": "2026-11-05T21:10:24Z",
+      "workflow_run": {
+        "id": 39854388530,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-finalize-diagnostics",
+        "head_sha": "3d243bccc8caed21a8719071ad7c1883156713c2"
+      }
+    }
+  ]
+}

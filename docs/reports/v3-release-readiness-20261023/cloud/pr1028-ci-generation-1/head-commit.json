@@ -1,0 +1,113 @@
+{
+  "sha": "3d243bccc8caed21a8719071ad7c1883156713c2",
+  "node_id": "C_kwDOJgfwydoAKDNkMjQzYmNjYzhjYWVkMjFhODcxOTA3MWFkN2MxODgzMTU2NzEzYzI",
+  "commit": {
+    "author": {
+      "name": "tt",
+      "email": "tangtaoit@githubim.com",
+      "date": "2026-10-22T21:00:02Z"
+    },
+    "committer": {
+      "name": "tt",
+      "email": "tangtaoit@githubim.com",
+      "date": "2026-10-22T21:00:02Z"
+    },
+    "message": "test(bench): complete finalization diagnostic failure coverage",
+    "tree": {
+      "sha": "763f8432135e6b94df28451a43a4a635c7aba2a0",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/trees/763f8432135e6b94df28451a43a4a635c7aba2a0"
+    },
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/git/commits/3d243bccc8caed21a8719071ad7c1883156713c2",
+    "comment_count": 0,
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    }
+  },
+  "url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/3d243bccc8caed21a8719071ad7c1883156713c2",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/commit/3d243bccc8caed21a8719071ad7c1883156713c2",
+  "comments_url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/3d243bccc8caed21a8719071ad7c1883156713c2/comments",
+  "author": {
+    "login": "tangtaoit",
+    "id": 3895878,
+    "node_id": "MDQ6VXNlcjM4OTU4Nzg=",
+    "avatar_url": "https://avatars.githubusercontent.com/u/3895878?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/tangtaoit",
+    "html_url": "https://github.com/tangtaoit",
+    "followers_url": "https://api.github.com/users/tangtaoit/followers",
+    "following_url": "https://api.github.com/users/tangtaoit/following{/other_user}",
+    "gists_url": "https://api.github.com/users/tangtaoit/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/tangtaoit/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/tangtaoit/subscriptions",
+    "organizations_url": "https://api.github.com/users/tangtaoit/orgs",
+    "repos_url": "https://api.github.com/users/tangtaoit/repos",
+    "events_url": "https://api.github.com/users/tangtaoit/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/tangtaoit/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "committer": {
+    "login": "tangtaoit",
+    "id": 3895878,
+    "node_id": "MDQ6VXNlcjM4OTU4Nzg=",
+    "avatar_url": "https://avatars.githubusercontent.com/u/3895878?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/tangtaoit",
+    "html_url": "https://github.com/tangtaoit",
+    "followers_url": "https://api.github.com/users/tangtaoit/followers",
+    "following_url": "https://api.github.com/users/tangtaoit/following{/other_user}",
+    "gists_url": "https://api.github.com/users/tangtaoit/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/tangtaoit/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/tangtaoit/subscriptions",
+    "organizations_url": "https://api.github.com/users/tangtaoit/orgs",
+    "repos_url": "https://api.github.com/users/tangtaoit/repos",
+    "events_url": "https://api.github.com/users/tangtaoit/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/tangtaoit/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "parents": [
+    {
+      "sha": "73c93ac22b4a20189d7b74cf93efd9fa61b1601d",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/commits/73c93ac22b4a20189d7b74cf93efd9fa61b1601d",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/commit/73c93ac22b4a20189d7b74cf93efd9fa61b1601d"
+    }
+  ],
+  "stats": {
+    "total": 193,
+    "additions": 179,
+    "deletions": 14
+  },
+  "files": [
+    {
+      "sha": "62e78728986b79b11fd18b09b867191719e805dc",
+      "filename": "docs/development/PROJECT_KNOWLEDGE.md",
+      "status": "modified",
+      "additions": 8,
+      "deletions": 0,
+      "changes": 8,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/3d243bccc8caed21a8719071ad7c1883156713c2/docs%2Fdevelopment%2FPROJECT_KNOWLEDGE.md",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/3d243bccc8caed21a8719071ad7c1883156713c2/docs%2Fdevelopment%2FPROJECT_KNOWLEDGE.md",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/docs%2Fdevelopment%2FPROJECT_KNOWLEDGE.md?ref=3d243bccc8caed21a8719071ad7c1883156713c2",
+      "patch": "@@ -1946,3 +1946,11 @@ specification, runbook, report, or module documentation; link to them when neede\n   order remain unchanged. A failed Markdown output can leave readable JSON while\n   the recorder's sequence remains uncommitted. A generic `invalid_observation`\n   fallback alone does not identify the rejecting finalization branch.\n+\n+- Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree\n+  `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone\n+  does not establish compiled-source provenance. Exact reproduction uses a clean\n+  independent clone with a real `.git` directory and binds compiler, flags,\n+  embedded assets and binary hashes. Rebuilding candidate `79a71770` this way\n+  reproduced both original cloud Linux server/CLI ELF files byte for byte; native\n+  Mac measurements still do not constitute Linux performance acceptance."
+    },
+    {
+      "sha": "b80850cd39c700547f966161a5468c3c783eabf2",
+      "filename": "internal/bench/chatlifecycle/finalize_diagnostics_test.go",
+      "status": "modified",
+      "additions": 171,
+      "deletions": 14,
+      "changes": 185,
+      "blob_url": "https://github.com/WuKongIM/WuKongIM/blob/3d243bccc8caed21a8719071ad7c1883156713c2/internal%2Fbench%2Fchatlifecycle%2Ffinalize_diagnostics_test.go",
+      "raw_url": "https://github.com/WuKongIM/WuKongIM/raw/3d243bccc8caed21a8719071ad7c1883156713c2/internal%2Fbench%2Fchatlifecycle%2Ffinalize_diagnostics_test.go",
+      "contents_url": "https://api.github.com/repos/WuKongIM/WuKongIM/contents/internal%2Fbench%2Fchatlifecycle%2Ffinalize_diagnostics_test.go?ref=3d243bccc8caed21a8719071ad7c1883156713c2",
+      "patch": "@@ -262,9 +262,30 @@ type finalizeDiagnosticHooks struct {\n \t*recordingCoordinatorRunHooks\n \terr          error\n \tcorruptFinal bool\n+\tfinalCut     *CoordinatorFinalCut\n+}\n+\n+// finalizeBoundaryClock skips the measured interval before tickers are armed.\n+// It isolates the continuous finalization call, supplying no report, measured\n+// workload, or duration qualification evidence.\n+type finalizeBoundaryClock struct {\n+\t*manualCoordinatorClock\n+\tskip  time.Duration\n+\tarmed bool\n+}\n+\n+func (c *finalizeBoundaryClock) NewTicker(period time.Duration) ObserverTicker {\n+\tif !c.armed {\n+\t\tc.armed = true\n+\t\tc.mu.Lock()\n+\t\tc.now = c.now.Add(c.skip)\n+\t\tc.mu.Unlock()\n+\t}\n+\treturn c.manualCoordinatorClock.NewTicker(period)\n }\n \n func (h *finalizeDiagnosticHooks) Finalize(_ context.Context, cut CoordinatorFinalCut) error {\n+\th.finalCut = &cut\n \tif h.corruptFinal {\n \t\tcut.FinalSnapshots[0].Sync.ConnectLatency.Count++\n \t}\n@@ -281,16 +302,27 @@ func TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision(t *testing.T)\n \t\tname, stage, reason string\n \t\thookErr, stopErr    error\n \t\tcorrupt             bool\n+\t\tcontinuous          bool\n \t}{\n-\t\t{\"stop\", \"worker_stop\", \"control_failed\", nil, private, false},\n-\t\t{\"known_hook\", \"meta_checkpoint\", \"invalid\", known, nil, false},\n-\t\t{\"unknown_hook\", \"controller_unknown\", \"invalid\", private, nil, false},\n-\t\t{\"final_aggregate\", \"snapshot_aggregate\", \"histogram_schema\", nil, nil, true},\n+\t\t{\"stop\", \"worker_stop\", \"control_failed\", nil, private, false, false},\n+\t\t{\"known_hook\", \"meta_checkpoint\", \"invalid\", known, nil, false, false},\n+\t\t{\"unknown_hook\", \"controller_unknown\", \"invalid\", private, nil, false, false},\n+\t\t{\"final_aggregate\", \"snapshot_aggregate\", \"histogram_schema\", nil, nil, true, false},\n+\t\t{\"continuous_known_hook\", \"meta_checkpoint\", \"invalid\", known, nil, false, true},\n+\t\t{\"continuous_unknown_hook\", \"controller_unknown\", \"invalid\", private, nil, false, true},\n \t} {\n \t\tt.Run(test.name, func(t *testing.T) {\n \t\t\tcfg := LocalConfig()\n-\t\t\tconfigureFastCoordinatorCutoff(&cfg)\n+\t\t\tif test.continuous {\n+\t\t\t\tcfg = FormalConfig()\n+\t\t\t} else {\n+\t\t\t\tconfigureFastCoordinatorCutoff(&cfg)\n+\t\t\t}\n \t\t\tclock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))\n+\t\t\tvar runClock CoordinatorClock = clock\n+\t\t\tif test.continuous {\n+\t\t\t\trunClock = &finalizeBoundaryClock{manualCoordinatorClock: clock, skip: cfg.Thresholds.Timeline.Final - time.Second}\n+\t\t\t}\n \t\t\tstarted := make(chan struct{})\n \t\t\tlog := []string{}\n \t\t\tworkers := make([]CoordinatorWorker, coordinatorWorkerCount)\n@@ -299,9 +331,14 @@ func TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision(t *testing.T)\n \t\t\t}\n \t\t\tworkers[0].(*recordingCoordinatorWorker).stopErr = test.stopErr\n \t\t\thooks := &finalizeDiagnosticHooks{recordingCoordinatorRunHooks: newRecordingCoordinatorRunHooks(), err: test.hookErr, corruptFinal: test.corrupt}\n-\t\t\thooks.terminalDecision = CoordinatorProductFailure\n+\t\t\tdecision := CoordinatorProductFailure\n+\t\t\tif test.continuous {\n+\t\t\t\tdecision = CoordinatorCompleted\n+\t\t\t}\n+\t\t\thooks.terminalDecision = decision\n \t\t\tcoordinator, err := NewCoordinator(CoordinatorOptions{\n-\t\t\t\tGeneration: 17, Clock: clock, Workers: workers, Hooks: hooks,\n+\t\t\t\tGeneration: 17, Clock: runClock, Workers: workers, Hooks: hooks,\n+\t\t\t\tKeepWorkersRunningOnSuccess: test.continuous,\n \t\t\t\tPreflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {\n \t\t\t\t\treturn PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}\n \t\t\t\t}),\n@@ -320,7 +357,11 @@ func TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision(t *testing.T)\n \t\t\t<-started\n \t\t\t<-clock.created\n \t\t\t<-clock.created\n-\t\t\tclock.advance(cfg.Thresholds.Timeline.Final)\n+\t\t\tif test.continuous {\n+\t\t\t\tclock.advance(time.Second)\n+\t\t\t} else {\n+\t\t\t\tclock.advance(cfg.Thresholds.Timeline.Final)\n+\t\t\t}\n \t\t\tresult := <-done\n \t\t\tif result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeFinalize || result.Continuation != nil {\n \t\t\t\tt.Fatalf(\"finalization gate changed: %+v\", result)\n@@ -333,24 +374,39 @@ func TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision(t *testing.T)\n \t\t\tbody, _ := json.Marshal(failure)\n \t\t\tvar projection map[string]any\n \t\t\t_ = json.Unmarshal(body, &projection)\n-\t\t\tif failure.Stage != test.stage || failure.Reason != test.reason || projection[\"observed_decision\"] != string(CoordinatorProductFailure) {\n+\t\t\tif failure.Stage != test.stage || failure.Reason != test.reason || projection[\"observed_decision\"] != string(decision) {\n \t\t\t\tt.Fatalf(\"finalization boundary = %s\", body)\n \t\t\t}\n-\t\t\tif test.name == \"known_hook\" && (failure.ObservedCause != VerdictCauseMessageLoss || !failure.ObservedTerminal) {\n+\t\t\tif test.hookErr == known && (failure.ObservedCause != VerdictCauseMessageLoss || !failure.ObservedTerminal) {\n \t\t\t\tt.Fatal(\"known hook lost frozen product cause\")\n \t\t\t}\n \t\t\tif strings.Contains(string(body), \"private\") {\n \t\t\t\tt.Fatal(\"raw error leaked into coordinator result\")\n \t\t\t}\n+\t\t\tif test.continuous {\n+\t\t\t\tif hooks.finalCut == nil || !hooks.finalCut.Continuous || hooks.finalCut.Decision != CoordinatorCompleted {\n+\t\t\t\t\tt.Fatal(\"fixture did not reach continuous finalization\")\n+\t\t\t\t}\n+\t\t\t\tfor _, snapshot := range hooks.finalCut.FinalSnapshots {\n+\t\t\t\t\tif snapshot.Phase != WorkerPhaseRunning {\n+\t\t\t\t\t\tt.Fatal(\"continuous hook did not receive the still-running worker cut\")\n+\t\t\t\t\t}\n+\t\t\t\t}\n+\t\t\t}\n \t\t\tfor _, suffix := range []string{\"0\", \"1\", \"2\"} {\n-\t\t\t\tfound := false\n+\t\t\t\tcalls := 0\n \t\t\t\tfor _, operation := range coordinatorTestLogSnapshot(&log) {\n \t\t\t\t\tif operation == \"stop-\"+suffix {\n-\t\t\t\t\t\tfound = true\n+\t\t\t\t\t\tcalls++\n \t\t\t\t\t}\n \t\t\t\t}\n-\t\t\t\tif !found {\n-\t\t\t\t\tt.Fatalf(\"worker %s was not stopped\", suffix)\n+\t\t\t\tif calls != 1 {\n+\t\t\t\t\tt.Fatalf(\"worker %s stop calls = %d, want exactly one\", suffix, calls)\n+\t\t\t\t}\n+\t\t\t}\n+\t\t\tfor _, worker := range workers {\n+\t\t\t\tif worker.(*recordingCoordinatorWorker).fenceMismatch {\n+\t\t\t\t\tt.Fatal(\"cleanup used a different worker fence\")\n \t\t\t\t}\n \t\t\t}\n \t\t})\n@@ -373,3 +429,104 @@ func TestFinalWorkerStopPreservesPrivateCause(t *testing.T) {\n \t\tt.Fatal(\"Stop error formatting exposed private cause\")\n \t}\n }\n+\n+func TestFinalizeGuardDiagnosticsDoNotInventTerminalEvidence(t *testing.T) {\n+\tfor _, name := range []string{\"nil_receiver\", \"nil_context\", \"not_terminal\"} {\n+\t\tt.Run(name, func(t *testing.T) {\n+\t\t\tcontroller, cut, _, _ := newFinalizeDiagnosticFixture(t)\n+\t\t\toriginal := controller\n+\t\t\tctx := context.Background()\n+\t\t\treason := \"invalid_receiver_or_context\"\n+\t\t\tswitch name {\n+\t\t\tcase \"nil_receiver\":\n+\t\t\t\tcontroller = nil\n+\t\t\tcase \"nil_context\":\n+\t\t\t\tctx = nil\n+\t\t\tcase \"not_terminal\":\n+\t\t\t\toriginal.frozen.Terminal = false\n+\t\t\t\treason = \"terminal\"\n+\t\t\t}\n+\t\t\tbefore := original.frozen\n+\t\t\terr := controller.Finalize(ctx, cut)\n+\t\t\tif !errors.Is(err, errProductionController) || err.Error() != \"chat lifecycle finalization failed\" {\n+\t\t\t\tt.Fatalf(\"guard rejection changed: %v\", err)\n+\t\t\t}\n+\t\t\tfailure := finalizationDiagnostic(err, \"controller_unknown\", \"invalid\")\n+\t\t\tif failure.Stage != \"controller_guard\" || failure.Reason != reason {\n+\t\t\t\tt.Fatalf(\"guard classification = %+v\", failure)\n+\t\t\t}\n+\t\t\tif name == \"nil_context\" {\n+\t\t\t\tif !failure.ObservedTerminal || failure.ObservedOutcome != before.Outcome || failure.ObservedCause != before.Cause {\n+\t\t\t\t\tt.Fatal(\"nil context discarded safe frozen evidence\")\n+\t\t\t\t}\n+\t\t\t} else if failure.ObservedTerminal || failure.ObservedOutcome != \"\" || failure.ObservedCause != \"\" {\n+\t\t\t\tt.Fatal(\"guard fabricated a terminal observation\")\n+\t\t\t}\n+\t\t\tif original.frozen.Outcome != before.Outcome || original.frozen.Cause != before.Cause || original.frozen.Terminal != before.Terminal {\n+\t\t\t\tt.Fatal(\"guard mutated the original observation\")\n+\t\t\t}\n+\t\t\tif _, err := os.Stat(filepath.Join(original.outputDir, \"final.json\")); !os.IsNotExist(err) {\n+\t\t\t\tt.Fatal(\"guard rejection created a final report\")\n+\t\t\t}\n+\t\t})\n+\t}\n+}\n+\n+type finalizePrivateCause struct{}\n+\n+func (*finalizePrivateCause) Error() string { return \"private-primary-token\" }\n+\n+type finalizeRejectingLog struct {\n+\terr   error\n+\tshort bool\n+\tcalls int\n+\tbody  []byte\n+}\n+\n+func (w *finalizeRejectingLog) Write(body []byte) (int, error) {\n+\tw.calls++\n+\tw.body = append([]byte(nil), body...)\n+\tif w.short {\n+\t\treturn len(body) - 1, nil\n+\t}\n+\treturn 0, w.err\n+}\n+\n+func TestFinalizeDiagnosticLogFailureDoesNotReplacePrimaryCause(t *testing.T) {\n+\tfor _, short := range []bool{false, true} {\n+\t\tname := \"write_error\"\n+\t\tif short {\n+\t\t\tname = \"short_write\"\n+\t\t}\n+\t\tt.Run(name, func(t *testing.T) {\n+\t\t\tcontroller, cut, _, dataset := newFinalizeDiagnosticFixture(t)\n+\t\t\tprimary := new(finalizePrivateCause)\n+\t\t\tlogErr := errors.New(\"private-log-token\")\n+\t\t\twriter := &finalizeRejectingLog{err: logErr, short: short}\n+\t\t\tcontroller.diagnosticLog = writer\n+\t\t\tdataset.err = primary\n+\t\t\tbefore := controller.frozen\n+\t\t\terr := controller.Finalize(context.Background(), cut)\n+\t\t\tvar retained *finalizePrivateCause\n+\t\t\tif !errors.Is(err, errProductionController) || !errors.Is(err, primary) || !errors.As(err, &retained) || retained != primary || errors.Is(err, logErr) {\n+\t\t\t\tt.Fatalf(\"log failure replaced primary cause: %v\", err)\n+\t\t\t}\n+\t\t\tif err.Error() != \"chat lifecycle finalization failed\" || writer.calls != 1 {\n+\t\t\t\tt.Fatalf(\"safe error or best-effort attempt count changed: %v/%d\", err, writer.calls)\n+\t\t\t}\n+\t\t\tfailure := finalizationDiagnostic(err, \"controller_unknown\", \"invalid\")\n+\t\t\tif failure.Stage != \"dataset\" || failure.Reason != \"probe_failed\" || !failure.ObservedTerminal || failure.ObservedOutcome != before.Outcome || failure.ObservedCause != before.Cause {\n+\t\t\t\tt.Fatalf(\"primary failure diagnostic changed: %+v\", failure)\n+\t\t\t}\n+\t\t\tif strings.Contains(string(writer.body), \"private\") || len(writer.body) == 0 || len(writer.body) > 4096 {\n+\t\t\t\tt.Fatal(\"failed diagnostic write exposed private values or unbounded output\")\n+\t\t\t}\n+\t\t\tif controller.frozen.Outcome != before.Outcome || controller.frozen.Cause != before.Cause || controller.frozen.Terminal != before.Terminal {\n+\t\t\t\tt.Fatal(\"best-effort log failure changed frozen evidence\")\n+\t\t\t}\n+\t\t\tif _, err := os.Stat(filepath.Join(controller.outputDir, \"final.json\")); !os.IsNotExist(err) {\n+\t\t\t\tt.Fatal(\"failed primary evidence created a final report\")\n+\t\t\t}\n+\t\t})\n+\t}\n+}"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "at_utc": "2026-10-22T21:07:28.403348+00:00",
+  "operator_permission": "admin",
+  "ordinary_merge_allowed": true,
+  "review_workflows": {
+    "review-controller": "disabled_manually",
+    "review-runner": "disabled_manually"
+  },
+  "protection_required_checks": {
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection/required_status_checks",
+    "strict": true,
+    "contexts": [],
+    "contexts_url": "https://api.github.com/repos/WuKongIM/WuKongIM/branches/main/protection/required_status_checks/contexts",
+    "checks": []
+  },
+  "read_only_only": true,
+  "not_final_merge_authority_snapshot": true
+}

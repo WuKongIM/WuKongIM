@@ -1,0 +1,131 @@
+{
+  "id": 12458368275,
+  "name": "500qps-channel-append-11e66c4e3f45a01750741e225f2feb246e60e8c0-1",
+  "declared_bytes": 25602,
+  "declared_digest": "sha256:b208bc4ab1c79a6cc197a28c27cd44ba449d52e5557921de52d4a7e6408db041",
+  "state": "verified",
+  "zip_bytes": 25602,
+  "zip_sha256": "b208bc4ab1c79a6cc197a28c27cd44ba449d52e5557921de52d4a7e6408db041",
+  "full_size_sha_crc_valid": true,
+  "members": [
+    {
+      "path": "arrival.warmup.json",
+      "bytes": 19242,
+      "compressed_bytes": 1248,
+      "crc32": "acb3dbb0",
+      "sha256": "9460fc5975c4d086459a0b912dd4f11797f124709024c9cb049a143f10a4ac82"
+    },
+    {
+      "path": "arrival.json",
+      "bytes": 57399,
+      "compressed_bytes": 3197,
+      "crc32": "60326526",
+      "sha256": "f582a6505b87bdc2ef92c809948931c81ef3d8b3b824c6bedf3c6b85a2a7551f"
+    },
+    {
+      "path": "binary.sha256",
+      "bytes": 127,
+      "compressed_bytes": 108,
+      "crc32": "6e88936e",
+      "sha256": "9143847dd68fa9d7e81a9b2d2698ae15d35b9d5aa32942b987e399d217f7ef24"
+    },
+    {
+      "path": "benchmark.txt",
+      "bytes": 2360,
+      "compressed_bytes": 836,
+      "crc32": "b12fc43e",
+      "sha256": "e251f5a78f7ed87ff7279e946db0a99033aed1259082158d0084cd98eecf33f3"
+    },
+    {
+      "path": "counters/after.json",
+      "bytes": 50667,
+      "compressed_bytes": 4306,
+      "crc32": "fc755db1",
+      "sha256": "07a996a43f7bb4e1aed0d6edb80116ba378390eec639188dbfd35afd776a764c"
+    },
+    {
+      "path": "counters/before.json",
+      "bytes": 50425,
+      "compressed_bytes": 4197,
+      "crc32": "06c9552f",
+      "sha256": "e1538a2e8a0c60daed3700e20adcccb7e97abd70fc8e048f7fa7a5baf6a878c0"
+    },
+    {
+      "path": "counters/window.json",
+      "bytes": 576,
+      "compressed_bytes": 353,
+      "crc32": "7ed8e0a4",
+      "sha256": "5811025a0b0377c1ac1a84d1173ffb20da509dc41719a267489f7540be6e69cc"
+    },
+    {
+      "path": "counters.warmup/after.json",
+      "bytes": 50425,
+      "compressed_bytes": 4207,
+      "crc32": "506dc898",
+      "sha256": "76f2e5dd9b8b3264fa7d08611a1324c453aba9bbbb285bfe43183b20eb7738c1"
+    },
+    {
+      "path": "counters.warmup/before.json",
+      "bytes": 21568,
+      "compressed_bytes": 2950,
+      "crc32": "f12d1438",
+      "sha256": "88af51934b1efc07489ca63e89fae45c91227d59ca108c19f14443ca63db28d1"
+    },
+    {
+      "path": "counters.warmup/window.json",
+      "bytes": 504,
+      "compressed_bytes": 311,
+      "crc32": "4c52455b",
+      "sha256": "58ecb21d6e9673f872ab5784df2ef791c156b7d2cbb57a01b0c302c37faab42a"
+    },
+    {
+      "path": "data-filesystem.json",
+      "bytes": 249,
+      "compressed_bytes": 163,
+      "crc32": "a22f9e15",
+      "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6"
+    },
+    {
+      "path": "filesystem-preflight.txt",
+      "bytes": 123,
+      "compressed_bytes": 107,
+      "crc32": "7ce7c0b9",
+      "sha256": "0e018646395f50cdf019c4f253dada6f6d283be34435968b60d61484a5e28ca6"
+    },
+    {
+      "path": "go-version.txt",
+      "bytes": 33,
+      "compressed_bytes": 35,
+      "crc32": "dd48af92",
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "host.json",
+      "bytes": 4656,
+      "compressed_bytes": 1249,
+      "crc32": "b15a6037",
+      "sha256": "0bc4f90dc0b0c3620783a1a4a620c44c8d6af5e2328ed494c152c1c473769dcf"
+    },
+    {
+      "path": "kernel.txt",
+      "bytes": 113,
+      "compressed_bytes": 100,
+      "crc32": "5f528912",
+      "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+    },
+    {
+      "path": "result.json",
+      "bytes": 18,
+      "compressed_bytes": 20,
+      "crc32": "81529131",
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "source.sha",
+      "bytes": 41,
+      "compressed_bytes": 41,
+      "crc32": "2f7a4384",
+      "sha256": "52b33bd4b435af25d9c05b4f921b387104173c6ba0fa04665070e8625094a6ed"
+    }
+  ]
+}

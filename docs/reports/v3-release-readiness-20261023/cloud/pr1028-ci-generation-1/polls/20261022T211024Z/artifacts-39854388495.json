@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 12459027716,
+      "node_id": "MDg6QXJ0aWZhY3QxMjQ1OTAyNzcxNg==",
+      "name": "500qps-tcp-sendack-11e66c4e3f45a01750741e225f2feb246e60e8c0-1",
+      "size_in_bytes": 8140,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12459027716",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12459027716/zip",
+      "expired": false,
+      "digest": "sha256:35fdc4ea2369de2c81af7ec4e530c7e7459ad3b774ef738dadfc6154ff7ba9e8",
+      "created_at": "2026-10-22T21:10:27Z",
+      "updated_at": "2026-10-22T21:10:27Z",
+      "expires_at": "2026-11-05T21:10:27Z",
+      "workflow_run": {
+        "id": 39854388495,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-finalize-diagnostics",
+        "head_sha": "3d243bccc8caed21a8719071ad7c1883156713c2"
+      }
+    },
+    {
+      "id": 12457829935,
+      "node_id": "MDg6QXJ0aWZhY3QxMjQ1NzgyOTkzNQ==",
+      "name": "three-node-pr-1028-11e66c4e3f45a01750741e225f2feb246e60e8c0-1",
+      "size_in_bytes": 229504823,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12457829935",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12457829935/zip",
+      "expired": false,
+      "digest": "sha256:2abab925aad5be1a84915036ad189f066a2431bf24d97c64e8167a4b472bb346",
+      "created_at": "2026-10-22T21:10:02Z",
+      "updated_at": "2026-10-22T21:10:02Z",
+      "expires_at": "2026-10-29T21:09:52Z",
+      "workflow_run": {
+        "id": 39854388495,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-finalize-diagnostics",
+        "head_sha": "3d243bccc8caed21a8719071ad7c1883156713c2"
+      }
+    }
+  ]
+}

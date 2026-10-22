@@ -1,0 +1,11 @@
+{
+  "passed_package_summaries": 219,
+  "no_test_file_package_summaries": 15,
+  "package_failure_summaries": [],
+  "changed_scope_package_summaries": [
+    "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark\t4.754s",
+    "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle\t21.982s"
+  ],
+  "individual_test_counts": "Not exposed by the non-verbose frozen go-unit command; local focused866 top-level/1613 event figures are not claimed as a Linux per-case receipt.",
+  "original_sha256": "f4134372dcfbe4e9f1b85d96151e3d8dc7be264a977dcefa65054d67300053aa"
+}

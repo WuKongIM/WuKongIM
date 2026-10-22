@@ -1,0 +1,30 @@
+{
+  "passed": true,
+  "hash_slots": 256,
+  "token_authentication": "production_default",
+  "suppression_window_ms": 1000,
+  "case_summary": [
+    {
+      "nodes": 1,
+      "passed": true,
+      "binary_sha256": "fd901ab17306583aaf39475db5c4b7cac7cc4a03892e3f56dfc4b66a451d9270",
+      "invalid_auth_refused": true,
+      "whole_cluster_restarts": 1,
+      "sender_suppression_windows": 4,
+      "acknowledged_count": 6,
+      "receives_count": 16,
+      "history_count": 3
+    },
+    {
+      "nodes": 3,
+      "passed": true,
+      "binary_sha256": "fd901ab17306583aaf39475db5c4b7cac7cc4a03892e3f56dfc4b66a451d9270",
+      "invalid_auth_refused": true,
+      "whole_cluster_restarts": 1,
+      "sender_suppression_windows": 4,
+      "acknowledged_count": 6,
+      "receives_count": 16,
+      "history_count": 9
+    }
+  ]
+}

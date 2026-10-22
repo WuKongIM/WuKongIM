@@ -1,0 +1,135 @@
+{
+  "schema": "wukongim/local500-expired-typed-identities/v1",
+  "worker_evidence_sha256": "433db7d46b30ea6ad94855fce7611ad7c70f6b03cd8be5f864baa3966cb86408",
+  "source_helper_sha256": "3e5f018b0beb3705ee67a25e65bc29686f9d8c86b8ea4491cbff0d8a2c97a861",
+  "transcription_scope": "existing initial ordinary-group population only;500rate changes noidentityhash rules",
+  "source_equivalence": {
+    "internal/bench/chatlifecycle/identity.go": {
+      "clean79a_sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "old_reference_sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "byte_equal": true
+    },
+    "internal/bench/chatlifecycle/payload.go": {
+      "clean79a_sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+      "old_reference_sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda",
+      "byte_equal": true
+    },
+    "internal/bench/chatlifecycle/traffic.go": {
+      "clean79a_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "old_reference_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "byte_equal": true
+    }
+  },
+  "results": [
+    {
+      "worker_id": 0,
+      "worker_generation": 1,
+      "sample_index": "9223380832947798130",
+      "fingerprint": "73af27ef912febfe6a7b032d961122bb",
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 114
+      },
+      "group_indexes": [
+        1656
+      ],
+      "match_unique": true,
+      "candidate_count": 1,
+      "attempted_candidates": 3335,
+      "status": "unique_initial_population_fingerprint_match"
+    },
+    {
+      "worker_id": 0,
+      "worker_generation": 1,
+      "sample_index": "9223380832947798430",
+      "fingerprint": "3276a62a15a9216f4683222b7751c108",
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 414
+      },
+      "group_indexes": [
+        1623
+      ],
+      "match_unique": true,
+      "candidate_count": 1,
+      "attempted_candidates": 3335,
+      "status": "unique_initial_population_fingerprint_match"
+    },
+    {
+      "worker_id": 1,
+      "worker_generation": 1,
+      "sample_index": "9223380832947798230",
+      "fingerprint": "562ccbccd13140cd9a4a1ca28610ea89",
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 214
+      },
+      "group_indexes": [
+        1735
+      ],
+      "match_unique": true,
+      "candidate_count": 1,
+      "attempted_candidates": 3335,
+      "status": "unique_initial_population_fingerprint_match"
+    },
+    {
+      "worker_id": 1,
+      "worker_generation": 1,
+      "sample_index": "9223380832947798530",
+      "fingerprint": "3e1a78cb539878dc6c90b460b9bf7398",
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 514
+      },
+      "group_indexes": [
+        1759
+      ],
+      "match_unique": true,
+      "candidate_count": 1,
+      "attempted_candidates": 3335,
+      "status": "unique_initial_population_fingerprint_match"
+    },
+    {
+      "worker_id": 2,
+      "worker_generation": 1,
+      "sample_index": "9223380832947798330",
+      "fingerprint": "0db0904a5c1178a44b1596dfd762770d",
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 314
+      },
+      "group_indexes": [
+        1646
+      ],
+      "match_unique": true,
+      "candidate_count": 1,
+      "attempted_candidates": 3330,
+      "status": "unique_initial_population_fingerprint_match"
+    }
+  ],
+  "timing": {
+    "started_at_utc": "2026-10-22T21:14:33.773261+00:00",
+    "completed_at_utc": "2026-10-22T21:14:33.835024+00:00",
+    "cpu_seconds": 0.059543000000000006,
+    "wall_seconds": 0.06165412499103695
+  },
+  "limits": [
+    "fingerprintmatch identifies an initial-population candidate, not delivery failure cause",
+    "No rawUID/channel/clientnumber/payload emitted orpersisted bythisstep",
+    "Only bounded worker evidencecode11 retained;exactACK packet/MessageID/sequence/time not independentlyretained here",
+    "Unsupported/nonunique candidates would remain explicit;no guessing"
+  ],
+  "product_calls": 0,
+  "DB_queries": 0,
+  "pprof_commands": 0
+}

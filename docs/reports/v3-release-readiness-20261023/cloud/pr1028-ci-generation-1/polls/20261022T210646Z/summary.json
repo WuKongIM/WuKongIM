@@ -1,0 +1,114 @@
+[
+  {
+    "id": 39854388556,
+    "name": "Safety Automation - Issue Agent PR Signal",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120088656998,
+        "name": "Emit credential-free wake-up",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39854388495,
+    "name": "Three-Node Chat Lifecycle Regression pull_request 1028 attempt 1",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120088657675,
+        "name": "PR performance baseline evidence",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120088658048,
+        "name": "PR messaging unit and race",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120088658056,
+        "name": "PR three-node correctness",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120088659516,
+        "name": "Fixed Linux SEND diagnosis",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120088659743,
+        "name": "Nightly direct 500 QPS qualification",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120088781891,
+        "name": "PR 500 QPS / tcp-sendack",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120088781936,
+        "name": "PR 500 QPS / channel-append",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120088782146,
+        "name": "PR 500 QPS / mixed-send",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39854388522,
+    "name": "V3 Candidate Regression pull_request 1028 attempt 1",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120088657625,
+        "name": "Candidate default suite (go-unit)",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120088657902,
+        "name": "Candidate scripts integration",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39854388530,
+    "name": "Safety Automation - Validate Native Package Preview",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120088657304,
+        "name": "Build and install deb/rpm preview",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  }
+]

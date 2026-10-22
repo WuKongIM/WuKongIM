@@ -1,0 +1,94 @@
+{
+  "schema": "wukongim/local500-delivery-incomplete-window/v1",
+  "window": {
+    "start_first_grant": "2026-10-23T05:08:58.095096+08:00",
+    "end_terminal_worker_cut": "2026-10-23T05:09:19.850385+08:00",
+    "log_timestamp_interpretation": "app prefix wallclock UTC+08:00 as runreceipt timezone"
+  },
+  "canonical_service_logs_only": true,
+  "duplicate_app_warn_copies_not_counted": true,
+  "nodes": [
+    {
+      "node_id": 1,
+      "source": "logs/service-1.log",
+      "within_window_count": 60,
+      "by_phase_result_mode_reason": [
+        {
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "fixed_error_reason": "deadline_exceeded",
+          "count": 60
+        }
+      ],
+      "outside_window_count": 0,
+      "unparseable_candidate_lines": 0,
+      "first_at": "2026-10-23T05:09:06.337000+08:00",
+      "last_at": "2026-10-23T05:09:15.617000+08:00"
+    },
+    {
+      "node_id": 2,
+      "source": "logs/service-2.log",
+      "within_window_count": 75,
+      "by_phase_result_mode_reason": [
+        {
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "fixed_error_reason": "deadline_exceeded",
+          "count": 75
+        }
+      ],
+      "outside_window_count": 0,
+      "unparseable_candidate_lines": 0,
+      "first_at": "2026-10-23T05:09:06.280000+08:00",
+      "last_at": "2026-10-23T05:09:15.876000+08:00"
+    },
+    {
+      "node_id": 3,
+      "source": "logs/service-3.log",
+      "within_window_count": 72,
+      "by_phase_result_mode_reason": [
+        {
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "fixed_error_reason": "deadline_exceeded",
+          "count": 72
+        }
+      ],
+      "outside_window_count": 0,
+      "unparseable_candidate_lines": 0,
+      "first_at": "2026-10-23T05:09:06.343000+08:00",
+      "last_at": "2026-10-23T05:09:15.841000+08:00"
+    }
+  ],
+  "total_in_window": 207,
+  "node2_recipient_queue_cuts": {
+    "first-measured": {
+      "values": {
+        "wukongim_delivery_recipient_worker_capacity": 320.0,
+        "wukongim_delivery_recipient_worker_inflight": 40.0,
+        "wukongim_delivery_recipient_worker_queue_capacity": 1024.0,
+        "wukongim_delivery_recipient_worker_queue_depth": 14.0
+      },
+      "queue_full": false,
+      "sample_time": "individual server scrape timestamp notretained;sequentialscrape aftersupervisor event,firstcut around+5s"
+    },
+    "terminal": {
+      "values": {
+        "wukongim_delivery_recipient_worker_capacity": 320.0,
+        "wukongim_delivery_recipient_worker_inflight": 0.0,
+        "wukongim_delivery_recipient_worker_queue_capacity": 1024.0,
+        "wukongim_delivery_recipient_worker_queue_depth": 0.0
+      },
+      "queue_full": false,
+      "sample_time": "individual server scrape timestamp notretained;sequentialscrape aftersupervisor event,firstcut around+5s"
+    }
+  },
+  "limits": [
+    "Allcounts areaggregate;noexactmessageID join to5expired samples",
+    "Firstretained queuecut is around+5s and maymiss earlierpressure;singlepointnotcontinuouscapacityproof",
+    "Recipient queue/inflight areseparate from goroutine snapshot idle/process counts;do notclaimpoolfull fromcomponentglobalcounts"
+  ]
+}

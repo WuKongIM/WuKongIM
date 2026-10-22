@@ -13,6 +13,8 @@
 - [第九批收据](COPY_BATCH9_RECEIPT.json)：两代 clean 79a 构建的完整链接参数/嵌入资源/产物来源核对、profile v2 提案及一次新 native 原分布诊断的有限安全终态，共 4 个来源组。初轮未带完整链接参数而不等的记录保留；Linux 两产物后续逐字节匹配原云 ELF，新 native 诊断仍失败。仅复制采样元数据及请求状态，不含可执行文件、原始 CPU/goroutine、运行身份、数据库或配置，也不含后续 signals/finalize 实现。见[清单](COPY_BATCH9_ALLOWLIST)和[校验表](COPY_BATCH9_SHA256SUMS)。
 - [第十批收据](COPY_BATCH10_RECEIPT.json)：exact 79a 的有限 CPU/goroutine 与固定指标派生、独立 RPC executor 检查、#1028 收尾诊断实现及两轮复核/补测，以及两代 rate 500 提案，共 10 个独立来源组。首轮 Spec 缺失场景和失败日志保留；第二轮双轴零问题不等于原消息根因已修。Go test-json 是有限、已审查的受控测试输出，真实运行 JSONL 及原始 profiles/二进制/DB/config 仍不入库；截至 UTC 21:09，本批不含运行中的 500 结果或 #1028 首次 CI。见[清单](COPY_BATCH10_ALLOWLIST)和[校验表](COPY_BATCH10_SHA256SUMS)。
 
+- [第十一批收据](COPY_BATCH11_RECEIPT.json)：#1028 首次 Linux CI、普通合并和干净任务清理；精确 79a 的一次 500 SEND/s 诊断、独立保留样本/警告补充及有限离线 profile 派生，共 5 个独立来源组。16 项检查成功、2 项事件跳过；500 的 8,001 SEND/ACK 和 5 个过期仅为保留 worker 切面，`finalize` exit 8 缺完整终态，不能报告为验收通过或云端同根因。五个小 proof ZIP 的 59 个文本成员逐项核验；真实运行日志/身份/原始 profile、二进制、DB/config 及 self-chat 原始报告和 ZIP 不入库。见[清单](COPY_BATCH11_ALLOWLIST)和[校验表](COPY_BATCH11_SHA256SUMS)。
+
 后续 #1027 已于北京时间 **04:01:25** 合并，首次 CI 为 17 项成功、2 项条件跳过。本地实验的来源声明、二进制嵌入 stamp 和实际编译内容必须分开核对：Go 1.25.11 在嵌套 worktree 的 Git 根查找可取外层 a804 标记，而反汇编已见 79a 工作树路径及新增分支；不能仅凭 stamp 判断执行了旧源码。最初产品 override 构建链仍不完整，不能由后续重建追溯认证。新的 clean 79a 构建在 `.worktrees` 下使用具有真实 `.git` 目录的独立本地 clone，已固定云编译器/链接参数并核对 76 个嵌入资源，Linux 两程序与原云 ELF 逐字节相同；新 native 诊断终态覆盖 10.742 秒窗口（含停止/收尾），首个失败原因为 `overall_first_attempt_rate`。该窗口不是已知 active SEND 时长，完整 CPU/goroutine 采集不等于性能验收。当前来源纠正及后续诊断见[复核报告](../2026-10-23-v3-release-readiness.md)；旧批次冻结材料中的初步解释保留原字节。
 
 云 RC、实际生产来源/签名/审计、OSS/CDN 激活和公网客户端验收分别需要自己的实际收据。TEST ONLY、局域 TLS 或 SDK adapter 的成功不能代替这些结果。

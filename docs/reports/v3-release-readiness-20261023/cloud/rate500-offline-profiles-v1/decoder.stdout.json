@@ -1,0 +1,57 @@
+{
+  "profile_time": "2026-10-22T21:09:03.284063000Z",
+  "delivery_runWorker_disjoint": {
+    "idle_plan_dequeue": 291,
+    "presence_cold_lane_select": 12,
+    "presence_parallel_leader_join": 9,
+    "owner_push_parallel_join_or_inline": 4,
+    "presence_remote_authority_RPC": 3,
+    "presence_owner_recovery_RPC": 1
+  },
+  "delivery_runWorker_total": 320,
+  "Conn_Call_disjoint_nearest_non_transport_product_frame": [
+    {
+      "function": "pkg/cluster/channels.(*QuorumPeerLink).Exchange",
+      "line": 45,
+      "count": 32
+    },
+    {
+      "function": "internal/access/node.(*Client).EndpointsByTargets",
+      "line": 704,
+      "count": 30
+    },
+    {
+      "function": "internal/access/node.(*Client).ForwardSendBatch",
+      "line": 120,
+      "count": 18
+    },
+    {
+      "function": "pkg/slot/proxy.(*Store).callSendPermission",
+      "line": 332,
+      "count": 29
+    },
+    {
+      "function": "pkg/cluster/propose.(*NetworkForwardClient).forward",
+      "line": 39,
+      "count": 26
+    },
+    {
+      "function": "internal/access/node.(*Client).PushBatch",
+      "line": 56,
+      "count": 4
+    },
+    {
+      "function": "internal/access/node.(*Client).ReadOwnerRoutesByTargets",
+      "line": 60,
+      "count": 2
+    },
+    {
+      "function": "internal/access/node.(*Client).callService",
+      "line": 788,
+      "count": 1
+    }
+  ],
+  "Conn_Call_total": 142,
+  "enqueue_disjoint": {},
+  "limits": "Partitions are disjoint only within their own cohort. Cohorts overlap each other; one-node one-point counts, not durations. Nearest product frame classifies RPC caller, not remote serving wait."
+}

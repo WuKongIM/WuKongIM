@@ -1,0 +1,33 @@
+{
+  "permission": "admin",
+  "user": {
+    "login": "tangtaoit",
+    "id": 3895878,
+    "node_id": "MDQ6VXNlcjM4OTU4Nzg=",
+    "avatar_url": "https://avatars.githubusercontent.com/u/3895878?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/tangtaoit",
+    "html_url": "https://github.com/tangtaoit",
+    "followers_url": "https://api.github.com/users/tangtaoit/followers",
+    "following_url": "https://api.github.com/users/tangtaoit/following{/other_user}",
+    "gists_url": "https://api.github.com/users/tangtaoit/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/tangtaoit/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/tangtaoit/subscriptions",
+    "organizations_url": "https://api.github.com/users/tangtaoit/orgs",
+    "repos_url": "https://api.github.com/users/tangtaoit/repos",
+    "events_url": "https://api.github.com/users/tangtaoit/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/tangtaoit/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false,
+    "permissions": {
+      "admin": true,
+      "maintain": true,
+      "push": true,
+      "triage": true,
+      "pull": true
+    },
+    "role_name": "admin"
+  },
+  "role_name": "admin"
+}

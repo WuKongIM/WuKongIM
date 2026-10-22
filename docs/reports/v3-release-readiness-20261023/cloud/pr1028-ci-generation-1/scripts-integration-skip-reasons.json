@@ -1,0 +1,62 @@
+[
+  {
+    "package": "github.com/WuKongIM/WuKongIM/scripts",
+    "test": "TestDockerImageRuntimeContract",
+    "elapsed": 0,
+    "preceding_output": [
+      "=== RUN   TestDockerImageRuntimeContract",
+      "docker_image_integration_test.go:22: set WK_DOCKER_IMAGE_INTEGRATION=1 to build and validate the Docker image runtime contract",
+      "--- SKIP: TestDockerImageRuntimeContract (0.00s)"
+    ]
+  },
+  {
+    "package": "github.com/WuKongIM/WuKongIM/scripts",
+    "test": "TestDockerImageEmbeddedPrometheus",
+    "elapsed": 0,
+    "preceding_output": [
+      "=== RUN   TestDockerImageEmbeddedPrometheus",
+      "docker_prometheus_integration_test.go:18: set WK_DOCKER_PROMETHEUS_IMAGE to the exact image to validate",
+      "--- SKIP: TestDockerImageEmbeddedPrometheus (0.00s)"
+    ]
+  },
+  {
+    "package": "github.com/WuKongIM/WuKongIM/scripts",
+    "test": "TestEasySDKReadinessSerialDelayFixture",
+    "elapsed": 0,
+    "preceding_output": [
+      "=== RUN   TestEasySDKReadinessSerialDelayFixture",
+      "easysdk_readiness_schedule_integration_test.go:35: subprocess scheduling fixture only",
+      "--- SKIP: TestEasySDKReadinessSerialDelayFixture (0.00s)"
+    ]
+  },
+  {
+    "package": "github.com/WuKongIM/WuKongIM/scripts",
+    "test": "TestNativePackageLifecycle",
+    "elapsed": 0,
+    "preceding_output": [
+      "=== RUN   TestNativePackageLifecycle",
+      "native_package_lifecycle_integration_test.go:17: set WK_NATIVE_PACKAGE_LIFECYCLE_INTEGRATION=1 to run the native package lifecycle validation",
+      "--- SKIP: TestNativePackageLifecycle (0.00s)"
+    ]
+  },
+  {
+    "package": "github.com/WuKongIM/WuKongIM/scripts",
+    "test": "TestNativePackageSignedRepository",
+    "elapsed": 0,
+    "preceding_output": [
+      "=== RUN   TestNativePackageSignedRepository",
+      "native_package_repository_integration_test.go:15: set WK_NATIVE_PACKAGE_REPOSITORY_INTEGRATION=1 to run the signed repository container validation",
+      "--- SKIP: TestNativePackageSignedRepository (0.00s)"
+    ]
+  },
+  {
+    "package": "github.com/WuKongIM/WuKongIM/scripts",
+    "test": "TestNativePackageRepositoryDeadlineFixture",
+    "elapsed": 0,
+    "preceding_output": [
+      "=== RUN   TestNativePackageRepositoryDeadlineFixture",
+      "native_package_repository_output_integration_test.go:92: subprocess fixture only",
+      "--- SKIP: TestNativePackageRepositoryDeadlineFixture (0.00s)"
+    ]
+  }
+]

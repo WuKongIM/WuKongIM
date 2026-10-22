@@ -1,0 +1,14 @@
+{
+  "schema": "wukongim/local500-final-zero/v1",
+  "at_utc": "2026-10-22T21:12:14.437835+00:00",
+  "owned_pgid": 18742,
+  "remaining_group_members": [],
+  "remaining_WK_processes": [],
+  "port_range": [
+    25000,
+    25063
+  ],
+  "remaining_listeners": [],
+  "helper_joined": true,
+  "owned_sampler_children": "same inheritedPGID, no members;watcher joined helper without escalation"
+}

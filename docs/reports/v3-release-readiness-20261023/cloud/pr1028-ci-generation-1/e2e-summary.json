@@ -1,0 +1,249 @@
+{
+  "identity": {
+    "source_sha": "11e66c4e3f45a01750741e225f2feb246e60e8c0",
+    "policy_sha": "2ab3e1a8bd95670603bc38314036c797a5124682",
+    "run_id": "39854388522",
+    "run_attempt": "1"
+  },
+  "binary_sha256": "fd901ab17306583aaf39475db5c4b7cac7cc4a03892e3f56dfc4b66a451d9270",
+  "cases": {
+    "build": {
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 2494,
+        "output_bytes": 5051,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 2494,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 98.433
+      },
+      "test_pass_events": [],
+      "skip_events": [],
+      "skip_output": [],
+      "fail_events": []
+    },
+    "ordinary_history": {
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 7953,
+        "output_bytes": 27561,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 7953,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 111.254
+      },
+      "test_pass_events": [
+        {
+          "Time": "2026-10-22T21:13:43.040659013Z",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+          "Elapsed": 21.39
+        },
+        {
+          "Time": "2026-10-22T21:14:01.503247735Z",
+          "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+          "Elapsed": 18.46
+        },
+        {
+          "Time": "2026-10-22T21:14:13.987844768Z",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+          "Elapsed": 12.48
+        },
+        {
+          "Time": "2026-10-22T21:14:31.845164053Z",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+          "Elapsed": 17.86
+        },
+        {
+          "Time": "2026-10-22T21:14:53.407111431Z",
+          "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+          "Elapsed": 21.56
+        },
+        {
+          "Time": "2026-10-22T21:14:53.407127935Z",
+          "Test": "TestOriginalOrdinaryHistoryTopology",
+          "Elapsed": 91.76
+        }
+      ],
+      "skip_events": [],
+      "skip_output": [],
+      "fail_events": []
+    },
+    "cross_node_delivery": {
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 13936,
+        "output_bytes": 8445,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 13936,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 50.743
+      },
+      "test_pass_events": [
+        {
+          "Time": "2026-10-22T21:15:12.583343248Z",
+          "Test": "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+          "Elapsed": 17.08
+        },
+        {
+          "Time": "2026-10-22T21:15:22.220621293Z",
+          "Test": "TestThreeNodeReplicaTwoClusterConvergesSlotTopology",
+          "Elapsed": 9.64
+        },
+        {
+          "Time": "2026-10-22T21:15:31.637453284Z",
+          "Test": "TestThreeNodeReplicaThreeClusterConvergesSlotTopology",
+          "Elapsed": 9.42
+        },
+        {
+          "Time": "2026-10-22T21:15:44.43535212Z",
+          "Test": "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+          "Elapsed": 12.8
+        }
+      ],
+      "skip_events": [
+        {
+          "Time": "2026-10-22T21:15:44.435378009Z",
+          "Action": "skip",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+          "Elapsed": 0
+        }
+      ],
+      "skip_output": [
+        {
+          "Time": "2026-10-22T21:15:44.435363707Z",
+          "Action": "output",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+          "Output": "=== RUN   TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS\n"
+        },
+        {
+          "Time": "2026-10-22T21:15:44.435366621Z",
+          "Action": "output",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+          "Output": "    cross_node_delivery_test.go:148: set WK_E2E_REPLICA_LOAD_COMPARISON=1 to compare the bounded 2/2 and 3/3 2,000 QPS profiles\n"
+        },
+        {
+          "Time": "2026-10-22T21:15:44.435372489Z",
+          "Action": "output",
+          "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+          "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+          "Output": "--- SKIP: TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS (0.00s)\n"
+        }
+      ],
+      "fail_events": []
+    },
+    "self_chat": {
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 14257,
+        "output_bytes": 3701,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 14257,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 40.498
+      },
+      "test_pass_events": [
+        {
+          "Time": "2026-10-22T21:15:59.703333721Z",
+          "Test": "TestSelfChatPersistsAcrossClusterRestart/1-node-cluster",
+          "Elapsed": 13.61
+        },
+        {
+          "Time": "2026-10-22T21:16:25.047873919Z",
+          "Test": "TestSelfChatPersistsAcrossClusterRestart/3-node-cluster",
+          "Elapsed": 25.34
+        },
+        {
+          "Time": "2026-10-22T21:16:25.048425211Z",
+          "Test": "TestSelfChatPersistsAcrossClusterRestart",
+          "Elapsed": 38.95
+        }
+      ],
+      "skip_events": [],
+      "skip_output": [],
+      "fail_events": []
+    }
+  },
+  "self_chat": {
+    "passed": true,
+    "hash_slots": 256,
+    "token_authentication": "production_default",
+    "suppression_window_ms": 1000,
+    "case_summary": [
+      {
+        "nodes": 1,
+        "passed": true,
+        "binary_sha256": "fd901ab17306583aaf39475db5c4b7cac7cc4a03892e3f56dfc4b66a451d9270",
+        "invalid_auth_refused": true,
+        "whole_cluster_restarts": 1,
+        "sender_suppression_windows": 4,
+        "acknowledged_count": 6,
+        "receives_count": 16,
+        "history_count": 3
+      },
+      {
+        "nodes": 3,
+        "passed": true,
+        "binary_sha256": "fd901ab17306583aaf39475db5c4b7cac7cc4a03892e3f56dfc4b66a451d9270",
+        "invalid_auth_refused": true,
+        "whole_cluster_restarts": 1,
+        "sender_suppression_windows": 4,
+        "acknowledged_count": 6,
+        "receives_count": 16,
+        "history_count": 9
+      }
+    ]
+  },
+  "excluded_private_original_report": {
+    "artifact_id": 12459068339,
+    "path": "self_chat/report.json",
+    "bytes": 47382,
+    "compressed_bytes": 1778,
+    "crc32": "e0dc76ed",
+    "sha256": "0e6bde8692358a3160eca498d4b91d572eb05426aaaf1b1bbf20b498fa82702d",
+    "handling": "Original ZIP and raw identity report retained privately; only finite typed counts and booleans exposed. No uint64 conversion through floating point."
+  },
+  "private_token_scan": {
+    "tested_allowed_members": 20,
+    "excluded_report_identity_or_payload_string_token_count": 228,
+    "matching_members": []
+  }
+}

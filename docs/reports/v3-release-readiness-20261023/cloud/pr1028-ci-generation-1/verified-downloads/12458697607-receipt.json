@@ -1,0 +1,54 @@
+{
+  "id": 12458697607,
+  "name": "v3-candidate-default-39854388522-1",
+  "declared_bytes": 8207,
+  "declared_digest": "sha256:4b4320a9380fb157596220a0530d46d11fa1227e30deadec6460ab57b377c7f4",
+  "state": "verified",
+  "zip_bytes": 8207,
+  "zip_sha256": "4b4320a9380fb157596220a0530d46d11fa1227e30deadec6460ab57b377c7f4",
+  "full_size_sha_crc_valid": true,
+  "members": [
+    {
+      "path": "command.json",
+      "bytes": 334,
+      "compressed_bytes": 213,
+      "crc32": "c797ebb8",
+      "sha256": "0cb6625e3ac51b84b8154054b2295ed766dcd7cb0cb0967da00310244dffa3d9"
+    },
+    {
+      "path": "identity.json",
+      "bytes": 286,
+      "compressed_bytes": 189,
+      "crc32": "d6394a9a",
+      "sha256": "46bd9019f612600938eff25eaac3cac14ad320f97b987e60702855e0bb7d7dea"
+    },
+    {
+      "path": "policy.json",
+      "bytes": 14492,
+      "compressed_bytes": 2758,
+      "crc32": "4b2851e1",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "go-version.txt",
+      "bytes": 33,
+      "compressed_bytes": 35,
+      "crc32": "dd48af92",
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "result.json",
+      "bytes": 370,
+      "compressed_bytes": 192,
+      "crc32": "f9392533",
+      "sha256": "8b2fcaf2797504e05910ab519d822ab3c6bb3623f341ed1e4b7500777931d225"
+    },
+    {
+      "path": "stdout-stderr.log",
+      "bytes": 22029,
+      "compressed_bytes": 4090,
+      "crc32": "4d817386",
+      "sha256": "f4134372dcfbe4e9f1b85d96151e3d8dc7be264a977dcefa65054d67300053aa"
+    }
+  ]
+}

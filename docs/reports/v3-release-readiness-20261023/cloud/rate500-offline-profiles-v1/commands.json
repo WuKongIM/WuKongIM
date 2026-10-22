@@ -1,0 +1,26 @@
+[
+  {
+    "argv": [
+      "/Users/tt/Library/Caches/go-build/3b/3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5-d/pprof",
+      "-symbolize=none",
+      "-top",
+      "-nodecount=60",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-rate500-profile-v2/profiles-node2/profiles/node-2-goroutine.pb.gz"
+    ],
+    "exit_status": 0,
+    "input_sha256": "543c9232ebad5ff0cc61af1d2c7e2beab837bd41a6345ae2407d33ce13c11dd8",
+    "tool_sha256": "3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5"
+  },
+  {
+    "argv": [
+      "/Users/tt/Library/Caches/go-build/3b/3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5-d/pprof",
+      "-symbolize=none",
+      "-top",
+      "-nodecount=60",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-rate500-profile-v2/profiles-node2/profiles/node-2-cpu.pb.gz"
+    ],
+    "exit_status": 0,
+    "input_sha256": "06857d46d09326890baf0b117a1d833f594acc77e19a205abe487a8fba78876b",
+    "tool_sha256": "3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5"
+  }
+]

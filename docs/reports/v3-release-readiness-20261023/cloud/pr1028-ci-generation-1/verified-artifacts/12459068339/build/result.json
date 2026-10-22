@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "exit_code": 0,
+  "session_id": 2494,
+  "output_bytes": 5051,
+  "output_truncated": false,
+  "passed": true,
+  "cleanup": {
+    "session_id": 2494,
+    "verified": true,
+    "complete": true,
+    "initial_processes": [],
+    "remaining_processes": []
+  },
+  "command_status": "passed",
+  "wrapper_exit_code": 0,
+  "elapsed_seconds": 98.433
+}
