@@ -1,0 +1,59 @@
+{
+  "observed_at_utc": "20261022T173237Z",
+  "head": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+  "run_id": 39821491408,
+  "run_attempt": 2,
+  "status": "in_progress",
+  "conclusion": null,
+  "main_sha": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "attempt_jobs": [
+    {
+      "id": 119980774703,
+      "name": "TEST ONLY signed APT/RPM repository",
+      "status": "in_progress",
+      "conclusion": null,
+      "current_steps": [
+        "Sign and independently verify real TEST ONLY local file inputs"
+      ]
+    },
+    {
+      "id": 119980776923,
+      "name": "TEST ONLY stable four clients and A/B",
+      "status": "completed",
+      "conclusion": "success",
+      "current_steps": []
+    }
+  ],
+  "all_checks": [
+    {
+      "name": "TEST ONLY stable four clients and A/B",
+      "id": 119980776923,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "TEST ONLY signed APT/RPM repository",
+      "id": 119980774703,
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "name": "Deploy complete Pages snapshot",
+      "id": 119974879135,
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Validate complete Pages snapshot",
+      "id": 119973636784,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "provider-contract",
+      "id": 119973635969,
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ]
+}

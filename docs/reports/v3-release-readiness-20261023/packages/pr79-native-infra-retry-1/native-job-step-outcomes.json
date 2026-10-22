@@ -1,0 +1,184 @@
+[
+  {
+    "number": 1,
+    "name": "Set up job",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:32:11Z",
+    "completed_at": "2026-10-22T17:32:12Z"
+  },
+  {
+    "number": 2,
+    "name": "Check out exact package-repository control",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:32:12Z",
+    "completed_at": "2026-10-22T17:32:13Z"
+  },
+  {
+    "number": 3,
+    "name": "Validate reviewed control",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:32:13Z",
+    "completed_at": "2026-10-22T17:32:14Z"
+  },
+  {
+    "number": 4,
+    "name": "Check out immutable trusted repository tools",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:32:14Z",
+    "completed_at": "2026-10-22T17:32:17Z"
+  },
+  {
+    "number": 5,
+    "name": "Verify trusted repository tool bytes",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:32:17Z",
+    "completed_at": "2026-10-22T17:32:17Z"
+  },
+  {
+    "number": 6,
+    "name": "Check real native source metadata in isolated TEST ONLY fixtures",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:32:17Z",
+    "completed_at": "2026-10-22T17:32:27Z"
+  },
+  {
+    "number": 7,
+    "name": "Preserve TEST ONLY native metadata evidence",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:32:27Z",
+    "completed_at": "2026-10-22T17:32:28Z"
+  },
+  {
+    "number": 8,
+    "name": "Sign and independently verify real TEST ONLY local file inputs",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:32:28Z",
+    "completed_at": "2026-10-22T17:32:47Z"
+  },
+  {
+    "number": 9,
+    "name": "Preserve TEST ONLY native local signing evidence",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:32:47Z",
+    "completed_at": "2026-10-22T17:32:48Z"
+  },
+  {
+    "number": 10,
+    "name": "Build and coinstall TEST ONLY preview and stable bootstrap preparations",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:32:48Z",
+    "completed_at": "2026-10-22T17:32:50Z"
+  },
+  {
+    "number": 11,
+    "name": "Preserve TEST ONLY native bootstrap preparation evidence",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:32:50Z",
+    "completed_at": "2026-10-22T17:32:51Z"
+  },
+  {
+    "number": 12,
+    "name": "Compose and independently verify TEST ONLY stable offline candidate",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:32:51Z",
+    "completed_at": "2026-10-22T17:33:17Z"
+  },
+  {
+    "number": 13,
+    "name": "Preserve TEST ONLY native stable candidate evidence",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:33:17Z",
+    "completed_at": "2026-10-22T17:33:18Z"
+  },
+  {
+    "number": 14,
+    "name": "Verify native TEST ONLY preview and stable delivery fixtures",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:33:18Z",
+    "completed_at": "2026-10-22T17:34:03Z"
+  },
+  {
+    "number": 15,
+    "name": "Preserve public native delivery fixture evidence",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:34:03Z",
+    "completed_at": "2026-10-22T17:34:04Z"
+  },
+  {
+    "number": 16,
+    "name": "Set up fixed GoReleaser toolchain",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:34:04Z",
+    "completed_at": "2026-10-22T17:34:13Z"
+  },
+  {
+    "number": 17,
+    "name": "Install fixed GoReleaser version",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:34:13Z",
+    "completed_at": "2026-10-22T17:36:12Z"
+  },
+  {
+    "number": 18,
+    "name": "Restore exact source Go toolchain",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:36:12Z",
+    "completed_at": "2026-10-22T17:36:20Z"
+  },
+  {
+    "number": 19,
+    "name": "Build unsigned TEST ONLY packages",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:36:20Z",
+    "completed_at": "2026-10-22T17:37:37Z"
+  },
+  {
+    "number": 20,
+    "name": "Build, sign, verify, and install TEST ONLY repositories",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:37:37Z",
+    "completed_at": "2026-10-22T17:38:15Z"
+  },
+  {
+    "number": 21,
+    "name": "Reject tracked-tree mutation",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:38:15Z",
+    "completed_at": "2026-10-22T17:38:15Z"
+  },
+  {
+    "number": 39,
+    "name": "Post Restore exact source Go toolchain",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:38:15Z",
+    "completed_at": "2026-10-22T17:38:29Z"
+  },
+  {
+    "number": 40,
+    "name": "Post Set up fixed GoReleaser toolchain",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:38:29Z",
+    "completed_at": "2026-10-22T17:38:43Z"
+  },
+  {
+    "number": 41,
+    "name": "Post Check out immutable trusted repository tools",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:38:43Z",
+    "completed_at": "2026-10-22T17:38:43Z"
+  },
+  {
+    "number": 42,
+    "name": "Post Check out exact package-repository control",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:38:43Z",
+    "completed_at": "2026-10-22T17:38:43Z"
+  },
+  {
+    "number": 43,
+    "name": "Complete job",
+    "conclusion": "success",
+    "started_at": "2026-10-22T17:38:43Z",
+    "completed_at": "2026-10-22T17:38:43Z"
+  }
+]

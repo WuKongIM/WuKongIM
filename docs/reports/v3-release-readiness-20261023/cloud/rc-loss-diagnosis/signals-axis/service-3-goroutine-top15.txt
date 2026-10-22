@@ -1,0 +1,22 @@
+File: wukongim
+Type: goroutine
+Time: Oct 23, 2026 at 1:43am (CST)
+Showing nodes accounting for 3411, 99.74% of 3420 total
+Dropped 140 nodes (cum <= 17)
+Showing top 15 nodes out of 46
+      flat  flat%   sum%        cum   cum%
+      3411 99.74% 99.74%       3411 99.74%  runtime.gopark
+         0     0% 99.74%       1000 29.24%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*OrderedSubmitter).run
+         0     0% 99.74%        320  9.36%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1
+         0     0% 99.74%        320  9.36%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker
+         0     0% 99.74%        320  9.36%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*orderedPlanQueue).dequeue
+         0     0% 99.74%       1716 50.18%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+         0     0% 99.74%       1716 50.18%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0% 99.74%         20  0.58%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).runWorker
+         0     0% 99.74%         20  0.58%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).start.func1
+         0     0% 99.74%         20  0.58%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*applyPipeline).runWorker
+         0     0% 99.74%         20  0.58%  github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.newApplyPipeline.func1
+         0     0% 99.74%         22  0.64%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Server).acceptLoop.func1
+         0     0% 99.74%         22  0.64%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Server).untrackConnWhenDone
+         0     0% 99.74%         45  1.32%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop
+         0     0% 99.74%         45  1.32%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop

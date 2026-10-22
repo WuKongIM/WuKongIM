@@ -1,0 +1,165 @@
+{
+  "schema": "wukongim/pr79-bounded-infrastructure-retry/v1",
+  "as_of_utc": "2026-10-22T17:41:10.737025+00:00",
+  "result": "success_after_one_explicit_infrastructure_retry",
+  "head": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+  "base": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "actual_checkout": "f1c75e55e445aa40076f20586fd2481266ee73ff",
+  "actual_checkout_and_head_tree": "306e2cd808742a9effb981fd679d2153cbcf29a4",
+  "run_id": 39821491408,
+  "run_attempt": 2,
+  "executed_job_id": 119980774703,
+  "executed_job_started_at": "2026-10-22T17:32:10Z",
+  "executed_job_completed_at": "2026-10-22T17:38:46Z",
+  "explicit_dispatches": 1,
+  "source_or_workflow_changes": false,
+  "original_deadlines_and_thresholds_unchanged": true,
+  "first_attempt_archive": "/private/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1",
+  "first_attempt_manifest_sha256": "350a8f4b610caf083cbf5dc4b438a6da187a15fff6e1c0ba2a10a27bb101e941",
+  "first_attempt_manifest_entries_revalidated": 116,
+  "original_failure_preserved": true,
+  "old_successful_stable_job_carried_forward": {
+    "original_job_id": 119973637732,
+    "attempt_2_visible_job_id": 119980776923,
+    "original_started_at": "2026-10-22T17:18:41Z",
+    "attempt_2_visible_started_at": "2026-10-22T17:18:41Z",
+    "original_completed_at": "2026-10-22T17:28:39Z",
+    "attempt_2_visible_completed_at": "2026-10-22T17:28:39Z",
+    "step_records_identical": true,
+    "original_runner_id": 1000024591,
+    "attempt_2_visible_runner_id": 1000024591,
+    "assessment": "GitHub carries the successful stable-client result into attempt 2 under a new visible job ID. Identical original timestamps, step records and runner identify reuse, not a second stable-client execution. Only the failed signed-repository job was explicitly rerun."
+  },
+  "pages_and_sdk_rerun": false,
+  "new_native_receipts": [
+    {
+      "path": "artifacts/12445327889-native-source-metadata-test-only/native-source-metadata.json",
+      "cases": 7,
+      "transport_cases": 0,
+      "passed": true,
+      "source_sha": null,
+      "scratch_removed": null,
+      "secret_tree_removed_before_verification": null,
+      "sha256": "9f500b4bf4e59f86c1a73bef69113bcac695654803d38a14771d0742f501429f"
+    },
+    {
+      "path": "artifacts/12446360092-native-local-signing-test-only/native-local-signing.json",
+      "cases": 10,
+      "transport_cases": 0,
+      "passed": true,
+      "source_sha": null,
+      "scratch_removed": null,
+      "secret_tree_removed_before_verification": true,
+      "sha256": "72dfed1b131cef338cc07292913ae124a17d073efba881849d83135633800fb7"
+    },
+    {
+      "path": "artifacts/12444444818-native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+      "cases": 6,
+      "transport_cases": 0,
+      "passed": true,
+      "source_sha": "f1c75e55e445aa40076f20586fd2481266ee73ff",
+      "scratch_removed": true,
+      "secret_tree_removed_before_verification": null,
+      "sha256": "84a67df84b30c2e922e0a905823a0dd7f1399e1d36bddaf41c7eed4d25a76d4f"
+    },
+    {
+      "path": "artifacts/12445662567-native-stable-candidate-test-only/native-stable-candidate.json",
+      "cases": 31,
+      "transport_cases": 8,
+      "passed": true,
+      "source_sha": "f1c75e55e445aa40076f20586fd2481266ee73ff",
+      "scratch_removed": true,
+      "secret_tree_removed_before_verification": true,
+      "sha256": "67d42ceb06a1ebc2d1e9cdb6b4e946ba7292ee909c9cf1a84e41020197bffd9c"
+    },
+    {
+      "path": "artifacts/12445791385-native-object-delivery-fixture-test-only/result.json",
+      "cases": 29,
+      "transport_cases": 0,
+      "passed": true,
+      "source_sha": "f1c75e55e445aa40076f20586fd2481266ee73ff",
+      "scratch_removed": true,
+      "secret_tree_removed_before_verification": null,
+      "sha256": "e8d675c3bbd5d82d297d03be06c83831a17b8020bb95d81d4a47301df1ea6943"
+    }
+  ],
+  "full_signed_repository_installation": {
+    "executed": true,
+    "signature_and_metadata_closure_marker": true,
+    "completion_marker": true,
+    "complete_job_log_bytes": 200884,
+    "complete_job_log_sha256": "6e7dec77c91c612fced3bf7039a66da35e013c813db2befbc198a6e1c0bed045",
+    "separate_container_inventory_receipt": false
+  },
+  "cleanup_limits": "New TEST ONLY candidate/delivery receipts verify their scratch removal. The carried first-attempt stable-client receipt verifies zero remaining owned containers/networks and caches. The legacy signed-repository script completed its original container path; no separate host-wide process or final Docker inventory was recorded.",
+  "new_artifacts": {
+    "count": 5,
+    "all_downloaded_zip_sha256_matches_api": true,
+    "all_downloaded_zip_crc_verified": true,
+    "partial_zip_downloads": 0
+  },
+  "command_outputs": {
+    "records": 27,
+    "full_output_sha256_recomputed": 26,
+    "tails_only_hash_declared": 1
+  },
+  "final_observation": {
+    "observed_at_utc": "20261022T173953Z",
+    "head": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+    "run_id": 39821491408,
+    "run_attempt": 2,
+    "status": "completed",
+    "conclusion": "success",
+    "main_sha": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+    "attempt_jobs": [
+      {
+        "id": 119980774703,
+        "name": "TEST ONLY signed APT/RPM repository",
+        "status": "completed",
+        "conclusion": "success",
+        "current_steps": []
+      },
+      {
+        "id": 119980776923,
+        "name": "TEST ONLY stable four clients and A/B",
+        "status": "completed",
+        "conclusion": "success",
+        "current_steps": []
+      }
+    ],
+    "all_checks": [
+      {
+        "name": "TEST ONLY stable four clients and A/B",
+        "id": 119980776923,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "TEST ONLY signed APT/RPM repository",
+        "id": 119980774703,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Deploy complete Pages snapshot",
+        "id": 119974879135,
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Validate complete Pages snapshot",
+        "id": 119973636784,
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "provider-contract",
+        "id": 119973635969,
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "production_publication_verified": false,
+  "paid_cloud_actions": false
+}

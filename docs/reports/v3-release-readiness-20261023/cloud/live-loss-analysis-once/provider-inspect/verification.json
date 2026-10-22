@@ -1,0 +1,22 @@
+{
+  "observed_at": "2026-10-22T18:05:14.017620+00:00",
+  "preflight_sha256": "6935bbbce83e873a8a118fd43c91610211f55bbcaeb78c6bad9509b29a035c25",
+  "selector_identical_to_original": true,
+  "resources": 28,
+  "counts": {
+    "disk": 8,
+    "disk-attachment": 4,
+    "eip": 1,
+    "eip-association": 1,
+    "eni": 4,
+    "instance": 4,
+    "security-group": 1,
+    "security-rule": 3,
+    "vpc": 1,
+    "vswitch": 1
+  },
+  "artifact_digests_verified": [
+    "sha256:36539ef216322a8219688e4d5d4511e6c9267db8dcf6452e47c49be628c04904",
+    "sha256:de98bccfd53da30befde4b01261b59d9e506525550b2588a657bed0958976315"
+  ]
+}

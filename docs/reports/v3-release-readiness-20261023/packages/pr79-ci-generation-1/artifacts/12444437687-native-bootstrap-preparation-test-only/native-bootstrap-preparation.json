@@ -1,0 +1,626 @@
+{
+  "cases": [
+    {
+      "case": "preview-reproducible-build",
+      "inventory": {
+        "packages": {
+          "apt": {
+            "architecture": "all",
+            "download_path": "bootstrap/wukongim-archive-keyring_1.1.0_all.deb",
+            "filename": "wukongim-archive-keyring_1.1.0_all.deb",
+            "name": "wukongim-archive-keyring",
+            "new": true,
+            "published_sha256": "159f2897ce4fb402049424407a4c347fb5cadcd65c5db1015b7e5e817cd96622",
+            "published_size": 5456,
+            "repository_path": "apt/pool/main/w/wukongim/wukongim-archive-keyring_1.1.0_all.deb",
+            "source_sha256": "159f2897ce4fb402049424407a4c347fb5cadcd65c5db1015b7e5e817cd96622",
+            "source_size": 5456,
+            "version": "1.1.0"
+          },
+          "rpm": {
+            "architecture": "noarch",
+            "download_path": "bootstrap/wukongim-release-1.1.0-1.noarch.rpm",
+            "filename": "wukongim-release-1.1.0-1.noarch.rpm",
+            "name": "wukongim-release",
+            "new": true,
+            "published_sha256": "dbf4230292741f310407a99f18afc86cbe33af30502e9bd0937bcf22b0e36cff",
+            "published_size": 11475,
+            "repository_path": "rpm/preview/el/9/x86_64/Packages/wukongim-release-1.1.0-1.noarch.rpm",
+            "source_sha256": "dbf4230292741f310407a99f18afc86cbe33af30502e9bd0937bcf22b0e36cff",
+            "source_size": 11475,
+            "version": "1.1.0"
+          }
+        },
+        "schema": "wukongim.native_package_bootstrap_inventory/v1",
+        "version": "1.1.0"
+      },
+      "passed": true
+    },
+    {
+      "case": "stable-reproducible-build",
+      "inventory": {
+        "channel": "stable",
+        "packages": {
+          "apt": {
+            "architecture": "all",
+            "download_path": "bootstrap/wukongim-archive-keyring-stable_1.1.0_all.deb",
+            "filename": "wukongim-archive-keyring-stable_1.1.0_all.deb",
+            "name": "wukongim-archive-keyring-stable",
+            "new": true,
+            "published_sha256": "b3ba43438c2bbf9a0edb02b32b09f672e6f170799bf6727781c9d81ad59fb9db",
+            "published_size": 4412,
+            "repository_path": "apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.0_all.deb",
+            "source_sha256": "b3ba43438c2bbf9a0edb02b32b09f672e6f170799bf6727781c9d81ad59fb9db",
+            "source_size": 4412,
+            "version": "1.1.0"
+          },
+          "rpm": {
+            "architecture": "noarch",
+            "download_path": "bootstrap/wukongim-release-stable-1.1.0-1.noarch.rpm",
+            "filename": "wukongim-release-stable-1.1.0-1.noarch.rpm",
+            "name": "wukongim-release-stable",
+            "new": true,
+            "published_sha256": "c714e21ee49546ca30a25155a1070018a5c674531f1114410567fa75aaed7ba7",
+            "published_size": 10402,
+            "repository_path": "rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.0-1.noarch.rpm",
+            "source_sha256": "c714e21ee49546ca30a25155a1070018a5c674531f1114410567fa75aaed7ba7",
+            "source_size": 10402,
+            "version": "1.1.0"
+          }
+        },
+        "published": false,
+        "schema": "wukongim.stable_bootstrap_preparation/v1",
+        "version": "1.1.0"
+      },
+      "passed": true
+    },
+    {
+      "case": "apt-preview-then-stable-and-reinstall",
+      "installed_files": {
+        "preview": {
+          "etc/apt/sources.list.d/wukongim-preview.sources": {
+            "sha256": "8e6f94f230cf5d6c784f0df276d6c4ac5fb0c705c131c07626564b6876f5c8a9",
+            "size": 178
+          },
+          "usr/share/keyrings/wukongim-archive-keyring.pgp": {
+            "sha256": "6e32e50a3aff3709b9e930cc63041a02f205e9ae4199a21d6ef77ad684d57f87",
+            "size": 4527
+          }
+        },
+        "stable": {
+          "etc/apt/sources.list.d/wukongim-stable.sources": {
+            "sha256": "fbc38a753595c857f4e2b174add53e7e61b0a6b5aac18b6a8c29ab41eda54b7e",
+            "size": 184
+          },
+          "usr/share/keyrings/wukongim-archive-keyring-stable.pgp": {
+            "sha256": "5124a842d0a23bb620b0210cae2c07670a2b20511bd2d3c9e399eedbbcc9b72e",
+            "size": 3465
+          }
+        }
+      },
+      "package_database": [
+        "wukongim-archive-keyring\t1.1.0\tinstall ok installed",
+        "wukongim-archive-keyring-stable\t1.1.0\tinstall ok installed"
+      ],
+      "passed": true
+    },
+    {
+      "case": "apt-stable-then-preview-and-reinstall",
+      "installed_files": {
+        "preview": {
+          "etc/apt/sources.list.d/wukongim-preview.sources": {
+            "sha256": "8e6f94f230cf5d6c784f0df276d6c4ac5fb0c705c131c07626564b6876f5c8a9",
+            "size": 178
+          },
+          "usr/share/keyrings/wukongim-archive-keyring.pgp": {
+            "sha256": "6e32e50a3aff3709b9e930cc63041a02f205e9ae4199a21d6ef77ad684d57f87",
+            "size": 4527
+          }
+        },
+        "stable": {
+          "etc/apt/sources.list.d/wukongim-stable.sources": {
+            "sha256": "fbc38a753595c857f4e2b174add53e7e61b0a6b5aac18b6a8c29ab41eda54b7e",
+            "size": 184
+          },
+          "usr/share/keyrings/wukongim-archive-keyring-stable.pgp": {
+            "sha256": "5124a842d0a23bb620b0210cae2c07670a2b20511bd2d3c9e399eedbbcc9b72e",
+            "size": 3465
+          }
+        }
+      },
+      "package_database": [
+        "wukongim-archive-keyring\t1.1.0\tinstall ok installed",
+        "wukongim-archive-keyring-stable\t1.1.0\tinstall ok installed"
+      ],
+      "passed": true
+    },
+    {
+      "case": "rpm-preview-then-stable-and-reinstall",
+      "installed_files": {
+        "preview": {
+          "etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-preview": {
+            "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+            "size": 6210
+          },
+          "etc/yum.repos.d/wukongim-preview.repo": {
+            "sha256": "8510d512f2504e1cb0fc64a7a8288220996a953c7606e1b19572c1eea4bd5fbf",
+            "size": 290
+          }
+        },
+        "stable": {
+          "etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable": {
+            "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e",
+            "size": 4772
+          },
+          "etc/yum.repos.d/wukongim-stable.repo": {
+            "sha256": "8f10559731e3622d72b2f3eeeefeb56fa99ebeafa6c8bd0fab8151baf556ee53",
+            "size": 307
+          }
+        }
+      },
+      "package_database": [
+        "wukongim-release\t1.1.0\t1",
+        "wukongim-release-stable\t1.1.0\t1"
+      ],
+      "passed": true
+    },
+    {
+      "case": "rpm-stable-then-preview-and-reinstall",
+      "installed_files": {
+        "preview": {
+          "etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-preview": {
+            "sha256": "63563820fffffd01a3b977ecedf92021a0a8df3d627474380281ef6180e1b875",
+            "size": 6210
+          },
+          "etc/yum.repos.d/wukongim-preview.repo": {
+            "sha256": "8510d512f2504e1cb0fc64a7a8288220996a953c7606e1b19572c1eea4bd5fbf",
+            "size": 290
+          }
+        },
+        "stable": {
+          "etc/pki/rpm-gpg/RPM-GPG-KEY-wukongim-stable": {
+            "sha256": "8d913036e1c7ef2b01845ed64135e4f35fc5934d62484fbcb3048a89b4cd191e",
+            "size": 4772
+          },
+          "etc/yum.repos.d/wukongim-stable.repo": {
+            "sha256": "8f10559731e3622d72b2f3eeeefeb56fa99ebeafa6c8bd0fab8151baf556ee53",
+            "size": 307
+          }
+        }
+      },
+      "package_database": [
+        "wukongim-release-stable\t1.1.0\t1",
+        "wukongim-release\t1.1.0\t1"
+      ],
+      "passed": true
+    }
+  ],
+  "commands": [
+    {
+      "command": [
+        "/usr/bin/python3",
+        "-B",
+        "/control/scripts/build-repository-bootstrap-packages.py",
+        "--output-dir",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/preview-1",
+        "--manifest",
+        "/control/manifests/bootstrap-packages.json",
+        "--apt-public-cert",
+        "/control/keys/apt-preview.asc",
+        "--rpm-public-cert",
+        "/control/keys/rpm-preview.asc"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": "{\"packages\":{\"apt\":{\"architecture\":\"all\",\"download_path\":\"bootstrap/wukongim-archive-keyring_1.1.0_all.deb\",\"filename\":\"wukongim-archive-keyring_1.1.0_all.deb\",\"name\":\"wukongim-archive-keyring\",\"new\":true,\"published_sha256\":\"159f2897ce4fb402049424407a4c347fb5cadcd65c5db1015b7e5e817cd96622\",\"published_size\":5456,\"repository_path\":\"apt/pool/main/w/wukongim/wukongim-archive-keyring_1.1.0_all.deb\",\"source_sha256\":\"159f2897ce4fb402049424407a4c347fb5cadcd65c5db1015b7e5e817cd96622\",\"source_size\":5456,\"version\":\"1.1.0\"},\"rpm\":{\"architecture\":\"noarch\",\"download_path\":\"bootstrap/wukongim-release-1.1.0-1.noarch.rpm\",\"filename\":\"wukongim-release-1.1.0-1.noarch.rpm\",\"name\":\"wukongim-release\",\"new\":true,\"published_sha256\":\"dbf4230292741f310407a99f18afc86cbe33af30502e9bd0937bcf22b0e36cff\",\"published_size\":11475,\"repository_path\":\"rpm/preview/el/9/x86_64/Packages/wukongim-release-1.1.0-1.noarch.rpm\",\"source_sha256\":\"dbf4230292741f310407a99f18afc86cbe33af30502e9bd0937bcf22b0e36cff\",\"source_size\":11475,\"version\":\"1.1.0\"}},\"schema\":\"wukongim.native_package_bootstrap_inventory/v1\",\"version\":\"1.1.0\"}\n"
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "-B",
+        "/control/scripts/build-repository-bootstrap-packages.py",
+        "--output-dir",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/preview-2",
+        "--channel",
+        "preview",
+        "--manifest",
+        "/control/manifests/bootstrap-packages.json",
+        "--apt-public-cert",
+        "/control/keys/apt-preview.asc",
+        "--rpm-public-cert",
+        "/control/keys/rpm-preview.asc"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": "{\"packages\":{\"apt\":{\"architecture\":\"all\",\"download_path\":\"bootstrap/wukongim-archive-keyring_1.1.0_all.deb\",\"filename\":\"wukongim-archive-keyring_1.1.0_all.deb\",\"name\":\"wukongim-archive-keyring\",\"new\":true,\"published_sha256\":\"159f2897ce4fb402049424407a4c347fb5cadcd65c5db1015b7e5e817cd96622\",\"published_size\":5456,\"repository_path\":\"apt/pool/main/w/wukongim/wukongim-archive-keyring_1.1.0_all.deb\",\"source_sha256\":\"159f2897ce4fb402049424407a4c347fb5cadcd65c5db1015b7e5e817cd96622\",\"source_size\":5456,\"version\":\"1.1.0\"},\"rpm\":{\"architecture\":\"noarch\",\"download_path\":\"bootstrap/wukongim-release-1.1.0-1.noarch.rpm\",\"filename\":\"wukongim-release-1.1.0-1.noarch.rpm\",\"name\":\"wukongim-release\",\"new\":true,\"published_sha256\":\"dbf4230292741f310407a99f18afc86cbe33af30502e9bd0937bcf22b0e36cff\",\"published_size\":11475,\"repository_path\":\"rpm/preview/el/9/x86_64/Packages/wukongim-release-1.1.0-1.noarch.rpm\",\"source_sha256\":\"dbf4230292741f310407a99f18afc86cbe33af30502e9bd0937bcf22b0e36cff\",\"source_size\":11475,\"version\":\"1.1.0\"}},\"schema\":\"wukongim.native_package_bootstrap_inventory/v1\",\"version\":\"1.1.0\"}\n"
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "-B",
+        "/control/scripts/build-repository-bootstrap-packages.py",
+        "--output-dir",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/stable-1",
+        "--channel",
+        "stable",
+        "--control-root",
+        "/control"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": "{\"channel\":\"stable\",\"packages\":{\"apt\":{\"architecture\":\"all\",\"download_path\":\"bootstrap/wukongim-archive-keyring-stable_1.1.0_all.deb\",\"filename\":\"wukongim-archive-keyring-stable_1.1.0_all.deb\",\"name\":\"wukongim-archive-keyring-stable\",\"new\":true,\"published_sha256\":\"b3ba43438c2bbf9a0edb02b32b09f672e6f170799bf6727781c9d81ad59fb9db\",\"published_size\":4412,\"repository_path\":\"apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.0_all.deb\",\"source_sha256\":\"b3ba43438c2bbf9a0edb02b32b09f672e6f170799bf6727781c9d81ad59fb9db\",\"source_size\":4412,\"version\":\"1.1.0\"},\"rpm\":{\"architecture\":\"noarch\",\"download_path\":\"bootstrap/wukongim-release-stable-1.1.0-1.noarch.rpm\",\"filename\":\"wukongim-release-stable-1.1.0-1.noarch.rpm\",\"name\":\"wukongim-release-stable\",\"new\":true,\"published_sha256\":\"c714e21ee49546ca30a25155a1070018a5c674531f1114410567fa75aaed7ba7\",\"published_size\":10402,\"repository_path\":\"rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.0-1.noarch.rpm\",\"source_sha256\":\"c714e21ee49546ca30a25155a1070018a5c674531f1114410567fa75aaed7ba7\",\"source_size\":10402,\"version\":\"1.1.0\"}},\"published\":false,\"schema\":\"wukongim.stable_bootstrap_preparation/v1\",\"version\":\"1.1.0\"}\n"
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "-B",
+        "/control/scripts/build-repository-bootstrap-packages.py",
+        "--output-dir",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/stable-2",
+        "--channel",
+        "stable",
+        "--control-root",
+        "/control"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": "{\"channel\":\"stable\",\"packages\":{\"apt\":{\"architecture\":\"all\",\"download_path\":\"bootstrap/wukongim-archive-keyring-stable_1.1.0_all.deb\",\"filename\":\"wukongim-archive-keyring-stable_1.1.0_all.deb\",\"name\":\"wukongim-archive-keyring-stable\",\"new\":true,\"published_sha256\":\"b3ba43438c2bbf9a0edb02b32b09f672e6f170799bf6727781c9d81ad59fb9db\",\"published_size\":4412,\"repository_path\":\"apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.0_all.deb\",\"source_sha256\":\"b3ba43438c2bbf9a0edb02b32b09f672e6f170799bf6727781c9d81ad59fb9db\",\"source_size\":4412,\"version\":\"1.1.0\"},\"rpm\":{\"architecture\":\"noarch\",\"download_path\":\"bootstrap/wukongim-release-stable-1.1.0-1.noarch.rpm\",\"filename\":\"wukongim-release-stable-1.1.0-1.noarch.rpm\",\"name\":\"wukongim-release-stable\",\"new\":true,\"published_sha256\":\"c714e21ee49546ca30a25155a1070018a5c674531f1114410567fa75aaed7ba7\",\"published_size\":10402,\"repository_path\":\"rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.0-1.noarch.rpm\",\"source_sha256\":\"c714e21ee49546ca30a25155a1070018a5c674531f1114410567fa75aaed7ba7\",\"source_size\":10402,\"version\":\"1.1.0\"}},\"published\":false,\"schema\":\"wukongim.stable_bootstrap_preparation/v1\",\"version\":\"1.1.0\"}\n"
+    },
+    {
+      "command": [
+        "gpg",
+        "--batch",
+        "--no-options",
+        "--no-auto-key-retrieve",
+        "--output",
+        "-",
+        "--dearmor",
+        "/control/keys/apt-preview.asc"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": "!\ufffdj\ufffd\u0607\ufffd\ufffd\ufffd\ufffdb\ufffd\ufffd\ufffdIh5J\ufffd\ufffd\u00045\ufffd\ufffd\ufffd\u0015\ufffd\ufffd\ufffd\ufffdC\ufffd\ufffd\ufffdEb\ufffd(S\ufffd8\ufffd\ufffd)\ufffd\ufffdyy\ufffd$\ufffd\u001e\ufffd}\ufffd}\ufffdix&\ufffd\ufffd\ufffd\u0003\ufffdlNp\ufffdm\u0004\ufffd\ufffd=7\ufffd\ufffd\ufffd7\ufffd%.\ufffd\ufffd6\ufffd\ufffd\u007f$\ufffd\ufffdc\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffdk\u001b\ufffd\u001c\ufffd\ufffd\ufffdM1\u0010\r\ufffdi\ufffd\u001b\ufffd\ufffd<t\ufffd\ufffdt\ufffd\ufffd0\ufffd\ufffde\ufffdG\ufffd{\u018f\u0018\ufffd\ufffd\u00c6h/#:\ufffd\ufffd8\ufffd\ufffd\ufffd\ufffd\u0006<\ufffd\te\ufffd\u001d\ufffd\u001f\ufffd_\u000b\u0274\ufffd\ufffd\ufffd\b9\u0015\fu\u0004\ufffdD\ufffd\ufffd\f\ufffdn\ufffd\ufffdi\u00138\u001f\u0005\ufffd\ufffd\u0010\ufffdz\ufffde;~\ufffdT\u0010\ufffd@3F\ufffd[\ufffd\ufffd\u0005y\ufffd\ufffd\ufffd\u001dJ%\ufffd\u0d6al.fY\u001f\u02c1\u0012\ufffd\ufffd\u001c\ufffd\ufffdH\ufffd6O\ufffd\ufffd\ufffd\b\ufffd\ufffd\ufffd\b#\u001d\ufffd\ufffd\u001c\ufffdS\u001ex\ufffda\u0568\u000ei\ufffd\u0007\u0002\ufffd\ufffd\ufffdSW\ufffd\ufffd\ufffd\ufffd\u01a2&\ufffd\u00f0\u0001evQ\ufffds\ufffd\u0006\ufffd\ufffd\ufffdn)\ufffd\ufffd\ufffd\ufffd\ufffdM\ufffd\u034fA\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd%\ufffd\ufffd\ufffd\ufffd\ufffd|\ufffd\ufffd\ufffd\ufffdN\ufffdqA\u0142=\ufffdR\ufffdT?\u0013$\ufffd\ufffd\ufffd\"\ufffdX\ufffd_\tB\u0001\ufffd\ufffdw\u0005\ufffdK\ufffd\ufffd\ufffd\ufffd\ufffd&\f\ufffd\ufffd\u007fQ\ufffd\u0002_^\ufffd\ufffdQ\ufffd!\no<\ufffd\ufffd\ufffd\ufffd\u0002\r\u0004j\ufffd\ufffdu\u0001\u0010\u0000\ufffd9*\ufffd\ufffd\ufffdZ\ufffd\ufffd\ufffd\ufffd<Q\ufffd)H%\ufffd\t.6\u0007\ufffd\ufffd}?\ufffd\ufffd]\u0013\ufffdS\ufffd\ufffd\ufffdp\u0006\u0003\ufffdb\ufffd5Z\ufffdb</4|\ufffd\u0014\ufffd1\ufffd\ufffd\ufffd\ufffdZ^\u001c\ufffd\ufffd\u0010\u007f\u0017W\r\ufffd_o}#s~\ufffd\ufffdr\u0002\ufffd\ufffd\ufffd\u04843\ufffd'?L5\ufffdS\ufffd7\ufffd\ufffd\ufffd\u001e\u03fe\ufffd\ufffd\ufffdo\u0735\ufffd\ufffd\ufffdt\u0163Wm5\ufffd\ufffdH\ufffd\u00045l\n\ufffd$\ufffd::\ufffd\u03a6\ufffd@q\u0002Zan\u0000\ufffdt\u000b\ufffd\ufffdK\u0579\ufffd\ufffd\ufffd\ufffdW\ufffd\ufffd\ufffdL\ufffd9\ufffd\ufffd\ufffd[\ufffd\u000enK}\ufffd\u017b\ufffd\r\ufffdt0?\u0431\ufffd\fsj\u0010\u0015D\ufffdh\ufffd\ufffd\ufffdb&/\ufffd\ufffd*\ufffd\u03acC\u0002^)\u0006\ufffd\ufffd\ufffd\ufffdi\ufffd\u001c\ufffdI\u001c@\ufffd\ufffd\u06dfp\ufffd\ufffdC\u001f\ufffdA\ufffdN\ufffd\ufffd'\ufffd\ufffd\u0015\u0338|\ufffd\ufffde\u00010\ufffd\ufffd2Oq~\u0010J\u0017\u0007G\ufffd[\ufffd\ufffd\ufffd\ufffd\ufffdZ\u001dn \ufffdo~\ufffd@l\ufffd\ufffd'\ufffd\ufffd\ufffdb\ufffd\ufffd\u0014`\ufffdbq<!'k\ufffd\ufffdS)\ufffd\ufffd~\ufffd\u0019\ufffd\ufffdK\ufffdt\ufffd\ufffd\u0005>tvYh%4yg\ufffd\u0011\u0002\ufffd\u0016\u007f\u0003\ufffd \u0006\ufffd\ufffd\u01da{\ufffd\u0005\ufffd\ufffdVG\u020f'3\ufffd9\u001ct$\ufffd]m\ufffdc\ufffdj\u02f8\ufffd\ufffd.\ufffd\ufffdFA'?{B\u0014\ufffd\ufffd7\ufffd\ufffd\ufffdQ\ufffd\u0013\u0018\ufffd\u0003%@\ufffd\ufffd\ufffd=\ufffd\ufffd(P\ufffdGs\ufffd\ufffd\ufffd\u3f4b\ufffd\ufffd\tS\ufffdv6\u0018\ufffd\u0001a\ufffd\ufffd\u001e\ufffd\ufffd\u0003X\t\ufffd\u001a\u0006V\u00132\ufffdd\ufffd\ufffd(\ufffd\ufffd8\ufffd\u0548\ufffd\ufffd\f\ufffd\ufffdh\ufffd\u0006\ufffd\u0007\ufffd\u0011+Py\u053f\ufffd&\ufffd\ufffd\ufffd\u07e0\u0018\ufffd\ufffdz\u0006\ufffd\ufffdA\ufffd<\ufffd\u026a\ufffd\u03cb\ufffd\ufffd5\t\ufffdo\"\ufffd\u001cy\ufffd14B7i\u000e\ufffd\u001e\ufffd\"\ufffd{b\u001d\ufffd\ufffdD\ufffd\ufffd\u0011\u0000\u0011\u0001\u0000\u0001\ufffd\u0004r\u0004\u0018\u0001\b\u0000&\u0016!\u0004\ufffd\ufffd\ufffd*\ufffd\ufffd\ufffd\ufffd\ufffd[W~1\ufffd\ufffd+\ufffd\u000bk\ufffd\u0005\u0002j\ufffd\ufffdu\u0002\u001b\u0002\u0005\t\u0000\ufffdN\u0000\u0002@\t\u00101\ufffd\ufffd+\ufffd\u000bk\ufffd\ufffdt \u0004\u0019\u0001\b\u0000\u001d\u0016!\u0004\ufffd\u0010f_\ufffdc\ufffd]\ufffd\"\ufffdZ2*\ufffd,\ufffd\nv\u001d\u0005\u0002j\ufffd\ufffdu\u0000\n\t\u00102*\ufffd,\ufffd\nv\u001dk\t\u000f\ufffd\u0001\ufffd\u0002\"\ufffdT\u0019\ufffd\ufffdR^\ufffd\u001f8\u000e\ufffd\u0007\u0017\ufffd(e|\ufffd>\ufffd\ufffd\ufffd\ufffd\u0018\u0018\ufffd_\ufffd\u001cb=p\ufffd\n\ufffd\ufffd\ufffdt\ufffd!q\ufffd\u0010o\ufffd\ufffd\ufffd\ufffd<\ufffd0\ufffd\ufffd4\ufffd^\ufffd[\ufffd\ufffd\u0017d\ufffd\ufffd\u0014\u0006\ufffd\u0006&\ufffdV\ufffdk\ufffd\ufffd\ufffd\ufffdp\"\ufffd\u03f8\ufffd>c\ufffd\ufffdO\ufffd\ufffdz\ufffdN\ufffd<o\u000ef\ufffd\u0001 $\ufffd\u0017O\u0010\ufffdDB\ufffdpkN)\ufffd\u0004\ufffdb\ufffd\u001eeu\n\ufffd\ufffd\ufffd\ufffd\u0002n\ufffdf~\u0016\u0005\ufffd\ufffdV\u0676\"\ufffd\u0004\ufffd\u06af\ufffd\r\u000b\ufffd\u0654\nF\ufffdq\ufffd*\u0005\ufffdX\u000b\ufffd#6\ufffd7DiB\u0692\u0005\ufffd\ufffd\ufffd\ufffdo(\u0624\r$&\ufffd\ufffd\u001e>\u0011r\ufffdlC\u0006z\u001e\ufffdc\u059b\u0484\ufffd7\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd%`l\ufffd[&6\ufffd\ufffd\ufffd&\ufffd\t\u0005\ufffd\ufffdn^\ufffdnCa\ufffd\ufffd\u000f\ufffd7\ufffd\u0007\ufffdV\ufffd\ufffd\u0002^X={\ufffdc\ufffdd\ufffd2 U\u0016{yC\ufffd\\\u0013\ufffd\u0011}|V\ufffd\u0015\ufffd\u0010\ufffd\ufffd\u0003I\ufffd\u072d\ufffd0\ufffd\\r\ufffd\ufffd<\ufffd\ufffd\ufffd\ufffd{\ufffd\u5273$\ufffdw>\ufffd>\ufffd\nx\ufffdw\u0003@\u00f6\ufffd\u0016\ufffd\f\ufffd\ufffdQ\\I\ufffd\ufffdH\ufffdP;L\u06c6\ufffd\u0625!\ufffd:\ufffd\u0004\ufffdI\ufffd\u001aQ#6&\ufffdK\ufffd\ufffd\u001f\ufffdW\ufffd\ufffd\ufffdW^\ufffde\ufffd3\ufffdt\u0012ET^\ufffd\ufffd{\ufffdXX\ufffd\u001b\ufffd\ufffd\ufffd\t\ufffd\ufffdF\ufffd\u0012\ufffd!9\ufffdCE\ufffd\ufffd[\fW\ufffd\ufffd}>\ufffd\u0001\ufffd\ufffd\u0005\ufffdS\ufffd\ufffdL\ufffd\ufffd]\ufffd}\u001dV\ufffd`\ufffd\ufffd\ufffd\u0000Xvu\u0015Q\ufffd\ufffd;5\ufffd\ufffd\ufffd\f.\ufffd\u001f\ufffdN\u007f\ufffd^r\ufffdO\ufffd\ufffd\u0528\ufffd\ufffdU?R\ufffd\ufffd\u001f\ufffd\u000e\u001a\u0007\ufffdb\ufffd\ufffdi3m\ufffd\u0005{+\ufffdE\ufffd^\ufffd\u29e5\u0609\u001d\u001c=\u001d[=I\ufffd2\ufffd\ufffd\ufffd\u00dan\u000f\ufffdk\ufffd\ufffd\ufffd8\u0015\ufffd*\"\ufffdz\ufffdMD\ufffd\ufffd\ufffd\ufffdS\u03051N$\ufffd\u0013\ufffdr`\ufffd.v\u0002p\ufffd&\ufffdj_\ufffd\ufffd\ufffd`]p\ufffd]\ufffdS\ufffd=\ufffdL\u0018oHP@#\ufffd6ZV\ufffd\ufffd\u001ce\ufffd\u000f$\u03e8\ufffd\u0004r\ufffd\ufffd\ufffd\u0012\u01adX\ufffd\ufffd\ufffdC\ufffdO\ufffd\u0005\ufffd\ufffdJ\ufffd$\ufffdX\u0007z\ufffd\u007fF\ufffd\"\r\ufffd1\ufffdWT\ufffdA+:\ufffd\ufffd6\ufffd(e)\u0007iU\ufffd\ufffd\ufffdk\ufffd(\ufffd\ufffd\ufffd\ufffd\ufffd+\u001c\ufffd\"\ufffd@R\ufffd\ufffd\u007f\ufffd\ufffd\ufffdV\ufffd\ufffd@M\ufffd\ufffd<@\ufffd_\ufffd/\ufffdJ\ufffdT6\ufffd1\ufffde\ufffd9PD\ufffdp1*\ufffd\ufffdWp\ufffd\ufffd\ufffd\ufffd\ufffdW.\ufffd\u001f\u05ed\u000e\ufffd\ufffdZ\ufffd5\ufffd\ufffd\u001a\ufffd\ufffd%\f\ufffd\u0000\ufffd\ufffd\ufffd|\ufffd>l2NV4l\ufffd\u0011\u27ad\u0003xv(\ufffd\ufffd\u0013\ufffd@ \u007f\ufffd\ufffd\u001c\ufffd\ufffdw\ufffd17C\ufffd\ufffd\ufffdK\ufffd\ufffdX\u0004.\ufffd\u00018\"\ufffd\ufffd\ufffd\ufffd`\u0533!H\u001d(H2(\ufffd\u5e0b1'`\u0012\ufffd\ufffd\u001cv\ufffd$a\ufffdBW\ufffd\ufffdm\ufffd\ufffd\ufffd\ufffd\u0012\ufffdA\ufffd\tD\u942a\ufffd\ufffd\ufffd\ufffdr\ufffd<u;\ufffd\ufffd0\u0005\u0535\ufffd\ufffd\ufffd\\\ufffd&A\ufffdP~\ufffd#\ufffdh\ufffd\ufffdj6\ufffd\u000e\u000f\ufffd\u007f\ufffdG\u073f\u0000\ufffdj\ufffd\ufffd\ufffd2\ufffd7\n[*\ufffd_\\\ufffd\ufffd\ufffd\ufffd\ufffdL.\ufffd\ufffd{\ufffd\ufffd^\ufffd\ufffdH\ufffd\ufffd2\ty\ufffdY\ufffd\\%\ufffd\ufffd\u0003\u007f\ufffd{\ufffd\u0433\ufffd\ufffd\ufffd\ufffd:\ufffd\ufffd\n\ufffd\ufffdu\ufffdE\ufffdg\ufffd\u03c0\u001d\ufffd\u0007\ufffd\ufffd\u001e\ufffd\ufffd\ufffdk\ufffdF\ufffd/\ufffdV\u0013\u000er%\ufffd%\ufffd\u0004(\ufffd\ufffd\u000f\u0000i+\ufffd\ufffd,4\u0007\ufffd\u0017p\u0000\ufffd<\ufffd\ufffd~J\ufffdi\ufffd\ufffd?\ufffd\ufffd\u0641\u0002\ufffd>X\u0000{C\ufffd\u00d8\ufffd\ufffd\ufffd\u0010\ufffd\ufffd\ufffd\ufffd\ufffd:\ufffd#Jp\ufffd'$\ufffd\u001b="
+    },
+    {
+      "command": [
+        "gpg",
+        "--batch",
+        "--no-options",
+        "--no-auto-key-retrieve",
+        "--output",
+        "-",
+        "--dearmor",
+        "/control/keys/apt-stable.asc"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": "\u0001\ufffd\ufffdy\ufffd\\\u001aN-\ufffd\ufffd\u001a\ufffd\ufffd\ufffd\ufffd)W\u0017\u001eF\ufffd\ufffd\uf88c\u0017G\ufffd40a\ufffdN\ufffdL\ufffd\ufffdep\ufffd\ufffd\ufffd\ufffdM\u000eF\ufffd\ufffda\ufffdT\ufffdP\ufffd\ufffdrXD\u001aGu;\ufffd\ufffd\ufffd\ufffd\ufffduW\ufffdn/6\ufffd\ufffd3\ufffd\ufffd\u0003\ufffd\ufffd\ufffd\ufffd|\u0016r[Z\ufffd\u0019\ufffd\ufffd*E|*F\u007f\u0019By\ufffdv\ufffd%\u0002\ufffdB]7\ufffd\ufffdR\ufffd\ufffd\f\u06fc\ufffd\ufffd?;4\ufffd1`zf\ufffd\u001a^\u001b\t\ufffd\ufffd)_\ufffd\ufffd\u000e\ufffd\u0012\ufffd'\ufffd\u02fe\ufffd\ufffd\u05e8\ufffdc\ufffdH\ufffd\ufffd*\ufffdG\ufffd\ufffd\ufffd\u001f\ufffd\u0014\u0018\ufffd\ufffd\ufffdR\u000b7A\ufffd\ufffd*\ufffd\ufffd\u0003\u001a\ufffd\ufffdJj\\\u0006\ufffd\ufffdZ\u06b9?^\ufffd\ufffd:\ufffd\ufffdt*\ufffd\ufffd\u0004!\ufffd\u013a\ufffd\ufffdV\ufffd;\u047e\ufffd\ufffd\ufffd\ufffd\u0001A2\ufffd\ufffd:m\ufffd\ufffdz\ufffd\ufffd\ufffd\u078d}\ufffd{N\ufffd=\ufffd\u040e\ufffd\ufffd\ufffd\u0006\ufffdG\ufffd\ufffd^\ufffd\ufffd[\ufffd\t\u0013\ufffdi\ufffd\u0019\u000bd\ufffd,#\u000e\ufffd\ufffd\u0013\ufffd\u0014\ufffd\ufffd\ufffd{*\ufffd\n\ufffd\ufffdZ\ufffd\ufffd\ufffdT-\ufffd\ufffd\t\ufffd\ufffd\u0004<\b`o\u072b\ufffd\ufffd\u000b\ufffd\ufffdV*\ufffd0(\u001a\u0005\ufffd\ufffd\ufffd\ufffdi\ufffd\ufffdEb\ufffdz\ufffdTv+=(\ufffd\ufffd\u000e\ufffd\u94d7\ufffdu\u0007\ufffd\u0018aig\ufffd\ufffdK\ufffd\u0000\ufffd\u0470\ufffd\u0015\ufffd'\ufffd7\ufffdT\u05d4\ufffd~\ufffd/2\u0782\u0018\ufffd\ufffd\u000e\u000b\ufffd.\ufffd\ufffd\ufffd\u04eb\ufffd\ufffd,\ufffd\ufffd\ufffdT\n)\ufffd\ufffd\ufffd\u00e6\u0460\ufffd>\u0019v\ufffdJ\u000b\ufffd+V\ufffd\ufffd[r\ufffd\ufffd,2d\ufffd(\ufffd\ufffd\u0015\ufffd\ufffd5\ufffd\ufffd{8\ufffd:\u0001N\ufffd\ufffd\ufffd\ufffdQ\ufffd\ufffdJ\ufffdQ\ufffd\ufffd)\ufffdS\ufffdm\ufffdVK\ufffd\u0514\ufffd\u007fu\ufffd\ufffd#\r\ufffd(\ufffd|\ufffd\ufffd\ufffd\ufffd=\u0014\t\ufffd\ufffd#\ufffd>6\ufffdT:\ufffdM\u0010+bE\ufffd\u04d9N\ufffdo\ufffd\ufffd\u0003bd\ufffd:?\ufffd\ufffd\ufffd\ufffd*\ufffd|\ufffd\ufffd\u00185\ufffd\u06e5\ufffd\ufffd~\ufffd4\ufffd\u0017\u0016\ufffd\ufffd\ufffd;\u0002\ufffdF\u07af-3\ufffd^n\ufffdM\ufffd|TJ\ufffd\ufffd\ufffd\ufffd=d\ufffd9$\u0000\ua414 \ufffd3\ufffd5&<\ufffd\ufffd\u001eI\ufffd\ufffd\ufffd\ufffd\ufffd\u06ad\u0016:gx)\ufffd\u001a$}\ufffd\ufffdd\ufffds\ufffd\ufffd\ufffdt\ufffd\ufffdD\u001b8,\ufffdc\ufffdR(:\ufffd\u000e|\ufffd\u0017=\u001c\ufffdO\ufffd\u0001\ufffdC\ufffd\u001f\ufffd\ufffdK_W\ufffd5 W\ufffd\ufffd\u0018$n7\ufffd7\u22cbIy\u0003\ufffdll\ufffd)\tI{\ufffd\ufffd\u0019\ufffd\ufffd\ufffd\ufffd\ufffd\u001d\ufffd/\ufffd\ufffd\ufffd\u000e\ufffd\ufffd\ufffd\ufffd\\\ufffd\"m\u001bR\n\ufffd\ufffd\ufffd\ufffd-f\u001e$\ufffdBAE\u0010q\ufffd4\ufffdut\u007f1\ufffd\ufffd\ufffd\ufffd1\ufffd\rU\ufffd-v\ufffdx\ufffd\ufffd9\ufffd\ufffd_\\\ufffdO\ufffd\ufffd\u0007<&k\ufffd\ufffd\ufffd?a\ufffd\ufffd\ufffd{#\ufffd.G\u0006\ufffd\ufffd\u0010\ufffd\ufffd\u050e\ufffd\ufffd\ufffd\u02d31\ufffd\u0001\ufffd\u0004j\ufffds\u0012\u0001\f\u0000\ufffd\ufffd\ufffdG=o\u0015h\ufffd\ufffd\u0007\ufffdf;\u02a9\u0000w\ufffd*\u001e\u0013%\ufffdkV\ufffd/\u0018\ufffda\u0017\ufffd\ufffdJ }'4D\u0003\ufffd\u000bqm\ufffd|7M\ufffdX\ufffd\ufffd\ufffd\ufffd\ufffdr\ufffd\ufffd\ufffdD\ufffd\ufffd\ufffd\ufffdN\ufffd\ufffd\ufffd\ufffd\u0699W\u03bc\ufffdsg\u0012u\ufffd\u000b\ufffd\ufffd\u0013\ufffd>\ufffd\u0019>\ufffd\u000b\ufffd\ufffdR\ufffdp\u0278\ufffdA\ufffd\ufffd\f\ufffd\u00100JX\ufffd4[vj-z.\ufffd_\ufffd\ufffdw\u0015\u0014\ufffd\ufffd\ufffdm\ufffd\ufffd3]\ufffd\ufffdG\ufffd\ufffd\"\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\u000f2c\ufffdu\ufffd\ufffd\u001a\ufffd\u0014\u0014Y\ufffd\u0010\ufffd\u007fY\u0005nid<\ufffd^.)\u056d\u001d\ufffdv\ufffd\ufffd\ufffdwhM\ufffd&\ufffd\ufffdq\ufffd\ufffd\ufffd\ufffd\f\u0011\ufffdsF$\ufffd5\u0223\u07aa\ufffd\ufffd\"D\ufffd1v\ufffd\ufffd\ufffd\ufffd4\ufffdF}\ufffd\ufffd\ufffd.\ufffd\ufffd\u0614p\ufffd\ufffd\ufffdq\ufffd\ufffd\u0012p?\ufffd\ufffd~\ufffd|\ufffd\ufffd\ufffdHkt\ufffd(\ufffd8\u000e\u0011aK\u001b!\ufffd\ufffd\ufffd`\u0001=aw\ufffd,\ufffdG\u0001P\u055a\u0018|\u0016y\u0015\ufffd\u0012\ufffd4\u0006\ufffd\u0011C\ufffd\ufffdl\u0016{f\b\ufffd\ufffdw?}u\ufffd\"\ufffd\ufffd4\ufffdgBJT\ufffd`W\ufffd\u0013\ufffd\u007f\u001d\ufffdJ\ufffd1\ufffda\ufffd*&\ufffd&\ufffd\ufffd{\ufffd\ufffd\u007fl\ufffdM\ufffd\ufffd\ufffd\ufffd\ufffd\r\ufffd\u001dRJ\u000bK\u0011X\u0017TF\u0002\ufffd\ufffd_\ufffd\ufffd\ufffd\ufffd\ufffd\u0790\ufffd\by\b\ufffdr\ufffd\ufffd\u0016\u007f\ufffd=\u0000\u0011\u0001\u0000\u0001\ufffd\u0003r\u0004\u0018\u0001\b\u0000&\u0016!\u0004\ufffd\ufffd5\u0007\"5\ufffd\u00fe\ufffd\ufffd\ufffd_\u0019\u0106\ufffd\u0010\ufffdd\u0005\u0002j\ufffds\u0012\u0002\u001b\u0002\u0005\t\u0000\ufffdN\u0000\u0001\ufffd\t\u0010_\u0019\u0106\ufffd\u0010\ufffdd\ufffd\ufffd \u0004\u0019\u0001\b\u0000\u001d\u0016!\u0004F\ufffd\ufffd\u0002\ufffd\ufffd\u04df \t\ufffd[5(\ufffd.\ufffd\ufffdT\ufffd\u0005\u0002j\ufffds\u0012\u0000\n\t\u00105(\ufffd.\ufffd\ufffdT\ufffd9\ufffd\u000b\ufffd\u001au\ufffd\ufffd\ufffd2\ufffddM\ufffd\ufffd\ufffdS\ufffd\"\u0010\ufffde\ufffd Itm\u06c2\ufffd\ufffdd\u0003\u0019\ufffda\u001d|k\ufffdUs\"u\ufffdygX\ufffdE\ufffd\ufffd/\ufffd\ufffdW\u0011\ufffd\u0260w\ufffdIve\ufffdk|\ufffd\ufffd\ufffd\u0014\ufffd\u001f\ufffd\ufffdo\u0331lb\ufffdE\ufffd\ufffd\ufffd\u001f\ufffd4\ufffdv\ufffdwh\ufffd\u0002\ufffd\ufffd8<F\ufffd\ufffd\u001b\ufffdS.\ufffd\ufffd\ufffd\ufffdg5*\ufffd\ufffda0TU\ufffd]\ufffd\ufffd\ufffdo\ufffd|U\u02a53ST\u0019\u473e\u0002Gz8\u0000\ufffdhB\ufffd\ufffdlD\ufffd\ufffdW\ufffd-\ufffd\ufffdN\u0011\u076d\u0757\u0019\u000f\u0733)\\\ufffd\u001a\u007f\ufffd\t%2j\ngtw\u0018=g&\u0768c\ufffd\ufffd\ufffdO@\ufffdZ\ufffdV\ufffdD3p$\ufffdN<\ufffd\ufffd$.3\ufffd\ufffd\ufffd;\ufffd0\ufffd\u0011 \ufffd\ufffd\u001c\ufffd\ufffd\ufffd\ufffd\u00f82\ufffdb\ufffd\ufffd\ufffd]M\ufffdp\ufffd\b\ufffdI\ufffd\ufffdd\ufffdW\ufffd\u001a\ufffd\ufffd\u001f?\ufffd\u0795\ufffd\u000f\ufffd\ufffd\ufffd\ufffd\ufffd`\u001a\u007f\ufffd\u001d\u043dB>\";\ufffd\ufffd\ufffd\ufffd\u001a\ufffdfv\ufffdYB-\ufffd\ufffd_\ufffd~`t\ufffd\ufffd\ufffd\u0232\ufffd\ufffdc\ufffd[\ufffdP*\ufffd\ufffd\ufffdx\u0734\ufffd\ufffd\b\u001e\ufffdD\u001dx\ufffd\u0005\ufffd\ufffd\ufffdRn\ufffd\ufffd\ufffdE\ufffd\u0019\ufffd5\ufffd\u05ae\ufffd<\u007f\ufffd\u0014r\ufffd.\ufffd\ufffd\u0004\ufffdB'\ufffdL\t\u0010\ufffdy\u0003\u0004H\u0015n\ufffd\u0538)OL\u0014\ufffd+\u0005|\ufffd\u02fe\ufffd\u001b=\u0002f\ufffd\u063d\u000b\ufffd\\\ufffd\ufffd\u001fl\ufffd\u0003\u0436;\u000b\u0002\ufffdaF\ufffd\u001f#`\u01e3p\u0005\ufffd-(V3L\ufffd\u0012r\ufffdNV1\ufffd\u001cW\ufffdX\ufffd\u0007bL\u0005/\u0005\ufffd\ufffds\ufffd~\"\ufffdX\ufffd\u0019\u001em\ufffd(\u0013\u000e\f\ufffd\ufffdvQ\u0002j\u0010hO\u0011\ufffd')\n\ufffd\u0010M\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd'\u02ec\ufffdl\ufffd\ufffdJ\ufffd\ufffd\ufffd[7\ufffdF^V\u0014\u00136no\ufffd\ufffd<\u0005\ufffdO,\ufffd\ufffdt\ufffd\ufffd\ufffd\u0000y/\ufffd|\ufffda3\ufffdu\ufffd\u0013Fm\u044d\ufffdWrS\u0007\ufffd8\ufffd\ufffd\u0011\u0563h\ufffd\ufffd\u0002n\ufffd\ufffd=\ufffd\u0010\ufffd\u051b\ufffd\"\u0000i \u0007\ufffdQm}eQ\ufffd\ufffd'W\u0018\ufffdF \ufffd\ufffd\u0012\ufffdFY\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\u0014YsM\ufffd\ufffd\ufffd\ufffd\ufffdP\ufffdA\ufffd\ufffd\u0016\ufffdp\u0007b\ufffd\ufffde&\ufffd.\ufffd,\ufffdaW]\ufffdkU\ufffd\ufffd\ufffd\u0003l*5~M@\ufffd]l\u057d?^ ^\ufffd?\ufffd\u0014\ufffd\u0019\ufffdJ\ufffd\u0004\ufffd\u001f{\u025c\ufffd\ufffd\u054bi\u001c\ufffd5\u00162\u07dci\ufffdh!\ufffd&V\ufffd\ufffd\ufffd4\ufffdV\u0082\ufffd\ufffd?\u0005\u000f\ufffd\ufffd\ufffd9{\u03d3\ufffd\"5\t`\ufffdb\ubf19\n\ufffd\ufffdt\ufffd\u0002\ufffdFB\ufffd\ufffdk\ufffd\ufffd\ufffd\ufffd\u000eM\ufffd\ufffdCn\ufffd\ufffd\u0016\ufffd\u001c\ufffd\u0003\n\ufffd\ufffd\ufffd=\ufffd\ufffdl\ufffdD\ufffd\ufffd\u0547\ufffd\ufffd\"\ufffd\ufffd!\ufffd|3\ufffd\ufffdQ$G\ufffd\ufffd\ufffd;\ufffdX\ufffd"
+    },
+    {
+      "command": [
+        "dpkg",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/apt-preview-then-stable-and-reinstall",
+        "--install",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/preview-2/wukongim-archive-keyring_1.1.0_all.deb"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "dpkg: could not open log '/var/log/dpkg.log': Read-only file system\n",
+      "stdout_tail": "Selecting previously unselected package wukongim-archive-keyring.\n(Reading database ... 0 files and directories currently installed.)\nPreparing to unpack .../wukongim-archive-keyring_1.1.0_all.deb ...\nUnpacking wukongim-archive-keyring (1.1.0) ...\nSetting up wukongim-archive-keyring (1.1.0) ...\n"
+    },
+    {
+      "command": [
+        "dpkg",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/apt-preview-then-stable-and-reinstall",
+        "--install",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/stable-2/wukongim-archive-keyring-stable_1.1.0_all.deb"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "dpkg: could not open log '/var/log/dpkg.log': Read-only file system\n",
+      "stdout_tail": "Selecting previously unselected package wukongim-archive-keyring-stable.\n(Reading database ... 8 files and directories currently installed.)\nPreparing to unpack .../wukongim-archive-keyring-stable_1.1.0_all.deb ...\nUnpacking wukongim-archive-keyring-stable (1.1.0) ...\nSetting up wukongim-archive-keyring-stable (1.1.0) ...\n"
+    },
+    {
+      "command": [
+        "dpkg",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/apt-preview-then-stable-and-reinstall",
+        "--install",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/preview-2/wukongim-archive-keyring_1.1.0_all.deb"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "dpkg: could not open log '/var/log/dpkg.log': Read-only file system\n",
+      "stdout_tail": "(Reading database ... 10 files and directories currently installed.)\nPreparing to unpack .../wukongim-archive-keyring_1.1.0_all.deb ...\nUnpacking wukongim-archive-keyring (1.1.0) over (1.1.0) ...\nSetting up wukongim-archive-keyring (1.1.0) ...\n"
+    },
+    {
+      "command": [
+        "dpkg",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/apt-preview-then-stable-and-reinstall",
+        "--install",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/stable-2/wukongim-archive-keyring-stable_1.1.0_all.deb"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "dpkg: could not open log '/var/log/dpkg.log': Read-only file system\n",
+      "stdout_tail": "(Reading database ... 10 files and directories currently installed.)\nPreparing to unpack .../wukongim-archive-keyring-stable_1.1.0_all.deb ...\nUnpacking wukongim-archive-keyring-stable (1.1.0) over (1.1.0) ...\nSetting up wukongim-archive-keyring-stable (1.1.0) ...\n"
+    },
+    {
+      "command": [
+        "dpkg-query",
+        "--admindir",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/apt-preview-then-stable-and-reinstall/var/lib/dpkg",
+        "--show",
+        "--showformat=${Package}\t${Version}\t${Status}\n"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": "wukongim-archive-keyring\t1.1.0\tinstall ok installed\nwukongim-archive-keyring-stable\t1.1.0\tinstall ok installed\n"
+    },
+    {
+      "command": [
+        "dpkg",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/apt-stable-then-preview-and-reinstall",
+        "--install",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/stable-2/wukongim-archive-keyring-stable_1.1.0_all.deb"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "dpkg: could not open log '/var/log/dpkg.log': Read-only file system\n",
+      "stdout_tail": "Selecting previously unselected package wukongim-archive-keyring-stable.\n(Reading database ... 0 files and directories currently installed.)\nPreparing to unpack .../wukongim-archive-keyring-stable_1.1.0_all.deb ...\nUnpacking wukongim-archive-keyring-stable (1.1.0) ...\nSetting up wukongim-archive-keyring-stable (1.1.0) ...\n"
+    },
+    {
+      "command": [
+        "dpkg",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/apt-stable-then-preview-and-reinstall",
+        "--install",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/preview-2/wukongim-archive-keyring_1.1.0_all.deb"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "dpkg: could not open log '/var/log/dpkg.log': Read-only file system\n",
+      "stdout_tail": "Selecting previously unselected package wukongim-archive-keyring.\n(Reading database ... 8 files and directories currently installed.)\nPreparing to unpack .../wukongim-archive-keyring_1.1.0_all.deb ...\nUnpacking wukongim-archive-keyring (1.1.0) ...\nSetting up wukongim-archive-keyring (1.1.0) ...\n"
+    },
+    {
+      "command": [
+        "dpkg",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/apt-stable-then-preview-and-reinstall",
+        "--install",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/stable-2/wukongim-archive-keyring-stable_1.1.0_all.deb"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "dpkg: could not open log '/var/log/dpkg.log': Read-only file system\n",
+      "stdout_tail": "(Reading database ... 10 files and directories currently installed.)\nPreparing to unpack .../wukongim-archive-keyring-stable_1.1.0_all.deb ...\nUnpacking wukongim-archive-keyring-stable (1.1.0) over (1.1.0) ...\nSetting up wukongim-archive-keyring-stable (1.1.0) ...\n"
+    },
+    {
+      "command": [
+        "dpkg",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/apt-stable-then-preview-and-reinstall",
+        "--install",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/preview-2/wukongim-archive-keyring_1.1.0_all.deb"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "dpkg: could not open log '/var/log/dpkg.log': Read-only file system\n",
+      "stdout_tail": "(Reading database ... 10 files and directories currently installed.)\nPreparing to unpack .../wukongim-archive-keyring_1.1.0_all.deb ...\nUnpacking wukongim-archive-keyring (1.1.0) over (1.1.0) ...\nSetting up wukongim-archive-keyring (1.1.0) ...\n"
+    },
+    {
+      "command": [
+        "dpkg-query",
+        "--admindir",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/apt-stable-then-preview-and-reinstall/var/lib/dpkg",
+        "--show",
+        "--showformat=${Package}\t${Version}\t${Status}\n"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": "wukongim-archive-keyring\t1.1.0\tinstall ok installed\nwukongim-archive-keyring-stable\t1.1.0\tinstall ok installed\n"
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-preview-then-stable-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--initdb"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": ""
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-preview-then-stable-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--install",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/preview-2/wukongim-release-1.1.0-1.noarch.rpm"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "rpm: RPM should not be used directly install RPM packages, use Alien instead!\nrpm: However assuming you know what you are doing...\n",
+      "stdout_tail": ""
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-preview-then-stable-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--install",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/stable-2/wukongim-release-stable-1.1.0-1.noarch.rpm"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "rpm: RPM should not be used directly install RPM packages, use Alien instead!\nrpm: However assuming you know what you are doing...\n",
+      "stdout_tail": ""
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-preview-then-stable-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--reinstall",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/preview-2/wukongim-release-1.1.0-1.noarch.rpm"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "rpm: RPM should not be used directly install RPM packages, use Alien instead!\nrpm: However assuming you know what you are doing...\n",
+      "stdout_tail": ""
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-preview-then-stable-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--reinstall",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/stable-2/wukongim-release-stable-1.1.0-1.noarch.rpm"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "rpm: RPM should not be used directly install RPM packages, use Alien instead!\nrpm: However assuming you know what you are doing...\n",
+      "stdout_tail": ""
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-preview-then-stable-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--query",
+        "--all",
+        "--queryformat",
+        "%{NAME}\t%{VERSION}\t%{RELEASE}\n"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": "wukongim-release\t1.1.0\t1\nwukongim-release-stable\t1.1.0\t1\n"
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-preview-then-stable-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--verify",
+        "--all"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": ""
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-stable-then-preview-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--initdb"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": ""
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-stable-then-preview-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--install",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/stable-2/wukongim-release-stable-1.1.0-1.noarch.rpm"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "rpm: RPM should not be used directly install RPM packages, use Alien instead!\nrpm: However assuming you know what you are doing...\n",
+      "stdout_tail": ""
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-stable-then-preview-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--install",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/preview-2/wukongim-release-1.1.0-1.noarch.rpm"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "rpm: RPM should not be used directly install RPM packages, use Alien instead!\nrpm: However assuming you know what you are doing...\n",
+      "stdout_tail": ""
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-stable-then-preview-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--reinstall",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/stable-2/wukongim-release-stable-1.1.0-1.noarch.rpm"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "rpm: RPM should not be used directly install RPM packages, use Alien instead!\nrpm: However assuming you know what you are doing...\n",
+      "stdout_tail": ""
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-stable-then-preview-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--reinstall",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/preview-2/wukongim-release-1.1.0-1.noarch.rpm"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "rpm: RPM should not be used directly install RPM packages, use Alien instead!\nrpm: However assuming you know what you are doing...\n",
+      "stdout_tail": ""
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-stable-then-preview-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--query",
+        "--all",
+        "--queryformat",
+        "%{NAME}\t%{VERSION}\t%{RELEASE}\n"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": "wukongim-release-stable\t1.1.0\t1\nwukongim-release\t1.1.0\t1\n"
+    },
+    {
+      "command": [
+        "rpm",
+        "--root",
+        "/tmp/wukongim-bootstrap-TEST-ONLY-x7zkj8ho/rpm-stable-then-preview-and-reinstall",
+        "--dbpath",
+        "/var/lib/rpm",
+        "--verify",
+        "--all"
+      ],
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": ""
+    }
+  ],
+  "failure": null,
+  "finished_at_unix": 1792689562,
+  "passed": true,
+  "schema": "wukongim.native_bootstrap_preparation_drill/v1",
+  "scratch_removed": true,
+  "source_sha": "f1c75e55e445aa40076f20586fd2481266ee73ff",
+  "started_at_unix": 1792689561,
+  "test_only": true
+}

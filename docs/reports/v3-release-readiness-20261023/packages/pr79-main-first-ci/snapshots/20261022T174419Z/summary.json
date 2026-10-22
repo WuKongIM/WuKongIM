@@ -1,0 +1,71 @@
+{
+  "observed_at_utc": "20261022T174419Z",
+  "head": "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+  "runs": [
+    {
+      "id": 39825002244,
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "event": "push",
+      "jobs": [
+        {
+          "id": 119985855628,
+          "name": "Validate complete Pages snapshot",
+          "status": "completed",
+          "conclusion": "success",
+          "current_steps": []
+        },
+        {
+          "id": 119986836106,
+          "name": "Deploy complete Pages snapshot",
+          "status": "completed",
+          "conclusion": "skipped",
+          "current_steps": []
+        }
+      ]
+    },
+    {
+      "id": 39825002051,
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "event": "push",
+      "jobs": [
+        {
+          "id": 119985854676,
+          "name": "provider-contract",
+          "status": "completed",
+          "conclusion": "success",
+          "current_steps": []
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": 119986836106,
+      "name": "Deploy complete Pages snapshot",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-22T17:44:13Z",
+      "completed_at": "2026-10-22T17:44:12Z"
+    },
+    {
+      "id": 119985855628,
+      "name": "Validate complete Pages snapshot",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-22T17:42:14Z",
+      "completed_at": "2026-10-22T17:44:12Z"
+    },
+    {
+      "id": 119985854676,
+      "name": "provider-contract",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-22T17:42:13Z",
+      "completed_at": "2026-10-22T17:42:28Z"
+    }
+  ]
+}

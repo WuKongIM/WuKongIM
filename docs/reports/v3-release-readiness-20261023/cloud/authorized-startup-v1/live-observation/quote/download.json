@@ -1,0 +1,12 @@
+{
+  "artifact_id": 12444263464,
+  "started_at": "2026-10-22T17:25:53.520658+00:00",
+  "finished_at": "2026-10-22T17:25:55.932934+00:00",
+  "exit_code": 0,
+  "downloaded_bytes": 976,
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_redacted": "",
+  "private_urls_not_in_public_receipt": true,
+  "raw_stderr_retained_private": true
+}

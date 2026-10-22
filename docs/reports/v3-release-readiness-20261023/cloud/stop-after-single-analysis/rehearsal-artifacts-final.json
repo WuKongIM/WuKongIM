@@ -1,0 +1,69 @@
+{
+  "observed_at": "2026-10-22T18:16:23.311740+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/runs/39829086075/artifacts?per_page=20",
+  "data": {
+    "total_count": 3,
+    "artifacts": [
+      {
+        "id": 12449065108,
+        "node_id": "MDg6QXJ0aWZhY3QxMjQ0OTA2NTEwOA==",
+        "name": "chat-lifecycle-rehearsal-complete-chat-20261021T214505Z-00299e37",
+        "size_in_bytes": 990526,
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12449065108",
+        "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12449065108/zip",
+        "expired": false,
+        "digest": "sha256:5fbde3c02f5acb1b4bde034a62c3c45c51e9c88524d481eb87f1afbabfc7d2f8",
+        "created_at": "2026-10-22T18:15:07Z",
+        "updated_at": "2026-10-22T18:15:07Z",
+        "expires_at": "2027-01-20T18:10:53Z",
+        "workflow_run": {
+          "id": 39829086075,
+          "repository_id": 638054601,
+          "head_repository_id": 638054601,
+          "head_branch": "main",
+          "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06"
+        }
+      },
+      {
+        "id": 12447674805,
+        "node_id": "MDg6QXJ0aWZhY3QxMjQ0NzY3NDgwNQ==",
+        "name": "chat-lifecycle-rehearsal-cleanup-chat-20261021T214505Z-00299e37",
+        "size_in_bytes": 1485,
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12447674805",
+        "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12447674805/zip",
+        "expired": false,
+        "digest": "sha256:fe6841e835358c7d6bdc01083d3f31a5cf029c006caedf1074165bc7531fbc53",
+        "created_at": "2026-10-22T18:15:08Z",
+        "updated_at": "2026-10-22T18:15:08Z",
+        "expires_at": "2027-01-20T18:10:53Z",
+        "workflow_run": {
+          "id": 39829086075,
+          "repository_id": 638054601,
+          "head_repository_id": 638054601,
+          "head_branch": "main",
+          "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06"
+        }
+      },
+      {
+        "id": 12447648077,
+        "node_id": "MDg6QXJ0aWZhY3QxMjQ0NzY0ODA3Nw==",
+        "name": "chat-lifecycle-rehearsal-final-chat-20261021T214505Z-00299e37",
+        "size_in_bytes": 988577,
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12447648077",
+        "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12447648077/zip",
+        "expired": false,
+        "digest": "sha256:8a2ffef7830ed5ce6a328dca5deab8633789829634aef082f7b8a614b0ed664b",
+        "created_at": "2026-10-22T18:13:46Z",
+        "updated_at": "2026-10-22T18:13:46Z",
+        "expires_at": "2027-01-20T18:10:53Z",
+        "workflow_run": {
+          "id": 39829086075,
+          "repository_id": 638054601,
+          "head_repository_id": 638054601,
+          "head_branch": "main",
+          "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06"
+        }
+      }
+    ]
+  }
+}

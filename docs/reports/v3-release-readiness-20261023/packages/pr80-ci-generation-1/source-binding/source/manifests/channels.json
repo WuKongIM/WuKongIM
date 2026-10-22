@@ -1,0 +1,74 @@
+{
+  "schema": "wukongim.native_package_channels/v3",
+  "source_repository": "WuKongIM/WuKongIM",
+  "site_limit_bytes": 786432000,
+  "site_warning_bytes": 629145600,
+  "max_online_versions": 4,
+  "architectures": [
+    "amd64"
+  ],
+  "channels": {
+    "preview": {
+      "enabled": true,
+      "status": "ready",
+      "releases": [
+        {
+          "version": "3.0.0-beta.21",
+          "source_sha": "eff9b4d1ef0d072016796e9fa5d20849e93a0bdd",
+          "source_release_id": 392080063,
+          "package_release_id": 392081326,
+          "deb_sha256": "2543bc3c15cd90a9e1ac6f53260e0ad0622716ca46d61de30d46aada0f17961e",
+          "rpm_sha256": "8d02d3f08593ece1ff8c11b4d7c1b6e84e4479e5beda9b7c3e4652ca3b75f312",
+          "state": "active",
+          "not_before": null
+        },
+        {
+          "version": "3.0.0-beta.22",
+          "source_sha": "e12d13cdc797c53315f703445d5f4a950e064d6b",
+          "source_release_id": 401699335,
+          "package_release_id": 401701963,
+          "deb_sha256": "b169fa2059de08e2a48ac4699860bdf0322ea070f7b7e7b2951c2d6fb281b2a3",
+          "rpm_sha256": "8caf8b14ac6ace649860b49cee94ff21c09aea3efb8f0c692292d234dc4aadc0",
+          "state": "active",
+          "not_before": null
+        },
+        {
+          "version": "3.0.0-beta.23",
+          "source_sha": "e44f2abf50d19e1dfb46bc23a6444ef71217d697",
+          "source_release_id": 402037076,
+          "package_release_id": 402040333,
+          "deb_sha256": "eabf3bfb5a2252e068f16b78e1ba20e6741f0bf1a004ff4e883c75a84350e07c",
+          "rpm_sha256": "f9ad6859d89f4fc8248294f10d290cc67b4bce16e64aa7c868bfdfeb80c2c60a",
+          "state": "active",
+          "not_before": null
+        },
+        {
+          "version": "3.0.0-beta.24",
+          "source_sha": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+          "source_release_id": 402354460,
+          "package_release_id": 402342684,
+          "deb_sha256": "c394988fe3b4dcb080df39945935e725b53ec2dfe2b114b25856ec983876f168",
+          "rpm_sha256": "0146b9e2d706586349b451c8e98b3a4f2768c796ca074b7f6fd24ae804f9aad8",
+          "state": "active",
+          "not_before": null
+        }
+      ],
+      "retirement": {
+        "phase": "none",
+        "version": null,
+        "not_before": null
+      },
+      "publication": {
+        "audit_release_id": 402342684,
+        "base_audit_release_id": 402341426,
+        "operation": "add_release",
+        "target_version": "3.0.0-beta.24"
+      }
+    },
+    "stable": {
+      "enabled": false,
+      "status": "object_storage_required",
+      "releases": []
+    }
+  }
+}

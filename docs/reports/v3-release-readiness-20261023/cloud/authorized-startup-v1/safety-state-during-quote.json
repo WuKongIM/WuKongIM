@@ -1,0 +1,19 @@
+{
+  "observed_at": "2026-10-22T17:20:01.368459+00:00",
+  "workflow_states": [
+    {
+      "name": "chat-lifecycle-rehearsal-finalize.yml",
+      "id": 329938002,
+      "state": "active",
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml"
+    },
+    {
+      "name": "cloud-lease-release.yml",
+      "id": 329938010,
+      "state": "disabled_manually",
+      "path": ".github/workflows/cloud-lease-release.yml"
+    }
+  ],
+  "mutations_by_observer": false,
+  "limitations": "Release is required before paid Acquire, not before a quote-only action; the protected Acquire arm_release dependency remains authoritative."
+}

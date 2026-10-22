@@ -1,0 +1,13 @@
+{
+  "started_at": "2026-10-22T17:12:31.398822+00:00",
+  "observed_at": "2026-10-22T17:12:32.436642+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_REGION",
+  "exit_code": 0,
+  "response_bytes": 131,
+  "response_sha256": "6dae096ad39b0b40e440c6518b9cf82870a75df22967f6974d7a79283c47fa30",
+  "data": {
+    "name": "ALIBABA_CLOUD_LEASE_REGION",
+    "present": true,
+    "value_sha256": "db9626998cd84f890af6af0b568f9e57647682987a7cebc7070fb102d8cc5df6"
+  }
+}

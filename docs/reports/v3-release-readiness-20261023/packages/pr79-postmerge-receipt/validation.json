@@ -1,0 +1,21 @@
+{
+  "observed_at_utc": "2026-10-22T18:12Z",
+  "method": "read-only GitHub API; selected protection fields compared with saved pre-merge response",
+  "shared_protection_fields_equal": [
+    "allow_deletions",
+    "allow_force_pushes",
+    "enforce_admins",
+    "required_pull_request_reviews",
+    "required_status_checks"
+  ],
+  "fields_missing_from_premerge_response": [
+    "restrictions"
+  ],
+  "first_validation_attempt": {
+    "result": "KeyError",
+    "field": "restrictions",
+    "explanation": "Field absent from saved pre-merge API response; no comparison or inferred pre-merge value for that field."
+  },
+  "original_worktree_clean": true,
+  "admin_or_protection_mutation_performed_by_this_check": false
+}

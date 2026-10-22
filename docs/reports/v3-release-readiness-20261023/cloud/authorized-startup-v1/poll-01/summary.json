@@ -1,0 +1,128 @@
+{
+  "observed_at": "2026-10-22T17:15:20.191798+00:00",
+  "top": {
+    "id": 39820950900,
+    "run_number": 35,
+    "workflow_id": 329938003,
+    "run_attempt": 1,
+    "status": "in_progress",
+    "conclusion": null,
+    "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+    "head_branch": "main",
+    "display_title": "Chat Lifecycle Rehearsal chat-20261021T214505Z-00299e37",
+    "path": ".github/workflows/chat-lifecycle-rehearsal.yml",
+    "created_at": "2026-10-22T17:14:52Z",
+    "updated_at": "2026-10-22T17:14:56Z",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39820950900",
+    "event": "workflow_dispatch"
+  },
+  "top_steps": [
+    {
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Validate fixed operator inputs, optional continuation, and trusted source",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Build trusted Run Plan control tool",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Refuse a second paid scenario while any prior Lease lacks zero proof",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "name": "Enable rehearsal finalizer safety schedule before paid orchestration",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Orchestrate until remote systemd owns the measured run",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Upload read-only Issue preflight receipt",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Retain read-only continuation admission receipt",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Detect publishable handoff or cleanup continuation",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Upload non-secret remote handoff or cleanup evidence",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Detect immediate zero-inventory proof",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Upload immediate zero-inventory proof",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Release handed-off Lease if handoff publication failed",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Upload fallback zero-inventory proof",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Retry publication of cleanup-pending continuation evidence",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Advance the exact tracking Issue",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Remove plaintext runner identities",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+      "status": "pending",
+      "conclusion": null
+    },
+    {
+      "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+      "status": "pending",
+      "conclusion": null
+    }
+  ],
+  "children": [],
+  "artifacts": []
+}

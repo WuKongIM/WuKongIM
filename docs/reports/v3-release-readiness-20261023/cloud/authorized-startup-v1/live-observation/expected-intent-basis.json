@@ -1,0 +1,13 @@
+{
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "prior_source_sha": "cee5d51f325fb84033060f546337d326110adae5",
+  "factory_path": "internal/usecase/clouddeploy/bundle.go",
+  "factory_byte_equal": true,
+  "factory_sha256": "aa07d36f6c99a69885ac8daf02e63c3da8960f3ea188594349c59bc1c12567d9",
+  "prior_expected_intent_sha256": "6bf147e0b037e45257de445ef136264c2d17571bfdc7239ac2f761a0cabe9c64",
+  "changed_fields": [
+    "source_sha",
+    "control_sha"
+  ],
+  "not_derived_from_downloaded_candidate": true
+}

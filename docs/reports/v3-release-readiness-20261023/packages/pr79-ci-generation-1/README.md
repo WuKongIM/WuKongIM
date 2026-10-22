@@ -1,0 +1,11 @@
+# packages PR #79 first Linux CI attempt
+
+This archive preserves all three first-run workflows at head b100f91a59902ad8d93b0632f9c84f3f7468e5f2. All are attempt 1. The actual checkout f1c75e55e445aa40076f20586fd2481266ee73ff has the same tree 306e2cd808742a9effb981fd679d2153cbcf29a4 as the PR head.
+
+The first attempt is **incomplete**: the signed-repository job failed installing the fixed GoReleaser tool because proxy.golang.org returned an HTTP/2 INTERNAL_ERROR while downloading golang.org/x/tools v0.49.0. The unsigned product build and complete signed repository installation were skipped. See first-failure.json and the original full job log; this failure has not been overwritten or reported as green.
+
+Pages passed 587 default tests, zero skips, and four contract tests; Pages configuration/upload and deployment were conditionally skipped. SDK passed 34 contracts plus 10 input tests, zero skips. The original native metadata/local-signing/bootstrap/candidate/delivery suites passed 7/10/6/31/29 cases. The independent stable-client job passed all 49 cases, including eight installed CLI identities across A=3.0.0 and B=3.0.1 on Ubuntu, Debian, Rocky and AlmaLinux; each identity is source fc18221282f289088ec9b4282fda8e0bfc67a3b8 and build_source=release. Cleanup receipts show zero remaining owned containers/networks and empty owned caches. They do not claim a host-wide process inventory.
+
+Seven bounded public artifact ZIPs were fully downloaded, checked against the GitHub API SHA-256 digest, and CRC-checked for every member before extraction. Command receipts retain bounded tails; bounded-command-output-validation.json distinguishes locally recomputed full-output hashes from declared hashes whose full stream was not retained. The archive contains no production private keys or private cloud bundle. TEST ONLY results do not establish fresh GitHub production authorization, public stable origin, activation, or publication.
+
+After the workflow reached terminal state, root explicitly permitted one separate retry of only failed job 119973638102, keeping source, workflow, pins, thresholds and deadlines unchanged. That decision is recorded here; execution and later evidence belong in the separate sibling pr79-native-infra-retry-1 archive. This archive contains no retry execution.

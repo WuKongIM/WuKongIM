@@ -1,0 +1,145 @@
+{
+  "observed_at": "2026-10-22T17:13:39.450014+00:00",
+  "guard_pass": true,
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "control_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "tree": "a13367b2dc4658e6c27a1992f240544636e5178d",
+  "main_before_and_after_exact": true,
+  "all_frozen_files_match": true,
+  "identity_variables": [
+    {
+      "name": "ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH",
+      "present": true,
+      "value_sha256": "1c4b9299f1420b40de38e421d40fb38b63d9738e0d7a8628132b7505c0d07787",
+      "matches_frozen": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN",
+      "present": true,
+      "value_sha256": "05098740af2bb067f854b489f93416029531f02202ab5bc7c173bc8130c66bb0",
+      "matches_frozen": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE",
+      "present": true,
+      "value_sha256": "2c921542db4ac1ef91591c6fb0ece035dc77fa8c3989e9910a98b1ca93840069",
+      "matches_frozen": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN",
+      "present": true,
+      "value_sha256": "95e8e092f8f2929fb85e086a3ffb73cba78bea940f3c41d06065fecae929c5bc",
+      "matches_frozen": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN",
+      "present": true,
+      "value_sha256": "46357a047f5628cb6a8c3c9da4a050fd76d10c3c0c6bdbfadc375dbebad6a028",
+      "matches_frozen": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_REGION",
+      "present": true,
+      "value_sha256": "db9626998cd84f890af6af0b568f9e57647682987a7cebc7070fb102d8cc5df6",
+      "matches_frozen": true
+    },
+    {
+      "name": "ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN",
+      "present": true,
+      "value_sha256": "f31bd3e263514685dd6cb9d95c40280a1dd59acf9cc20460a74eb0dffab0be40",
+      "matches_frozen": true
+    },
+    {
+      "name": "WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+      "present": true,
+      "value_sha256": "7ae35b2950072cc4417be1c6e19cd31d559f0c96de42068e2923bda770dfc4b5",
+      "matches_frozen": true
+    }
+  ],
+  "oidc_subject_unchanged": true,
+  "latest_top": {
+    "id": 39637426411,
+    "run_number": 34,
+    "run_attempt": 1,
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39637426411"
+  },
+  "workflow_states": {
+    "chat-lifecycle-rehearsal.yml": {
+      "id": 329938003,
+      "state": "active",
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml"
+    },
+    "chat-lifecycle-rehearsal-finalize.yml": {
+      "id": 329938002,
+      "state": "disabled_manually",
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml"
+    },
+    "chat-lifecycle-formal.yml": {
+      "id": 329938001,
+      "state": "disabled_manually",
+      "path": ".github/workflows/chat-lifecycle-formal.yml"
+    },
+    "chat-lifecycle-formal-finalize.yml": {
+      "id": 329938000,
+      "state": "disabled_manually",
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml"
+    },
+    "chat-lifecycle-stop.yml": {
+      "id": 329938004,
+      "state": "active",
+      "path": ".github/workflows/chat-lifecycle-stop.yml"
+    },
+    "cloud-deployment-bundle.yml": {
+      "id": 329938006,
+      "state": "active",
+      "path": ".github/workflows/cloud-deployment-bundle.yml"
+    },
+    "cloud-deployment-activate.yml": {
+      "id": 329938005,
+      "state": "active",
+      "path": ".github/workflows/cloud-deployment-activate.yml"
+    },
+    "cloud-lease-provision.yml": {
+      "id": 329938009,
+      "state": "active",
+      "path": ".github/workflows/cloud-lease-provision.yml"
+    },
+    "cloud-lease-release.yml": {
+      "id": 329938010,
+      "state": "disabled_manually",
+      "path": ".github/workflows/cloud-lease-release.yml"
+    },
+    "cloud-lease-observe.yml": {
+      "id": 329938007,
+      "state": "active",
+      "path": ".github/workflows/cloud-lease-observe.yml"
+    }
+  },
+  "bounded_inventory_complete": true,
+  "active_protected_runs": 0,
+  "retained_handoff_selectors": [
+    {
+      "stage": "rehearsal",
+      "authenticated_active_handoffs": 0
+    },
+    {
+      "stage": "formal",
+      "authenticated_active_handoffs": 0
+    }
+  ],
+  "retained_chat_markers": 161,
+  "provider_calls": false,
+  "workflow_mutations": false,
+  "dispatched": false,
+  "limitations": [
+    "Metadata equality is not new live OIDC/wrapping validation",
+    "Live provider inventory/Quote/capacity remain exact workflow pre-Acquire gates",
+    "Point-in-time main guard is not atomic dispatch CAS",
+    "Three idle safety workflows may be disabled; their existing owner arms them before paid stages",
+    "Third live MCP attempt not authorized"
+  ]
+}

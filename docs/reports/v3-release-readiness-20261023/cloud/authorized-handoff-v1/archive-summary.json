@@ -1,0 +1,10 @@
+{
+  "directory": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1",
+  "manifest_files": 58,
+  "payload_bytes": 344220,
+  "sha256sums_sha256": "463839777b7a5777043d34c7a317e26084d4f678784f6f37e70e9001c79c6d5b",
+  "started_at": "2026-10-23T01:35:17.578381188+08:00",
+  "expected_end_at": "2026-10-23T03:35:17.578381188+08:00",
+  "two_hour_result": "not_observed",
+  "formal_result": "not_observed"
+}

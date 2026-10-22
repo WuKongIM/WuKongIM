@@ -1,0 +1,152 @@
+{
+  "schema": "wukongim/pr80-first-native-sdk-failure/v1",
+  "recorded_at_utc": "2026-10-22T18:02:21.173404+00:00",
+  "source_head": "4d868f264fb4758f7451c058dd329a06ad460449",
+  "actual_checkout": "0383c7818d51b8d819f95d7c0f81822abe478a56",
+  "head_and_checkout_tree": "1e6dc3090af168316ed8e8258cfb8c088ae56f3b",
+  "run_id": 39826621553,
+  "run_attempt": 1,
+  "job_id": 119991488218,
+  "failed_steps": [
+    {
+      "name": "Verify all native objects through the locked SDK HTTP fixture",
+      "status": "completed",
+      "conclusion": "failure",
+      "number": 17,
+      "started_at": "2026-10-22T17:55:55Z",
+      "completed_at": "2026-10-22T17:56:02Z"
+    },
+    {
+      "name": "Remove owned native SDK fixture work",
+      "status": "completed",
+      "conclusion": "failure",
+      "number": 18,
+      "started_at": "2026-10-22T17:56:02Z",
+      "completed_at": "2026-10-22T17:56:02Z"
+    }
+  ],
+  "skipped_steps": [
+    "Set up fixed GoReleaser toolchain",
+    "Install fixed GoReleaser version",
+    "Restore exact source Go toolchain",
+    "Build unsigned TEST ONLY packages",
+    "Build, sign, verify, and install TEST ONLY repositories"
+  ],
+  "native_preparation": {
+    "passed": true,
+    "cases": 2,
+    "state": "native_prepared",
+    "bundle_sha256": "1369c816f78830fbdd4a84281173d5092af022c3d98ad7d3cb21a68ad6149add"
+  },
+  "sdk_receipt": {
+    "cases": [],
+    "cleanup": {
+      "attempted": true,
+      "error_type": "PermissionError",
+      "removed": false
+    },
+    "commands": [],
+    "error": "TEST ONLY fixture operation failed; stage identifies boundary",
+    "error_type": "PermissionError",
+    "failure_location": {
+      "file": "pathlib.py",
+      "function": "stat",
+      "line": 842
+    },
+    "network_guard": {
+      "passed": true,
+      "self_check_attempts": 1,
+      "unexpected_attempts": 0
+    },
+    "passed": false,
+    "schema": "wukongim.native_sdk_drill/v1",
+    "scratch_removed": false,
+    "skips": 0,
+    "source_sha": "0383c7818d51b8d819f95d7c0f81822abe478a56",
+    "stage": "sdk",
+    "state": "incomplete",
+    "test_only": true,
+    "verification": {
+      "activation_authorized": false,
+      "cloud_verified": false,
+      "fresh_production_auth_verified": false,
+      "github_provenance_verified": false,
+      "production_enabled": false,
+      "public_clients_verified": false,
+      "publication_verified": false,
+      "wire_equivalence_verified": false
+    }
+  },
+  "missing_cleanup_json": true,
+  "selected_failure_log_lines": [
+    {
+      "line": 676,
+      "text": "2026-10-22T17:56:02.1224291Z {\"passed\": false, \"state\": \"incomplete\", \"stage\": \"sdk\", \"error_type\": \"PermissionError\", \"bundle_sha256\": null, \"scratch_removed\": false}"
+    },
+    {
+      "line": 677,
+      "text": "2026-10-22T17:56:02.1558201Z ##[error]Process completed with exit code 1."
+    },
+    {
+      "line": 691,
+      "text": "2026-10-22T17:56:02.1939861Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/generated/23259d85a8992336114025d569133adadd72a03a5f0fc891fa2b5a3bb664dfe0.txt': Permission denied"
+    },
+    {
+      "line": 692,
+      "text": "2026-10-22T17:56:02.1941143Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/status.json': Permission denied"
+    },
+    {
+      "line": 693,
+      "text": "2026-10-22T17:56:02.1942124Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/keys/apt-stable.asc': Permission denied"
+    },
+    {
+      "line": 694,
+      "text": "2026-10-22T17:56:02.1943145Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/keys/rpm-stable.asc': Permission denied"
+    },
+    {
+      "line": 695,
+      "text": "2026-10-22T17:56:02.1944172Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/bootstrap/manifest.json': Permission denied"
+    },
+    {
+      "line": 696,
+      "text": "2026-10-22T17:56:02.1945424Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/bootstrap/wukongim-archive-keyring-stable_1.1.2_all.deb': Permission denied"
+    },
+    {
+      "line": 697,
+      "text": "2026-10-22T17:56:02.1946936Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/bootstrap/wukongim-release-stable-1.1.2-1.noarch.rpm': Permission denied"
+    },
+    {
+      "line": 698,
+      "text": "2026-10-22T17:56:02.1948335Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm': Permission denied"
+    },
+    {
+      "line": 699,
+      "text": "2026-10-22T17:56:02.1949767Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.2-1.noarch.rpm': Permission denied"
+    },
+    {
+      "line": 700,
+      "text": "2026-10-22T17:56:02.1951124Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz': Permission denied"
+    },
+    {
+      "line": 978,
+      "text": "2026-10-22T17:56:02.2184230Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/apt-signing.json': Permission denied"
+    },
+    {
+      "line": 979,
+      "text": "2026-10-22T17:56:02.2184768Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/delivery.json': Permission denied"
+    },
+    {
+      "line": 980,
+      "text": "2026-10-22T17:56:02.2185272Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/transport-plan.json': Permission denied"
+    },
+    {
+      "line": 981,
+      "text": "2026-10-22T17:56:02.2598640Z ##[error]Process completed with exit code 1."
+    }
+  ],
+  "full_original_log_sha256": "15ff469808462bab69c08a82de8912640162c9195fc5e25418874358fdb73e77",
+  "assessment": "The native preparation completed, but the host SDK boundary failed at pathlib.stat with PermissionError before any of the 20 cases or SDK commands were recorded. Its own cleanup and the workflow always cleanup also failed with PermissionError. No ownership/mode stat inventory was emitted, so the exact path and ownership cause are not established by these receipts alone. Full signed repository installation did not execute.",
+  "new_twenty_case_execution_complete": false,
+  "cloud_or_network_infrastructure_failure_inferred": false,
+  "reruns_dispatched": 0
+}

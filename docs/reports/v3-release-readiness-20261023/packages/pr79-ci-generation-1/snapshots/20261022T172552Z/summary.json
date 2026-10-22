@@ -1,0 +1,115 @@
+{
+  "observed_at_utc": "20261022T172552Z",
+  "head": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+  "runs": [
+    {
+      "id": 39821491408,
+      "status": "in_progress",
+      "conclusion": null,
+      "attempt": 1,
+      "head_sha": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+      "event": "pull_request",
+      "jobs": [
+        {
+          "id": 119973637732,
+          "name": "TEST ONLY stable four clients and A/B",
+          "status": "in_progress",
+          "conclusion": null,
+          "current_steps": [
+            "Exercise signed TEST ONLY stable clients and exact installed CLI"
+          ]
+        },
+        {
+          "id": 119973638102,
+          "name": "TEST ONLY signed APT/RPM repository",
+          "status": "completed",
+          "conclusion": "failure",
+          "current_steps": []
+        }
+      ]
+    },
+    {
+      "id": 39821491416,
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "head_sha": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+      "event": "pull_request",
+      "jobs": [
+        {
+          "id": 119973636784,
+          "name": "Validate complete Pages snapshot",
+          "status": "completed",
+          "conclusion": "success",
+          "current_steps": []
+        },
+        {
+          "id": 119974879135,
+          "name": "Deploy complete Pages snapshot",
+          "status": "completed",
+          "conclusion": "skipped",
+          "current_steps": []
+        }
+      ]
+    },
+    {
+      "id": 39821491479,
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "head_sha": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+      "event": "pull_request",
+      "jobs": [
+        {
+          "id": 119973635969,
+          "name": "provider-contract",
+          "status": "completed",
+          "conclusion": "success",
+          "current_steps": []
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": 119974879135,
+      "name": "Deploy complete Pages snapshot",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-22T17:21:01Z",
+      "completed_at": "2026-10-22T17:21:00Z"
+    },
+    {
+      "id": 119973638102,
+      "name": "TEST ONLY signed APT/RPM repository",
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-10-22T17:18:40Z",
+      "completed_at": "2026-10-22T17:21:25Z"
+    },
+    {
+      "id": 119973637732,
+      "name": "TEST ONLY stable four clients and A/B",
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-10-22T17:18:41Z",
+      "completed_at": null
+    },
+    {
+      "id": 119973636784,
+      "name": "Validate complete Pages snapshot",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-22T17:18:41Z",
+      "completed_at": "2026-10-22T17:21:00Z"
+    },
+    {
+      "id": 119973635969,
+      "name": "provider-contract",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-22T17:18:40Z",
+      "completed_at": "2026-10-22T17:18:59Z"
+    }
+  ]
+}

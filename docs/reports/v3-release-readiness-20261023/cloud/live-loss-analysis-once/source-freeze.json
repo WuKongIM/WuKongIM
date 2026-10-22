@@ -1,0 +1,45 @@
+{
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/SKILL.md",
+      "sha256": "23b2646053829392152e2eda308a1ced4384fbfda812b08fcdde7365b663b45c"
+    },
+    {
+      "path": ".agents/skills/wukongim-cloud-analysis/references/tool-contract.md",
+      "sha256": "85977c8f32cc1e094887acf8b1710a14d8eb71a4884330abd36b7eb3f92784ac"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": ".github/workflows/cloud-lease-analyze.yml",
+      "sha256": "bf94f6dea7bed588e9d7435c6516fcbfa280a980513902c201c0b83a923697bb"
+    },
+    {
+      "path": "scripts/chat-lifecycle/analyze.sh",
+      "sha256": "1a51b28b0286b320f6210609f85dbb38c4a515de3ff582858a06a688063231e8"
+    },
+    {
+      "path": "scripts/cloud-sim/analyze.sh",
+      "sha256": "cf2b97ac49ff4a94666d58587b227197318865a8473b8b1c2359a319d0b987d8"
+    },
+    {
+      "path": "scripts/cloud-sim/local-runtime.sh",
+      "sha256": "c34b5d17eea64e259e80e8e3e0bdf7c0e4016feb0c2cbf5f08d445d03cfee192"
+    },
+    {
+      "path": "docs/superpowers/runbooks/cloud-simulation.md",
+      "sha256": "218d05819741ca1739a75672dc03bcb1027f6d397f818dfa9d095bfe26673267"
+    },
+    {
+      "path": ".github/cloud-sim/toolchain.env",
+      "sha256": "9f6426379c9efc8fc66cf2968e24e3bbb3b55ba485de632a73039250c1559346"
+    }
+  ]
+}

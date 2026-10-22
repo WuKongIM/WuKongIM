@@ -1,0 +1,150 @@
+{
+  "window": {
+    "start": "2026-10-23T01:35:17.578381188+08:00",
+    "warmup_end": "2026-10-23T03:35:17.578381188+08:00",
+    "qualification_at": "2026-10-24T01:35:17.578381188+08:00",
+    "final_at": "2026-10-23T03:35:17.578381188+08:00",
+    "end": "2026-10-23T01:36:18.801475417+08:00",
+    "elapsed": 61223094218
+  },
+  "generated": {
+    "primary": 122000,
+    "person": 109800,
+    "group": 12200,
+    "canary": 2,
+    "payload_bytes": 93071360
+  },
+  "messages": {
+    "sent": 122002,
+    "send_attempts": 122002,
+    "first_attempts": 122002,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 122002,
+    "send_rejected": 0,
+    "received": 158502,
+    "receive_acknowledged": 158502,
+    "receive_ack_failures": 0,
+    "retry_attempts": 0,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 1,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 1277,
+    "delivered": 1276,
+    "expired": 1,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "fence": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:4716a34675b730b018b6b428325083dfed9392c7b4bba8a0d9c05ae03e82ef89",
+    "generation": 1
+  },
+  "verdict": {
+    "outcome": "product_failure",
+    "cause": "message_loss",
+    "terminal": true,
+    "cleanup_error_count": 0,
+    "latency_warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "latency_anomaly_count": 0,
+    "retention": {
+      "minute_samples": 12,
+      "minute_capacity": 16,
+      "latency_samples": [
+        0,
+        0,
+        0
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "cluster": {
+    "healthy_samples": 12,
+    "unhealthy_samples": 0,
+    "logical_slot_groups": 12,
+    "leader_groups": 12,
+    "full_replica_groups": 12,
+    "hot_replica_lag_breaches": 0,
+    "leader_imbalance_warnings": 0
+  },
+  "actual_average_send_per_second": 1992.7447568327998,
+  "actual_average_ack_per_second": 1992.7447568327998,
+  "latency": {
+    "hot_sendack": {
+      "count": 39375,
+      "mean_ms": 61.37101585422222,
+      "maximum_ms": 439.015697,
+      "p99_histogram_upper_ms": 400.0,
+      "p999_histogram_upper_ms": 400.0
+    },
+    "cold_first_create_sendack": {
+      "count": 82627,
+      "mean_ms": 83.74866063325547,
+      "maximum_ms": 496.511363,
+      "p99_histogram_upper_ms": 400.0,
+      "p999_histogram_upper_ms": 400.0
+    },
+    "receive_ack": {
+      "count": 158502,
+      "mean_ms": 0.014405154225183278,
+      "maximum_ms": 2.548625,
+      "p99_histogram_upper_ms": 1.0,
+      "p999_histogram_upper_ms": 1.0
+    },
+    "send_pending_to_write": {
+      "count": 122002,
+      "mean_ms": 1.3045070510729333,
+      "maximum_ms": 10.197466,
+      "p99_histogram_upper_ms": 5.0,
+      "p999_histogram_upper_ms": 10.0
+    },
+    "send_write_to_ack": {
+      "count": 122002,
+      "mean_ms": 75.21617629234767,
+      "maximum_ms": 495.394321,
+      "p99_histogram_upper_ms": 400.0,
+      "p999_histogram_upper_ms": 400.0
+    },
+    "full_sync": {
+      "count": 10000,
+      "mean_ms": 1.74165949,
+      "maximum_ms": 34.856772,
+      "p99_histogram_upper_ms": 20.0,
+      "p999_histogram_upper_ms": 50.0
+    }
+  }
+}

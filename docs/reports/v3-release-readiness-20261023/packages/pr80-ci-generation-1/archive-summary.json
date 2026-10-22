@@ -1,0 +1,7 @@
+{
+  "payload_files": 110,
+  "payload_bytes": 2731665,
+  "manifest_entries": 111,
+  "manifest_sha256": "cd5129184e1d41a7bc5d7c83f82ca74e267855d291defd3b326f155c7cdd88de",
+  "result": "failed_native_sdk_boundary_and_cleanup"
+}

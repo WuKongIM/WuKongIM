@@ -1,0 +1,23 @@
+{
+  "schema": "wukongim.cloud_rc.paid_authorization/v1",
+  "recorded_at": "2026-10-21T21:45:05.253651+00:00",
+  "approval_reference": "call_dd802aec589f4d058343640027bb7cf9",
+  "authority": "Explicit human approval relayed by parent /root in the current conversation; exact approved merged plan, no invented verbatim quote",
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "control_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "scope": "Four Hangzhou4vCPU/8GiB hosts; temporary reviewed publicSSH/HTTP; unique trackingIssue and diagnosticidentity;2h rehearsal then Release/zero, fresh72h Lease + capacity<=8h +30m recovery, original safety schedules/finalcleanup",
+  "prior_quote_reserve_micros": 223432800,
+  "request_budget_limit_micros": "1276567200",
+  "operational_stop_micros": "1126567200",
+  "aggregate_hard_limit_micros": 1500000000,
+  "aggregate_operational_stop_micros": 1350000000,
+  "reserve_is_not_provider_invoice": true,
+  "dispatch_owner": "/root/rc_cloud_plan",
+  "single_dispatch": true,
+  "new_budget_or_iam_changes_authorized": false,
+  "third_live_MCP_attempt_authorized": false,
+  "released_preclock_run_id": "",
+  "old_request_reuse": false,
+  "route": "Formal Actions contract, not diagnostic Direct Lab"
+}

@@ -1,0 +1,109 @@
+{
+  "observed_at": "2026-10-22T18:11:03.805005+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/runs/39829057187/jobs?per_page=100",
+  "data": {
+    "total_count": 1,
+    "jobs": [
+      {
+        "id": 120000026421,
+        "run_id": 39829057187,
+        "workflow_name": "Chat Lifecycle Stop chat-20261021T214505Z-00299e37",
+        "head_branch": "main",
+        "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39829057187",
+        "run_attempt": 1,
+        "node_id": "CR_kwDOJgfwyc8AAAAb8I8XNQ",
+        "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/120000026421",
+        "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39829057187/job/120000026421",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-22T18:10:41Z",
+        "started_at": "2026-10-22T18:10:43Z",
+        "completed_at": "2026-10-22T18:10:57Z",
+        "name": "Seal stop intent and request coordinated cancellation and finalization",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T18:10:44Z",
+            "completed_at": "2026-10-22T18:10:44Z"
+          },
+          {
+            "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T18:10:44Z",
+            "completed_at": "2026-10-22T18:10:49Z"
+          },
+          {
+            "name": "Validate exact request-scoped stop authority",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T18:10:49Z",
+            "completed_at": "2026-10-22T18:10:49Z"
+          },
+          {
+            "name": "Seal durable stop marker before any cancellation",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T18:10:49Z",
+            "completed_at": "2026-10-22T18:10:49Z"
+          },
+          {
+            "name": "Upload stop marker that blocks future formal procurement",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T18:10:49Z",
+            "completed_at": "2026-10-22T18:10:50Z"
+          },
+          {
+            "name": "Request immediate rehearsal and formal finalization",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T18:10:50Z",
+            "completed_at": "2026-10-22T18:10:54Z"
+          },
+          {
+            "name": "Advance the exact tracking Issue",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T18:10:54Z",
+            "completed_at": "2026-10-22T18:10:56Z"
+          },
+          {
+            "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-22T18:10:56Z",
+            "completed_at": "2026-10-22T18:10:56Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-22T18:10:56Z",
+            "completed_at": "2026-10-22T18:10:56Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/120000026421",
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "runner_id": 1000024620,
+        "runner_name": "GitHub Actions 1000024620",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "recorded_at_utc": "2026-10-22T17:24:46.031587+00:00",
+  "authority": "Root agent explicit instruction for one bounded infrastructure CI retry",
+  "repository": "WuKongIM/packages",
+  "pr": 79,
+  "source_head": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+  "workflow_run_id": 39821491408,
+  "original_attempt": 1,
+  "original_failed_job_id": 119973638102,
+  "decision": "After both workflow jobs are terminal, preserve attempt 1 and recheck run head, current main, and exact original infrastructure error. Retry only the failed job once with unchanged source, workflow, pins, thresholds and deadlines. Do not retry stable clients, Pages or SDK. On unknown dispatch response, reconcile read-only rather than dispatching again. Stop on another failure.",
+  "original_observed_error": "proxy.golang.org golang.org/x/tools@v0.49.0 ZIP HTTP/2 stream ID 215 INTERNAL_ERROR; received from peer",
+  "retry_archive": "../pr79-native-infra-retry-1",
+  "dispatch_performed_at_recording": false,
+  "paid_cloud_authority": false
+}

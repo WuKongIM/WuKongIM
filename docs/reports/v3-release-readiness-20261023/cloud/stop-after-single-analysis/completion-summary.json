@@ -1,0 +1,61 @@
+{
+  "observed_at": "2026-10-22T18:20:31.690729+00:00",
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "lease_id": "chat-20261021T214505Z-00299e37-rehearsal-1",
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "user_requested_order": "Finish the one passive Analysis attempt; stop/release exact Lease; then reproduce and fix locally.",
+  "analysis": {
+    "top_level_invocations": 1,
+    "mcp_calls": 0,
+    "prepare_runs": 0,
+    "analysis_window_opened": false,
+    "validated_diagnosis_result": false,
+    "classification": "insufficient_evidence",
+    "termination": "original signal cleanup; no retry; temporary directory removed",
+    "evidence_group": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1",
+    "manifest_sha256": "bef041ccbc4dd17a089ea45b6a97875aaba4e9e1bc8d8c2a4ced3ae3bc08f8e4"
+  },
+  "cleanup": {
+    "stop_dispatches": 1,
+    "stop_run_id": 39829057187,
+    "release_run_id": 39829507204,
+    "release_completed_success": true,
+    "zero_observed_at": "2026-10-22T18:14:57.935374705Z",
+    "zero_observed_at_asia_shanghai": "2026-10-23T02:14:57.935374705+08:00",
+    "all_12_scopes_zero": true,
+    "no_analysis_grant_created": true,
+    "analysis_grants_scope_included": "security_group_rules",
+    "new_procurement": false,
+    "new_formal_lease": false,
+    "stage_artifacts_content_binding_checks": 39,
+    "stage_strict_producer_authentication": "unverified_due_to_GitHub_aggregate_in_progress",
+    "direct_release_authentication": "passed",
+    "tracking_issue_state": "open; latest published state operator_stop_requested",
+    "inspect_run_not_cancelled": true
+  },
+  "test_outcome": {
+    "rehearsal": "product_failure",
+    "cause": "message_loss",
+    "failure_end_asia_shanghai": "2026-10-23T01:36:18.801475417+08:00",
+    "elapsed_ns": 61223094218,
+    "send_total": 122002,
+    "send_ack_total": 122002,
+    "average_sends_per_second": 1992.7447568327998,
+    "current_load_stopped": true,
+    "current_QPS_inferred_from_stopped_workload": 0,
+    "message_loss": 1,
+    "root_cause": "not established by this Analysis attempt",
+    "original_final_json_unchanged": true
+  },
+  "cost": {
+    "current_quote_reservation_micros": 74477600,
+    "prior_quote_reservations_micros": 223432800,
+    "total_quote_reservations_micros": 297910400,
+    "actual_bill": "unresolved; no quote reservation is an actual bill",
+    "overall_limit_micros": 1500000000,
+    "overall_stop_micros": 1350000000,
+    "request_limit_micros": 1276567200,
+    "request_stop_micros": 1126567200
+  },
+  "next": "Local reproduction and repair by parent task; no further cloud start or analysis."
+}

@@ -1,0 +1,2997 @@
+{
+  "schema": "wukongim.finite_evidence_copy_batch/v1",
+  "batch": 3,
+  "created_at_utc": "2026-10-22T18:14:53.265564+00:00",
+  "base_head": "ba54aad22f565f83c6593e4ba51a2b05264b4685",
+  "archive_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-release-readiness-20261023",
+  "initial_status_count": 336,
+  "initial_status_lines_sha256": "c3ad36744c580cef542ada15cc1d90632ee34fb610bde5a5f9b8f15599c45210",
+  "source_file_count_including_metadata": 321,
+  "source_bytes_including_metadata": 7949580,
+  "new_safe_derived_file_count": 4,
+  "new_safe_derived_bytes": 26992,
+  "groups": [
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1",
+      "target_root": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1",
+      "source_allowlist": "PUBLIC_ALLOWLIST.txt",
+      "source_allowlist_sha256": "e3fa4630c86105e164544e57839cb77e11fc4d7a9bd261f59828233d3e0df524",
+      "source_sha256sums_sha256": "50fba8e114bf93182734305a312808bc8c840981bd3ba03e869834cd482f7def",
+      "source_manifest_entry_count": 49,
+      "source_original_allowlisted_payload_count": 48,
+      "copied_file_count_including_metadata": 42,
+      "copied_bytes_including_metadata": 2736001,
+      "excluded_original_paths": [
+        "terminal/evidence/logs/service-1.log",
+        "terminal/evidence/logs/service-2.log",
+        "terminal/evidence/logs/service-3.log",
+        "terminal/evidence/profiles/service-1-goroutine.pprof",
+        "terminal/evidence/profiles/service-1-heap.pprof",
+        "terminal/evidence/profiles/service-2-goroutine.pprof",
+        "terminal/evidence/profiles/service-2-heap.pprof",
+        "terminal/evidence/profiles/service-3-goroutine.pprof",
+        "terminal/evidence/profiles/service-3-heap.pprof"
+      ],
+      "source_manifest_complete_copy_claimed": false
+    },
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis",
+      "target_root": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis",
+      "source_allowlist": "PUBLIC_ALLOWLIST.txt",
+      "source_allowlist_sha256": "3a34c8d5d526fdd3ec2b2d9209fa963482fbf976d76f021e4f2c1624c60ddc75",
+      "source_sha256sums_sha256": "fe754eeac4e11a5fe11c077349c096c4ff1141cb8af2cceed232d58d1c88c343",
+      "source_manifest_entry_count": 5,
+      "source_original_allowlisted_payload_count": 4,
+      "copied_file_count_including_metadata": 6,
+      "copied_bytes_including_metadata": 28460,
+      "excluded_original_paths": [],
+      "source_manifest_complete_copy_claimed": true
+    },
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics",
+      "target_root": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics",
+      "source_allowlist": "PUBLIC_ALLOWLIST.txt",
+      "source_allowlist_sha256": "31cd25c77aab37afde195927d402bce12a075ccbb88330a3e19d4cf7e522e7e1",
+      "source_sha256sums_sha256": "1e83b7e73d7c78dc6997f6e45289cdba2e6f90cf5f4370467f5b853ef7f4567f",
+      "source_manifest_entry_count": 3,
+      "source_original_allowlisted_payload_count": 2,
+      "copied_file_count_including_metadata": 4,
+      "copied_bytes_including_metadata": 3317,
+      "excluded_original_paths": [],
+      "source_manifest_complete_copy_claimed": true
+    },
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis",
+      "target_root": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis",
+      "source_allowlist": "PUBLIC_ALLOWLIST.txt",
+      "source_allowlist_sha256": "fd708c7acfda3f10fb0eebab75ee69c912a3fc88df8bc90ad6670399e25a9217",
+      "source_sha256sums_sha256": "04751cf71a08592c3cf34e642918da40f7556c32ca3ee278549a25f8fb16143a",
+      "source_manifest_entry_count": 12,
+      "source_original_allowlisted_payload_count": 11,
+      "copied_file_count_including_metadata": 13,
+      "copied_bytes_including_metadata": 656760,
+      "excluded_original_paths": [],
+      "source_manifest_complete_copy_claimed": true
+    },
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1",
+      "target_root": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1",
+      "source_allowlist": "PUBLIC_ALLOWLIST.json",
+      "source_allowlist_sha256": "56233c3c0fa1020830aea2c164baad6c07f896865222c49383b77b097acae33b",
+      "source_sha256sums_sha256": "aab00f2876e95243f98956369bcfa2a34ac5915d75093c11411b557b3b894f7a",
+      "source_manifest_entry_count": 72,
+      "source_original_allowlisted_payload_count": 71,
+      "copied_file_count_including_metadata": 74,
+      "copied_bytes_including_metadata": 853646,
+      "excluded_original_paths": [],
+      "source_manifest_complete_copy_claimed": true
+    },
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci",
+      "target_root": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci",
+      "source_allowlist": "PUBLIC_ALLOWLIST.json",
+      "source_allowlist_sha256": "98f6795a3a310dad67df6d5980ce2732c1597126f636ad2f4ae442cea8eb2d22",
+      "source_sha256sums_sha256": "f72b3bde52d4d11559e25632ed9bbc7d1b0be806269b699b52ea59d3da4e3425",
+      "source_manifest_entry_count": 25,
+      "source_original_allowlisted_payload_count": 24,
+      "copied_file_count_including_metadata": 27,
+      "copied_bytes_including_metadata": 173036,
+      "excluded_original_paths": [],
+      "source_manifest_complete_copy_claimed": true
+    },
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1",
+      "target_root": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1",
+      "source_allowlist": "PUBLIC_ALLOWLIST.json",
+      "source_allowlist_sha256": "ce3dff776b46aa2e5c3f16570929a157ad814ee398f8d7c923114bb9513a265e",
+      "source_sha256sums_sha256": "cd5129184e1d41a7bc5d7c83f82ca74e267855d291defd3b326f155c7cdd88de",
+      "source_manifest_entry_count": 111,
+      "source_original_allowlisted_payload_count": 110,
+      "copied_file_count_including_metadata": 113,
+      "copied_bytes_including_metadata": 2764905,
+      "excluded_original_paths": [],
+      "source_manifest_complete_copy_claimed": true
+    },
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery",
+      "target_root": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery",
+      "source_allowlist": [
+        "active-in_progress-1.json",
+        "active-pending-1.json",
+        "active-queued-1.json",
+        "active-requested-1.json",
+        "active-waiting-1.json",
+        "checks-before.json",
+        "connector-merge-response.json",
+        "main-before.json",
+        "pr-before.json",
+        "premerge-validation.json",
+        "protection-before.json",
+        "tree-and-cleanup.json"
+      ],
+      "selection_authority": "Parent explicitly confirmed these exact 12 public receipts in collaboration message",
+      "source_sha256sums_sha256": null,
+      "copied_file_count_including_metadata": 12,
+      "copied_bytes_including_metadata": 39087
+    },
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-postmerge-receipt",
+      "target_root": "docs/reports/v3-release-readiness-20261023/packages/pr79-postmerge-receipt",
+      "source_allowlist": "PUBLIC_ALLOWLIST.txt",
+      "source_allowlist_sha256": "19c8dc7646d6366112e08e89ba6d681283e45d371d82b3fe073256a130f96b39",
+      "source_sha256sums_sha256": "f85a431ee17aecfbe53916319d9b699b81c4761f196eca3b9c68982b8936c4e3",
+      "source_manifest_entry_count": 3,
+      "source_original_allowlisted_payload_count": 3,
+      "copied_file_count_including_metadata": 5,
+      "copied_bytes_including_metadata": 2363,
+      "excluded_original_paths": [],
+      "source_manifest_complete_copy_claimed": true
+    },
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1",
+      "target_root": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once",
+      "source_allowlist": "PUBLIC_ALLOWLIST.txt",
+      "source_allowlist_sha256": "0acc23f83a3081123916b9968d7e273a3cc7c7a95552db2f23d47ecbb308e64f",
+      "source_sha256sums_sha256": "bef041ccbc4dd17a089ea45b6a97875aaba4e9e1bc8d8c2a4ced3ae3bc08f8e4",
+      "source_manifest_entry_count": 23,
+      "source_original_allowlisted_payload_count": 22,
+      "copied_file_count_including_metadata": 25,
+      "copied_bytes_including_metadata": 692005,
+      "excluded_original_paths": [],
+      "source_manifest_complete_copy_claimed": true
+    }
+  ],
+  "files": [
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/PUBLIC_ALLOWLIST.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/PUBLIC_ALLOWLIST.txt",
+      "sha256": "0acc23f83a3081123916b9968d7e273a3cc7c7a95552db2f23d47ecbb308e64f",
+      "bytes": 618,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/README.md",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/README.md",
+      "sha256": "98953d92c7e2377cac17e4d6d1cd52346a0af363c7e9adc69252a73490d90ce6",
+      "bytes": 3201,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/SHA256SUMS",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/SHA256SUMS",
+      "sha256": "bef041ccbc4dd17a089ea45b6a97875aaba4e9e1bc8d8c2a4ced3ae3bc08f8e4",
+      "bytes": 2157,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/analysis-observer-result.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/analysis-observer-result.json",
+      "sha256": "e257195b4440a2da091a23536560e63caf7e4051d4634a272a0f0cbf71ec1dfd",
+      "bytes": 574,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/analysis-runs-contradiction.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/analysis-runs-contradiction.json",
+      "sha256": "22de0d10a483c5ba996772c251496770cc6e412f30c38d5b495e176be37a9757",
+      "bytes": 195081,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/archive-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/archive-summary.json",
+      "sha256": "87eaef5f3f5a068e1a67af32cb5e75a81a6d26e786e27beca75748e1dfd264be",
+      "bytes": 247,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/dispatch-cleanup.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/dispatch-cleanup.json",
+      "sha256": "0cba64a6580503582c80238aa5d25e9ea0d7df8e6f92b4abceb44e0e92d27010",
+      "bytes": 254,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/dispatch-main.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/dispatch-main.json",
+      "sha256": "c69847328dcb79928807ca09439ea1692cb7cc5068aecac648c91f14fca4629a",
+      "bytes": 516,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/early-termination-decision.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/early-termination-decision.json",
+      "sha256": "8f255a3771790120e95cd59305d521122c2517241f634affc02c09806e372456",
+      "bytes": 588,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/inspect-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/inspect-artifacts.json",
+      "sha256": "60b0e7e8dc252deedfe1ffb8e8dbbfba1a6bfaed5c127750e126af482632818b",
+      "bytes": 2030,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/inspect-jobs-contradiction.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/inspect-jobs-contradiction.json",
+      "sha256": "bca3e782f30f03cc6f802e19225b77f1a2b35eddd116bcf8e30e82b4ae2b3a31",
+      "bytes": 12296,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/inspect-run-contradiction.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/inspect-run-contradiction.json",
+      "sha256": "5b49f7e145cd580660d378826044a09fe9a3edd8f039caaf79d14ad6b50ac816",
+      "bytes": 18197,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/latest-comments-no-restart.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/latest-comments-no-restart.json",
+      "sha256": "188e821f3cb0fce009bc12591ce92bac1434bd135c6e01c5450cd0715530eae8",
+      "bytes": 11605,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/latest-formal-producers.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/latest-formal-producers.json",
+      "sha256": "4725ec3ebffd35be2a7a319894cd977327df4f6d269803c77c11d64127e904ed",
+      "bytes": 194583,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/latest-rehearsal-producers.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/latest-rehearsal-producers.json",
+      "sha256": "b81ae8533fd6a4a0e9d242c1bc22aa1b3cbb81115ac902e89231821966f0ede0",
+      "bytes": 195264,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/local-completion.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/local-completion.json",
+      "sha256": "657edb21f8068def2688e5180a951b2fed4963346819676d175a5cb79b702a69",
+      "bytes": 519,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/owned-group-termination.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/owned-group-termination.json",
+      "sha256": "47a5a1f99df6df3902075c444b27ec8dec54b579473ff66d5c4eb5966eb96aae",
+      "bytes": 409,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/passive-adapter-verification.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/passive-adapter-verification.json",
+      "sha256": "79ffc0ae8ad04704a6ea4e8257cf33f675122a4f61b876d33aefa1f5c21239ca",
+      "bytes": 828,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/provider-inspect/analysis-endpoint.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/provider-inspect/analysis-endpoint.json",
+      "sha256": "6d2bed00d4554edb37eafd9e9f2ff07771b246bdedeac26f142703c1d9f57d3c",
+      "bytes": 576,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/provider-inspect/preflight.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/provider-inspect/preflight.json",
+      "sha256": "6935bbbce83e873a8a118fd43c91610211f55bbcaeb78c6bad9509b29a035c25",
+      "bytes": 48037,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/provider-inspect/release-selector.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/provider-inspect/release-selector.json",
+      "sha256": "4d9e33609f22fb03919396893724be4716660d7658093a497b1fc32d976a161d",
+      "bytes": 319,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/provider-inspect/verification.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/provider-inspect/verification.json",
+      "sha256": "ccca3c194aeb2aa6a79c65d5b032237c3634901b0a9dd805663c1f1d4781b890",
+      "bytes": 615,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/scope-decision.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/scope-decision.json",
+      "sha256": "a735932f8916aaf3b2dc6438468b051881efaf37430a900596227b568286a9a2",
+      "bytes": 1409,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/single-invocation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/single-invocation.json",
+      "sha256": "2eb082922dcd8ec5396fdb35fa7a5d8fdbb817eed109dcbbbf21bf3661d76492",
+      "bytes": 501,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/live-loss-analysis-once",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1/source-freeze.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/live-loss-analysis-once/source-freeze.json",
+      "sha256": "91b18cc9a42a545d9c7dd308bff49bf4ed5d27747b136d85d5d905d566c9b50f",
+      "bytes": 1581,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/sample-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/PUBLIC_ALLOWLIST.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/PUBLIC_ALLOWLIST.txt",
+      "sha256": "3a34c8d5d526fdd3ec2b2d9209fa963482fbf976d76f021e4f2c1624c60ddc75",
+      "bytes": 77,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/sample-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/SHA256SUMS",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/SHA256SUMS",
+      "sha256": "fe754eeac4e11a5fe11c077349c096c4ff1141cb8af2cceed232d58d1c88c343",
+      "bytes": 428,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/sample-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/actual-cases.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/actual-cases.json",
+      "sha256": "feb412af14162bc66f9db8243c48021e5a3ff57564b503caf084207776ff17f3",
+      "bytes": 6507,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics/PUBLIC_ALLOWLIST.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics/PUBLIC_ALLOWLIST.txt",
+      "sha256": "31cd25c77aab37afde195927d402bce12a075ccbb88330a3e19d4cf7e522e7e1",
+      "bytes": 30,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics/SHA256SUMS",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics/SHA256SUMS",
+      "sha256": "1e83b7e73d7c78dc6997f6e45289cdba2e6f90cf5f4370467f5b853ef7f4567f",
+      "bytes": 249,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics/report.md",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics/report.md",
+      "sha256": "1a4882babd9dd20ed647ab40fdac614ef0dabc383e1e30fbead76e47c8d56b4d",
+      "bytes": 1745,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics/source-binding.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/addendum-warning-semantics/source-binding.json",
+      "sha256": "27740f73edb1ee3c0e2da979c9b38490de92e5bc3b87b2dcf9b4a165abd5113a",
+      "bytes": 1293,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/sample-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/replay-anonymous-evidence.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/replay-anonymous-evidence.py",
+      "sha256": "bea56b5e773cbf3d81f741d42cc09ea572048ab91b63445868a5119343d56a7e",
+      "bytes": 9255,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/sample-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/report.md",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/report.md",
+      "sha256": "e5e1a3e7bd80421fef7fcf6ff47ea746f4187f60afc79f52bff59e93a138c315",
+      "bytes": 8925,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/sample-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/source-binding.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/sample-axis/source-binding.json",
+      "sha256": "631b171ddc211c2c7895aecd0a0cbaa7e5b67415988473806a3ac871f036ad80",
+      "bytes": 3268,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/PUBLIC_ALLOWLIST.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/PUBLIC_ALLOWLIST.txt",
+      "sha256": "fd708c7acfda3f10fb0eebab75ee69c912a3fc88df8bc90ad6670399e25a9217",
+      "bytes": 263,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/SHA256SUMS",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/SHA256SUMS",
+      "sha256": "04751cf71a08592c3cf34e642918da40f7556c32ca3ee278549a25f8fb16143a",
+      "bytes": 1076,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/analyze-signals.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/analyze-signals.py",
+      "sha256": "54795d482089c6d8b06c449bf9e12192fe2e273cd6505054db89949ef8f0c863",
+      "bytes": 4572,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/limited-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/limited-summary.json",
+      "sha256": "a69e9fe70820684f84b9937eb65eb47abd2b75aec5925da5f2a7e509f146b080",
+      "bytes": 623368,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/offline-pprof-receipts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/offline-pprof-receipts.json",
+      "sha256": "4b1b8a560c3025f850fa344fa2fc2b3a1ba91cb0e63c8798d05be1eac6cc216c",
+      "bytes": 3561,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/report.md",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/report.md",
+      "sha256": "ca01c18bddc381a37fb26cade9f526a8e652689cba16405418d5e228f0824542",
+      "bytes": 7430,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/service-1-goroutine-top15.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/service-1-goroutine-top15.txt",
+      "sha256": "032c4a4c5eed1602602d256bb8350b230671b1f2b18d95e29d912756636f638f",
+      "bytes": 1930,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/service-1-heap-top15.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/service-1-heap-top15.txt",
+      "sha256": "17d0b9289be24afe6c785a4f59fdbd2dff3aac38a2c04ba55583b31d9dc2ceaa",
+      "bytes": 2861,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/service-2-goroutine-top15.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/service-2-goroutine-top15.txt",
+      "sha256": "cc0641ac50a24c14926a7c372403d9859c9bea70fa804eafe107091e16289c01",
+      "bytes": 1930,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/service-2-heap-top15.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/service-2-heap-top15.txt",
+      "sha256": "a53890590842fd605363ee461f6e73359ddf4796fc134d280a21fe3fad88f0b7",
+      "bytes": 2891,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/service-3-goroutine-top15.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/service-3-goroutine-top15.txt",
+      "sha256": "ed563371910fa5bcdf00e50abc10bd2b4b8d77f3a572b56c389feb4485cac090",
+      "bytes": 1930,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/service-3-heap-top15.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/service-3-heap-top15.txt",
+      "sha256": "f5f51e0491510696f8a0229e81f569ced3e945532f4441210382abf606ee2566",
+      "bytes": 2931,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rc-loss-diagnosis/signals-axis",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/source-binding.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rc-loss-diagnosis/signals-axis/source-binding.json",
+      "sha256": "9dab166bba2e396dcdb620d85394161e921ba31a4d24bdc1273afbc956a57eee",
+      "bytes": 2017,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/README.md",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/README.md",
+      "sha256": "ba959920d5ce5ab2b48a9f4b8d4c91ebbcab539852145f04089a2c057bc140e4",
+      "bytes": 3627,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/SAFE_COPY_README.md",
+      "bytes": 2142,
+      "sha256": "7e9681c18bfce97fa0bb9ad34b22fcf415df411e1a3c00323aa7e40ff3b4c461",
+      "selection": "new finite safe transform or explicit exclusion/scope receipt",
+      "source": null
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/PUBLIC_ALLOWLIST.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/SOURCE_PUBLIC_ALLOWLIST.txt",
+      "sha256": "e3fa4630c86105e164544e57839cb77e11fc4d7a9bd261f59828233d3e0df524",
+      "bytes": 1690,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/SHA256SUMS",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/SOURCE_SHA256SUMS",
+      "sha256": "50fba8e114bf93182734305a312808bc8c840981bd3ba03e869834cd482f7def",
+      "bytes": 4945,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/archive-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/SOURCE_archive-summary.json",
+      "sha256": "c7b042c1254ccec08c58eb7e218dca702ffef2112d84666c01d40b81f1bc4802",
+      "bytes": 248,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/comments-latest.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/comments-latest.json",
+      "sha256": "319c453b3f6620b053e9244a545c10c187afcee0dc8c072f3d311bfe14771e29",
+      "bytes": 11685,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/excluded-original-references.json",
+      "bytes": 3738,
+      "sha256": "46681d782f00e02fc606f15cc320637888dd7e5c24d1bcba76fda6318308a044",
+      "selection": "new finite safe transform or explicit exclusion/scope receipt",
+      "source": null
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/extract-safe-delivery-warnings.py",
+      "bytes": 4709,
+      "sha256": "5805d1263a1add92e922337782ccdf03a0695b40578f4ffd86d8b535b917a4b7",
+      "selection": "new finite safe transform or explicit exclusion/scope receipt",
+      "source": null
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/finalizer-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/finalizer-artifacts.json",
+      "sha256": "0e53486a1fcea550e5b60f36697f6f1cd9462a4a46da45c8c0e5e04d4062fd07",
+      "bytes": 1213,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/finalizer-download.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/finalizer-download.json",
+      "sha256": "193c429573a0c3e0fafb3e66f8a9591c22fc82a627d2cc3041fe867c81404eb4",
+      "bytes": 404,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/finalizer-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/finalizer-jobs.json",
+      "sha256": "6d5b86b7d9ba0497dc3b81eda2a42b158fb0b18b296ec304711bee940ce14607",
+      "bytes": 17680,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/finalizer-run-latest.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/finalizer-run-latest.json",
+      "sha256": "cb22974a98f807f1c9360780ec7e3a1f3024310c87ef184b91a6ad5b32261615",
+      "bytes": 18597,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/finalizer-state-latest.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/finalizer-state-latest.json",
+      "sha256": "b477a531647a1e1dabe96412f7aa670f988e5d435c543eff111cf1d87c86d259",
+      "bytes": 928,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/finalizer-zip-members.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/finalizer-zip-members.json",
+      "sha256": "2fb6c274463915b52389cfdbc48c5b19ee415e4d45ff1dea064266c6e7fb89da",
+      "bytes": 6536,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/identity-verification.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/identity-verification.json",
+      "sha256": "ee69df84fb5ce0a1e26f56ceef8dcc29888d44207699c347a3eb885647aa8b9d",
+      "bytes": 20824,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/issue-latest.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/issue-latest.json",
+      "sha256": "929cd5e5421b1892b525b2c8de9c993d0cb2afa7c614854d99fd501d08ca21db",
+      "bytes": 5981,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/performance-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/performance-summary.json",
+      "sha256": "0220ff3b89aceabd3331c96a5fe4f0f0e489f7e0d836b9aa2877e65b6ebcb27c",
+      "bytes": 3801,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/release-state-latest.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/release-state-latest.json",
+      "sha256": "1b311efba216da60204da31ec903666396a85decb4495fcfa09b4bc3bd8dfdd2",
+      "bytes": 856,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/safe-delivery-warnings.json",
+      "bytes": 16403,
+      "sha256": "44b4fbe3f528866fd836756e87ef3f8cb4214793efeffd7280a9210958651279",
+      "selection": "new finite safe transform or explicit exclusion/scope receipt",
+      "source": null
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/deployment-outcome.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/deployment-outcome.json",
+      "sha256": "1cdc195fe32288efc25c13f79d6badca1db2e8738e31789553baade79a447b46",
+      "bytes": 2497,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/deployment-plan.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/deployment-plan.json",
+      "sha256": "631f22522457b605e5374eec6a18e4a0c6587e62ed001e187d4bc1eeae1a87dc",
+      "bytes": 3172,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/diagnosis-window.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/diagnosis-window.json",
+      "sha256": "470d8f90bd008ec9f29544ee2a635d583007a58c336eca5fd01446535bb92be4",
+      "bytes": 471,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/logs/load.log",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/logs/load.log",
+      "sha256": "34ba4374dd2cd5c72ecd1b552af631213b1fb6a14e4c12f997caf7efdf4bc812",
+      "bytes": 54469,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/manifest.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/manifest.json",
+      "sha256": "4ad8455d66aaec35c0e340e0d95e28204fd4f503a57913373bd7c68d27e63337",
+      "bytes": 10020,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/prometheus-targets.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/metrics/prometheus-targets.json",
+      "sha256": "ba9933e80f4275d5ea4ba2bed6cf40c08f0a1cd849980b708bf94e60bf431da0",
+      "bytes": 4694,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-channel_worker.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/metrics/range-channel_worker.json",
+      "sha256": "1b61cf69e15000d095d48744c177648ad9877673a0d5ce4d838064f158c17d3d",
+      "bytes": 79450,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-counters.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/metrics/range-counters.json",
+      "sha256": "5270461ec81028d05a5dc2cd726f822921a8aacd21927e829d8895b3d662f0cc",
+      "bytes": 63,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-delivery.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/metrics/range-delivery.json",
+      "sha256": "43706ff0bda79e82635dc8d754d86666d55b5853c526008cf31b2485c40e56ea",
+      "bytes": 177704,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-go.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/metrics/range-go.json",
+      "sha256": "5270461ec81028d05a5dc2cd726f822921a8aacd21927e829d8895b3d662f0cc",
+      "bytes": 63,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-presence.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/metrics/range-presence.json",
+      "sha256": "ba10c5ec5107d348db49f5d9e17be23e3e33a966acb0b95a50e7b10d395962f8",
+      "bytes": 220602,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-process.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/metrics/range-process.json",
+      "sha256": "f0bde518bff43b8249bf441782b8bc2fe23bb71a36492687ae9e32d8146dd4c0",
+      "bytes": 117934,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-runtime.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/metrics/range-runtime.json",
+      "sha256": "42df3dcd0f73014d940c13c45e85305c5f543f94a6b40b0869d92d638a6a403f",
+      "bytes": 1878373,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/metrics/range-up.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/metrics/range-up.json",
+      "sha256": "5289109d6f94f1fe39385fc78db99e35b618fc9713104b048b700d9aca6d2f05",
+      "bytes": 3807,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/system/load.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/system/load.txt",
+      "sha256": "7fa5247bf2af0378f997d277c7ac30add09570c9fa036060d0744ae1b1d49647",
+      "bytes": 1306,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/system/service-1.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/system/service-1.txt",
+      "sha256": "e9bff340cbb138ba501bb6896b0488a7fd1448f316e2bd0f0eed246a5bdb3ff2",
+      "bytes": 575,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/system/service-2.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/system/service-2.txt",
+      "sha256": "e9bff340cbb138ba501bb6896b0488a7fd1448f316e2bd0f0eed246a5bdb3ff2",
+      "bytes": 575,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/system/service-3.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/system/service-3.txt",
+      "sha256": "e9bff340cbb138ba501bb6896b0488a7fd1448f316e2bd0f0eed246a5bdb3ff2",
+      "bytes": 575,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/workload/rehearsal/diagnostic-status.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/workload/rehearsal/diagnostic-status.json",
+      "sha256": "67cfc64866139ce9c3d965f8aa931aaaaa913c0c8606d8de429642e840363c3c",
+      "bytes": 8999,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/workload/rehearsal/worker-evidence.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/evidence/workload/rehearsal/worker-evidence.json",
+      "sha256": "d4de985f372e7a87dd336719fa9d42b62311b78d4f6d5480bc9c76544afc1c8a",
+      "bytes": 1378,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/final.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/final.json",
+      "sha256": "42a3d64314658cc14b4c1cff60e34fff1928e2392b2fd1cde70d103a78665b7e",
+      "bytes": 23857,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/handoff.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/handoff.json",
+      "sha256": "f6fefa112e87955acfd7037d30bdc734cd603ba9789f82e80e74096567efdeb8",
+      "bytes": 499,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/quote.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/quote.json",
+      "sha256": "8164de64326b590ca1abf5bab9dd572e04e886889be4513ecf53902a53fa2f26",
+      "bytes": 1842,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/receipt.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/receipt.json",
+      "sha256": "9ec564ae9c6981b8bb7672f08dfb109e4947335868cdf2773c588b87583dc9cc",
+      "bytes": 41130,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/rehearsal-result.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/rehearsal-result.json",
+      "sha256": "8848c7b5970280d4c76ede308a75c5ab52578975329d91aefcf023540be1c7d6",
+      "bytes": 172,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/run-plan.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/run-plan.json",
+      "sha256": "cb5f4bbdacdd20f28913030e3d588a7a85fe74a20f9b63dba996ccbe09ff22d2",
+      "bytes": 2361,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/run-start.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/rehearsal-failure-status-v1/terminal/run-start.json",
+      "sha256": "b6a88b8e5f6841e316f896a5ac618775e4e40260163447886e8df83316343cdb",
+      "bytes": 398,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/PUBLIC_ALLOWLIST.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/PUBLIC_ALLOWLIST.json",
+      "sha256": "98f6795a3a310dad67df6d5980ce2732c1597126f636ad2f4ae442cea8eb2d22",
+      "bytes": 4243,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/README.md",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/README.md",
+      "sha256": "5fc21395d90bb709dabd2069d56fcff00fcedf1bb04e875eb851dc36b2f405fe",
+      "bytes": 1469,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/SHA256SUMS",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/SHA256SUMS",
+      "sha256": "f72b3bde52d4d11559e25632ed9bbc7d1b0be806269b699b52ea59d3da4e3425",
+      "bytes": 2610,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/archive-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/archive-summary.json",
+      "sha256": "c2f5eb0590c90e60cdc67a75e3525df8824a37e593a136b7ca11d9b53a855a2a",
+      "bytes": 215,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/artifacts/12446471400-object-storage-sdk-contract.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/artifacts/12446471400-object-storage-sdk-contract.zip",
+      "sha256": "02b4ee59bbe90bfc7d3bdb99d23424cf96fd45712a3d2cc9b8842b7c69313c25",
+      "bytes": 1337,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/artifacts/12446471400-object-storage-sdk-contract/provider-contract-receipt.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/artifacts/12446471400-object-storage-sdk-contract/provider-contract-receipt.json",
+      "sha256": "a77d552114129882ed15f806fc50ef58e9cd0f380065255a2d5b28fe67b9fbb2",
+      "bytes": 2684,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/artifacts/12446471400-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/artifacts/12446471400-validation.json",
+      "sha256": "fc2d79e8d3ce00a07e012c5bdab540772783795fc955b79278ad662a4f1103de",
+      "bytes": 1272,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/collect.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/collect.py",
+      "sha256": "79f6e3411ba53621fb2e6f04d0da28e32956523f89b1fccc792afe6a12ff8fb4",
+      "bytes": 2021,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/download-artifacts.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/download-artifacts.py",
+      "sha256": "022532c65caf7314f1a7f54c844efeaded4aee4885b36221b1cfe74993d94c42",
+      "bytes": 2182,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/logs/job-119985854676.log",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/logs/job-119985854676.log",
+      "sha256": "625d4fb27efbcb7daaf2bc524581731b5c0b2d65e5b5abee84e9ca4ed8d7dba2",
+      "bytes": 35730,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/logs/job-119985855628.log",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/logs/job-119985855628.log",
+      "sha256": "2e0219fb6b2085efb52aa157d7426c60f6d4f4f09e46d65cc50402b376b30f99",
+      "bytes": 19092,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/39825002051-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/39825002051-artifacts.json",
+      "sha256": "aa228644246548ea3978846d0a57ccb560f0f115155b42e91fca7a771b95e380",
+      "bytes": 719,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/39825002051-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/39825002051-jobs.json",
+      "sha256": "a04b1da9c6ba6c88c873029b902e219debc7ffe2c133d1fedfd57c8d3cebcd4a",
+      "bytes": 2212,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/39825002051-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/39825002051-run.json",
+      "sha256": "c5880dc44a822c5630d5654b441dfa4faab812e61bb0eddfb422a4680ecb02c9",
+      "bytes": 12013,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/39825002244-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/39825002244-artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "bytes": 32,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/39825002244-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/39825002244-jobs.json",
+      "sha256": "b92088ba569405151cb830c0f712812f4d987863670224f24026b9342d0d2766",
+      "bytes": 3035,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/39825002244-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/39825002244-run.json",
+      "sha256": "ea2be1b9db5eba987a7dea083f09ca9d47c2c849f99da23241a4b53cfc9100f8",
+      "bytes": 11988,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/checks.json",
+      "sha256": "06bcbe67c8a6d21c15b8139cfcdb49d174ab15dd78b457206ff8dc6bb3fc00fd",
+      "bytes": 9228,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/main-commit.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/main-commit.json",
+      "sha256": "580a5c00a0b5b3c7c01e98bc1b29dffa3cb05485361521874466acce25bace56",
+      "bytes": 1132,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/pr.json",
+      "sha256": "f14aa4a90893f7540134a04ed7d3f9fb759b3c5d1cd7c2fbe6304567d697b74a",
+      "bytes": 18286,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/runs.json",
+      "sha256": "20eca4c960b2cbf4d7ce77cf7a33e530a3821fcec155b21b0519837f3c80e167",
+      "bytes": 24038,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/snapshots/20261022T174419Z/summary.json",
+      "sha256": "ca74fb216887b9c364f76057271f635b399e8f44f442a26bd845dc44dbd81bcf",
+      "bytes": 1749,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/source-manifest.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/source-manifest.json",
+      "sha256": "6aabd4d43049f751c775a35e463f6382be39dbe24dac98be1195a9d5e45b23d5",
+      "bytes": 583,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/source/.github/workflows/object-storage-provider-contract.yml",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/source/.github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "bytes": 1660,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/source/.github/workflows/pages.yml",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/source/.github/workflows/pages.yml",
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "bytes": 3104,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/source/manifests/channels.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/source/manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "bytes": 2579,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-main-first-ci/validation-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-main-first-ci/validation-summary.json",
+      "sha256": "f98b2f4aea71a6819cdd0d3aa705ea3e6252ee9b9365b2c6526005a244f816bf",
+      "bytes": 7823,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-merge-delivery",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery/active-in_progress-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery/active-in_progress-1.json",
+      "sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915",
+      "bytes": 36,
+      "selection": "parent-confirmed explicit 12-file list; source had no manifest"
+    },
+    {
+      "group": "packages/pr79-merge-delivery",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery/active-pending-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery/active-pending-1.json",
+      "sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915",
+      "bytes": 36,
+      "selection": "parent-confirmed explicit 12-file list; source had no manifest"
+    },
+    {
+      "group": "packages/pr79-merge-delivery",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery/active-queued-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery/active-queued-1.json",
+      "sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915",
+      "bytes": 36,
+      "selection": "parent-confirmed explicit 12-file list; source had no manifest"
+    },
+    {
+      "group": "packages/pr79-merge-delivery",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery/active-requested-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery/active-requested-1.json",
+      "sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915",
+      "bytes": 36,
+      "selection": "parent-confirmed explicit 12-file list; source had no manifest"
+    },
+    {
+      "group": "packages/pr79-merge-delivery",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery/active-waiting-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery/active-waiting-1.json",
+      "sha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915",
+      "bytes": 36,
+      "selection": "parent-confirmed explicit 12-file list; source had no manifest"
+    },
+    {
+      "group": "packages/pr79-merge-delivery",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery/checks-before.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery/checks-before.json",
+      "sha256": "d871fe562757f3ca90eceedc9da0f239618ccdbbcb24940fcf1405e88e7692a6",
+      "bytes": 17643,
+      "selection": "parent-confirmed explicit 12-file list; source had no manifest"
+    },
+    {
+      "group": "packages/pr79-merge-delivery",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery/connector-merge-response.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery/connector-merge-response.json",
+      "sha256": "6799359ad45beedfea4cc9e87777a14caa7ede0a7b4c932ca8955a2621a03d85",
+      "bytes": 740,
+      "selection": "parent-confirmed explicit 12-file list; source had no manifest"
+    },
+    {
+      "group": "packages/pr79-merge-delivery",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery/main-before.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery/main-before.json",
+      "sha256": "528473a905e324e1dcb3201610fb997318db08840f9a589ee179b3c258914b7b",
+      "bytes": 332,
+      "selection": "parent-confirmed explicit 12-file list; source had no manifest"
+    },
+    {
+      "group": "packages/pr79-merge-delivery",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery/pr-before.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery/pr-before.json",
+      "sha256": "2accac818e2c3abd06fbb9f6ee9cda5de9004615b8fefee283674b2134f186d0",
+      "bytes": 17308,
+      "selection": "parent-confirmed explicit 12-file list; source had no manifest"
+    },
+    {
+      "group": "packages/pr79-merge-delivery",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery/premerge-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery/premerge-validation.json",
+      "sha256": "07a3214b5f8286ed6d7a65a4d8cd628c67857c27da66393e9f676685138d3581",
+      "bytes": 1182,
+      "selection": "parent-confirmed explicit 12-file list; source had no manifest"
+    },
+    {
+      "group": "packages/pr79-merge-delivery",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery/protection-before.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery/protection-before.json",
+      "sha256": "9c1198d64febb0279b3e732246f931fc307083ccc38c203efdaaa419fb1a7baf",
+      "bytes": 1292,
+      "selection": "parent-confirmed explicit 12-file list; source had no manifest"
+    },
+    {
+      "group": "packages/pr79-merge-delivery",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-merge-delivery/tree-and-cleanup.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-merge-delivery/tree-and-cleanup.json",
+      "sha256": "65d668ef6b77bb2e4bf2ce38d5840027c812bf5ffb0a47792b2859d9406b1e3c",
+      "bytes": 410,
+      "selection": "parent-confirmed explicit 12-file list; source had no manifest"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/PUBLIC_ALLOWLIST.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/PUBLIC_ALLOWLIST.json",
+      "sha256": "56233c3c0fa1020830aea2c164baad6c07f896865222c49383b77b097acae33b",
+      "bytes": 12442,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/README.md",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/README.md",
+      "sha256": "79c309d81960e13602bd3b4cd292f2f3ad4d144871a7b8751b10a979e3fa2285",
+      "bytes": 2481,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/SHA256SUMS",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/SHA256SUMS",
+      "sha256": "aab00f2876e95243f98956369bcfa2a34ac5915d75093c11411b557b3b894f7a",
+      "bytes": 7649,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/admission/jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/admission/jobs.json",
+      "sha256": "9c718b68c557c3274d383cc34646fd67668ddd2e1dd2a7330e8c2594bf929021",
+      "bytes": 9120,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/admission/main-ref.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/admission/main-ref.json",
+      "sha256": "528473a905e324e1dcb3201610fb997318db08840f9a589ee179b3c258914b7b",
+      "bytes": 332,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/admission/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/admission/pr.json",
+      "sha256": "7d32389eb706571142bb6e7ca9ece2bec57330b0d3ce4eae8672fc867cd96a30",
+      "bytes": 17311,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/admission/run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/admission/run.json",
+      "sha256": "3707ab83c53ab69010b151eed18b64ac8f4d2cf17c2279b1952b2e796e05e6ba",
+      "bytes": 12481,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/archive-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/archive-summary.json",
+      "sha256": "4d1df630c625d6f60a8b3a6b05681133963d8326f96da3194813417e1f69a0b1",
+      "bytes": 231,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12444444818-native-bootstrap-preparation-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12444444818-native-bootstrap-preparation-test-only.zip",
+      "sha256": "a8a77923f4f5dca6602937d4933f83628a3f518510f1975a10b769c3c8589317",
+      "bytes": 7152,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12444444818-native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12444444818-native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+      "sha256": "84a67df84b30c2e922e0a905823a0dd7f1399e1d36bddaf41c7eed4d25a76d4f",
+      "bytes": 44122,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12444444818-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12444444818-validation.json",
+      "sha256": "52938505a3a4d22944e71209cd1d5e62fbd13779b7d253189a8b8d55d0eba285",
+      "bytes": 1309,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445327889-native-source-metadata-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445327889-native-source-metadata-test-only.zip",
+      "sha256": "9a7659d90639903196649066471ea818fc19d7d75f31504a57adee6627fd9d74",
+      "bytes": 1266,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445327889-native-source-metadata-test-only/native-source-metadata.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445327889-native-source-metadata-test-only/native-source-metadata.json",
+      "sha256": "9f500b4bf4e59f86c1a73bef69113bcac695654803d38a14771d0742f501429f",
+      "bytes": 4464,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445327889-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445327889-validation.json",
+      "sha256": "cce0d3159ed6729b08c4c786a9e7901c454b2b00dd73a62e9b8b928343f85be6",
+      "bytes": 1296,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445662567-native-stable-candidate-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445662567-native-stable-candidate-test-only.zip",
+      "sha256": "cc7cdd744d78b48b6790ecba03a276d94340d0bb6aa875689c3d952b682c362b",
+      "bytes": 4196,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445662567-native-stable-candidate-test-only/native-stable-candidate.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445662567-native-stable-candidate-test-only/native-stable-candidate.json",
+      "sha256": "67d42ceb06a1ebc2d1e9cdb6b4e946ba7292ee909c9cf1a84e41020197bffd9c",
+      "bytes": 28830,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445662567-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445662567-validation.json",
+      "sha256": "4074a41b904e40a3f7fbd042c4bf89319bd0879a7386409f655741bdbf952331",
+      "bytes": 1299,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445791385-native-object-delivery-fixture-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445791385-native-object-delivery-fixture-test-only.zip",
+      "sha256": "e301b1542ec7491f49ed2b3cf28eb1a89c24b98633b5486052db81212869957c",
+      "bytes": 8409,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445791385-native-object-delivery-fixture-test-only/fixture-export.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445791385-native-object-delivery-fixture-test-only/fixture-export.json",
+      "sha256": "0e311a501aef3541556aaf37730f4c0057a86aebd0a21222aa1f550cb468ad43",
+      "bytes": 2550,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445791385-native-object-delivery-fixture-test-only/result.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445791385-native-object-delivery-fixture-test-only/result.json",
+      "sha256": "e8d675c3bbd5d82d297d03be06c83831a17b8020bb95d81d4a47301df1ea6943",
+      "bytes": 48482,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445791385-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12445791385-validation.json",
+      "sha256": "691f648f96a62e6aa90663f05a08c9939f9b34148282873039e7780ff0a28284",
+      "bytes": 1470,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12446360092-native-local-signing-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12446360092-native-local-signing-test-only.zip",
+      "sha256": "07fcb2e7843c4ce3fb4a483020fdfbbae490e53a4811446ca0501c557e948a8c",
+      "bytes": 2796,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12446360092-native-local-signing-test-only/native-local-signing.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12446360092-native-local-signing-test-only/native-local-signing.json",
+      "sha256": "72dfed1b131cef338cc07292913ae124a17d073efba881849d83135633800fb7",
+      "bytes": 12973,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12446360092-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/artifacts/12446360092-validation.json",
+      "sha256": "bdc64697443158a3624f9c4c0fbd7f22f80d0cdcd6d32450d262efea56dd22b7",
+      "bytes": 1293,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/bounded-command-output-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/bounded-command-output-validation.json",
+      "sha256": "d000f79e8efa67546779d941297466563b043e7e56f035b511f7190649975fc8",
+      "bytes": 9119,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/carried-forward-stable-job.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/carried-forward-stable-job.json",
+      "sha256": "540140753582f5ab6b141735f473e833a3ddb81edf0539edd1df9e4901d5acf1",
+      "bytes": 697,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/collect.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/collect.py",
+      "sha256": "270fdee9a7cf92a3a3e504886f624fe8e18ae9f7ef7fc1c9925af05290d1b06f",
+      "bytes": 2065,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/dispatch-intent.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/dispatch-intent.json",
+      "sha256": "713bc8d140e0f77c6cfc39bfabf165acd9e55d64c42941a9bf0cbf2dcc0d1489",
+      "bytes": 449,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/dispatch-result.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/dispatch-result.json",
+      "sha256": "e99c556e63e967c3588f8c6a5a5c5ead4bd5922e34e989737cfa21ea74312bbb",
+      "bytes": 150,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/dispatch.stderr",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/dispatch.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/dispatch.stdout",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/dispatch.stdout",
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "bytes": 2,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/download-artifacts.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/download-artifacts.py",
+      "sha256": "30dfeef9f04de5c6120e9239eb651060c021e3f07d3d48fb5c773d20b43c2e26",
+      "bytes": 2299,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/finalize.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/finalize.py",
+      "sha256": "ce6c0a39c5b830c9839489e192736926a3abc63a03444439f980a8ac4e5e2596",
+      "bytes": 8712,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/first-attempt-reference.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/first-attempt-reference.json",
+      "sha256": "65f092f6cd6670d451f0c9851e95ec7cbc35ed37cc32a5fc7bb5c2d0cc1a1e6e",
+      "bytes": 326,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/logs/job-119980774703.log",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/logs/job-119980774703.log",
+      "sha256": "6e7dec77c91c612fced3bf7039a66da35e013c813db2befbc198a6e1c0bed045",
+      "bytes": 200884,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/native-job-step-outcomes.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/native-job-step-outcomes.json",
+      "sha256": "a68a3bcf0aee65aba3a849959b1ff35d92c336e8500ffde00a4652fc6a1bbd83",
+      "bytes": 5201,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/root-decision.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/root-decision.json",
+      "sha256": "3cb9bc706e0ae3fc9ce7885efaa733bbfc1d57329955af179e84586ed4efc6d9",
+      "bytes": 1022,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/all-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/all-jobs.json",
+      "sha256": "35d8c81a9104afea07a49ca9f5da57cf7a958cede0ecab7c4077d455e38806eb",
+      "bytes": 17196,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/artifacts.json",
+      "sha256": "78bc9968d5a6d9d46a5c97ec82fb2c3cf220b20b88f295007ffa85b32bf533a2",
+      "bytes": 5055,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/attempt-2-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/attempt-2-jobs.json",
+      "sha256": "ece1e07e8bc39ac036f71abf250d72e02c8432197e33092160ff1641e0b988d0",
+      "bytes": 8102,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/attempt-2-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/attempt-2-run.json",
+      "sha256": "f86629a5b1c5be6873c5d9cdff165cca52f43783bb88ad76022988a43748633b",
+      "bytes": 12580,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/checks.json",
+      "sha256": "b107b5e970fdb057f58df0940083e05001dd647c7a5fa39fad72237932c5eae4",
+      "bytes": 17622,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/main-ref.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/main-ref.json",
+      "sha256": "528473a905e324e1dcb3201610fb997318db08840f9a589ee179b3c258914b7b",
+      "bytes": 332,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/pr.json",
+      "sha256": "7d32389eb706571142bb6e7ca9ece2bec57330b0d3ce4eae8672fc867cd96a30",
+      "bytes": 17311,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/run.json",
+      "sha256": "bcc1dbd5a8dea898b91baa47181ccba064006025fe683e52b60cdb0a117c1ca6",
+      "bytes": 12558,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173237Z/summary.json",
+      "sha256": "e4cc872b81f022176d8089b02dd2f463536bbcf100ae12025529da307f59b435",
+      "bytes": 1459,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/all-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/all-jobs.json",
+      "sha256": "070f7a19a2bb7d6ade782ae69cd86d8a648db28563729f54fb90dd91a2ecc895",
+      "bytes": 17720,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/artifacts.json",
+      "sha256": "8d94f58ad8e7a26f8471a9057c64a170e9f61e002e2bde2479a1727402cf9ad1",
+      "bytes": 7929,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/attempt-2-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/attempt-2-jobs.json",
+      "sha256": "6e7bb356bb9a298678ca8a441b385ea15c7b4dd12197cd6c5e245f4c9d965b71",
+      "bytes": 8626,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/attempt-2-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/attempt-2-run.json",
+      "sha256": "f86629a5b1c5be6873c5d9cdff165cca52f43783bb88ad76022988a43748633b",
+      "bytes": 12580,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/checks.json",
+      "sha256": "b107b5e970fdb057f58df0940083e05001dd647c7a5fa39fad72237932c5eae4",
+      "bytes": 17622,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/main-ref.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/main-ref.json",
+      "sha256": "528473a905e324e1dcb3201610fb997318db08840f9a589ee179b3c258914b7b",
+      "bytes": 332,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/pr.json",
+      "sha256": "7d32389eb706571142bb6e7ca9ece2bec57330b0d3ce4eae8672fc867cd96a30",
+      "bytes": 17311,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/run.json",
+      "sha256": "bcc1dbd5a8dea898b91baa47181ccba064006025fe683e52b60cdb0a117c1ca6",
+      "bytes": 12558,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173536Z/summary.json",
+      "sha256": "4ebddb73e2de21294b4c4e0aaed0a46e5b962db2e07eb9c497c6dd7e1d507fce",
+      "bytes": 1429,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/all-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/all-jobs.json",
+      "sha256": "c33419fb635e6171f04621818aed3515b65ae677099069ad9f1c02962e9edf2c",
+      "bytes": 17943,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/artifacts.json",
+      "sha256": "8d94f58ad8e7a26f8471a9057c64a170e9f61e002e2bde2479a1727402cf9ad1",
+      "bytes": 7929,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/attempt-2-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/attempt-2-jobs.json",
+      "sha256": "e66f4513f8e88b5f177816da1b272699c34e1e92b35a04857d7d5d2870e6482f",
+      "bytes": 8849,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/attempt-2-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/attempt-2-run.json",
+      "sha256": "f86629a5b1c5be6873c5d9cdff165cca52f43783bb88ad76022988a43748633b",
+      "bytes": 12580,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/checks.json",
+      "sha256": "b107b5e970fdb057f58df0940083e05001dd647c7a5fa39fad72237932c5eae4",
+      "bytes": 17622,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/main-ref.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/main-ref.json",
+      "sha256": "528473a905e324e1dcb3201610fb997318db08840f9a589ee179b3c258914b7b",
+      "bytes": 332,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/pr.json",
+      "sha256": "7d32389eb706571142bb6e7ca9ece2bec57330b0d3ce4eae8672fc867cd96a30",
+      "bytes": 17311,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/run.json",
+      "sha256": "bcc1dbd5a8dea898b91baa47181ccba064006025fe683e52b60cdb0a117c1ca6",
+      "bytes": 12558,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173721Z/summary.json",
+      "sha256": "7ab13e570bc00f7c8a6876d2ba590a733ab88b654ffe6c44b645c30729e3f591",
+      "bytes": 1430,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/all-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/all-jobs.json",
+      "sha256": "3aa5d47105c97e61d4309f12e4f4efd8bd3fb71e1194d72868b2890403dba7bd",
+      "bytes": 18397,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/artifacts.json",
+      "sha256": "8d94f58ad8e7a26f8471a9057c64a170e9f61e002e2bde2479a1727402cf9ad1",
+      "bytes": 7929,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/attempt-2-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/attempt-2-jobs.json",
+      "sha256": "dc472b68cbd8209cb19ab92c9c75881a0efd30f4ef3dc3260a910a50f60364b3",
+      "bytes": 9303,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/attempt-2-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/attempt-2-run.json",
+      "sha256": "f92367046e33491943f7c6cc04ef2c3a092f77d0420c820c1902dea8ba4f3f75",
+      "bytes": 12583,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/checks.json",
+      "sha256": "d871fe562757f3ca90eceedc9da0f239618ccdbbcb24940fcf1405e88e7692a6",
+      "bytes": 17643,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/main-ref.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/main-ref.json",
+      "sha256": "528473a905e324e1dcb3201610fb997318db08840f9a589ee179b3c258914b7b",
+      "bytes": 332,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/pr.json",
+      "sha256": "2accac818e2c3abd06fbb9f6ee9cda5de9004615b8fefee283674b2134f186d0",
+      "bytes": 17308,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/run.json",
+      "sha256": "556f4944be85502c4322eea59a89f9bb374d3caa6e78090ced3e3c92b2636a5a",
+      "bytes": 12561,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/snapshots/20261022T173953Z/summary.json",
+      "sha256": "a2e9cb813db84a17e002a4641e5c3f2a02d17d4baf79af13d73a51d198a189b9",
+      "bytes": 1388,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-native-infra-retry-1/validation-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-native-infra-retry-1/validation-summary.json",
+      "sha256": "b7f3a924b379bbafeac595778e527380a1d2c9c72e890cebf8c5a2d1467bd6eb",
+      "bytes": 6446,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-postmerge-receipt",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-postmerge-receipt/PUBLIC_ALLOWLIST.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-postmerge-receipt/PUBLIC_ALLOWLIST.txt",
+      "sha256": "19c8dc7646d6366112e08e89ba6d681283e45d371d82b3fe073256a130f96b39",
+      "bytes": 52,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "packages/pr79-postmerge-receipt",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-postmerge-receipt/SHA256SUMS",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-postmerge-receipt/SHA256SUMS",
+      "sha256": "f85a431ee17aecfbe53916319d9b699b81c4761f196eca3b9c68982b8936c4e3",
+      "bytes": 250,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "packages/pr79-postmerge-receipt",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-postmerge-receipt/pr-after.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-postmerge-receipt/pr-after.json",
+      "sha256": "3aaab8e0a524bbe68734d5d7dfe6c7826de5168d2b2f8d86a59251524b23609f",
+      "bytes": 279,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-postmerge-receipt",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-postmerge-receipt/protection-after.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-postmerge-receipt/protection-after.json",
+      "sha256": "a3ea00558b140ccfd90cd7c4f8466cdd48d2ce6af3bc8009422650d89de9a3a0",
+      "bytes": 1066,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr79-postmerge-receipt",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-postmerge-receipt/validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-postmerge-receipt/validation.json",
+      "sha256": "db07c71d046ad0a61d30112a30d91935ad1f35eaf32d866a2fff61f0dc554f23",
+      "bytes": 716,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/PUBLIC_ALLOWLIST.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/PUBLIC_ALLOWLIST.json",
+      "sha256": "ce3dff776b46aa2e5c3f16570929a157ad814ee398f8d7c923114bb9513a265e",
+      "bytes": 20224,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/README.md",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/README.md",
+      "sha256": "cef82de6a687989830247c00abf2535c1e158ff22de4e9b3d54883e486c2eccf",
+      "bytes": 2793,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/SHA256SUMS",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/SHA256SUMS",
+      "sha256": "cd5129184e1d41a7bc5d7c83f82ca74e267855d291defd3b326f155c7cdd88de",
+      "bytes": 12791,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/archive-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/archive-summary.json",
+      "sha256": "8436708fecdc95c5672867f0ca8b78b5337e240dac0ff53342294349184bbdf0",
+      "bytes": 225,
+      "selection": "explicit source metadata envelope"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12445854565-native-source-metadata-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12445854565-native-source-metadata-test-only.zip",
+      "sha256": "0ad79c5170fcb5b3e663a30b93f81664efa1743a4f2df39178a31cdf79ab10a2",
+      "bytes": 1269,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12445854565-native-source-metadata-test-only/native-source-metadata.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12445854565-native-source-metadata-test-only/native-source-metadata.json",
+      "sha256": "5a10fade511b01c556a5c87043777c717e469e5a896e719f82b8aeb25808eef9",
+      "bytes": 4464,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12445854565-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12445854565-validation.json",
+      "sha256": "900aaff8f77c2986c31325bdc6ea856d691a63521c08d7f43e488409921a1a47",
+      "bytes": 1295,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446128994-native-stable-candidate-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446128994-native-stable-candidate-test-only.zip",
+      "sha256": "b32433d94783a87947a19a037c99a8944f8c1d250c6ead67f9f933517fa0dbc0",
+      "bytes": 4190,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446128994-native-stable-candidate-test-only/native-stable-candidate.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446128994-native-stable-candidate-test-only/native-stable-candidate.json",
+      "sha256": "208df7f2421bc49dbb96f8bec8baa04e7889984f27c9b4aed85d333edce75d52",
+      "bytes": 28830,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446128994-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446128994-validation.json",
+      "sha256": "3b9281c8cca7d77ed14bd6d6e5393f0ded8c0e61f444af259acf4311fa1e61b0",
+      "bytes": 1298,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446413372-native-bootstrap-preparation-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446413372-native-bootstrap-preparation-test-only.zip",
+      "sha256": "d1b1b67095e3f8887500e9dd918b5f7572396f90390d425811d0bdae1844eb7c",
+      "bytes": 7152,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446413372-native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446413372-native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+      "sha256": "faace02491921da1beedd4df4f7ce5cf5842d204c5608e6198541babc7ab6f11",
+      "bytes": 44122,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446413372-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446413372-validation.json",
+      "sha256": "df99a516d7e875f56f3970aaf67c778ca5384fb51b4e1258aeb7e86cd45bf2e3",
+      "bytes": 1308,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446637732-native-local-signing-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446637732-native-local-signing-test-only.zip",
+      "sha256": "8a86ccc5525d722ca1b160bdf1d1a4e7179fe4cd251bd1b99a4ff2b1f7faf09c",
+      "bytes": 2800,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446637732-native-local-signing-test-only/native-local-signing.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446637732-native-local-signing-test-only/native-local-signing.json",
+      "sha256": "3f7bff28cb2b1a3ad4b21ca02087454c151e14f5bfc1ab41f6a88b2b68cdd5c6",
+      "bytes": 12973,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446637732-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12446637732-validation.json",
+      "sha256": "d59cc412af34a154599e887d380a4f638405afc31f3211d4f675f89883103bb9",
+      "bytes": 1292,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447036886-native-object-delivery-sdk-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447036886-native-object-delivery-sdk-test-only.zip",
+      "sha256": "37a5e4f068d6f5bd1be3e8a6fd3febd36e2697fef8988f8615dfd945ed8f62f5",
+      "bytes": 3778,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447036886-native-object-delivery-sdk-test-only/native-preparation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447036886-native-object-delivery-sdk-test-only/native-preparation.json",
+      "sha256": "65b3d336d453d57a3f160d96ed2ff3ede124887ed9f244d037c85fe32e587737",
+      "bytes": 19174,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447036886-native-object-delivery-sdk-test-only/native-sdk-result.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447036886-native-object-delivery-sdk-test-only/native-sdk-result.json",
+      "sha256": "9dec478fa2df679cfb3b4bddb1e4580ca6e22542a2d598c61d37be99ad7e8aa5",
+      "bytes": 819,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447036886-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447036886-validation.json",
+      "sha256": "8e6c3b165147b2ce75d08021112c5d6b6359a0150e52d241bc350e73e5065e2b",
+      "bytes": 1479,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447520900-native-object-delivery-fixture-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447520900-native-object-delivery-fixture-test-only.zip",
+      "sha256": "cf49e2c629f77eeed2cd60742b1f543effce636d6144c4d332fa739fc46c29ed",
+      "bytes": 8394,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447520900-native-object-delivery-fixture-test-only/fixture-export.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447520900-native-object-delivery-fixture-test-only/fixture-export.json",
+      "sha256": "7b4adbaf662334c264c8cdd2799ef02275d2fcd1af3103cf831e423596f3d505",
+      "bytes": 2550,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447520900-native-object-delivery-fixture-test-only/result.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447520900-native-object-delivery-fixture-test-only/result.json",
+      "sha256": "8e31d1c00a8b19c3f64f6e3780544fdcd1461d6e608cd0c57f2ea83ea1fb9da2",
+      "bytes": 48476,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447520900-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447520900-validation.json",
+      "sha256": "629e0e4ec337c10d13a0210c9bf8f773412142fb306bd1886b129f32b2ae32a3",
+      "bytes": 1469,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447845023-object-storage-sdk-contract.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447845023-object-storage-sdk-contract.zip",
+      "sha256": "205a8e019e082a5136a957de69b8e671da41fcbc09e3985cf51a2e1193e8a9ae",
+      "bytes": 1684,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447845023-object-storage-sdk-contract/provider-contract-receipt.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447845023-object-storage-sdk-contract/provider-contract-receipt.json",
+      "sha256": "7e450951ccb80dd46548b68c3181823d9ea379c3e66521953290143e75b4a0e9",
+      "bytes": 3786,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447845023-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12447845023-validation.json",
+      "sha256": "6b615d40985d67d5c718bb1ab2ef51947d9227ea522ffb77de447b1e9307ab3c",
+      "bytes": 1293,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12448210518-native-stable-four-clients-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12448210518-native-stable-four-clients-test-only.zip",
+      "sha256": "9a80c5382c40602730f9258099e8a4fb133c3eee0607c0746f77298b1f3d0e70",
+      "bytes": 141464,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12448210518-native-stable-four-clients-test-only/clients-A.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12448210518-native-stable-four-clients-test-only/clients-A.json",
+      "sha256": "c0951ca1ede490568b9a50fc250af5d5c61b36b864c49127708ad5239c250393",
+      "bytes": 6925,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12448210518-native-stable-four-clients-test-only/clients-B.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12448210518-native-stable-four-clients-test-only/clients-B.json",
+      "sha256": "9f7a448036841aabc5442bf20e656263f899d645c2c95f57c9f3c5a7d73bc6ed",
+      "bytes": 6925,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12448210518-native-stable-four-clients-test-only/https-requests.jsonl",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12448210518-native-stable-four-clients-test-only/https-requests.jsonl",
+      "sha256": "4b8cbb130306a83e1ac20ab131d96fc2a4afa4f0a052dd018f619f1835f35689",
+      "bytes": 113734,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12448210518-native-stable-four-clients-test-only/native-stable-clients.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12448210518-native-stable-four-clients-test-only/native-stable-clients.json",
+      "sha256": "32c539f84634c2ffa91b326780831b2a7def7d8413851ec092d3210dd776ab5d",
+      "bytes": 980068,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12448210518-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/artifacts/12448210518-validation.json",
+      "sha256": "8b947cb9a7bf0b995f9633900be6c547a4eaef19f854a53325c2ee36843dd111",
+      "bytes": 1840,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/bounded-command-output-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/bounded-command-output-validation.json",
+      "sha256": "7c3b049e427aef8bf6c000f955649306f12119f52ed90c8772a6ec3effadbb35",
+      "bytes": 143376,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/collect.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/collect.py",
+      "sha256": "561e915abf849083e5fa4644dddf89c13b168f05b0fe3f8e916a616bd311cc74",
+      "bytes": 2020,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/download-artifacts.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/download-artifacts.py",
+      "sha256": "9615762b1ee80f9a4a9aede8bbcd666c498fcf265028d6a83e3b59d881aee9a1",
+      "bytes": 2182,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/finalize.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/finalize.py",
+      "sha256": "565e90902d6973dd734cbf6ad80b50ad28b64ea7431f2a5ba3e7e74250343d25",
+      "bytes": 11298,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/first-failure.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/first-failure.json",
+      "sha256": "c428a1c5f0db5a21e00f7a7047babfc90f5586f96a820f4d074baf6560adb82e",
+      "bytes": 6405,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/logs/job-119991487350.log",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/logs/job-119991487350.log",
+      "sha256": "2e7b5745bb9586f5f23a6696bc6219f25de2b25823f357da53f6b3a23d59418f",
+      "bytes": 43409,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/logs/job-119991488218.log",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/logs/job-119991488218.log",
+      "sha256": "15ff469808462bab69c08a82de8912640162c9195fc5e25418874358fdb73e77",
+      "bytes": 132474,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/logs/job-119991488284.log",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/logs/job-119991488284.log",
+      "sha256": "24a63a7c416e32e3163af8cfe5ae34e7738811c0ad3e1d5b19a9de7e270bc6ec",
+      "bytes": 21181,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/logs/job-119991488481.log",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/logs/job-119991488481.log",
+      "sha256": "2ea3385553b5408c804f5bcd029a61dea90bcbf6d3929d2d02bceef00762f1a5",
+      "bytes": 63747,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621553-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621553-artifacts.json",
+      "sha256": "c05eb97eb585a725d522ba62fe54ffec8a7a8275af74c1ef103ff6ed5322b933",
+      "bytes": 4332,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621553-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621553-jobs.json",
+      "sha256": "ceba129960233eb17d0ebbce8e6175bff79360b4635e642ef591116b84df9440",
+      "bytes": 9236,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621553-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621553-run.json",
+      "sha256": "805bf451d8d1bac3faca6a992287af83cbe7ba773583d5e9999e0807123e61f2",
+      "bytes": 12489,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621567-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621567-artifacts.json",
+      "sha256": "15424f2a4a810f72399a53ccc2d2ca0c2d19f84d5034b6bd1b86ba7c42380449",
+      "bytes": 740,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621567-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621567-jobs.json",
+      "sha256": "4e428eedb9b9d2b19babd5979cde6750b6907d31b01be274ef9c1671c313c7a6",
+      "bytes": 2233,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621567-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621567-run.json",
+      "sha256": "bdbf6d4755dcc150f48835be298b0ea660e89be2adfaaeeb6b2ab8e12418d633",
+      "bytes": 12496,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621570-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621570-artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "bytes": 32,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621570-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621570-jobs.json",
+      "sha256": "97f4c4caea4ef07b89a7fd69023ee8f9ca89a80729b3be1a6d9f510a8c9a2308",
+      "bytes": 3077,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621570-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/39826621570-run.json",
+      "sha256": "b3a733bb7786e50dcee1a729eba0f6c55813e789724c1bdb2064e43e4a3f3330",
+      "bytes": 12470,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/checks.json",
+      "sha256": "5b8a63aa5921502c0d68c2e4a4de8d43c5080a9ffa1336cae374a65ec5b6b859",
+      "bytes": 17617,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/pr.json",
+      "sha256": "b71174a6ae894889bdb9fdf071af994612825fe95367912d69b0cd35368e33c0",
+      "bytes": 17959,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/runs.json",
+      "sha256": "0e614c95fa69612735a08c12cf8e3a65785624f8a42a3344d6fb19c88a19fe32",
+      "bytes": 37493,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180033Z/summary.json",
+      "sha256": "5e9e2c83b1dfd61c0666870aacaabb49f54fd175eb65a9362dac44b262c05f7e",
+      "bytes": 3084,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621553-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621553-artifacts.json",
+      "sha256": "c05eb97eb585a725d522ba62fe54ffec8a7a8275af74c1ef103ff6ed5322b933",
+      "bytes": 4332,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621553-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621553-jobs.json",
+      "sha256": "ceba129960233eb17d0ebbce8e6175bff79360b4635e642ef591116b84df9440",
+      "bytes": 9236,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621553-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621553-run.json",
+      "sha256": "805bf451d8d1bac3faca6a992287af83cbe7ba773583d5e9999e0807123e61f2",
+      "bytes": 12489,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621567-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621567-artifacts.json",
+      "sha256": "15424f2a4a810f72399a53ccc2d2ca0c2d19f84d5034b6bd1b86ba7c42380449",
+      "bytes": 740,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621567-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621567-jobs.json",
+      "sha256": "4e428eedb9b9d2b19babd5979cde6750b6907d31b01be274ef9c1671c313c7a6",
+      "bytes": 2233,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621567-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621567-run.json",
+      "sha256": "bdbf6d4755dcc150f48835be298b0ea660e89be2adfaaeeb6b2ab8e12418d633",
+      "bytes": 12496,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621570-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621570-artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "bytes": 32,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621570-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621570-jobs.json",
+      "sha256": "97f4c4caea4ef07b89a7fd69023ee8f9ca89a80729b3be1a6d9f510a8c9a2308",
+      "bytes": 3077,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621570-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/39826621570-run.json",
+      "sha256": "b3a733bb7786e50dcee1a729eba0f6c55813e789724c1bdb2064e43e4a3f3330",
+      "bytes": 12470,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/checks.json",
+      "sha256": "5b8a63aa5921502c0d68c2e4a4de8d43c5080a9ffa1336cae374a65ec5b6b859",
+      "bytes": 17617,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/pr.json",
+      "sha256": "b71174a6ae894889bdb9fdf071af994612825fe95367912d69b0cd35368e33c0",
+      "bytes": 17959,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/runs.json",
+      "sha256": "0e614c95fa69612735a08c12cf8e3a65785624f8a42a3344d6fb19c88a19fe32",
+      "bytes": 37493,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180235Z/summary.json",
+      "sha256": "95560b760896687f1acd2e468778c7eb8e6926a6e38252febabcc3922df6e1eb",
+      "bytes": 3084,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621553-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621553-artifacts.json",
+      "sha256": "c05eb97eb585a725d522ba62fe54ffec8a7a8275af74c1ef103ff6ed5322b933",
+      "bytes": 4332,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621553-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621553-jobs.json",
+      "sha256": "ceba129960233eb17d0ebbce8e6175bff79360b4635e642ef591116b84df9440",
+      "bytes": 9236,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621553-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621553-run.json",
+      "sha256": "805bf451d8d1bac3faca6a992287af83cbe7ba773583d5e9999e0807123e61f2",
+      "bytes": 12489,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621567-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621567-artifacts.json",
+      "sha256": "15424f2a4a810f72399a53ccc2d2ca0c2d19f84d5034b6bd1b86ba7c42380449",
+      "bytes": 740,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621567-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621567-jobs.json",
+      "sha256": "4e428eedb9b9d2b19babd5979cde6750b6907d31b01be274ef9c1671c313c7a6",
+      "bytes": 2233,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621567-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621567-run.json",
+      "sha256": "bdbf6d4755dcc150f48835be298b0ea660e89be2adfaaeeb6b2ab8e12418d633",
+      "bytes": 12496,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621570-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621570-artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "bytes": 32,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621570-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621570-jobs.json",
+      "sha256": "97f4c4caea4ef07b89a7fd69023ee8f9ca89a80729b3be1a6d9f510a8c9a2308",
+      "bytes": 3077,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621570-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/39826621570-run.json",
+      "sha256": "b3a733bb7786e50dcee1a729eba0f6c55813e789724c1bdb2064e43e4a3f3330",
+      "bytes": 12470,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/checks.json",
+      "sha256": "5b8a63aa5921502c0d68c2e4a4de8d43c5080a9ffa1336cae374a65ec5b6b859",
+      "bytes": 17617,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/pr.json",
+      "sha256": "b71174a6ae894889bdb9fdf071af994612825fe95367912d69b0cd35368e33c0",
+      "bytes": 17959,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/runs.json",
+      "sha256": "0e614c95fa69612735a08c12cf8e3a65785624f8a42a3344d6fb19c88a19fe32",
+      "bytes": 37493,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180414Z/summary.json",
+      "sha256": "319f84c82bb6d50dc4108c6c9465ee3e69d848cd01d8f34cc6fe1e53f47d85b0",
+      "bytes": 3084,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621553-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621553-artifacts.json",
+      "sha256": "b1be873ac949280414022cd53dba8d28009730e3e81ca0cd57462b6f1b7ac902",
+      "bytes": 5052,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621553-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621553-jobs.json",
+      "sha256": "6ff393deef87fa5363a38ce96e3f6442cd29a3af51ffbf1e0ca490581833c661",
+      "bytes": 9690,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621553-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621553-run.json",
+      "sha256": "278254373f5b1d1b44bb2598504788d95110fadd3dc5ee390ffc679e5ee3bbee",
+      "bytes": 12492,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621567-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621567-artifacts.json",
+      "sha256": "15424f2a4a810f72399a53ccc2d2ca0c2d19f84d5034b6bd1b86ba7c42380449",
+      "bytes": 740,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621567-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621567-jobs.json",
+      "sha256": "4e428eedb9b9d2b19babd5979cde6750b6907d31b01be274ef9c1671c313c7a6",
+      "bytes": 2233,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621567-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621567-run.json",
+      "sha256": "bdbf6d4755dcc150f48835be298b0ea660e89be2adfaaeeb6b2ab8e12418d633",
+      "bytes": 12496,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621570-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621570-artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "bytes": 32,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621570-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621570-jobs.json",
+      "sha256": "97f4c4caea4ef07b89a7fd69023ee8f9ca89a80729b3be1a6d9f510a8c9a2308",
+      "bytes": 3077,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621570-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/39826621570-run.json",
+      "sha256": "b3a733bb7786e50dcee1a729eba0f6c55813e789724c1bdb2064e43e4a3f3330",
+      "bytes": 12470,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/checks.json",
+      "sha256": "c663b7c8ba3ad89a03f947cec161fe209cf889d9b73c4f260db96f46bc8aaccd",
+      "bytes": 17638,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/pr.json",
+      "sha256": "b71174a6ae894889bdb9fdf071af994612825fe95367912d69b0cd35368e33c0",
+      "bytes": 17959,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/runs.json",
+      "sha256": "d0e99d51f2299e84ce469e993310707f0d0b04623c917f92c67b925eb10af02d",
+      "bytes": 37496,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/snapshots/20261022T180721Z/summary.json",
+      "sha256": "607cbd2772045f4b7c44231525e8a0d10255cc990d7be6e6035e0a4a0aad5ec0",
+      "bytes": 3021,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/base-commit.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/base-commit.json",
+      "sha256": "580a5c00a0b5b3c7c01e98bc1b29dffa3cb05485361521874466acce25bace56",
+      "bytes": 1132,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/head-commit.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/head-commit.json",
+      "sha256": "36859796e5cf95ef6e1535d6032d10254dc2eca2ae40dbba8f5be23fe3b6df82",
+      "bytes": 1131,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/pull-merge-commit.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/pull-merge-commit.json",
+      "sha256": "f08e52ae1bb3eb88e6d693613ee44a0bd3a999a8be0ab871413cf058e988c4dc",
+      "bytes": 2602,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source-manifest.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source-manifest.json",
+      "sha256": "9a750cce89a526e55a5598e637a403fb4a147f82f034fa1f31f9e3f16b5c4fe7",
+      "bytes": 2672,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/.github/workflows/native-package-repository-drill.yml",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/.github/workflows/native-package-repository-drill.yml",
+      "sha256": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d",
+      "bytes": 21899,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/.github/workflows/object-storage-provider-contract.yml",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/.github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "bytes": 1660,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/.github/workflows/pages.yml",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/.github/workflows/pages.yml",
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "bytes": 3104,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/CHANGELOG.md",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/CHANGELOG.md",
+      "sha256": "533a6ec83558b484a19ce1d37c6a4cb626d79e3109c3f32cacd49188099214d3",
+      "bytes": 4660,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/README.md",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/README.md",
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "bytes": 10871,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/docs/object-storage-delivery.md",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/docs/object-storage-delivery.md",
+      "sha256": "373c59bf878ccc78deab15b45f2cc131af2f58c6716c05405ee0f7a5fd7157de",
+      "bytes": 22477,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/docs/release-contract.md",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "bytes": 47357,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/manifests/channels.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "bytes": 2579,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/scripts/aliyun-object-storage-provider.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/scripts/aliyun-object-storage-provider.py",
+      "sha256": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8",
+      "bytes": 28828,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "sha256": "5f2b3ac6470f0decedb4e18bfd3c4347195a170fd183f54aede1d2d161cb528f",
+      "bytes": 39442,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "sha256": "84d85a0fc96a21f40c1d14258636fab69782dccbe69c6221a253594383e71c01",
+      "bytes": 62901,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/tests/test_object_storage_delivery_inputs.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/source-binding/source/tests/test_object_storage_delivery_inputs.py",
+      "sha256": "339c0c3c71dd33d010e3cc06708b83b5be985ef56575b33ed23c58671a1ccf7c",
+      "bytes": 25246,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/terminal-attempt-1/native-attempt-1-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/terminal-attempt-1/native-attempt-1-jobs.json",
+      "sha256": "6ff393deef87fa5363a38ce96e3f6442cd29a3af51ffbf1e0ca490581833c661",
+      "bytes": 9690,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/terminal-attempt-1/native-attempt-1-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/terminal-attempt-1/native-attempt-1-run.json",
+      "sha256": "568fd9424cf8646397da9c4f7e4d1a604157e969c45203d05599f3ed7c2812e5",
+      "bytes": 12514,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr80-ci-generation-1/validation-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr80-ci-generation-1/validation-summary.json",
+      "sha256": "4329b4d395c1a09f038f7283f7e8168988db675af812ec03ccadee092a239156",
+      "bytes": 12994,
+      "selection": "explicit finite public allowlist with source-manifest verification"
+    }
+  ],
+  "excluded_original_references": [
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/logs/service-1.log",
+      "bytes": 42202,
+      "sha256": "b5ae4349cba8138d9b81bdb513bb54acc9f10bacb169993c81427dd7a17bcc6b",
+      "reason": "raw recipient UID fields are excluded from public Git"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/logs/service-2.log",
+      "bytes": 41659,
+      "sha256": "a4ccf6f31da3742eab15b00f12f5f0439810b26ca7601f779bf6212875b47807",
+      "reason": "raw recipient UID fields are excluded from public Git"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/logs/service-3.log",
+      "bytes": 41203,
+      "sha256": "33dbf8ea1122d0a34aad6abe13893b19b6c90c1f9ee1c191b860854babb5d0b8",
+      "reason": "raw recipient UID fields are excluded from public Git"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/profiles/service-1-goroutine.pprof",
+      "bytes": 10890,
+      "sha256": "0d4f1381820f11aacbd740ab7124845fbb51b73a0677ec984f7d824b3ff92263",
+      "reason": "binary pprof identity-string safety is unverified; retain only verified offline top summaries and original SHA/size references"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/profiles/service-1-heap.pprof",
+      "bytes": 268047,
+      "sha256": "49aceb18a1cf5f5455641bee90342c3e055e2b0f531122789d715a51ef2cda5b",
+      "reason": "binary pprof identity-string safety is unverified; retain only verified offline top summaries and original SHA/size references"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/profiles/service-2-goroutine.pprof",
+      "bytes": 11286,
+      "sha256": "7b4005f3050c6e624d263745e27fff4c9fb994e016f833f565d2f21964ef2203",
+      "reason": "binary pprof identity-string safety is unverified; retain only verified offline top summaries and original SHA/size references"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/profiles/service-2-heap.pprof",
+      "bytes": 263487,
+      "sha256": "d5f48ee46c152a22c266e5dc1a58eb85e9acee77482a91459a3199941d120e4d",
+      "reason": "binary pprof identity-string safety is unverified; retain only verified offline top summaries and original SHA/size references"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/profiles/service-3-goroutine.pprof",
+      "bytes": 10890,
+      "sha256": "8dd54f783fc6eb2d5dc8dd00dc3ac719c078a26c466dd66f9a4ac59bf30333d6",
+      "reason": "binary pprof identity-string safety is unverified; retain only verified offline top summaries and original SHA/size references"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/profiles/service-3-heap.pprof",
+      "bytes": 260132,
+      "sha256": "077b17d5273603c578392380e44b43a8d3305f096866175e130692a9975c9b45",
+      "reason": "binary pprof identity-string safety is unverified; retain only verified offline top summaries and original SHA/size references"
+    }
+  ],
+  "approved_public_test_only_zips": [
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "path": "artifacts/12444444818-native-bootstrap-preparation-test-only.zip",
+      "bytes": 7152,
+      "sha256": "a8a77923f4f5dca6602937d4933f83628a3f518510f1975a10b769c3c8589317",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "path": "artifacts/12445327889-native-source-metadata-test-only.zip",
+      "bytes": 1266,
+      "sha256": "9a7659d90639903196649066471ea818fc19d7d75f31504a57adee6627fd9d74",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "path": "artifacts/12445662567-native-stable-candidate-test-only.zip",
+      "bytes": 4196,
+      "sha256": "cc7cdd744d78b48b6790ecba03a276d94340d0bb6aa875689c3d952b682c362b",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "path": "artifacts/12445791385-native-object-delivery-fixture-test-only.zip",
+      "bytes": 8409,
+      "sha256": "e301b1542ec7491f49ed2b3cf28eb1a89c24b98633b5486052db81212869957c",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr79-native-infra-retry-1",
+      "path": "artifacts/12446360092-native-local-signing-test-only.zip",
+      "bytes": 2796,
+      "sha256": "07fcb2e7843c4ce3fb4a483020fdfbbae490e53a4811446ca0501c557e948a8c",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr79-main-first-ci",
+      "path": "artifacts/12446471400-object-storage-sdk-contract.zip",
+      "bytes": 1337,
+      "sha256": "02b4ee59bbe90bfc7d3bdb99d23424cf96fd45712a3d2cc9b8842b7c69313c25",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "path": "artifacts/12445854565-native-source-metadata-test-only.zip",
+      "bytes": 1269,
+      "sha256": "0ad79c5170fcb5b3e663a30b93f81664efa1743a4f2df39178a31cdf79ab10a2",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "path": "artifacts/12446128994-native-stable-candidate-test-only.zip",
+      "bytes": 4190,
+      "sha256": "b32433d94783a87947a19a037c99a8944f8c1d250c6ead67f9f933517fa0dbc0",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "path": "artifacts/12446413372-native-bootstrap-preparation-test-only.zip",
+      "bytes": 7152,
+      "sha256": "d1b1b67095e3f8887500e9dd918b5f7572396f90390d425811d0bdae1844eb7c",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "path": "artifacts/12446637732-native-local-signing-test-only.zip",
+      "bytes": 2800,
+      "sha256": "8a86ccc5525d722ca1b160bdf1d1a4e7179fe4cd251bd1b99a4ff2b1f7faf09c",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "path": "artifacts/12447036886-native-object-delivery-sdk-test-only.zip",
+      "bytes": 3778,
+      "sha256": "37a5e4f068d6f5bd1be3e8a6fd3febd36e2697fef8988f8615dfd945ed8f62f5",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "path": "artifacts/12447520900-native-object-delivery-fixture-test-only.zip",
+      "bytes": 8394,
+      "sha256": "cf49e2c629f77eeed2cd60742b1f543effce636d6144c4d332fa739fc46c29ed",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "path": "artifacts/12447845023-object-storage-sdk-contract.zip",
+      "bytes": 1684,
+      "sha256": "205a8e019e082a5136a957de69b8e671da41fcbc09e3985cf51a2e1193e8a9ae",
+      "api_digest_and_zip_crc_verified_again": true
+    },
+    {
+      "group": "packages/pr80-ci-generation-1",
+      "path": "artifacts/12448210518-native-stable-four-clients-test-only.zip",
+      "bytes": 141464,
+      "sha256": "9a80c5382c40602730f9258099e8a4fb133c3eee0607c0746f77298b1f3d0e70",
+      "api_digest_and_zip_crc_verified_again": true
+    }
+  ],
+  "selection_authority": "Parent exact scopes, source manifests and explicit merge 12-file list; parent confirmed excluding three raw-UID application logs and six identity-unverified binary pprof originals, retaining their SHA/size references plus safe fixed-field summary. Parent later added sealed PR80, PR79 postmerge and one bounded analysis public scope, then closed this batch scope.",
+  "source_manifest_reference_semantics": "The status group intentionally omits nine original files. Its original manifest/allowlist/summary are renamed SOURCE_* and are authority references only; no complete-copy claim applies. Other manifest-selected source groups are byte-exact complete finite copies including their metadata envelopes.",
+  "helper_preflight_observation": {
+    "postmerge_manifest_lists_payload_only": true,
+    "first_preflight_rejected_optional_allowlist_envelope_shape_before_any_copy": true,
+    "accepted_scope": "exact parent-confirmed 3 payload plus allowlist and manifest; no additional file discovery"
+  },
+  "scope_limits": [
+    "No complete/private cloud ZIP, identity envelope, SSH files or private keys",
+    "No raw cloud job logs",
+    "Three application logs with raw UIDs and six binary pprof originals excluded",
+    "14 small public TEST ONLY CI ZIPs retained only after independent API SHA-256, CRC and member verification",
+    "No cloud API call, workload restart, local product replay, product source mutation, fix or Git stage/commit/push",
+    "Current readiness report and root CHECKPOINT not copied or edited by this task",
+    "Stop/release evidence is not included and must be a later independent batch"
+  ],
+  "validation": {
+    "finite_source_allowlists_and_manifests_verified": true,
+    "all_copied_source_and_target_bytes_equal": true,
+    "all_original_excluded_source_bytes_preserved": true,
+    "source_and_zip_members_scanned_for_known_raw_uids_raw_identifier_fields_and_credential_patterns": true,
+    "safe_summary_replayed_and_byte_identical": true,
+    "safe_summary_warning_count": 37,
+    "safe_summary_presence_warning_count": 36,
+    "safe_summary_owner_push_warning_count": 1,
+    "old_tracked_before": {
+      "count": 19893,
+      "bytes": 385893211,
+      "ordered_entries_sha256": "55b7386e4729d572c3db062f32cab52bec62c0b843e8719899a1136ae7df9c8a"
+    },
+    "old_tracked_after": {
+      "count": 19893,
+      "bytes": 385893228,
+      "ordered_entries_sha256": "04a48589e65cffc350ddc35c9c1c858e9658accfefa494fb2a35dc2afa4de815"
+    },
+    "old_tracked_changed_paths": [
+      "docs/reports/2026-10-23-v3-release-readiness.md"
+    ],
+    "parent_authored_report_exception": "docs/reports/2026-10-23-v3-release-readiness.md",
+    "all_other_old_tracked_entries_equal": true,
+    "all_existing_archive_entries_equal": true,
+    "existing_archive_before": {
+      "count": 669,
+      "bytes": 11327850,
+      "ordered_entries_sha256": "ff2a9a051b3d98b988e03c5647360110c8c30794f674b885e82c8e512a8dea8f"
+    },
+    "head_unchanged": true,
+    "git_index_tree_before": "2c265050bdd7a5889882f3ab4e528ffae12e65ba",
+    "git_index_tree_after": "2c265050bdd7a5889882f3ab4e528ffae12e65ba",
+    "prior_copy_metadata_unchanged": {
+      "packages/COPY_ALLOWLIST": "91269a03d281e0068757dfeff16d38b9d0b2fb958a6592051b6afcc9a14af844",
+      "packages/COPY_RECEIPT.json": "66bbcb3f0cb4917d2ff41c038a08a5d19176d31ffe90efb35377aa45220730ee",
+      "packages/COPY_SHA256SUMS": "e15a54ae0f458b8acd1ebd9729758eb41c611e9a288578601afc083b91e13dd0",
+      "COPY_BATCH2_ALLOWLIST": "f68559622fdc13db68b89589e75b4a7d5ae01eb70e7919f5ad79d0035dd6bc89",
+      "COPY_BATCH2_RECEIPT.json": "d4ca343e96b3dba2ddd8adf0544590751856ff4457be5cdb2db95662259a47cd",
+      "COPY_BATCH2_SHA256SUMS": "7579b36ef1ea831e35c7fcee156a02709443acb56177f15a7631051d5e6a0dd4"
+    },
+    "applicable_rule_sources": [
+      {
+        "path": "AGENTS.md",
+        "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+      }
+    ],
+    "applicable_flow_files": [],
+    "no_tests_cloud_api_stage_commit_or_push": true
+  }
+}

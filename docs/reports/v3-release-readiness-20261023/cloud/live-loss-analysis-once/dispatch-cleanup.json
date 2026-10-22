@@ -1,0 +1,8 @@
+{
+  "observed_at": "2026-10-22T18:02:35.687522+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/artifacts?name=chat-lifecycle-rehearsal-cleanup-chat-20261021T214505Z-00299e37&per_page=2",
+  "data": {
+    "total_count": 0,
+    "artifacts": []
+  }
+}

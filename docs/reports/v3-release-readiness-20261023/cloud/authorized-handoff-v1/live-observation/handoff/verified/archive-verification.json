@@ -1,0 +1,257 @@
+{
+  "artifact_id": 12446490247,
+  "complete_actual_size": 35013,
+  "actual_zip_sha256": "d5b73cf3baf33ea1e7397c5919322a67c47ba281b345ada75d6973c8b121d716",
+  "api_digest_match": true,
+  "zip_crc_verified": true,
+  "members": [
+    {
+      "member": "analysis-endpoint.json",
+      "bytes": 576,
+      "sha256": "6d2bed00d4554edb37eafd9e9f2ff07771b246bdedeac26f142703c1d9f57d3c",
+      "selected_public": true
+    },
+    {
+      "member": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T214505Z-00299e37/receipt.json",
+      "bytes": 41130,
+      "sha256": "9ec564ae9c6981b8bb7672f08dfb109e4947335868cdf2773c588b87583dc9cc",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/acquire-artifact/cloud-lease-provision-chat-20261021T214505Z-00299e37/quote.json",
+      "bytes": 1842,
+      "sha256": "8164de64326b590ca1abf5bab9dd572e04e886889be4513ecf53902a53fa2f26",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/attempted-deployment-control-shas",
+      "bytes": 41,
+      "sha256": "e6f3e929bce7f16cb87edf2f444652082309d1c0bb477aee1ec3c183cad509f3",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/attempted-repair-source-shas",
+      "bytes": 41,
+      "sha256": "e6f3e929bce7f16cb87edf2f444652082309d1c0bb477aee1ec3c183cad509f3",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/bootstrap-access.json",
+      "bytes": 251,
+      "sha256": "b58fb8629d7e14febf1af77681699111f88dcf6db2c24935dd6c60fe2c1e3dbf",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-1-artifact/cloud-deployment-39822605006/analysis-endpoint.json",
+      "bytes": 576,
+      "sha256": "6d2bed00d4554edb37eafd9e9f2ff07771b246bdedeac26f142703c1d9f57d3c",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-1-artifact/cloud-deployment-39822605006/deployment-outcome.json",
+      "bytes": 2497,
+      "sha256": "1cdc195fe32288efc25c13f79d6badca1db2e8738e31789553baade79a447b46",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-1-artifact/cloud-deployment-39822605006/deployment-plan.json",
+      "bytes": 3172,
+      "sha256": "631f22522457b605e5374eec6a18e4a0c6587e62ed001e187d4bc1eeae1a87dc",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-1-artifact/cloud-deployment-39822605006/encrypted-access.json",
+      "bytes": 1312,
+      "sha256": "c1ff5c52b4232f3f0e71551fc8a7c1c25a2a7531189774fd0d425efce64b7d4b",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-1-artifact/cloud-deployment-39822605006/readiness-snapshot.json",
+      "bytes": 4129,
+      "sha256": "8b176a7029d61506a1a76b19cd3854cb923b068bf0e7007de7162358aca6088a",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-plan.json",
+      "bytes": 3172,
+      "sha256": "631f22522457b605e5374eec6a18e4a0c6587e62ed001e187d4bc1eeae1a87dc",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-ssh-config",
+      "bytes": 871,
+      "sha256": "2167d6d38717c93d6ff6ee93dd2cd2e1239d9947d428a09b25f665f8efabc6d2",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/deployment-ssh-config.known_hosts",
+      "bytes": 94,
+      "sha256": "75aae0fd617ad15079b55e688d4da96bba5ba8b2afa36ac8fac29bb8328438a8",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/lease-plan.json",
+      "bytes": 1892,
+      "sha256": "00b1cf0a6a4c57acac5cd59932ca57ff89255a7eef754919dcb59ef242137b1c",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/pre-clock-generation-1/start-stderr.json",
+      "bytes": 106,
+      "sha256": "e2918c432271e0bf4802e8e02418c0efa889467a98a88ba67c76559bcb3659de",
+      "selected_public": true
+    },
+    {
+      "member": "attempt-1/pre-clock-generation-1/start-stdout.json",
+      "bytes": 104,
+      "sha256": "edc3eb0bf9548d5a8b21af7d31239680f5943dea87ab647be41ba02f93bb0419",
+      "selected_public": true
+    },
+    {
+      "member": "attempt-1/pre-clock-generation-1/state-stderr.json",
+      "bytes": 104,
+      "sha256": "edc3eb0bf9548d5a8b21af7d31239680f5943dea87ab647be41ba02f93bb0419",
+      "selected_public": true
+    },
+    {
+      "member": "attempt-1/pre-clock-generation-1/state-stdout.json",
+      "bytes": 106,
+      "sha256": "24e6ee75e942e5c09248d5515e9ef27ef83c1d7be5568a2c68226640e56659ee",
+      "selected_public": true
+    },
+    {
+      "member": "attempt-1/pre-clock-generation-1/unit.json",
+      "bytes": 966,
+      "sha256": "51eb2d5392a7293f209d90237d7564ca0c7ac45cfdee18a3d876454a8ab846ff",
+      "selected_public": true
+    },
+    {
+      "member": "attempt-1/preflight-quote.json",
+      "bytes": 1842,
+      "sha256": "8164de64326b590ca1abf5bab9dd572e04e886889be4513ecf53902a53fa2f26",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/quote-artifact/cloud-lease-provision-chat-20261021T214505Z-00299e37/quote.json",
+      "bytes": 1842,
+      "sha256": "8164de64326b590ca1abf5bab9dd572e04e886889be4513ecf53902a53fa2f26",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/quote.json",
+      "bytes": 1842,
+      "sha256": "8164de64326b590ca1abf5bab9dd572e04e886889be4513ecf53902a53fa2f26",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/receipt-selector.json",
+      "bytes": 319,
+      "sha256": "4d9e33609f22fb03919396893724be4716660d7658093a497b1fc32d976a161d",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/receipt.json",
+      "bytes": 41130,
+      "sha256": "9ec564ae9c6981b8bb7672f08dfb109e4947335868cdf2773c588b87583dc9cc",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/release-selector.json",
+      "bytes": 319,
+      "sha256": "4d9e33609f22fb03919396893724be4716660d7658093a497b1fc32d976a161d",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/run-start.json",
+      "bytes": 398,
+      "sha256": "b6a88b8e5f6841e316f896a5ac618775e4e40260163447886e8df83316343cdb",
+      "selected_public": false
+    },
+    {
+      "member": "attempt-1/run-plan.json",
+      "bytes": 2361,
+      "sha256": "cb5f4bbdacdd20f28913030e3d588a7a85fe74a20f9b63dba996ccbe09ff22d2",
+      "selected_public": false
+    },
+    {
+      "member": "continuation-authentication.json",
+      "bytes": 129,
+      "sha256": "cc086d72e9d9ca01e23de2fb738693d8d8a4da9a520909898910446db77c8d3c",
+      "selected_public": true
+    },
+    {
+      "member": "deployment-outcome.json",
+      "bytes": 2497,
+      "sha256": "1cdc195fe32288efc25c13f79d6badca1db2e8738e31789553baade79a447b46",
+      "selected_public": true
+    },
+    {
+      "member": "deployment-plan.json",
+      "bytes": 3172,
+      "sha256": "631f22522457b605e5374eec6a18e4a0c6587e62ed001e187d4bc1eeae1a87dc",
+      "selected_public": true
+    },
+    {
+      "member": "encrypted-access.json",
+      "bytes": 1312,
+      "sha256": "c1ff5c52b4232f3f0e71551fc8a7c1c25a2a7531189774fd0d425efce64b7d4b",
+      "selected_public": false
+    },
+    {
+      "member": "encrypted-deployment-identity.json",
+      "bytes": 2316,
+      "sha256": "5e140d81a17c8cbed3e050a821796bc5c231322787bf3b223b9a618836d3849a",
+      "selected_public": false
+    },
+    {
+      "member": "handoff.json",
+      "bytes": 499,
+      "sha256": "f6fefa112e87955acfd7037d30bdc734cd603ba9789f82e80e74096567efdeb8",
+      "selected_public": true
+    },
+    {
+      "member": "issue-preflight.json",
+      "bytes": 258,
+      "sha256": "33a7139465d452a1ebf555ef1567cfc624b3326ab9128ad5974cefb8395ac2f7",
+      "selected_public": true
+    },
+    {
+      "member": "quote.json",
+      "bytes": 1842,
+      "sha256": "8164de64326b590ca1abf5bab9dd572e04e886889be4513ecf53902a53fa2f26",
+      "selected_public": false
+    },
+    {
+      "member": "receipt.json",
+      "bytes": 41130,
+      "sha256": "9ec564ae9c6981b8bb7672f08dfb109e4947335868cdf2773c588b87583dc9cc",
+      "selected_public": false
+    },
+    {
+      "member": "release-selector.json",
+      "bytes": 319,
+      "sha256": "4d9e33609f22fb03919396893724be4716660d7658093a497b1fc32d976a161d",
+      "selected_public": true
+    },
+    {
+      "member": "request-budget.json",
+      "bytes": 68,
+      "sha256": "82cacad52e10d80811d7298358e71160505659a2ce661bf8b55870086c054ca0",
+      "selected_public": true
+    },
+    {
+      "member": "run-plan.json",
+      "bytes": 2361,
+      "sha256": "cb5f4bbdacdd20f28913030e3d588a7a85fe74a20f9b63dba996ccbe09ff22d2",
+      "selected_public": true
+    },
+    {
+      "member": "run-start.json",
+      "bytes": 398,
+      "sha256": "b6a88b8e5f6841e316f896a5ac618775e4e40260163447886e8df83316343cdb",
+      "selected_public": true
+    }
+  ],
+  "selected_public_payloads": 15,
+  "encrypted_payloads_copied": false
+}

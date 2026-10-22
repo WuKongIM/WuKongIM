@@ -1,0 +1,35 @@
+{
+  "artifact_api": {
+    "id": 12446637732,
+    "node_id": "MDg6QXJ0aWZhY3QxMjQ0NjYzNzczMg==",
+    "name": "native-local-signing-test-only",
+    "size_in_bytes": 2800,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12446637732",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12446637732/zip",
+    "expired": false,
+    "digest": "sha256:8a86ccc5525d722ca1b160bdf1d1a4e7179fe4cd251bd1b99a4ff2b1f7faf09c",
+    "created_at": "2026-10-22T17:54:22Z",
+    "updated_at": "2026-10-22T17:54:22Z",
+    "expires_at": "2026-11-21T17:54:21Z",
+    "workflow_run": {
+      "id": 39826621553,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/native-delivery-sdk",
+      "head_sha": "4d868f264fb4758f7451c058dd329a06ad460449"
+    }
+  },
+  "downloaded_at_utc": "2026-10-22T18:01:24.733436+00:00",
+  "downloaded_bytes": 2800,
+  "local_sha256": "8a86ccc5525d722ca1b160bdf1d1a4e7179fe4cd251bd1b99a4ff2b1f7faf09c",
+  "api_sha256_matched": true,
+  "zip_crc_verified": true,
+  "members": [
+    {
+      "name": "native-local-signing.json",
+      "bytes": 12973,
+      "sha256": "3f7bff28cb2b1a3ad4b21ca02087454c151e14f5bfc1ab41f6a88b2b68cdd5c6",
+      "crc32": "31ee43e6"
+    }
+  ]
+}

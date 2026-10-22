@@ -1,0 +1,72 @@
+{
+  "schema": "wukongim.excluded_original_references/v1",
+  "original_source_root": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1",
+  "source_manifest_sha256": "50fba8e114bf93182734305a312808bc8c840981bd3ba03e869834cd482f7def",
+  "copied_original_bytes": false,
+  "originals_preserved_in_local_source": true,
+  "exclusions": [
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/logs/service-1.log",
+      "bytes": 42202,
+      "sha256": "b5ae4349cba8138d9b81bdb513bb54acc9f10bacb169993c81427dd7a17bcc6b",
+      "reason": "raw recipient UID fields are excluded from public Git"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/logs/service-2.log",
+      "bytes": 41659,
+      "sha256": "a4ccf6f31da3742eab15b00f12f5f0439810b26ca7601f779bf6212875b47807",
+      "reason": "raw recipient UID fields are excluded from public Git"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/logs/service-3.log",
+      "bytes": 41203,
+      "sha256": "33dbf8ea1122d0a34aad6abe13893b19b6c90c1f9ee1c191b860854babb5d0b8",
+      "reason": "raw recipient UID fields are excluded from public Git"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/profiles/service-1-goroutine.pprof",
+      "bytes": 10890,
+      "sha256": "0d4f1381820f11aacbd740ab7124845fbb51b73a0677ec984f7d824b3ff92263",
+      "reason": "binary pprof identity-string safety is unverified; retain only verified offline top summaries and original SHA/size references"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/profiles/service-1-heap.pprof",
+      "bytes": 268047,
+      "sha256": "49aceb18a1cf5f5455641bee90342c3e055e2b0f531122789d715a51ef2cda5b",
+      "reason": "binary pprof identity-string safety is unverified; retain only verified offline top summaries and original SHA/size references"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/profiles/service-2-goroutine.pprof",
+      "bytes": 11286,
+      "sha256": "7b4005f3050c6e624d263745e27fff4c9fb994e016f833f565d2f21964ef2203",
+      "reason": "binary pprof identity-string safety is unverified; retain only verified offline top summaries and original SHA/size references"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/profiles/service-2-heap.pprof",
+      "bytes": 263487,
+      "sha256": "d5f48ee46c152a22c266e5dc1a58eb85e9acee77482a91459a3199941d120e4d",
+      "reason": "binary pprof identity-string safety is unverified; retain only verified offline top summaries and original SHA/size references"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/profiles/service-3-goroutine.pprof",
+      "bytes": 10890,
+      "sha256": "8dd54f783fc6eb2d5dc8dd00dc3ac719c078a26c466dd66f9a4ac59bf30333d6",
+      "reason": "binary pprof identity-string safety is unverified; retain only verified offline top summaries and original SHA/size references"
+    },
+    {
+      "group": "cloud/rehearsal-failure-status-v1",
+      "source_relative_path": "terminal/evidence/profiles/service-3-heap.pprof",
+      "bytes": 260132,
+      "sha256": "077b17d5273603c578392380e44b43a8d3305f096866175e130692a9975c9b45",
+      "reason": "binary pprof identity-string safety is unverified; retain only verified offline top summaries and original SHA/size references"
+    }
+  ]
+}

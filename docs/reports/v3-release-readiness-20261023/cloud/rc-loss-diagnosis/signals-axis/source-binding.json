@@ -1,0 +1,31 @@
+{
+  "source_head": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "source_tree": "a13367b2dc4658e6c27a1992f240544636e5178d",
+  "source_status": "",
+  "rules_read": [
+    "AGENTS.md",
+    "internal/bench/FLOW.md",
+    "internal/bench/chatlifecycle/FLOW.md",
+    "internal/usecase/clouddeploy/FLOW.md"
+  ],
+  "source_sha256": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "internal/bench/FLOW.md": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+    "internal/bench/chatlifecycle/FLOW.md": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+    "internal/usecase/clouddeploy/FLOW.md": "5dcd339366b7dd8ebcd0cc1fd301a87441e1630cf1c0217aba46fcaa9f73f711",
+    "pkg/metrics/registry.go": "de1dfc8aa53b4271c83dc511250462cf1de70ec8e9636613ac7bd650b5981e02",
+    "pkg/metrics/node_resource.go": "e8da0f325f1bb6ac18467ef631649ef0edd5b1d4798c85ea354001a3648f2f9e",
+    "pkg/metrics/channel.go": "f4449c3fbf85c6804caaa62f9d62c4b4331292c56f94952cc3287ff59c2a8a36",
+    "pkg/metrics/channel_runtime.go": "4b516e84d602737c96e99aa03504a6094b3f23e1a3049c0a1cc8190bb77b58b4",
+    "scripts/chat-lifecycle/terminal-evidence.py": "375d51f1da5dfade48ce8262dcb6d068cb15a7c6760716bf40fd4052e6b6207a",
+    "scripts/chat-lifecycle/collect-terminal-evidence.sh": "2df18d0398e91cede087b8247868a7a742e0e235bd619dcd5ecf12036de0c3fe",
+    "internal/usecase/clouddeploy/templates.go": "6258e8a22b8f3fc3faacd47fe1f1bc17214149fa768936a056f264c8dcc3257e",
+    "internal/bench/chatlifecycle/disk_observer.go": "b21992471945e72b1f70b2e68f025d2ac01bada1fd3c7e1590797f2d87cbba5f"
+  },
+  "public_evidence_root": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1",
+  "public_manifest_sha256": "50fba8e114bf93182734305a312808bc8c840981bd3ba03e869834cd482f7def",
+  "public_manifest_verified_entries": 49,
+  "private_archives_read": false,
+  "live_operations_performed": false,
+  "source_mutation_performed": false
+}

@@ -1,0 +1,38 @@
+{
+  "head": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+  "base": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "declared_pull_merge": "f1c75e55e445aa40076f20586fd2481266ee73ff",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "bytes": 10871
+    },
+    {
+      "path": "docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "bytes": 47357
+    },
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+      "bytes": 17610
+    },
+    {
+      "path": ".github/workflows/pages.yml",
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "bytes": 3104
+    },
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "bytes": 1660
+    },
+    {
+      "path": "manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "bytes": 2579
+    }
+  ],
+  "note": "Exact PR head source; the separate uncommitted M2b worktree is not used."
+}

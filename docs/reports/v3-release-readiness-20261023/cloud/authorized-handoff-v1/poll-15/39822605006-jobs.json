@@ -1,0 +1,161 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 119977517350,
+      "run_id": 39822605006,
+      "workflow_name": "Cloud Deployment cloud-lease-provision-chat-20261021T214505Z-00299e37 immutable generation 1",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39822605006",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAb7zehJg",
+      "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119977517350",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39822605006/job/119977517350",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T17:25:53Z",
+      "started_at": "2026-10-22T17:25:55Z",
+      "completed_at": "2026-10-22T17:32:15Z",
+      "name": "Activate and gate four native Ubuntu hosts",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-22T17:25:56Z",
+          "completed_at": "2026-10-22T17:25:57Z"
+        },
+        {
+          "name": "Checkout trusted Deployment Action",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-22T17:25:57Z",
+          "completed_at": "2026-10-22T17:26:02Z"
+        },
+        {
+          "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-22T17:26:02Z",
+          "completed_at": "2026-10-22T17:26:10Z"
+        },
+        {
+          "name": "Authenticate exact successful upstream workflow runs",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-22T17:26:10Z",
+          "completed_at": "2026-10-22T17:26:11Z"
+        },
+        {
+          "name": "Download exact Lease Receipt",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-22T17:26:11Z",
+          "completed_at": "2026-10-22T17:26:12Z"
+        },
+        {
+          "name": "Download exact offline bundle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-22T17:26:12Z",
+          "completed_at": "2026-10-22T17:26:14Z"
+        },
+        {
+          "name": "Build trusted deployment validators",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-22T17:26:14Z",
+          "completed_at": "2026-10-22T17:26:18Z"
+        },
+        {
+          "name": "Validate artifacts and derive immutable Deployment Plan",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-22T17:26:18Z",
+          "completed_at": "2026-10-22T17:26:21Z"
+        },
+        {
+          "name": "Materialize the temporary SSH identity and runtime credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-22T17:26:21Z",
+          "completed_at": "2026-10-22T17:26:23Z"
+        },
+        {
+          "name": "Activate native services and prove bounded Deployment readiness",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-22T17:26:23Z",
+          "completed_at": "2026-10-22T17:32:06Z"
+        },
+        {
+          "name": "Emit bounded failure when activation stopped before the gate",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 11,
+          "started_at": "2026-10-22T17:32:06Z",
+          "completed_at": "2026-10-22T17:32:06Z"
+        },
+        {
+          "name": "Upload typed Deployment Receipt or failure evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-22T17:32:06Z",
+          "completed_at": "2026-10-22T17:32:07Z"
+        },
+        {
+          "name": "Remove runner credentials",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-22T17:32:07Z",
+          "completed_at": "2026-10-22T17:32:07Z"
+        },
+        {
+          "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-10-22T17:32:07Z",
+          "completed_at": "2026-10-22T17:32:07Z"
+        },
+        {
+          "name": "Post Checkout trusted Deployment Action",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 26,
+          "started_at": "2026-10-22T17:32:07Z",
+          "completed_at": "2026-10-22T17:32:07Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 27,
+          "started_at": "2026-10-22T17:32:07Z",
+          "completed_at": "2026-10-22T17:32:07Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119977517350",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024596,
+      "runner_name": "GitHub Actions 1000024596",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

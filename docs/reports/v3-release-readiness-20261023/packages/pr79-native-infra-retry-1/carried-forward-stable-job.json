@@ -1,0 +1,12 @@
+{
+  "original_job_id": 119973637732,
+  "attempt_2_visible_job_id": 119980776923,
+  "original_started_at": "2026-10-22T17:18:41Z",
+  "attempt_2_visible_started_at": "2026-10-22T17:18:41Z",
+  "original_completed_at": "2026-10-22T17:28:39Z",
+  "attempt_2_visible_completed_at": "2026-10-22T17:28:39Z",
+  "step_records_identical": true,
+  "original_runner_id": 1000024591,
+  "attempt_2_visible_runner_id": 1000024591,
+  "assessment": "GitHub carries the successful stable-client result into attempt 2 under a new visible job ID. Identical original timestamps, step records and runner identify reuse, not a second stable-client execution. Only the failed signed-repository job was explicitly rerun."
+}

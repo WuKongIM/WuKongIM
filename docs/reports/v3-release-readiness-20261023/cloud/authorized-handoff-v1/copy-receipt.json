@@ -1,0 +1,283 @@
+{
+  "created_at": "2026-10-22T17:39:12.985807+00:00",
+  "source_directory": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023",
+  "finite_selected_files": [
+    {
+      "path": "live-observation/capture-job-checkout.py",
+      "bytes": 1890,
+      "sha256": "167449be842a4d1b31485329006263d6ea5de83a175309933e7fd20d933c051f"
+    },
+    {
+      "path": "live-observation/deployment/artifact-metadata.json",
+      "bytes": 769,
+      "sha256": "626590eb00ca7818a878c81e9f1765864e274a309a582a01bdb7fbf60f27bcd4"
+    },
+    {
+      "path": "live-observation/deployment/download.json",
+      "bytes": 402,
+      "sha256": "5579099cd7169ce244db3a732bad0289f573cc1650cacb8b0a94592f42603c8b"
+    },
+    {
+      "path": "live-observation/deployment/verified/analysis-endpoint.json",
+      "bytes": 576,
+      "sha256": "6d2bed00d4554edb37eafd9e9f2ff07771b246bdedeac26f142703c1d9f57d3c"
+    },
+    {
+      "path": "live-observation/deployment/verified/archive-verification.json",
+      "bytes": 1668,
+      "sha256": "bcea954d92f0b8fc6b74406f7d1c3af8cff6e4d72058e42713cd4d7310f9f667"
+    },
+    {
+      "path": "live-observation/deployment/verified/deployment-outcome.json",
+      "bytes": 2497,
+      "sha256": "1cdc195fe32288efc25c13f79d6badca1db2e8738e31789553baade79a447b46"
+    },
+    {
+      "path": "live-observation/deployment/verified/deployment-plan.json",
+      "bytes": 3172,
+      "sha256": "631f22522457b605e5374eec6a18e4a0c6587e62ed001e187d4bc1eeae1a87dc"
+    },
+    {
+      "path": "live-observation/deployment/verified/readiness-snapshot.json",
+      "bytes": 4129,
+      "sha256": "8b176a7029d61506a1a76b19cd3854cb923b068bf0e7007de7162358aca6088a"
+    },
+    {
+      "path": "live-observation/handoff/handoff-download.json",
+      "bytes": 403,
+      "sha256": "4cf5676b9217310b1094471f467d7f36002d2a1112252ff216a0765054dade0e"
+    },
+    {
+      "path": "live-observation/handoff/handoff-metadata.json",
+      "bytes": 805,
+      "sha256": "3325132058c47fdc76abd8a7bd6fa7c8e2dc37915ee6904b08f47d3b3bd39cf2"
+    },
+    {
+      "path": "live-observation/handoff/preflight-metadata.json",
+      "bytes": 805,
+      "sha256": "49c1b41440929e325010163e1cd94baca661caf18fde710e08450048b8208457"
+    },
+    {
+      "path": "live-observation/handoff/verified/analysis-endpoint.json",
+      "bytes": 576,
+      "sha256": "6d2bed00d4554edb37eafd9e9f2ff07771b246bdedeac26f142703c1d9f57d3c"
+    },
+    {
+      "path": "live-observation/handoff/verified/archive-verification.json",
+      "bytes": 8817,
+      "sha256": "76fa7c16b2a83d5991144276bffcf7d4e974d020fc0a56bf39e2df5eb840f455"
+    },
+    {
+      "path": "live-observation/handoff/verified/attempt-1/pre-clock-generation-1/start-stderr.json",
+      "bytes": 106,
+      "sha256": "e2918c432271e0bf4802e8e02418c0efa889467a98a88ba67c76559bcb3659de"
+    },
+    {
+      "path": "live-observation/handoff/verified/attempt-1/pre-clock-generation-1/start-stdout.json",
+      "bytes": 104,
+      "sha256": "edc3eb0bf9548d5a8b21af7d31239680f5943dea87ab647be41ba02f93bb0419"
+    },
+    {
+      "path": "live-observation/handoff/verified/attempt-1/pre-clock-generation-1/state-stderr.json",
+      "bytes": 104,
+      "sha256": "edc3eb0bf9548d5a8b21af7d31239680f5943dea87ab647be41ba02f93bb0419"
+    },
+    {
+      "path": "live-observation/handoff/verified/attempt-1/pre-clock-generation-1/state-stdout.json",
+      "bytes": 106,
+      "sha256": "24e6ee75e942e5c09248d5515e9ef27ef83c1d7be5568a2c68226640e56659ee"
+    },
+    {
+      "path": "live-observation/handoff/verified/attempt-1/pre-clock-generation-1/unit.json",
+      "bytes": 966,
+      "sha256": "51eb2d5392a7293f209d90237d7564ca0c7ac45cfdee18a3d876454a8ab846ff"
+    },
+    {
+      "path": "live-observation/handoff/verified/continuation-authentication.json",
+      "bytes": 129,
+      "sha256": "cc086d72e9d9ca01e23de2fb738693d8d8a4da9a520909898910446db77c8d3c"
+    },
+    {
+      "path": "live-observation/handoff/verified/deployment-outcome.json",
+      "bytes": 2497,
+      "sha256": "1cdc195fe32288efc25c13f79d6badca1db2e8738e31789553baade79a447b46"
+    },
+    {
+      "path": "live-observation/handoff/verified/deployment-plan.json",
+      "bytes": 3172,
+      "sha256": "631f22522457b605e5374eec6a18e4a0c6587e62ed001e187d4bc1eeae1a87dc"
+    },
+    {
+      "path": "live-observation/handoff/verified/encrypted-public-identity-binding.json",
+      "bytes": 1717,
+      "sha256": "e169c2a1a8a4c07e6035c0784f3906381b25666cae350096cef44406dc88d9f8"
+    },
+    {
+      "path": "live-observation/handoff/verified/handoff.json",
+      "bytes": 499,
+      "sha256": "f6fefa112e87955acfd7037d30bdc734cd603ba9789f82e80e74096567efdeb8"
+    },
+    {
+      "path": "live-observation/handoff/verified/identity-verification.json",
+      "bytes": 6738,
+      "sha256": "8fd912cd8d88fcec212616957c538a0fbcde4f6bfa4b2d617ada9419b5f6bdfe"
+    },
+    {
+      "path": "live-observation/handoff/verified/issue-preflight.json",
+      "bytes": 258,
+      "sha256": "33a7139465d452a1ebf555ef1567cfc624b3326ab9128ad5974cefb8395ac2f7"
+    },
+    {
+      "path": "live-observation/handoff/verified/release-selector.json",
+      "bytes": 319,
+      "sha256": "4d9e33609f22fb03919396893724be4716660d7658093a497b1fc32d976a161d"
+    },
+    {
+      "path": "live-observation/handoff/verified/request-budget.json",
+      "bytes": 68,
+      "sha256": "82cacad52e10d80811d7298358e71160505659a2ce661bf8b55870086c054ca0"
+    },
+    {
+      "path": "live-observation/handoff/verified/run-plan.json",
+      "bytes": 2361,
+      "sha256": "cb5f4bbdacdd20f28913030e3d588a7a85fe74a20f9b63dba996ccbe09ff22d2"
+    },
+    {
+      "path": "live-observation/handoff/verified/run-start.json",
+      "bytes": 398,
+      "sha256": "b6a88b8e5f6841e316f896a5ac618775e4e40260163447886e8df83316343cdb"
+    },
+    {
+      "path": "live-observation/job-checkouts/119971768014.json",
+      "bytes": 744,
+      "sha256": "b53dd57096012107d380254676c216644dd32f33b80584d4ff2ed90cc8e2572a"
+    },
+    {
+      "path": "live-observation/job-checkouts/119977517350.json",
+      "bytes": 744,
+      "sha256": "a2a941f552b2f3c9bfdf432c5fe3748ec5890aa6ed7f86be09e644515b87d380"
+    },
+    {
+      "path": "live-observation/verify-deployment-artifact.py",
+      "bytes": 1981,
+      "sha256": "8faa1ec1fddc3b7377b9a733e40309e85efc7489f93fc1d328de5da492322d65"
+    },
+    {
+      "path": "live-observation/verify-deployment-handoff.py",
+      "bytes": 12537,
+      "sha256": "cd24aadbf5a80e50063a64291c38fdb10ab26deceeb5b92f68d31be3d7abdad0"
+    },
+    {
+      "path": "poll-15/39821046654-artifacts.json",
+      "bytes": 959,
+      "sha256": "75b6675b8826f1f36351ae53fe10535115b7cc9e8fe1167273dba2839a8d4780"
+    },
+    {
+      "path": "poll-15/39821046654-cache-basis.json",
+      "bytes": 207,
+      "sha256": "a9f2b0cd8c08a99c999516ff8662f0719a594db0eb36263e318908441d3b6e7c"
+    },
+    {
+      "path": "poll-15/39821046654-jobs.json",
+      "bytes": 6213,
+      "sha256": "cc92f558aaf4452ea9d5b14433b591685633e16b320be79a1963ff0a333b7338"
+    },
+    {
+      "path": "poll-15/39821268304-artifacts.json",
+      "bytes": 917,
+      "sha256": "477f0027367413c9353b9d887e74c4db9bf3ed760792028eda994082c1beb74b"
+    },
+    {
+      "path": "poll-15/39821268304-cache-basis.json",
+      "bytes": 207,
+      "sha256": "a9f2b0cd8c08a99c999516ff8662f0719a594db0eb36263e318908441d3b6e7c"
+    },
+    {
+      "path": "poll-15/39821268304-jobs.json",
+      "bytes": 5868,
+      "sha256": "71cd03d613b3eefe28608362450f192b68f51eea02459fb328a05e1286015c23"
+    },
+    {
+      "path": "poll-15/39822336878-artifacts.json",
+      "bytes": 918,
+      "sha256": "03b3d3723ee84d4bd8529ba1eddb540baf43eb872ab4fc6c5da2abba23bbfdb8"
+    },
+    {
+      "path": "poll-15/39822336878-cache-basis.json",
+      "bytes": 207,
+      "sha256": "a9f2b0cd8c08a99c999516ff8662f0719a594db0eb36263e318908441d3b6e7c"
+    },
+    {
+      "path": "poll-15/39822336878-jobs.json",
+      "bytes": 7263,
+      "sha256": "d5b7e9905664090025692b822555af1efe64c5fa4077057135e92de5831a5b48"
+    },
+    {
+      "path": "poll-15/39822605006-artifacts.json",
+      "bytes": 894,
+      "sha256": "a96fb6d335550a16108b2c1887985f05c84bb35ccccc365547410a73e09b48f0"
+    },
+    {
+      "path": "poll-15/39822605006-cache-basis.json",
+      "bytes": 207,
+      "sha256": "a9f2b0cd8c08a99c999516ff8662f0719a594db0eb36263e318908441d3b6e7c"
+    },
+    {
+      "path": "poll-15/39822605006-jobs.json",
+      "bytes": 5632,
+      "sha256": "0e1834466da38a0f1db1a2c59b43c6fc838dde2246af391245941ec370676f46"
+    },
+    {
+      "path": "poll-15/request-runs.json",
+      "bytes": 3260,
+      "sha256": "cb98206f50c640deccc44c5a695460e3a484edd1785e5ca9097a25291a87254d"
+    },
+    {
+      "path": "poll-15/summary.json",
+      "bytes": 10209,
+      "sha256": "399628cd5c1ba014f67dd415837f4a1412c1954d53233778fa3421fec7cd33e5"
+    },
+    {
+      "path": "poll-15/top-artifacts.json",
+      "bytes": 2715,
+      "sha256": "7a19577843b2a3b55dbcdbe32a0d78952e92da119fe938081fb28cee3f6dec97"
+    },
+    {
+      "path": "poll-15/top-jobs.json",
+      "bytes": 7369,
+      "sha256": "8f894dbf964e0a02826089b3a2d02b3443f2a7490eb59dc2e1dfad67a8cfa2b5"
+    },
+    {
+      "path": "poll-15/top.json",
+      "bytes": 556,
+      "sha256": "2a8a73b0eba590dde4c141254480350185465b70cb5ae33a0ebc1e43c6b0d502"
+    },
+    {
+      "path": "post-handoff-observation-01/comments.json",
+      "bytes": 5872,
+      "sha256": "599ee29454863533f8cbe2b936b420ef3e6a52fe090a0a74163e788e79981cec"
+    },
+    {
+      "path": "post-handoff-observation-01/finalizer-state.json",
+      "bytes": 840,
+      "sha256": "bb8daaff65f309f585c9df3e99700951a252966ebfcce4aacd536051c0e7af7f"
+    },
+    {
+      "path": "post-handoff-observation-01/finalizers.json",
+      "bytes": 198689,
+      "sha256": "dc249cdd49297bb0358f0aa57957abf7f3301b38ad093e1375fca2fbb4a02f84"
+    },
+    {
+      "path": "post-handoff-observation-01/issue.json",
+      "bytes": 5937,
+      "sha256": "377b2851f30a08535f877e8165d0de2cdfdf099fc759b52c0c8adf6e5c517317"
+    },
+    {
+      "path": "post-handoff-observation-01/release-state.json",
+      "bytes": 782,
+      "sha256": "b668ecc3e996409f9d713cf9b3f873f5b863646869e9df27773228ee130c688a"
+    }
+  ],
+  "private_directories_excluded": true,
+  "ciphertext_payload_excluded": true
+}

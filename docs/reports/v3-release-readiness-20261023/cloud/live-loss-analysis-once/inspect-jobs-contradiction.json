@@ -1,0 +1,314 @@
+{
+  "observed_at": "2026-10-22T18:08:36.134949+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/runs/39827924078/jobs?per_page=100",
+  "data": {
+    "total_count": 5,
+    "jobs": [
+      {
+        "id": 119996066731,
+        "run_id": 39827924078,
+        "workflow_name": "Chat Lifecycle Analysis inspect local-ealCAA-49111",
+        "head_branch": "main",
+        "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39827924078",
+        "run_attempt": 1,
+        "node_id": "CR_kwDOJgfwyc8AAAAb8FKrqw",
+        "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119996066731",
+        "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39827924078/job/119996066731",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-22T18:02:43Z",
+        "started_at": "2026-10-22T18:02:45Z",
+        "completed_at": "2026-10-22T18:02:58Z",
+        "name": "Resolve exact authenticated chat-lifecycle handoff",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T18:02:46Z",
+            "completed_at": "2026-10-22T18:02:47Z"
+          },
+          {
+            "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T18:02:47Z",
+            "completed_at": "2026-10-22T18:02:52Z"
+          },
+          {
+            "name": "Resolve and authenticate one exact retained handoff",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T18:02:52Z",
+            "completed_at": "2026-10-22T18:02:56Z"
+          },
+          {
+            "name": "Upload bounded non-secret Analysis input",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T18:02:56Z",
+            "completed_at": "2026-10-22T18:02:57Z"
+          },
+          {
+            "name": "Upload terminal preflight",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 5,
+            "started_at": "2026-10-22T18:02:57Z",
+            "completed_at": "2026-10-22T18:02:57Z"
+          },
+          {
+            "name": "Upload terminal session",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 6,
+            "started_at": "2026-10-22T18:02:57Z",
+            "completed_at": "2026-10-22T18:02:57Z"
+          },
+          {
+            "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-22T18:02:57Z",
+            "completed_at": "2026-10-22T18:02:57Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-22T18:02:57Z",
+            "completed_at": "2026-10-22T18:02:57Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119996066731",
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "runner_id": 1000024618,
+        "runner_name": "GitHub Actions 1000024618",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 119996193041,
+        "run_id": 39827924078,
+        "workflow_name": "Chat Lifecycle Analysis inspect local-ealCAA-49111",
+        "head_branch": "main",
+        "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39827924078",
+        "run_attempt": 1,
+        "node_id": "CR_kwDOJgfwyc8AAAAb8FSZEQ",
+        "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119996193041",
+        "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39827924078/job/119996193041",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-22T18:02:58Z",
+        "started_at": "2026-10-22T18:03:01Z",
+        "completed_at": "2026-10-22T18:03:36Z",
+        "name": "Prove exact live Cloud Lease inventory",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T18:03:01Z",
+            "completed_at": "2026-10-22T18:03:03Z"
+          },
+          {
+            "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T18:03:03Z",
+            "completed_at": "2026-10-22T18:03:07Z"
+          },
+          {
+            "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T18:03:07Z",
+            "completed_at": "2026-10-22T18:03:18Z"
+          },
+          {
+            "name": "Run actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T18:03:18Z",
+            "completed_at": "2026-10-22T18:03:19Z"
+          },
+          {
+            "name": "Run go build -trimpath -o \"$RUNNER_TEMP/wkcloudlease\" ./cmd/wkcloudlease",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T18:03:19Z",
+            "completed_at": "2026-10-22T18:03:21Z"
+          },
+          {
+            "name": "Exchange exact Observer OIDC identity",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T18:03:21Z",
+            "completed_at": "2026-10-22T18:03:22Z"
+          },
+          {
+            "name": "Inspect exact provider inventory",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T18:03:22Z",
+            "completed_at": "2026-10-22T18:03:32Z"
+          },
+          {
+            "name": "Materialize exact provider preflight",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T18:03:32Z",
+            "completed_at": "2026-10-22T18:03:32Z"
+          },
+          {
+            "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T18:03:32Z",
+            "completed_at": "2026-10-22T18:03:33Z"
+          },
+          {
+            "name": "Post Exchange exact Observer OIDC identity",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-22T18:03:33Z",
+            "completed_at": "2026-10-22T18:03:33Z"
+          },
+          {
+            "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-22T18:03:33Z",
+            "completed_at": "2026-10-22T18:03:33Z"
+          },
+          {
+            "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 18,
+            "started_at": "2026-10-22T18:03:33Z",
+            "completed_at": "2026-10-22T18:03:34Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 19,
+            "started_at": "2026-10-22T18:03:34Z",
+            "completed_at": "2026-10-22T18:03:34Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119996193041",
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "runner_id": 1000024619,
+        "runner_name": "GitHub Actions 1000024619",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 119996195182,
+        "run_id": 39827924078,
+        "workflow_name": "Chat Lifecycle Analysis inspect local-ealCAA-49111",
+        "head_branch": "main",
+        "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39827924078",
+        "run_attempt": 1,
+        "node_id": "CR_kwDOJgfwyc8AAAAb8FShbg",
+        "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119996195182",
+        "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39827924078/job/119996195182",
+        "status": "completed",
+        "conclusion": "skipped",
+        "created_at": "2026-10-22T18:02:59Z",
+        "started_at": "2026-10-22T18:02:59Z",
+        "completed_at": "2026-10-22T18:02:58Z",
+        "name": "Close exact local Codex client window",
+        "steps": [],
+        "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119996195182",
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "runner_id": null,
+        "runner_name": null,
+        "runner_group_id": null,
+        "runner_group_name": null
+      },
+      {
+        "id": 119996195835,
+        "run_id": 39827924078,
+        "workflow_name": "Chat Lifecycle Analysis inspect local-ealCAA-49111",
+        "head_branch": "main",
+        "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39827924078",
+        "run_attempt": 1,
+        "node_id": "CR_kwDOJgfwyc8AAAAb8FSj-w",
+        "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119996195835",
+        "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39827924078/job/119996195835",
+        "status": "completed",
+        "conclusion": "skipped",
+        "created_at": "2026-10-22T18:02:59Z",
+        "started_at": "2026-10-22T18:02:59Z",
+        "completed_at": "2026-10-22T18:02:58Z",
+        "name": "Open and encrypt one bounded local Codex session",
+        "steps": [],
+        "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119996195835",
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "runner_id": null,
+        "runner_name": null,
+        "runner_group_id": null,
+        "runner_group_name": null
+      },
+      {
+        "id": 119996196030,
+        "run_id": 39827924078,
+        "workflow_name": "Chat Lifecycle Analysis inspect local-ealCAA-49111",
+        "head_branch": "main",
+        "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39827924078",
+        "run_attempt": 1,
+        "node_id": "CR_kwDOJgfwyc8AAAAb8FSkvg",
+        "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119996196030",
+        "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39827924078/job/119996196030",
+        "status": "completed",
+        "conclusion": "skipped",
+        "created_at": "2026-10-22T18:02:59Z",
+        "started_at": "2026-10-22T18:02:59Z",
+        "completed_at": "2026-10-22T18:02:58Z",
+        "name": "Close runner exchange and failed client windows",
+        "steps": [],
+        "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119996196030",
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "runner_id": null,
+        "runner_name": null,
+        "runner_group_id": null,
+        "runner_group_name": null
+      }
+    ]
+  }
+}

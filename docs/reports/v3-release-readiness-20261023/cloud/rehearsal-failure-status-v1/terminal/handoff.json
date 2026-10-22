@@ -1,0 +1,12 @@
+{
+  "schema": "wukongim.chat_lifecycle.rehearsal_handoff/v1",
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "attempt": 1,
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "bundle_digest": "sha256:3d78f1a3466f50c3875256a8dd056d99a0c414487616235a1b1792f113c70130",
+  "bundle_run_id": 39821046654,
+  "acquire_run_id": 39822336878,
+  "deployment_run_id": 39822605006,
+  "started_at": "2026-10-23T01:35:17.578381188+08:00",
+  "expected_end_at": "2026-10-23T03:35:17.578381188+08:00"
+}

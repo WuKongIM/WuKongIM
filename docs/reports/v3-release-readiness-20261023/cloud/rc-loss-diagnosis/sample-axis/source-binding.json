@@ -1,0 +1,93 @@
+{
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-loss-diagnosis",
+  "clean_before_and_after": true,
+  "modified_source_files": [],
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/identity.go",
+      "bytes": 5843,
+      "sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/traffic.go",
+      "bytes": 21490,
+      "sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/payload.go",
+      "bytes": 16825,
+      "sha256": "a6bf29d2e17f2a8d07696065eefd1bc859399614c233d8c19860e881ed292bda"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/groups.go",
+      "bytes": 17850,
+      "sha256": "b94b7a3a107e9b7470603051a15ffba073de718d2ca01dd0ca183fb61727f047"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/verifier.go",
+      "bytes": 55689,
+      "sha256": "f16dcacd27b6976f3ba3e680b4bc0b3d5adaa98cc53e9b9408f5f240194e4efa"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/engine.go",
+      "bytes": 158802,
+      "sha256": "9b64ff416e105e869acb8921d7928da5517f800fb6c4159873bf8397bc4076ef"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/session.go",
+      "bytes": 55019,
+      "sha256": "b51382894de7e306c22bb276d493b8bc605d770109103b65c6ebd6bc494b7e05"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/evidence.go",
+      "bytes": 9593,
+      "sha256": "3f630c9086b727ed7bab5b541c8ddab6fb7eca3fe89d06c32874f2983c12d852"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/worker_protocol.go",
+      "bytes": 18128,
+      "sha256": "1ae2cfcebdf13ea926c53e08e589f7b297bcf8f836c1ff49c333fc1862daed15"
+    },
+    {
+      "path": "configs/wkbench/chat-lifecycle/rehearsal.yaml",
+      "bytes": 4367,
+      "sha256": "5d532e5ed8b5d72d51e02e429a78eb32afa0e3b3f7e5a3cd6f7957f3acc02542"
+    }
+  ],
+  "applicable_rule_sources": [
+    "AGENTS.md",
+    "internal/bench/FLOW.md (scope: subtree)",
+    "internal/bench/chatlifecycle/FLOW.md (scope: package)"
+  ],
+  "absent_ancestor_rule_files": [
+    "FLOW.md",
+    "internal/AGENTS.md",
+    "internal/FLOW.md",
+    "internal/bench/AGENTS.md",
+    "internal/bench/chatlifecycle/AGENTS.md"
+  ],
+  "skill_read": "/Users/tt/.agents/skills/diagnosing-bugs/SKILL.md",
+  "skill_sha256": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e",
+  "method": "read-only bounded evidence; no original-symptom process replay exists yet; pure parser/math probe is not a product regression test"
+}

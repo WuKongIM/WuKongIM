@@ -1,0 +1,415 @@
+{
+  "schema": "wukongim/pr80-first-ci-validation/v1",
+  "as_of_utc": "2026-10-22T18:09:21.036089+00:00",
+  "result": "failed_native_sdk_boundary_and_cleanup",
+  "head": "4d868f264fb4758f7451c058dd329a06ad460449",
+  "base": "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+  "actual_checkout": "0383c7818d51b8d819f95d7c0f81822abe478a56",
+  "head_and_checkout_tree": "1e6dc3090af168316ed8e8258cfb8c088ae56f3b",
+  "final_observation": {
+    "observed_at_utc": "20261022T180721Z",
+    "head": "4d868f264fb4758f7451c058dd329a06ad460449",
+    "runs": [
+      {
+        "id": 39826621553,
+        "status": "completed",
+        "conclusion": "failure",
+        "attempt": 1,
+        "head_sha": "4d868f264fb4758f7451c058dd329a06ad460449",
+        "event": "pull_request",
+        "jobs": [
+          {
+            "id": 119991488218,
+            "name": "TEST ONLY signed APT/RPM repository",
+            "status": "completed",
+            "conclusion": "failure",
+            "current_steps": []
+          },
+          {
+            "id": 119991488481,
+            "name": "TEST ONLY stable four clients and A/B",
+            "status": "completed",
+            "conclusion": "success",
+            "current_steps": []
+          }
+        ]
+      },
+      {
+        "id": 39826621570,
+        "status": "completed",
+        "conclusion": "success",
+        "attempt": 1,
+        "head_sha": "4d868f264fb4758f7451c058dd329a06ad460449",
+        "event": "pull_request",
+        "jobs": [
+          {
+            "id": 119991488284,
+            "name": "Validate complete Pages snapshot",
+            "status": "completed",
+            "conclusion": "success",
+            "current_steps": []
+          },
+          {
+            "id": 119992568007,
+            "name": "Deploy complete Pages snapshot",
+            "status": "completed",
+            "conclusion": "skipped",
+            "current_steps": []
+          }
+        ]
+      },
+      {
+        "id": 39826621567,
+        "status": "completed",
+        "conclusion": "success",
+        "attempt": 1,
+        "head_sha": "4d868f264fb4758f7451c058dd329a06ad460449",
+        "event": "pull_request",
+        "jobs": [
+          {
+            "id": 119991487350,
+            "name": "provider-contract",
+            "status": "completed",
+            "conclusion": "success",
+            "current_steps": []
+          }
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": 119992568007,
+        "name": "Deploy complete Pages snapshot",
+        "status": "completed",
+        "conclusion": "skipped",
+        "started_at": "2026-10-22T17:55:49Z",
+        "completed_at": "2026-10-22T17:55:48Z"
+      },
+      {
+        "id": 119991488481,
+        "name": "TEST ONLY stable four clients and A/B",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-22T17:53:39Z",
+        "completed_at": "2026-10-22T18:06:32Z"
+      },
+      {
+        "id": 119991488284,
+        "name": "Validate complete Pages snapshot",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-22T17:53:39Z",
+        "completed_at": "2026-10-22T17:55:48Z"
+      },
+      {
+        "id": 119991488218,
+        "name": "TEST ONLY signed APT/RPM repository",
+        "status": "completed",
+        "conclusion": "failure",
+        "started_at": "2026-10-22T17:53:39Z",
+        "completed_at": "2026-10-22T17:56:06Z"
+      },
+      {
+        "id": 119991487350,
+        "name": "provider-contract",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-22T17:53:38Z",
+        "completed_at": "2026-10-22T17:53:53Z"
+      }
+    ]
+  },
+  "pages": {
+    "default_tests": 593,
+    "default_skips": 0,
+    "default_seconds": 121.525,
+    "contract_tests": 4,
+    "deploy": "conditional_skip"
+  },
+  "sdk_contract": {
+    "tests": 49,
+    "skips": 0,
+    "input_tests": 16,
+    "input_skips": 0
+  },
+  "positive_native_receipts": [
+    {
+      "path": "artifacts/12445854565-native-source-metadata-test-only/native-source-metadata.json",
+      "passed": true,
+      "cases": 7,
+      "source_sha": null,
+      "scratch_removed": null,
+      "sha256": "5a10fade511b01c556a5c87043777c717e469e5a896e719f82b8aeb25808eef9"
+    },
+    {
+      "path": "artifacts/12446637732-native-local-signing-test-only/native-local-signing.json",
+      "passed": true,
+      "cases": 10,
+      "source_sha": null,
+      "scratch_removed": null,
+      "sha256": "3f7bff28cb2b1a3ad4b21ca02087454c151e14f5bfc1ab41f6a88b2b68cdd5c6"
+    },
+    {
+      "path": "artifacts/12446413372-native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+      "passed": true,
+      "cases": 6,
+      "source_sha": "0383c7818d51b8d819f95d7c0f81822abe478a56",
+      "scratch_removed": true,
+      "sha256": "faace02491921da1beedd4df4f7ce5cf5842d204c5608e6198541babc7ab6f11"
+    },
+    {
+      "path": "artifacts/12446128994-native-stable-candidate-test-only/native-stable-candidate.json",
+      "passed": true,
+      "cases": 31,
+      "source_sha": "0383c7818d51b8d819f95d7c0f81822abe478a56",
+      "scratch_removed": true,
+      "sha256": "208df7f2421bc49dbb96f8bec8baa04e7889984f27c9b4aed85d333edce75d52"
+    },
+    {
+      "path": "artifacts/12447520900-native-object-delivery-fixture-test-only/result.json",
+      "passed": true,
+      "cases": 29,
+      "source_sha": "0383c7818d51b8d819f95d7c0f81822abe478a56",
+      "scratch_removed": true,
+      "sha256": "8e31d1c00a8b19c3f64f6e3780544fdcd1461d6e608cd0c57f2ea83ea1fb9da2"
+    },
+    {
+      "path": "artifacts/12447036886-native-object-delivery-sdk-test-only/native-preparation.json",
+      "passed": true,
+      "cases": 2,
+      "source_sha": "0383c7818d51b8d819f95d7c0f81822abe478a56",
+      "scratch_removed": false,
+      "sha256": "65b3d336d453d57a3f160d96ed2ff3ede124887ed9f244d037c85fe32e587737"
+    },
+    {
+      "path": "artifacts/12448210518-native-stable-four-clients-test-only/native-stable-clients.json",
+      "passed": true,
+      "cases": 49,
+      "source_sha": null,
+      "scratch_removed": null,
+      "sha256": "32c539f84634c2ffa91b326780831b2a7def7d8413851ec092d3210dd776ab5d"
+    }
+  ],
+  "new_native_sdk": {
+    "planned_cases": 20,
+    "completed_cases": 0,
+    "state": "incomplete",
+    "stage": "sdk",
+    "error_type": "PermissionError",
+    "failure_location": {
+      "file": "pathlib.py",
+      "function": "stat",
+      "line": 842
+    },
+    "guard": {
+      "passed": true,
+      "self_check_attempts": 1,
+      "unexpected_attempts": 0
+    },
+    "cleanup": {
+      "attempted": true,
+      "error_type": "PermissionError",
+      "removed": false
+    },
+    "scratch_removed": false,
+    "cleanup_json_present": false,
+    "native_preparation_passed": true,
+    "native_preparation_cases": 2,
+    "bundle_sha256_from_preparation": "1369c816f78830fbdd4a84281173d5092af022c3d98ad7d3cb21a68ad6149add",
+    "real_sdk_twenty_case_acceptance_passed": false
+  },
+  "installed_clients": [
+    {
+      "generation": "A",
+      "distribution": "ubuntu-24.04",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.0"
+      },
+      "download": {
+        "filename": "wukongim_3.0.0_amd64.deb",
+        "sha256": "3ecd50e54fc81ced39652541f27f152ecf3e89c002f1560b9671f2044b70a125",
+        "size": 29933000,
+        "snapshot_versions": [
+          "3.0.0"
+        ]
+      }
+    },
+    {
+      "generation": "A",
+      "distribution": "debian-13",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.0"
+      },
+      "download": {
+        "filename": "wukongim_3.0.0_amd64.deb",
+        "sha256": "3ecd50e54fc81ced39652541f27f152ecf3e89c002f1560b9671f2044b70a125",
+        "size": 29933000,
+        "snapshot_versions": [
+          "3.0.0"
+        ]
+      }
+    },
+    {
+      "generation": "A",
+      "distribution": "rocky-linux-9",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.0"
+      },
+      "download": {
+        "filename": "wukongim_3.0.0_linux_amd64.rpm",
+        "sha256": "497e13e261542b000821444f824f0c724c6cb04532877c1c9a592e48cce32e9d",
+        "size": 38398459,
+        "snapshot_versions": [
+          "3.0.0"
+        ]
+      }
+    },
+    {
+      "generation": "A",
+      "distribution": "alma-linux-9",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.0"
+      },
+      "download": {
+        "filename": "wukongim_3.0.0_linux_amd64.rpm",
+        "sha256": "497e13e261542b000821444f824f0c724c6cb04532877c1c9a592e48cce32e9d",
+        "size": 38398459,
+        "snapshot_versions": [
+          "3.0.0"
+        ]
+      }
+    },
+    {
+      "generation": "B",
+      "distribution": "ubuntu-24.04",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.1"
+      },
+      "download": {
+        "filename": "wukongim_3.0.1_amd64.deb",
+        "sha256": "0e335fd7a29920088a849d2c608751c46d9c786533c1802c2c21a97d6293f82c",
+        "size": 29932848,
+        "snapshot_versions": [
+          "3.0.1"
+        ]
+      }
+    },
+    {
+      "generation": "B",
+      "distribution": "debian-13",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.1"
+      },
+      "download": {
+        "filename": "wukongim_3.0.1_amd64.deb",
+        "sha256": "0e335fd7a29920088a849d2c608751c46d9c786533c1802c2c21a97d6293f82c",
+        "size": 29932848,
+        "snapshot_versions": [
+          "3.0.1"
+        ]
+      }
+    },
+    {
+      "generation": "B",
+      "distribution": "rocky-linux-9",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.1"
+      },
+      "download": {
+        "filename": "wukongim_3.0.1_linux_amd64.rpm",
+        "sha256": "65adc08ea02a596540ff9f04144a01ed73bd8a60a8c49934d548cccd6c653e8b",
+        "size": 38398464,
+        "snapshot_versions": [
+          "3.0.1"
+        ]
+      }
+    },
+    {
+      "generation": "B",
+      "distribution": "alma-linux-9",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.1"
+      },
+      "download": {
+        "filename": "wukongim_3.0.1_linux_amd64.rpm",
+        "sha256": "65adc08ea02a596540ff9f04144a01ed73bd8a60a8c49934d548cccd6c653e8b",
+        "size": 38398464,
+        "snapshot_versions": [
+          "3.0.1"
+        ]
+      }
+    }
+  ],
+  "independent_stable_client_cleanup": {
+    "verified": true,
+    "owned_container_creation_attempts": 91,
+    "owned_network_creation_attempts": 1,
+    "remaining": {
+      "containers": [],
+      "networks": []
+    },
+    "cache_cleanup_cases": 4
+  },
+  "full_signed_repository_installation_executed": false,
+  "job_logs": {
+    "job-119991487350.log": {
+      "bytes": 43409,
+      "sha256": "2e7b5745bb9586f5f23a6696bc6219f25de2b25823f357da53f6b3a23d59418f",
+      "actual_checkout": "0383c7818d51b8d819f95d7c0f81822abe478a56"
+    },
+    "job-119991488218.log": {
+      "bytes": 132474,
+      "sha256": "15ff469808462bab69c08a82de8912640162c9195fc5e25418874358fdb73e77",
+      "actual_checkout": "0383c7818d51b8d819f95d7c0f81822abe478a56"
+    },
+    "job-119991488284.log": {
+      "bytes": 21181,
+      "sha256": "24a63a7c416e32e3163af8cfe5ae34e7738811c0ad3e1d5b19a9de7e270bc6ec",
+      "actual_checkout": "0383c7818d51b8d819f95d7c0f81822abe478a56"
+    },
+    "job-119991488481.log": {
+      "bytes": 63747,
+      "sha256": "2ea3385553b5408c804f5bcd029a61dea90bcbf6d3929d2d02bceef00762f1a5",
+      "actual_checkout": "0383c7818d51b8d819f95d7c0f81822abe478a56"
+    }
+  },
+  "artifact_zips": {
+    "count": 8,
+    "all_full_downloads": true,
+    "all_api_sha256_matched": true,
+    "all_member_crc_verified": true,
+    "partial_downloads": 0
+  },
+  "command_output_coverage": {
+    "command_records": 350,
+    "merged_size_hash_tail_records": 285,
+    "complete_merged_output_sha256_recomputed": 258,
+    "merged_tails_with_declared_hash_only": 27,
+    "separate_stream_size_hash_only_commands": 35,
+    "separate_stream_tail_only_commands": 30,
+    "unrecognized_commands": 0
+  },
+  "source_changed": false,
+  "dispatches": 0,
+  "reruns": 0,
+  "merges": 0,
+  "cloud_or_nas_or_key_access": false,
+  "production_publication_verified": false,
+  "limits": "Native SDK work removal failed and cleanup.json was not emitted. Exact permission path and ownership cause require later local reproduction; no stat ownership inventory was captured. Stable-client owned-resource zero results do not establish cleanup for the separate failed SDK work tree or host-wide processes."
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "wukongim.chat_lifecycle.analysis_endpoint/v1",
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "lease_id": "chat-20261021T214505Z-00299e37-rehearsal-1",
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "deployment_plan_digest": "sha256:76bf05bde34a844f41c9a43effe35d88394744af3a188e6a6e0dcc00e5ed4707",
+  "provider": "alibaba",
+  "region": "cn-hangzhou",
+  "mcp_url": "https://47.111.81.17:19444/mcp",
+  "ca_fingerprint": "sha256:c06d652174630041841c566e87e63276f403799c5bf33c8626cfeb7fbfcd7b63",
+  "lease_expires_at": "2026-10-23T05:17:01Z"
+}

@@ -1,0 +1,46 @@
+{
+  "observed_at_utc": "2026-10-22T17:41:20.680766+00:00",
+  "head": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+  "base": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "all_5_control_workflows": [
+    ".github/workflows/native-package-audit-bind.yml",
+    ".github/workflows/native-package-audit-draft.yml",
+    ".github/workflows/native-package-immutable-public-reverify.yml",
+    ".github/workflows/native-package-publish.yml",
+    ".github/workflows/pages.yml"
+  ],
+  "complete_active_statuses": [
+    {
+      "status": "queued",
+      "all_count": 0,
+      "control_runs": []
+    },
+    {
+      "status": "in_progress",
+      "all_count": 0,
+      "control_runs": []
+    },
+    {
+      "status": "waiting",
+      "all_count": 0,
+      "control_runs": []
+    },
+    {
+      "status": "requested",
+      "all_count": 0,
+      "control_runs": []
+    },
+    {
+      "status": "pending",
+      "all_count": 0,
+      "control_runs": []
+    }
+  ],
+  "latest_checks": {
+    "success": 4,
+    "conditional_skipped": 1
+  },
+  "original_native_infra_failure_preserved": true,
+  "one_explicit_native_job_retry_success": true,
+  "ordinary_rebase_only_no_admin_or_protection_change": true
+}

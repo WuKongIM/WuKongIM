@@ -1,0 +1,436 @@
+name: Safety Automation - Drill Native Package Repository
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/native-package-repository-drill.yml"
+      - "manifests/**"
+      - "scripts/**"
+      - "tests/**"
+      - "docs/**"
+      - "README.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-package-repository-drill-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drill:
+    name: TEST ONLY signed APT/RPM repository
+    if: github.repository == 'WuKongIM/packages'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact package-repository control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Validate reviewed control
+        id: toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./tests/contract.sh
+          commit="$(jq -r '.commit' manifests/trusted-toolchain.json)"
+          [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Check out immutable trusted repository tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: WuKongIM/WuKongIM
+          ref: ${{ steps.toolchain.outputs.commit }}
+          path: .trusted/wukongim
+          persist-credentials: false
+
+      - name: Verify trusted repository tool bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C .trusted/wukongim rev-parse HEAD)" = "${{ steps.toolchain.outputs.commit }}"
+          jq -r \
+            '.files | to_entries[] | "\(.value)  .trusted/wukongim/\(.key)"' \
+            manifests/trusted-toolchain.json | sha256sum --check --strict
+
+      - name: Check real native source metadata in isolated TEST ONLY fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null
+          image="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"
+          docker pull "$image"
+          metadata_output="$RUNNER_TEMP/source-metadata-native"
+          mkdir "$metadata_output"
+          chmod 0777 "$metadata_output"
+          container="wk-source-metadata-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          timeout --signal=TERM --kill-after=10s 5m docker run --rm --name "$container" \
+            --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --user 65532:65532 --cpus 1 --memory 512m --pids-limit 128 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \
+            --volume "$GITHUB_WORKSPACE:/control:ro" \
+            --volume "$metadata_output:/evidence" \
+            --workdir /tmp "$image" \
+            python3 -B /control/tests/native_source_metadata_drill.py --output-dir /evidence
+          jq -e '.test_only == true and .passed == true and (.cases | length) == 7 and all(.cases[]; .passed == true)' \
+            "$metadata_output/native-source-metadata.json" >/dev/null
+
+      - name: Preserve TEST ONLY native metadata evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-source-metadata-test-only
+          path: ${{ runner.temp }}/source-metadata-native/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Sign and independently verify real TEST ONLY local file inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null
+          image="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"
+          signing_output="$RUNNER_TEMP/local-signing-native"
+          mkdir "$signing_output"
+          chmod 0777 "$signing_output"
+          container="wk-local-signing-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          timeout --signal=TERM --kill-after=10s 8m docker run --rm --name "$container" \
+            --platform linux/amd64 --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --user 65532:65532 \
+            --cpus 1 --memory 512m --pids-limit 128 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \
+            --volume "$GITHUB_WORKSPACE:/control:ro" \
+            --volume "$signing_output:/evidence" \
+            --workdir /tmp "$image" \
+            python3 -B /control/tests/native_local_signing_drill.py --output-dir /evidence
+          jq -e '.test_only == true and .passed == true and .secret_tree_removed_before_verification == true and (.cases | length) == 10 and all(.cases[]; .passed == true)' \
+            "$signing_output/native-local-signing.json" >/dev/null
+
+      - name: Preserve TEST ONLY native local signing evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-local-signing-test-only
+          path: ${{ runner.temp }}/local-signing-native/native-local-signing.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Build and coinstall TEST ONLY preview and stable bootstrap preparations
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null
+          image="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"
+          bootstrap_output="$RUNNER_TEMP/bootstrap-preparation-native"
+          mkdir "$bootstrap_output"
+          chmod 0777 "$bootstrap_output"
+          container="wk-bootstrap-preparation-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          # Root and SYS_CHROOT are limited to scratch native package databases.
+          # This data-only installation drill has no signing input or network.
+          timeout --signal=TERM --kill-after=10s 5m docker run --rm --name "$container" \
+            --platform linux/amd64 --network none --read-only --cap-drop ALL \
+            --cap-add SYS_CHROOT --security-opt no-new-privileges --user 0:0 \
+            --cpus 1 --memory 512m --pids-limit 128 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \
+            --volume "$GITHUB_WORKSPACE:/control:ro" \
+            --volume "$bootstrap_output:/evidence" \
+            --workdir /tmp "$image" \
+            python3 -B /control/tests/native_bootstrap_preparation_drill.py \
+            --output-dir /evidence --source-sha "$GITHUB_SHA"
+          jq -e '.test_only == true and .passed == true and .scratch_removed == true and (.cases | length) == 6 and all(.cases[]; .passed == true)' \
+            "$bootstrap_output/native-bootstrap-preparation.json" >/dev/null
+
+      - name: Preserve TEST ONLY native bootstrap preparation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-bootstrap-preparation-test-only
+          path: ${{ runner.temp }}/bootstrap-preparation-native/native-bootstrap-preparation.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Compose and independently verify TEST ONLY stable offline candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null
+          image="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"
+          candidate_output="$RUNNER_TEMP/stable-candidate-native"
+          mkdir "$candidate_output"
+          chmod 0777 "$candidate_output"
+          container="wk-stable-candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          timeout --signal=TERM --kill-after=10s 10m docker run --rm --name "$container" \
+            --platform linux/amd64 --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --user 65532:65532 \
+            --cpus 1 --memory 512m --pids-limit 128 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \
+            --volume "$GITHUB_WORKSPACE:/control:ro" \
+            --volume "$candidate_output:/evidence" \
+            --workdir /tmp "$image" \
+            python3 -B /control/tests/native_stable_candidate_drill.py \
+            --output-dir /evidence --source-sha "$GITHUB_SHA" \
+            --trusted-root /control/.trusted/wukongim
+          jq -e '.test_only == true and .passed == true and .secret_tree_removed_before_verification == true and .scratch_removed == true and .checked_in_control_unchanged == true and (.cases | length) == 31 and all(.cases[]; .passed == true)' \
+            "$candidate_output/native-stable-candidate.json" >/dev/null
+
+      - name: Preserve TEST ONLY native stable candidate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-stable-candidate-test-only
+          path: ${{ runner.temp }}/stable-candidate-native/native-stable-candidate.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Verify native TEST ONLY preview and stable delivery fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null
+          image="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"
+          fixture_output="$RUNNER_TEMP/native-delivery-fixture"
+          mkdir "$fixture_output"
+          chmod 0777 "$fixture_output"
+          container="wk-native-delivery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          timeout --signal=TERM --kill-after=10s 15m docker run --rm --name "$container" \
+            --platform linux/amd64 --init --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --user 65532:65532 \
+            --cpus 1 --memory 512m --pids-limit 128 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=536870912 \
+            --volume "$GITHUB_WORKSPACE:/control:ro" \
+            --volume "$fixture_output:/evidence" \
+            --workdir /tmp "$image" \
+            python3 -B /control/tests/native_object_delivery_fixture_drill.py \
+            --output-dir /evidence --source-sha "$GITHUB_SHA" \
+            --trusted-root /control/.trusted/wukongim
+          jq -e --arg source "$GITHUB_SHA" '.source_sha == $source and .test_only == true and .passed == true and .scratch_removed == true and (.cases | length) == 29 and all(.cases[]; .passed == true) and .verification.native_preview_verified == true and .verification.native_stable_verified == true and .verification.github_provenance_verified == false and .verification.fresh_production_auth_verified == false and .verification.activation_authorized == false' \
+            "$fixture_output/result.json" >/dev/null
+          jq -e '.test_only == true and .data_only == true and .secret_tree_removed == true and .source_provenance_verified == false' \
+            "$fixture_output/fixture-export.json" >/dev/null
+
+      - name: Preserve public native delivery fixture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-object-delivery-fixture-test-only
+          path: |
+            ${{ runner.temp }}/native-delivery-fixture/result.json
+            ${{ runner.temp }}/native-delivery-fixture/fixture-export.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Prepare verified native SDK object fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"
+          fixture_output="$RUNNER_TEMP/native-delivery-fixture"
+          sdk_work="$RUNNER_TEMP/native-sdk-work"
+          sdk_evidence="$RUNNER_TEMP/native-sdk-evidence"
+          mkdir "$sdk_work" "$sdk_evidence"
+          chmod 0777 "$sdk_work" "$sdk_evidence"
+          container="wk-native-sdk-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          timeout --signal=TERM --kill-after=10s 15m docker run --rm --name "$container" \
+            --platform linux/amd64 --init --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --user 65532:65532 \
+            --cpus 1 --memory 512m --pids-limit 128 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=536870912 \
+            --volume "$GITHUB_WORKSPACE:/control:ro" \
+            --volume "$fixture_output:$fixture_output:ro" \
+            --volume "$sdk_work:$sdk_work" --volume "$sdk_evidence:$sdk_evidence" \
+            --workdir /tmp "$image" \
+            python3 -B /control/tests/provider_sdk/native_object_delivery_sdk_drill.py prepare \
+            --public-dir "$fixture_output" --work-dir "$sdk_work" \
+            --expected-export-source "$GITHUB_SHA" --source-sha "$GITHUB_SHA" \
+            --output "$sdk_evidence/native-preparation.json"
+          jq -e --arg source "$GITHUB_SHA" '.passed == true and .source_sha == $source and .state == "native_prepared" and (.cases | length) == 2' \
+            "$sdk_evidence/native-preparation.json" >/dev/null
+
+      - name: Verify all native objects through the locked SDK HTTP fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_work="$RUNNER_TEMP/native-sdk-work"
+          sdk_evidence="$RUNNER_TEMP/native-sdk-evidence"
+          python3 -m venv "$RUNNER_TEMP/native-sdk-venv"
+          timeout 240 "$RUNNER_TEMP/native-sdk-venv/bin/python" -m pip install --require-hashes -r requirements-object-storage-provider.lock
+          bundle_sha="$(jq -er '.bundle_sha256' "$sdk_evidence/native-preparation.json")"
+          timeout 300 "$RUNNER_TEMP/native-sdk-venv/bin/python" -B tests/provider_sdk/native_object_delivery_sdk_drill.py sdk \
+            --bundle "$sdk_work/bundle.json" --bundle-sha256 "$bundle_sha" \
+            --source-sha "$GITHUB_SHA" --output "$sdk_evidence/native-sdk-result.json"
+          jq -e --arg source "$GITHUB_SHA" '.test_only == true and .source_sha == $source and .passed == true and .skips == 0 and (.cases | length) == 20 and all(.cases[]; .passed == true) and .state == "fixture_complete" and .stage == "sdk_fixture_complete" and .scratch_removed == true and all(.verification[]; . == false)' \
+            "$sdk_evidence/native-sdk-result.json" >/dev/null
+
+      - name: Remove owned native SDK fixture work
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_work="$RUNNER_TEMP/native-sdk-work"
+          container="wk-native-sdk-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker rm --force "$container" >/dev/null 2>&1 || true
+          remaining="$(docker container ls --all --filter "name=^/${container}$" --format '{{.Names}}')"
+          test -z "$remaining"
+          rm -rf -- "$sdk_work" "$RUNNER_TEMP/native-sdk-venv"
+          mkdir -p "$RUNNER_TEMP/native-sdk-evidence"
+          test ! -e "$sdk_work"
+          printf '%s\n' '{"owned_work_removed":true,"owned_container_removed":true}' > "$RUNNER_TEMP/native-sdk-evidence/cleanup.json"
+
+      - name: Preserve bounded native SDK fixture receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-object-delivery-sdk-test-only
+          path: |
+            ${{ runner.temp }}/native-sdk-evidence/native-preparation.json
+            ${{ runner.temp }}/native-sdk-evidence/native-sdk-result.json
+            ${{ runner.temp }}/native-sdk-evidence/cleanup.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Set up fixed GoReleaser toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.27.0"
+          cache-dependency-path: .trusted/wukongim/go.sum
+          cache: true
+
+      - name: Install fixed GoReleaser version
+        shell: bash
+        run: |
+          set -euo pipefail
+          install_dir="$RUNNER_TEMP/goreleaser-bin"
+          mkdir -p "$install_dir"
+          GOBIN="$install_dir" go install github.com/goreleaser/goreleaser/v2@v2.18.0
+          echo "install_dir=$install_dir" >> "$GITHUB_ENV"
+
+      - name: Restore exact source Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: .trusted/wukongim/go.mod
+          cache-dependency-path: .trusted/wukongim/go.sum
+          cache: true
+
+      - name: Build unsigned TEST ONLY packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .trusted/wukongim
+          "$install_dir/goreleaser" release --snapshot --clean --config .goreleaser.packages.yaml
+
+      - name: Build, sign, verify, and install TEST ONLY repositories
+        env:
+          WK_NATIVE_PACKAGE_DIST_DIR: ${{ github.workspace }}/.trusted/wukongim/dist
+        run: .trusted/wukongim/scripts/validate-native-package-repositories-container.sh
+
+      - name: Reject tracked-tree mutation
+        if: always()
+        shell: bash
+        run: git diff --exit-code HEAD -- . ':!.trusted'
+
+  stable-clients:
+    name: TEST ONLY stable four clients and A/B
+    if: github.repository == 'WuKongIM/packages'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact package client control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Check out immutable trusted repository tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: WuKongIM/WuKongIM
+          ref: ed7e67d8f781b4f92872e42116c11b304fe03b5c
+          path: .trusted/wukongim
+          persist-credentials: false
+
+      - name: Check out exact TEST ONLY product build source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: WuKongIM/WuKongIM
+          ref: fc18221282f289088ec9b4282fda8e0bfc67a3b8
+          path: .product/wukongim
+          persist-credentials: false
+
+      - name: Prepare fixed product Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.25.11"
+          cache-dependency-path: .product/wukongim/go.sum
+          cache: true
+
+      - name: Prepare host verification tools and pinned images
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends gnupg gpgv rpm dpkg zstd
+          ./tests/contract.sh
+          test "$(git -C .trusted/wukongim rev-parse HEAD)" = "$(jq -r .commit manifests/trusted-toolchain.json)"
+          jq -r '.files | to_entries[] | "\(.value)  .trusted/wukongim/\(.key)"' \
+            manifests/trusted-toolchain.json | sha256sum --check --strict
+          python3 - <<'PY' > "$RUNNER_TEMP/stable-client-images.txt"
+          import importlib.util,json
+          spec=importlib.util.spec_from_file_location('clients','scripts/validate-production-package-clients.py')
+          clients=importlib.util.module_from_spec(spec);spec.loader.exec_module(clients)
+          signing=json.load(open('manifests/signing-toolchain.json'))
+          assert signing['enabled'] is True
+          print(signing['image']+'@'+signing['digest'])
+          for _,image in clients.APT_CLIENTS+clients.RPM_CLIENTS: print(image)
+          PY
+          while IFS= read -r image; do docker pull --platform linux/amd64 "$image"; done < "$RUNNER_TEMP/stable-client-images.txt"
+
+      - name: Exercise signed TEST ONLY stable clients and exact installed CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/stable-clients-native"
+          mkdir "$output"
+          timeout --signal=TERM --kill-after=45s 55m \
+            python3 -B tests/native_stable_clients_drill.py \
+              --output-dir "$output" --product-root "$GITHUB_WORKSPACE/.product/wukongim" \
+              --product-sha fc18221282f289088ec9b4282fda8e0bfc67a3b8 \
+              --trusted-root "$GITHUB_WORKSPACE/.trusted/wukongim"
+          jq -e '.test_only == true and .passed == true and .cleanup.verified == true and (.cases | length) == 49 and all(.cases[]; .passed == true)' \
+            "$output/native-stable-clients.json" >/dev/null
+
+      - name: Preserve public stable client evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-stable-four-clients-test-only
+          path: |
+            ${{ runner.temp }}/stable-clients-native/*.json
+            ${{ runner.temp }}/stable-clients-native/https-requests.jsonl
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Reject tracked client-control mutation
+        if: always()
+        shell: bash
+        run: git diff --exit-code HEAD -- . ':!.trusted' ':!.product'

@@ -1,0 +1,122 @@
+{
+  "schema": "wukongim.cloud_deployment.readiness/v1",
+  "deployment_plan_digest": "sha256:76bf05bde34a844f41c9a43effe35d88394744af3a188e6a6e0dcc00e5ed4707",
+  "observed_at": "2026-10-22T17:32:06Z",
+  "hosts": [
+    {
+      "role": "service-1",
+      "operating_system": "ubuntu",
+      "operating_system_version": "24.04",
+      "architecture": "x86_64",
+      "base_tools_available": true,
+      "bundle_digest": "sha256:3d78f1a3466f50c3875256a8dd056d99a0c414487616235a1b1792f113c70130",
+      "data_disk_id": "d-bp14xtpwcp041dgpi2eq",
+      "data_mount": "/var/lib/wukongim-cloud",
+      "data_filesystem_bytes": 527295578112,
+      "data_free_bytes": 500393455616,
+      "system_filesystem_bytes": 41882943488,
+      "system_free_bytes": 37007675392,
+      "clock_offset_milliseconds": 0,
+      "active_units": [
+        "wukongim.service",
+        "wkbench-host-metrics.service",
+        "node-exporter.service",
+        "wukongim-process-metrics.service",
+        "wukongim-evidence.timer"
+      ]
+    },
+    {
+      "role": "service-2",
+      "operating_system": "ubuntu",
+      "operating_system_version": "24.04",
+      "architecture": "x86_64",
+      "base_tools_available": true,
+      "bundle_digest": "sha256:3d78f1a3466f50c3875256a8dd056d99a0c414487616235a1b1792f113c70130",
+      "data_disk_id": "d-bp16md9ben7546c3gcye",
+      "data_mount": "/var/lib/wukongim-cloud",
+      "data_filesystem_bytes": 527295578112,
+      "data_free_bytes": 500393455616,
+      "system_filesystem_bytes": 41882943488,
+      "system_free_bytes": 37007728640,
+      "clock_offset_milliseconds": 0,
+      "active_units": [
+        "wukongim.service",
+        "wkbench-host-metrics.service",
+        "node-exporter.service",
+        "wukongim-process-metrics.service",
+        "wukongim-evidence.timer"
+      ]
+    },
+    {
+      "role": "service-3",
+      "operating_system": "ubuntu",
+      "operating_system_version": "24.04",
+      "architecture": "x86_64",
+      "base_tools_available": true,
+      "bundle_digest": "sha256:3d78f1a3466f50c3875256a8dd056d99a0c414487616235a1b1792f113c70130",
+      "data_disk_id": "d-bp1c9uny7hson2s1l6zl",
+      "data_mount": "/var/lib/wukongim-cloud",
+      "data_filesystem_bytes": 527295578112,
+      "data_free_bytes": 500393455616,
+      "system_filesystem_bytes": 41882943488,
+      "system_free_bytes": 37007736832,
+      "clock_offset_milliseconds": 0,
+      "active_units": [
+        "wukongim.service",
+        "wkbench-host-metrics.service",
+        "node-exporter.service",
+        "wukongim-process-metrics.service",
+        "wukongim-evidence.timer"
+      ]
+    },
+    {
+      "role": "load",
+      "operating_system": "ubuntu",
+      "operating_system_version": "24.04",
+      "architecture": "x86_64",
+      "base_tools_available": true,
+      "bundle_digest": "sha256:3d78f1a3466f50c3875256a8dd056d99a0c414487616235a1b1792f113c70130",
+      "data_disk_id": "d-bp1e8si5tpk9nvfidvuy",
+      "data_mount": "/var/lib/wukongim-cloud",
+      "data_filesystem_bytes": 210241560576,
+      "data_free_bytes": 199486988288,
+      "system_filesystem_bytes": 41882943488,
+      "system_free_bytes": 36826902528,
+      "clock_offset_milliseconds": 0,
+      "active_units": [
+        "wkbench-host-metrics.service",
+        "wkbench-worker@1.service",
+        "wkbench-worker@2.service",
+        "wkbench-worker@3.service",
+        "prometheus.service",
+        "wkanalysis.service",
+        "caddy.service",
+        "node-exporter.service",
+        "wukongim-process-metrics.service",
+        "wukongim-evidence.timer"
+      ]
+    }
+  ],
+  "cluster": {
+    "ready_nodes": 3,
+    "members": 3,
+    "physical_hash_slots": 256,
+    "healthy_slot_leaders": 256,
+    "healthy_slot_replica_sets": 256,
+    "logical_slot_groups": 12,
+    "runtime_config_nodes": 3,
+    "slot_replicas": 3,
+    "channel_replicas": 3,
+    "pending_controller_tasks": 0
+  },
+  "load": {
+    "ready_workers": 3,
+    "prometheus_targets_up": 7,
+    "prometheus_targets_want": 7,
+    "workload_config_valid": true,
+    "proxy_ready": true,
+    "manager_ready": true,
+    "demo_ready": true,
+    "analysis_ready": true
+  }
+}

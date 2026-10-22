@@ -1,0 +1,18 @@
+{
+  "attempted_at_utc": "2026-10-22T17:32:05.506407+00:00",
+  "command": [
+    "gh",
+    "api",
+    "--method",
+    "POST",
+    "repos/WuKongIM/packages/actions/jobs/119973638102/rerun"
+  ],
+  "dispatch_count": 1,
+  "source_head": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+  "source_run": 39821491408,
+  "original_job": 119973638102,
+  "only_failed_job": true,
+  "source_changes": false,
+  "debug_logging_enabled": false,
+  "precheck": "passed"
+}

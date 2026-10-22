@@ -1,0 +1,49 @@
+{
+  "observed_at": "2026-10-22T18:04:59.148082+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/runs/39827924078/artifacts?per_page=10",
+  "data": {
+    "total_count": 2,
+    "artifacts": [
+      {
+        "id": 12447492231,
+        "node_id": "MDg6QXJ0aWZhY3QxMjQ0NzQ5MjIzMQ==",
+        "name": "chat-lifecycle-analysis-preflight-local-ealCAA-49111",
+        "size_in_bytes": 2131,
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12447492231",
+        "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12447492231/zip",
+        "expired": false,
+        "digest": "sha256:36539ef216322a8219688e4d5d4511e6c9267db8dcf6452e47c49be628c04904",
+        "created_at": "2026-10-22T18:03:33Z",
+        "updated_at": "2026-10-22T18:03:33Z",
+        "expires_at": "2026-10-23T18:03:32Z",
+        "workflow_run": {
+          "id": 39827924078,
+          "repository_id": 638054601,
+          "head_repository_id": 638054601,
+          "head_branch": "main",
+          "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06"
+        }
+      },
+      {
+        "id": 12446499143,
+        "node_id": "MDg6QXJ0aWZhY3QxMjQ0NjQ5OTE0Mw==",
+        "name": "chat-lifecycle-analysis-input-local-ealCAA-49111",
+        "size_in_bytes": 875,
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12446499143",
+        "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12446499143/zip",
+        "expired": false,
+        "digest": "sha256:de98bccfd53da30befde4b01261b59d9e506525550b2588a657bed0958976315",
+        "created_at": "2026-10-22T18:02:56Z",
+        "updated_at": "2026-10-22T18:02:56Z",
+        "expires_at": "2026-10-23T18:02:56Z",
+        "workflow_run": {
+          "id": 39827924078,
+          "repository_id": 638054601,
+          "head_repository_id": 638054601,
+          "head_branch": "main",
+          "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06"
+        }
+      }
+    ]
+  }
+}

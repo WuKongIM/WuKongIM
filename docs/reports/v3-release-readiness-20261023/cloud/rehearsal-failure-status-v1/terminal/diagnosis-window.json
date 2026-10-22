@@ -1,0 +1,14 @@
+{
+  "schema": "wukongim.chat_lifecycle.diagnosis_window/v1",
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "stage": "rehearsal",
+  "state": "diagnosis_pending",
+  "started_at": "2026-10-23T01:36:18.801475417+08:00",
+  "deadline_at": "2026-10-22T19:36:18Z",
+  "observed_at": "2026-10-22T17:44:29Z",
+  "outcome": "product_failure",
+  "cause": "message_loss",
+  "aggregate_cost_micros": 20939800,
+  "operational_stop_micros": 1126567200,
+  "analysis_required": true
+}

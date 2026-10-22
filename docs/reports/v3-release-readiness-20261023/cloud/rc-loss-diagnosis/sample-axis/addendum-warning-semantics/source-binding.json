@@ -1,0 +1,42 @@
+{
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "files": [
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "bytes": 12335
+    },
+    {
+      "path": "internal/app/online_delivery.go",
+      "sha256": "1ff79492cc87ede7d006300f8866544e55d3a77530f560f979b2cb0acf74fc1a",
+      "bytes": 5278
+    },
+    {
+      "path": "internal/runtime/delivery/FLOW.md",
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+      "bytes": 3273
+    },
+    {
+      "path": "internal/runtime/delivery/runtime.go",
+      "sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b",
+      "bytes": 41754
+    },
+    {
+      "path": "internal/runtime/delivery/runtime_ports.go",
+      "sha256": "b4f8c7fc64b88b06b42e4f43da00d7d8f07cbdcf22339e4b77638d16025d8118",
+      "bytes": 8842
+    }
+  ],
+  "applicable_rule_sources": [
+    "AGENTS.md (bound in parent source-binding)",
+    "internal/app/FLOW.md scope package",
+    "internal/runtime/delivery/FLOW.md scope package"
+  ],
+  "absent_rule_files": [
+    "internal/app/AGENTS.md",
+    "internal/runtime/AGENTS.md",
+    "internal/runtime/FLOW.md",
+    "internal/runtime/delivery/AGENTS.md"
+  ],
+  "source_changes": []
+}

@@ -1,0 +1,2851 @@
+{
+  "schema": "wukongim.finite_evidence_copy_batch/v1",
+  "batch": 2,
+  "created_at_utc": "2026-10-22T17:42:31.690688+00:00",
+  "base_head": "ba54aad22f565f83c6593e4ba51a2b05264b4685",
+  "archive_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-qualification/docs/reports/v3-release-readiness-20261023",
+  "initial_status": [],
+  "source_file_count_including_metadata": 336,
+  "source_bytes_including_metadata": 5333679,
+  "groups": [
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1",
+      "target_root": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1",
+      "source_allowlist": "PUBLIC_ALLOWLIST.json",
+      "source_allowlist_sha256": "f69aff16dd329ada6112622c00af7abcc19174aa7f0acdcc5f3541242f4bad8a",
+      "source_sha256sums_sha256": "350a8f4b610caf083cbf5dc4b438a6da187a15fff6e1c0ba2a10a27bb101e941",
+      "source_manifest_entry_count": 116,
+      "source_original_allowlisted_payload_count": 115,
+      "copied_file_count_including_metadata": 118,
+      "copied_bytes_including_metadata": 2565780,
+      "metadata_envelopes_added": [
+        "PUBLIC_ALLOWLIST.json",
+        "SHA256SUMS",
+        "archive-summary.json"
+      ],
+      "source_archive_summary": {
+        "payload_files": 115,
+        "payload_bytes": 2531434,
+        "manifest_entries": 116,
+        "manifest_sha256": "350a8f4b610caf083cbf5dc4b438a6da187a15fff6e1c0ba2a10a27bb101e941",
+        "overall": "incomplete_first_attempt_failure"
+      },
+      "approved_public_test_only_zips": [
+        {
+          "path": "artifacts/12444422669-native-source-metadata-test-only.zip",
+          "bytes": 1271,
+          "sha256": "7bf2b30cc6a84003bfe8caab51da96ba9d85566edfd471ad0dfc134a89e78050"
+        },
+        {
+          "path": "artifacts/12444437687-native-bootstrap-preparation-test-only.zip",
+          "bytes": 7152,
+          "sha256": "70242fdb028c9f6d07fd4c7e8a40aee45f9dca80319d0e916e3fb5c68e52efc0"
+        },
+        {
+          "path": "artifacts/12444497529-native-local-signing-test-only.zip",
+          "bytes": 2797,
+          "sha256": "6c354f06a6a92c2f41d4241730aff938496d4de9ddb0c848a90bc3220e3474bb"
+        },
+        {
+          "path": "artifacts/12444562413-object-storage-sdk-contract.zip",
+          "bytes": 1338,
+          "sha256": "b03839821043b0e62c8220580e50af04db62db041aa0d17e4e8be5a48942ff5b"
+        },
+        {
+          "path": "artifacts/12444776836-native-stable-candidate-test-only.zip",
+          "bytes": 4186,
+          "sha256": "9441a76ce7d0acebf54c6556c2fcb6dbba7d8e01b4273cf94a5663de857cc8a8"
+        },
+        {
+          "path": "artifacts/12445495285-native-object-delivery-fixture-test-only.zip",
+          "bytes": 8400,
+          "sha256": "960a70849e7b25f8de3da85a9ce7a20f0d338ca64ace0b6fdc10984db15ee068"
+        },
+        {
+          "path": "artifacts/12445621136-native-stable-four-clients-test-only.zip",
+          "bytes": 141464,
+          "sha256": "1761245bbd60d65b6b7d6018a112df5711ac0050358eb9a6bc3fcf492ea35381"
+        }
+      ]
+    },
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1",
+      "target_root": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1",
+      "source_allowlist": "PUBLIC_ALLOWLIST.txt",
+      "source_allowlist_sha256": "84418e95843ccb6c0f5f5ea98c6f27a8f9ed403589d2539db0946041d51035ff",
+      "source_sha256sums_sha256": "bf305a54b37f9feee68f4b215842d666e85d589fa3ae05a92c26070b1e22e6cf",
+      "source_manifest_entry_count": 156,
+      "source_original_allowlisted_payload_count": 155,
+      "copied_file_count_including_metadata": 158,
+      "copied_bytes_including_metadata": 2416684,
+      "metadata_envelopes_added": [
+        "PUBLIC_ALLOWLIST.txt",
+        "SHA256SUMS",
+        "archive-summary.json"
+      ],
+      "source_archive_summary": {
+        "directory": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1",
+        "manifest_files": 156,
+        "payload_bytes": 2400655,
+        "sha256sums_sha256": "bf305a54b37f9feee68f4b215842d666e85d589fa3ae05a92c26070b1e22e6cf",
+        "scope": "startup plus acquired resource evidence, no handoff/run-start/2h result yet"
+      },
+      "approved_public_test_only_zips": []
+    },
+    {
+      "source_root": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1",
+      "target_root": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1",
+      "source_allowlist": "PUBLIC_ALLOWLIST.txt",
+      "source_allowlist_sha256": "535d4ac65034d89122fadb7ba904b013f462d5c9805cbac50c0488f73ee19226",
+      "source_sha256sums_sha256": "463839777b7a5777043d34c7a317e26084d4f678784f6f37e70e9001c79c6d5b",
+      "source_manifest_entry_count": 58,
+      "source_original_allowlisted_payload_count": 57,
+      "copied_file_count_including_metadata": 60,
+      "copied_bytes_including_metadata": 351215,
+      "metadata_envelopes_added": [
+        "PUBLIC_ALLOWLIST.txt",
+        "SHA256SUMS",
+        "archive-summary.json"
+      ],
+      "source_archive_summary": {
+        "directory": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1",
+        "manifest_files": 58,
+        "payload_bytes": 344220,
+        "sha256sums_sha256": "463839777b7a5777043d34c7a317e26084d4f678784f6f37e70e9001c79c6d5b",
+        "started_at": "2026-10-23T01:35:17.578381188+08:00",
+        "expected_end_at": "2026-10-23T03:35:17.578381188+08:00",
+        "two_hour_result": "not_observed",
+        "formal_result": "not_observed"
+      },
+      "approved_public_test_only_zips": []
+    }
+  ],
+  "files": [
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/PUBLIC_ALLOWLIST.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/PUBLIC_ALLOWLIST.txt",
+      "sha256": "535d4ac65034d89122fadb7ba904b013f462d5c9805cbac50c0488f73ee19226",
+      "bytes": 2698,
+      "selection": "explicit metadata envelope"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/README.md",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/README.md",
+      "sha256": "d692feabd3e951b88b19e711603fbe5e9bae21e1d404602c640be70fc7a2158e",
+      "bytes": 3460,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/SHA256SUMS",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/SHA256SUMS",
+      "sha256": "463839777b7a5777043d34c7a317e26084d4f678784f6f37e70e9001c79c6d5b",
+      "bytes": 6547,
+      "selection": "explicit metadata envelope"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/archive-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/archive-summary.json",
+      "sha256": "9ebf6c610358e332829ea59894abcd800ac884f5168c64e6e9237ca8eeba9457",
+      "bytes": 448,
+      "selection": "explicit metadata envelope"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/copy-receipt.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/copy-receipt.json",
+      "sha256": "f4805b63fc0f1c126921d879054531a0421ff1c31f8e78b51460fd8e00054ab0",
+      "bytes": 10284,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/capture-job-checkout.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/capture-job-checkout.py",
+      "sha256": "167449be842a4d1b31485329006263d6ea5de83a175309933e7fd20d933c051f",
+      "bytes": 1890,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/deployment/artifact-metadata.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/deployment/artifact-metadata.json",
+      "sha256": "626590eb00ca7818a878c81e9f1765864e274a309a582a01bdb7fbf60f27bcd4",
+      "bytes": 769,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/deployment/download.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/deployment/download.json",
+      "sha256": "5579099cd7169ce244db3a732bad0289f573cc1650cacb8b0a94592f42603c8b",
+      "bytes": 402,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/deployment/verified/analysis-endpoint.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/deployment/verified/analysis-endpoint.json",
+      "sha256": "6d2bed00d4554edb37eafd9e9f2ff07771b246bdedeac26f142703c1d9f57d3c",
+      "bytes": 576,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/deployment/verified/archive-verification.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/deployment/verified/archive-verification.json",
+      "sha256": "bcea954d92f0b8fc6b74406f7d1c3af8cff6e4d72058e42713cd4d7310f9f667",
+      "bytes": 1668,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/deployment/verified/deployment-outcome.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/deployment/verified/deployment-outcome.json",
+      "sha256": "1cdc195fe32288efc25c13f79d6badca1db2e8738e31789553baade79a447b46",
+      "bytes": 2497,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/deployment/verified/deployment-plan.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/deployment/verified/deployment-plan.json",
+      "sha256": "631f22522457b605e5374eec6a18e4a0c6587e62ed001e187d4bc1eeae1a87dc",
+      "bytes": 3172,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/deployment/verified/readiness-snapshot.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/deployment/verified/readiness-snapshot.json",
+      "sha256": "8b176a7029d61506a1a76b19cd3854cb923b068bf0e7007de7162358aca6088a",
+      "bytes": 4129,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/handoff-download.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/handoff-download.json",
+      "sha256": "4cf5676b9217310b1094471f467d7f36002d2a1112252ff216a0765054dade0e",
+      "bytes": 403,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/handoff-metadata.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/handoff-metadata.json",
+      "sha256": "3325132058c47fdc76abd8a7bd6fa7c8e2dc37915ee6904b08f47d3b3bd39cf2",
+      "bytes": 805,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/preflight-metadata.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/preflight-metadata.json",
+      "sha256": "49c1b41440929e325010163e1cd94baca661caf18fde710e08450048b8208457",
+      "bytes": 805,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/analysis-endpoint.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/analysis-endpoint.json",
+      "sha256": "6d2bed00d4554edb37eafd9e9f2ff07771b246bdedeac26f142703c1d9f57d3c",
+      "bytes": 576,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/archive-verification.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/archive-verification.json",
+      "sha256": "76fa7c16b2a83d5991144276bffcf7d4e974d020fc0a56bf39e2df5eb840f455",
+      "bytes": 8817,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/start-stderr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/start-stderr.json",
+      "sha256": "e2918c432271e0bf4802e8e02418c0efa889467a98a88ba67c76559bcb3659de",
+      "bytes": 106,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/start-stdout.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/start-stdout.json",
+      "sha256": "edc3eb0bf9548d5a8b21af7d31239680f5943dea87ab647be41ba02f93bb0419",
+      "bytes": 104,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/state-stderr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/state-stderr.json",
+      "sha256": "edc3eb0bf9548d5a8b21af7d31239680f5943dea87ab647be41ba02f93bb0419",
+      "bytes": 104,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/state-stdout.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/state-stdout.json",
+      "sha256": "24e6ee75e942e5c09248d5515e9ef27ef83c1d7be5568a2c68226640e56659ee",
+      "bytes": 106,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/unit.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/attempt-1/pre-clock-generation-1/unit.json",
+      "sha256": "51eb2d5392a7293f209d90237d7564ca0c7ac45cfdee18a3d876454a8ab846ff",
+      "bytes": 966,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/continuation-authentication.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/continuation-authentication.json",
+      "sha256": "cc086d72e9d9ca01e23de2fb738693d8d8a4da9a520909898910446db77c8d3c",
+      "bytes": 129,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/deployment-outcome.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/deployment-outcome.json",
+      "sha256": "1cdc195fe32288efc25c13f79d6badca1db2e8738e31789553baade79a447b46",
+      "bytes": 2497,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/deployment-plan.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/deployment-plan.json",
+      "sha256": "631f22522457b605e5374eec6a18e4a0c6587e62ed001e187d4bc1eeae1a87dc",
+      "bytes": 3172,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/encrypted-public-identity-binding.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/encrypted-public-identity-binding.json",
+      "sha256": "e169c2a1a8a4c07e6035c0784f3906381b25666cae350096cef44406dc88d9f8",
+      "bytes": 1717,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/handoff.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/handoff.json",
+      "sha256": "f6fefa112e87955acfd7037d30bdc734cd603ba9789f82e80e74096567efdeb8",
+      "bytes": 499,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/identity-verification.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/identity-verification.json",
+      "sha256": "8fd912cd8d88fcec212616957c538a0fbcde4f6bfa4b2d617ada9419b5f6bdfe",
+      "bytes": 6738,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/issue-preflight.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/issue-preflight.json",
+      "sha256": "33a7139465d452a1ebf555ef1567cfc624b3326ab9128ad5974cefb8395ac2f7",
+      "bytes": 258,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/release-selector.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/release-selector.json",
+      "sha256": "4d9e33609f22fb03919396893724be4716660d7658093a497b1fc32d976a161d",
+      "bytes": 319,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/request-budget.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/request-budget.json",
+      "sha256": "82cacad52e10d80811d7298358e71160505659a2ce661bf8b55870086c054ca0",
+      "bytes": 68,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/run-plan.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/run-plan.json",
+      "sha256": "cb5f4bbdacdd20f28913030e3d588a7a85fe74a20f9b63dba996ccbe09ff22d2",
+      "bytes": 2361,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/handoff/verified/run-start.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/handoff/verified/run-start.json",
+      "sha256": "b6a88b8e5f6841e316f896a5ac618775e4e40260163447886e8df83316343cdb",
+      "bytes": 398,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/job-checkouts/119971768014.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/job-checkouts/119971768014.json",
+      "sha256": "b53dd57096012107d380254676c216644dd32f33b80584d4ff2ed90cc8e2572a",
+      "bytes": 744,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/job-checkouts/119977517350.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/job-checkouts/119977517350.json",
+      "sha256": "a2a941f552b2f3c9bfdf432c5fe3748ec5890aa6ed7f86be09e644515b87d380",
+      "bytes": 744,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/verify-deployment-artifact.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/verify-deployment-artifact.py",
+      "sha256": "8faa1ec1fddc3b7377b9a733e40309e85efc7489f93fc1d328de5da492322d65",
+      "bytes": 1981,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/live-observation/verify-deployment-handoff.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/live-observation/verify-deployment-handoff.py",
+      "sha256": "cd24aadbf5a80e50063a64291c38fdb10ab26deceeb5b92f68d31be3d7abdad0",
+      "bytes": 12537,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/39821046654-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/39821046654-artifacts.json",
+      "sha256": "75b6675b8826f1f36351ae53fe10535115b7cc9e8fe1167273dba2839a8d4780",
+      "bytes": 959,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/39821046654-cache-basis.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/39821046654-cache-basis.json",
+      "sha256": "a9f2b0cd8c08a99c999516ff8662f0719a594db0eb36263e318908441d3b6e7c",
+      "bytes": 207,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/39821046654-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/39821046654-jobs.json",
+      "sha256": "cc92f558aaf4452ea9d5b14433b591685633e16b320be79a1963ff0a333b7338",
+      "bytes": 6213,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/39821268304-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/39821268304-artifacts.json",
+      "sha256": "477f0027367413c9353b9d887e74c4db9bf3ed760792028eda994082c1beb74b",
+      "bytes": 917,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/39821268304-cache-basis.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/39821268304-cache-basis.json",
+      "sha256": "a9f2b0cd8c08a99c999516ff8662f0719a594db0eb36263e318908441d3b6e7c",
+      "bytes": 207,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/39821268304-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/39821268304-jobs.json",
+      "sha256": "71cd03d613b3eefe28608362450f192b68f51eea02459fb328a05e1286015c23",
+      "bytes": 5868,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/39822336878-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/39822336878-artifacts.json",
+      "sha256": "03b3d3723ee84d4bd8529ba1eddb540baf43eb872ab4fc6c5da2abba23bbfdb8",
+      "bytes": 918,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/39822336878-cache-basis.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/39822336878-cache-basis.json",
+      "sha256": "a9f2b0cd8c08a99c999516ff8662f0719a594db0eb36263e318908441d3b6e7c",
+      "bytes": 207,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/39822336878-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/39822336878-jobs.json",
+      "sha256": "d5b7e9905664090025692b822555af1efe64c5fa4077057135e92de5831a5b48",
+      "bytes": 7263,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/39822605006-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/39822605006-artifacts.json",
+      "sha256": "a96fb6d335550a16108b2c1887985f05c84bb35ccccc365547410a73e09b48f0",
+      "bytes": 894,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/39822605006-cache-basis.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/39822605006-cache-basis.json",
+      "sha256": "a9f2b0cd8c08a99c999516ff8662f0719a594db0eb36263e318908441d3b6e7c",
+      "bytes": 207,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/39822605006-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/39822605006-jobs.json",
+      "sha256": "0e1834466da38a0f1db1a2c59b43c6fc838dde2246af391245941ec370676f46",
+      "bytes": 5632,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/request-runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/request-runs.json",
+      "sha256": "cb98206f50c640deccc44c5a695460e3a484edd1785e5ca9097a25291a87254d",
+      "bytes": 3260,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/summary.json",
+      "sha256": "399628cd5c1ba014f67dd415837f4a1412c1954d53233778fa3421fec7cd33e5",
+      "bytes": 10209,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/top-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/top-artifacts.json",
+      "sha256": "7a19577843b2a3b55dbcdbe32a0d78952e92da119fe938081fb28cee3f6dec97",
+      "bytes": 2715,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/top-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/top-jobs.json",
+      "sha256": "8f894dbf964e0a02826089b3a2d02b3443f2a7490eb59dc2e1dfad67a8cfa2b5",
+      "bytes": 7369,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/poll-15/top.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/poll-15/top.json",
+      "sha256": "2a8a73b0eba590dde4c141254480350185465b70cb5ae33a0ebc1e43c6b0d502",
+      "bytes": 556,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/post-handoff-observation-01/comments.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/post-handoff-observation-01/comments.json",
+      "sha256": "599ee29454863533f8cbe2b936b420ef3e6a52fe090a0a74163e788e79981cec",
+      "bytes": 5872,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/post-handoff-observation-01/finalizer-state.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/post-handoff-observation-01/finalizer-state.json",
+      "sha256": "bb8daaff65f309f585c9df3e99700951a252966ebfcce4aacd536051c0e7af7f",
+      "bytes": 840,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/post-handoff-observation-01/finalizers.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/post-handoff-observation-01/finalizers.json",
+      "sha256": "dc249cdd49297bb0358f0aa57957abf7f3301b38ad093e1375fca2fbb4a02f84",
+      "bytes": 198689,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/post-handoff-observation-01/issue.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/post-handoff-observation-01/issue.json",
+      "sha256": "377b2851f30a08535f877e8165d0de2cdfdf099fc759b52c0c8adf6e5c517317",
+      "bytes": 5937,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-handoff-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1/post-handoff-observation-01/release-state.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-handoff-v1/post-handoff-observation-01/release-state.json",
+      "sha256": "b668ecc3e996409f9d713cf9b3f873f5b863646869e9df27773228ee130c688a",
+      "bytes": 782,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/PUBLIC_ALLOWLIST.txt",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/PUBLIC_ALLOWLIST.txt",
+      "sha256": "84418e95843ccb6c0f5f5ea98c6f27a8f9ed403589d2539db0946041d51035ff",
+      "bytes": 5359,
+      "selection": "explicit metadata envelope"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/README.md",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/README.md",
+      "sha256": "4e866df0cedc920985c6797f36cb47ca4880b64a3874ae5ec649333474c88613",
+      "bytes": 3835,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/SHA256SUMS",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/SHA256SUMS",
+      "sha256": "bf305a54b37f9feee68f4b215842d666e85d589fa3ae05a92c26070b1e22e6cf",
+      "bytes": 15676,
+      "selection": "explicit metadata envelope"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/active-formal-authenticated-matrix.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/active-formal-authenticated-matrix.json",
+      "sha256": "d8c04ef911e850e4eeed2e35ca6ee5d4cdf7f6086297d89e40c56f4e96472fe7",
+      "bytes": 15,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/active-rehearsal-authenticated-matrix.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/active-rehearsal-authenticated-matrix.json",
+      "sha256": "d8c04ef911e850e4eeed2e35ca6ee5d4cdf7f6086297d89e40c56f4e96472fe7",
+      "bytes": 15,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/archive-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/archive-summary.json",
+      "sha256": "34bd3828fd907ef53b22777110aad34fed736f8c700d6c98ba75dbed3d3555c0",
+      "bytes": 353,
+      "selection": "explicit metadata envelope"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/authoritative-retained-inventory.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/authoritative-retained-inventory.json",
+      "sha256": "337b85130e69630167351200f252010af1b7474f64b856ba17f3b4ca5df24e65",
+      "bytes": 534063,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/authority-source-freeze.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/authority-source-freeze.json",
+      "sha256": "afb1fc0afaa086d025f54cf037644bf2f5124ac82a867cfa12b8798ac6c23fdb",
+      "bytes": 1013,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/authorization-original.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/authorization-original.json",
+      "sha256": "91373109408d6a22a7e92de50ce97bc390470a7706729db104ebe552b6d790c8",
+      "bytes": 1303,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/copy-receipt.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/copy-receipt.json",
+      "sha256": "a8813a70e03bdf26dad23554e51b87d6d4f069ee023c8674ddbb96d63a1330ad",
+      "bytes": 25972,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/create-issue-once.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/create-issue-once.py",
+      "sha256": "9e8442e5571c545f0fa582c6e253174fd4dcec1fab8b0de2c58828fd9c94a59b",
+      "bytes": 6957,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/diagnostic.pub",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/diagnostic.pub",
+      "sha256": "99a6e5cbd8cb43faa21ce5df3768a5a6da51110eb61472e1cc81c92066c71c4b",
+      "bytes": 112,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/dispatch-attempt.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/dispatch-attempt.json",
+      "sha256": "d3aef3843f6f90a76c20bfd51c9c8110922aa2714e21bca50c3de0f772b257bf",
+      "bytes": 769,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/dispatch-issue-before.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/dispatch-issue-before.json",
+      "sha256": "97630e10e379416de20c74e164de8f7305def76e5ab2af3dbdb503390f7c20f5",
+      "bytes": 5937,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/dispatch-latest-top-before.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/dispatch-latest-top-before.json",
+      "sha256": "0851f1d70c8f7e4cdf164b3f87bcf97114f82a67f05c08e8ea4bba54a24fae55",
+      "bytes": 19744,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/dispatch-main-before.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/dispatch-main-before.json",
+      "sha256": "ef69da56419f5cd9b0c53dce3b83fa2d7eed13805b05153eb0987d6062862825",
+      "bytes": 545,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/dispatch-once.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/dispatch-once.py",
+      "sha256": "be6fb3b123ff0137e6651ce5b3876d427a94f48b4274400cf574a3bc9201665c",
+      "bytes": 3504,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/dispatch-result.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/dispatch-result.json",
+      "sha256": "670068c739f03ab82e6032c615fbe99a91e8e5c72862d982a3fcd603d91de6ab",
+      "bytes": 307,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/dispatch-run-reconciled.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/dispatch-run-reconciled.json",
+      "sha256": "fc7ae75e40457b29be52c609fe996ff72388042ac453fc76abfb6e7219738f54",
+      "bytes": 421,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/dispatch-runs-after.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/dispatch-runs-after.json",
+      "sha256": "f1781f5021ace89f1e5628d8a167aacb2180d3cdf80d58b04a5c2f4e7a53fa9e",
+      "bytes": 195245,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard.py",
+      "sha256": "81724bf5633f8d7f96b791de2ed03f6b7570b9d02a1cb47f3649dab13249b23f",
+      "bytes": 9549,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard.stdout.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard.stdout.json",
+      "sha256": "a8542d5db4bfcc510f1c193a159fddeac02c6d3c93c71fe2e5d6ce42ec726e6a",
+      "bytes": 2279,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/authority-formal.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/authority-formal.json",
+      "sha256": "cc5297e2f5617ac0f4f8e1adbc383f2d14492ac8e014feef3250de87e4e99651",
+      "bytes": 431,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/authority-rehearsal.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/authority-rehearsal.json",
+      "sha256": "6457e3e0e8299cf395fd730a0d426dd757df041baac07073cfb0729791502f81",
+      "bytes": 429,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/bounded-control-inventory.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/bounded-control-inventory.json",
+      "sha256": "5972aaa748d1299ea5593a45c02cd38107ee744db077586fb9689911d9c530d9",
+      "bytes": 142247,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/fresh-public-guard.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/fresh-public-guard.json",
+      "sha256": "7a3049ba8c6d8f7f693e4158edc8a1e55905cc435d6c9d3e0222f78d08a3825a",
+      "bytes": 4772,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH.json",
+      "sha256": "f24c06c8373c1b14db70aaa2d9f089cea0f1a76df172d2e1be49c380d76a3a08",
+      "bytes": 511,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN.json",
+      "sha256": "58c659197b2d0c63120540ad0f3fa054b4f11d46ab420386d9149b75432a72c4",
+      "bytes": 515,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE.json",
+      "sha256": "11fb12e4ea300a4eacde49d933201c5f4eb51c5386ce146079878c1ada006571",
+      "bytes": 507,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN.json",
+      "sha256": "a35e7edd240d3168f9c11fd6ce1668c20471c44ac3df22b43bdd58cb8e0a674a",
+      "bytes": 515,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN.json",
+      "sha256": "885cb1a480e30828b3cfba1f19970deba3cf5f24268a5d2d29f2370ad0046869",
+      "bytes": 521,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/ALIBABA_CLOUD_LEASE_REGION.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/ALIBABA_CLOUD_LEASE_REGION.json",
+      "sha256": "c6c8f53f6ac878aa4dd3bc68d322bc337f8b5553ed47e9180d26a1dba32e138d",
+      "bytes": 493,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN.json",
+      "sha256": "f741a3de3558b9d949f29ee4e8647584e283157e486dd833c21110243c2cfb5c",
+      "bytes": 515,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY.json",
+      "sha256": "d04af8831bba7545f36d071ec3e77d9f4f683a49a12680d69c43b8f127229c42",
+      "bytes": 515,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/active-in_progress-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/active-in_progress-1.json",
+      "sha256": "c0ab9ca703e109cefbe3f0b7f7a0559ae4912c9b49457eb12c91d694c04c7090",
+      "bytes": 356,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/active-pending-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/active-pending-1.json",
+      "sha256": "7a555c998e7be8a5da671d4fa6783b4dcb5afd2f9d87c765d89068f841913610",
+      "bytes": 356,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/active-queued-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/active-queued-1.json",
+      "sha256": "63ff6319b7ee36567fd23971c8871369f82053fb9b626647a532444c1253f78a",
+      "bytes": 356,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/active-requested-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/active-requested-1.json",
+      "sha256": "22a5203d5ff9decce5507741830f6fe33ef44affe6bd9fdff8691964a02bbb4b",
+      "bytes": 356,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/active-waiting-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/active-waiting-1.json",
+      "sha256": "b6d6f6d5cc035aeaec43e1448751a9eb315d774a112061135e38282dea1c5433",
+      "bytes": 356,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/artifacts-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/artifacts-1.json",
+      "sha256": "7aed7e05a210eda7fb21a280472565e1b4f443d82a9fc5fa4e5bd64d1b1ac16d",
+      "bytes": 93206,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/artifacts-2.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/artifacts-2.json",
+      "sha256": "ce22080968fa5cf2e6561b7a75a69c932fb89099db884f5bb261749f06fc5000",
+      "bytes": 93727,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/artifacts-3.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/artifacts-3.json",
+      "sha256": "dfaf58224fa20bc569d1ed79a3461f22ca1a030003d84f45ae333dc1dc961baf",
+      "bytes": 94687,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/artifacts-4.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/artifacts-4.json",
+      "sha256": "1bba4dc999f29e336506aa3399d3f651a4b02478235a1b83cf61ab53ee9666ed",
+      "bytes": 91663,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/artifacts-5.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/artifacts-5.json",
+      "sha256": "71f1b7fc01b404f7640fefd4dbbfdd8fd7d547f43cabbbd898ed3ab7c177bde8",
+      "bytes": 91325,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/artifacts-6.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/artifacts-6.json",
+      "sha256": "a0ba06dbc8c06f67ad6e83367be8d7a893b333c1570408f2a6304e8d58e5560b",
+      "bytes": 92052,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/artifacts-7.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/artifacts-7.json",
+      "sha256": "a9c5542ecdf8e3a369d989e1e61d14f8ec5502e0a2cb3b8b445f26d72f1b93d6",
+      "bytes": 4080,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/issue-before.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/issue-before.json",
+      "sha256": "eb67dc93414750a4a1ad9a5c5774ba88c43f2b92b1f0f2bf60ab34b204d9b18a",
+      "bytes": 388,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/latest-top.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/latest-top.json",
+      "sha256": "ccce5e49238ef270149a4aaf8af8ebc4617e0d92d995e9740440240a375f44f5",
+      "bytes": 19892,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/main-after.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/main-after.json",
+      "sha256": "5132ac5eee75b3b110659a2c389d3f1ea061d51dd67142ad07a9a4bbe719283e",
+      "bytes": 700,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/main-before.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/main-before.json",
+      "sha256": "b71bbeb1f151e82752ea6a756c862421a94cb9039c467fdf4bcc98fd05d313d1",
+      "bytes": 700,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/oidc-subject.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/oidc-subject.json",
+      "sha256": "5e3ea024bebf973b0b2516c0133eac4386cec33fc300089c82f47979ebac37a8",
+      "bytes": 531,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/workflow-chat-lifecycle-formal-finalize.yml.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/workflow-chat-lifecycle-formal-finalize.yml.json",
+      "sha256": "ef2296ba60810fc3ce19ef98d3358ebfa9c5ae69521db7514e1a674533739a4c",
+      "bytes": 1038,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/workflow-chat-lifecycle-formal.yml.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/workflow-chat-lifecycle-formal.yml.json",
+      "sha256": "f7da8f820bb537ec0a325602a242056d1da9c499e3c028c8aac4a1f9980a7671",
+      "bytes": 1007,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/workflow-chat-lifecycle-rehearsal-finalize.yml.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/workflow-chat-lifecycle-rehearsal-finalize.yml.json",
+      "sha256": "150cd431b4b06880a6601a3cebbf74deb153d54a98f8ffce6e19c0dfaa9ac331",
+      "bytes": 1043,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/workflow-chat-lifecycle-rehearsal.yml.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/workflow-chat-lifecycle-rehearsal.yml.json",
+      "sha256": "86f0dd2d66e06ef4bb8f282dd579744f56dd16b425f63945a2f8e03d06e7c01d",
+      "bytes": 983,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/workflow-chat-lifecycle-stop.yml.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/workflow-chat-lifecycle-stop.yml.json",
+      "sha256": "33f3449c5fd52dad4dd78b4bdc094c9e9a17340d697dd328576805c7bee9855b",
+      "bytes": 962,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/workflow-cloud-deployment-activate.yml.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/workflow-cloud-deployment-activate.yml.json",
+      "sha256": "1b0d233858f06bf7ad0e870dd11b83e9b1ba464c103e71e525a228cc91e97f87",
+      "bytes": 974,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/workflow-cloud-deployment-bundle.yml.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/workflow-cloud-deployment-bundle.yml.json",
+      "sha256": "f7e66e8908792a988a9a2d369510b3e90ec04f7962008c0b48fba264e154eac5",
+      "bytes": 978,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/workflow-cloud-lease-observe.yml.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/workflow-cloud-lease-observe.yml.json",
+      "sha256": "39e0f28500bb96c12fcdf761dd86bd7193d44a5d225ba7a3be93d601c0999f57",
+      "bytes": 944,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/workflow-cloud-lease-provision.yml.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/workflow-cloud-lease-provision.yml.json",
+      "sha256": "9f0a87e5a8f14078e605eceb98012bbd5a46ed24936a216a5a984bc729a4b56d",
+      "bytes": 954,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/reads/workflow-cloud-lease-release.yml.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/reads/workflow-cloud-lease-release.yml.json",
+      "sha256": "606f68da9cb97072391e7538165e5aee37c5ad98798fb11cb9b73eb4b4e29984",
+      "bytes": 971,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/retained-artifact-inventory.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/retained-artifact-inventory.json",
+      "sha256": "337b85130e69630167351200f252010af1b7474f64b856ba17f3b4ca5df24e65",
+      "bytes": 534063,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/guard/rules-and-source-freeze.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/guard/rules-and-source-freeze.json",
+      "sha256": "81cce6a3ca8fd2854b4c8a2c30d13cb726a4bb32f853b4790c0499b1dc1c6614",
+      "bytes": 4989,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/issue-body.md",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/issue-body.md",
+      "sha256": "16bd16c6bd057bfb8176bd0f4e82d42788e5b5b1d4069f2911795d1741ecb21b",
+      "bytes": 2843,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/issue-create-attempt.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/issue-create-attempt.json",
+      "sha256": "dead80067e5c41895748111971b0c1112c1e346929d876560bc164078527c4cb",
+      "bytes": 681,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/issue-create-result.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/issue-create-result.json",
+      "sha256": "21aa35cc609be1fc163adee81e33773d5a635172a968fe2daf009b8244ba7967",
+      "bytes": 357,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/issue-preflight.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/issue-preflight.json",
+      "sha256": "33a7139465d452a1ebf555ef1567cfc624b3326ab9128ad5974cefb8395ac2f7",
+      "bytes": 258,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/issue-search-reconcile-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/issue-search-reconcile-1.json",
+      "sha256": "7ae64a12300400dc57350bdb29eb6af820fbad1ddd9df74581ef3dab0dfd9e4d",
+      "bytes": 6350,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/issue-verification.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/issue-verification.json",
+      "sha256": "58c54bb731468d43dcaa35c64fe6197d924249bcbbcf11367c54d5866dc09d84",
+      "bytes": 386,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/acquire-verification.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/acquire-verification.json",
+      "sha256": "5bb25f3bc12942e5a11ed4fe6348f4c29208f22b2cf5f93ae814ab9f243adfad",
+      "bytes": 2471,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/acquire/artifact-metadata.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/acquire/artifact-metadata.json",
+      "sha256": "3d5fab0209b401b105e00b4fabbf6b3babae439c10a9736aebca09fffd5fa7cf",
+      "bytes": 793,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/acquire/download.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/acquire/download.json",
+      "sha256": "c58187033027f63b2f352e0d4cdcdcd139feae67b63fc3ac49003a7e9f44026b",
+      "bytes": 402,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/acquire/verified/quote.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/acquire/verified/quote.json",
+      "sha256": "8164de64326b590ca1abf5bab9dd572e04e886889be4513ecf53902a53fa2f26",
+      "bytes": 1842,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/acquire/verified/receipt.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/acquire/verified/receipt.json",
+      "sha256": "9ec564ae9c6981b8bb7672f08dfb109e4947335868cdf2773c588b87583dc9cc",
+      "bytes": 41130,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/acquire/verified/verification.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/acquire/verified/verification.json",
+      "sha256": "35b03517f80996994b450f1fa818dcc804e7f484665cd20cdae24f3d80d057bf",
+      "bytes": 563,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/bundle/artifact-metadata.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/bundle/artifact-metadata.json",
+      "sha256": "775858b5c22ccb4bbdbe87d494fa1549ebb245c3b60e0a02d12b5f043bc38eda",
+      "bytes": 834,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/bundle/download.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/bundle/download.json",
+      "sha256": "18bbe42004e42da730e4ac4bf3300bf6e2f6c103838a668772a4a023b32049bf",
+      "bytes": 407,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/bundle/verified/bundle-manifest-output.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/bundle/verified/bundle-manifest-output.json",
+      "sha256": "61d3582eee1aeca2e956b4dbcd1b424fd33de06251b415d81d6928aae81e21c2",
+      "bytes": 21151,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/bundle/verified/bundle-manifest.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/bundle/verified/bundle-manifest.json",
+      "sha256": "61d3582eee1aeca2e956b4dbcd1b424fd33de06251b415d81d6928aae81e21c2",
+      "bytes": 21151,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/bundle/verified/deployment-intent.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/bundle/verified/deployment-intent.json",
+      "sha256": "dc834173cc6307f6f89234dd5724ddf47fc27d4a23061126ca5e1655177374f0",
+      "bytes": 1627,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/bundle/verified/verification.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/bundle/verified/verification.json",
+      "sha256": "caa80d0c1601f5addd0ad0a31fd0e2b4e42efc9e40cf9f90eb295f477d804d90",
+      "bytes": 1378,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/capture-job-checkout.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/capture-job-checkout.py",
+      "sha256": "167449be842a4d1b31485329006263d6ea5de83a175309933e7fd20d933c051f",
+      "bytes": 1890,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/download-artifact.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/download-artifact.py",
+      "sha256": "62fa84d6b1c65989ee4289b268ed2be2935f1a4cf35883fe43facc4f745e25e9",
+      "bytes": 1237,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/expected-deployment-intent.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/expected-deployment-intent.json",
+      "sha256": "dc834173cc6307f6f89234dd5724ddf47fc27d4a23061126ca5e1655177374f0",
+      "bytes": 1627,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/expected-intent-basis.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/expected-intent-basis.json",
+      "sha256": "c41ae650fff17f2bd0933dc509d1ee07c43a678a5b78a68035451dae6571605c",
+      "bytes": 521,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/job-checkouts/119972090230.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/job-checkouts/119972090230.json",
+      "sha256": "cfa0a67f926066e5e1911bc9417c800e55c87c55c4583f18f0f16e2e46adfcd7",
+      "bytes": 835,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/job-checkouts/119972873979.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/job-checkouts/119972873979.json",
+      "sha256": "2ba7b8078b5b29c7482ea713b39e5240ff6d0ea00281e14ec8b01d0594758426",
+      "bytes": 743,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/job-checkouts/119976684740.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/job-checkouts/119976684740.json",
+      "sha256": "95f02bfb7b88728c34037eb971a2edb8e433b09a68944b6c3b19db430ab7a71b",
+      "bytes": 743,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/quote/artifact-metadata.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/quote/artifact-metadata.json",
+      "sha256": "90be347d06a6a6ba92f1b38856af2049d6589b85a514f2f072ade18e940b30a0",
+      "bytes": 792,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/quote/download.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/quote/download.json",
+      "sha256": "63bb79b2876f3c899043775a3e24122b71db8868371f085333c5ca69dbf5f57d",
+      "bytes": 401,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/quote/input-binding.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/quote/input-binding.json",
+      "sha256": "2f552c3a8f94bf1c242c3f800f9a43efc56bd4dd7c10af289aee02d3f12c4986",
+      "bytes": 1462,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/quote/observed-plan.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/quote/observed-plan.json",
+      "sha256": "d2673cf6e699a5e5e9de2b9e027b7139aadb9cfd23f98765c25355506656f7c7",
+      "bytes": 2741,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/quote/verified/quote.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/quote/verified/quote.json",
+      "sha256": "8164de64326b590ca1abf5bab9dd572e04e886889be4513ecf53902a53fa2f26",
+      "bytes": 1842,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/quote/verified/verification.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/quote/verified/verification.json",
+      "sha256": "530350f7b54f83c08716b119f640bf81b8373ad433bf999e1b92e8e65493ed4e",
+      "bytes": 343,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/verify-acquire.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/verify-acquire.py",
+      "sha256": "f71c2085a00c044df0d3fa6948123f7c4196572ccf18eac6df40980549f9534c",
+      "bytes": 5091,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/verify-bundle-artifact.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/verify-bundle-artifact.py",
+      "sha256": "613f6cb9f23fd76f10586d45b1e597c2cea1f65fd33fc9bfc3e9f2b2e53316a4",
+      "bytes": 8372,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/live-observation/verify-public-json-artifact.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/live-observation/verify-public-json-artifact.py",
+      "sha256": "f28bc33415f6d03edba62f2deee3081c0f749b15d35815dbb7a29acea3a91780",
+      "bytes": 1619,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/local-diagnostic-identity.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/local-diagnostic-identity.json",
+      "sha256": "6ac6310508a9b851b5996c71139c7baf64048ef0f04cda9ccae0c9359d05298a",
+      "bytes": 607,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/planned-workflow-inputs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/planned-workflow-inputs.json",
+      "sha256": "0b466255de8568a2b96cc108854c32b2da441b976f6248ccf067919b66919d12",
+      "bytes": 365,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-01/request-runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-01/request-runs.json",
+      "sha256": "14c60212e3a0ea1d2d2f1465a8f4f18bffa8095e5e3c960678d0572780744494",
+      "bytes": 708,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-01/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-01/summary.json",
+      "sha256": "988e7222362304b2a890ee8b0e5e8c697a600fcd78fe0165a519180c1dd13961",
+      "bytes": 3528,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-01/top-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-01/top-artifacts.json",
+      "sha256": "f7417e1fb877d3f5934f143cc38ad9e2905476e8f5ac6776507d09441efcd6f6",
+      "bytes": 42,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-01/top-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-01/top-jobs.json",
+      "sha256": "9f489d0c062df5a3533045d5a1da53ae2f4aacedce3a0ea15e4af2a08fa2043f",
+      "bytes": 6438,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-01/top.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-01/top.json",
+      "sha256": "eaf0899486dfee586c70204e9f661173deea51c99cf61f28d5e14b83e2534c51",
+      "bytes": 553,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-08/39821046654-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-08/39821046654-artifacts.json",
+      "sha256": "75b6675b8826f1f36351ae53fe10535115b7cc9e8fe1167273dba2839a8d4780",
+      "bytes": 959,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-08/39821046654-cache-basis.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-08/39821046654-cache-basis.json",
+      "sha256": "e20bbbceb87ff947537a82cfa51204061c0eae7cdeb3580870708e31b9609f8c",
+      "bytes": 207,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-08/39821046654-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-08/39821046654-jobs.json",
+      "sha256": "cc92f558aaf4452ea9d5b14433b591685633e16b320be79a1963ff0a333b7338",
+      "bytes": 6213,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-08/39821268304-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-08/39821268304-artifacts.json",
+      "sha256": "477f0027367413c9353b9d887e74c4db9bf3ed760792028eda994082c1beb74b",
+      "bytes": 917,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-08/39821268304-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-08/39821268304-jobs.json",
+      "sha256": "71cd03d613b3eefe28608362450f192b68f51eea02459fb328a05e1286015c23",
+      "bytes": 5868,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-08/39822336878-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-08/39822336878-artifacts.json",
+      "sha256": "03b3d3723ee84d4bd8529ba1eddb540baf43eb872ab4fc6c5da2abba23bbfdb8",
+      "bytes": 918,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-08/39822336878-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-08/39822336878-jobs.json",
+      "sha256": "a0c849632294b65c9e7e54ca6f89bd07398b4111d4dfc4331c7e3d44900a1f88",
+      "bytes": 6805,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-08/request-runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-08/request-runs.json",
+      "sha256": "d4ba8f873b5a2a9d4b36d6b30e5cbeb09e997d3fe2d51e5d228b68be9dcbad97",
+      "bytes": 2595,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-08/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-08/summary.json",
+      "sha256": "1f14de59130ff9749e41c85ca7f8b58abffc83610499968d29c65ae039b1d179",
+      "bytes": 6545,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-08/top-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-08/top-artifacts.json",
+      "sha256": "f7417e1fb877d3f5934f143cc38ad9e2905476e8f5ac6776507d09441efcd6f6",
+      "bytes": 42,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-08/top-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-08/top-jobs.json",
+      "sha256": "7c9c3591adb2b92ed4a4ebe9b66c8dbdc58697fba2d458f032e1ae3076e9dc8f",
+      "bytes": 6524,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-08/top.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-08/top.json",
+      "sha256": "eaf0899486dfee586c70204e9f661173deea51c99cf61f28d5e14b83e2534c51",
+      "bytes": 553,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/39821046654-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/39821046654-artifacts.json",
+      "sha256": "75b6675b8826f1f36351ae53fe10535115b7cc9e8fe1167273dba2839a8d4780",
+      "bytes": 959,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/39821046654-cache-basis.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/39821046654-cache-basis.json",
+      "sha256": "32c5cd4f035f69afc12ff08a0ff4b9af46983a9a5a9c134a28b8911bf75e6535",
+      "bytes": 207,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/39821046654-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/39821046654-jobs.json",
+      "sha256": "cc92f558aaf4452ea9d5b14433b591685633e16b320be79a1963ff0a333b7338",
+      "bytes": 6213,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/39821268304-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/39821268304-artifacts.json",
+      "sha256": "477f0027367413c9353b9d887e74c4db9bf3ed760792028eda994082c1beb74b",
+      "bytes": 917,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/39821268304-cache-basis.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/39821268304-cache-basis.json",
+      "sha256": "32c5cd4f035f69afc12ff08a0ff4b9af46983a9a5a9c134a28b8911bf75e6535",
+      "bytes": 207,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/39821268304-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/39821268304-jobs.json",
+      "sha256": "71cd03d613b3eefe28608362450f192b68f51eea02459fb328a05e1286015c23",
+      "bytes": 5868,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/39822336878-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/39822336878-artifacts.json",
+      "sha256": "03b3d3723ee84d4bd8529ba1eddb540baf43eb872ab4fc6c5da2abba23bbfdb8",
+      "bytes": 918,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/39822336878-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/39822336878-jobs.json",
+      "sha256": "d5b7e9905664090025692b822555af1efe64c5fa4077057135e92de5831a5b48",
+      "bytes": 7263,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/39822605006-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/39822605006-artifacts.json",
+      "sha256": "f7417e1fb877d3f5934f143cc38ad9e2905476e8f5ac6776507d09441efcd6f6",
+      "bytes": 42,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/39822605006-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/39822605006-jobs.json",
+      "sha256": "fc41b885d27b48f24e9e8b242f7d6e2ad6ba31f28b915423d751a120b94155b0",
+      "bytes": 5131,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/request-runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/request-runs.json",
+      "sha256": "0b87d08cf6db5f7c6a884fb968f977f0700c3c1e14539f07189b85c081078b7a",
+      "bytes": 3254,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/summary.json",
+      "sha256": "b85877b4aabe805bd984106bc723268aec5099ae1936352ca9b6087ca19829b1",
+      "bytes": 7275,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/top-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/top-artifacts.json",
+      "sha256": "f7417e1fb877d3f5934f143cc38ad9e2905476e8f5ac6776507d09441efcd6f6",
+      "bytes": 42,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/top-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/top-jobs.json",
+      "sha256": "7c9c3591adb2b92ed4a4ebe9b66c8dbdc58697fba2d458f032e1ae3076e9dc8f",
+      "bytes": 6524,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-09/top.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-09/top.json",
+      "sha256": "eaf0899486dfee586c70204e9f661173deea51c99cf61f28d5e14b83e2534c51",
+      "bytes": 553,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/39821046654-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/39821046654-artifacts.json",
+      "sha256": "75b6675b8826f1f36351ae53fe10535115b7cc9e8fe1167273dba2839a8d4780",
+      "bytes": 959,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/39821046654-cache-basis.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/39821046654-cache-basis.json",
+      "sha256": "a6e47dbb47eb0c4d798205f606098d9ab713dee15eaf80e5db4432ac3956bad9",
+      "bytes": 207,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/39821046654-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/39821046654-jobs.json",
+      "sha256": "cc92f558aaf4452ea9d5b14433b591685633e16b320be79a1963ff0a333b7338",
+      "bytes": 6213,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/39821268304-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/39821268304-artifacts.json",
+      "sha256": "477f0027367413c9353b9d887e74c4db9bf3ed760792028eda994082c1beb74b",
+      "bytes": 917,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/39821268304-cache-basis.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/39821268304-cache-basis.json",
+      "sha256": "a6e47dbb47eb0c4d798205f606098d9ab713dee15eaf80e5db4432ac3956bad9",
+      "bytes": 207,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/39821268304-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/39821268304-jobs.json",
+      "sha256": "71cd03d613b3eefe28608362450f192b68f51eea02459fb328a05e1286015c23",
+      "bytes": 5868,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/39822336878-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/39822336878-artifacts.json",
+      "sha256": "03b3d3723ee84d4bd8529ba1eddb540baf43eb872ab4fc6c5da2abba23bbfdb8",
+      "bytes": 918,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/39822336878-cache-basis.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/39822336878-cache-basis.json",
+      "sha256": "a6e47dbb47eb0c4d798205f606098d9ab713dee15eaf80e5db4432ac3956bad9",
+      "bytes": 207,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/39822336878-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/39822336878-jobs.json",
+      "sha256": "d5b7e9905664090025692b822555af1efe64c5fa4077057135e92de5831a5b48",
+      "bytes": 7263,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/39822605006-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/39822605006-artifacts.json",
+      "sha256": "f7417e1fb877d3f5934f143cc38ad9e2905476e8f5ac6776507d09441efcd6f6",
+      "bytes": 42,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/39822605006-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/39822605006-jobs.json",
+      "sha256": "fc41b885d27b48f24e9e8b242f7d6e2ad6ba31f28b915423d751a120b94155b0",
+      "bytes": 5131,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/request-runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/request-runs.json",
+      "sha256": "2d5d0e3eb409a80c14cf3ad060b018d45c2e4b295c4e45be21a6d594e33d5209",
+      "bytes": 3254,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/summary.json",
+      "sha256": "ebe460261d3a11461f51434c985b8af26b88ed6966b3c04557b4d364694353d6",
+      "bytes": 7275,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/top-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/top-artifacts.json",
+      "sha256": "f7417e1fb877d3f5934f143cc38ad9e2905476e8f5ac6776507d09441efcd6f6",
+      "bytes": 42,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/top-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/top-jobs.json",
+      "sha256": "7c9c3591adb2b92ed4a4ebe9b66c8dbdc58697fba2d458f032e1ae3076e9dc8f",
+      "bytes": 6524,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll-11/top.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll-11/top.json",
+      "sha256": "eaf0899486dfee586c70204e9f661173deea51c99cf61f28d5e14b83e2534c51",
+      "bytes": 553,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/poll.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/poll.py",
+      "sha256": "bd404231693a981fb139da629cc688e5e81178e4392679c82e3e3a471d416bcd",
+      "bytes": 4816,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/prepare-local.py",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/prepare-local.py",
+      "sha256": "83b134023453768d4bf27886bcbac53cbf8c369b072df8a287dfd6c0773ef4b9",
+      "bytes": 5365,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/prior-dispatch-reconcile-page-1.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/prior-dispatch-reconcile-page-1.json",
+      "sha256": "0435a93aedde974dc7ab497e850075548a502d7090c831fe116162434a713dcd",
+      "bytes": 208,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/prior-dispatch-reconciliation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/prior-dispatch-reconciliation.json",
+      "sha256": "49578ac92b2e9ea1aa723ea1196b59d66e81dafa2701d7f458b4460dbc30e1e7",
+      "bytes": 192,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/quote-duration-boundary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/quote-duration-boundary.json",
+      "sha256": "19ce02334205d38e061c6f5382a5bb3ebe3a283dfb3f7bbd7add2da798dde37b",
+      "bytes": 2484,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/reads/issue-exact-after-create.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/reads/issue-exact-after-create.json",
+      "sha256": "c69a233d75853573d05d2ae43a85dcd433ed0124cbbaa61dc4ee6e97956c47f7",
+      "bytes": 6027,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/reads/issue-pre-create.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/reads/issue-pre-create.json",
+      "sha256": "4addf2ff090727a24cab744ac5d277f0e61666542739f9dd668b8e80d6967dd8",
+      "bytes": 388,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/reads/issue-search-after-create.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/reads/issue-search-after-create.json",
+      "sha256": "b25056738a36bdf5ba8c54cfecc15c9bb171eae68ee28b91f65f3fa0a9dc4b20",
+      "bytes": 388,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/reads/main-pre-issue-create.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/reads/main-pre-issue-create.json",
+      "sha256": "e68685b3dbfe60e90434db23bb10c2aa2f7ef5cbed5fc151c797f9d3a07e363d",
+      "bytes": 700,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/safety-state-after-acquire.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/safety-state-after-acquire.json",
+      "sha256": "5db056ba30fb4d558676f7d04a68ae5b1182cd803c21800e2664bfb52c50a891",
+      "bytes": 675,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "cloud/authorized-startup-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1/safety-state-during-quote.json",
+      "target": "docs/reports/v3-release-readiness-20261023/cloud/authorized-startup-v1/safety-state-during-quote.json",
+      "sha256": "27461b3995094c558c77f4136feb511ab1add79a94015f402d412f70e5715d7a",
+      "bytes": 637,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/PUBLIC_ALLOWLIST.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/PUBLIC_ALLOWLIST.json",
+      "sha256": "f69aff16dd329ada6112622c00af7abcc19174aa7f0acdcc5f3541242f4bad8a",
+      "bytes": 20944,
+      "selection": "explicit metadata envelope"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/README.md",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/README.md",
+      "sha256": "09cc92ea33c6b6debfaf506f9ff1f7c2578c65617166f075e014c5bf159bff58",
+      "bytes": 2306,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/SHA256SUMS",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/SHA256SUMS",
+      "sha256": "350a8f4b610caf083cbf5dc4b438a6da187a15fff6e1c0ba2a10a27bb101e941",
+      "bytes": 13182,
+      "selection": "explicit metadata envelope"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/archive-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/archive-summary.json",
+      "sha256": "a927f155d824f82b04ad7d25aa98adc4187292c8dc21d6d4a6a57f3ff1ceee1c",
+      "bytes": 220,
+      "selection": "explicit metadata envelope"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444422669-native-source-metadata-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444422669-native-source-metadata-test-only.zip",
+      "sha256": "7bf2b30cc6a84003bfe8caab51da96ba9d85566edfd471ad0dfc134a89e78050",
+      "bytes": 1271,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444422669-native-source-metadata-test-only/native-source-metadata.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444422669-native-source-metadata-test-only/native-source-metadata.json",
+      "sha256": "6b25602e3b23346d94c4797c22adaddf3961074397124a7d030b186c92e75af0",
+      "bytes": 4464,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444422669-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444422669-validation.json",
+      "sha256": "b239cd839d7e321d632e0436a7db727ce6f19d6f18221c90279f2882e67d1aac",
+      "bytes": 1296,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444437687-native-bootstrap-preparation-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444437687-native-bootstrap-preparation-test-only.zip",
+      "sha256": "70242fdb028c9f6d07fd4c7e8a40aee45f9dca80319d0e916e3fb5c68e52efc0",
+      "bytes": 7152,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444437687-native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444437687-native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+      "sha256": "0a6d10160d4fc1e29b6e3831873ee2866439253652b138873914e9160cc17d74",
+      "bytes": 44122,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444437687-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444437687-validation.json",
+      "sha256": "bc16c475efb2ac21f0c9f95b9eb12b36b9b061a4f04fc0ec7db7da8cc3e4f1d8",
+      "bytes": 1309,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444497529-native-local-signing-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444497529-native-local-signing-test-only.zip",
+      "sha256": "6c354f06a6a92c2f41d4241730aff938496d4de9ddb0c848a90bc3220e3474bb",
+      "bytes": 2797,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444497529-native-local-signing-test-only/native-local-signing.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444497529-native-local-signing-test-only/native-local-signing.json",
+      "sha256": "00fb15e92b655d572414b23885947d91f56f497e10d9d4a6bbb04baa89fc2d0c",
+      "bytes": 12973,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444497529-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444497529-validation.json",
+      "sha256": "0437ea0721df15af328c2a0a85adbf5ccb06bdfbe3fbd60b7ebf3dcc771877d5",
+      "bytes": 1293,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444562413-object-storage-sdk-contract.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444562413-object-storage-sdk-contract.zip",
+      "sha256": "b03839821043b0e62c8220580e50af04db62db041aa0d17e4e8be5a48942ff5b",
+      "bytes": 1338,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444562413-object-storage-sdk-contract/provider-contract-receipt.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444562413-object-storage-sdk-contract/provider-contract-receipt.json",
+      "sha256": "cfb5392d0d1bfe4ff634c73fe9c0b4227b4336871950d1f8d0ff8da4b6d32a23",
+      "bytes": 2684,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444562413-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444562413-validation.json",
+      "sha256": "010066043fd24ed8c4c04fddee5da8d78b344da33e48481b8df3c60ab6c76c0c",
+      "bytes": 1294,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444776836-native-stable-candidate-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444776836-native-stable-candidate-test-only.zip",
+      "sha256": "9441a76ce7d0acebf54c6556c2fcb6dbba7d8e01b4273cf94a5663de857cc8a8",
+      "bytes": 4186,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444776836-native-stable-candidate-test-only/native-stable-candidate.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444776836-native-stable-candidate-test-only/native-stable-candidate.json",
+      "sha256": "cc4883b7201fa5ee07eaf5c5b947dabe6c087c40349c319acb5e38e8872a6985",
+      "bytes": 28830,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444776836-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12444776836-validation.json",
+      "sha256": "5c72b76f1af2a26da8e89f3c144dc3cd82e635c501e695c78be5f21e9a780ea4",
+      "bytes": 1299,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445495285-native-object-delivery-fixture-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445495285-native-object-delivery-fixture-test-only.zip",
+      "sha256": "960a70849e7b25f8de3da85a9ce7a20f0d338ca64ace0b6fdc10984db15ee068",
+      "bytes": 8400,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445495285-native-object-delivery-fixture-test-only/fixture-export.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445495285-native-object-delivery-fixture-test-only/fixture-export.json",
+      "sha256": "7e7e14b310ad8a513e94e1194b4204e55ad5ab39b50cb8ff22b78a23d4464e27",
+      "bytes": 2550,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445495285-native-object-delivery-fixture-test-only/result.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445495285-native-object-delivery-fixture-test-only/result.json",
+      "sha256": "c614641844b3c326e99b2d0cd58ae76bba3a7f470e4b42a08ecbca12980fe66e",
+      "bytes": 48485,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445495285-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445495285-validation.json",
+      "sha256": "a056e01f01ec8a393949f21e8047407bda2ed2ed22e6f7fe1778a0dc8fcdfe56",
+      "bytes": 1470,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445621136-native-stable-four-clients-test-only.zip",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445621136-native-stable-four-clients-test-only.zip",
+      "sha256": "1761245bbd60d65b6b7d6018a112df5711ac0050358eb9a6bc3fcf492ea35381",
+      "bytes": 141464,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445621136-native-stable-four-clients-test-only/clients-A.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445621136-native-stable-four-clients-test-only/clients-A.json",
+      "sha256": "2f234a6dd2c71e482ead63c3d16315eeeca6e3e34ed37e55ca70e1e717086b0b",
+      "bytes": 6925,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445621136-native-stable-four-clients-test-only/clients-B.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445621136-native-stable-four-clients-test-only/clients-B.json",
+      "sha256": "816577bb19ce2aeaef5508fa774f2aa747a680de0e8e5e496a64e3509b5100ca",
+      "bytes": 6925,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445621136-native-stable-four-clients-test-only/https-requests.jsonl",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445621136-native-stable-four-clients-test-only/https-requests.jsonl",
+      "sha256": "c94b332e9b728f47fb4c5545d0a341b44ff382b0a9044f964d996036aa7c7278",
+      "bytes": 109902,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445621136-native-stable-four-clients-test-only/native-stable-clients.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445621136-native-stable-four-clients-test-only/native-stable-clients.json",
+      "sha256": "2d3bdc3109bf4c94fda7b52b5253ff8bce896ff0faee252365667f051a187fec",
+      "bytes": 978667,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445621136-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/artifacts/12445621136-validation.json",
+      "sha256": "b5fc1217b3124c462b42a5ee1617146b9c0b29b5b153c18441df3a0c994c9e13",
+      "bytes": 1841,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/bounded-command-output-validation.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/bounded-command-output-validation.json",
+      "sha256": "61b018a35283cfbba17e8e8133ca33cd497d7153e75449168faeeb2c56834ef9",
+      "bytes": 94042,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/collect.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/collect.py",
+      "sha256": "829c22ef9e3423e6bf8a0563e44fcbe2edebcf8553159ab06ee20f1e3ece422a",
+      "bytes": 2020,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/download-artifacts.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/download-artifacts.py",
+      "sha256": "5e83ed50d2ed8aa445e9b21d23a45176e20dfb4387af8f7126c55b1f228a6f0b",
+      "bytes": 2182,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/finalize-first.py",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/finalize-first.py",
+      "sha256": "386640c0edcabb82fd7c17895f6a922df15f58e5e6da539e533dbce2342a4a34",
+      "bytes": 7838,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/first-failure.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/first-failure.json",
+      "sha256": "59089c450d74340cd862df7483bbf93b884ad5968f785acc7dcc61cf1c3a0c89",
+      "bytes": 1567,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/logs/job-119973635969.log",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/logs/job-119973635969.log",
+      "sha256": "25707f0156c49a261fd3584c9d1aa8c08464f2d17a1f0ff287a575a1fc9b2ae4",
+      "bytes": 36512,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/logs/job-119973636784.log",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/logs/job-119973636784.log",
+      "sha256": "1139a94dd4d1c28ade4ea16e95e8be1a0909872f82eb464ed8ac9620f314f125",
+      "bytes": 19870,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/logs/job-119973637732.log",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/logs/job-119973637732.log",
+      "sha256": "f0554126add5c65c7cc35d645ccc5c23889fafb9be8d1f7f2efb46c3a7903cfd",
+      "bytes": 64679,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/logs/job-119973638102.log",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/logs/job-119973638102.log",
+      "sha256": "61272bc702e6683293a4286796df3eae6e9d6297bcb8f9cc3e77d5c75273186c",
+      "bytes": 102712,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/root-bounded-infrastructure-retry-decision.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/root-bounded-infrastructure-retry-decision.json",
+      "sha256": "3cb9bc706e0ae3fc9ce7885efaa733bbfc1d57329955af179e84586ed4efc6d9",
+      "bytes": 1022,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491408-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491408-artifacts.json",
+      "sha256": "642aae3de0267e364315428c4a57e0fcde5c8bf0adc913298f34ad4dad98fa19",
+      "bytes": 3619,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491408-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491408-jobs.json",
+      "sha256": "e2aaeaa1bc3137e97a5f97e5330d2ccc490a8d256b14a4ca21c328917d3c8ffe",
+      "bytes": 8169,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491408-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491408-run.json",
+      "sha256": "9aa3741d184a17741e27da9f41887681f2dfed09cd1304e511d4e238503aa10b",
+      "bytes": 12478,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491416-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491416-artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "bytes": 32,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491416-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491416-jobs.json",
+      "sha256": "ce10ffbf768eee6703ae44bc474770200d9b37932ac7edd296c17bc8f538f0bf",
+      "bytes": 1827,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491416-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491416-run.json",
+      "sha256": "80a465aedf572457c0aa00d382dba67b2e95cd163a0fdd053fe67c0c8c67a446",
+      "bytes": 12457,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491479-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491479-artifacts.json",
+      "sha256": "fb2d7caeae079468734739b5fb50e76a977615d3f3e4f9cc5d07648bba365eac",
+      "bytes": 741,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491479-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491479-jobs.json",
+      "sha256": "7c4a74b1f707e5ca2baaa318a0082808f4d013dfefa9752c39a415f7bb1d7c79",
+      "bytes": 2234,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491479-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/39821491479-run.json",
+      "sha256": "1da14419ad1d9200f940c49e05dea34f3a0ffc40a394f2ac5aa4809d5465812d",
+      "bytes": 12485,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/checks.json",
+      "sha256": "9e603a6b3b712ab5a9e76d9a1b49c3d45c09d14212e492db423daae5392f9a59",
+      "bytes": 14058,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/pr.json",
+      "sha256": "d001a18f85e6f904aa860d7b7761f47de42c801bf01b8ea295fa031eb9c0db96",
+      "bytes": 17310,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/runs.json",
+      "sha256": "2b269802a7c59b799b81858a55d913b0981218e3b34c3e1921096771c791d563",
+      "bytes": 37458,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172037Z/summary.json",
+      "sha256": "d241f071e04c74c5e07463d2442bf50658ba33fce5af77fb0ff94e74fa5035bc",
+      "bytes": 2709,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491408-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491408-artifacts.json",
+      "sha256": "642aae3de0267e364315428c4a57e0fcde5c8bf0adc913298f34ad4dad98fa19",
+      "bytes": 3619,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491408-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491408-jobs.json",
+      "sha256": "9f200986f8e54c8beb0dd52e38479729d33768a052c19b2e66aedfe146c8c8ce",
+      "bytes": 8666,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491408-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491408-run.json",
+      "sha256": "9aa3741d184a17741e27da9f41887681f2dfed09cd1304e511d4e238503aa10b",
+      "bytes": 12478,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491416-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491416-artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "bytes": 32,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491416-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491416-jobs.json",
+      "sha256": "d6794574b1252b2de1730a0a1faec3c5c7bbe73472f7702c2954cabd3ca6f906",
+      "bytes": 3079,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491416-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491416-run.json",
+      "sha256": "1968ceef82e9fe6e3e6ee7c2f516955adbc0e7236c41d6657cd84ca678f831e2",
+      "bytes": 12460,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491479-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491479-artifacts.json",
+      "sha256": "fb2d7caeae079468734739b5fb50e76a977615d3f3e4f9cc5d07648bba365eac",
+      "bytes": 741,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491479-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491479-jobs.json",
+      "sha256": "7c4a74b1f707e5ca2baaa318a0082808f4d013dfefa9752c39a415f7bb1d7c79",
+      "bytes": 2234,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491479-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/39821491479-run.json",
+      "sha256": "1da14419ad1d9200f940c49e05dea34f3a0ffc40a394f2ac5aa4809d5465812d",
+      "bytes": 12485,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/checks.json",
+      "sha256": "b83f5637c95c0fe142bbad34101c0fd46c26ff3b2865368030f923f8232eb879",
+      "bytes": 17622,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/pr.json",
+      "sha256": "7d32389eb706571142bb6e7ca9ece2bec57330b0d3ce4eae8672fc867cd96a30",
+      "bytes": 17311,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/runs.json",
+      "sha256": "aa59e83d9797807fbdfd382e26a92b6071ee2f1c0fdca2144b837d95ace4c2b2",
+      "bytes": 37461,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172323Z/summary.json",
+      "sha256": "a902315e026e39b2b2db1aed8e5c2a015ff4e2958961e986adf5eae0c2bfd2f1",
+      "bytes": 3084,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491408-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491408-artifacts.json",
+      "sha256": "642aae3de0267e364315428c4a57e0fcde5c8bf0adc913298f34ad4dad98fa19",
+      "bytes": 3619,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491408-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491408-jobs.json",
+      "sha256": "9f200986f8e54c8beb0dd52e38479729d33768a052c19b2e66aedfe146c8c8ce",
+      "bytes": 8666,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491408-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491408-run.json",
+      "sha256": "9aa3741d184a17741e27da9f41887681f2dfed09cd1304e511d4e238503aa10b",
+      "bytes": 12478,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491416-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491416-artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "bytes": 32,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491416-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491416-jobs.json",
+      "sha256": "d6794574b1252b2de1730a0a1faec3c5c7bbe73472f7702c2954cabd3ca6f906",
+      "bytes": 3079,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491416-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491416-run.json",
+      "sha256": "1968ceef82e9fe6e3e6ee7c2f516955adbc0e7236c41d6657cd84ca678f831e2",
+      "bytes": 12460,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491479-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491479-artifacts.json",
+      "sha256": "fb2d7caeae079468734739b5fb50e76a977615d3f3e4f9cc5d07648bba365eac",
+      "bytes": 741,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491479-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491479-jobs.json",
+      "sha256": "7c4a74b1f707e5ca2baaa318a0082808f4d013dfefa9752c39a415f7bb1d7c79",
+      "bytes": 2234,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491479-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/39821491479-run.json",
+      "sha256": "1da14419ad1d9200f940c49e05dea34f3a0ffc40a394f2ac5aa4809d5465812d",
+      "bytes": 12485,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/checks.json",
+      "sha256": "b83f5637c95c0fe142bbad34101c0fd46c26ff3b2865368030f923f8232eb879",
+      "bytes": 17622,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/pr.json",
+      "sha256": "7d32389eb706571142bb6e7ca9ece2bec57330b0d3ce4eae8672fc867cd96a30",
+      "bytes": 17311,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/runs.json",
+      "sha256": "aa59e83d9797807fbdfd382e26a92b6071ee2f1c0fdca2144b837d95ace4c2b2",
+      "bytes": 37461,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172552Z/summary.json",
+      "sha256": "a71c89dfca3090a76becf0697aaf6af88a64a388c552c0ab65e8175f0ae3eef0",
+      "bytes": 3084,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491408-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491408-artifacts.json",
+      "sha256": "61dd7b1bcff14a9f48d2db0892196df9ce1e3d59a526fbc04ce19ed24ad03e46",
+      "bytes": 4340,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491408-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491408-jobs.json",
+      "sha256": "62f7a94e0685b07404fd480f2d21b8d416d65fa3c4ac484af938445d728ab410",
+      "bytes": 8795,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491408-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491408-run.json",
+      "sha256": "9aa3741d184a17741e27da9f41887681f2dfed09cd1304e511d4e238503aa10b",
+      "bytes": 12478,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491416-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491416-artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "bytes": 32,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491416-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491416-jobs.json",
+      "sha256": "d6794574b1252b2de1730a0a1faec3c5c7bbe73472f7702c2954cabd3ca6f906",
+      "bytes": 3079,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491416-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491416-run.json",
+      "sha256": "1968ceef82e9fe6e3e6ee7c2f516955adbc0e7236c41d6657cd84ca678f831e2",
+      "bytes": 12460,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491479-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491479-artifacts.json",
+      "sha256": "fb2d7caeae079468734739b5fb50e76a977615d3f3e4f9cc5d07648bba365eac",
+      "bytes": 741,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491479-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491479-jobs.json",
+      "sha256": "7c4a74b1f707e5ca2baaa318a0082808f4d013dfefa9752c39a415f7bb1d7c79",
+      "bytes": 2234,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491479-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/39821491479-run.json",
+      "sha256": "1da14419ad1d9200f940c49e05dea34f3a0ffc40a394f2ac5aa4809d5465812d",
+      "bytes": 12485,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/checks.json",
+      "sha256": "b83f5637c95c0fe142bbad34101c0fd46c26ff3b2865368030f923f8232eb879",
+      "bytes": 17622,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/pr.json",
+      "sha256": "7d32389eb706571142bb6e7ca9ece2bec57330b0d3ce4eae8672fc867cd96a30",
+      "bytes": 17311,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/runs.json",
+      "sha256": "aa59e83d9797807fbdfd382e26a92b6071ee2f1c0fdca2144b837d95ace4c2b2",
+      "bytes": 37461,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T172829Z/summary.json",
+      "sha256": "bc3fa631505bc8cc577eaa6894901a2027fc64db8b5349a8d9d3898ad93d810a",
+      "bytes": 3059,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491408-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491408-artifacts.json",
+      "sha256": "61dd7b1bcff14a9f48d2db0892196df9ce1e3d59a526fbc04ce19ed24ad03e46",
+      "bytes": 4340,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491408-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491408-jobs.json",
+      "sha256": "9c718b68c557c3274d383cc34646fd67668ddd2e1dd2a7330e8c2594bf929021",
+      "bytes": 9120,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491408-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491408-run.json",
+      "sha256": "3707ab83c53ab69010b151eed18b64ac8f4d2cf17c2279b1952b2e796e05e6ba",
+      "bytes": 12481,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491416-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491416-artifacts.json",
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c",
+      "bytes": 32,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491416-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491416-jobs.json",
+      "sha256": "d6794574b1252b2de1730a0a1faec3c5c7bbe73472f7702c2954cabd3ca6f906",
+      "bytes": 3079,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491416-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491416-run.json",
+      "sha256": "1968ceef82e9fe6e3e6ee7c2f516955adbc0e7236c41d6657cd84ca678f831e2",
+      "bytes": 12460,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491479-artifacts.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491479-artifacts.json",
+      "sha256": "fb2d7caeae079468734739b5fb50e76a977615d3f3e4f9cc5d07648bba365eac",
+      "bytes": 741,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491479-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491479-jobs.json",
+      "sha256": "7c4a74b1f707e5ca2baaa318a0082808f4d013dfefa9752c39a415f7bb1d7c79",
+      "bytes": 2234,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491479-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/39821491479-run.json",
+      "sha256": "1da14419ad1d9200f940c49e05dea34f3a0ffc40a394f2ac5aa4809d5465812d",
+      "bytes": 12485,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/checks.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/checks.json",
+      "sha256": "188e339c580384aea210390fff087657c96d836843171143acbc9ed05cc5d693",
+      "bytes": 17643,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/pr.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/pr.json",
+      "sha256": "7d32389eb706571142bb6e7ca9ece2bec57330b0d3ce4eae8672fc867cd96a30",
+      "bytes": 17311,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/runs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/runs.json",
+      "sha256": "a485eec71a9091ae21be75e1ec2f1b10d05783b4e268b77d6a138a4d979b33aa",
+      "bytes": 37464,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/snapshots/20261022T173003Z/summary.json",
+      "sha256": "88cfc02844dcbc610e2e7ef1ab728d4891d6684c5f81a380185bf738a4145f5b",
+      "bytes": 3021,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/source-binding/base-commit.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/source-binding/base-commit.json",
+      "sha256": "d66a5e48c33a0655c7fd680868f45a0031fe1328eb5ca9a5f8813587c638e658",
+      "bytes": 1131,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/source-binding/head-commit.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/source-binding/head-commit.json",
+      "sha256": "0edb0ab9445d98ca5bf9219aeb06ee77b48e18e4eea28f2360bad9e065fc5515",
+      "bytes": 1126,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/source-binding/pull-merge-commit.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/source-binding/pull-merge-commit.json",
+      "sha256": "ba099fb19b0e62a84099bbb24d137ca0fae5a7db36e4b55472ab999b0239389a",
+      "bytes": 2602,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source-manifest.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source-manifest.json",
+      "sha256": "2a95525bd9bc536b77ef5c0ff625dae82bd55fcfd350420baa3accee7f6d44a9",
+      "bytes": 1286,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source/.github/workflows/native-package-repository-drill.yml",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source/.github/workflows/native-package-repository-drill.yml",
+      "sha256": "8fecb979d0374e7101ca2534c2131c377c4076e772c0c952c458ec69c95aabe6",
+      "bytes": 17610,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source/.github/workflows/object-storage-provider-contract.yml",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source/.github/workflows/object-storage-provider-contract.yml",
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa",
+      "bytes": 1660,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source/.github/workflows/pages.yml",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source/.github/workflows/pages.yml",
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719",
+      "bytes": 3104,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source/README.md",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source/README.md",
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849",
+      "bytes": 10871,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source/docs/release-contract.md",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source/docs/release-contract.md",
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c",
+      "bytes": 47357,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source/manifests/channels.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/source-binding/source/manifests/channels.json",
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b",
+      "bytes": 2579,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/terminal-attempt-1/main-ref-before-retry.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/terminal-attempt-1/main-ref-before-retry.json",
+      "sha256": "528473a905e324e1dcb3201610fb997318db08840f9a589ee179b3c258914b7b",
+      "bytes": 332,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/terminal-attempt-1/native-attempt-1-jobs.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/terminal-attempt-1/native-attempt-1-jobs.json",
+      "sha256": "9c718b68c557c3274d383cc34646fd67668ddd2e1dd2a7330e8c2594bf929021",
+      "bytes": 9120,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/terminal-attempt-1/native-attempt-1-run.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/terminal-attempt-1/native-attempt-1-run.json",
+      "sha256": "4c74a57ba962380dc4259e776e9526beb526ac67f50eba84bea8ebc97cabae4e",
+      "bytes": 12503,
+      "selection": "original finite public allowlist"
+    },
+    {
+      "group": "packages/pr79-ci-generation-1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/packages/pr79-ci-generation-1/validation-summary.json",
+      "target": "docs/reports/v3-release-readiness-20261023/packages/pr79-ci-generation-1/validation-summary.json",
+      "sha256": "6a4f3ce91ae7f4855a5e98e48943e9426737d9caa918f74f5c3b057c6523747d",
+      "bytes": 9837,
+      "selection": "original finite public allowlist"
+    }
+  ],
+  "selection_authority": "Parent fixed source scopes and manifest SHA256 values; later explicit amendment retains the 7 reviewed public TEST ONLY CI ZIPs and adds sealed handoff-public-v1.",
+  "no_prior_exclusion_receipt_written": true,
+  "scope_limits": [
+    "No CI retry evidence",
+    "No complete cloud bundle or private identity ZIP/envelope",
+    "No private keys",
+    "No raw cloud job logs",
+    "Parent dynamic readiness report is not a copy payload"
+  ],
+  "validation": {
+    "original_finite_allowlists_and_manifests_verified": true,
+    "all_source_and_copied_target_bytes_equal": true,
+    "old_tracked_before": {
+      "count": 19893,
+      "bytes": 385879622,
+      "ordered_entries_sha256": "0a944e9c39ee7201c87d87eb22ef125823d83c587f3bff3303e90ee984a7ba89",
+      "git_ls_files_z_sha256": "04e373b9c8103cdf53535cc41eace4404d18b0d7f5f04aceee2901374c3d09e4"
+    },
+    "old_tracked_after": {
+      "count": 19893,
+      "bytes": 385879622,
+      "ordered_entries_sha256": "0a944e9c39ee7201c87d87eb22ef125823d83c587f3bff3303e90ee984a7ba89",
+      "git_ls_files_z_sha256": "04e373b9c8103cdf53535cc41eace4404d18b0d7f5f04aceee2901374c3d09e4"
+    },
+    "all_old_tracked_entries_equal": true,
+    "changed_old_tracked_paths": [],
+    "all_other_old_tracked_entries_equal": true,
+    "parent_dynamic_report_content_not_archived": true,
+    "head_unchanged": true,
+    "git_index_tree_before": "2c265050bdd7a5889882f3ab4e528ffae12e65ba",
+    "git_index_tree_after": "2c265050bdd7a5889882f3ab4e528ffae12e65ba",
+    "first_copy_metadata_hashes_unchanged": {
+      "packages/COPY_SHA256SUMS": "e15a54ae0f458b8acd1ebd9729758eb41c611e9a288578601afc083b91e13dd0",
+      "packages/COPY_RECEIPT.json": "66bbcb3f0cb4917d2ff41c038a08a5d19176d31ffe90efb35377aa45220730ee",
+      "packages/COPY_ALLOWLIST": "91269a03d281e0068757dfeff16d38b9d0b2fb958a6592051b6afcc9a14af844"
+    },
+    "no_tests_cloud_api_commit_or_push": true
+  }
+}

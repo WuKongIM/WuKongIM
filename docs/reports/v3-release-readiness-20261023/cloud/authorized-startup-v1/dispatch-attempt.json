@@ -1,0 +1,16 @@
+{
+  "started_at": "2026-10-22T17:14:50.597620+00:00",
+  "authorization_reference": "call_dd802aec589f4d058343640027bb7cf9",
+  "dispatch_owner": "/root/cloud_rc_execute",
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "control_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "workflow": "chat-lifecycle-rehearsal.yml",
+  "attempt": 1,
+  "payload_sha256": "523476149f4dc6b72db031bd60786006e378d2fd1210f88daa6acf33a6ce5d31",
+  "issue": "https://github.com/WuKongIM/WuKongIM/issues/1025",
+  "request_hard_limit_micros": 1276567200,
+  "request_stop_micros": 1126567200,
+  "historical_quote_reserve_micros": 223432800,
+  "unknown_outcome_policy": "read reconciliation only; no automatic second dispatch"
+}

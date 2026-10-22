@@ -1,0 +1,26 @@
+{
+  "observed_at": "2026-10-22T18:20:31.690729+00:00",
+  "all_unchanged": true,
+  "groups": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1",
+      "manifest_sha256": "bf305a54b37f9feee68f4b215842d666e85d589fa3ae05a92c26070b1e22e6cf",
+      "verified_files": 156
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/handoff-public-v1",
+      "manifest_sha256": "463839777b7a5777043d34c7a317e26084d4f678784f6f37e70e9001c79c6d5b",
+      "verified_files": 58
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1",
+      "manifest_sha256": "50fba8e114bf93182734305a312808bc8c840981bd3ba03e869834cd482f7def",
+      "verified_files": 49
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/live-loss-analysis-once/public-v1",
+      "manifest_sha256": "bef041ccbc4dd17a089ea45b6a97875aaba4e9e1bc8d8c2a4ced3ae3bc08f8e4",
+      "verified_files": 23
+    }
+  ]
+}

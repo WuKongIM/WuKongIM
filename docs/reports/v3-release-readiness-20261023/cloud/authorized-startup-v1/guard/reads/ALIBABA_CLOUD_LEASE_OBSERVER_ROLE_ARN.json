@@ -1,0 +1,13 @@
+{
+  "started_at": "2026-10-22T17:12:30.418646+00:00",
+  "observed_at": "2026-10-22T17:12:31.398356+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN",
+  "exit_code": 0,
+  "response_bytes": 172,
+  "response_sha256": "cf89d5ebe9bc343b50ed1551f2edacd4e9db399229238c2bbdc7292187fec7aa",
+  "data": {
+    "name": "ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN",
+    "present": true,
+    "value_sha256": "05098740af2bb067f854b489f93416029531f02202ab5bc7c173bc8130c66bb0"
+  }
+}

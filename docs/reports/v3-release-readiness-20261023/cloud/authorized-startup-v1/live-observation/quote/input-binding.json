@@ -1,0 +1,44 @@
+{
+  "origin": "Completed Quote job 119972873979 PLAN_JSON lines, independently parsed; not a log-signature attestation",
+  "log_sha256": "8cfcbffab24b8246229047017c351b2e78b4b224383c245c1062a03aaa165191",
+  "locations": [
+    {
+      "line": 56,
+      "raw_input_sha256": "2f14de89031e8b1f74bd490899ea58f23e284d783df6c2bfd69be8d7b0a2b9d4"
+    },
+    {
+      "line": 167,
+      "raw_input_sha256": "2f14de89031e8b1f74bd490899ea58f23e284d783df6c2bfd69be8d7b0a2b9d4"
+    },
+    {
+      "line": 295,
+      "raw_input_sha256": "2f14de89031e8b1f74bd490899ea58f23e284d783df6c2bfd69be8d7b0a2b9d4"
+    },
+    {
+      "line": 308,
+      "raw_input_sha256": "2f14de89031e8b1f74bd490899ea58f23e284d783df6c2bfd69be8d7b0a2b9d4"
+    },
+    {
+      "line": 323,
+      "raw_input_sha256": "2f14de89031e8b1f74bd490899ea58f23e284d783df6c2bfd69be8d7b0a2b9d4"
+    },
+    {
+      "line": 338,
+      "raw_input_sha256": "2f14de89031e8b1f74bd490899ea58f23e284d783df6c2bfd69be8d7b0a2b9d4"
+    },
+    {
+      "line": 367,
+      "raw_input_sha256": "2f14de89031e8b1f74bd490899ea58f23e284d783df6c2bfd69be8d7b0a2b9d4"
+    }
+  ],
+  "distinct_plans": 1,
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "budget": {
+    "currency": "CNY",
+    "limit_micros": 1276567200,
+    "committed_micros": 0,
+    "operational_stop_micros": 1126567200
+  },
+  "plan_digest": "2f14de89031e8b1f74bd490899ea58f23e284d783df6c2bfd69be8d7b0a2b9d4"
+}

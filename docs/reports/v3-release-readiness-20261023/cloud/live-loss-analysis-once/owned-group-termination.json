@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-22T18:10:15.794807+00:00",
+  "reason": "Parent Bash TERM was deferred while waiting for command-substitution workflow join; signal the owned helper process group so the bounded child and substitution also return.",
+  "signal": "SIGTERM",
+  "owned_process_group_verified": true,
+  "no_prepare_completion": true,
+  "no_mcp_start": true,
+  "no_kill_signal": true,
+  "no_new_invocation": true
+}

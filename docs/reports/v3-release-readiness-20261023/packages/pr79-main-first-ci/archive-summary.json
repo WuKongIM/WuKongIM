@@ -1,0 +1,7 @@
+{
+  "payload_files": 24,
+  "payload_bytes": 165968,
+  "manifest_entries": 25,
+  "manifest_sha256": "f72b3bde52d4d11559e25632ed9bbc7d1b0be806269b699b52ea59d3da4e3425",
+  "result": "postmerge_first_attempt_success"
+}

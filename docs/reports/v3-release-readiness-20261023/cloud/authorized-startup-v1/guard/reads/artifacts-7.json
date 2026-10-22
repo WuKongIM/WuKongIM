@@ -1,0 +1,93 @@
+{
+  "started_at": "2026-10-22T17:12:55.628430+00:00",
+  "observed_at": "2026-10-22T17:12:59.075291+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/artifacts",
+  "exit_code": 0,
+  "response_bytes": 2936,
+  "response_sha256": "2aa13de074c636a4b04349b5b3fe85c06eab3bc28822fc6214a42f98c97ab39c",
+  "data": {
+    "total_count": 604,
+    "artifacts": [
+      {
+        "id": 8675711488,
+        "node_id": "MDg6QXJ0aWZhY3Q4Njc1NzExNDg4",
+        "name": "backup-qualified-binaries-62c7eb26b2865aa32159ce2ecc9e40175704ac48-30325427446-1",
+        "size_in_bytes": 39926774,
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/8675711488",
+        "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/8675711488/zip",
+        "expired": false,
+        "digest": "sha256:cc73eb29f528521932089a98f9a476ab97c3eae4aebd3d69eb79cdbe30941691",
+        "created_at": "2026-07-28T03:30:20Z",
+        "updated_at": "2026-07-28T03:30:20Z",
+        "expires_at": "2026-10-26T03:15:27Z",
+        "workflow_run": {
+          "id": 30325427446,
+          "repository_id": 638054601,
+          "head_repository_id": 638054601,
+          "head_branch": "codex/backup-slot-frontier",
+          "head_sha": "62c7eb26b2865aa32159ce2ecc9e40175704ac48"
+        }
+      },
+      {
+        "id": 8671707989,
+        "node_id": "MDg6QXJ0aWZhY3Q4NjcxNzA3OTg5",
+        "name": "backup-release-qualification-30314076375-1",
+        "size_in_bytes": 454,
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/8671707989",
+        "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/8671707989/zip",
+        "expired": false,
+        "digest": "sha256:16bdaaf5bfc871a6771819f54e932218d9e785d230739a3ee3b1fff5df6e28b3",
+        "created_at": "2026-07-27T23:37:03Z",
+        "updated_at": "2026-07-27T23:37:03Z",
+        "expires_at": "2026-10-25T23:25:13Z",
+        "workflow_run": {
+          "id": 30314076375,
+          "repository_id": 638054601,
+          "head_repository_id": 638054601,
+          "head_branch": "codex/backup-slot-frontier",
+          "head_sha": "4adb82cc5030985673c22888432316c127b2e9d4"
+        }
+      },
+      {
+        "id": 8671407999,
+        "node_id": "MDg6QXJ0aWZhY3Q4NjcxNDA3OTk5",
+        "name": "backup-release-qualification-30313302660-1",
+        "size_in_bytes": 453,
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/8671407999",
+        "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/8671407999/zip",
+        "expired": false,
+        "digest": "sha256:1a8a72c8e615caf0e8826b3cf048ef05d479d8f07cfa2b10d25d54e3f9030eb6",
+        "created_at": "2026-07-27T23:22:04Z",
+        "updated_at": "2026-07-27T23:22:04Z",
+        "expires_at": "2026-10-25T23:11:04Z",
+        "workflow_run": {
+          "id": 30313302660,
+          "repository_id": 638054601,
+          "head_repository_id": 638054601,
+          "head_branch": "codex/backup-slot-frontier",
+          "head_sha": "d40b3b1be240c5542faaf13c0f682e3c929df147"
+        }
+      },
+      {
+        "id": 8662146422,
+        "node_id": "MDg6QXJ0aWZhY3Q4NjYyMTQ2NDIy",
+        "name": "backup-release-qualification-30288568449-1",
+        "size_in_bytes": 452,
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/8662146422",
+        "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/8662146422/zip",
+        "expired": false,
+        "digest": "sha256:f1288a1997da42e8d1dac06d0225b9cd23d86514490d4e7a98d68ead155ce5ab",
+        "created_at": "2026-07-27T17:28:33Z",
+        "updated_at": "2026-07-27T17:28:33Z",
+        "expires_at": "2026-10-25T17:17:14Z",
+        "workflow_run": {
+          "id": 30288568449,
+          "repository_id": 638054601,
+          "head_repository_id": 638054601,
+          "head_branch": "codex/backup-slot-frontier",
+          "head_sha": "5fe8467aaf4a5869fd15fdb3c06dda7f30ed18e8"
+        }
+      }
+    ]
+  }
+}

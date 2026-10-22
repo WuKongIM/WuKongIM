@@ -1,0 +1,15 @@
+{
+  "finished_at": "2026-10-22T18:10:15.840198+00:00",
+  "exit_code": 130,
+  "supervisor_timed_out": false,
+  "forced_kill": false,
+  "elapsed_seconds": 460.145,
+  "validated_result_present": false,
+  "stdout_bytes": 0,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_bytes": 62,
+  "stderr_sha256": "9e4cdb379cdbaf1d4c778451ab90160d08372fee3172f5807038521b21d01633",
+  "top_level_calls": 1,
+  "second_call_allowed": false,
+  "raw_stdout_stderr_retained_private": true
+}

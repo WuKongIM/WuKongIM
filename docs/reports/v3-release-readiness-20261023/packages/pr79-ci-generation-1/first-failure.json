@@ -1,0 +1,37 @@
+{
+  "schema": "wukongim/pr79-first-ci-failure/v1",
+  "head": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+  "run_id": 39821491408,
+  "run_attempt": 1,
+  "job_id": 119973638102,
+  "job_conclusion": "failure",
+  "failed_steps": [
+    {
+      "name": "Install fixed GoReleaser version",
+      "status": "completed",
+      "conclusion": "failure",
+      "number": 17,
+      "started_at": "2026-10-22T17:20:34Z",
+      "completed_at": "2026-10-22T17:21:21Z"
+    }
+  ],
+  "skipped_steps": [
+    "Restore exact source Go toolchain",
+    "Build unsigned TEST ONLY packages",
+    "Build, sign, verify, and install TEST ONLY repositories",
+    "Post Set up fixed GoReleaser toolchain"
+  ],
+  "error_lines": [
+    {
+      "line": 999,
+      "text": "2026-10-22T17:21:21.3363572Z ##[error]../../../go/pkg/mod/github.com/goreleaser/goreleaser/v2@v2.18.0/internal/builders/golang/gomain/gomain.go:20:2: golang.org/x/tools@v0.49.0: read \"https://proxy.golang.org/golang.org/x/tools/@v/v0.49.0.zip\": stream error: stream ID 215; INTERNAL_ERROR; received from peer"
+    },
+    {
+      "line": 1000,
+      "text": "2026-10-22T17:21:21.3397747Z ##[error]Process completed with exit code 1."
+    }
+  ],
+  "log_sha256": "61272bc702e6683293a4286796df3eae6e9d6297bcb8f9cc3e77d5c75273186c",
+  "assessment": "The observed failure is a module download stream error while installing the fixed GoReleaser tool. The unsigned package build and full repository installation did not execute. No rerun or changed source was used; final stable-client result is pending.",
+  "retries_dispatched": 0
+}

@@ -1,0 +1,7 @@
+{
+  "payload_files": 71,
+  "payload_bytes": 833324,
+  "manifest_entries": 72,
+  "manifest_sha256": "aab00f2876e95243f98956369bcfa2a34ac5915d75093c11411b557b3b894f7a",
+  "result": "success_after_one_explicit_infrastructure_retry"
+}

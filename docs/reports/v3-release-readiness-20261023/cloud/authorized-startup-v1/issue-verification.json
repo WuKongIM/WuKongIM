@@ -1,0 +1,14 @@
+{
+  "observed_at": "2026-10-22T17:14:19.243587+00:00",
+  "number": 1025,
+  "id": 5984060741,
+  "url": "https://github.com/WuKongIM/WuKongIM/issues/1025",
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "exact_search_count": 1,
+  "search_complete": true,
+  "body_matches": true,
+  "state": "open",
+  "locked": false,
+  "create_attempts": 1,
+  "creation_search_lag_preserved": true
+}

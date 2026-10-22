@@ -1,0 +1,19 @@
+{
+  "started_at": "2026-10-22T17:13:48.167434+00:00",
+  "repository": "WuKongIM/WuKongIM",
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "title": "[chat-lifecycle] chat-20261021T214505Z-00299e37",
+  "body_sha256": "16bd16c6bd057bfb8176bd0f4e82d42788e5b5b1d4069f2911795d1741ecb21b",
+  "command": [
+    "gh",
+    "issue",
+    "create",
+    "--title",
+    "[chat-lifecycle] chat-20261021T214505Z-00299e37",
+    "--body-file",
+    "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/issue-body.md"
+  ],
+  "attempt": 1,
+  "authorization_file": "authorization.json",
+  "unknown_outcome_policy": "read reconciliation only; never automatically resend"
+}

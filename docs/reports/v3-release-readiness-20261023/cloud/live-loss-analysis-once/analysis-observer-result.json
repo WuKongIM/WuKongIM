@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-22T18:10:36.657417+00:00",
+  "analysis_top_level_invocations": 1,
+  "analysis_exit_code": 130,
+  "analysis_state": "insufficient_evidence",
+  "cause": "GitHub aggregate inspect run remained in_progress after all jobs completed for >5min; exited through original signal cleanup.",
+  "mcp_calls": 0,
+  "prepare_runs": 0,
+  "analysis_window_opened": false,
+  "temporary_directory_removed": true,
+  "no_validated_diagnosis_result": true,
+  "not_a_product_root_cause_verdict": true,
+  "next_action": "Exact request Stop/Release as user requested, no retry."
+}

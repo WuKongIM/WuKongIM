@@ -1,0 +1,12 @@
+{
+  "started_at": "2026-10-22T18:02:35.687839+00:00",
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "lease_id": "chat-20261021T214505Z-00299e37-rehearsal-1",
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "top_level_invocation": 1,
+  "diagnosis_timeout_seconds": 900,
+  "supervisor_limit_seconds": 1800,
+  "passive_adapter_sha256": "006ea94611f6b37780e0e3d61d45800f2d36d9c677c2610161e4cb21bdfdf059",
+  "absolute_diagnosis_cutoff": "2026-10-22T19:36:18+00:00",
+  "no_retry": true
+}

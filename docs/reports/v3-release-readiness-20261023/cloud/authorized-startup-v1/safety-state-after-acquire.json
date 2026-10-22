@@ -1,0 +1,23 @@
+{
+  "observed_at": "2026-10-22T17:27:21.405345+00:00",
+  "workflow_states": [
+    {
+      "name": "chat-lifecycle-rehearsal-finalize.yml",
+      "id": 329938002,
+      "state": "active",
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml"
+    },
+    {
+      "name": "cloud-lease-release.yml",
+      "id": 329938010,
+      "state": "active",
+      "path": ".github/workflows/cloud-lease-release.yml"
+    }
+  ],
+  "mutations_by_observer": false,
+  "acquire_run": 39822336878,
+  "arm_release_job": 119976582164,
+  "arm_release_completed_at": "2026-10-22T17:24:14Z",
+  "acquire_started_at": "2026-10-22T17:24:38Z",
+  "backstop_enabled_before_acquire": true
+}

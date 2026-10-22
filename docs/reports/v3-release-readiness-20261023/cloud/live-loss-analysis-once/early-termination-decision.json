@@ -1,0 +1,13 @@
+{
+  "observed_at": "2026-10-22T18:08:54.085790+00:00",
+  "reason": "All exact inspect jobs terminal for at least five minutes while run remains in_progress; user requests stop Lease after this single bounded analysis.",
+  "seconds_since_last_job_terminal": 318.08579,
+  "run_id": 39827924078,
+  "correlation": "local-ealCAA-49111",
+  "no_prepare_run": true,
+  "no_analysis_window_opened": true,
+  "helper_signal_contract": "handle_signal TERM -> exit130 -> EXIT cleanup; inspect has session_open=false.",
+  "signal": "SIGTERM",
+  "helper_pid_private": true,
+  "no_top_level_retry": true
+}

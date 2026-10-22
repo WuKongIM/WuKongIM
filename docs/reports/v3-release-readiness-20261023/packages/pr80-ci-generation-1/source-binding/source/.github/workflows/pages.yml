@@ -1,0 +1,97 @@
+name: Safety Automation - Deploy Package Repository Bootstrap
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/pages.yml"
+      - ".github/CODEOWNERS"
+      - "keys/**"
+      - "manifests/**"
+      - "scripts/**"
+      - "site/**"
+      - "tests/**"
+      - "README.md"
+      - "SECURITY.md"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  # Pull-request validation must not queue behind or block the serialized
+  # production whole-site deployment domain.
+  group: ${{ github.event_name == 'pull_request' && format('packages-pages-pr-{0}', github.event.pull_request.number) || 'packages-pages' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Validate complete Pages snapshot
+    if: github.repository == 'WuKongIM/packages'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      deploy_bootstrap: ${{ steps.control.outputs.deploy_bootstrap }}
+    permissions:
+      contents: read
+    steps:
+      - name: Check out exact publication control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Validate repository contracts
+        id: control
+        run: |
+          ./tests/contract.sh
+          python3 -m unittest discover -s tests -p 'test_*.py'
+          if [[ "$(jq -r '.channels.preview.enabled' manifests/channels.json)" == "false" ]]; then
+            echo 'deploy_bootstrap=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deploy_bootstrap=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure Pages
+        if: steps.control.outputs.deploy_bootstrap == 'true'
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - name: Upload complete Pages artifact
+        if: steps.control.outputs.deploy_bootstrap == 'true'
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: site
+
+  deploy:
+    name: Deploy complete Pages snapshot
+    if: >-
+      github.repository == 'WuKongIM/packages' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name != 'pull_request' &&
+      needs.build.outputs.deploy_bootstrap == 'true'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Re-fence bootstrap control after Environment approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote https://github.com/WuKongIM/packages.git refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+
+      - name: Deploy Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+      - name: Re-fence bootstrap control after deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote https://github.com/WuKongIM/packages.git refs/heads/main | cut -f1)" = "$GITHUB_SHA"

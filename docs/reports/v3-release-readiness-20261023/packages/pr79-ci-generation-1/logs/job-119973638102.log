@@ -1,0 +1,1037 @@
+﻿2026-10-22T17:18:41.7586423Z Current runner version: '2.338.0'
+2026-10-22T17:18:41.7605860Z ##[group]Runner Image Provisioner
+2026-10-22T17:18:41.7606476Z Hosted Compute Agent
+2026-10-22T17:18:41.7606917Z Version: 20261021.618
+2026-10-22T17:18:41.7607339Z Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+2026-10-22T17:18:41.7607807Z Build Date: 2026-10-21T00:45:21Z
+2026-10-22T17:18:41.7608273Z Worker ID: {305ab110-f820-420e-bc00-8ad86214f3f7}
+2026-10-22T17:18:41.7608707Z Region: westus3
+2026-10-22T17:18:41.7609089Z Cloud: Azure
+2026-10-22T17:18:41.7609430Z ##[endgroup]
+2026-10-22T17:18:41.7610240Z ##[group]Operating System
+2026-10-22T17:18:41.7610681Z Ubuntu
+2026-10-22T17:18:41.7611298Z 24.04.5
+2026-10-22T17:18:41.7611657Z LTS
+2026-10-22T17:18:41.7612026Z ##[endgroup]
+2026-10-22T17:18:41.7612364Z ##[group]Runner Image
+2026-10-22T17:18:41.7612808Z Image: ubuntu-24.04
+2026-10-22T17:18:41.7613166Z Version: 20261021.345.10
+2026-10-22T17:18:41.7614007Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261021.345/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-22T17:18:41.7614904Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261021.345
+2026-10-22T17:18:41.7615554Z ##[endgroup]
+2026-10-22T17:18:41.7616241Z ##[group]GITHUB_TOKEN Permissions
+2026-10-22T17:18:41.7617546Z Contents: read
+2026-10-22T17:18:41.7617911Z Metadata: read
+2026-10-22T17:18:41.7618303Z ##[endgroup]
+2026-10-22T17:18:41.7619727Z Secret source: Actions
+2026-10-22T17:18:41.7620344Z Cache mode: write
+2026-10-22T17:18:41.7620809Z Prepare workflow directory
+2026-10-22T17:18:41.7838754Z Prepare all required actions
+2026-10-22T17:18:41.7871518Z Getting action download info
+2026-10-22T17:18:42.0858251Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-22T17:18:42.2198352Z Download action repository 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+2026-10-22T17:18:42.3443488Z Download action repository 'actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16' (SHA:924ae3a1cded613372ab5595356fb5720e22ba16)
+2026-10-22T17:18:43.0452254Z Complete job name: TEST ONLY signed APT/RPM repository
+2026-10-22T17:18:43.1119950Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-22T17:18:43.1120536Z with:
+2026-10-22T17:18:43.1120804Z   persist-credentials: false
+2026-10-22T17:18:43.1121257Z   repository: WuKongIM/packages
+2026-10-22T17:18:43.1123659Z   token: ***
+2026-10-22T17:18:43.1123913Z   ssh-strict: true
+2026-10-22T17:18:43.1124175Z   ssh-user: git
+2026-10-22T17:18:43.1124433Z   clean: true
+2026-10-22T17:18:43.1124704Z   sparse-checkout-cone-mode: true
+2026-10-22T17:18:43.1125020Z   fetch-depth: 1
+2026-10-22T17:18:43.1125281Z   fetch-tags: false
+2026-10-22T17:18:43.1125548Z   show-progress: true
+2026-10-22T17:18:43.1125818Z   lfs: false
+2026-10-22T17:18:43.1126090Z   submodules: false
+2026-10-22T17:18:43.1126378Z   set-safe-directory: true
+2026-10-22T17:18:43.1126707Z   allow-unsafe-pr-checkout: false
+2026-10-22T17:18:43.1127103Z ##[endgroup]
+2026-10-22T17:18:43.1894359Z Syncing repository: WuKongIM/packages
+2026-10-22T17:18:43.1896144Z ##[group]Getting Git version info
+2026-10-22T17:18:43.1896926Z Working directory is '/home/runner/work/packages/packages'
+2026-10-22T17:18:43.1897995Z [command]/usr/bin/git version
+2026-10-22T17:18:43.1978471Z git version 2.55.0
+2026-10-22T17:18:43.2005140Z ##[endgroup]
+2026-10-22T17:18:43.2028278Z Temporarily overriding HOME='/home/runner/work/_temp/acaba92b-ae62-4d63-b374-686fde5cf16a' before making global git config changes
+2026-10-22T17:18:43.2029628Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-22T17:18:43.2030727Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages
+2026-10-22T17:18:43.2091375Z Deleting the contents of '/home/runner/work/packages/packages'
+2026-10-22T17:18:43.2093123Z ##[group]Determining repository object format
+2026-10-22T17:18:43.2094647Z ##[endgroup]
+2026-10-22T17:18:43.2095267Z ##[group]Initializing the repository
+2026-10-22T17:18:43.2098980Z [command]/usr/bin/git init /home/runner/work/packages/packages
+2026-10-22T17:18:43.2218354Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-22T17:18:43.2219727Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-22T17:18:43.2221403Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-22T17:18:43.2222302Z hint: call:
+2026-10-22T17:18:43.2222916Z hint:
+2026-10-22T17:18:43.2223557Z hint: 	git config --global init.defaultBranch <name>
+2026-10-22T17:18:43.2224155Z hint:
+2026-10-22T17:18:43.2224708Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-22T17:18:43.2225379Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-22T17:18:43.2225822Z hint:
+2026-10-22T17:18:43.2226157Z hint: 	git branch -m <name>
+2026-10-22T17:18:43.2226468Z hint:
+2026-10-22T17:18:43.2226927Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-22T17:18:43.2227593Z Initialized empty Git repository in /home/runner/work/packages/packages/.git/
+2026-10-22T17:18:43.2229392Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/packages
+2026-10-22T17:18:43.2284071Z ##[endgroup]
+2026-10-22T17:18:43.2284584Z ##[group]Disabling automatic garbage collection
+2026-10-22T17:18:43.2287231Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-22T17:18:43.2329242Z ##[endgroup]
+2026-10-22T17:18:43.2329843Z ##[group]Setting up auth
+2026-10-22T17:18:43.2330315Z Removing SSH command configuration
+2026-10-22T17:18:43.2334307Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T17:18:43.2387053Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T17:18:43.2721879Z Removing HTTP extra header
+2026-10-22T17:18:43.2727210Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T17:18:43.2769496Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T17:18:43.2969353Z Removing includeIf entries pointing to credentials config files
+2026-10-22T17:18:43.2974539Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T17:18:43.3016387Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T17:18:43.3218422Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-42925e63-7649-493a-9031-cd271cabc663.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-22T17:18:43.3262458Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.git.path /home/runner/work/_temp/git-credentials-42925e63-7649-493a-9031-cd271cabc663.config
+2026-10-22T17:18:43.3301948Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-42925e63-7649-493a-9031-cd271cabc663.config
+2026-10-22T17:18:43.3341841Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-42925e63-7649-493a-9031-cd271cabc663.config
+2026-10-22T17:18:43.3381928Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-42925e63-7649-493a-9031-cd271cabc663.config
+2026-10-22T17:18:43.3418730Z ##[endgroup]
+2026-10-22T17:18:43.3419179Z ##[group]Fetching the repository
+2026-10-22T17:18:43.3423509Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +f1c75e55e445aa40076f20586fd2481266ee73ff:refs/remotes/pull/79/merge
+2026-10-22T17:18:44.0812120Z From https://github.com/WuKongIM/packages
+2026-10-22T17:18:44.0813612Z  * [new ref]         f1c75e55e445aa40076f20586fd2481266ee73ff -> pull/79/merge
+2026-10-22T17:18:44.0817327Z ##[endgroup]
+2026-10-22T17:18:44.0818553Z ##[group]Determining the checkout info
+2026-10-22T17:18:44.0819924Z ##[endgroup]
+2026-10-22T17:18:44.0822692Z [command]/usr/bin/git sparse-checkout disable
+2026-10-22T17:18:44.0878580Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-22T17:18:44.0917033Z ##[group]Checking out the ref
+2026-10-22T17:18:44.0919385Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/79/merge
+2026-10-22T17:18:44.1077729Z Note: switching to 'refs/remotes/pull/79/merge'.
+2026-10-22T17:18:44.1078466Z 
+2026-10-22T17:18:44.1078970Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-22T17:18:44.1080205Z changes and commit them, and you can discard any commits you make in this
+2026-10-22T17:18:44.1081678Z state without impacting any branches by switching back to a branch.
+2026-10-22T17:18:44.1082421Z 
+2026-10-22T17:18:44.1082983Z If you want to create a new branch to retain commits you create, you may
+2026-10-22T17:18:44.1084387Z do so (now or later) by using -c with the switch command. Example:
+2026-10-22T17:18:44.1085345Z 
+2026-10-22T17:18:44.1085749Z   git switch -c <new-branch-name>
+2026-10-22T17:18:44.1086330Z 
+2026-10-22T17:18:44.1086712Z Or undo this operation with:
+2026-10-22T17:18:44.1087274Z 
+2026-10-22T17:18:44.1087631Z   git switch -
+2026-10-22T17:18:44.1088102Z 
+2026-10-22T17:18:44.1088837Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-22T17:18:44.1089912Z 
+2026-10-22T17:18:44.1091301Z HEAD is now at f1c75e5 Merge b100f91a59902ad8d93b0632f9c84f3f7468e5f2 into 7255102de81b45c23d52e908ccdde1b7799ee3f5
+2026-10-22T17:18:44.1094585Z ##[endgroup]
+2026-10-22T17:18:44.1137276Z [command]/usr/bin/git log -1 --format=%H
+2026-10-22T17:18:44.1170869Z f1c75e55e445aa40076f20586fd2481266ee73ff
+2026-10-22T17:18:44.1178376Z ##[group]Removing auth
+2026-10-22T17:18:44.1179920Z Removing SSH command configuration
+2026-10-22T17:18:44.1182139Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T17:18:44.1218853Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T17:18:44.1414844Z Removing HTTP extra header
+2026-10-22T17:18:44.1417081Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T17:18:44.1455744Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T17:18:44.1648177Z Removing includeIf entries pointing to credentials config files
+2026-10-22T17:18:44.1649979Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T17:18:44.1687849Z includeif.gitdir:/home/runner/work/packages/packages/.git.path
+2026-10-22T17:18:44.1689383Z includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path
+2026-10-22T17:18:44.1690645Z includeif.gitdir:/github/workspace/.git.path
+2026-10-22T17:18:44.1691991Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-22T17:18:44.1695590Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.git.path
+2026-10-22T17:18:44.1727607Z /home/runner/work/_temp/git-credentials-42925e63-7649-493a-9031-cd271cabc663.config
+2026-10-22T17:18:44.1736921Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-42925e63\-7649\-493a\-9031\-cd271cabc663\.config
+2026-10-22T17:18:44.1785180Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path
+2026-10-22T17:18:44.1818300Z /home/runner/work/_temp/git-credentials-42925e63-7649-493a-9031-cd271cabc663.config
+2026-10-22T17:18:44.1825700Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-42925e63\-7649\-493a\-9031\-cd271cabc663\.config
+2026-10-22T17:18:44.1865445Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-22T17:18:44.1896645Z /github/runner_temp/git-credentials-42925e63-7649-493a-9031-cd271cabc663.config
+2026-10-22T17:18:44.1903391Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-42925e63\-7649\-493a\-9031\-cd271cabc663\.config
+2026-10-22T17:18:44.1945336Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-22T17:18:44.1978564Z /github/runner_temp/git-credentials-42925e63-7649-493a-9031-cd271cabc663.config
+2026-10-22T17:18:44.1985179Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-42925e63\-7649\-493a\-9031\-cd271cabc663\.config
+2026-10-22T17:18:44.2024991Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T17:18:44.2226830Z Removing credentials config '/home/runner/work/_temp/git-credentials-42925e63-7649-493a-9031-cd271cabc663.config'
+2026-10-22T17:18:44.2234457Z ##[endgroup]
+2026-10-22T17:18:44.2434033Z ##[group]Run set -euo pipefail
+2026-10-22T17:18:44.2434843Z [36;1mset -euo pipefail[0m
+2026-10-22T17:18:44.2435512Z [36;1m./tests/contract.sh[0m
+2026-10-22T17:18:44.2436417Z [36;1mcommit="$(jq -r '.commit' manifests/trusted-toolchain.json)"[0m
+2026-10-22T17:18:44.2437436Z [36;1m[[ "$commit" =~ ^[0-9a-f]{40}$ ]][0m
+2026-10-22T17:18:44.2438260Z [36;1mecho "commit=$commit" >> "$GITHUB_OUTPUT"[0m
+2026-10-22T17:18:44.2590057Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:18:44.2591073Z ##[endgroup]
+2026-10-22T17:18:44.4770273Z publication control validation passed
+2026-10-22T17:18:44.7127223Z ....
+2026-10-22T17:18:44.7128441Z ----------------------------------------------------------------------
+2026-10-22T17:18:44.7130036Z Ran 4 tests in 0.001s
+2026-10-22T17:18:44.7130651Z 
+2026-10-22T17:18:44.7131434Z OK
+2026-10-22T17:18:45.1300480Z package repository contracts passed
+2026-10-22T17:18:45.1412941Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-22T17:18:45.1413169Z with:
+2026-10-22T17:18:45.1413293Z   repository: WuKongIM/WuKongIM
+2026-10-22T17:18:45.1413450Z   ref: ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-22T17:18:45.1413621Z   path: .trusted/wukongim
+2026-10-22T17:18:45.1413762Z   persist-credentials: false
+2026-10-22T17:18:45.1415167Z   token: ***
+2026-10-22T17:18:45.1415282Z   ssh-strict: true
+2026-10-22T17:18:45.1415397Z   ssh-user: git
+2026-10-22T17:18:45.1415513Z   clean: true
+2026-10-22T17:18:45.1415637Z   sparse-checkout-cone-mode: true
+2026-10-22T17:18:45.1415782Z   fetch-depth: 1
+2026-10-22T17:18:45.1415904Z   fetch-tags: false
+2026-10-22T17:18:45.1416046Z   show-progress: true
+2026-10-22T17:18:45.1416191Z   lfs: false
+2026-10-22T17:18:45.1416300Z   submodules: false
+2026-10-22T17:18:45.1416422Z   set-safe-directory: true
+2026-10-22T17:18:45.1416564Z   allow-unsafe-pr-checkout: false
+2026-10-22T17:18:45.1416736Z ##[endgroup]
+2026-10-22T17:18:45.2000842Z Syncing repository: WuKongIM/WuKongIM
+2026-10-22T17:18:45.2002866Z ##[group]Getting Git version info
+2026-10-22T17:18:45.2003424Z Working directory is '/home/runner/work/packages/packages/.trusted/wukongim'
+2026-10-22T17:18:45.2033271Z [command]/usr/bin/git version
+2026-10-22T17:18:45.2070572Z git version 2.55.0
+2026-10-22T17:18:45.2084441Z ##[endgroup]
+2026-10-22T17:18:45.2092290Z Temporarily overriding HOME='/home/runner/work/_temp/202dd320-8c66-4336-beaa-fd56ceab12a8' before making global git config changes
+2026-10-22T17:18:45.2093172Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-22T17:18:45.2097275Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages/.trusted/wukongim
+2026-10-22T17:18:45.2130142Z ##[group]Determining repository object format
+2026-10-22T17:18:45.2131811Z ##[endgroup]
+2026-10-22T17:18:45.2132164Z ##[group]Initializing the repository
+2026-10-22T17:18:45.2135365Z [command]/usr/bin/git init /home/runner/work/packages/packages/.trusted/wukongim
+2026-10-22T17:18:45.2178994Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-22T17:18:45.2179695Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-22T17:18:45.2180252Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-22T17:18:45.2180700Z hint: call:
+2026-10-22T17:18:45.2181005Z hint:
+2026-10-22T17:18:45.2181534Z hint: 	git config --global init.defaultBranch <name>
+2026-10-22T17:18:45.2187080Z hint:
+2026-10-22T17:18:45.2188259Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-22T17:18:45.2195741Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-22T17:18:45.2196146Z hint:
+2026-10-22T17:18:45.2196348Z hint: 	git branch -m <name>
+2026-10-22T17:18:45.2196579Z hint:
+2026-10-22T17:18:45.2196900Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-22T17:18:45.2197604Z Initialized empty Git repository in /home/runner/work/packages/packages/.trusted/wukongim/.git/
+2026-10-22T17:18:45.2198746Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/WuKongIM
+2026-10-22T17:18:45.2237144Z ##[endgroup]
+2026-10-22T17:18:45.2237536Z ##[group]Disabling automatic garbage collection
+2026-10-22T17:18:45.2237907Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-22T17:18:45.2270356Z ##[endgroup]
+2026-10-22T17:18:45.2270705Z ##[group]Setting up auth
+2026-10-22T17:18:45.2271107Z Removing SSH command configuration
+2026-10-22T17:18:45.2271469Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T17:18:45.2302259Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T17:18:45.2530834Z Removing HTTP extra header
+2026-10-22T17:18:45.2537323Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T17:18:45.2586865Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T17:18:45.2840748Z Removing includeIf entries pointing to credentials config files
+2026-10-22T17:18:45.2845857Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T17:18:45.2888626Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T17:18:45.3091885Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-988a824a-ce63-4fee-89fe-b98ccb65ac4f.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-22T17:18:45.3137176Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path /home/runner/work/_temp/git-credentials-988a824a-ce63-4fee-89fe-b98ccb65ac4f.config
+2026-10-22T17:18:45.3176268Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-988a824a-ce63-4fee-89fe-b98ccb65ac4f.config
+2026-10-22T17:18:45.3216701Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.trusted/wukongim/.git.path /github/runner_temp/git-credentials-988a824a-ce63-4fee-89fe-b98ccb65ac4f.config
+2026-10-22T17:18:45.3258117Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path /github/runner_temp/git-credentials-988a824a-ce63-4fee-89fe-b98ccb65ac4f.config
+2026-10-22T17:18:45.3300050Z ##[endgroup]
+2026-10-22T17:18:45.3300282Z ##[group]Fetching the repository
+2026-10-22T17:18:45.3305718Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-22T17:18:48.1367831Z From https://github.com/WuKongIM/WuKongIM
+2026-10-22T17:18:48.1368283Z  * branch            ed7e67d8f781b4f92872e42116c11b304fe03b5c -> FETCH_HEAD
+2026-10-22T17:18:48.1376851Z [command]/usr/bin/git rev-parse --verify --quiet ed7e67d8f781b4f92872e42116c11b304fe03b5c^{object}
+2026-10-22T17:18:48.1413760Z ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-22T17:18:48.1417711Z ##[endgroup]
+2026-10-22T17:18:48.1418421Z ##[group]Determining the checkout info
+2026-10-22T17:18:48.1418650Z ##[endgroup]
+2026-10-22T17:18:48.1421615Z [command]/usr/bin/git sparse-checkout disable
+2026-10-22T17:18:48.1470338Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-22T17:18:48.1509073Z ##[group]Checking out the ref
+2026-10-22T17:18:48.1512518Z [command]/usr/bin/git checkout --progress --force ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-22T17:18:48.5303822Z Note: switching to 'ed7e67d8f781b4f92872e42116c11b304fe03b5c'.
+2026-10-22T17:18:48.5304052Z 
+2026-10-22T17:18:48.5304174Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-22T17:18:48.5304457Z changes and commit them, and you can discard any commits you make in this
+2026-10-22T17:18:48.5304708Z state without impacting any branches by switching back to a branch.
+2026-10-22T17:18:48.5304856Z 
+2026-10-22T17:18:48.5304970Z If you want to create a new branch to retain commits you create, you may
+2026-10-22T17:18:48.5305210Z do so (now or later) by using -c with the switch command. Example:
+2026-10-22T17:18:48.5305351Z 
+2026-10-22T17:18:48.5305416Z   git switch -c <new-branch-name>
+2026-10-22T17:18:48.5305509Z 
+2026-10-22T17:18:48.5305569Z Or undo this operation with:
+2026-10-22T17:18:48.5305653Z 
+2026-10-22T17:18:48.5305706Z   git switch -
+2026-10-22T17:18:48.5305770Z 
+2026-10-22T17:18:48.5305886Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-22T17:18:48.5306051Z 
+2026-10-22T17:18:48.5306421Z HEAD is now at ed7e67d Merge pull request #861 from WuKongIM/codex/native-package-release-assets
+2026-10-22T17:18:48.5323041Z ##[endgroup]
+2026-10-22T17:18:48.5372698Z [command]/usr/bin/git log -1 --format=%H
+2026-10-22T17:18:48.5407069Z ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-22T17:18:48.5414112Z ##[group]Removing auth
+2026-10-22T17:18:48.5414356Z Removing SSH command configuration
+2026-10-22T17:18:48.5417032Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T17:18:48.5459806Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T17:18:48.5658800Z Removing HTTP extra header
+2026-10-22T17:18:48.5662372Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T17:18:48.5702996Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T17:18:48.5902547Z Removing includeIf entries pointing to credentials config files
+2026-10-22T17:18:48.5905100Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T17:18:48.5939735Z includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path
+2026-10-22T17:18:48.5940821Z includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path
+2026-10-22T17:18:48.5941445Z includeif.gitdir:/github/workspace/.trusted/wukongim/.git.path
+2026-10-22T17:18:48.5941914Z includeif.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path
+2026-10-22T17:18:48.5948539Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path
+2026-10-22T17:18:48.5986041Z /home/runner/work/_temp/git-credentials-988a824a-ce63-4fee-89fe-b98ccb65ac4f.config
+2026-10-22T17:18:48.5993818Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-988a824a\-ce63\-4fee\-89fe\-b98ccb65ac4f\.config
+2026-10-22T17:18:48.6037372Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path
+2026-10-22T17:18:48.6068363Z /home/runner/work/_temp/git-credentials-988a824a-ce63-4fee-89fe-b98ccb65ac4f.config
+2026-10-22T17:18:48.6075173Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-988a824a\-ce63\-4fee\-89fe\-b98ccb65ac4f\.config
+2026-10-22T17:18:48.6116479Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.trusted/wukongim/.git.path
+2026-10-22T17:18:48.6149584Z /github/runner_temp/git-credentials-988a824a-ce63-4fee-89fe-b98ccb65ac4f.config
+2026-10-22T17:18:48.6155206Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.trusted/wukongim/.git.path \/github\/runner_temp\/git\-credentials\-988a824a\-ce63\-4fee\-89fe\-b98ccb65ac4f\.config
+2026-10-22T17:18:48.6197251Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path
+2026-10-22T17:18:48.6229209Z /github/runner_temp/git-credentials-988a824a-ce63-4fee-89fe-b98ccb65ac4f.config
+2026-10-22T17:18:48.6234930Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-988a824a\-ce63\-4fee\-89fe\-b98ccb65ac4f\.config
+2026-10-22T17:18:48.6275974Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T17:18:48.6474578Z Removing credentials config '/home/runner/work/_temp/git-credentials-988a824a-ce63-4fee-89fe-b98ccb65ac4f.config'
+2026-10-22T17:18:48.6483036Z ##[endgroup]
+2026-10-22T17:18:48.6603690Z ##[group]Run set -euo pipefail
+2026-10-22T17:18:48.6603899Z [36;1mset -euo pipefail[0m
+2026-10-22T17:18:48.6604162Z [36;1mtest "$(git -C .trusted/wukongim rev-parse HEAD)" = "ed7e67d8f781b4f92872e42116c11b304fe03b5c"[0m
+2026-10-22T17:18:48.6604414Z [36;1mjq -r \[0m
+2026-10-22T17:18:48.6604599Z [36;1m  '.files | to_entries[] | "\(.value)  .trusted/wukongim/\(.key)"' \[0m
+2026-10-22T17:18:48.6604857Z [36;1m  manifests/trusted-toolchain.json | sha256sum --check --strict[0m
+2026-10-22T17:18:48.6647252Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:18:48.6647439Z ##[endgroup]
+2026-10-22T17:18:48.6777004Z .trusted/wukongim/scripts/build-native-package-repositories.sh: OK
+2026-10-22T17:18:48.6777475Z .trusted/wukongim/scripts/generate-native-package-test-keyring.sh: OK
+2026-10-22T17:18:48.6777887Z .trusted/wukongim/scripts/sign-native-package-repositories.sh: OK
+2026-10-22T17:18:48.6778405Z .trusted/wukongim/scripts/validate-native-package-repositories-container.sh: OK
+2026-10-22T17:18:48.6778849Z .trusted/wukongim/scripts/verify-native-package-metadata.py: OK
+2026-10-22T17:18:48.6779244Z .trusted/wukongim/scripts/verify-native-package-repositories.sh: OK
+2026-10-22T17:18:48.6804062Z ##[group]Run set -euo pipefail
+2026-10-22T17:18:48.6804261Z [36;1mset -euo pipefail[0m
+2026-10-22T17:18:48.6804580Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-22T17:18:48.6804852Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-22T17:18:48.6805065Z [36;1mdocker pull "$image"[0m
+2026-10-22T17:18:48.6805244Z [36;1mmetadata_output="$RUNNER_TEMP/source-metadata-native"[0m
+2026-10-22T17:18:48.6805439Z [36;1mmkdir "$metadata_output"[0m
+2026-10-22T17:18:48.6805586Z [36;1mchmod 0777 "$metadata_output"[0m
+2026-10-22T17:18:48.6805800Z [36;1mcontainer="wk-source-metadata-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-22T17:18:48.6806066Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-22T17:18:48.6806266Z [36;1mtrap 'exit 130' INT[0m
+2026-10-22T17:18:48.6806398Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-22T17:18:48.6806633Z [36;1mtimeout --signal=TERM --kill-after=10s 5m docker run --rm --name "$container" \[0m
+2026-10-22T17:18:48.6806938Z [36;1m  --network none --read-only --cap-drop ALL --security-opt no-new-privileges \[0m
+2026-10-22T17:18:48.6807209Z [36;1m  --user 65532:65532 --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-22T17:18:48.6807425Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \[0m
+2026-10-22T17:18:48.6807621Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-22T17:18:48.6807803Z [36;1m  --volume "$metadata_output:/evidence" \[0m
+2026-10-22T17:18:48.6807966Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-22T17:18:48.6808204Z [36;1m  python3 -B /control/tests/native_source_metadata_drill.py --output-dir /evidence[0m
+2026-10-22T17:18:48.6808549Z [36;1mjq -e '.test_only == true and .passed == true and (.cases | length) == 7 and all(.cases[]; .passed == true)' \[0m
+2026-10-22T17:18:48.6808855Z [36;1m  "$metadata_output/native-source-metadata.json" >/dev/null[0m
+2026-10-22T17:18:48.6850798Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:18:48.6851123Z ##[endgroup]
+2026-10-22T17:18:50.3678001Z ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922: Pulling from wukongim/native-package-signing-toolchain
+2026-10-22T17:18:50.3800001Z 0926a8eb0e60: Pulling fs layer
+2026-10-22T17:18:50.3800511Z fdddbe2d915d: Pulling fs layer
+2026-10-22T17:18:50.3800864Z 0e4446c3a96e: Pulling fs layer
+2026-10-22T17:18:50.6689920Z 0926a8eb0e60: Verifying Checksum
+2026-10-22T17:18:50.6690228Z 0926a8eb0e60: Download complete
+2026-10-22T17:18:50.6956716Z 0e4446c3a96e: Verifying Checksum
+2026-10-22T17:18:50.6957027Z 0e4446c3a96e: Download complete
+2026-10-22T17:18:51.2902034Z 0926a8eb0e60: Pull complete
+2026-10-22T17:18:52.1737730Z fdddbe2d915d: Verifying Checksum
+2026-10-22T17:18:52.1738036Z fdddbe2d915d: Download complete
+2026-10-22T17:18:55.8794574Z fdddbe2d915d: Pull complete
+2026-10-22T17:18:55.8868315Z 0e4446c3a96e: Pull complete
+2026-10-22T17:18:55.8906114Z Digest: sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922
+2026-10-22T17:18:55.8917424Z Status: Downloaded newer image for ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922
+2026-10-22T17:18:55.8923459Z ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922
+2026-10-22T17:18:57.8456730Z {"cases": [{"case": "stable", "exit_code": 0, "expected_error": null, "metadata": {"assets_revalidated_after_metadata": true, "channel": "stable", "deb": {"architecture": "amd64", "asset": {"id": 4, "name": "wukongim_3.1.0_linux_amd64.deb", "sha256": "50fd8d426692676945b5abe8cf21e68122d6988b569cf8a96e65e62db5c5b718", "size": 592}, "version": "3.1.0"}, "package": "wukongim", "rpm": {"architecture": "x86_64", "asset": {"id": 5, "name": "wukongim_3.1.0_linux_amd64.rpm", "sha256": "0cfbcfa254d96776b13d03de6d158d3c2c8749579cd0064edc0a60fe54f24eae", "size": 6210}, "epoch": "0", "release": "1", "signed": false, "version": "3.1.0"}, "schema": "wukongim/source-package-metadata/v2", "source": {"release_id": 4242, "repository": "WuKongIM/WuKongIM", "source_sha": "1111111111111111111111111111111111111111", "tag": "v3.1.0"}, "version": "3.1.0"}, "passed": true, "stderr": ""}, {"case": "wrong-channel", "exit_code": 1, "expected_error": "preview source tag", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: preview source tag must be strict pre-release SemVer\n"}, {"case": "wrong-deb-version", "exit_code": 1, "expected_error": "DEB Version mismatch", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: DEB Version mismatch: expected '3.1.1', got '3.1.0'\n"}, {"case": "preview", "exit_code": 0, "expected_error": null, "metadata": {"assets_revalidated_after_metadata": true, "channel": "preview", "deb": {"architecture": "amd64", "asset": {"id": 4, "name": "wukongim_3.1.0-rc.1-hotfix_linux_amd64.deb", "sha256": "aebb9373fa1a1714c8f6bb0cd429b4350148cc8c186fd735937a9eba507e6080", "size": 600}, "version": "3.1.0~rc.1-hotfix"}, "package": "wukongim", "rpm": {"architecture": "x86_64", "asset": {"id": 5, "name": "wukongim_3.1.0-rc.1-hotfix_linux_amd64.rpm", "sha256": "6689ce0dddf981a3e0fb24b0e10db81a89f8ad1113a3689cd48b573dd6fb4983", "size": 6298}, "epoch": "0", "release": "1", "signed": false, "version": "3.1.0~rc.1_hotfix"}, "schema": "wukongim/source-package-metadata/v2", "source": {"release_id": 4242, "repository": "WuKongIM/WuKongIM", "source_sha": "1111111111111111111111111111111111111111", "tag": "v3.1.0-rc.1-hotfix"}, "version": "3.1.0-rc.1-hotfix"}, "passed": true, "stderr": ""}, {"case": "wrong-rpm-version", "exit_code": 1, "expected_error": "RPM VERSION mismatch", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: RPM VERSION mismatch: expected '3.1.0', got '3.1.0~rc.1_hotfix'\n"}, {"case": "wrong-rpm-epoch", "exit_code": 1, "expected_error": "RPM EPOCHNUM mismatch", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: RPM EPOCHNUM mismatch: expected '0', got '9'\n"}, {"case": "signed-rpm", "exit_code": 1, "expected_error": "mismatch", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: RPM RSAHEADER:pgpsig mismatch: expected '(none)', got 'RSA/SHA256, Thu Oct 22 17:18:57 2026, Key ID ffc28a962a623f46'\n"}], "native_signature_tags": ["RSAHEADER"], "passed": true, "payloads_executed": false, "schema": "wukongim/test-only-native-source-metadata/v1", "synthetic_source_provenance": true, "test_only": true, "tool_versions": {"dpkg-deb": "Debian 'dpkg-deb' package archive backend version 1.22.6 (amd64).", "gpg": "gpg (GnuPG) 2.4.4", "rpm": "RPM version 4.18.2"}}
+2026-10-22T17:18:57.9333147Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-22T17:18:57.9333383Z with:
+2026-10-22T17:18:57.9333513Z   name: native-source-metadata-test-only
+2026-10-22T17:18:57.9333708Z   path: /home/runner/work/_temp/source-metadata-native/
+2026-10-22T17:18:57.9333889Z   if-no-files-found: warn
+2026-10-22T17:18:57.9334037Z   retention-days: 30
+2026-10-22T17:18:57.9334160Z   compression-level: 6
+2026-10-22T17:18:57.9334282Z   overwrite: false
+2026-10-22T17:18:57.9334406Z   include-hidden-files: false
+2026-10-22T17:18:57.9334540Z   archive: true
+2026-10-22T17:18:57.9334655Z ##[endgroup]
+2026-10-22T17:18:58.0303594Z With the provided path, there will be 1 file uploaded
+2026-10-22T17:18:58.0307201Z Artifact name is valid!
+2026-10-22T17:18:58.0307471Z Root directory input is valid!
+2026-10-22T17:18:58.3640001Z Uploading artifact: native-source-metadata-test-only.zip
+2026-10-22T17:18:58.3663696Z Beginning upload of artifact content to blob storage
+2026-10-22T17:18:58.6166226Z Uploaded bytes 1271
+2026-10-22T17:18:58.6778257Z Finished uploading artifact content to blob storage!
+2026-10-22T17:18:58.6779096Z SHA256 digest of uploaded artifact is 7bf2b30cc6a84003bfe8caab51da96ba9d85566edfd471ad0dfc134a89e78050
+2026-10-22T17:18:58.6779802Z Finalizing artifact upload
+2026-10-22T17:18:59.2615819Z Artifact native-source-metadata-test-only successfully finalized. Artifact ID 12444422669
+2026-10-22T17:18:59.2616700Z Artifact native-source-metadata-test-only has been successfully uploaded! Final size is 1271 bytes. Artifact ID is 12444422669
+2026-10-22T17:18:59.2617158Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39821491408/artifacts/12444422669
+2026-10-22T17:18:59.2737201Z ##[group]Run set -euo pipefail
+2026-10-22T17:18:59.2737411Z [36;1mset -euo pipefail[0m
+2026-10-22T17:18:59.2737619Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-22T17:18:59.2737897Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-22T17:18:59.2738155Z [36;1msigning_output="$RUNNER_TEMP/local-signing-native"[0m
+2026-10-22T17:18:59.2738346Z [36;1mmkdir "$signing_output"[0m
+2026-10-22T17:18:59.2738496Z [36;1mchmod 0777 "$signing_output"[0m
+2026-10-22T17:18:59.2738710Z [36;1mcontainer="wk-local-signing-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-22T17:18:59.2738996Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-22T17:18:59.2739200Z [36;1mtrap 'exit 130' INT[0m
+2026-10-22T17:18:59.2739338Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-22T17:18:59.2739564Z [36;1mtimeout --signal=TERM --kill-after=10s 8m docker run --rm --name "$container" \[0m
+2026-10-22T17:18:59.2739898Z [36;1m  --platform linux/amd64 --network none --read-only --cap-drop ALL \[0m
+2026-10-22T17:18:59.2740148Z [36;1m  --security-opt no-new-privileges --user 65532:65532 \[0m
+2026-10-22T17:18:59.2740355Z [36;1m  --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-22T17:18:59.2740551Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \[0m
+2026-10-22T17:18:59.2740748Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-22T17:18:59.2741091Z [36;1m  --volume "$signing_output:/evidence" \[0m
+2026-10-22T17:18:59.2741264Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-22T17:18:59.2741494Z [36;1m  python3 -B /control/tests/native_local_signing_drill.py --output-dir /evidence[0m
+2026-10-22T17:18:59.2741946Z [36;1mjq -e '.test_only == true and .passed == true and .secret_tree_removed_before_verification == true and (.cases | length) == 10 and all(.cases[]; .passed == true)' \[0m
+2026-10-22T17:18:59.2742343Z [36;1m  "$signing_output/native-local-signing.json" >/dev/null[0m
+2026-10-22T17:18:59.2784913Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:18:59.2785106Z ##[endgroup]
+2026-10-22T17:19:19.8506069Z {"cases": [{"case": "wrong-passphrase", "passed": true}, {"case": "full-primary-secret", "passed": true}, {"case": "apt-files", "independent_public_verification": true, "passed": true, "receipt": {"family": "apt", "key": {"family": "apt", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "058DDCE1102106698EC297DC1B6257DFCF75670E", "primary_fingerprint": "36FCDE38394199BFAE5E279759F4349C6BD7FCE6", "public_certificate_sha256": "6459cf1e83ded09b7ce0ae89285a130d6f5f759498a0b9f82ba9e93134a3c387", "public_certificate_size": 1237, "signing_subkey_created": "2026-10-22T17:19:01Z", "signing_subkey_expires": "2026-12-21T17:19:01Z", "signing_subkey_fingerprint": "D1347FB95774FDA66308F88097823478E5512636", "validated": true}, "result": {"inrelease": {"path": "dists/stable/InRelease", "sha256": "537d597add08342c71dfa1dd94455986c73de47ca3137cc60d09b441e93fca42", "size": 1284}, "release": {"path": "dists/stable/Release", "sha256": "f4efc14e5869eec0ad88be139ff7bae9bf43abe27fc0efc14d41cf1ebdd5acbd", "size": 1007}, "release_gpg": {"path": "dists/stable/Release.gpg", "sha256": "d3de8dd25e56eb205ca6d6ca2d0c2f8e1b7ae92c165445fb26703b10a7d3e531", "size": 228}}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "apt-env", "independent_public_verification": true, "passed": true, "receipt": {"family": "apt", "key": {"family": "apt", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "058DDCE1102106698EC297DC1B6257DFCF75670E", "primary_fingerprint": "36FCDE38394199BFAE5E279759F4349C6BD7FCE6", "public_certificate_sha256": "6459cf1e83ded09b7ce0ae89285a130d6f5f759498a0b9f82ba9e93134a3c387", "public_certificate_size": 1237, "signing_subkey_created": "2026-10-22T17:19:01Z", "signing_subkey_expires": "2026-12-21T17:19:01Z", "signing_subkey_fingerprint": "D1347FB95774FDA66308F88097823478E5512636", "validated": true}, "result": {"inrelease": {"path": "dists/stable/InRelease", "sha256": "32d79173bee13b79369aca37c00ccfb79f34eef83017c5f1c1a428064a554cc0", "size": 1284}, "release": {"path": "dists/stable/Release", "sha256": "f4efc14e5869eec0ad88be139ff7bae9bf43abe27fc0efc14d41cf1ebdd5acbd", "size": 1007}, "release_gpg": {"path": "dists/stable/Release.gpg", "sha256": "3ce85ac1820fa7124af8d2d980ca15d9aa5424add41f015f8ba149d0018e9183", "size": 228}}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "apt-stdin", "independent_public_verification": true, "passed": true, "receipt": {"family": "apt", "key": {"family": "apt", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "058DDCE1102106698EC297DC1B6257DFCF75670E", "primary_fingerprint": "36FCDE38394199BFAE5E279759F4349C6BD7FCE6", "public_certificate_sha256": "6459cf1e83ded09b7ce0ae89285a130d6f5f759498a0b9f82ba9e93134a3c387", "public_certificate_size": 1237, "signing_subkey_created": "2026-10-22T17:19:01Z", "signing_subkey_expires": "2026-12-21T17:19:01Z", "signing_subkey_fingerprint": "D1347FB95774FDA66308F88097823478E5512636", "validated": true}, "result": {"inrelease": {"path": "dists/stable/InRelease", "sha256": "9b5a2abc76fb874ef15ce1855752b99f3df97dd8bf814fa386c88896474a939a", "size": 1284}, "release": {"path": "dists/stable/Release", "sha256": "f4efc14e5869eec0ad88be139ff7bae9bf43abe27fc0efc14d41cf1ebdd5acbd", "size": 1007}, "release_gpg": {"path": "dists/stable/Release.gpg", "sha256": "3b053dbc4b66ce451fcbb504a80143009c922db85e7aabb75da316fce2e93e94", "size": 228}}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "apt-tampered-release", "passed": true}, {"case": "rpm-files", "independent_public_verification": true, "passed": true, "receipt": {"family": "rpm", "key": {"family": "rpm", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "37D3160C45704EA00E156CF315621BD4027EAB5E", "primary_fingerprint": "27704A21AEC3864CC2BFFCA24D36878E54BDCB49", "public_certificate_sha256": "4d0391ae1c77b63fda75372152cc107a555c93cb083a0f39f4cd87d17a4c3dea", "public_certificate_size": 4808, "signing_subkey_created": "2026-10-22T17:19:12Z", "signing_subkey_expires": "2026-12-21T17:19:12Z", "signing_subkey_fingerprint": "A7A036CF67669A4D1A285D0C325FAFACD93C18AC", "validated": true}, "result": {"active": [{"path": "Packages/wukongim.rpm", "sha256": "4b2684f376c3480ad5eeb4127207512e9747c8cee1708c221905818863f77e51", "size": 6211}], "new_unsigned_inputs": [{"path": "Packages/wukongim.rpm", "sha256": "b883415226cf01cdbf02bd19f03caea95ae719578a9679d0e0ff5b553c2b43d0", "size": 6211}], "newly_signed": [{"path": "Packages/wukongim.rpm", "sha256": "4b2684f376c3480ad5eeb4127207512e9747c8cee1708c221905818863f77e51", "size": 6211}], "preserved_signed": [], "repodata": [{"path": "repodata/filelists.xml.gz", "sha256": "76c308385f6ca471a082cbe2e7001a4cfffab0fabc89c37325a104a67781976a", "size": 266}, {"path": "repodata/other.xml.gz", "sha256": "1a31ec084659f3600ab99a18222fa8e70e15f5c77f916e6755b741926eac7e1f", "size": 231}, {"path": "repodata/primary.xml.gz", "sha256": "81c0ce2a1d5014d8948b67643fa4b80003a311b8ef3e50a4a1a07cf6c502678d", "size": 605}, {"path": "repodata/repomd.xml", "sha256": "96abaa6da496de3993a82b5dc5bc75f2fa9135bce44665966f5b4d1357fb7ed6", "size": 1351}, {"path": "repodata/repomd.xml.asc", "sha256": "663f1b29353c8b8b4a7ecab379b5c47db6be514167b6513986d55858646fb194", "size": 659}], "repository": "stable/el/9/x86_64", "retired": []}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "rpm-env", "independent_public_verification": true, "passed": true, "receipt": {"family": "rpm", "key": {"family": "rpm", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "37D3160C45704EA00E156CF315621BD4027EAB5E", "primary_fingerprint": "27704A21AEC3864CC2BFFCA24D36878E54BDCB49", "public_certificate_sha256": "4d0391ae1c77b63fda75372152cc107a555c93cb083a0f39f4cd87d17a4c3dea", "public_certificate_size": 4808, "signing_subkey_created": "2026-10-22T17:19:12Z", "signing_subkey_expires": "2026-12-21T17:19:12Z", "signing_subkey_fingerprint": "A7A036CF67669A4D1A285D0C325FAFACD93C18AC", "validated": true}, "result": {"active": [{"path": "Packages/wukongim.rpm", "sha256": "2721cdd394544f8a9293f136722157db785c3b2c527c0796562464f31eda2b68", "size": 6211}], "new_unsigned_inputs": [{"path": "Packages/wukongim.rpm", "sha256": "b883415226cf01cdbf02bd19f03caea95ae719578a9679d0e0ff5b553c2b43d0", "size": 6211}], "newly_signed": [{"path": "Packages/wukongim.rpm", "sha256": "2721cdd394544f8a9293f136722157db785c3b2c527c0796562464f31eda2b68", "size": 6211}], "preserved_signed": [], "repodata": [{"path": "repodata/filelists.xml.gz", "sha256": "aa8d2e43b7cbbe8b119ca44c6a85ec79ac80cf0a7b4e6a68e21bc2811d2cf574", "size": 266}, {"path": "repodata/other.xml.gz", "sha256": "fe0b1c1037e4030847a725b019bd5df19220af72137e0ed1deeb98bceb80c940", "size": 232}, {"path": "repodata/primary.xml.gz", "sha256": "49a2cbd354bba87e2e4b0aa4e307f08897e6f344bf0c75e819e3b40bc7652305", "size": 607}, {"path": "repodata/repomd.xml", "sha256": "b30d4a43408381bf03d88965676e1c29a5fe748b5fffaf021029f1f9d4751b82", "size": 1351}, {"path": "repodata/repomd.xml.asc", "sha256": "78f61d08024db743c54cbe2e5d9c5ec63db060cc43bd34f52b1c46a281168be1", "size": 659}], "repository": "stable/el/9/x86_64", "retired": []}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "rpm-tampered-payload", "passed": true}, {"case": "rpm-tampered-repomd", "passed": true}], "control_files": {"manifests/signing-toolchain.json": {"sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99", "size": 295}, "scripts/sign-package-family.py": {"sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0", "size": 38244}, "scripts/validate-signing-material.py": {"sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4", "size": 34568}, "tests/native_local_signing_drill.py": {"sha256": "1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578", "size": 22961}, "tests/native_source_metadata_drill.py": {"sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b", "size": 12447}, "tests/test_validate_signing_material.py": {"sha256": "ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe", "size": 24911}}, "keys": {"apt": {"current": "D1347FB95774FDA66308F88097823478E5512636", "next": "058DDCE1102106698EC297DC1B6257DFCF75670E", "primary": "36FCDE38394199BFAE5E279759F4349C6BD7FCE6", "public_certificate": {"sha256": "6459cf1e83ded09b7ce0ae89285a130d6f5f759498a0b9f82ba9e93134a3c387", "size": 1237}}, "rpm": {"current": "A7A036CF67669A4D1A285D0C325FAFACD93C18AC", "next": "37D3160C45704EA00E156CF315621BD4027EAB5E", "primary": "27704A21AEC3864CC2BFFCA24D36878E54BDCB49", "public_certificate": {"sha256": "4d0391ae1c77b63fda75372152cc107a555c93cb083a0f39f4cd87d17a4c3dea", "size": 4808}}}, "passed": true, "payloads_executed": false, "production_keys_used": false, "published": false, "schema": "wukongim/test-only-native-local-signing/v1", "secret_tree_removed_before_verification": true, "source_inputs_unchanged": true, "source_provenance_verified": false, "test_only": true, "tool_versions": {"createrepo_c": "Version: 0.17.3 (Features: DeltaRPM LegacyWeakdeps )", "dpkg-deb": "Debian 'dpkg-deb' package archive backend version 1.22.6 (amd64).", "gpg": "gpg (GnuPG) 2.4.4", "rpm": "RPM version 4.18.2"}}
+2026-10-22T17:19:19.9182096Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-22T17:19:19.9182710Z with:
+2026-10-22T17:19:19.9182905Z   name: native-local-signing-test-only
+2026-10-22T17:19:19.9183285Z   path: /home/runner/work/_temp/local-signing-native/native-local-signing.json
+2026-10-22T17:19:19.9183633Z   if-no-files-found: warn
+2026-10-22T17:19:19.9183835Z   retention-days: 30
+2026-10-22T17:19:19.9184020Z   compression-level: 6
+2026-10-22T17:19:19.9184214Z   overwrite: false
+2026-10-22T17:19:19.9184407Z   include-hidden-files: false
+2026-10-22T17:19:19.9184622Z   archive: true
+2026-10-22T17:19:19.9184801Z ##[endgroup]
+2026-10-22T17:19:20.0222767Z With the provided path, there will be 1 file uploaded
+2026-10-22T17:19:20.0247358Z Artifact name is valid!
+2026-10-22T17:19:20.0251366Z Root directory input is valid!
+2026-10-22T17:19:20.3792806Z Uploading artifact: native-local-signing-test-only.zip
+2026-10-22T17:19:20.3816227Z Beginning upload of artifact content to blob storage
+2026-10-22T17:19:20.6203303Z Uploaded bytes 2797
+2026-10-22T17:19:20.6806598Z Finished uploading artifact content to blob storage!
+2026-10-22T17:19:20.6807200Z SHA256 digest of uploaded artifact is 6c354f06a6a92c2f41d4241730aff938496d4de9ddb0c848a90bc3220e3474bb
+2026-10-22T17:19:20.6807583Z Finalizing artifact upload
+2026-10-22T17:19:21.2939017Z Artifact native-local-signing-test-only successfully finalized. Artifact ID 12444497529
+2026-10-22T17:19:21.2939599Z Artifact native-local-signing-test-only has been successfully uploaded! Final size is 2797 bytes. Artifact ID is 12444497529
+2026-10-22T17:19:21.2942761Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39821491408/artifacts/12444497529
+2026-10-22T17:19:21.3072143Z ##[group]Run set -euo pipefail
+2026-10-22T17:19:21.3072348Z [36;1mset -euo pipefail[0m
+2026-10-22T17:19:21.3072557Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-22T17:19:21.3072834Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-22T17:19:21.3073120Z [36;1mbootstrap_output="$RUNNER_TEMP/bootstrap-preparation-native"[0m
+2026-10-22T17:19:21.3073331Z [36;1mmkdir "$bootstrap_output"[0m
+2026-10-22T17:19:21.3073489Z [36;1mchmod 0777 "$bootstrap_output"[0m
+2026-10-22T17:19:21.3073717Z [36;1mcontainer="wk-bootstrap-preparation-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-22T17:19:21.3074003Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-22T17:19:21.3074211Z [36;1mtrap 'exit 130' INT[0m
+2026-10-22T17:19:21.3074350Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-22T17:19:21.3074593Z [36;1m# Root and SYS_CHROOT are limited to scratch native package databases.[0m
+2026-10-22T17:19:21.3074869Z [36;1m# This data-only installation drill has no signing input or network.[0m
+2026-10-22T17:19:21.3075162Z [36;1mtimeout --signal=TERM --kill-after=10s 5m docker run --rm --name "$container" \[0m
+2026-10-22T17:19:21.3075461Z [36;1m  --platform linux/amd64 --network none --read-only --cap-drop ALL \[0m
+2026-10-22T17:19:21.3075735Z [36;1m  --cap-add SYS_CHROOT --security-opt no-new-privileges --user 0:0 \[0m
+2026-10-22T17:19:21.3075967Z [36;1m  --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-22T17:19:21.3076164Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \[0m
+2026-10-22T17:19:21.3076366Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-22T17:19:21.3076555Z [36;1m  --volume "$bootstrap_output:/evidence" \[0m
+2026-10-22T17:19:21.3076730Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-22T17:19:21.3076936Z [36;1m  python3 -B /control/tests/native_bootstrap_preparation_drill.py \[0m
+2026-10-22T17:19:21.3077178Z [36;1m  --output-dir /evidence --source-sha "$GITHUB_SHA"[0m
+2026-10-22T17:19:21.3077523Z [36;1mjq -e '.test_only == true and .passed == true and .scratch_removed == true and (.cases | length) == 6 and all(.cases[]; .passed == true)' \[0m
+2026-10-22T17:19:21.3077900Z [36;1m  "$bootstrap_output/native-bootstrap-preparation.json" >/dev/null[0m
+2026-10-22T17:19:21.3119739Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:19:21.3119950Z ##[endgroup]
+2026-10-22T17:19:22.5129683Z {"passed": true, "cases": 6, "failure": null, "scratch_removed": true}
+2026-10-22T17:19:22.5683174Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-22T17:19:22.5683416Z with:
+2026-10-22T17:19:22.5683567Z   name: native-bootstrap-preparation-test-only
+2026-10-22T17:19:22.5683863Z   path: /home/runner/work/_temp/bootstrap-preparation-native/native-bootstrap-preparation.json
+2026-10-22T17:19:22.5684132Z   if-no-files-found: warn
+2026-10-22T17:19:22.5684273Z   retention-days: 30
+2026-10-22T17:19:22.5684407Z   compression-level: 6
+2026-10-22T17:19:22.5684536Z   overwrite: false
+2026-10-22T17:19:22.5684670Z   include-hidden-files: false
+2026-10-22T17:19:22.5684815Z   archive: true
+2026-10-22T17:19:22.5684935Z ##[endgroup]
+2026-10-22T17:19:22.6724766Z With the provided path, there will be 1 file uploaded
+2026-10-22T17:19:22.6751579Z Artifact name is valid!
+2026-10-22T17:19:22.6761760Z Root directory input is valid!
+2026-10-22T17:19:23.0007512Z Uploading artifact: native-bootstrap-preparation-test-only.zip
+2026-10-22T17:19:23.0033496Z Beginning upload of artifact content to blob storage
+2026-10-22T17:19:23.2698873Z Uploaded bytes 7152
+2026-10-22T17:19:23.3350822Z Finished uploading artifact content to blob storage!
+2026-10-22T17:19:23.3351566Z SHA256 digest of uploaded artifact is 70242fdb028c9f6d07fd4c7e8a40aee45f9dca80319d0e916e3fb5c68e52efc0
+2026-10-22T17:19:23.3352002Z Finalizing artifact upload
+2026-10-22T17:19:23.9837808Z Artifact native-bootstrap-preparation-test-only successfully finalized. Artifact ID 12444437687
+2026-10-22T17:19:23.9838524Z Artifact native-bootstrap-preparation-test-only has been successfully uploaded! Final size is 7152 bytes. Artifact ID is 12444437687
+2026-10-22T17:19:23.9841050Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39821491408/artifacts/12444437687
+2026-10-22T17:19:23.9965594Z ##[group]Run set -euo pipefail
+2026-10-22T17:19:23.9965819Z [36;1mset -euo pipefail[0m
+2026-10-22T17:19:23.9966022Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-22T17:19:23.9966302Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-22T17:19:23.9966561Z [36;1mcandidate_output="$RUNNER_TEMP/stable-candidate-native"[0m
+2026-10-22T17:19:23.9966760Z [36;1mmkdir "$candidate_output"[0m
+2026-10-22T17:19:23.9966919Z [36;1mchmod 0777 "$candidate_output"[0m
+2026-10-22T17:19:23.9967139Z [36;1mcontainer="wk-stable-candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-22T17:19:23.9967412Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-22T17:19:23.9967613Z [36;1mtrap 'exit 130' INT[0m
+2026-10-22T17:19:23.9967753Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-22T17:19:23.9968000Z [36;1mtimeout --signal=TERM --kill-after=10s 10m docker run --rm --name "$container" \[0m
+2026-10-22T17:19:23.9968303Z [36;1m  --platform linux/amd64 --network none --read-only --cap-drop ALL \[0m
+2026-10-22T17:19:23.9968557Z [36;1m  --security-opt no-new-privileges --user 65532:65532 \[0m
+2026-10-22T17:19:23.9968765Z [36;1m  --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-22T17:19:23.9968968Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \[0m
+2026-10-22T17:19:23.9969171Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-22T17:19:23.9969359Z [36;1m  --volume "$candidate_output:/evidence" \[0m
+2026-10-22T17:19:23.9969533Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-22T17:19:23.9969732Z [36;1m  python3 -B /control/tests/native_stable_candidate_drill.py \[0m
+2026-10-22T17:19:23.9969974Z [36;1m  --output-dir /evidence --source-sha "$GITHUB_SHA" \[0m
+2026-10-22T17:19:23.9970175Z [36;1m  --trusted-root /control/.trusted/wukongim[0m
+2026-10-22T17:19:23.9970660Z [36;1mjq -e '.test_only == true and .passed == true and .secret_tree_removed_before_verification == true and .scratch_removed == true and .checked_in_control_unchanged == true and (.cases | length) == 31 and all(.cases[]; .passed == true)' \[0m
+2026-10-22T17:19:23.9971659Z [36;1m  "$candidate_output/native-stable-candidate.json" >/dev/null[0m
+2026-10-22T17:19:24.0012698Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:19:24.0012894Z ##[endgroup]
+2026-10-22T17:19:47.2612985Z {"passed": true, "cases": 31, "failure": null}
+2026-10-22T17:19:47.3297091Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-22T17:19:47.3297323Z with:
+2026-10-22T17:19:47.3297453Z   name: native-stable-candidate-test-only
+2026-10-22T17:19:47.3297793Z   path: /home/runner/work/_temp/stable-candidate-native/native-stable-candidate.json
+2026-10-22T17:19:47.3298032Z   if-no-files-found: warn
+2026-10-22T17:19:47.3298171Z   retention-days: 30
+2026-10-22T17:19:47.3298300Z   compression-level: 6
+2026-10-22T17:19:47.3298436Z   overwrite: false
+2026-10-22T17:19:47.3298565Z   include-hidden-files: false
+2026-10-22T17:19:47.3298714Z   archive: true
+2026-10-22T17:19:47.3298833Z ##[endgroup]
+2026-10-22T17:19:47.4279633Z With the provided path, there will be 1 file uploaded
+2026-10-22T17:19:47.4283151Z Artifact name is valid!
+2026-10-22T17:19:47.4283598Z Root directory input is valid!
+2026-10-22T17:19:47.7809693Z Uploading artifact: native-stable-candidate-test-only.zip
+2026-10-22T17:19:47.7834309Z Beginning upload of artifact content to blob storage
+2026-10-22T17:19:48.0265693Z Uploaded bytes 4186
+2026-10-22T17:19:48.0871604Z Finished uploading artifact content to blob storage!
+2026-10-22T17:19:48.0872212Z SHA256 digest of uploaded artifact is 9441a76ce7d0acebf54c6556c2fcb6dbba7d8e01b4273cf94a5663de857cc8a8
+2026-10-22T17:19:48.0872647Z Finalizing artifact upload
+2026-10-22T17:19:48.7283815Z Artifact native-stable-candidate-test-only successfully finalized. Artifact ID 12444776836
+2026-10-22T17:19:48.7284602Z Artifact native-stable-candidate-test-only has been successfully uploaded! Final size is 4186 bytes. Artifact ID is 12444776836
+2026-10-22T17:19:48.7287250Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39821491408/artifacts/12444776836
+2026-10-22T17:19:48.7428712Z ##[group]Run set -euo pipefail
+2026-10-22T17:19:48.7429140Z [36;1mset -euo pipefail[0m
+2026-10-22T17:19:48.7429490Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-22T17:19:48.7429942Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-22T17:19:48.7430343Z [36;1mfixture_output="$RUNNER_TEMP/native-delivery-fixture"[0m
+2026-10-22T17:19:48.7430661Z [36;1mmkdir "$fixture_output"[0m
+2026-10-22T17:19:48.7431108Z [36;1mchmod 0777 "$fixture_output"[0m
+2026-10-22T17:19:48.7431532Z [36;1mcontainer="wk-native-delivery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-22T17:19:48.7432040Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-22T17:19:48.7432426Z [36;1mtrap 'exit 130' INT[0m
+2026-10-22T17:19:48.7432690Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-22T17:19:48.7433108Z [36;1mtimeout --signal=TERM --kill-after=10s 15m docker run --rm --name "$container" \[0m
+2026-10-22T17:19:48.7433628Z [36;1m  --platform linux/amd64 --init --network none --read-only --cap-drop ALL \[0m
+2026-10-22T17:19:48.7434085Z [36;1m  --security-opt no-new-privileges --user 65532:65532 \[0m
+2026-10-22T17:19:48.7434459Z [36;1m  --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-22T17:19:48.7434778Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=536870912 \[0m
+2026-10-22T17:19:48.7435101Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-22T17:19:48.7435415Z [36;1m  --volume "$fixture_output:/evidence" \[0m
+2026-10-22T17:19:48.7435713Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-22T17:19:48.7436086Z [36;1m  python3 -B /control/tests/native_object_delivery_fixture_drill.py \[0m
+2026-10-22T17:19:48.7436528Z [36;1m  --output-dir /evidence --source-sha "$GITHUB_SHA" \[0m
+2026-10-22T17:19:48.7436929Z [36;1m  --trusted-root /control/.trusted/wukongim[0m
+2026-10-22T17:19:48.7438844Z [36;1mjq -e --arg source "$GITHUB_SHA" '.source_sha == $source and .test_only == true and .passed == true and .scratch_removed == true and (.cases | length) == 29 and all(.cases[]; .passed == true) and .verification.native_preview_verified == true and .verification.native_stable_verified == true and .verification.github_provenance_verified == false and .verification.fresh_production_auth_verified == false and .verification.activation_authorized == false' \[0m
+2026-10-22T17:19:48.7440437Z [36;1m  "$fixture_output/result.json" >/dev/null[0m
+2026-10-22T17:19:48.7441249Z [36;1mjq -e '.test_only == true and .data_only == true and .secret_tree_removed == true and .source_provenance_verified == false' \[0m
+2026-10-22T17:19:48.7441870Z [36;1m  "$fixture_output/fixture-export.json" >/dev/null[0m
+2026-10-22T17:19:48.7486596Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:19:48.7486824Z ##[endgroup]
+2026-10-22T17:20:26.0192474Z {"passed": true, "cases": 29, "phase": "export-public-only", "failure": null}
+2026-10-22T17:20:26.0964918Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-22T17:20:26.0965160Z with:
+2026-10-22T17:20:26.0965318Z   name: native-object-delivery-fixture-test-only
+2026-10-22T17:20:26.0965687Z   path: /home/runner/work/_temp/native-delivery-fixture/result.json
+/home/runner/work/_temp/native-delivery-fixture/fixture-export.json
+
+2026-10-22T17:20:26.0966029Z   if-no-files-found: warn
+2026-10-22T17:20:26.0966176Z   retention-days: 30
+2026-10-22T17:20:26.0966316Z   compression-level: 6
+2026-10-22T17:20:26.0966452Z   overwrite: false
+2026-10-22T17:20:26.0966592Z   include-hidden-files: false
+2026-10-22T17:20:26.0966744Z   archive: true
+2026-10-22T17:20:26.0966870Z ##[endgroup]
+2026-10-22T17:20:26.2003327Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-10-22T17:20:26.2052362Z The least common ancestor is /home/runner/work/_temp/native-delivery-fixture. This will be the root directory of the artifact
+2026-10-22T17:20:26.2053076Z With the provided path, there will be 2 files uploaded
+2026-10-22T17:20:26.2053531Z Artifact name is valid!
+2026-10-22T17:20:26.2053764Z Root directory input is valid!
+2026-10-22T17:20:26.5525295Z Uploading artifact: native-object-delivery-fixture-test-only.zip
+2026-10-22T17:20:26.5561877Z Beginning upload of artifact content to blob storage
+2026-10-22T17:20:26.7998042Z Uploaded bytes 8400
+2026-10-22T17:20:26.8593024Z Finished uploading artifact content to blob storage!
+2026-10-22T17:20:26.8593563Z SHA256 digest of uploaded artifact is 960a70849e7b25f8de3da85a9ce7a20f0d338ca64ace0b6fdc10984db15ee068
+2026-10-22T17:20:26.8593847Z Finalizing artifact upload
+2026-10-22T17:20:27.4409752Z Artifact native-object-delivery-fixture-test-only successfully finalized. Artifact ID 12445495285
+2026-10-22T17:20:27.4410303Z Artifact native-object-delivery-fixture-test-only has been successfully uploaded! Final size is 8400 bytes. Artifact ID is 12445495285
+2026-10-22T17:20:27.4413317Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39821491408/artifacts/12445495285
+2026-10-22T17:20:27.4570466Z ##[group]Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+2026-10-22T17:20:27.4570702Z with:
+2026-10-22T17:20:27.4570831Z   go-version: 1.27.0
+2026-10-22T17:20:27.4571279Z   cache-dependency-path: .trusted/wukongim/go.sum
+2026-10-22T17:20:27.4571462Z   cache: true
+2026-10-22T17:20:27.4571588Z   check-latest: false
+2026-10-22T17:20:27.4572867Z   token: ***
+2026-10-22T17:20:27.4572992Z ##[endgroup]
+2026-10-22T17:20:27.5393882Z Setup go version spec 1.27.0
+2026-10-22T17:20:27.5400231Z Attempting to download 1.27.0...
+2026-10-22T17:20:28.5425735Z matching 1.27.0...
+2026-10-22T17:20:28.5459182Z Acquiring 1.27.0 from https://github.com/actions/go-versions/releases/download/1.27.0-32325163857/go-1.27.0-linux-x64.tar.gz
+2026-10-22T17:20:29.0810869Z Extracting Go...
+2026-10-22T17:20:29.0902787Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/4f3520aa-33ef-4db9-becb-d8e6d9090778 -f /home/runner/work/_temp/9e8c4943-4e0f-49db-92e5-515ea14f5025
+2026-10-22T17:20:30.3282249Z Successfully extracted go to /home/runner/work/_temp/4f3520aa-33ef-4db9-becb-d8e6d9090778
+2026-10-22T17:20:30.3282713Z Adding to the cache ...
+2026-10-22T17:20:33.5564792Z Successfully cached go to /opt/hostedtoolcache/go/1.27.0/x64
+2026-10-22T17:20:33.5566639Z Added go to the path
+2026-10-22T17:20:33.5568522Z Successfully set up Go version 1.27.0
+2026-10-22T17:20:33.5763401Z [command]/opt/hostedtoolcache/go/1.27.0/x64/bin/go env GOMODCACHE
+2026-10-22T17:20:33.5802424Z [command]/opt/hostedtoolcache/go/1.27.0/x64/bin/go env GOCACHE
+2026-10-22T17:20:33.5841190Z /home/runner/go/pkg/mod
+2026-10-22T17:20:33.5857026Z /home/runner/.cache/go-build
+2026-10-22T17:20:33.8209765Z Cache is not found
+2026-10-22T17:20:33.8230805Z go version go1.27.0 linux/amd64
+2026-10-22T17:20:33.8231151Z 
+2026-10-22T17:20:33.8231356Z ##[group]go env
+2026-10-22T17:20:34.3689977Z AR='ar'
+2026-10-22T17:20:34.3690227Z CC='gcc'
+2026-10-22T17:20:34.3690435Z CGO_CFLAGS='-O2 -g'
+2026-10-22T17:20:34.3690704Z CGO_CPPFLAGS=''
+2026-10-22T17:20:34.3690843Z CGO_CXXFLAGS='-O2 -g'
+2026-10-22T17:20:34.3691159Z CGO_ENABLED='1'
+2026-10-22T17:20:34.3691289Z CGO_FFLAGS='-O2 -g'
+2026-10-22T17:20:34.3691420Z CGO_LDFLAGS='-O2 -g'
+2026-10-22T17:20:34.3691552Z CXX='g++'
+2026-10-22T17:20:34.3691677Z GCCGO='gccgo'
+2026-10-22T17:20:34.3691822Z GO111MODULE=''
+2026-10-22T17:20:34.3691948Z GOAMD64='v1'
+2026-10-22T17:20:34.3692067Z GOARCH='amd64'
+2026-10-22T17:20:34.3692191Z GOAUTH='netrc'
+2026-10-22T17:20:34.3692329Z GOBIN='/home/runner/go/bin'
+2026-10-22T17:20:34.3692503Z GOCACHE='/home/runner/.cache/go-build'
+2026-10-22T17:20:34.3692674Z GOCACHEPROG=''
+2026-10-22T17:20:34.3692795Z GODEBUG=''
+2026-10-22T17:20:34.3692928Z GOENV='/home/runner/.config/go/env'
+2026-10-22T17:20:34.3693085Z GOEXE=''
+2026-10-22T17:20:34.3693203Z GOEXPERIMENT=''
+2026-10-22T17:20:34.3693332Z GOFIPS140='off'
+2026-10-22T17:20:34.3693464Z GOFLAGS=''
+2026-10-22T17:20:34.3693863Z GOGCCFLAGS='-fPIC -m64 -pthread -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=/tmp/go-build2633056275=/tmp/go-build -gno-record-gcc-switches'
+2026-10-22T17:20:34.3694232Z GOHOSTARCH='amd64'
+2026-10-22T17:20:34.3694364Z GOHOSTOS='linux'
+2026-10-22T17:20:34.3694492Z GOINSECURE=''
+2026-10-22T17:20:34.3694614Z GOMOD='/dev/null'
+2026-10-22T17:20:34.3694761Z GOMODCACHE='/home/runner/go/pkg/mod'
+2026-10-22T17:20:34.3694923Z GONOPROXY=''
+2026-10-22T17:20:34.3695044Z GONOSUMDB=''
+2026-10-22T17:20:34.3695162Z GOOS='linux'
+2026-10-22T17:20:34.3695281Z GOPACKAGESDRIVER=''
+2026-10-22T17:20:34.3695423Z GOPATH='/home/runner/go'
+2026-10-22T17:20:34.3695563Z GOPRIVATE=''
+2026-10-22T17:20:34.3695738Z GOPROXY='https://proxy.golang.org,direct'
+2026-10-22T17:20:34.3695936Z GOROOT='/opt/hostedtoolcache/go/1.27.0/x64'
+2026-10-22T17:20:34.3696111Z GOSUMDB='sum.golang.org'
+2026-10-22T17:20:34.3696255Z GOTELEMETRY='local'
+2026-10-22T17:20:34.3696422Z GOTELEMETRYDIR='/home/runner/.config/go/telemetry'
+2026-10-22T17:20:34.3696602Z GOTMPDIR=''
+2026-10-22T17:20:34.3696725Z GOTOOLCHAIN='local'
+2026-10-22T17:20:34.3697172Z GOTOOLDIR='/opt/hostedtoolcache/go/1.27.0/x64/pkg/tool/linux_amd64'
+2026-10-22T17:20:34.3697374Z GOVCS=''
+2026-10-22T17:20:34.3697496Z GOVERSION='go1.27.0'
+2026-10-22T17:20:34.3697630Z GOWORK=''
+2026-10-22T17:20:34.3697753Z PKG_CONFIG='pkg-config'
+2026-10-22T17:20:34.3697842Z 
+2026-10-22T17:20:34.3698145Z ##[endgroup]
+2026-10-22T17:20:34.3867606Z ##[group]Run set -euo pipefail
+2026-10-22T17:20:34.3867806Z [36;1mset -euo pipefail[0m
+2026-10-22T17:20:34.3867979Z [36;1minstall_dir="$RUNNER_TEMP/goreleaser-bin"[0m
+2026-10-22T17:20:34.3868165Z [36;1mmkdir -p "$install_dir"[0m
+2026-10-22T17:20:34.3868397Z [36;1mGOBIN="$install_dir" go install github.com/goreleaser/goreleaser/v2@v2.18.0[0m
+2026-10-22T17:20:34.3868665Z [36;1mecho "install_dir=$install_dir" >> "$GITHUB_ENV"[0m
+2026-10-22T17:20:34.3911575Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:20:34.3911933Z env:
+2026-10-22T17:20:34.3912052Z   GOTOOLCHAIN: local
+2026-10-22T17:20:34.3912190Z ##[endgroup]
+2026-10-22T17:20:34.6471739Z go: downloading github.com/goreleaser/goreleaser/v2 v2.18.0
+2026-10-22T17:20:36.7221418Z go: downloading github.com/caarlos0/go-version v0.2.2
+2026-10-22T17:20:36.7224197Z go: downloading charm.land/lipgloss/v2 v2.0.6
+2026-10-22T17:20:36.7261218Z go: downloading github.com/caarlos0/log v0.6.2
+2026-10-22T17:20:36.7267663Z go: downloading github.com/charmbracelet/fang v1.0.0
+2026-10-22T17:20:37.2161404Z go: downloading github.com/invopop/jsonschema v0.14.0
+2026-10-22T17:20:37.4227129Z go: downloading github.com/muesli/mango-cobra v1.3.0
+2026-10-22T17:20:37.6021619Z go: downloading github.com/muesli/roff v0.1.0
+2026-10-22T17:20:37.6556987Z go: downloading github.com/spf13/cobra v1.10.2
+2026-10-22T17:20:37.8184192Z go: downloading github.com/charmbracelet/colorprofile v0.4.3
+2026-10-22T17:20:37.8223739Z go: downloading github.com/charmbracelet/ultraviolet v0.0.0-20260811164956-006e29f97886
+2026-10-22T17:20:37.9471750Z go: downloading github.com/charmbracelet/x/ansi v0.11.8
+2026-10-22T17:20:37.9762404Z go: downloading github.com/charmbracelet/x/term v0.2.2
+2026-10-22T17:20:37.9959950Z go: downloading github.com/clipperhouse/displaywidth v0.11.0
+2026-10-22T17:20:38.0262736Z go: downloading github.com/lucasb-eyer/go-colorful v1.4.1
+2026-10-22T17:20:38.0681527Z go: downloading github.com/rivo/uniseg v0.4.7
+2026-10-22T17:20:38.1324326Z go: downloading golang.org/x/crypto v0.55.0
+2026-10-22T17:20:38.2953712Z go: downloading lukechampine.com/blake3 v1.4.1
+2026-10-22T17:20:38.3813996Z go: downloading github.com/hashicorp/go-multierror v1.1.1
+2026-10-22T17:20:38.5151332Z go: downloading github.com/BurntSushi/toml v1.6.0
+2026-10-22T17:20:38.5646024Z go: downloading github.com/goreleaser/nfpm/v2 v2.47.0
+2026-10-22T17:20:38.5914448Z go: downloading github.com/pb33f/ordered-map/v2 v2.3.1
+2026-10-22T17:20:38.5992188Z go: downloading github.com/muesli/mango v0.2.0
+2026-10-22T17:20:38.6338301Z go: downloading github.com/muesli/mango-pflag v0.1.0
+2026-10-22T17:20:38.6625291Z go: downloading github.com/charmbracelet/x/exp/charmtone v0.0.0-20250603201427-c31516f43444
+2026-10-22T17:20:38.7505597Z go: downloading github.com/spf13/pflag v1.0.10
+2026-10-22T17:20:38.7895992Z go: downloading golang.org/x/text v0.41.0
+2026-10-22T17:20:38.9716735Z go: downloading github.com/charmbracelet/x/termios v0.1.1
+2026-10-22T17:20:39.0165487Z go: downloading github.com/charmbracelet/x/windows v0.2.2
+2026-10-22T17:20:39.0467837Z go: downloading github.com/muesli/cancelreader v0.2.2
+2026-10-22T17:20:39.1560651Z go: downloading github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
+2026-10-22T17:20:39.1665518Z go: downloading golang.org/x/sync v0.22.0
+2026-10-22T17:20:39.2308528Z go: downloading golang.org/x/sys v0.47.0
+2026-10-22T17:20:39.2480393Z go: downloading github.com/clipperhouse/uax29/v2 v2.7.0
+2026-10-22T17:20:39.2717295Z go: downloading github.com/mattn/go-runewidth v0.0.24
+2026-10-22T17:20:39.2749318Z go: downloading code.gitea.io/sdk/gitea v0.25.1
+2026-10-22T17:20:39.3472198Z go: downloading github.com/Masterminds/semver/v3 v3.5.0
+2026-10-22T17:20:39.3595467Z go: downloading github.com/google/go-github/v89 v89.0.0
+2026-10-22T17:20:39.4492956Z go: downloading gitlab.com/gitlab-org/api/client-go v1.46.0
+2026-10-22T17:20:39.5002201Z go: downloading golang.org/x/oauth2 v0.36.0
+2026-10-22T17:20:39.5603215Z go: downloading github.com/goreleaser/go-shellwords v1.0.13
+2026-10-22T17:20:39.7287417Z go: downloading github.com/gobwas/glob v0.2.3
+2026-10-22T17:20:39.8472517Z go: downloading github.com/agnivade/levenshtein v1.2.1
+2026-10-22T17:20:39.8477222Z go: downloading github.com/mitchellh/go-homedir v1.1.0
+2026-10-22T17:20:39.8887541Z go: downloading github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.12.0
+2026-10-22T17:20:39.9801093Z go: downloading github.com/chrismellard/docker-credential-acr-env v0.0.0-20230304212654-82a0ddb27589
+2026-10-22T17:20:40.0969395Z go: downloading github.com/google/go-containerregistry v0.21.9
+2026-10-22T17:20:40.9029775Z go: downloading github.com/google/ko v0.19.1
+2026-10-22T17:20:40.9030068Z go: downloading golang.org/x/tools v0.49.0
+2026-10-22T17:20:41.1033810Z go: downloading dario.cat/mergo v1.0.2
+2026-10-22T17:20:41.1034663Z go: downloading github.com/goreleaser/quill v0.0.0-20260630015114-8310f3e9a321
+2026-10-22T17:20:41.5362594Z go: downloading github.com/docker/go-units v0.5.0
+2026-10-22T17:20:41.5364820Z go: downloading github.com/hashicorp/errwrap v1.1.0
+2026-10-22T17:20:41.6690730Z go: downloading go.yaml.in/yaml/v3 v3.0.5
+2026-10-22T17:20:41.8644881Z go: downloading github.com/bahlo/generic-list-go v0.2.0
+2026-10-22T17:20:42.0675128Z go: downloading github.com/buger/jsonparser v1.1.2
+2026-10-22T17:20:42.1472647Z go: downloading go.yaml.in/yaml/v4 v4.0.0-rc.6
+2026-10-22T17:20:42.2814079Z go: downloading github.com/AlekSi/pointer v1.2.0
+2026-10-22T17:20:42.3941654Z go: downloading github.com/goreleaser/chglog v0.7.4
+2026-10-22T17:20:42.5444431Z go: downloading github.com/klauspost/cpuid/v2 v2.3.0
+2026-10-22T17:20:42.6016415Z go: downloading github.com/avast/retry-go/v4 v4.7.0
+2026-10-22T17:20:42.8619468Z go: downloading github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.3.14
+2026-10-22T17:20:43.0445964Z go: downloading gocloud.dev v0.46.0
+2026-10-22T17:20:43.3806887Z go: downloading github.com/aws/aws-sdk-go-v2 v1.43.6
+2026-10-22T17:20:43.8880514Z go: downloading github.com/bluesky-social/indigo v0.0.0-20240813042137-4006c0eca043
+2026-10-22T17:20:44.5289408Z go: downloading github.com/caarlos0/env/v11 v11.4.1
+2026-10-22T17:20:44.5290163Z go: downloading github.com/mattn/go-mastodon v0.0.13
+2026-10-22T17:20:44.5291091Z go: downloading github.com/modelcontextprotocol/registry v1.8.1
+2026-10-22T17:20:45.2754329Z go: downloading github.com/caarlos0/go-reddit/v3 v3.0.1
+2026-10-22T17:20:45.2754636Z go: downloading github.com/slack-go/slack v0.29.0
+2026-10-22T17:20:45.2754839Z go: downloading gopkg.in/mail.v2 v2.3.1
+2026-10-22T17:20:45.2755180Z go: downloading github.com/atc0005/go-teams-notify/v2 v2.14.0
+2026-10-22T17:20:45.8712829Z go: downloading github.com/dghubble/go-twitter v0.0.0-20211115160449-93a8679adecb
+2026-10-22T17:20:45.8713199Z go: downloading github.com/dghubble/oauth1 v0.7.3
+2026-10-22T17:20:45.8967925Z go: downloading github.com/goreleaser/fileglob v1.4.0
+2026-10-22T17:20:45.9467135Z go: downloading github.com/google/go-querystring v1.2.0
+2026-10-22T17:20:45.9896315Z go: downloading github.com/42wim/httpsig v1.2.4
+2026-10-22T17:20:46.1843071Z go: downloading github.com/go-fed/httpsig v1.1.0
+2026-10-22T17:20:46.2870391Z go: downloading github.com/hashicorp/go-version v1.9.0
+2026-10-22T17:20:46.3430645Z go: downloading github.com/hashicorp/go-cleanhttp v0.5.2
+2026-10-22T17:20:46.3995047Z go: downloading github.com/hashicorp/go-retryablehttp v0.7.8
+2026-10-22T17:20:46.4269127Z go: downloading golang.org/x/time v0.15.0
+2026-10-22T17:20:46.4670866Z go: downloading github.com/Azure/go-autorest/autorest/azure/auth v0.5.13
+2026-10-22T17:20:46.5853148Z go: downloading github.com/docker/docker-credential-helpers v0.9.5
+2026-10-22T17:20:46.5924226Z go: downloading github.com/sirupsen/logrus v1.9.4
+2026-10-22T17:20:46.6300159Z go: downloading github.com/docker/cli v29.6.2+incompatible
+2026-10-22T17:20:46.6485958Z go: downloading github.com/Azure/go-autorest/autorest v0.11.30
+2026-10-22T17:20:46.8542151Z go: downloading github.com/Azure/go-autorest v14.2.0+incompatible
+2026-10-22T17:20:46.9318160Z go: downloading github.com/moby/docker-image-spec v1.3.1
+2026-10-22T17:20:47.0336794Z go: downloading github.com/moby/moby/api v1.55.0
+2026-10-22T17:20:47.2643958Z go: downloading github.com/moby/moby/client v0.5.1
+2026-10-22T17:20:47.2647626Z go: downloading github.com/opencontainers/go-digest v1.0.0
+2026-10-22T17:20:47.2648057Z go: downloading github.com/opencontainers/image-spec v1.1.1
+2026-10-22T17:20:47.3536522Z go: downloading github.com/sigstore/cosign/v3 v3.1.1
+2026-10-22T17:20:47.7478957Z go: downloading github.com/go-viper/mapstructure/v2 v2.5.0
+2026-10-22T17:20:47.7480023Z go: downloading github.com/spf13/viper v1.21.0
+2026-10-22T17:20:47.7484900Z go: downloading github.com/klauspost/pgzip v1.2.6
+2026-10-22T17:20:47.8141046Z go: downloading github.com/klauspost/compress v1.19.2
+2026-10-22T17:20:47.8379193Z go: downloading github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb
+2026-10-22T17:20:47.8634339Z go: downloading github.com/ulikunitz/xz v0.5.16
+2026-10-22T17:20:47.8963766Z go: downloading go.digitalxero.dev/go-msix v0.3.1
+2026-10-22T17:20:48.0449105Z go: downloading github.com/google/rpmpack v0.7.1
+2026-10-22T17:20:48.1735121Z go: downloading github.com/anchore/go-macholibre v0.0.0-20250826193721-3cd206ca93aa
+2026-10-22T17:20:48.3186934Z go: downloading github.com/blacktop/go-macho v1.1.263
+2026-10-22T17:20:48.5064201Z go: downloading software.sslmate.com/src/go-pkcs12 v0.7.3
+2026-10-22T17:20:48.7669927Z go: downloading github.com/aws/aws-sdk-go-v2/config v1.32.37
+2026-10-22T17:20:48.8278357Z go: downloading github.com/aws/aws-sdk-go-v2/credentials v1.19.36
+2026-10-22T17:20:48.9098374Z go: downloading github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.21.1
+2026-10-22T17:20:49.0587829Z go: downloading github.com/aws/aws-sdk-go-v2/service/s3 v1.107.2
+2026-10-22T17:20:49.1860109Z go: downloading github.com/gabriel-vasile/mimetype v1.4.13
+2026-10-22T17:20:49.3378050Z go: downloading github.com/golang-jwt/jwt/v4 v4.5.2
+2026-10-22T17:20:49.3911407Z go: downloading github.com/wagoodman/go-progress v0.0.0-20230925121702-07e42b3cdba0
+2026-10-22T17:20:49.4374640Z go: downloading github.com/Masterminds/sprig/v3 v3.3.0
+2026-10-22T17:20:49.4563254Z go: downloading github.com/go-git/go-git/v5 v5.19.2
+2026-10-22T17:20:49.7847056Z go: downloading gitlab.com/digitalxero/go-conventional-commit v1.0.7
+2026-10-22T17:20:49.9452611Z go: downloading go.opentelemetry.io/otel/metric v1.44.0
+2026-10-22T17:20:49.9453286Z go: downloading github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
+2026-10-22T17:20:50.0326120Z go: downloading go.opentelemetry.io/otel v1.44.0
+2026-10-22T17:20:50.1732404Z go: downloading github.com/Azure/azure-sdk-for-go v68.0.0+incompatible
+2026-10-22T17:20:50.2318143Z go: downloading github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
+2026-10-22T17:20:50.5664201Z go: downloading github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4
+2026-10-22T17:20:54.6151319Z go: downloading github.com/google/wire v0.7.0
+2026-10-22T17:20:54.6151659Z go: downloading cloud.google.com/go/compute/metadata v0.9.0
+2026-10-22T17:20:54.6151932Z go: downloading cloud.google.com/go/iam v1.11.0
+2026-10-22T17:20:54.7794264Z go: downloading cloud.google.com/go v0.123.0
+2026-10-22T17:20:54.8475174Z go: downloading cloud.google.com/go/storage v1.62.2
+2026-10-22T17:20:54.9016611Z go: downloading github.com/googleapis/gax-go/v2 v2.23.0
+2026-10-22T17:20:55.0269864Z go: downloading google.golang.org/api v0.287.1
+2026-10-22T17:20:55.4392338Z go: downloading github.com/aws/smithy-go v1.27.8
+2026-10-22T17:20:56.0252752Z go: downloading github.com/aws/aws-sdk-go-v2/service/kms v1.52.0
+2026-10-22T17:20:56.4580354Z go: downloading github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.5.0
+2026-10-22T17:20:57.2936817Z go: downloading cloud.google.com/go/kms v1.33.0
+2026-10-22T17:20:57.8120799Z go: downloading google.golang.org/grpc v1.82.1
+2026-10-22T17:20:57.8127615Z go: downloading github.com/ipfs/go-cid v0.4.1
+2026-10-22T17:20:58.0120646Z go: downloading github.com/whyrusleeping/cbor-gen v0.1.3-0.20240731173018-74d74643234c
+2026-10-22T17:20:58.0121491Z go: downloading golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
+2026-10-22T17:20:58.3105192Z go: downloading github.com/ipfs/go-block-format v0.2.0
+2026-10-22T17:20:58.3712723Z go: downloading github.com/ipfs/go-ipfs-blockstore v1.3.1
+2026-10-22T17:20:58.5799633Z go: downloading github.com/ipfs/go-ipld-cbor v0.1.0
+2026-10-22T17:20:58.6898737Z go: downloading github.com/ipfs/go-ipld-format v0.6.0
+2026-10-22T17:20:58.8798208Z go: downloading github.com/multiformats/go-multihash v0.2.3
+2026-10-22T17:20:58.9302402Z go: downloading go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
+2026-10-22T17:20:59.1097913Z go: downloading github.com/carlmjohnson/versioninfo v0.22.5
+2026-10-22T17:20:59.2284020Z go: downloading github.com/gorilla/websocket v1.5.3
+2026-10-22T17:20:59.2792008Z go: downloading github.com/tomnomnom/linkheader v0.0.0-20250811210735-e5fe3b51442e
+2026-10-22T17:20:59.5088983Z go: downloading golang.org/x/net v0.58.0
+2026-10-22T17:20:59.5095674Z go: downloading github.com/cenkalti/backoff/v4 v4.3.0
+2026-10-22T17:20:59.6683844Z go: downloading github.com/dghubble/sling v1.4.0
+2026-10-22T17:20:59.9079030Z go: downloading github.com/Azure/go-autorest/autorest/adal v0.9.24
+2026-10-22T17:21:00.0379451Z go: downloading github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.38.11
+2026-10-22T17:21:00.0380187Z go: downloading github.com/aws/aws-sdk-go-v2/service/ecr v1.56.0
+2026-10-22T17:21:00.0565104Z go: downloading github.com/Azure/go-autorest/autorest/azure/cli v0.4.7
+2026-10-22T17:21:00.2472375Z go: downloading github.com/Azure/go-autorest/logger v0.2.2
+2026-10-22T17:21:00.3273836Z go: downloading github.com/dimchansky/utfbom v1.1.1
+2026-10-22T17:21:00.5391287Z go: downloading github.com/containerd/errdefs v1.0.0
+2026-10-22T17:21:00.5391666Z go: downloading github.com/distribution/reference v0.6.0
+2026-10-22T17:21:00.5392023Z go: downloading github.com/containerd/errdefs/pkg v0.3.0
+2026-10-22T17:21:00.5672148Z go: downloading github.com/docker/go-connections v0.7.0
+2026-10-22T17:21:00.6471953Z go: downloading go.opentelemetry.io/otel/trace v1.44.0
+2026-10-22T17:21:00.6581753Z go: downloading github.com/sigstore/sigstore v1.10.8
+2026-10-22T17:21:00.6886076Z go: downloading github.com/ProtonMail/go-crypto v1.4.1
+2026-10-22T17:21:00.9768073Z go: downloading github.com/fsnotify/fsnotify v1.10.1
+2026-10-22T17:21:01.0760714Z go: downloading github.com/sagikazarmark/locafero v0.12.0
+2026-10-22T17:21:01.0762407Z go: downloading github.com/spf13/cast v1.10.0
+2026-10-22T17:21:01.0763019Z go: downloading github.com/spf13/afero v1.15.0
+2026-10-22T17:21:01.0764290Z go: downloading sigs.k8s.io/kind v0.32.0
+2026-10-22T17:21:01.1861706Z go: downloading github.com/sigstore/sigstore-go v1.2.1
+2026-10-22T17:21:01.2258622Z go: downloading go.mozilla.org/pkcs7 v0.9.0
+2026-10-22T17:21:01.4155757Z go: downloading github.com/go-restruct/restruct v1.2.0-alpha
+2026-10-22T17:21:01.4159783Z go: downloading github.com/github/smimesign v0.2.0
+2026-10-22T17:21:01.5349034Z go: downloading github.com/cavaliergopher/cpio v1.0.1
+2026-10-22T17:21:01.6355111Z go: downloading github.com/blacktop/go-dwarf v1.0.14
+2026-10-22T17:21:01.6852837Z go: downloading github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.37
+2026-10-22T17:21:01.9032883Z go: downloading github.com/aws/aws-sdk-go-v2/service/signin v1.5.6
+2026-10-22T17:21:02.0041712Z go: downloading github.com/aws/aws-sdk-go-v2/service/sso v1.33.6
+2026-10-22T17:21:02.0543060Z go: downloading github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.6
+2026-10-22T17:21:02.1529483Z go: downloading github.com/aws/aws-sdk-go-v2/service/sts v1.45.6
+2026-10-22T17:21:02.2649912Z go: downloading github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.18
+2026-10-22T17:21:02.3447494Z go: downloading github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.37
+2026-10-22T17:21:02.3637530Z go: downloading github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.38
+2026-10-22T17:21:02.3638106Z go: downloading github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.17
+2026-10-22T17:21:02.4453681Z go: downloading github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.30
+2026-10-22T17:21:02.5439554Z go: downloading github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.37
+2026-10-22T17:21:02.5846075Z go: downloading github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.38
+2026-10-22T17:21:02.6953698Z go: downloading github.com/Masterminds/goutils v1.1.1
+2026-10-22T17:21:02.7930009Z go: downloading github.com/google/uuid v1.6.0
+2026-10-22T17:21:02.8359359Z go: downloading github.com/huandu/xstrings v1.5.0
+2026-10-22T17:21:02.8359930Z go: downloading github.com/mitchellh/copystructure v1.2.0
+2026-10-22T17:21:02.8527835Z go: downloading github.com/shopspring/decimal v1.4.0
+2026-10-22T17:21:02.9058938Z go: downloading github.com/emirpasic/gods v1.18.1
+2026-10-22T17:21:02.9333916Z go: downloading github.com/sergi/go-diff v1.4.0
+2026-10-22T17:21:03.0039531Z go: downloading github.com/go-git/go-billy/v5 v5.9.0
+2026-10-22T17:21:03.6230490Z go: downloading go.opentelemetry.io/otel/sdk/metric v1.44.0
+2026-10-22T17:21:03.6231132Z go: downloading github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0
+2026-10-22T17:21:03.7402143Z go: downloading go.opentelemetry.io/otel/sdk v1.44.0
+2026-10-22T17:21:03.9927361Z go: downloading github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2
+2026-10-22T17:21:04.5075948Z go: downloading google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
+2026-10-22T17:21:04.5076574Z go: downloading google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7
+2026-10-22T17:21:04.7802024Z go: downloading google.golang.org/genproto v0.0.0-20260406210006-6f92a3bedf2d
+2026-10-22T17:21:04.8581138Z go: downloading cloud.google.com/go/auth v0.20.0
+2026-10-22T17:21:04.8684081Z go: downloading go.opentelemetry.io/contrib/detectors/gcp v1.43.0
+2026-10-22T17:21:04.8684693Z go: downloading github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.55.0
+2026-10-22T17:21:05.2539081Z go: downloading github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0
+2026-10-22T17:21:05.5579250Z go: downloading cloud.google.com/go/longrunning v1.2.0
+2026-10-22T17:21:05.6782848Z go: downloading github.com/multiformats/go-multibase v0.2.0
+2026-10-22T17:21:05.8128397Z go: downloading github.com/multiformats/go-varint v0.0.7
+2026-10-22T17:21:05.8131658Z go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260630182238-925bb5da69e7
+2026-10-22T17:21:05.8132332Z go: downloading github.com/ipfs/go-ipfs-util v0.0.3
+2026-10-22T17:21:06.1137246Z go: downloading github.com/hashicorp/golang-lru v1.0.2
+2026-10-22T17:21:06.1466352Z go: downloading github.com/ipfs/bbloom v0.0.4
+2026-10-22T17:21:06.1637849Z go: downloading github.com/ipfs/go-datastore v0.6.0
+2026-10-22T17:21:06.4198498Z go: downloading github.com/ipfs/go-ipfs-ds-help v1.1.1
+2026-10-22T17:21:06.8520620Z go: downloading github.com/ipfs/go-log v1.0.5
+2026-10-22T17:21:06.8523281Z go: downloading go.uber.org/atomic v1.11.0
+2026-10-22T17:21:06.8523702Z go: downloading github.com/ipfs/go-metrics-interface v0.0.1
+2026-10-22T17:21:06.9265100Z go: downloading github.com/polydawn/refmt v0.89.1-0.20221221234430-40501e09de1f
+2026-10-22T17:21:07.3676763Z go: downloading github.com/mr-tron/base58 v1.2.0
+2026-10-22T17:21:07.3677384Z go: downloading github.com/felixge/httpsnoop v1.0.4
+2026-10-22T17:21:07.3678047Z go: downloading github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
+2026-10-22T17:21:07.3683662Z go: downloading github.com/Azure/go-autorest/autorest/date v0.3.1
+2026-10-22T17:21:07.4746615Z go: downloading github.com/Azure/go-autorest/tracing v0.6.1
+2026-10-22T17:21:07.4987480Z go: downloading github.com/secure-systems-lab/go-securesystemslib v0.11.0
+2026-10-22T17:21:07.5625743Z go: downloading github.com/sigstore/protobuf-specs v0.5.1
+2026-10-22T17:21:07.8029350Z go: downloading github.com/sigstore/rekor v1.5.2
+2026-10-22T17:21:07.8030070Z go: downloading github.com/dustin/go-humanize v1.0.1
+2026-10-22T17:21:07.8034034Z go: downloading github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
+2026-10-22T17:21:07.8430558Z go: downloading golang.org/x/term v0.45.0
+2026-10-22T17:21:07.9509424Z go: downloading github.com/subosito/gotenv v1.6.0
+2026-10-22T17:21:07.9998595Z go: downloading github.com/pelletier/go-toml/v2 v2.2.4
+2026-10-22T17:21:08.0979858Z go: downloading github.com/scylladb/go-set v1.0.3-0.20200225121959-cc7b2070d91e
+2026-10-22T17:21:08.3310553Z go: downloading github.com/pelletier/go-toml v1.9.5
+2026-10-22T17:21:08.3788452Z go: downloading github.com/pkg/errors v0.9.1
+2026-10-22T17:21:08.3795603Z go: downloading github.com/in-toto/attestation v1.2.0
+2026-10-22T17:21:08.4518679Z go: downloading golang.org/x/mod v0.39.0
+2026-10-22T17:21:08.4523511Z go: downloading github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.37
+2026-10-22T17:21:08.5522137Z go: downloading github.com/pjbgf/sha1cd v0.6.0
+2026-10-22T17:21:08.6151434Z go: downloading github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99
+2026-10-22T17:21:08.6275651Z go: downloading github.com/mitchellh/reflectwalk v1.0.2
+2026-10-22T17:21:08.7092687Z go: downloading github.com/cyphar/filepath-securejoin v0.6.1
+2026-10-22T17:21:08.7171841Z go: downloading github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376
+2026-10-22T17:21:08.7634174Z go: downloading github.com/go-logr/logr v1.4.3
+2026-10-22T17:21:08.7869019Z go: downloading github.com/kylelemons/godebug v1.1.0
+2026-10-22T17:21:08.8247716Z go: downloading cloud.google.com/go/auth/oauth2adapt v0.2.8
+2026-10-22T17:21:08.9051222Z go: downloading go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0
+2026-10-22T17:21:08.9315250Z go: downloading github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
+2026-10-22T17:21:09.0635814Z go: downloading cloud.google.com/go/monitoring v1.25.0
+2026-10-22T17:21:09.1433568Z go: downloading github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.55.0
+2026-10-22T17:21:09.2231430Z go: downloading github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.32.0
+2026-10-22T17:21:09.3055725Z go: downloading github.com/google/s2a-go v0.1.9
+2026-10-22T17:21:09.5041842Z go: downloading github.com/multiformats/go-base32 v0.1.0
+2026-10-22T17:21:09.5684584Z go: downloading github.com/multiformats/go-base36 v0.2.0
+2026-10-22T17:21:09.5858454Z go: downloading github.com/jbenet/goprocess v0.1.4
+2026-10-22T17:21:09.5858856Z go: downloading github.com/ipfs/go-log/v2 v2.5.1
+2026-10-22T17:21:09.7031729Z go: downloading github.com/opentracing/opentracing-go v1.2.0
+2026-10-22T17:21:09.9070128Z go: downloading go.uber.org/zap v1.28.0
+2026-10-22T17:21:10.1103023Z go: downloading github.com/moby/term v0.5.2
+2026-10-22T17:21:10.1946137Z go: downloading github.com/sigstore/timestamp-authority/v2 v2.1.2
+2026-10-22T17:21:10.1946927Z go: downloading github.com/digitorus/timestamp v0.0.0-20250524132541-c45532741eea
+2026-10-22T17:21:10.3234556Z go: downloading github.com/sigstore/rekor-tiles/v2 v2.2.2-0.20260601073857-5d098a2b6443
+2026-10-22T17:21:10.7051541Z go: downloading github.com/cloudflare/circl v1.6.3
+2026-10-22T17:21:11.4313648Z go: downloading al.essio.dev/pkg/shellescape v1.6.0
+2026-10-22T17:21:11.4314005Z go: downloading github.com/go-openapi/errors v0.22.8
+2026-10-22T17:21:11.4314223Z go: downloading github.com/go-openapi/runtime v0.32.3
+2026-10-22T17:21:11.5010662Z go: downloading github.com/go-openapi/strfmt v0.27.0
+2026-10-22T17:21:11.5816377Z go: downloading github.com/go-openapi/swag v0.26.0
+2026-10-22T17:21:11.5816830Z go: downloading github.com/go-openapi/validate v0.26.1
+2026-10-22T17:21:11.5841889Z go: downloading github.com/cyberphone/json-canonicalization v0.0.0-20241213102144-19d51d7fe467
+2026-10-22T17:21:11.6085671Z go: downloading github.com/go-openapi/swag/conv v0.27.3
+2026-10-22T17:21:11.6258144Z go: downloading github.com/google/certificate-transparency-go v1.3.3
+2026-10-22T17:21:12.0260632Z go: downloading gopkg.in/warnings.v0 v0.1.2
+2026-10-22T17:21:12.0266982Z go: downloading github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
+2026-10-22T17:21:12.1117023Z go: downloading github.com/kevinburke/ssh_config v1.2.0
+2026-10-22T17:21:12.1172888Z go: downloading github.com/skeema/knownhosts v1.3.1
+2026-10-22T17:21:12.1891937Z go: downloading github.com/xanzy/ssh-agent v0.3.3
+2026-10-22T17:21:12.1943456Z go: downloading github.com/go-logr/stdr v1.2.2
+2026-10-22T17:21:12.2077409Z go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+2026-10-22T17:21:12.2677658Z go: downloading github.com/cespare/xxhash/v2 v2.3.0
+2026-10-22T17:21:12.2767477Z go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+2026-10-22T17:21:12.2771659Z go: downloading github.com/googleapis/enterprise-certificate-proxy v0.3.17
+2026-10-22T17:21:12.3595925Z go: downloading github.com/envoyproxy/go-control-plane/envoy v1.37.0
+2026-10-22T17:21:12.5797791Z go: downloading github.com/gogo/protobuf v1.3.2
+2026-10-22T17:21:12.7813884Z go: downloading github.com/mattn/go-isatty v0.0.20
+2026-10-22T17:21:12.8503877Z go: downloading go.uber.org/multierr v1.11.0
+2026-10-22T17:21:13.2255668Z go: downloading github.com/spaolacci/murmur3 v1.1.0
+2026-10-22T17:21:13.2256006Z go: downloading github.com/theupdateframework/go-tuf/v2 v2.4.2
+2026-10-22T17:21:13.3710582Z go: downloading github.com/theupdateframework/go-tuf v0.7.0
+2026-10-22T17:21:13.4992906Z go: downloading github.com/digitorus/pkcs7 v0.0.0-20250730155240-ffadbf3f398c
+2026-10-22T17:21:13.7077669Z go: downloading github.com/blang/semver v3.5.1+incompatible
+2026-10-22T17:21:13.8202148Z go: downloading github.com/in-toto/in-toto-golang v0.11.0
+2026-10-22T17:21:13.8203430Z go: downloading github.com/coreos/go-oidc/v3 v3.20.0
+2026-10-22T17:21:13.8214057Z go: downloading github.com/go-jose/go-jose/v4 v4.1.4
+2026-10-22T17:21:13.8670140Z go: downloading github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
+2026-10-22T17:21:14.0891979Z go: downloading sigs.k8s.io/yaml v1.6.0
+2026-10-22T17:21:14.0892697Z go: downloading github.com/go-openapi/swag/fileutils v0.27.3
+2026-10-22T17:21:14.1380159Z go: downloading github.com/go-openapi/swag/jsonutils v0.27.3
+2026-10-22T17:21:14.2075370Z go: downloading github.com/go-openapi/swag/stringutils v0.27.3
+2026-10-22T17:21:14.3329553Z go: downloading github.com/oklog/ulid/v2 v2.1.1
+2026-10-22T17:21:14.3659589Z go: downloading github.com/go-openapi/swag/cmdutils v0.26.0
+2026-10-22T17:21:14.3768809Z go: downloading github.com/go-openapi/swag/jsonname v0.26.0
+2026-10-22T17:21:14.3848186Z go: downloading github.com/go-openapi/swag/loading v0.27.3
+2026-10-22T17:21:14.3970150Z go: downloading github.com/go-openapi/swag/mangling v0.27.3
+2026-10-22T17:21:14.4703125Z go: downloading github.com/go-openapi/swag/netutils v0.26.0
+2026-10-22T17:21:14.4918083Z go: downloading github.com/go-openapi/swag/typeutils v0.27.3
+2026-10-22T17:21:14.5297776Z go: downloading github.com/go-openapi/swag/yamlutils v0.27.3
+2026-10-22T17:21:14.5311936Z go: downloading github.com/transparency-dev/formats v0.1.1
+2026-10-22T17:21:14.5458318Z go: downloading github.com/transparency-dev/merkle v0.0.2
+2026-10-22T17:21:14.7375207Z go: downloading github.com/go-openapi/analysis v0.25.5
+2026-10-22T17:21:14.7971356Z go: downloading github.com/go-openapi/jsonpointer v1.0.0
+2026-10-22T17:21:14.8312338Z go: downloading github.com/go-openapi/loads v0.25.0
+2026-10-22T17:21:14.8312740Z go: downloading github.com/go-openapi/spec v0.22.9
+2026-10-22T17:21:14.8731204Z go: downloading github.com/spiffe/go-spiffe/v2 v2.7.0
+2026-10-22T17:21:14.8804739Z go: downloading github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2
+2026-10-22T17:21:15.0489040Z go: downloading github.com/envoyproxy/protoc-gen-validate v1.3.3
+2026-10-22T17:21:15.0489417Z go: downloading github.com/go-openapi/runtime/server-middleware v0.30.0
+2026-10-22T17:21:15.0489717Z go: downloading github.com/jedisct1/go-minisign v0.0.0-20241212093149-d2f9f49435c7
+2026-10-22T17:21:15.1981106Z go: downloading github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
+2026-10-22T17:21:15.2055336Z go: downloading github.com/sassoftware/relic v7.2.1+incompatible
+2026-10-22T17:21:15.2566183Z go: downloading github.com/cenkalti/backoff/v5 v5.0.3
+2026-10-22T17:21:15.2956788Z go: downloading github.com/evanphx/json-patch/v5 v5.9.11
+2026-10-22T17:21:15.3446374Z go: downloading go.yaml.in/yaml/v2 v2.4.4
+2026-10-22T17:21:15.3507909Z go: downloading github.com/shibumi/go-pathspec v1.3.0
+2026-10-22T17:21:15.3527085Z go: downloading k8s.io/klog/v2 v2.140.0
+2026-10-22T17:21:15.3961166Z go: downloading github.com/go-openapi/jsonreference v1.0.0
+2026-10-22T17:21:15.4255283Z go: downloading cel.dev/expr v0.25.1
+2026-10-22T17:21:15.5390639Z go: downloading github.com/go-openapi/swag/pools v0.27.3
+2026-10-22T17:21:21.3363572Z ##[error]../../../go/pkg/mod/github.com/goreleaser/goreleaser/v2@v2.18.0/internal/builders/golang/gomain/gomain.go:20:2: golang.org/x/tools@v0.49.0: read "https://proxy.golang.org/golang.org/x/tools/@v/v0.49.0.zip": stream error: stream ID 215; INTERNAL_ERROR; received from peer
+2026-10-22T17:21:21.3397747Z ##[error]Process completed with exit code 1.
+2026-10-22T17:21:21.3436605Z ##[group]Run git diff --exit-code HEAD -- . ':!.trusted'
+2026-10-22T17:21:21.3436847Z [36;1mgit diff --exit-code HEAD -- . ':!.trusted'[0m
+2026-10-22T17:21:21.3477942Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:21:21.3478133Z env:
+2026-10-22T17:21:21.3478253Z   GOTOOLCHAIN: local
+2026-10-22T17:21:21.3478387Z ##[endgroup]
+2026-10-22T17:21:21.3666654Z Post job cleanup.
+2026-10-22T17:21:21.4216334Z [command]/usr/bin/git version
+2026-10-22T17:21:21.4252953Z git version 2.55.0
+2026-10-22T17:21:21.4274537Z Temporarily overriding HOME='/home/runner/work/_temp/c1e192e0-5948-4904-ad5e-3388ccb60e37' before making global git config changes
+2026-10-22T17:21:21.4275299Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-22T17:21:21.4277830Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages/.trusted/wukongim
+2026-10-22T17:21:21.4311546Z Removing SSH command configuration
+2026-10-22T17:21:21.4316276Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T17:21:21.4348361Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T17:21:21.4557275Z Removing HTTP extra header
+2026-10-22T17:21:21.4562187Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T17:21:21.4601292Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T17:21:21.4810620Z Removing includeIf entries pointing to credentials config files
+2026-10-22T17:21:21.4816999Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T17:21:21.4858601Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T17:21:21.5172773Z Post job cleanup.
+2026-10-22T17:21:21.5819896Z [command]/usr/bin/git version
+2026-10-22T17:21:21.5860006Z git version 2.55.0
+2026-10-22T17:21:21.5887365Z Temporarily overriding HOME='/home/runner/work/_temp/b0b9300b-27df-4512-93a7-4bdc456f0977' before making global git config changes
+2026-10-22T17:21:21.5890594Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-22T17:21:21.5892577Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages
+2026-10-22T17:21:21.5941714Z Removing SSH command configuration
+2026-10-22T17:21:21.5952717Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T17:21:21.5988492Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T17:21:21.6217045Z Removing HTTP extra header
+2026-10-22T17:21:21.6222648Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T17:21:21.6260147Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T17:21:21.6471721Z Removing includeIf entries pointing to credentials config files
+2026-10-22T17:21:21.6477083Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T17:21:21.6516009Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T17:21:21.6818674Z Cleaning up orphan processes

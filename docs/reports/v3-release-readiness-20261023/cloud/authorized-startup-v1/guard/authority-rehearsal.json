@@ -1,0 +1,11 @@
+{
+  "started_at": "2026-10-22T17:12:59.149901+00:00",
+  "observed_at": "2026-10-22T17:13:22.721190+00:00",
+  "exit_code": 0,
+  "stdout_bytes": 0,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "provider_calls": false
+}

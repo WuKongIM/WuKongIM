@@ -1,0 +1,77 @@
+{
+  "head": "4d868f264fb4758f7451c058dd329a06ad460449",
+  "base": "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+  "pull_merge": "0383c7818d51b8d819f95d7c0f81822abe478a56",
+  "tree": "1e6dc3090af168316ed8e8258cfb8c088ae56f3b",
+  "changed_files": [
+    ".github/workflows/native-package-repository-drill.yml",
+    "CHANGELOG.md",
+    "docs/object-storage-delivery.md",
+    "scripts/aliyun-object-storage-provider.py",
+    "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+    "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+    "tests/test_object_storage_delivery_inputs.py"
+  ],
+  "files": [
+    {
+      "path": ".github/workflows/native-package-repository-drill.yml",
+      "bytes": 21899,
+      "sha256": "79fafff89c62072a857f61f009e5f834fb49fef634c139757d52aa2f931e506d"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 4660,
+      "sha256": "533a6ec83558b484a19ce1d37c6a4cb626d79e3109c3f32cacd49188099214d3"
+    },
+    {
+      "path": "docs/object-storage-delivery.md",
+      "bytes": 22477,
+      "sha256": "373c59bf878ccc78deab15b45f2cc131af2f58c6716c05405ee0f7a5fd7157de"
+    },
+    {
+      "path": "scripts/aliyun-object-storage-provider.py",
+      "bytes": 28828,
+      "sha256": "dc5e36c665efa6e469aec763ae91fefa1ac6a3f4f8a23d91c24236058827d7e8"
+    },
+    {
+      "path": "tests/provider_sdk/native_object_delivery_sdk_drill.py",
+      "bytes": 39442,
+      "sha256": "5f2b3ac6470f0decedb4e18bfd3c4347195a170fd183f54aede1d2d161cb528f"
+    },
+    {
+      "path": "tests/provider_sdk/test_aliyun_object_storage_provider.py",
+      "bytes": 62901,
+      "sha256": "84d85a0fc96a21f40c1d14258636fab69782dccbe69c6221a253594383e71c01"
+    },
+    {
+      "path": "tests/test_object_storage_delivery_inputs.py",
+      "bytes": 25246,
+      "sha256": "339c0c3c71dd33d010e3cc06708b83b5be985ef56575b33ed23c58671a1ccf7c"
+    },
+    {
+      "path": "README.md",
+      "bytes": 10871,
+      "sha256": "6f36a055bdf7c6b3aaf5ac604bd4a3ed5508ba0df11437144e9ebf13d3925849"
+    },
+    {
+      "path": "docs/release-contract.md",
+      "bytes": 47357,
+      "sha256": "d93efe65489ca4ebf95fb040cd1c0121f2163482b21bc9513a783a7429e93a3c"
+    },
+    {
+      "path": ".github/workflows/pages.yml",
+      "bytes": 3104,
+      "sha256": "6c653ae58933aac5137287b34843fa6e49dfd262f04c8907ce49fc4364740719"
+    },
+    {
+      "path": ".github/workflows/object-storage-provider-contract.yml",
+      "bytes": 1660,
+      "sha256": "bfe1121f9f17ca8623734c790bb3dbac5743d51a8a4f5cee5d7008f8340ce7aa"
+    },
+    {
+      "path": "manifests/channels.json",
+      "bytes": 2579,
+      "sha256": "5c8660ab2cfba0ce4979e14ec07c8be9cbf0652f7d39ef1b3f6e80d7145c677b"
+    }
+  ]
+}

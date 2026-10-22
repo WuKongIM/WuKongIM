@@ -1,0 +1,7 @@
+# packages PR #79 natural first postmerge CI
+
+Merge commit 721712e6d77c5f159fff94dcdb2bd1fb84ad464c naturally triggered exactly the Pages and SDK push workflows. Both completed successfully on their first attempts; this collector dispatched or retried nothing. Their actual checkout is that exact merge commit. Its tree 306e2cd808742a9effb981fd679d2153cbcf29a4 equals the reviewed PR head and pull-merge tree; its parent is 7255102de81b45c23d52e908ccdde1b7799ee3f5.
+
+Pages run 39825002244 passed 587 default tests in 112.490 seconds, zero skips, plus four repository-contract tests. Configure Pages, Upload complete Pages artifact and Deploy complete Pages snapshot were all conditionally skipped; no Pages artifact or deployment was produced. SDK run 39825002051 passed 34 mandatory SDK contracts and 10 input tests, zero skips. Its 1337-byte public artifact ZIP was fully downloaded, matched to the API SHA-256, and CRC-verified for every member. The exact checkout and tree are also recorded in its original contract receipt.
+
+The native workflow has no push trigger and was not rerun after merge. Its original first infrastructure failure and separately authorized single failed-job retry remain preserved in the immutable sibling archives pr79-ci-generation-1 and pr79-native-infra-retry-1. This postmerge result does not erase that first failure or claim another native execution. Stable remains disabled and no production publication or cloud change is claimed.

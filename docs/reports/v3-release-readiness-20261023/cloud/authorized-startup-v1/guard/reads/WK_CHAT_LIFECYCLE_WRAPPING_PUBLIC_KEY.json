@@ -1,0 +1,13 @@
+{
+  "started_at": "2026-10-22T17:12:31.664229+00:00",
+  "observed_at": "2026-10-22T17:12:32.551319+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/variables/WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+  "exit_code": 0,
+  "response_bytes": 244,
+  "response_sha256": "22133678f2aba4cad66c27fd602f859c3ebe9db3a44d3d82f46922578f64abbf",
+  "data": {
+    "name": "WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+    "present": true,
+    "value_sha256": "7ae35b2950072cc4417be1c6e19cd31d559f0c96de42068e2923bda770dfc4b5"
+  }
+}

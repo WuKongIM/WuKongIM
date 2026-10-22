@@ -1,0 +1,162 @@
+{
+  "schema": "wukongim/pr79-postmerge-first-ci/v1",
+  "as_of_utc": "2026-10-22T17:45:14.715778+00:00",
+  "merge_sha": "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+  "tree": "306e2cd808742a9effb981fd679d2153cbcf29a4",
+  "parent": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "natural_push_runs_only": true,
+  "all_run_attempts": 1,
+  "pages": {
+    "run_id": 39825002244,
+    "job_id": 119985855628,
+    "default_tests": 587,
+    "default_seconds": 112.49,
+    "default_skips": 0,
+    "contract_tests": 4,
+    "configure_pages": "skipped",
+    "upload_pages_artifact": "skipped",
+    "deploy": "skipped",
+    "artifacts": 0
+  },
+  "sdk": {
+    "run_id": 39825002051,
+    "job_id": 119985854676,
+    "sdk_tests": 34,
+    "sdk_skips": 0,
+    "input_tests": 10,
+    "input_skips": 0,
+    "artifact_zip_bytes": 1337,
+    "artifact_zip_sha256_api_matched": true,
+    "artifact_zip_all_crc_verified": true
+  },
+  "actual_checkouts": [
+    {
+      "path": "logs/job-119985854676.log",
+      "source_sha": "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+      "exact_log_lines": [
+        {
+          "line": 101,
+          "text": "2026-10-22T17:42:15.2940344Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +721712e6d77c5f159fff94dcdb2bd1fb84ad464c:refs/remotes/origin/main"
+        },
+        {
+          "line": 103,
+          "text": "2026-10-22T17:42:15.8534390Z  * [new ref]         721712e6d77c5f159fff94dcdb2bd1fb84ad464c -> origin/main"
+        },
+        {
+          "line": 107,
+          "text": "2026-10-22T17:42:15.8592669Z 721712e6d77c5f159fff94dcdb2bd1fb84ad464c"
+        },
+        {
+          "line": 119,
+          "text": "2026-10-22T17:42:15.8879113Z 721712e6d77c5f159fff94dcdb2bd1fb84ad464c"
+        },
+        {
+          "line": 241,
+          "text": "2026-10-22T17:42:22.9223226Z {\"checkout_sha\": \"721712e6d77c5f159fff94dcdb2bd1fb84ad464c\", \"checkout_tree\": \"306e2cd808742a9effb981fd679d2153cbcf29a4\", \"errors\": 0, \"failures\": 0, \"lock_sha256\": \"0f5cc44660d936c1f3d57093ae07532fef949028b2608145758d1bdb5e5bfb9b\", \"provider_network_allowed\": false, \"python\": \"3.12.3\", \"schema\": \"wukongim.provider_sdk_contract/v1\", \"sdk_versions\": {\"alibabacloud-oss-v2\": \"1.4.1\", \"aliyun-python-sdk-cdn\": \"3.8.8\", \"aliyun-python-sdk-core\": \"2.16.1\", \"aliyun-python-sdk-sts\": \"3.1.3\"}, \"skips\": 0, \"test_names\": [\"test_bad_configid_partial_and_timeout_keep_truth\", \"test_config_exact_batches_and_readback\", \"test_config_snapshot_includes_unrelated_rules_and_rewrite_order\", \"test_configuration_observation_cannot_cross_explicit_resource_binding\", \"test_create_only_then_complete_get_and_exact_conflict\", \"test_debug_logging_rejected_before_sdk_client_construction\", \"test_debug_logging_rejected_before_sdk_credentials_enter_logs\", \"test_distinct_current_retained_and_alias_prefixes_never_cross\", \"test_exact_observation_allows_only_its_managed_rewrite_update\", \"test_exact_rewrite_preserves_alias_target_and_priority\", \"test_explicit_transport_does_not_consume_proxy_or_debug_environment\", \"test_finite_groups_keep_unknown_mappings_literal_and_enforce_output_fifty\", \"test_full_configuration_observation_tampering_rejects_before_write\", \"test_group_chunks_split_before_1025_without_losing_an_alternative\", \"test_group_expression_1024_accepts_and_1025_singleton_rejects\", \"test_grouped_observation_tampering_and_drift_prevent_all_writes\", \"test_grouped_sdk_unknown_outcomes_remain_incomplete_without_retry\", \"test_grouping_or_rechunking_cannot_delete_preexisting_sources\", \"test_identity_versioning_and_sdk_wire_are_bound\", \"test_literal_and_group_escaping_reject_all_unsafe_inputs_and_conflicts\", \"test_literal_fifty_and_fifty_one_duplicate_inputs_keep_original_bytes_order\", \"test_native_generations_compile_to_exact_finite_maps_without_mutation\", \"test_native_route_fixture_has_exact_public_provenance_and_object_facts\", \"test_native_sdk_configuration_reuses_source_ids_across_a_b\", \"test_object_local_drift_and_key_escape_prevent_writes\", \"test_readback_needs_full_eof_size_hash_cache_without_compression\", \"test_refresh_foreign_or_directory_urls_rejected_without_write\", \"test_refresh_only_exact_task_ids_in_bounded_batches\", \"test_refresh_rejects_other_tasks_and_noncomplete_states\", \"test_resource_drift_and_arbitrary_endpoints_are_rejected\", \"test_unknown_put_never_retries_write\", \"test_unmanaged_rewrite_deletion_group_and_drift_fail_before_apply\", \"test_versioning_ambiguous_inputs_all_rejected\", \"test_wire_limits_and_ambiguous_route_inputs_are_rejected\"], \"tests\": 34}"
+        }
+      ],
+      "bytes": 35730,
+      "sha256": "625d4fb27efbcb7daaf2bc524581731b5c0b2d65e5b5abee84e9ca4ed8d7dba2"
+    },
+    {
+      "path": "logs/job-119985855628.log",
+      "source_sha": "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+      "exact_log_lines": [
+        {
+          "line": 104,
+          "text": "2026-10-22T17:42:15.9631759Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +721712e6d77c5f159fff94dcdb2bd1fb84ad464c:refs/remotes/origin/main"
+        },
+        {
+          "line": 106,
+          "text": "2026-10-22T17:42:16.5394727Z  * [new ref]         721712e6d77c5f159fff94dcdb2bd1fb84ad464c -> origin/main"
+        },
+        {
+          "line": 110,
+          "text": "2026-10-22T17:42:16.5475823Z 721712e6d77c5f159fff94dcdb2bd1fb84ad464c"
+        },
+        {
+          "line": 122,
+          "text": "2026-10-22T17:42:16.5841777Z 721712e6d77c5f159fff94dcdb2bd1fb84ad464c"
+        }
+      ],
+      "bytes": 19092,
+      "sha256": "2e0219fb6b2085efb52aa157d7426c60f6d4f4f09e46d65cc50402b376b30f99"
+    }
+  ],
+  "final_status": {
+    "observed_at_utc": "20261022T174419Z",
+    "head": "721712e6d77c5f159fff94dcdb2bd1fb84ad464c",
+    "runs": [
+      {
+        "id": 39825002244,
+        "status": "completed",
+        "conclusion": "success",
+        "attempt": 1,
+        "event": "push",
+        "jobs": [
+          {
+            "id": 119985855628,
+            "name": "Validate complete Pages snapshot",
+            "status": "completed",
+            "conclusion": "success",
+            "current_steps": []
+          },
+          {
+            "id": 119986836106,
+            "name": "Deploy complete Pages snapshot",
+            "status": "completed",
+            "conclusion": "skipped",
+            "current_steps": []
+          }
+        ]
+      },
+      {
+        "id": 39825002051,
+        "status": "completed",
+        "conclusion": "success",
+        "attempt": 1,
+        "event": "push",
+        "jobs": [
+          {
+            "id": 119985854676,
+            "name": "provider-contract",
+            "status": "completed",
+            "conclusion": "success",
+            "current_steps": []
+          }
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": 119986836106,
+        "name": "Deploy complete Pages snapshot",
+        "status": "completed",
+        "conclusion": "skipped",
+        "started_at": "2026-10-22T17:44:13Z",
+        "completed_at": "2026-10-22T17:44:12Z"
+      },
+      {
+        "id": 119985855628,
+        "name": "Validate complete Pages snapshot",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-22T17:42:14Z",
+        "completed_at": "2026-10-22T17:44:12Z"
+      },
+      {
+        "id": 119985854676,
+        "name": "provider-contract",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-22T17:42:13Z",
+        "completed_at": "2026-10-22T17:42:28Z"
+      }
+    ]
+  },
+  "native_workflow_rerun": false,
+  "dispatches": 0,
+  "source_changes": false,
+  "production_stable_enabled": false,
+  "production_deployment": false
+}

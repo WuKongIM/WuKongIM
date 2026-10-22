@@ -1,0 +1,329 @@
+{
+  "schema": "wukongim/pr79-first-ci-validation/v1",
+  "as_of_utc": "2026-10-22T17:31:34.509834+00:00",
+  "overall": "incomplete_first_attempt_failure",
+  "head": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+  "base": "7255102de81b45c23d52e908ccdde1b7799ee3f5",
+  "actual_checkout": "f1c75e55e445aa40076f20586fd2481266ee73ff",
+  "head_and_merge_tree": "306e2cd808742a9effb981fd679d2153cbcf29a4",
+  "first_attempt_terminal_snapshot": "snapshots/20261022T173003Z",
+  "runs": [
+    {
+      "id": 39821491408,
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "head_sha": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+      "event": "pull_request",
+      "jobs": [
+        {
+          "id": 119973637732,
+          "name": "TEST ONLY stable four clients and A/B",
+          "status": "completed",
+          "conclusion": "success",
+          "current_steps": []
+        },
+        {
+          "id": 119973638102,
+          "name": "TEST ONLY signed APT/RPM repository",
+          "status": "completed",
+          "conclusion": "failure",
+          "current_steps": []
+        }
+      ]
+    },
+    {
+      "id": 39821491416,
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "head_sha": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+      "event": "pull_request",
+      "jobs": [
+        {
+          "id": 119973636784,
+          "name": "Validate complete Pages snapshot",
+          "status": "completed",
+          "conclusion": "success",
+          "current_steps": []
+        },
+        {
+          "id": 119974879135,
+          "name": "Deploy complete Pages snapshot",
+          "status": "completed",
+          "conclusion": "skipped",
+          "current_steps": []
+        }
+      ]
+    },
+    {
+      "id": 39821491479,
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "head_sha": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2",
+      "event": "pull_request",
+      "jobs": [
+        {
+          "id": 119973635969,
+          "name": "provider-contract",
+          "status": "completed",
+          "conclusion": "success",
+          "current_steps": []
+        }
+      ]
+    }
+  ],
+  "check_conclusions": {
+    "success": 3,
+    "failure": 1,
+    "skipped": 1
+  },
+  "pages_default_tests": {
+    "tests": 587,
+    "skips": 0,
+    "seconds": 130.431,
+    "contract_tests": 4
+  },
+  "sdk_contract": {
+    "tests": 34,
+    "skips": 0,
+    "input_tests": 10
+  },
+  "native_receipts": [
+    {
+      "path": "artifacts/12444422669-native-source-metadata-test-only/native-source-metadata.json",
+      "cases": 7,
+      "passed": true,
+      "source_sha": null,
+      "scratch_removed": null,
+      "sha256": "6b25602e3b23346d94c4797c22adaddf3961074397124a7d030b186c92e75af0"
+    },
+    {
+      "path": "artifacts/12444497529-native-local-signing-test-only/native-local-signing.json",
+      "cases": 10,
+      "passed": true,
+      "source_sha": null,
+      "scratch_removed": null,
+      "sha256": "00fb15e92b655d572414b23885947d91f56f497e10d9d4a6bbb04baa89fc2d0c"
+    },
+    {
+      "path": "artifacts/12444437687-native-bootstrap-preparation-test-only/native-bootstrap-preparation.json",
+      "cases": 6,
+      "passed": true,
+      "source_sha": "f1c75e55e445aa40076f20586fd2481266ee73ff",
+      "scratch_removed": true,
+      "sha256": "0a6d10160d4fc1e29b6e3831873ee2866439253652b138873914e9160cc17d74"
+    },
+    {
+      "path": "artifacts/12444776836-native-stable-candidate-test-only/native-stable-candidate.json",
+      "cases": 31,
+      "passed": true,
+      "source_sha": "f1c75e55e445aa40076f20586fd2481266ee73ff",
+      "scratch_removed": true,
+      "sha256": "cc4883b7201fa5ee07eaf5c5b947dabe6c087c40349c319acb5e38e8872a6985"
+    },
+    {
+      "path": "artifacts/12445495285-native-object-delivery-fixture-test-only/result.json",
+      "cases": 29,
+      "passed": true,
+      "source_sha": "f1c75e55e445aa40076f20586fd2481266ee73ff",
+      "scratch_removed": true,
+      "sha256": "c614641844b3c326e99b2d0cd58ae76bba3a7f470e4b42a08ecbca12980fe66e"
+    },
+    {
+      "path": "artifacts/12445621136-native-stable-four-clients-test-only/native-stable-clients.json",
+      "cases": 49,
+      "passed": true,
+      "source_sha": null,
+      "scratch_removed": null,
+      "sha256": "2d3bdc3109bf4c94fda7b52b5253ff8bce896ff0faee252365667f051a187fec"
+    }
+  ],
+  "installed_clients": [
+    {
+      "generation": "A",
+      "distribution": "ubuntu-24.04",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.0"
+      },
+      "download": {
+        "filename": "wukongim_3.0.0_amd64.deb",
+        "sha256": "715accdb65bf0495e53fcb7b6af113e5c691a0de980eeb453322f06df94ea6e3",
+        "size": 29932040,
+        "snapshot_versions": [
+          "3.0.0"
+        ]
+      }
+    },
+    {
+      "generation": "A",
+      "distribution": "debian-13",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.0"
+      },
+      "download": {
+        "filename": "wukongim_3.0.0_amd64.deb",
+        "sha256": "715accdb65bf0495e53fcb7b6af113e5c691a0de980eeb453322f06df94ea6e3",
+        "size": 29932040,
+        "snapshot_versions": [
+          "3.0.0"
+        ]
+      }
+    },
+    {
+      "generation": "A",
+      "distribution": "rocky-linux-9",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.0"
+      },
+      "download": {
+        "filename": "wukongim_3.0.0_linux_amd64.rpm",
+        "sha256": "05473e748b0c4445ccf8a0f440213673754973cc13ba2ff1af0078e7dda62eed",
+        "size": 38398458,
+        "snapshot_versions": [
+          "3.0.0"
+        ]
+      }
+    },
+    {
+      "generation": "A",
+      "distribution": "alma-linux-9",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.0"
+      },
+      "download": {
+        "filename": "wukongim_3.0.0_linux_amd64.rpm",
+        "sha256": "05473e748b0c4445ccf8a0f440213673754973cc13ba2ff1af0078e7dda62eed",
+        "size": 38398458,
+        "snapshot_versions": [
+          "3.0.0"
+        ]
+      }
+    },
+    {
+      "generation": "B",
+      "distribution": "ubuntu-24.04",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.1"
+      },
+      "download": {
+        "filename": "wukongim_3.0.1_amd64.deb",
+        "sha256": "5901838060ac2c95a2fcd73b3b0b325290b854d0da9cf7e644e0b2c5aee7770c",
+        "size": 29932958,
+        "snapshot_versions": [
+          "3.0.1"
+        ]
+      }
+    },
+    {
+      "generation": "B",
+      "distribution": "debian-13",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.1"
+      },
+      "download": {
+        "filename": "wukongim_3.0.1_amd64.deb",
+        "sha256": "5901838060ac2c95a2fcd73b3b0b325290b854d0da9cf7e644e0b2c5aee7770c",
+        "size": 29932958,
+        "snapshot_versions": [
+          "3.0.1"
+        ]
+      }
+    },
+    {
+      "generation": "B",
+      "distribution": "rocky-linux-9",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.1"
+      },
+      "download": {
+        "filename": "wukongim_3.0.1_linux_amd64.rpm",
+        "sha256": "7e18214c9368adc7c2f98adfe3693337264bec34ac1bb2101849c5d1c1da4062",
+        "size": 38398464,
+        "snapshot_versions": [
+          "3.0.1"
+        ]
+      }
+    },
+    {
+      "generation": "B",
+      "distribution": "alma-linux-9",
+      "identity": {
+        "build_source": "release",
+        "commit": "fc18221282f289088ec9b4282fda8e0bfc67a3b8",
+        "version": "3.0.1"
+      },
+      "download": {
+        "filename": "wukongim_3.0.1_linux_amd64.rpm",
+        "sha256": "7e18214c9368adc7c2f98adfe3693337264bec34ac1bb2101849c5d1c1da4062",
+        "size": 38398464,
+        "snapshot_versions": [
+          "3.0.1"
+        ]
+      }
+    }
+  ],
+  "cleanup": {
+    "verified": true,
+    "owned_container_creation_attempts": 91,
+    "owned_network_creation_attempts": 1,
+    "remaining": {
+      "containers": [],
+      "networks": []
+    },
+    "cache_cleanup_cases": 4,
+    "host_wide_process_inventory_claimed": false
+  },
+  "job_logs": {
+    "job-119973636784.log": {
+      "bytes": 19870,
+      "sha256": "1139a94dd4d1c28ade4ea16e95e8be1a0909872f82eb464ed8ac9620f314f125",
+      "actual_checkout": "f1c75e55e445aa40076f20586fd2481266ee73ff"
+    },
+    "job-119973635969.log": {
+      "bytes": 36512,
+      "sha256": "25707f0156c49a261fd3584c9d1aa8c08464f2d17a1f0ff287a575a1fc9b2ae4",
+      "actual_checkout": "f1c75e55e445aa40076f20586fd2481266ee73ff"
+    },
+    "job-119973638102.log": {
+      "bytes": 102712,
+      "sha256": "61272bc702e6683293a4286796df3eae6e9d6297bcb8f9cc3e77d5c75273186c",
+      "actual_checkout": "f1c75e55e445aa40076f20586fd2481266ee73ff"
+    },
+    "job-119973637732.log": {
+      "bytes": 64679,
+      "sha256": "f0554126add5c65c7cc35d645ccc5c23889fafb9be8d1f7f2efb46c3a7903cfd",
+      "actual_checkout": "f1c75e55e445aa40076f20586fd2481266ee73ff"
+    }
+  },
+  "artifacts": {
+    "count": 7,
+    "all_downloaded_zip_sha256_matches_api": true,
+    "all_downloaded_zip_crc_verified": true,
+    "partial_zip_downloads": 0
+  },
+  "command_outputs": {
+    "records": 276,
+    "full_output_sha256_recomputed": 249,
+    "tails_only_hash_declared": 27
+  },
+  "full_signed_repository_installation_executed": false,
+  "source_modified": false,
+  "rerun_performed_in_this_archive": false,
+  "production_publication_verified": false
+}

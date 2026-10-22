@@ -1,0 +1,53 @@
+{
+  "artifact_api": {
+    "id": 12448210518,
+    "node_id": "MDg6QXJ0aWZhY3QxMjQ0ODIxMDUxOA==",
+    "name": "native-stable-four-clients-test-only",
+    "size_in_bytes": 141464,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12448210518",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12448210518/zip",
+    "expired": false,
+    "digest": "sha256:9a80c5382c40602730f9258099e8a4fb133c3eee0607c0746f77298b1f3d0e70",
+    "created_at": "2026-10-22T18:06:23Z",
+    "updated_at": "2026-10-22T18:06:23Z",
+    "expires_at": "2026-11-21T18:06:22Z",
+    "workflow_run": {
+      "id": 39826621553,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/native-delivery-sdk",
+      "head_sha": "4d868f264fb4758f7451c058dd329a06ad460449"
+    }
+  },
+  "downloaded_at_utc": "2026-10-22T18:07:50.353268+00:00",
+  "downloaded_bytes": 141464,
+  "local_sha256": "9a80c5382c40602730f9258099e8a4fb133c3eee0607c0746f77298b1f3d0e70",
+  "api_sha256_matched": true,
+  "zip_crc_verified": true,
+  "members": [
+    {
+      "name": "clients-B.json",
+      "bytes": 6925,
+      "sha256": "9f7a448036841aabc5442bf20e656263f899d645c2c95f57c9f3c5a7d73bc6ed",
+      "crc32": "cfad475f"
+    },
+    {
+      "name": "https-requests.jsonl",
+      "bytes": 113734,
+      "sha256": "4b8cbb130306a83e1ac20ab131d96fc2a4afa4f0a052dd018f619f1835f35689",
+      "crc32": "0f368235"
+    },
+    {
+      "name": "clients-A.json",
+      "bytes": 6925,
+      "sha256": "c0951ca1ede490568b9a50fc250af5d5c61b36b864c49127708ad5239c250393",
+      "crc32": "f3bc43ad"
+    },
+    {
+      "name": "native-stable-clients.json",
+      "bytes": 980068,
+      "sha256": "32c539f84634c2ffa91b326780831b2a7def7d8413851ec092d3210dd776ab5d",
+      "crc32": "7416e4bc"
+    }
+  ]
+}

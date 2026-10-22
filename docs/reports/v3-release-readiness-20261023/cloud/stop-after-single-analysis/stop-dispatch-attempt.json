@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-22T18:10:37.573707+00:00",
+  "workflow": "chat-lifecycle-stop.yml",
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "stop_authorization": "operator-stop-chat-lifecycle",
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "user_authorization": "After the single analysis, end this Lease first; then reproduce and fix locally.",
+  "no_procurement": true,
+  "one_dispatch_only": true
+}

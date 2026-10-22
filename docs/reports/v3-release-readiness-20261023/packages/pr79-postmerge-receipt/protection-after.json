@@ -1,0 +1,34 @@
+{
+  "allow_deletions": {
+    "enabled": false
+  },
+  "allow_force_pushes": {
+    "enabled": false
+  },
+  "enforce_admins": {
+    "enabled": true,
+    "url": "https://api.github.com/repos/WuKongIM/packages/branches/main/protection/enforce_admins"
+  },
+  "required_pull_request_reviews": {
+    "dismiss_stale_reviews": true,
+    "require_code_owner_reviews": false,
+    "require_last_push_approval": false,
+    "required_approving_review_count": 0,
+    "url": "https://api.github.com/repos/WuKongIM/packages/branches/main/protection/required_pull_request_reviews"
+  },
+  "required_status_checks": {
+    "checks": [
+      {
+        "app_id": 15368,
+        "context": "Validate complete Pages snapshot"
+      }
+    ],
+    "contexts": [
+      "Validate complete Pages snapshot"
+    ],
+    "contexts_url": "https://api.github.com/repos/WuKongIM/packages/branches/main/protection/required_status_checks/contexts",
+    "strict": true,
+    "url": "https://api.github.com/repos/WuKongIM/packages/branches/main/protection/required_status_checks"
+  },
+  "restrictions": null
+}

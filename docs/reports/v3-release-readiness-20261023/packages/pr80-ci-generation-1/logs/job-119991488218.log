@@ -1,0 +1,1044 @@
+﻿2026-10-22T17:53:40.3605033Z Current runner version: '2.338.0'
+2026-10-22T17:53:40.3624726Z ##[group]Runner Image Provisioner
+2026-10-22T17:53:40.3625509Z Hosted Compute Agent
+2026-10-22T17:53:40.3626174Z Version: 20261012.601
+2026-10-22T17:53:40.3626674Z Commit: f3dc54e1fb89da6852db922499a0233137369e1d
+2026-10-22T17:53:40.3627318Z Build Date: 2026-10-12T17:48:21Z
+2026-10-22T17:53:40.3627896Z Worker ID: {240039d8-c3db-4c79-b6c4-4b9e45058b21}
+2026-10-22T17:53:40.3628481Z Region: westus3
+2026-10-22T17:53:40.3629014Z Cloud: Azure
+2026-10-22T17:53:40.3629493Z ##[endgroup]
+2026-10-22T17:53:40.3630632Z ##[group]Operating System
+2026-10-22T17:53:40.3631174Z Ubuntu
+2026-10-22T17:53:40.3631652Z 24.04.5
+2026-10-22T17:53:40.3632090Z LTS
+2026-10-22T17:53:40.3632514Z ##[endgroup]
+2026-10-22T17:53:40.3633022Z ##[group]Runner Image
+2026-10-22T17:53:40.3633542Z Image: ubuntu-24.04
+2026-10-22T17:53:40.3633988Z Version: 20261012.334.1
+2026-10-22T17:53:40.3635081Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261012.334/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-22T17:53:40.3636752Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261012.334
+2026-10-22T17:53:40.3637573Z ##[endgroup]
+2026-10-22T17:53:40.3638519Z ##[group]GITHUB_TOKEN Permissions
+2026-10-22T17:53:40.3640114Z Contents: read
+2026-10-22T17:53:40.3640695Z Metadata: read
+2026-10-22T17:53:40.3641199Z ##[endgroup]
+2026-10-22T17:53:40.3643139Z Secret source: Actions
+2026-10-22T17:53:40.3643969Z Cache mode: write
+2026-10-22T17:53:40.3644538Z Prepare workflow directory
+2026-10-22T17:53:40.3901449Z Prepare all required actions
+2026-10-22T17:53:40.3954550Z Getting action download info
+2026-10-22T17:53:40.6888746Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-22T17:53:40.7912984Z Download action repository 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+2026-10-22T17:53:40.9022724Z Download action repository 'actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16' (SHA:924ae3a1cded613372ab5595356fb5720e22ba16)
+2026-10-22T17:53:41.7767156Z Complete job name: TEST ONLY signed APT/RPM repository
+2026-10-22T17:53:41.8568250Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-22T17:53:41.8569109Z with:
+2026-10-22T17:53:41.8569497Z   persist-credentials: false
+2026-10-22T17:53:41.8569943Z   repository: WuKongIM/packages
+2026-10-22T17:53:41.8573135Z   token: ***
+2026-10-22T17:53:41.8573509Z   ssh-strict: true
+2026-10-22T17:53:41.8573880Z   ssh-user: git
+2026-10-22T17:53:41.8574236Z   clean: true
+2026-10-22T17:53:41.8574632Z   sparse-checkout-cone-mode: true
+2026-10-22T17:53:41.8575070Z   fetch-depth: 1
+2026-10-22T17:53:41.8575431Z   fetch-tags: false
+2026-10-22T17:53:41.8576003Z   show-progress: true
+2026-10-22T17:53:41.8576376Z   lfs: false
+2026-10-22T17:53:41.8576726Z   submodules: false
+2026-10-22T17:53:41.8577102Z   set-safe-directory: true
+2026-10-22T17:53:41.8577549Z   allow-unsafe-pr-checkout: false
+2026-10-22T17:53:41.8578165Z ##[endgroup]
+2026-10-22T17:53:41.9425441Z Syncing repository: WuKongIM/packages
+2026-10-22T17:53:41.9427393Z ##[group]Getting Git version info
+2026-10-22T17:53:41.9428126Z Working directory is '/home/runner/work/packages/packages'
+2026-10-22T17:53:41.9429031Z [command]/usr/bin/git version
+2026-10-22T17:53:41.9478673Z git version 2.55.0
+2026-10-22T17:53:41.9497822Z ##[endgroup]
+2026-10-22T17:53:41.9509828Z Temporarily overriding HOME='/home/runner/work/_temp/5f3c1a18-23da-4388-bd4b-cf64bc3e8848' before making global git config changes
+2026-10-22T17:53:41.9511966Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-22T17:53:41.9516419Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages
+2026-10-22T17:53:41.9556331Z Deleting the contents of '/home/runner/work/packages/packages'
+2026-10-22T17:53:41.9559508Z ##[group]Determining repository object format
+2026-10-22T17:53:41.9563921Z ##[endgroup]
+2026-10-22T17:53:41.9564980Z ##[group]Initializing the repository
+2026-10-22T17:53:41.9566192Z [command]/usr/bin/git init /home/runner/work/packages/packages
+2026-10-22T17:53:41.9648914Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-22T17:53:41.9650372Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-22T17:53:41.9662982Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-22T17:53:41.9664211Z hint: call:
+2026-10-22T17:53:41.9664606Z hint:
+2026-10-22T17:53:41.9665100Z hint: 	git config --global init.defaultBranch <name>
+2026-10-22T17:53:41.9665967Z hint:
+2026-10-22T17:53:41.9667278Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-22T17:53:41.9668982Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-22T17:53:41.9670215Z hint:
+2026-10-22T17:53:41.9670882Z hint: 	git branch -m <name>
+2026-10-22T17:53:41.9671615Z hint:
+2026-10-22T17:53:41.9672512Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-22T17:53:41.9673858Z Initialized empty Git repository in /home/runner/work/packages/packages/.git/
+2026-10-22T17:53:41.9675925Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/packages
+2026-10-22T17:53:41.9704141Z ##[endgroup]
+2026-10-22T17:53:41.9705297Z ##[group]Disabling automatic garbage collection
+2026-10-22T17:53:41.9708098Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-22T17:53:41.9737262Z ##[endgroup]
+2026-10-22T17:53:41.9738559Z ##[group]Setting up auth
+2026-10-22T17:53:41.9739435Z Removing SSH command configuration
+2026-10-22T17:53:41.9741355Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T17:53:41.9769767Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T17:53:42.0060177Z Removing HTTP extra header
+2026-10-22T17:53:42.0065784Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T17:53:42.0108872Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T17:53:42.0298993Z Removing includeIf entries pointing to credentials config files
+2026-10-22T17:53:42.0299840Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T17:53:42.0328296Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T17:53:42.0520273Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-95b90a10-378a-4927-9ce0-ab3c89484c94.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-22T17:53:42.0554521Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.git.path /home/runner/work/_temp/git-credentials-95b90a10-378a-4927-9ce0-ab3c89484c94.config
+2026-10-22T17:53:42.0584017Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-95b90a10-378a-4927-9ce0-ab3c89484c94.config
+2026-10-22T17:53:42.0614490Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-95b90a10-378a-4927-9ce0-ab3c89484c94.config
+2026-10-22T17:53:42.0643083Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-95b90a10-378a-4927-9ce0-ab3c89484c94.config
+2026-10-22T17:53:42.0670392Z ##[endgroup]
+2026-10-22T17:53:42.0671132Z ##[group]Fetching the repository
+2026-10-22T17:53:42.0675797Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +0383c7818d51b8d819f95d7c0f81822abe478a56:refs/remotes/pull/80/merge
+2026-10-22T17:53:43.0227462Z From https://github.com/WuKongIM/packages
+2026-10-22T17:53:43.0228875Z  * [new ref]         0383c7818d51b8d819f95d7c0f81822abe478a56 -> pull/80/merge
+2026-10-22T17:53:43.0231502Z ##[endgroup]
+2026-10-22T17:53:43.0232480Z ##[group]Determining the checkout info
+2026-10-22T17:53:43.0233644Z ##[endgroup]
+2026-10-22T17:53:43.0236452Z [command]/usr/bin/git sparse-checkout disable
+2026-10-22T17:53:43.0281921Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-22T17:53:43.0311485Z ##[group]Checking out the ref
+2026-10-22T17:53:43.0313664Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/80/merge
+2026-10-22T17:53:43.0470098Z Note: switching to 'refs/remotes/pull/80/merge'.
+2026-10-22T17:53:43.0470999Z 
+2026-10-22T17:53:43.0471777Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-22T17:53:43.0473643Z changes and commit them, and you can discard any commits you make in this
+2026-10-22T17:53:43.0475856Z state without impacting any branches by switching back to a branch.
+2026-10-22T17:53:43.0477137Z 
+2026-10-22T17:53:43.0478267Z If you want to create a new branch to retain commits you create, you may
+2026-10-22T17:53:43.0480244Z do so (now or later) by using -c with the switch command. Example:
+2026-10-22T17:53:43.0481395Z 
+2026-10-22T17:53:43.0481946Z   git switch -c <new-branch-name>
+2026-10-22T17:53:43.0482642Z 
+2026-10-22T17:53:43.0483170Z Or undo this operation with:
+2026-10-22T17:53:43.0483794Z 
+2026-10-22T17:53:43.0484299Z   git switch -
+2026-10-22T17:53:43.0484804Z 
+2026-10-22T17:53:43.0485896Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-22T17:53:43.0487055Z 
+2026-10-22T17:53:43.0488598Z HEAD is now at 0383c78 Merge 4d868f264fb4758f7451c058dd329a06ad460449 into 721712e6d77c5f159fff94dcdb2bd1fb84ad464c
+2026-10-22T17:53:43.0492345Z ##[endgroup]
+2026-10-22T17:53:43.0515933Z [command]/usr/bin/git log -1 --format=%H
+2026-10-22T17:53:43.0540350Z 0383c7818d51b8d819f95d7c0f81822abe478a56
+2026-10-22T17:53:43.0547253Z ##[group]Removing auth
+2026-10-22T17:53:43.0548704Z Removing SSH command configuration
+2026-10-22T17:53:43.0550584Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T17:53:43.0578813Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T17:53:43.0766635Z Removing HTTP extra header
+2026-10-22T17:53:43.0769595Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T17:53:43.0800000Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T17:53:43.0985753Z Removing includeIf entries pointing to credentials config files
+2026-10-22T17:53:43.0988488Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T17:53:43.1013548Z includeif.gitdir:/home/runner/work/packages/packages/.git.path
+2026-10-22T17:53:43.1015831Z includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path
+2026-10-22T17:53:43.1017913Z includeif.gitdir:/github/workspace/.git.path
+2026-10-22T17:53:43.1019825Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-22T17:53:43.1023774Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.git.path
+2026-10-22T17:53:43.1044268Z /home/runner/work/_temp/git-credentials-95b90a10-378a-4927-9ce0-ab3c89484c94.config
+2026-10-22T17:53:43.1055037Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-95b90a10\-378a\-4927\-9ce0\-ab3c89484c94\.config
+2026-10-22T17:53:43.1085289Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path
+2026-10-22T17:53:43.1112430Z /home/runner/work/_temp/git-credentials-95b90a10-378a-4927-9ce0-ab3c89484c94.config
+2026-10-22T17:53:43.1119641Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-95b90a10\-378a\-4927\-9ce0\-ab3c89484c94\.config
+2026-10-22T17:53:43.1151889Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-22T17:53:43.1173560Z /github/runner_temp/git-credentials-95b90a10-378a-4927-9ce0-ab3c89484c94.config
+2026-10-22T17:53:43.1180584Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-95b90a10\-378a\-4927\-9ce0\-ab3c89484c94\.config
+2026-10-22T17:53:43.1211776Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-22T17:53:43.1234295Z /github/runner_temp/git-credentials-95b90a10-378a-4927-9ce0-ab3c89484c94.config
+2026-10-22T17:53:43.1240977Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-95b90a10\-378a\-4927\-9ce0\-ab3c89484c94\.config
+2026-10-22T17:53:43.1271388Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T17:53:43.1457761Z Removing credentials config '/home/runner/work/_temp/git-credentials-95b90a10-378a-4927-9ce0-ab3c89484c94.config'
+2026-10-22T17:53:43.1465259Z ##[endgroup]
+2026-10-22T17:53:43.1665770Z ##[group]Run set -euo pipefail
+2026-10-22T17:53:43.1666774Z [36;1mset -euo pipefail[0m
+2026-10-22T17:53:43.1667613Z [36;1m./tests/contract.sh[0m
+2026-10-22T17:53:43.1668711Z [36;1mcommit="$(jq -r '.commit' manifests/trusted-toolchain.json)"[0m
+2026-10-22T17:53:43.1669963Z [36;1m[[ "$commit" =~ ^[0-9a-f]{40}$ ]][0m
+2026-10-22T17:53:43.1670983Z [36;1mecho "commit=$commit" >> "$GITHUB_OUTPUT"[0m
+2026-10-22T17:53:43.1913093Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:53:43.1914222Z ##[endgroup]
+2026-10-22T17:53:43.3296004Z publication control validation passed
+2026-10-22T17:53:43.4280812Z ....
+2026-10-22T17:53:43.4282186Z ----------------------------------------------------------------------
+2026-10-22T17:53:43.4283903Z Ran 4 tests in 0.001s
+2026-10-22T17:53:43.4284583Z 
+2026-10-22T17:53:43.4284999Z OK
+2026-10-22T17:53:43.8673104Z package repository contracts passed
+2026-10-22T17:53:43.8929446Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-22T17:53:43.8930609Z with:
+2026-10-22T17:53:43.8931292Z   repository: WuKongIM/WuKongIM
+2026-10-22T17:53:43.8932169Z   ref: ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-22T17:53:43.8933102Z   path: .trusted/wukongim
+2026-10-22T17:53:43.8933900Z   persist-credentials: false
+2026-10-22T17:53:43.8940552Z   token: ***
+2026-10-22T17:53:43.8941229Z   ssh-strict: true
+2026-10-22T17:53:43.8941936Z   ssh-user: git
+2026-10-22T17:53:43.8942603Z   clean: true
+2026-10-22T17:53:43.8943300Z   sparse-checkout-cone-mode: true
+2026-10-22T17:53:43.8944145Z   fetch-depth: 1
+2026-10-22T17:53:43.8944839Z   fetch-tags: false
+2026-10-22T17:53:43.8945622Z   show-progress: true
+2026-10-22T17:53:43.8946362Z   lfs: false
+2026-10-22T17:53:43.8947017Z   submodules: false
+2026-10-22T17:53:43.8947726Z   set-safe-directory: true
+2026-10-22T17:53:43.8948527Z   allow-unsafe-pr-checkout: false
+2026-10-22T17:53:43.8949401Z ##[endgroup]
+2026-10-22T17:53:43.9630584Z Syncing repository: WuKongIM/WuKongIM
+2026-10-22T17:53:43.9632952Z ##[group]Getting Git version info
+2026-10-22T17:53:43.9635049Z Working directory is '/home/runner/work/packages/packages/.trusted/wukongim'
+2026-10-22T17:53:43.9649342Z [command]/usr/bin/git version
+2026-10-22T17:53:43.9684342Z git version 2.55.0
+2026-10-22T17:53:43.9700970Z ##[endgroup]
+2026-10-22T17:53:43.9708142Z Temporarily overriding HOME='/home/runner/work/_temp/6cfff269-21ec-4e26-8b0f-b637f39b9539' before making global git config changes
+2026-10-22T17:53:43.9711692Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-22T17:53:43.9714861Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages/.trusted/wukongim
+2026-10-22T17:53:43.9739360Z ##[group]Determining repository object format
+2026-10-22T17:53:43.9741514Z ##[endgroup]
+2026-10-22T17:53:43.9743243Z ##[group]Initializing the repository
+2026-10-22T17:53:43.9745321Z [command]/usr/bin/git init /home/runner/work/packages/packages/.trusted/wukongim
+2026-10-22T17:53:43.9781812Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-22T17:53:43.9784572Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-22T17:53:43.9787357Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-22T17:53:43.9789464Z hint: call:
+2026-10-22T17:53:43.9790723Z hint:
+2026-10-22T17:53:43.9792057Z hint: 	git config --global init.defaultBranch <name>
+2026-10-22T17:53:43.9793330Z hint:
+2026-10-22T17:53:43.9794986Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-22T17:53:43.9797500Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-22T17:53:43.9799256Z hint:
+2026-10-22T17:53:43.9800212Z hint: 	git branch -m <name>
+2026-10-22T17:53:43.9801336Z hint:
+2026-10-22T17:53:43.9802810Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-22T17:53:43.9805696Z Initialized empty Git repository in /home/runner/work/packages/packages/.trusted/wukongim/.git/
+2026-10-22T17:53:43.9809682Z [command]/usr/bin/git remote add origin https://github.com/WuKongIM/WuKongIM
+2026-10-22T17:53:43.9827316Z ##[endgroup]
+2026-10-22T17:53:43.9829085Z ##[group]Disabling automatic garbage collection
+2026-10-22T17:53:43.9830722Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-22T17:53:43.9858085Z ##[endgroup]
+2026-10-22T17:53:43.9859782Z ##[group]Setting up auth
+2026-10-22T17:53:43.9861104Z Removing SSH command configuration
+2026-10-22T17:53:43.9863314Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T17:53:43.9899986Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T17:53:44.0125544Z Removing HTTP extra header
+2026-10-22T17:53:44.0131693Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T17:53:44.0168458Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T17:53:44.0390308Z Removing includeIf entries pointing to credentials config files
+2026-10-22T17:53:44.0392780Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T17:53:44.0430503Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T17:53:44.0669402Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-2877632b-030c-46e8-b26a-cf527ecd101f.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-22T17:53:44.0710581Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path /home/runner/work/_temp/git-credentials-2877632b-030c-46e8-b26a-cf527ecd101f.config
+2026-10-22T17:53:44.1090433Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-2877632b-030c-46e8-b26a-cf527ecd101f.config
+2026-10-22T17:53:44.1747556Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.trusted/wukongim/.git.path /github/runner_temp/git-credentials-2877632b-030c-46e8-b26a-cf527ecd101f.config
+2026-10-22T17:53:44.1784540Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path /github/runner_temp/git-credentials-2877632b-030c-46e8-b26a-cf527ecd101f.config
+2026-10-22T17:53:44.1816244Z ##[endgroup]
+2026-10-22T17:53:44.1816765Z ##[group]Fetching the repository
+2026-10-22T17:53:44.1824024Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-22T17:53:47.3697601Z From https://github.com/WuKongIM/WuKongIM
+2026-10-22T17:53:47.3698210Z  * branch            ed7e67d8f781b4f92872e42116c11b304fe03b5c -> FETCH_HEAD
+2026-10-22T17:53:47.3706939Z [command]/usr/bin/git rev-parse --verify --quiet ed7e67d8f781b4f92872e42116c11b304fe03b5c^{object}
+2026-10-22T17:53:47.3734887Z ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-22T17:53:47.3740019Z ##[endgroup]
+2026-10-22T17:53:47.3740695Z ##[group]Determining the checkout info
+2026-10-22T17:53:47.3741334Z ##[endgroup]
+2026-10-22T17:53:47.3744283Z [command]/usr/bin/git sparse-checkout disable
+2026-10-22T17:53:47.3784309Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-22T17:53:47.3813634Z ##[group]Checking out the ref
+2026-10-22T17:53:47.3817814Z [command]/usr/bin/git checkout --progress --force ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-22T17:53:47.8025329Z Note: switching to 'ed7e67d8f781b4f92872e42116c11b304fe03b5c'.
+2026-10-22T17:53:47.8026029Z 
+2026-10-22T17:53:47.8026396Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-22T17:53:47.8026972Z changes and commit them, and you can discard any commits you make in this
+2026-10-22T17:53:47.8027356Z state without impacting any branches by switching back to a branch.
+2026-10-22T17:53:47.8027571Z 
+2026-10-22T17:53:47.8027746Z If you want to create a new branch to retain commits you create, you may
+2026-10-22T17:53:47.8028105Z do so (now or later) by using -c with the switch command. Example:
+2026-10-22T17:53:47.8028306Z 
+2026-10-22T17:53:47.8028399Z   git switch -c <new-branch-name>
+2026-10-22T17:53:47.8028609Z 
+2026-10-22T17:53:47.8028709Z Or undo this operation with:
+2026-10-22T17:53:47.8028842Z 
+2026-10-22T17:53:47.8028922Z   git switch -
+2026-10-22T17:53:47.8029021Z 
+2026-10-22T17:53:47.8029201Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-22T17:53:47.8029434Z 
+2026-10-22T17:53:47.8029876Z HEAD is now at ed7e67d Merge pull request #861 from WuKongIM/codex/native-package-release-assets
+2026-10-22T17:53:47.8044286Z ##[endgroup]
+2026-10-22T17:53:47.8085709Z [command]/usr/bin/git log -1 --format=%H
+2026-10-22T17:53:47.8111148Z ed7e67d8f781b4f92872e42116c11b304fe03b5c
+2026-10-22T17:53:47.8118709Z ##[group]Removing auth
+2026-10-22T17:53:47.8119138Z Removing SSH command configuration
+2026-10-22T17:53:47.8121472Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T17:53:47.8152167Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T17:53:47.8359053Z Removing HTTP extra header
+2026-10-22T17:53:47.8361895Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T17:53:47.8392877Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T17:53:47.8583855Z Removing includeIf entries pointing to credentials config files
+2026-10-22T17:53:47.8586530Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T17:53:47.8609887Z includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path
+2026-10-22T17:53:47.8610718Z includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path
+2026-10-22T17:53:47.8611177Z includeif.gitdir:/github/workspace/.trusted/wukongim/.git.path
+2026-10-22T17:53:47.8611550Z includeif.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path
+2026-10-22T17:53:47.8625282Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path
+2026-10-22T17:53:47.8660696Z /home/runner/work/_temp/git-credentials-2877632b-030c-46e8-b26a-cf527ecd101f.config
+2026-10-22T17:53:47.8675505Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-2877632b\-030c\-46e8\-b26a\-cf527ecd101f\.config
+2026-10-22T17:53:47.8709055Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path
+2026-10-22T17:53:47.8731200Z /home/runner/work/_temp/git-credentials-2877632b-030c-46e8-b26a-cf527ecd101f.config
+2026-10-22T17:53:47.8738317Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/packages/packages/.trusted/wukongim/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-2877632b\-030c\-46e8\-b26a\-cf527ecd101f\.config
+2026-10-22T17:53:47.8768876Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.trusted/wukongim/.git.path
+2026-10-22T17:53:47.8801304Z /github/runner_temp/git-credentials-2877632b-030c-46e8-b26a-cf527ecd101f.config
+2026-10-22T17:53:47.8804827Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.trusted/wukongim/.git.path \/github\/runner_temp\/git\-credentials\-2877632b\-030c\-46e8\-b26a\-cf527ecd101f\.config
+2026-10-22T17:53:47.8837402Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path
+2026-10-22T17:53:47.8859137Z /github/runner_temp/git-credentials-2877632b-030c-46e8-b26a-cf527ecd101f.config
+2026-10-22T17:53:47.8864729Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.trusted/wukongim/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-2877632b\-030c\-46e8\-b26a\-cf527ecd101f\.config
+2026-10-22T17:53:47.8896350Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T17:53:47.9084782Z Removing credentials config '/home/runner/work/_temp/git-credentials-2877632b-030c-46e8-b26a-cf527ecd101f.config'
+2026-10-22T17:53:47.9092742Z ##[endgroup]
+2026-10-22T17:53:47.9205332Z ##[group]Run set -euo pipefail
+2026-10-22T17:53:47.9205778Z [36;1mset -euo pipefail[0m
+2026-10-22T17:53:47.9206155Z [36;1mtest "$(git -C .trusted/wukongim rev-parse HEAD)" = "ed7e67d8f781b4f92872e42116c11b304fe03b5c"[0m
+2026-10-22T17:53:47.9206526Z [36;1mjq -r \[0m
+2026-10-22T17:53:47.9206787Z [36;1m  '.files | to_entries[] | "\(.value)  .trusted/wukongim/\(.key)"' \[0m
+2026-10-22T17:53:47.9207162Z [36;1m  manifests/trusted-toolchain.json | sha256sum --check --strict[0m
+2026-10-22T17:53:47.9263511Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:53:47.9263790Z ##[endgroup]
+2026-10-22T17:53:47.9366258Z .trusted/wukongim/scripts/build-native-package-repositories.sh: OK
+2026-10-22T17:53:47.9366909Z .trusted/wukongim/scripts/generate-native-package-test-keyring.sh: OK
+2026-10-22T17:53:47.9367551Z .trusted/wukongim/scripts/sign-native-package-repositories.sh: OK
+2026-10-22T17:53:47.9368285Z .trusted/wukongim/scripts/validate-native-package-repositories-container.sh: OK
+2026-10-22T17:53:47.9368870Z .trusted/wukongim/scripts/verify-native-package-metadata.py: OK
+2026-10-22T17:53:47.9369234Z .trusted/wukongim/scripts/verify-native-package-repositories.sh: OK
+2026-10-22T17:53:47.9396468Z ##[group]Run set -euo pipefail
+2026-10-22T17:53:47.9396731Z [36;1mset -euo pipefail[0m
+2026-10-22T17:53:47.9397157Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-22T17:53:47.9397543Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-22T17:53:47.9397848Z [36;1mdocker pull "$image"[0m
+2026-10-22T17:53:47.9398113Z [36;1mmetadata_output="$RUNNER_TEMP/source-metadata-native"[0m
+2026-10-22T17:53:47.9398399Z [36;1mmkdir "$metadata_output"[0m
+2026-10-22T17:53:47.9398612Z [36;1mchmod 0777 "$metadata_output"[0m
+2026-10-22T17:53:47.9398923Z [36;1mcontainer="wk-source-metadata-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-22T17:53:47.9399308Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-22T17:53:47.9399595Z [36;1mtrap 'exit 130' INT[0m
+2026-10-22T17:53:47.9399788Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-22T17:53:47.9400128Z [36;1mtimeout --signal=TERM --kill-after=10s 5m docker run --rm --name "$container" \[0m
+2026-10-22T17:53:47.9400574Z [36;1m  --network none --read-only --cap-drop ALL --security-opt no-new-privileges \[0m
+2026-10-22T17:53:47.9400956Z [36;1m  --user 65532:65532 --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-22T17:53:47.9401263Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \[0m
+2026-10-22T17:53:47.9401534Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-22T17:53:47.9401794Z [36;1m  --volume "$metadata_output:/evidence" \[0m
+2026-10-22T17:53:47.9402039Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-22T17:53:47.9402366Z [36;1m  python3 -B /control/tests/native_source_metadata_drill.py --output-dir /evidence[0m
+2026-10-22T17:53:47.9402850Z [36;1mjq -e '.test_only == true and .passed == true and (.cases | length) == 7 and all(.cases[]; .passed == true)' \[0m
+2026-10-22T17:53:47.9403282Z [36;1m  "$metadata_output/native-source-metadata.json" >/dev/null[0m
+2026-10-22T17:53:47.9452814Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:53:47.9453099Z ##[endgroup]
+2026-10-22T17:53:48.6890364Z ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922: Pulling from wukongim/native-package-signing-toolchain
+2026-10-22T17:53:48.6891034Z 0926a8eb0e60: Pulling fs layer
+2026-10-22T17:53:48.6891246Z fdddbe2d915d: Pulling fs layer
+2026-10-22T17:53:48.6891445Z 0e4446c3a96e: Pulling fs layer
+2026-10-22T17:53:48.9813887Z 0e4446c3a96e: Verifying Checksum
+2026-10-22T17:53:48.9814320Z 0e4446c3a96e: Download complete
+2026-10-22T17:53:49.0486157Z 0926a8eb0e60: Verifying Checksum
+2026-10-22T17:53:49.0486536Z 0926a8eb0e60: Download complete
+2026-10-22T17:53:49.8536893Z 0926a8eb0e60: Pull complete
+2026-10-22T17:53:50.4331746Z fdddbe2d915d: Verifying Checksum
+2026-10-22T17:53:50.4332405Z fdddbe2d915d: Download complete
+2026-10-22T17:53:56.1300964Z fdddbe2d915d: Pull complete
+2026-10-22T17:53:56.1583290Z 0e4446c3a96e: Pull complete
+2026-10-22T17:53:56.1672373Z Digest: sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922
+2026-10-22T17:53:56.1682627Z Status: Downloaded newer image for ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922
+2026-10-22T17:53:56.1689753Z ghcr.io/wukongim/native-package-signing-toolchain@sha256:769d49a4882439a35fdf4497a4b97f09843a9dc92f4074447d48e43b2614d922
+2026-10-22T17:53:57.7641356Z {"cases": [{"case": "stable", "exit_code": 0, "expected_error": null, "metadata": {"assets_revalidated_after_metadata": true, "channel": "stable", "deb": {"architecture": "amd64", "asset": {"id": 4, "name": "wukongim_3.1.0_linux_amd64.deb", "sha256": "a9ac915f3bc5e7980e46a87b3fd5e6fa7eefce691b14d8e411662be9f183f120", "size": 590}, "version": "3.1.0"}, "package": "wukongim", "rpm": {"architecture": "x86_64", "asset": {"id": 5, "name": "wukongim_3.1.0_linux_amd64.rpm", "sha256": "963009182648ca9472ecd421e1d497754d917729eb62a1dfdb5e59eba464719f", "size": 6211}, "epoch": "0", "release": "1", "signed": false, "version": "3.1.0"}, "schema": "wukongim/source-package-metadata/v2", "source": {"release_id": 4242, "repository": "WuKongIM/WuKongIM", "source_sha": "1111111111111111111111111111111111111111", "tag": "v3.1.0"}, "version": "3.1.0"}, "passed": true, "stderr": ""}, {"case": "wrong-channel", "exit_code": 1, "expected_error": "preview source tag", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: preview source tag must be strict pre-release SemVer\n"}, {"case": "wrong-deb-version", "exit_code": 1, "expected_error": "DEB Version mismatch", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: DEB Version mismatch: expected '3.1.1', got '3.1.0'\n"}, {"case": "preview", "exit_code": 0, "expected_error": null, "metadata": {"assets_revalidated_after_metadata": true, "channel": "preview", "deb": {"architecture": "amd64", "asset": {"id": 4, "name": "wukongim_3.1.0-rc.1-hotfix_linux_amd64.deb", "sha256": "c61cdd56b724bab7936ff67bfb72a69e0876d13a935b2c40a740b59e03a8287a", "size": 596}, "version": "3.1.0~rc.1-hotfix"}, "package": "wukongim", "rpm": {"architecture": "x86_64", "asset": {"id": 5, "name": "wukongim_3.1.0-rc.1-hotfix_linux_amd64.rpm", "sha256": "3d9599f743de27839226c281a4a0e55728d61e1d190f85d89f79fa1244aa75bd", "size": 6299}, "epoch": "0", "release": "1", "signed": false, "version": "3.1.0~rc.1_hotfix"}, "schema": "wukongim/source-package-metadata/v2", "source": {"release_id": 4242, "repository": "WuKongIM/WuKongIM", "source_sha": "1111111111111111111111111111111111111111", "tag": "v3.1.0-rc.1-hotfix"}, "version": "3.1.0-rc.1-hotfix"}, "passed": true, "stderr": ""}, {"case": "wrong-rpm-version", "exit_code": 1, "expected_error": "RPM VERSION mismatch", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: RPM VERSION mismatch: expected '3.1.0', got '3.1.0~rc.1_hotfix'\n"}, {"case": "wrong-rpm-epoch", "exit_code": 1, "expected_error": "RPM EPOCHNUM mismatch", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: RPM EPOCHNUM mismatch: expected '0', got '9'\n"}, {"case": "signed-rpm", "exit_code": 1, "expected_error": "mismatch", "metadata": null, "passed": true, "stderr": "source package metadata verification failed: RPM RSAHEADER:pgpsig mismatch: expected '(none)', got 'RSA/SHA256, Thu Oct 22 17:53:57 2026, Key ID ccd1c79ce5b11903'\n"}], "native_signature_tags": ["RSAHEADER"], "passed": true, "payloads_executed": false, "schema": "wukongim/test-only-native-source-metadata/v1", "synthetic_source_provenance": true, "test_only": true, "tool_versions": {"dpkg-deb": "Debian 'dpkg-deb' package archive backend version 1.22.6 (amd64).", "gpg": "gpg (GnuPG) 2.4.4", "rpm": "RPM version 4.18.2"}}
+2026-10-22T17:53:58.0106501Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-22T17:53:58.0106866Z with:
+2026-10-22T17:53:58.0107055Z   name: native-source-metadata-test-only
+2026-10-22T17:53:58.0107336Z   path: /home/runner/work/_temp/source-metadata-native/
+2026-10-22T17:53:58.0107595Z   if-no-files-found: warn
+2026-10-22T17:53:58.0107800Z   retention-days: 30
+2026-10-22T17:53:58.0107978Z   compression-level: 6
+2026-10-22T17:53:58.0108156Z   overwrite: false
+2026-10-22T17:53:58.0108334Z   include-hidden-files: false
+2026-10-22T17:53:58.0108529Z   archive: true
+2026-10-22T17:53:58.0108693Z ##[endgroup]
+2026-10-22T17:53:58.1191073Z With the provided path, there will be 1 file uploaded
+2026-10-22T17:53:58.1195340Z Artifact name is valid!
+2026-10-22T17:53:58.1199092Z Root directory input is valid!
+2026-10-22T17:53:58.4219215Z Uploading artifact: native-source-metadata-test-only.zip
+2026-10-22T17:53:58.4248338Z Beginning upload of artifact content to blob storage
+2026-10-22T17:53:58.6443538Z Uploaded bytes 1269
+2026-10-22T17:53:58.6993005Z Finished uploading artifact content to blob storage!
+2026-10-22T17:53:58.6993721Z SHA256 digest of uploaded artifact is 0ad79c5170fcb5b3e663a30b93f81664efa1743a4f2df39178a31cdf79ab10a2
+2026-10-22T17:53:58.6994380Z Finalizing artifact upload
+2026-10-22T17:53:59.3150993Z Artifact native-source-metadata-test-only successfully finalized. Artifact ID 12445854565
+2026-10-22T17:53:59.3152352Z Artifact native-source-metadata-test-only has been successfully uploaded! Final size is 1269 bytes. Artifact ID is 12445854565
+2026-10-22T17:53:59.3154980Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39826621553/artifacts/12445854565
+2026-10-22T17:53:59.3260615Z ##[group]Run set -euo pipefail
+2026-10-22T17:53:59.3260900Z [36;1mset -euo pipefail[0m
+2026-10-22T17:53:59.3261209Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-22T17:53:59.3261606Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-22T17:53:59.3261985Z [36;1msigning_output="$RUNNER_TEMP/local-signing-native"[0m
+2026-10-22T17:53:59.3262261Z [36;1mmkdir "$signing_output"[0m
+2026-10-22T17:53:59.3262488Z [36;1mchmod 0777 "$signing_output"[0m
+2026-10-22T17:53:59.3262802Z [36;1mcontainer="wk-local-signing-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-22T17:53:59.3263211Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-22T17:53:59.3263509Z [36;1mtrap 'exit 130' INT[0m
+2026-10-22T17:53:59.3263715Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-22T17:53:59.3264038Z [36;1mtimeout --signal=TERM --kill-after=10s 8m docker run --rm --name "$container" \[0m
+2026-10-22T17:53:59.3264504Z [36;1m  --platform linux/amd64 --network none --read-only --cap-drop ALL \[0m
+2026-10-22T17:53:59.3264883Z [36;1m  --security-opt no-new-privileges --user 65532:65532 \[0m
+2026-10-22T17:53:59.3265188Z [36;1m  --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-22T17:53:59.3265464Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \[0m
+2026-10-22T17:53:59.3266003Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-22T17:53:59.3266276Z [36;1m  --volume "$signing_output:/evidence" \[0m
+2026-10-22T17:53:59.3266525Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-22T17:53:59.3266859Z [36;1m  python3 -B /control/tests/native_local_signing_drill.py --output-dir /evidence[0m
+2026-10-22T17:53:59.3267507Z [36;1mjq -e '.test_only == true and .passed == true and .secret_tree_removed_before_verification == true and (.cases | length) == 10 and all(.cases[]; .passed == true)' \[0m
+2026-10-22T17:53:59.3268071Z [36;1m  "$signing_output/native-local-signing.json" >/dev/null[0m
+2026-10-22T17:53:59.3324024Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:53:59.3324310Z ##[endgroup]
+2026-10-22T17:54:21.7193418Z {"cases": [{"case": "wrong-passphrase", "passed": true}, {"case": "full-primary-secret", "passed": true}, {"case": "apt-files", "independent_public_verification": true, "passed": true, "receipt": {"family": "apt", "key": {"family": "apt", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "9DBD23FE71AEE921E833F20A385859823EDE93ED", "primary_fingerprint": "3A1A7352DB3C2F82F8F2B455562C9D2D06433CF1", "public_certificate_sha256": "a6477d1ae68f503af42cdb2556a8d789ac3c0ff8699ca2915541af35442e9e17", "public_certificate_size": 1237, "signing_subkey_created": "2026-10-22T17:54:02Z", "signing_subkey_expires": "2026-12-21T17:54:02Z", "signing_subkey_fingerprint": "A4E447C57A694EE8713B0738284B44013E43A783", "validated": true}, "result": {"inrelease": {"path": "dists/stable/InRelease", "sha256": "1de6b244520aa97655f0762c6197bac8956880f337507fc3e55627cdffc77d4b", "size": 1284}, "release": {"path": "dists/stable/Release", "sha256": "aae70a814cf79fa4e039009b4ee7dd4b22f160cce6be3d02811ab5afc2874666", "size": 1007}, "release_gpg": {"path": "dists/stable/Release.gpg", "sha256": "5bcdeafc58a59900614fa66ba64422860ec113a6c751fa6fecbaec82887f1666", "size": 228}}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "apt-env", "independent_public_verification": true, "passed": true, "receipt": {"family": "apt", "key": {"family": "apt", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "9DBD23FE71AEE921E833F20A385859823EDE93ED", "primary_fingerprint": "3A1A7352DB3C2F82F8F2B455562C9D2D06433CF1", "public_certificate_sha256": "a6477d1ae68f503af42cdb2556a8d789ac3c0ff8699ca2915541af35442e9e17", "public_certificate_size": 1237, "signing_subkey_created": "2026-10-22T17:54:02Z", "signing_subkey_expires": "2026-12-21T17:54:02Z", "signing_subkey_fingerprint": "A4E447C57A694EE8713B0738284B44013E43A783", "validated": true}, "result": {"inrelease": {"path": "dists/stable/InRelease", "sha256": "60f412e69cc52e5d61138e11fc70af139f0278db50de58b0daa72f2e703f6db0", "size": 1284}, "release": {"path": "dists/stable/Release", "sha256": "aae70a814cf79fa4e039009b4ee7dd4b22f160cce6be3d02811ab5afc2874666", "size": 1007}, "release_gpg": {"path": "dists/stable/Release.gpg", "sha256": "cdbdddadb5570b7327c822bca5e7b6c33152b36566eeb2f513909ddd08e0345e", "size": 228}}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "apt-stdin", "independent_public_verification": true, "passed": true, "receipt": {"family": "apt", "key": {"family": "apt", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "9DBD23FE71AEE921E833F20A385859823EDE93ED", "primary_fingerprint": "3A1A7352DB3C2F82F8F2B455562C9D2D06433CF1", "public_certificate_sha256": "a6477d1ae68f503af42cdb2556a8d789ac3c0ff8699ca2915541af35442e9e17", "public_certificate_size": 1237, "signing_subkey_created": "2026-10-22T17:54:02Z", "signing_subkey_expires": "2026-12-21T17:54:02Z", "signing_subkey_fingerprint": "A4E447C57A694EE8713B0738284B44013E43A783", "validated": true}, "result": {"inrelease": {"path": "dists/stable/InRelease", "sha256": "62ab8fecbf1f518a4fa7ffc1f4ff7d33244f81e06b4dc4f5b8e76e95b7af1655", "size": 1284}, "release": {"path": "dists/stable/Release", "sha256": "aae70a814cf79fa4e039009b4ee7dd4b22f160cce6be3d02811ab5afc2874666", "size": 1007}, "release_gpg": {"path": "dists/stable/Release.gpg", "sha256": "301ae08fa5fd8e04cd67c3cdddc637d369001b047f4d05138a7608fd3161eaf4", "size": 228}}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "apt-tampered-release", "passed": true}, {"case": "rpm-files", "independent_public_verification": true, "passed": true, "receipt": {"family": "rpm", "key": {"family": "rpm", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "6315C9739E1A531C860F0C5451354749FD9E830B", "primary_fingerprint": "F9CC04E68EC24EC1502DBDD910EA50822D708137", "public_certificate_sha256": "7eef267b337bafb8c68b367747a456476888d7ed4a454b6a1a9dd7e8e9a62e36", "public_certificate_size": 4808, "signing_subkey_created": "2026-10-22T17:54:13Z", "signing_subkey_expires": "2026-12-21T17:54:13Z", "signing_subkey_fingerprint": "E171E7CA3ABABA76600AC49C917B0F1D5E46A239", "validated": true}, "result": {"active": [{"path": "Packages/wukongim.rpm", "sha256": "f034a0b4e1e5d676c544829ad0b0439042e3ba6ef570565b4060a560bb9308a1", "size": 6211}], "new_unsigned_inputs": [{"path": "Packages/wukongim.rpm", "sha256": "0fc599c0cab66cd9b6e0eccbc80f04c541a4aa7c74c43755540bcfb9e90494db", "size": 6211}], "newly_signed": [{"path": "Packages/wukongim.rpm", "sha256": "f034a0b4e1e5d676c544829ad0b0439042e3ba6ef570565b4060a560bb9308a1", "size": 6211}], "preserved_signed": [], "repodata": [{"path": "repodata/filelists.xml.gz", "sha256": "2e7c8f9159de8466de39a499b9d6859354a0bc7c0e93bc66614db6bb2fe0a1ac", "size": 266}, {"path": "repodata/other.xml.gz", "sha256": "545cbc668fc429442961191617f5018db363be07f85a0755b44892e7de634ad7", "size": 231}, {"path": "repodata/primary.xml.gz", "sha256": "230d472fe242727a3ffa5f59e061c15ef1d89708893487005e99b07f7b4924b4", "size": 606}, {"path": "repodata/repomd.xml", "sha256": "6ae60e27c5f8500682f5b3944983061d2eba9600f34dcd45e0f0a8d2628d6e27", "size": 1351}, {"path": "repodata/repomd.xml.asc", "sha256": "43f2ba026a18b9b22556107473f2cc009a9f1e163bf112f577e14ee935592c23", "size": 659}], "repository": "stable/el/9/x86_64", "retired": []}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "rpm-env", "independent_public_verification": true, "passed": true, "receipt": {"family": "rpm", "key": {"family": "rpm", "historical_signing_subkey_fingerprints": [], "maximum_lifetime_days": 180, "minimum_valid_days": 30, "next_signing_subkey_fingerprint": "6315C9739E1A531C860F0C5451354749FD9E830B", "primary_fingerprint": "F9CC04E68EC24EC1502DBDD910EA50822D708137", "public_certificate_sha256": "7eef267b337bafb8c68b367747a456476888d7ed4a454b6a1a9dd7e8e9a62e36", "public_certificate_size": 4808, "signing_subkey_created": "2026-10-22T17:54:13Z", "signing_subkey_expires": "2026-12-21T17:54:13Z", "signing_subkey_fingerprint": "E171E7CA3ABABA76600AC49C917B0F1D5E46A239", "validated": true}, "result": {"active": [{"path": "Packages/wukongim.rpm", "sha256": "bb47cd6a4c1e7a643025fec514caa09b9d94d64b909ec4eb39f407d2d534efa9", "size": 6211}], "new_unsigned_inputs": [{"path": "Packages/wukongim.rpm", "sha256": "0fc599c0cab66cd9b6e0eccbc80f04c541a4aa7c74c43755540bcfb9e90494db", "size": 6211}], "newly_signed": [{"path": "Packages/wukongim.rpm", "sha256": "bb47cd6a4c1e7a643025fec514caa09b9d94d64b909ec4eb39f407d2d534efa9", "size": 6211}], "preserved_signed": [], "repodata": [{"path": "repodata/filelists.xml.gz", "sha256": "b9b8ffd8eb365ca670e7bab5a52fa5fb6f068406308bb0a6c914da85a03d0299", "size": 265}, {"path": "repodata/other.xml.gz", "sha256": "00e72ae2803ae3fbea6ff111e19a3121a76e4ecfcd14b82a72701333f58a02d4", "size": 231}, {"path": "repodata/primary.xml.gz", "sha256": "85c8cd62818ca143ca498cfe372e5a34eec464df33bf8ef8785c264745dad090", "size": 604}, {"path": "repodata/repomd.xml", "sha256": "1c7aa6d10642a19d76450dd4331ecbedac11d017307c66ebaaeb24b6c85141d5", "size": 1351}, {"path": "repodata/repomd.xml.asc", "sha256": "92c7c30313130dd3b3e7254df2b3cf9038ee50d668fe5d7ff68e307175324f3e", "size": 659}], "repository": "stable/el/9/x86_64", "retired": []}, "schema": "wukongim/package-family-signing-receipt/v1"}}, {"case": "rpm-tampered-payload", "passed": true}, {"case": "rpm-tampered-repomd", "passed": true}], "control_files": {"manifests/signing-toolchain.json": {"sha256": "b6555ad87af6ecf8b1a01ee18aebfab0126bccf59ff225aca8be8075d525ab99", "size": 295}, "scripts/sign-package-family.py": {"sha256": "c9dce5eb035e3359d39ae15721c2029b48ec3c82b22fcd879595c3ca20d553e0", "size": 38244}, "scripts/validate-signing-material.py": {"sha256": "2f525f247384b1c9fb014ac7587be7b807dc0901a40ff964984cade238a4ffc4", "size": 34568}, "tests/native_local_signing_drill.py": {"sha256": "1ae76bfe72d0bae37e63d09adb570579266da0863cd91e67942f646a0b89f578", "size": 22961}, "tests/native_source_metadata_drill.py": {"sha256": "08c8203fd16124cfec2f3e68972014ad355f29f6d70b9930e01587fc7288259b", "size": 12447}, "tests/test_validate_signing_material.py": {"sha256": "ffdd896dff80c5c5a40e43cd8e88b512f0cf3e249f3e2db9df80c46748d356fe", "size": 24911}}, "keys": {"apt": {"current": "A4E447C57A694EE8713B0738284B44013E43A783", "next": "9DBD23FE71AEE921E833F20A385859823EDE93ED", "primary": "3A1A7352DB3C2F82F8F2B455562C9D2D06433CF1", "public_certificate": {"sha256": "a6477d1ae68f503af42cdb2556a8d789ac3c0ff8699ca2915541af35442e9e17", "size": 1237}}, "rpm": {"current": "E171E7CA3ABABA76600AC49C917B0F1D5E46A239", "next": "6315C9739E1A531C860F0C5451354749FD9E830B", "primary": "F9CC04E68EC24EC1502DBDD910EA50822D708137", "public_certificate": {"sha256": "7eef267b337bafb8c68b367747a456476888d7ed4a454b6a1a9dd7e8e9a62e36", "size": 4808}}}, "passed": true, "payloads_executed": false, "production_keys_used": false, "published": false, "schema": "wukongim/test-only-native-local-signing/v1", "secret_tree_removed_before_verification": true, "source_inputs_unchanged": true, "source_provenance_verified": false, "test_only": true, "tool_versions": {"createrepo_c": "Version: 0.17.3 (Features: DeltaRPM LegacyWeakdeps )", "dpkg-deb": "Debian 'dpkg-deb' package archive backend version 1.22.6 (amd64).", "gpg": "gpg (GnuPG) 2.4.4", "rpm": "RPM version 4.18.2"}}
+2026-10-22T17:54:21.8392456Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-22T17:54:21.8392968Z with:
+2026-10-22T17:54:21.8393155Z   name: native-local-signing-test-only
+2026-10-22T17:54:21.8393490Z   path: /home/runner/work/_temp/local-signing-native/native-local-signing.json
+2026-10-22T17:54:21.8393816Z   if-no-files-found: warn
+2026-10-22T17:54:21.8394007Z   retention-days: 30
+2026-10-22T17:54:21.8394194Z   compression-level: 6
+2026-10-22T17:54:21.8394375Z   overwrite: false
+2026-10-22T17:54:21.8394562Z   include-hidden-files: false
+2026-10-22T17:54:21.8394760Z   archive: true
+2026-10-22T17:54:21.8394930Z ##[endgroup]
+2026-10-22T17:54:21.9527621Z With the provided path, there will be 1 file uploaded
+2026-10-22T17:54:21.9531431Z Artifact name is valid!
+2026-10-22T17:54:21.9532250Z Root directory input is valid!
+2026-10-22T17:54:22.3241512Z Uploading artifact: native-local-signing-test-only.zip
+2026-10-22T17:54:22.3271539Z Beginning upload of artifact content to blob storage
+2026-10-22T17:54:22.5478608Z Uploaded bytes 2800
+2026-10-22T17:54:22.6034518Z Finished uploading artifact content to blob storage!
+2026-10-22T17:54:22.6035346Z SHA256 digest of uploaded artifact is 8a86ccc5525d722ca1b160bdf1d1a4e7179fe4cd251bd1b99a4ff2b1f7faf09c
+2026-10-22T17:54:22.6036026Z Finalizing artifact upload
+2026-10-22T17:54:23.8421338Z Artifact native-local-signing-test-only successfully finalized. Artifact ID 12446637732
+2026-10-22T17:54:23.8422160Z Artifact native-local-signing-test-only has been successfully uploaded! Final size is 2800 bytes. Artifact ID is 12446637732
+2026-10-22T17:54:23.8424226Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39826621553/artifacts/12446637732
+2026-10-22T17:54:23.8528251Z ##[group]Run set -euo pipefail
+2026-10-22T17:54:23.8528528Z [36;1mset -euo pipefail[0m
+2026-10-22T17:54:23.8528839Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-22T17:54:23.8529245Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-22T17:54:23.8529660Z [36;1mbootstrap_output="$RUNNER_TEMP/bootstrap-preparation-native"[0m
+2026-10-22T17:54:23.8529968Z [36;1mmkdir "$bootstrap_output"[0m
+2026-10-22T17:54:23.8530207Z [36;1mchmod 0777 "$bootstrap_output"[0m
+2026-10-22T17:54:23.8530542Z [36;1mcontainer="wk-bootstrap-preparation-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-22T17:54:23.8530956Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-22T17:54:23.8531260Z [36;1mtrap 'exit 130' INT[0m
+2026-10-22T17:54:23.8531465Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-22T17:54:23.8531801Z [36;1m# Root and SYS_CHROOT are limited to scratch native package databases.[0m
+2026-10-22T17:54:23.8532200Z [36;1m# This data-only installation drill has no signing input or network.[0m
+2026-10-22T17:54:23.8532631Z [36;1mtimeout --signal=TERM --kill-after=10s 5m docker run --rm --name "$container" \[0m
+2026-10-22T17:54:23.8533061Z [36;1m  --platform linux/amd64 --network none --read-only --cap-drop ALL \[0m
+2026-10-22T17:54:23.8533478Z [36;1m  --cap-add SYS_CHROOT --security-opt no-new-privileges --user 0:0 \[0m
+2026-10-22T17:54:23.8533806Z [36;1m  --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-22T17:54:23.8534088Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \[0m
+2026-10-22T17:54:23.8534379Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-22T17:54:23.8534652Z [36;1m  --volume "$bootstrap_output:/evidence" \[0m
+2026-10-22T17:54:23.8534906Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-22T17:54:23.8535210Z [36;1m  python3 -B /control/tests/native_bootstrap_preparation_drill.py \[0m
+2026-10-22T17:54:23.8535707Z [36;1m  --output-dir /evidence --source-sha "$GITHUB_SHA"[0m
+2026-10-22T17:54:23.8536315Z [36;1mjq -e '.test_only == true and .passed == true and .scratch_removed == true and (.cases | length) == 6 and all(.cases[]; .passed == true)' \[0m
+2026-10-22T17:54:23.8536856Z [36;1m  "$bootstrap_output/native-bootstrap-preparation.json" >/dev/null[0m
+2026-10-22T17:54:23.8593104Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:54:23.8593392Z ##[endgroup]
+2026-10-22T17:54:25.5162941Z {"passed": true, "cases": 6, "failure": null, "scratch_removed": true}
+2026-10-22T17:54:25.6871867Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-22T17:54:25.6872414Z with:
+2026-10-22T17:54:25.6872744Z   name: native-bootstrap-preparation-test-only
+2026-10-22T17:54:25.6873442Z   path: /home/runner/work/_temp/bootstrap-preparation-native/native-bootstrap-preparation.json
+2026-10-22T17:54:25.6874084Z   if-no-files-found: warn
+2026-10-22T17:54:25.6874405Z   retention-days: 30
+2026-10-22T17:54:25.6874702Z   compression-level: 6
+2026-10-22T17:54:25.6874999Z   overwrite: false
+2026-10-22T17:54:25.6875301Z   include-hidden-files: false
+2026-10-22T17:54:25.6875785Z   archive: true
+2026-10-22T17:54:25.6876062Z ##[endgroup]
+2026-10-22T17:54:25.7988524Z With the provided path, there will be 1 file uploaded
+2026-10-22T17:54:25.7992792Z Artifact name is valid!
+2026-10-22T17:54:25.7993334Z Root directory input is valid!
+2026-10-22T17:54:26.1077585Z Uploading artifact: native-bootstrap-preparation-test-only.zip
+2026-10-22T17:54:26.1106960Z Beginning upload of artifact content to blob storage
+2026-10-22T17:54:26.3369050Z Uploaded bytes 7152
+2026-10-22T17:54:26.3911480Z Finished uploading artifact content to blob storage!
+2026-10-22T17:54:26.3912223Z SHA256 digest of uploaded artifact is d1b1b67095e3f8887500e9dd918b5f7572396f90390d425811d0bdae1844eb7c
+2026-10-22T17:54:26.3912848Z Finalizing artifact upload
+2026-10-22T17:54:27.0328235Z Artifact native-bootstrap-preparation-test-only successfully finalized. Artifact ID 12446413372
+2026-10-22T17:54:27.0329397Z Artifact native-bootstrap-preparation-test-only has been successfully uploaded! Final size is 7152 bytes. Artifact ID is 12446413372
+2026-10-22T17:54:27.0331577Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39826621553/artifacts/12446413372
+2026-10-22T17:54:27.0434982Z ##[group]Run set -euo pipefail
+2026-10-22T17:54:27.0435541Z [36;1mset -euo pipefail[0m
+2026-10-22T17:54:27.0436319Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-22T17:54:27.0437059Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-22T17:54:27.0437638Z [36;1mcandidate_output="$RUNNER_TEMP/stable-candidate-native"[0m
+2026-10-22T17:54:27.0438024Z [36;1mmkdir "$candidate_output"[0m
+2026-10-22T17:54:27.0438450Z [36;1mchmod 0777 "$candidate_output"[0m
+2026-10-22T17:54:27.0452306Z [36;1mcontainer="wk-stable-candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-22T17:54:27.0453023Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-22T17:54:27.0453392Z [36;1mtrap 'exit 130' INT[0m
+2026-10-22T17:54:27.0453610Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-22T17:54:27.0453983Z [36;1mtimeout --signal=TERM --kill-after=10s 10m docker run --rm --name "$container" \[0m
+2026-10-22T17:54:27.0454458Z [36;1m  --platform linux/amd64 --network none --read-only --cap-drop ALL \[0m
+2026-10-22T17:54:27.0454875Z [36;1m  --security-opt no-new-privileges --user 65532:65532 \[0m
+2026-10-22T17:54:27.0455215Z [36;1m  --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-22T17:54:27.0455536Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=268435456 \[0m
+2026-10-22T17:54:27.0456075Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-22T17:54:27.0456388Z [36;1m  --volume "$candidate_output:/evidence" \[0m
+2026-10-22T17:54:27.0456659Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-22T17:54:27.0456964Z [36;1m  python3 -B /control/tests/native_stable_candidate_drill.py \[0m
+2026-10-22T17:54:27.0457351Z [36;1m  --output-dir /evidence --source-sha "$GITHUB_SHA" \[0m
+2026-10-22T17:54:27.0457664Z [36;1m  --trusted-root /control/.trusted/wukongim[0m
+2026-10-22T17:54:27.0458396Z [36;1mjq -e '.test_only == true and .passed == true and .secret_tree_removed_before_verification == true and .scratch_removed == true and .checked_in_control_unchanged == true and (.cases | length) == 31 and all(.cases[]; .passed == true)' \[0m
+2026-10-22T17:54:27.0459384Z [36;1m  "$candidate_output/native-stable-candidate.json" >/dev/null[0m
+2026-10-22T17:54:27.0517222Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:54:27.0517518Z ##[endgroup]
+2026-10-22T17:54:52.7100727Z {"passed": true, "cases": 31, "failure": null}
+2026-10-22T17:54:52.7884452Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-22T17:54:52.7884797Z with:
+2026-10-22T17:54:52.7884995Z   name: native-stable-candidate-test-only
+2026-10-22T17:54:52.7885357Z   path: /home/runner/work/_temp/stable-candidate-native/native-stable-candidate.json
+2026-10-22T17:54:52.7885911Z   if-no-files-found: warn
+2026-10-22T17:54:52.7886120Z   retention-days: 30
+2026-10-22T17:54:52.7886315Z   compression-level: 6
+2026-10-22T17:54:52.7886511Z   overwrite: false
+2026-10-22T17:54:52.7886702Z   include-hidden-files: false
+2026-10-22T17:54:52.7886933Z   archive: true
+2026-10-22T17:54:52.7887111Z ##[endgroup]
+2026-10-22T17:54:52.9012093Z With the provided path, there will be 1 file uploaded
+2026-10-22T17:54:52.9016366Z Artifact name is valid!
+2026-10-22T17:54:52.9017097Z Root directory input is valid!
+2026-10-22T17:54:53.2468077Z Uploading artifact: native-stable-candidate-test-only.zip
+2026-10-22T17:54:53.2497464Z Beginning upload of artifact content to blob storage
+2026-10-22T17:54:53.4714302Z Uploaded bytes 4190
+2026-10-22T17:54:53.5254818Z Finished uploading artifact content to blob storage!
+2026-10-22T17:54:53.5255827Z SHA256 digest of uploaded artifact is b32433d94783a87947a19a037c99a8944f8c1d250c6ead67f9f933517fa0dbc0
+2026-10-22T17:54:53.5256447Z Finalizing artifact upload
+2026-10-22T17:55:00.3480517Z Artifact native-stable-candidate-test-only successfully finalized. Artifact ID 12446128994
+2026-10-22T17:55:00.3481237Z Artifact native-stable-candidate-test-only has been successfully uploaded! Final size is 4190 bytes. Artifact ID is 12446128994
+2026-10-22T17:55:00.3483963Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39826621553/artifacts/12446128994
+2026-10-22T17:55:00.3594669Z ##[group]Run set -euo pipefail
+2026-10-22T17:55:00.3594983Z [36;1mset -euo pipefail[0m
+2026-10-22T17:55:00.3595323Z [36;1mjq -e '.enabled == true' manifests/signing-toolchain.json >/dev/null[0m
+2026-10-22T17:55:00.3596008Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-22T17:55:00.3596535Z [36;1mfixture_output="$RUNNER_TEMP/native-delivery-fixture"[0m
+2026-10-22T17:55:00.3596873Z [36;1mmkdir "$fixture_output"[0m
+2026-10-22T17:55:00.3597112Z [36;1mchmod 0777 "$fixture_output"[0m
+2026-10-22T17:55:00.3597453Z [36;1mcontainer="wk-native-delivery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-22T17:55:00.3597858Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-22T17:55:00.3598184Z [36;1mtrap 'exit 130' INT[0m
+2026-10-22T17:55:00.3598414Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-22T17:55:00.3598781Z [36;1mtimeout --signal=TERM --kill-after=10s 15m docker run --rm --name "$container" \[0m
+2026-10-22T17:55:00.3599265Z [36;1m  --platform linux/amd64 --init --network none --read-only --cap-drop ALL \[0m
+2026-10-22T17:55:00.3599675Z [36;1m  --security-opt no-new-privileges --user 65532:65532 \[0m
+2026-10-22T17:55:00.3599997Z [36;1m  --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-22T17:55:00.3600293Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=536870912 \[0m
+2026-10-22T17:55:00.3600592Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-22T17:55:00.3600879Z [36;1m  --volume "$fixture_output:/evidence" \[0m
+2026-10-22T17:55:00.3601138Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-22T17:55:00.3601463Z [36;1m  python3 -B /control/tests/native_object_delivery_fixture_drill.py \[0m
+2026-10-22T17:55:00.3601853Z [36;1m  --output-dir /evidence --source-sha "$GITHUB_SHA" \[0m
+2026-10-22T17:55:00.3602169Z [36;1m  --trusted-root /control/.trusted/wukongim[0m
+2026-10-22T17:55:00.3603610Z [36;1mjq -e --arg source "$GITHUB_SHA" '.source_sha == $source and .test_only == true and .passed == true and .scratch_removed == true and (.cases | length) == 29 and all(.cases[]; .passed == true) and .verification.native_preview_verified == true and .verification.native_stable_verified == true and .verification.github_provenance_verified == false and .verification.fresh_production_auth_verified == false and .verification.activation_authorized == false' \[0m
+2026-10-22T17:55:00.3604818Z [36;1m  "$fixture_output/result.json" >/dev/null[0m
+2026-10-22T17:55:00.3605277Z [36;1mjq -e '.test_only == true and .data_only == true and .secret_tree_removed == true and .source_provenance_verified == false' \[0m
+2026-10-22T17:55:00.3606123Z [36;1m  "$fixture_output/fixture-export.json" >/dev/null[0m
+2026-10-22T17:55:00.3661595Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:55:00.3661892Z ##[endgroup]
+2026-10-22T17:55:41.7990934Z {"passed": true, "cases": 29, "phase": "export-public-only", "failure": null}
+2026-10-22T17:55:42.2772038Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-22T17:55:42.2772399Z with:
+2026-10-22T17:55:42.2772633Z   name: native-object-delivery-fixture-test-only
+2026-10-22T17:55:42.2773183Z   path: /home/runner/work/_temp/native-delivery-fixture/result.json
+/home/runner/work/_temp/native-delivery-fixture/fixture-export.json
+
+2026-10-22T17:55:42.2773692Z   if-no-files-found: warn
+2026-10-22T17:55:42.2773917Z   retention-days: 30
+2026-10-22T17:55:42.2774125Z   compression-level: 6
+2026-10-22T17:55:42.2774326Z   overwrite: false
+2026-10-22T17:55:42.2774532Z   include-hidden-files: false
+2026-10-22T17:55:42.2774758Z   archive: true
+2026-10-22T17:55:42.2774948Z ##[endgroup]
+2026-10-22T17:55:42.3928613Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-10-22T17:55:42.3957004Z The least common ancestor is /home/runner/work/_temp/native-delivery-fixture. This will be the root directory of the artifact
+2026-10-22T17:55:42.3958049Z With the provided path, there will be 2 files uploaded
+2026-10-22T17:55:42.3958800Z Artifact name is valid!
+2026-10-22T17:55:42.3959166Z Root directory input is valid!
+2026-10-22T17:55:42.7284095Z Uploading artifact: native-object-delivery-fixture-test-only.zip
+2026-10-22T17:55:42.7327803Z Beginning upload of artifact content to blob storage
+2026-10-22T17:55:42.9593789Z Uploaded bytes 8394
+2026-10-22T17:55:43.0187484Z Finished uploading artifact content to blob storage!
+2026-10-22T17:55:43.0188256Z SHA256 digest of uploaded artifact is cf49e2c629f77eeed2cd60742b1f543effce636d6144c4d332fa739fc46c29ed
+2026-10-22T17:55:43.0188916Z Finalizing artifact upload
+2026-10-22T17:55:48.1738713Z Artifact native-object-delivery-fixture-test-only successfully finalized. Artifact ID 12447520900
+2026-10-22T17:55:48.1739582Z Artifact native-object-delivery-fixture-test-only has been successfully uploaded! Final size is 8394 bytes. Artifact ID is 12447520900
+2026-10-22T17:55:48.1741622Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39826621553/artifacts/12447520900
+2026-10-22T17:55:48.1846332Z ##[group]Run set -euo pipefail
+2026-10-22T17:55:48.1846627Z [36;1mset -euo pipefail[0m
+2026-10-22T17:55:48.1846943Z [36;1mimage="$(jq -r '.image + "@" + .digest' manifests/signing-toolchain.json)"[0m
+2026-10-22T17:55:48.1847336Z [36;1mfixture_output="$RUNNER_TEMP/native-delivery-fixture"[0m
+2026-10-22T17:55:48.1847655Z [36;1msdk_work="$RUNNER_TEMP/native-sdk-work"[0m
+2026-10-22T17:55:48.1847957Z [36;1msdk_evidence="$RUNNER_TEMP/native-sdk-evidence"[0m
+2026-10-22T17:55:48.1848244Z [36;1mmkdir "$sdk_work" "$sdk_evidence"[0m
+2026-10-22T17:55:48.1848510Z [36;1mchmod 0777 "$sdk_work" "$sdk_evidence"[0m
+2026-10-22T17:55:48.1848847Z [36;1mcontainer="wk-native-sdk-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-22T17:55:48.1849249Z [36;1mtrap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT[0m
+2026-10-22T17:55:48.1849730Z [36;1mtrap 'exit 130' INT[0m
+2026-10-22T17:55:48.1849947Z [36;1mtrap 'exit 143' TERM[0m
+2026-10-22T17:55:48.1850314Z [36;1mtimeout --signal=TERM --kill-after=10s 15m docker run --rm --name "$container" \[0m
+2026-10-22T17:55:48.1850834Z [36;1m  --platform linux/amd64 --init --network none --read-only --cap-drop ALL \[0m
+2026-10-22T17:55:48.1851234Z [36;1m  --security-opt no-new-privileges --user 65532:65532 \[0m
+2026-10-22T17:55:48.1851549Z [36;1m  --cpus 1 --memory 512m --pids-limit 128 \[0m
+2026-10-22T17:55:48.1851842Z [36;1m  --tmpfs /tmp:rw,nosuid,nodev,size=536870912 \[0m
+2026-10-22T17:55:48.1852139Z [36;1m  --volume "$GITHUB_WORKSPACE:/control:ro" \[0m
+2026-10-22T17:55:48.1852442Z [36;1m  --volume "$fixture_output:$fixture_output:ro" \[0m
+2026-10-22T17:55:48.1852791Z [36;1m  --volume "$sdk_work:$sdk_work" --volume "$sdk_evidence:$sdk_evidence" \[0m
+2026-10-22T17:55:48.1853116Z [36;1m  --workdir /tmp "$image" \[0m
+2026-10-22T17:55:48.1853490Z [36;1m  python3 -B /control/tests/provider_sdk/native_object_delivery_sdk_drill.py prepare \[0m
+2026-10-22T17:55:48.1853924Z [36;1m  --public-dir "$fixture_output" --work-dir "$sdk_work" \[0m
+2026-10-22T17:55:48.1876982Z [36;1m  --expected-export-source "$GITHUB_SHA" --source-sha "$GITHUB_SHA" \[0m
+2026-10-22T17:55:48.1877603Z [36;1m  --output "$sdk_evidence/native-preparation.json"[0m
+2026-10-22T17:55:48.1878415Z [36;1mjq -e --arg source "$GITHUB_SHA" '.passed == true and .source_sha == $source and .state == "native_prepared" and (.cases | length) == 2' \[0m
+2026-10-22T17:55:48.1878969Z [36;1m  "$sdk_evidence/native-preparation.json" >/dev/null[0m
+2026-10-22T17:55:48.1934571Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:55:48.1934858Z ##[endgroup]
+2026-10-22T17:55:55.1114534Z {"passed": true, "state": "native_prepared", "stage": "prepare", "error_type": null, "bundle_sha256": "1369c816f78830fbdd4a84281173d5092af022c3d98ad7d3cb21a68ad6149add", "scratch_removed": false}
+2026-10-22T17:55:55.1996074Z ##[group]Run set -euo pipefail
+2026-10-22T17:55:55.1996399Z [36;1mset -euo pipefail[0m
+2026-10-22T17:55:55.1996653Z [36;1msdk_work="$RUNNER_TEMP/native-sdk-work"[0m
+2026-10-22T17:55:55.1996967Z [36;1msdk_evidence="$RUNNER_TEMP/native-sdk-evidence"[0m
+2026-10-22T17:55:55.1997290Z [36;1mpython3 -m venv "$RUNNER_TEMP/native-sdk-venv"[0m
+2026-10-22T17:55:55.1997833Z [36;1mtimeout 240 "$RUNNER_TEMP/native-sdk-venv/bin/python" -m pip install --require-hashes -r requirements-object-storage-provider.lock[0m
+2026-10-22T17:55:55.1998458Z [36;1mbundle_sha="$(jq -er '.bundle_sha256' "$sdk_evidence/native-preparation.json")"[0m
+2026-10-22T17:55:55.1999045Z [36;1mtimeout 300 "$RUNNER_TEMP/native-sdk-venv/bin/python" -B tests/provider_sdk/native_object_delivery_sdk_drill.py sdk \[0m
+2026-10-22T17:55:55.1999575Z [36;1m  --bundle "$sdk_work/bundle.json" --bundle-sha256 "$bundle_sha" \[0m
+2026-10-22T17:55:55.2000009Z [36;1m  --source-sha "$GITHUB_SHA" --output "$sdk_evidence/native-sdk-result.json"[0m
+2026-10-22T17:55:55.2000982Z [36;1mjq -e --arg source "$GITHUB_SHA" '.test_only == true and .source_sha == $source and .passed == true and .skips == 0 and (.cases | length) == 20 and all(.cases[]; .passed == true) and .state == "fixture_complete" and .stage == "sdk_fixture_complete" and .scratch_removed == true and all(.verification[]; . == false)' \[0m
+2026-10-22T17:55:55.2001891Z [36;1m  "$sdk_evidence/native-sdk-result.json" >/dev/null[0m
+2026-10-22T17:55:55.2057686Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:55:55.2057987Z ##[endgroup]
+2026-10-22T17:55:58.3378821Z Collecting alibabacloud-oss-v2==1.4.1 (from -r requirements-object-storage-provider.lock (line 4))
+2026-10-22T17:55:58.3701287Z   Downloading alibabacloud_oss_v2-1.4.1-py3-none-any.whl (377 kB)
+2026-10-22T17:55:58.3941820Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 377.7/377.7 kB 16.8 MB/s eta 0:00:00
+2026-10-22T17:55:58.4954244Z Collecting aliyun-python-sdk-cdn==3.8.8 (from -r requirements-object-storage-provider.lock (line 7))
+2026-10-22T17:55:58.4992554Z   Downloading aliyun_python_sdk_cdn-3.8.8-py2.py3-none-any.whl (162 kB)
+2026-10-22T17:55:58.5049559Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 162.8/162.8 kB 39.6 MB/s eta 0:00:00
+2026-10-22T17:55:58.5283612Z Collecting aliyun-python-sdk-core==2.16.1 (from -r requirements-object-storage-provider.lock (line 11))
+2026-10-22T17:55:58.5354827Z   Downloading aliyun_python_sdk_core-2.16.1-py3-none-any.whl (521 kB)
+2026-10-22T17:55:58.5469799Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 521.3/521.3 kB 50.8 MB/s eta 0:00:00
+2026-10-22T17:55:58.6277822Z Collecting aliyun-python-sdk-sts==3.1.3 (from -r requirements-object-storage-provider.lock (line 14))
+2026-10-22T17:55:58.6315990Z   Downloading aliyun_python_sdk_sts-3.1.3-py2.py3-none-any.whl (8.0 kB)
+2026-10-22T17:55:58.6920886Z Collecting certifi==2026.10.19 (from -r requirements-object-storage-provider.lock (line 18))
+2026-10-22T17:55:58.6951004Z   Downloading certifi-2026.10.19-py3-none-any.whl (136 kB)
+2026-10-22T17:55:58.6993007Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 136.5/136.5 kB 47.0 MB/s eta 0:00:00
+2026-10-22T17:55:58.8361354Z Collecting cffi==2.1.1 (from -r requirements-object-storage-provider.lock (line 22))
+2026-10-22T17:55:58.8393599Z   Downloading cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (221 kB)
+2026-10-22T17:55:58.8442275Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 221.8/221.8 kB 62.5 MB/s eta 0:00:00
+2026-10-22T17:55:58.9614023Z Collecting charset-normalizer==3.5.2 (from -r requirements-object-storage-provider.lock (line 124))
+2026-10-22T17:55:58.9648113Z   Downloading charset_normalizer-3.5.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (257 kB)
+2026-10-22T17:55:58.9700314Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 257.6/257.6 kB 67.6 MB/s eta 0:00:00
+2026-10-22T17:55:59.0561526Z Collecting crcmod-plus==2.3.6 (from -r requirements-object-storage-provider.lock (line 298))
+2026-10-22T17:55:59.0603745Z   Downloading crcmod_plus-2.3.6-cp311-abi3-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (26 kB)
+2026-10-22T17:55:59.2397258Z Collecting cryptography==50.0.2 (from -r requirements-object-storage-provider.lock (line 350))
+2026-10-22T17:55:59.2431411Z   Downloading cryptography-50.0.2-cp311-abi3-manylinux_2_34_x86_64.whl (4.8 MB)
+2026-10-22T17:55:59.3060175Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.8/4.8 MB 77.6 MB/s eta 0:00:00
+2026-10-22T17:55:59.3679310Z Collecting idna==3.20 (from -r requirements-object-storage-provider.lock (line 411))
+2026-10-22T17:55:59.3712791Z   Downloading idna-3.20-py3-none-any.whl (69 kB)
+2026-10-22T17:55:59.3740527Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 69.6/69.6 kB 40.1 MB/s eta 0:00:00
+2026-10-22T17:55:59.3922471Z Collecting jmespath==1.1.0 (from -r requirements-object-storage-provider.lock (line 415))
+2026-10-22T17:55:59.3951465Z   Downloading jmespath-1.1.0-py3-none-any.whl (20 kB)
+2026-10-22T17:55:59.5450995Z Collecting pycparser==3.11 (from -r requirements-object-storage-provider.lock (line 419))
+2026-10-22T17:55:59.5482015Z   Downloading pycparser-3.11-py3-none-any.whl (51 kB)
+2026-10-22T17:55:59.5511210Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 51.2/51.2 kB 27.3 MB/s eta 0:00:00
+2026-10-22T17:55:59.6851458Z Collecting pycryptodome==4.1.0 (from -r requirements-object-storage-provider.lock (line 423))
+2026-10-22T17:55:59.6884467Z   Downloading pycryptodome-4.1.0-cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (2.8 MB)
+2026-10-22T17:55:59.7166840Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.8/2.8 MB 104.1 MB/s eta 0:00:00
+2026-10-22T17:55:59.7604261Z Collecting requests==2.34.2 (from -r requirements-object-storage-provider.lock (line 452))
+2026-10-22T17:55:59.7634346Z   Downloading requests-2.34.2-py3-none-any.whl (73 kB)
+2026-10-22T17:55:59.7662540Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 73.1/73.1 kB 41.1 MB/s eta 0:00:00
+2026-10-22T17:55:59.8236817Z Collecting urllib3==2.8.0 (from -r requirements-object-storage-provider.lock (line 456))
+2026-10-22T17:55:59.8269048Z   Downloading urllib3-2.8.0-py3-none-any.whl (135 kB)
+2026-10-22T17:55:59.8301575Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 135.7/135.7 kB 68.9 MB/s eta 0:00:00
+2026-10-22T17:55:59.9162361Z Installing collected packages: urllib3, pycryptodome, pycparser, jmespath, idna, crcmod-plus, charset-normalizer, certifi, requests, cffi, cryptography, alibabacloud-oss-v2, aliyun-python-sdk-core, aliyun-python-sdk-sts, aliyun-python-sdk-cdn
+2026-10-22T17:56:01.5544373Z Successfully installed alibabacloud-oss-v2-1.4.1 aliyun-python-sdk-cdn-3.8.8 aliyun-python-sdk-core-2.16.1 aliyun-python-sdk-sts-3.1.3 certifi-2026.10.19 cffi-2.1.1 charset-normalizer-3.5.2 crcmod-plus-2.3.6 cryptography-50.0.2 idna-3.20 jmespath-1.1.0 pycparser-3.11 pycryptodome-4.1.0 requests-2.34.2 urllib3-2.8.0
+2026-10-22T17:56:02.1224291Z {"passed": false, "state": "incomplete", "stage": "sdk", "error_type": "PermissionError", "bundle_sha256": null, "scratch_removed": false}
+2026-10-22T17:56:02.1558201Z ##[error]Process completed with exit code 1.
+2026-10-22T17:56:02.1599570Z ##[group]Run set -euo pipefail
+2026-10-22T17:56:02.1599849Z [36;1mset -euo pipefail[0m
+2026-10-22T17:56:02.1600097Z [36;1msdk_work="$RUNNER_TEMP/native-sdk-work"[0m
+2026-10-22T17:56:02.1600454Z [36;1mcontainer="wk-native-sdk-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-22T17:56:02.1600839Z [36;1mdocker rm --force "$container" >/dev/null 2>&1 || true[0m
+2026-10-22T17:56:02.1601284Z [36;1mremaining="$(docker container ls --all --filter "name=^/${container}$" --format '{{.Names}}')"[0m
+2026-10-22T17:56:02.1601679Z [36;1mtest -z "$remaining"[0m
+2026-10-22T17:56:02.1601994Z [36;1mrm -rf -- "$sdk_work" "$RUNNER_TEMP/native-sdk-venv"[0m
+2026-10-22T17:56:02.1602313Z [36;1mmkdir -p "$RUNNER_TEMP/native-sdk-evidence"[0m
+2026-10-22T17:56:02.1602585Z [36;1mtest ! -e "$sdk_work"[0m
+2026-10-22T17:56:02.1603023Z [36;1mprintf '%s\n' '{"owned_work_removed":true,"owned_container_removed":true}' > "$RUNNER_TEMP/native-sdk-evidence/cleanup.json"[0m
+2026-10-22T17:56:02.1659266Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:56:02.1659575Z ##[endgroup]
+2026-10-22T17:56:02.1939861Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/generated/23259d85a8992336114025d569133adadd72a03a5f0fc891fa2b5a3bb664dfe0.txt': Permission denied
+2026-10-22T17:56:02.1941143Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/status.json': Permission denied
+2026-10-22T17:56:02.1942124Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/keys/apt-stable.asc': Permission denied
+2026-10-22T17:56:02.1943145Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/keys/rpm-stable.asc': Permission denied
+2026-10-22T17:56:02.1944172Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/bootstrap/manifest.json': Permission denied
+2026-10-22T17:56:02.1945424Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/bootstrap/wukongim-archive-keyring-stable_1.1.2_all.deb': Permission denied
+2026-10-22T17:56:02.1946936Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/bootstrap/wukongim-release-stable-1.1.2-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.1948335Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm': Permission denied
+2026-10-22T17:56:02.1949767Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.2-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.1951124Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz': Permission denied
+2026-10-22T17:56:02.1952340Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc': Permission denied
+2026-10-22T17:56:02.1953871Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz': Permission denied
+2026-10-22T17:56:02.1955120Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/rpm/stable/el/9/x86_64/repodata/other.xml.gz': Permission denied
+2026-10-22T17:56:02.1956408Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/rpm/stable/el/9/x86_64/repodata/repomd.xml': Permission denied
+2026-10-22T17:56:02.1957463Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/index.html': Permission denied
+2026-10-22T17:56:02.1958351Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/repo': Permission denied
+2026-10-22T17:56:02.1959527Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.2_all.deb': Permission denied
+2026-10-22T17:56:02.1961123Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/apt/pool/main/w/wukongim/wukongim_3.0.1_linux_amd64.deb': Permission denied
+2026-10-22T17:56:02.1962047Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/apt/dists/stable/InRelease': Permission denied
+2026-10-22T17:56:02.1962719Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/apt/dists/stable/Release': Permission denied
+2026-10-22T17:56:02.1963455Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/apt/dists/stable/Release.gpg': Permission denied
+2026-10-22T17:56:02.1964610Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/apt/dists/stable/main/binary-amd64/Packages': Permission denied
+2026-10-22T17:56:02.1966038Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/apt/dists/stable/main/binary-amd64/Packages.gz': Permission denied
+2026-10-22T17:56:02.1967626Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/dd47668aa1aeadc2ddbce8d30b3a5664c4f993e862814868aadef2075c4f71ab': Permission denied
+2026-10-22T17:56:02.1969535Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/3e138a2d25f66320afe49e30a0f4cb82cbb3176096d8bfe7588dc7a7cde4b7bb': Permission denied
+2026-10-22T17:56:02.1970980Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/site/signing-manifest.txt': Permission denied
+2026-10-22T17:56:02.1971959Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/snapshot.json': Permission denied
+2026-10-22T17:56:02.1972981Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/control/keys/apt-stable.asc': Permission denied
+2026-10-22T17:56:02.1974056Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/control/keys/rpm-stable.asc': Permission denied
+2026-10-22T17:56:02.1975150Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/control/keys/apt-preview.asc': Permission denied
+2026-10-22T17:56:02.1976365Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/control/keys/rpm-preview.asc': Permission denied
+2026-10-22T17:56:02.1977515Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/control/manifests/trusted-toolchain.json': Permission denied
+2026-10-22T17:56:02.1978736Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/control/manifests/bootstrap-packages.json': Permission denied
+2026-10-22T17:56:02.1979951Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/control/manifests/signing-toolchain.json': Permission denied
+2026-10-22T17:56:02.1981141Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/control/manifests/preview-signing.json': Permission denied
+2026-10-22T17:56:02.1982460Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/control/manifests/channels.json': Permission denied
+2026-10-22T17:56:02.1983646Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/control/manifests/stable-public-keys.json': Permission denied
+2026-10-22T17:56:02.1984746Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/plan.json': Permission denied
+2026-10-22T17:56:02.1985826Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/source/resolution.json': Permission denied
+2026-10-22T17:56:02.1986869Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/signing-toolchain.json': Permission denied
+2026-10-22T17:56:02.1987884Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/rpm-signing.json': Permission denied
+2026-10-22T17:56:02.1988990Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4243/audit/apt-signing.json': Permission denied
+2026-10-22T17:56:02.1989950Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/status.json': Permission denied
+2026-10-22T17:56:02.1990910Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/keys/apt-stable.asc': Permission denied
+2026-10-22T17:56:02.1991897Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/keys/rpm-stable.asc': Permission denied
+2026-10-22T17:56:02.1992900Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/bootstrap/manifest.json': Permission denied
+2026-10-22T17:56:02.1994166Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.1995078Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/bootstrap/wukongim-archive-keyring-stable_1.1.1_all.deb': Permission denied
+2026-10-22T17:56:02.1996108Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.1-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.1996970Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm': Permission denied
+2026-10-22T17:56:02.1997870Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz': Permission denied
+2026-10-22T17:56:02.1998630Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc': Permission denied
+2026-10-22T17:56:02.1999356Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz': Permission denied
+2026-10-22T17:56:02.2000087Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/rpm/stable/el/9/x86_64/repodata/other.xml.gz': Permission denied
+2026-10-22T17:56:02.2000803Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/rpm/stable/el/9/x86_64/repodata/repomd.xml': Permission denied
+2026-10-22T17:56:02.2001435Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/index.html': Permission denied
+2026-10-22T17:56:02.2001965Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/repo': Permission denied
+2026-10-22T17:56:02.2002621Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/apt/pool/main/w/wukongim/wukongim_3.0.0_linux_amd64.deb': Permission denied
+2026-10-22T17:56:02.2003503Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.1_all.deb': Permission denied
+2026-10-22T17:56:02.2004319Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/apt/dists/stable/InRelease': Permission denied
+2026-10-22T17:56:02.2005114Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/apt/dists/stable/Release': Permission denied
+2026-10-22T17:56:02.2005934Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/apt/dists/stable/Release.gpg': Permission denied
+2026-10-22T17:56:02.2006650Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/apt/dists/stable/main/binary-amd64/Packages': Permission denied
+2026-10-22T17:56:02.2007385Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/apt/dists/stable/main/binary-amd64/Packages.gz': Permission denied
+2026-10-22T17:56:02.2008323Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/89a6278f090f1481da02a9eec47a3e1af07b41546fd43f3f15ae50a674fa7d0f': Permission denied
+2026-10-22T17:56:02.2009601Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/72ea0c6fffc16004ba8b8506fb0f6add09f34471e2e076ab2ee8016c4a6af462': Permission denied
+2026-10-22T17:56:02.2010511Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/site/signing-manifest.txt': Permission denied
+2026-10-22T17:56:02.2011114Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/snapshot.json': Permission denied
+2026-10-22T17:56:02.2011734Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/control/keys/apt-stable.asc': Permission denied
+2026-10-22T17:56:02.2012375Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/control/keys/rpm-stable.asc': Permission denied
+2026-10-22T17:56:02.2013017Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/control/keys/apt-preview.asc': Permission denied
+2026-10-22T17:56:02.2013662Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/control/keys/rpm-preview.asc': Permission denied
+2026-10-22T17:56:02.2014352Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/control/manifests/trusted-toolchain.json': Permission denied
+2026-10-22T17:56:02.2015085Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/control/manifests/bootstrap-packages.json': Permission denied
+2026-10-22T17:56:02.2015980Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/control/manifests/signing-toolchain.json': Permission denied
+2026-10-22T17:56:02.2016711Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/control/manifests/preview-signing.json': Permission denied
+2026-10-22T17:56:02.2017405Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/control/manifests/channels.json': Permission denied
+2026-10-22T17:56:02.2018116Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/control/manifests/stable-public-keys.json': Permission denied
+2026-10-22T17:56:02.2018770Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/plan.json': Permission denied
+2026-10-22T17:56:02.2019365Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/source/resolution.json': Permission denied
+2026-10-22T17:56:02.2020007Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/signing-toolchain.json': Permission denied
+2026-10-22T17:56:02.2020616Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/rpm-signing.json': Permission denied
+2026-10-22T17:56:02.2021200Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/4242/audit/apt-signing.json': Permission denied
+2026-10-22T17:56:02.2021767Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/status.json': Permission denied
+2026-10-22T17:56:02.2022348Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/keys/apt-preview.asc': Permission denied
+2026-10-22T17:56:02.2023061Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/keys/rpm-preview.asc': Permission denied
+2026-10-22T17:56:02.2023655Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/bootstrap/manifest.json': Permission denied
+2026-10-22T17:56:02.2024336Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/bootstrap/wukongim-release-1.1.0-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.2025085Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/bootstrap/wukongim-archive-keyring_1.1.0_all.deb': Permission denied
+2026-10-22T17:56:02.2026114Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/rpm/preview/el/9/x86_64/Packages/wukongim_3.1.0-rc.1_linux_amd64.rpm': Permission denied
+2026-10-22T17:56:02.2027079Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/rpm/preview/el/9/x86_64/Packages/wukongim-release-1.1.0-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.2027864Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/rpm/preview/el/9/x86_64/repodata/primary.xml.gz': Permission denied
+2026-10-22T17:56:02.2028581Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/rpm/preview/el/9/x86_64/repodata/repomd.xml.asc': Permission denied
+2026-10-22T17:56:02.2029300Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/rpm/preview/el/9/x86_64/repodata/filelists.xml.gz': Permission denied
+2026-10-22T17:56:02.2030024Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/rpm/preview/el/9/x86_64/repodata/other.xml.gz': Permission denied
+2026-10-22T17:56:02.2030723Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/rpm/preview/el/9/x86_64/repodata/repomd.xml': Permission denied
+2026-10-22T17:56:02.2031352Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/index.html': Permission denied
+2026-10-22T17:56:02.2031887Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/repo': Permission denied
+2026-10-22T17:56:02.2032556Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/apt/pool/main/w/wukongim/wukongim_3.1.0-rc.1_linux_amd64.deb': Permission denied
+2026-10-22T17:56:02.2033361Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/apt/pool/main/w/wukongim/wukongim-archive-keyring_1.1.0_all.deb': Permission denied
+2026-10-22T17:56:02.2034090Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/apt/dists/preview/InRelease': Permission denied
+2026-10-22T17:56:02.2034716Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/apt/dists/preview/Release': Permission denied
+2026-10-22T17:56:02.2035348Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/apt/dists/preview/Release.gpg': Permission denied
+2026-10-22T17:56:02.2036246Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/apt/dists/preview/main/binary-amd64/Packages': Permission denied
+2026-10-22T17:56:02.2036984Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/apt/dists/preview/main/binary-amd64/Packages.gz': Permission denied
+2026-10-22T17:56:02.2037955Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/apt/dists/preview/main/binary-amd64/by-hash/SHA256/5520cfa41ae5c2199e79854a79b65fffa685ffcc22a1beba11958dfa7a44ab4f': Permission denied
+2026-10-22T17:56:02.2039064Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/apt/dists/preview/main/binary-amd64/by-hash/SHA256/7255378dab6e9156987b59f38b9d30c5d72c979e1c0497f58f8e1ad825aee7d4': Permission denied
+2026-10-22T17:56:02.2039904Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/site/signing-manifest.txt': Permission denied
+2026-10-22T17:56:02.2040492Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/snapshot.json': Permission denied
+2026-10-22T17:56:02.2041187Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/plan.json': Permission denied
+2026-10-22T17:56:02.2041773Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/signing-toolchain.json': Permission denied
+2026-10-22T17:56:02.2042522Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_linux_amd64.rpm.attestation.json': Permission denied
+2026-10-22T17:56:02.2043378Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_linux_amd64.deb.attestation.json': Permission denied
+2026-10-22T17:56:02.2044240Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_darwin_arm64.tar.gz.attestation.json': Permission denied
+2026-10-22T17:56:02.2045213Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_linux_amd64.tar.gz.attestation.json': Permission denied
+2026-10-22T17:56:02.2046104Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/source-attestations/source-attestations.json': Permission denied
+2026-10-22T17:56:02.2046892Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_checksums.txt.attestation.json': Permission denied
+2026-10-22T17:56:02.2047748Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_linux_arm64.tar.gz.attestation.json': Permission denied
+2026-10-22T17:56:02.2048604Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_darwin_amd64.tar.gz.attestation.json': Permission denied
+2026-10-22T17:56:02.2049335Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/rpm-signing.json': Permission denied
+2026-10-22T17:56:02.2049913Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/archives/10/audit/apt-signing.json': Permission denied
+2026-10-22T17:56:02.2050441Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/delivery.json': Permission denied
+2026-10-22T17:56:02.2050940Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/A/transport-plan.json': Permission denied
+2026-10-22T17:56:02.2051510Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/status.json': Permission denied
+2026-10-22T17:56:02.2052170Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/keys/apt-preview.asc': Permission denied
+2026-10-22T17:56:02.2052837Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/keys/rpm-preview.asc': Permission denied
+2026-10-22T17:56:02.2053515Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/bootstrap/manifest.json': Permission denied
+2026-10-22T17:56:02.2054276Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/bootstrap/wukongim-release-1.1.0-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.2055110Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/bootstrap/wukongim-archive-keyring_1.1.0_all.deb': Permission denied
+2026-10-22T17:56:02.2056066Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/rpm/preview/el/9/x86_64/Packages/wukongim_3.1.0-rc.1_linux_amd64.rpm': Permission denied
+2026-10-22T17:56:02.2056978Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/rpm/preview/el/9/x86_64/Packages/wukongim-release-1.1.0-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.2057837Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/rpm/preview/el/9/x86_64/repodata/primary.xml.gz': Permission denied
+2026-10-22T17:56:02.2058755Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/rpm/preview/el/9/x86_64/repodata/repomd.xml.asc': Permission denied
+2026-10-22T17:56:02.2059561Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/rpm/preview/el/9/x86_64/repodata/filelists.xml.gz': Permission denied
+2026-10-22T17:56:02.2060359Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/rpm/preview/el/9/x86_64/repodata/other.xml.gz': Permission denied
+2026-10-22T17:56:02.2061144Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/rpm/preview/el/9/x86_64/repodata/repomd.xml': Permission denied
+2026-10-22T17:56:02.2061843Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/index.html': Permission denied
+2026-10-22T17:56:02.2062576Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/repo': Permission denied
+2026-10-22T17:56:02.2063326Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/apt/pool/main/w/wukongim/wukongim_3.1.0-rc.1_linux_amd64.deb': Permission denied
+2026-10-22T17:56:02.2064210Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/apt/pool/main/w/wukongim/wukongim-archive-keyring_1.1.0_all.deb': Permission denied
+2026-10-22T17:56:02.2065010Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/apt/dists/preview/InRelease': Permission denied
+2026-10-22T17:56:02.2065797Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/apt/dists/preview/Release': Permission denied
+2026-10-22T17:56:02.2066505Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/apt/dists/preview/Release.gpg': Permission denied
+2026-10-22T17:56:02.2067274Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/apt/dists/preview/main/binary-amd64/Packages': Permission denied
+2026-10-22T17:56:02.2068082Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/apt/dists/preview/main/binary-amd64/Packages.gz': Permission denied
+2026-10-22T17:56:02.2069088Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/apt/dists/preview/main/binary-amd64/by-hash/SHA256/5520cfa41ae5c2199e79854a79b65fffa685ffcc22a1beba11958dfa7a44ab4f': Permission denied
+2026-10-22T17:56:02.2070282Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/apt/dists/preview/main/binary-amd64/by-hash/SHA256/7255378dab6e9156987b59f38b9d30c5d72c979e1c0497f58f8e1ad825aee7d4': Permission denied
+2026-10-22T17:56:02.2071209Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/site/signing-manifest.txt': Permission denied
+2026-10-22T17:56:02.2071876Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/snapshot.json': Permission denied
+2026-10-22T17:56:02.2072513Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/plan.json': Permission denied
+2026-10-22T17:56:02.2073173Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/signing-toolchain.json': Permission denied
+2026-10-22T17:56:02.2074006Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/source-attestations/wukongim_3.1.0-rc.1_linux_amd64.rpm.attestation.json': Permission denied
+2026-10-22T17:56:02.2074950Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/source-attestations/wukongim_3.1.0-rc.1_linux_amd64.deb.attestation.json': Permission denied
+2026-10-22T17:56:02.2076085Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/source-attestations/wukongim_3.1.0-rc.1_darwin_arm64.tar.gz.attestation.json': Permission denied
+2026-10-22T17:56:02.2077165Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/source-attestations/wukongim_3.1.0-rc.1_linux_amd64.tar.gz.attestation.json': Permission denied
+2026-10-22T17:56:02.2078058Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/source-attestations/source-attestations.json': Permission denied
+2026-10-22T17:56:02.2078933Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/source-attestations/wukongim_3.1.0-rc.1_checksums.txt.attestation.json': Permission denied
+2026-10-22T17:56:02.2079872Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/source-attestations/wukongim_3.1.0-rc.1_linux_arm64.tar.gz.attestation.json': Permission denied
+2026-10-22T17:56:02.2080922Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/source-attestations/wukongim_3.1.0-rc.1_darwin_amd64.tar.gz.attestation.json': Permission denied
+2026-10-22T17:56:02.2081741Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/rpm-signing.json': Permission denied
+2026-10-22T17:56:02.2082401Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/preview-extracted/audit/apt-signing.json': Permission denied
+2026-10-22T17:56:02.2082987Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/inputs-A.json': Permission denied
+2026-10-22T17:56:02.2083515Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/resolution-B.json': Permission denied
+2026-10-22T17:56:02.2084039Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/inputs-B.json': Permission denied
+2026-10-22T17:56:02.2084556Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/resolution-A.json': Permission denied
+2026-10-22T17:56:02.2085090Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/resolved-B': Permission denied
+2026-10-22T17:56:02.2085666Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/prepared/resolved-A': Permission denied
+2026-10-22T17:56:02.2086346Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/generated/ec203722826a3f12d1194330defad3328a0c0c72eed97abbbb5261b41de8e4d9.txt': Permission denied
+2026-10-22T17:56:02.2087058Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/status.json': Permission denied
+2026-10-22T17:56:02.2087647Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/keys/apt-stable.asc': Permission denied
+2026-10-22T17:56:02.2088242Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/keys/rpm-stable.asc': Permission denied
+2026-10-22T17:56:02.2088851Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/bootstrap/manifest.json': Permission denied
+2026-10-22T17:56:02.2089574Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/bootstrap/wukongim-archive-keyring-stable_1.1.2_all.deb': Permission denied
+2026-10-22T17:56:02.2090372Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/bootstrap/wukongim-release-stable-1.1.2-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.2091176Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.1_linux_amd64.rpm': Permission denied
+2026-10-22T17:56:02.2092016Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.2-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.2092824Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz': Permission denied
+2026-10-22T17:56:02.2093577Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc': Permission denied
+2026-10-22T17:56:02.2094446Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz': Permission denied
+2026-10-22T17:56:02.2095171Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/rpm/stable/el/9/x86_64/repodata/other.xml.gz': Permission denied
+2026-10-22T17:56:02.2095961Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/rpm/stable/el/9/x86_64/repodata/repomd.xml': Permission denied
+2026-10-22T17:56:02.2096594Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/index.html': Permission denied
+2026-10-22T17:56:02.2097130Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/repo': Permission denied
+2026-10-22T17:56:02.2097834Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.2_all.deb': Permission denied
+2026-10-22T17:56:02.2098774Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/apt/pool/main/w/wukongim/wukongim_3.0.1_linux_amd64.deb': Permission denied
+2026-10-22T17:56:02.2099501Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/apt/dists/stable/InRelease': Permission denied
+2026-10-22T17:56:02.2100131Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/apt/dists/stable/Release': Permission denied
+2026-10-22T17:56:02.2100766Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/apt/dists/stable/Release.gpg': Permission denied
+2026-10-22T17:56:02.2101453Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/apt/dists/stable/main/binary-amd64/Packages': Permission denied
+2026-10-22T17:56:02.2102185Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/apt/dists/stable/main/binary-amd64/Packages.gz': Permission denied
+2026-10-22T17:56:02.2103123Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/dd47668aa1aeadc2ddbce8d30b3a5664c4f993e862814868aadef2075c4f71ab': Permission denied
+2026-10-22T17:56:02.2104237Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/3e138a2d25f66320afe49e30a0f4cb82cbb3176096d8bfe7588dc7a7cde4b7bb': Permission denied
+2026-10-22T17:56:02.2105095Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/site/signing-manifest.txt': Permission denied
+2026-10-22T17:56:02.2105769Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/snapshot.json': Permission denied
+2026-10-22T17:56:02.2106378Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/control/keys/apt-stable.asc': Permission denied
+2026-10-22T17:56:02.2107027Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/control/keys/rpm-stable.asc': Permission denied
+2026-10-22T17:56:02.2107673Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/control/keys/apt-preview.asc': Permission denied
+2026-10-22T17:56:02.2108487Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/control/keys/rpm-preview.asc': Permission denied
+2026-10-22T17:56:02.2109301Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/control/manifests/trusted-toolchain.json': Permission denied
+2026-10-22T17:56:02.2110156Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/control/manifests/bootstrap-packages.json': Permission denied
+2026-10-22T17:56:02.2111006Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/control/manifests/signing-toolchain.json': Permission denied
+2026-10-22T17:56:02.2111870Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/control/manifests/preview-signing.json': Permission denied
+2026-10-22T17:56:02.2112828Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/control/manifests/channels.json': Permission denied
+2026-10-22T17:56:02.2113629Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/control/manifests/stable-public-keys.json': Permission denied
+2026-10-22T17:56:02.2114349Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/plan.json': Permission denied
+2026-10-22T17:56:02.2114992Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/source/resolution.json': Permission denied
+2026-10-22T17:56:02.2115933Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/signing-toolchain.json': Permission denied
+2026-10-22T17:56:02.2116631Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/rpm-signing.json': Permission denied
+2026-10-22T17:56:02.2117488Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4243/audit/apt-signing.json': Permission denied
+2026-10-22T17:56:02.2118077Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/status.json': Permission denied
+2026-10-22T17:56:02.2118666Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/keys/apt-stable.asc': Permission denied
+2026-10-22T17:56:02.2119270Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/keys/rpm-stable.asc': Permission denied
+2026-10-22T17:56:02.2119879Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/bootstrap/manifest.json': Permission denied
+2026-10-22T17:56:02.2120605Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/bootstrap/wukongim-release-stable-1.1.1-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.2121410Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/bootstrap/wukongim-archive-keyring-stable_1.1.1_all.deb': Permission denied
+2026-10-22T17:56:02.2122269Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/rpm/stable/el/9/x86_64/Packages/wukongim-release-stable-1.1.1-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.2123125Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/rpm/stable/el/9/x86_64/Packages/wukongim_3.0.0_linux_amd64.rpm': Permission denied
+2026-10-22T17:56:02.2123886Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/rpm/stable/el/9/x86_64/repodata/primary.xml.gz': Permission denied
+2026-10-22T17:56:02.2124613Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/rpm/stable/el/9/x86_64/repodata/repomd.xml.asc': Permission denied
+2026-10-22T17:56:02.2125336Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/rpm/stable/el/9/x86_64/repodata/filelists.xml.gz': Permission denied
+2026-10-22T17:56:02.2126157Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/rpm/stable/el/9/x86_64/repodata/other.xml.gz': Permission denied
+2026-10-22T17:56:02.2126873Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/rpm/stable/el/9/x86_64/repodata/repomd.xml': Permission denied
+2026-10-22T17:56:02.2127506Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/index.html': Permission denied
+2026-10-22T17:56:02.2128044Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/repo': Permission denied
+2026-10-22T17:56:02.2128700Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/apt/pool/main/w/wukongim/wukongim_3.0.0_linux_amd64.deb': Permission denied
+2026-10-22T17:56:02.2129526Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/apt/pool/main/w/wukongim/wukongim-archive-keyring-stable_1.1.1_all.deb': Permission denied
+2026-10-22T17:56:02.2130292Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/apt/dists/stable/InRelease': Permission denied
+2026-10-22T17:56:02.2131045Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/apt/dists/stable/Release': Permission denied
+2026-10-22T17:56:02.2131691Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/apt/dists/stable/Release.gpg': Permission denied
+2026-10-22T17:56:02.2132378Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/apt/dists/stable/main/binary-amd64/Packages': Permission denied
+2026-10-22T17:56:02.2133108Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/apt/dists/stable/main/binary-amd64/Packages.gz': Permission denied
+2026-10-22T17:56:02.2134034Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/89a6278f090f1481da02a9eec47a3e1af07b41546fd43f3f15ae50a674fa7d0f': Permission denied
+2026-10-22T17:56:02.2135269Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/apt/dists/stable/main/binary-amd64/by-hash/SHA256/72ea0c6fffc16004ba8b8506fb0f6add09f34471e2e076ab2ee8016c4a6af462': Permission denied
+2026-10-22T17:56:02.2136234Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/site/signing-manifest.txt': Permission denied
+2026-10-22T17:56:02.2136849Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/snapshot.json': Permission denied
+2026-10-22T17:56:02.2137472Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/control/keys/apt-stable.asc': Permission denied
+2026-10-22T17:56:02.2138119Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/control/keys/rpm-stable.asc': Permission denied
+2026-10-22T17:56:02.2138780Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/control/keys/apt-preview.asc': Permission denied
+2026-10-22T17:56:02.2139463Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/control/keys/rpm-preview.asc': Permission denied
+2026-10-22T17:56:02.2140171Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/control/manifests/trusted-toolchain.json': Permission denied
+2026-10-22T17:56:02.2140906Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/control/manifests/bootstrap-packages.json': Permission denied
+2026-10-22T17:56:02.2141620Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/control/manifests/signing-toolchain.json': Permission denied
+2026-10-22T17:56:02.2142333Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/control/manifests/preview-signing.json': Permission denied
+2026-10-22T17:56:02.2143023Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/control/manifests/channels.json': Permission denied
+2026-10-22T17:56:02.2143729Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/control/manifests/stable-public-keys.json': Permission denied
+2026-10-22T17:56:02.2144376Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/plan.json': Permission denied
+2026-10-22T17:56:02.2144968Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/source/resolution.json': Permission denied
+2026-10-22T17:56:02.2145669Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/signing-toolchain.json': Permission denied
+2026-10-22T17:56:02.2146277Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/rpm-signing.json': Permission denied
+2026-10-22T17:56:02.2146862Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/4242/audit/apt-signing.json': Permission denied
+2026-10-22T17:56:02.2147428Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/status.json': Permission denied
+2026-10-22T17:56:02.2148003Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/keys/apt-preview.asc': Permission denied
+2026-10-22T17:56:02.2148712Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/keys/rpm-preview.asc': Permission denied
+2026-10-22T17:56:02.2149316Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/bootstrap/manifest.json': Permission denied
+2026-10-22T17:56:02.2149996Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/bootstrap/wukongim-release-1.1.0-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.2150736Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/bootstrap/wukongim-archive-keyring_1.1.0_all.deb': Permission denied
+2026-10-22T17:56:02.2151527Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/rpm/preview/el/9/x86_64/Packages/wukongim_3.1.0-rc.1_linux_amd64.rpm': Permission denied
+2026-10-22T17:56:02.2152460Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/rpm/preview/el/9/x86_64/Packages/wukongim-release-1.1.0-1.noarch.rpm': Permission denied
+2026-10-22T17:56:02.2153244Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/rpm/preview/el/9/x86_64/repodata/primary.xml.gz': Permission denied
+2026-10-22T17:56:02.2162040Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/rpm/preview/el/9/x86_64/repodata/repomd.xml.asc': Permission denied
+2026-10-22T17:56:02.2163122Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/rpm/preview/el/9/x86_64/repodata/filelists.xml.gz': Permission denied
+2026-10-22T17:56:02.2163875Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/rpm/preview/el/9/x86_64/repodata/other.xml.gz': Permission denied
+2026-10-22T17:56:02.2164603Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/rpm/preview/el/9/x86_64/repodata/repomd.xml': Permission denied
+2026-10-22T17:56:02.2165253Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/index.html': Permission denied
+2026-10-22T17:56:02.2165950Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/repo': Permission denied
+2026-10-22T17:56:02.2166630Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/apt/pool/main/w/wukongim/wukongim_3.1.0-rc.1_linux_amd64.deb': Permission denied
+2026-10-22T17:56:02.2167449Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/apt/pool/main/w/wukongim/wukongim-archive-keyring_1.1.0_all.deb': Permission denied
+2026-10-22T17:56:02.2168181Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/apt/dists/preview/InRelease': Permission denied
+2026-10-22T17:56:02.2168818Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/apt/dists/preview/Release': Permission denied
+2026-10-22T17:56:02.2169454Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/apt/dists/preview/Release.gpg': Permission denied
+2026-10-22T17:56:02.2170167Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/apt/dists/preview/main/binary-amd64/Packages': Permission denied
+2026-10-22T17:56:02.2170960Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/apt/dists/preview/main/binary-amd64/Packages.gz': Permission denied
+2026-10-22T17:56:02.2171939Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/apt/dists/preview/main/binary-amd64/by-hash/SHA256/5520cfa41ae5c2199e79854a79b65fffa685ffcc22a1beba11958dfa7a44ab4f': Permission denied
+2026-10-22T17:56:02.2173057Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/apt/dists/preview/main/binary-amd64/by-hash/SHA256/7255378dab6e9156987b59f38b9d30c5d72c979e1c0497f58f8e1ad825aee7d4': Permission denied
+2026-10-22T17:56:02.2173907Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/site/signing-manifest.txt': Permission denied
+2026-10-22T17:56:02.2174508Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/snapshot.json': Permission denied
+2026-10-22T17:56:02.2175253Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/plan.json': Permission denied
+2026-10-22T17:56:02.2176015Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/signing-toolchain.json': Permission denied
+2026-10-22T17:56:02.2176775Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_linux_amd64.rpm.attestation.json': Permission denied
+2026-10-22T17:56:02.2177661Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_linux_amd64.deb.attestation.json': Permission denied
+2026-10-22T17:56:02.2178572Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_darwin_arm64.tar.gz.attestation.json': Permission denied
+2026-10-22T17:56:02.2179569Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_linux_amd64.tar.gz.attestation.json': Permission denied
+2026-10-22T17:56:02.2180393Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/source-attestations/source-attestations.json': Permission denied
+2026-10-22T17:56:02.2181197Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_checksums.txt.attestation.json': Permission denied
+2026-10-22T17:56:02.2182051Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_linux_arm64.tar.gz.attestation.json': Permission denied
+2026-10-22T17:56:02.2182915Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/source-attestations/wukongim_3.1.0-rc.1_darwin_amd64.tar.gz.attestation.json': Permission denied
+2026-10-22T17:56:02.2183647Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/rpm-signing.json': Permission denied
+2026-10-22T17:56:02.2184230Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/archives/10/audit/apt-signing.json': Permission denied
+2026-10-22T17:56:02.2184768Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/delivery.json': Permission denied
+2026-10-22T17:56:02.2185272Z rm: cannot remove '/home/runner/work/_temp/native-sdk-work/B/transport-plan.json': Permission denied
+2026-10-22T17:56:02.2598640Z ##[error]Process completed with exit code 1.
+2026-10-22T17:56:02.2640772Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-22T17:56:02.2641121Z with:
+2026-10-22T17:56:02.2641336Z   name: native-object-delivery-sdk-test-only
+2026-10-22T17:56:02.2642032Z   path: /home/runner/work/_temp/native-sdk-evidence/native-preparation.json
+/home/runner/work/_temp/native-sdk-evidence/native-sdk-result.json
+/home/runner/work/_temp/native-sdk-evidence/cleanup.json
+
+2026-10-22T17:56:02.2642719Z   if-no-files-found: error
+2026-10-22T17:56:02.2642944Z   retention-days: 7
+2026-10-22T17:56:02.2643149Z   compression-level: 6
+2026-10-22T17:56:02.2643357Z   overwrite: false
+2026-10-22T17:56:02.2643557Z   include-hidden-files: false
+2026-10-22T17:56:02.2643783Z   archive: true
+2026-10-22T17:56:02.2643983Z ##[endgroup]
+2026-10-22T17:56:02.3808115Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-10-22T17:56:02.3810020Z The least common ancestor is /home/runner/work/_temp/native-sdk-evidence. This will be the root directory of the artifact
+2026-10-22T17:56:02.3810919Z With the provided path, there will be 2 files uploaded
+2026-10-22T17:56:02.3826353Z Artifact name is valid!
+2026-10-22T17:56:02.3827081Z Root directory input is valid!
+2026-10-22T17:56:02.7237905Z Uploading artifact: native-object-delivery-sdk-test-only.zip
+2026-10-22T17:56:02.7267900Z Beginning upload of artifact content to blob storage
+2026-10-22T17:56:02.9561045Z Uploaded bytes 3778
+2026-10-22T17:56:03.0113452Z Finished uploading artifact content to blob storage!
+2026-10-22T17:56:03.0114226Z SHA256 digest of uploaded artifact is 37a5e4f068d6f5bd1be3e8a6fd3febd36e2697fef8988f8615dfd945ed8f62f5
+2026-10-22T17:56:03.0114777Z Finalizing artifact upload
+2026-10-22T17:56:03.6417120Z Artifact native-object-delivery-sdk-test-only successfully finalized. Artifact ID 12447036886
+2026-10-22T17:56:03.6418331Z Artifact native-object-delivery-sdk-test-only has been successfully uploaded! Final size is 3778 bytes. Artifact ID is 12447036886
+2026-10-22T17:56:03.6419557Z Artifact download URL: https://github.com/WuKongIM/packages/actions/runs/39826621553/artifacts/12447036886
+2026-10-22T17:56:03.6541501Z ##[group]Run git diff --exit-code HEAD -- . ':!.trusted'
+2026-10-22T17:56:03.6541846Z [36;1mgit diff --exit-code HEAD -- . ':!.trusted'[0m
+2026-10-22T17:56:03.6597340Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T17:56:03.6597644Z ##[endgroup]
+2026-10-22T17:56:03.6832853Z Post job cleanup.
+2026-10-22T17:56:03.7492914Z [command]/usr/bin/git version
+2026-10-22T17:56:03.7528382Z git version 2.55.0
+2026-10-22T17:56:03.7555359Z Temporarily overriding HOME='/home/runner/work/_temp/700f6406-1042-43a8-8a05-f596aeac85aa' before making global git config changes
+2026-10-22T17:56:03.7556514Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-22T17:56:03.7559454Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages/.trusted/wukongim
+2026-10-22T17:56:03.7585297Z Removing SSH command configuration
+2026-10-22T17:56:03.7590239Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T17:56:03.7618046Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T17:56:03.7834391Z Removing HTTP extra header
+2026-10-22T17:56:03.7839066Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T17:56:03.7868912Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T17:56:03.8080691Z Removing includeIf entries pointing to credentials config files
+2026-10-22T17:56:03.8088296Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T17:56:03.8118672Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T17:56:03.8474235Z Post job cleanup.
+2026-10-22T17:56:03.9182203Z [command]/usr/bin/git version
+2026-10-22T17:56:03.9219867Z git version 2.55.0
+2026-10-22T17:56:03.9249981Z Temporarily overriding HOME='/home/runner/work/_temp/71e0ef52-003c-4114-b6bb-0c17676c2bea' before making global git config changes
+2026-10-22T17:56:03.9250782Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-22T17:56:03.9254259Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/packages/packages
+2026-10-22T17:56:03.9282350Z Removing SSH command configuration
+2026-10-22T17:56:03.9287948Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T17:56:03.9317292Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T17:56:03.9520479Z Removing HTTP extra header
+2026-10-22T17:56:03.9530551Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T17:56:03.9551604Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T17:56:03.9753673Z Removing includeIf entries pointing to credentials config files
+2026-10-22T17:56:03.9759680Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T17:56:03.9794515Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T17:56:04.0134784Z Cleaning up orphan processes

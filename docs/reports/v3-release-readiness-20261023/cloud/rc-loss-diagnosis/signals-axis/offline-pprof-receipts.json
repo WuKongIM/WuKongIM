@@ -1,0 +1,113 @@
+[
+  {
+    "profile": "service-1-heap.pprof",
+    "input_sha256": "49aceb18a1cf5f5455641bee90342c3e055e2b0f531122789d715a51ef2cda5b",
+    "argv": [
+      "go",
+      "tool",
+      "pprof",
+      "-top",
+      "-nodecount=15",
+      "-symbolize=none",
+      "-sample_index=inuse_space",
+      "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/profiles/service-1-heap.pprof"
+    ],
+    "max_seconds": 45,
+    "elapsed_seconds": 0.835,
+    "exit_code": 0,
+    "output": "service-1-heap-top15.txt",
+    "output_bytes": 2861
+  },
+  {
+    "profile": "service-1-goroutine.pprof",
+    "input_sha256": "0d4f1381820f11aacbd740ab7124845fbb51b73a0677ec984f7d824b3ff92263",
+    "argv": [
+      "go",
+      "tool",
+      "pprof",
+      "-top",
+      "-nodecount=15",
+      "-symbolize=none",
+      "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/profiles/service-1-goroutine.pprof"
+    ],
+    "max_seconds": 45,
+    "elapsed_seconds": 0.016,
+    "exit_code": 0,
+    "output": "service-1-goroutine-top15.txt",
+    "output_bytes": 1930
+  },
+  {
+    "profile": "service-2-heap.pprof",
+    "input_sha256": "d5f48ee46c152a22c266e5dc1a58eb85e9acee77482a91459a3199941d120e4d",
+    "argv": [
+      "go",
+      "tool",
+      "pprof",
+      "-top",
+      "-nodecount=15",
+      "-symbolize=none",
+      "-sample_index=inuse_space",
+      "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/profiles/service-2-heap.pprof"
+    ],
+    "max_seconds": 45,
+    "elapsed_seconds": 0.034,
+    "exit_code": 0,
+    "output": "service-2-heap-top15.txt",
+    "output_bytes": 2891
+  },
+  {
+    "profile": "service-2-goroutine.pprof",
+    "input_sha256": "7b4005f3050c6e624d263745e27fff4c9fb994e016f833f565d2f21964ef2203",
+    "argv": [
+      "go",
+      "tool",
+      "pprof",
+      "-top",
+      "-nodecount=15",
+      "-symbolize=none",
+      "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/profiles/service-2-goroutine.pprof"
+    ],
+    "max_seconds": 45,
+    "elapsed_seconds": 0.014,
+    "exit_code": 0,
+    "output": "service-2-goroutine-top15.txt",
+    "output_bytes": 1930
+  },
+  {
+    "profile": "service-3-heap.pprof",
+    "input_sha256": "077b17d5273603c578392380e44b43a8d3305f096866175e130692a9975c9b45",
+    "argv": [
+      "go",
+      "tool",
+      "pprof",
+      "-top",
+      "-nodecount=15",
+      "-symbolize=none",
+      "-sample_index=inuse_space",
+      "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/profiles/service-3-heap.pprof"
+    ],
+    "max_seconds": 45,
+    "elapsed_seconds": 0.033,
+    "exit_code": 0,
+    "output": "service-3-heap-top15.txt",
+    "output_bytes": 2931
+  },
+  {
+    "profile": "service-3-goroutine.pprof",
+    "input_sha256": "8dd54f783fc6eb2d5dc8dd00dc3ac719c078a26c466dd66f9a4ac59bf30333d6",
+    "argv": [
+      "go",
+      "tool",
+      "pprof",
+      "-top",
+      "-nodecount=15",
+      "-symbolize=none",
+      "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/status-check-20261023/public-v1/terminal/evidence/profiles/service-3-goroutine.pprof"
+    ],
+    "max_seconds": 45,
+    "elapsed_seconds": 0.014,
+    "exit_code": 0,
+    "output": "service-3-goroutine-top15.txt",
+    "output_bytes": 1930
+  }
+]

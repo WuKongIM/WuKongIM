@@ -1,0 +1,78 @@
+{
+  "guard_pass": true,
+  "request_id": "chat-20261021T214505Z-00299e37",
+  "latest_top": {
+    "id": 39637426411,
+    "run_number": 34,
+    "run_attempt": 1,
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "cee5d51f325fb84033060f546337d326110adae5",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39637426411"
+  },
+  "workflow_states": {
+    "chat-lifecycle-rehearsal.yml": {
+      "id": 329938003,
+      "state": "active",
+      "path": ".github/workflows/chat-lifecycle-rehearsal.yml"
+    },
+    "chat-lifecycle-rehearsal-finalize.yml": {
+      "id": 329938002,
+      "state": "disabled_manually",
+      "path": ".github/workflows/chat-lifecycle-rehearsal-finalize.yml"
+    },
+    "chat-lifecycle-formal.yml": {
+      "id": 329938001,
+      "state": "disabled_manually",
+      "path": ".github/workflows/chat-lifecycle-formal.yml"
+    },
+    "chat-lifecycle-formal-finalize.yml": {
+      "id": 329938000,
+      "state": "disabled_manually",
+      "path": ".github/workflows/chat-lifecycle-formal-finalize.yml"
+    },
+    "chat-lifecycle-stop.yml": {
+      "id": 329938004,
+      "state": "active",
+      "path": ".github/workflows/chat-lifecycle-stop.yml"
+    },
+    "cloud-deployment-bundle.yml": {
+      "id": 329938006,
+      "state": "active",
+      "path": ".github/workflows/cloud-deployment-bundle.yml"
+    },
+    "cloud-deployment-activate.yml": {
+      "id": 329938005,
+      "state": "active",
+      "path": ".github/workflows/cloud-deployment-activate.yml"
+    },
+    "cloud-lease-provision.yml": {
+      "id": 329938009,
+      "state": "active",
+      "path": ".github/workflows/cloud-lease-provision.yml"
+    },
+    "cloud-lease-release.yml": {
+      "id": 329938010,
+      "state": "disabled_manually",
+      "path": ".github/workflows/cloud-lease-release.yml"
+    },
+    "cloud-lease-observe.yml": {
+      "id": 329938007,
+      "state": "active",
+      "path": ".github/workflows/cloud-lease-observe.yml"
+    }
+  },
+  "bounded_inventory_complete": true,
+  "active_protected_runs": 0,
+  "retained_handoff_selectors": [
+    {
+      "stage": "rehearsal",
+      "authenticated_active_handoffs": 0
+    },
+    {
+      "stage": "formal",
+      "authenticated_active_handoffs": 0
+    }
+  ],
+  "retained_chat_markers": 161
+}

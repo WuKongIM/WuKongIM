@@ -1,0 +1,470 @@
+{
+  "observed_at": "2026-10-22T17:44:53.171965+00:00",
+  "endpoint": "repos/WuKongIM/WuKongIM/actions/runs/39824958109/jobs?per_page=100",
+  "sha256": "6a90c9d1778afb8524d5bb18dd73284d79a71ae89f65334d5c5dab87351dafbd",
+  "data": {
+    "total_count": 3,
+    "jobs": [
+      {
+        "id": 119985705418,
+        "run_id": 39824958109,
+        "workflow_name": "Chat Lifecycle Rehearsal Finalizer 39824958109",
+        "head_branch": "main",
+        "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39824958109",
+        "run_attempt": 1,
+        "node_id": "CR_kwDOJgfwyc8AAAAb77SRyg",
+        "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119985705418",
+        "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39824958109/job/119985705418",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-22T17:41:53Z",
+        "started_at": "2026-10-22T17:41:55Z",
+        "completed_at": "2026-10-22T17:42:11Z",
+        "name": "Discover handoffs without zero-inventory proof",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T17:41:55Z",
+            "completed_at": "2026-10-22T17:41:56Z"
+          },
+          {
+            "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T17:41:56Z",
+            "completed_at": "2026-10-22T17:42:00Z"
+          },
+          {
+            "name": "Select bounded latest handoffs",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T17:42:00Z",
+            "completed_at": "2026-10-22T17:42:10Z"
+          },
+          {
+            "name": "Validate manual stop boundary",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 4,
+            "started_at": "2026-10-22T17:42:10Z",
+            "completed_at": "2026-10-22T17:42:10Z"
+          },
+          {
+            "name": "Authenticate durable request-scoped stop marker",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 5,
+            "started_at": "2026-10-22T17:42:10Z",
+            "completed_at": "2026-10-22T17:42:10Z"
+          },
+          {
+            "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-22T17:42:10Z",
+            "completed_at": "2026-10-22T17:42:10Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-22T17:42:10Z",
+            "completed_at": "2026-10-22T17:42:10Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119985705418",
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "runner_id": 1000024602,
+        "runner_name": "GitHub Actions 1000024602",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 119985854448,
+        "run_id": 39824958109,
+        "workflow_name": "Chat Lifecycle Rehearsal Finalizer 39824958109",
+        "head_branch": "main",
+        "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39824958109",
+        "run_attempt": 1,
+        "node_id": "CR_kwDOJgfwyc8AAAAb77bX8A",
+        "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119985854448",
+        "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39824958109/job/119985854448",
+        "status": "in_progress",
+        "conclusion": null,
+        "created_at": "2026-10-22T17:42:12Z",
+        "started_at": "2026-10-22T17:42:14Z",
+        "completed_at": null,
+        "name": "Finalize chat-20261021T214505Z-00299e37 before zero-inventory cleanup",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T17:42:15Z",
+            "completed_at": "2026-10-22T17:42:17Z"
+          },
+          {
+            "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T17:42:17Z",
+            "completed_at": "2026-10-22T17:42:22Z"
+          },
+          {
+            "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T17:42:22Z",
+            "completed_at": "2026-10-22T17:42:33Z"
+          },
+          {
+            "name": "Resolve durable operator-stop intent for this handoff",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T17:42:33Z",
+            "completed_at": "2026-10-22T17:42:34Z"
+          },
+          {
+            "name": "Download exact non-secret remote handoff",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T17:42:34Z",
+            "completed_at": "2026-10-22T17:42:35Z"
+          },
+          {
+            "name": "Authenticate protected-main handoff or cleanup-pending producer",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T17:42:35Z",
+            "completed_at": "2026-10-22T17:42:36Z"
+          },
+          {
+            "name": "Classify authenticated handoff content",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T17:42:36Z",
+            "completed_at": "2026-10-22T17:42:36Z"
+          },
+          {
+            "name": "Download previously uploaded terminal evidence",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 8,
+            "started_at": "2026-10-22T17:42:36Z",
+            "completed_at": "2026-10-22T17:42:36Z"
+          },
+          {
+            "name": "Authenticate reusable terminal evidence",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 9,
+            "started_at": "2026-10-22T17:42:36Z",
+            "completed_at": "2026-10-22T17:42:36Z"
+          },
+          {
+            "name": "Preserve authenticated prior diagnosis deadline",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 10,
+            "started_at": "2026-10-22T17:42:36Z",
+            "completed_at": "2026-10-22T17:42:36Z"
+          },
+          {
+            "name": "Build trusted finalization validator and SSH identity",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-22T17:42:36Z",
+            "completed_at": "2026-10-22T17:42:39Z"
+          },
+          {
+            "name": "Collect terminal report or bounded failure evidence",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-22T17:42:39Z",
+            "completed_at": "2026-10-22T17:44:29Z"
+          },
+          {
+            "name": "Preserve typed evidence when the deployment identity is unavailable",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 13,
+            "started_at": "2026-10-22T17:44:29Z",
+            "completed_at": "2026-10-22T17:44:29Z"
+          },
+          {
+            "name": "Reuse previously uploaded final evidence",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 14,
+            "started_at": "2026-10-22T17:44:29Z",
+            "completed_at": "2026-10-22T17:44:29Z"
+          },
+          {
+            "name": "Preserve released pre-clock continuation in terminal evidence",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-22T17:44:29Z",
+            "completed_at": "2026-10-22T17:44:29Z"
+          },
+          {
+            "name": "Upload bounded terminal or diagnosis evidence before any Release",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-22T17:44:29Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Bound terminal report upload rescue",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 17,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Leave terminal evidence queued for the next ten-minute rescue",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 18,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Release exact Lease until zero inventory",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 19,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Classify rehearsal Release continuation",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 20,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Authenticate released pre-clock continuation after cleanup",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 21,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Enable formal continuation before transition publication",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 22,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Seal fresh-formal transition after rehearsal evidence and zero inventory",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 23,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Upload fresh-formal transition for the scheduled starter",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 24,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Assemble terminal evidence with exact zero-inventory proof",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 25,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Upload complete rehearsal evidence",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 26,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Upload zero-inventory proof",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 27,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Upload rehearsal cleanup-pending continuation",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 28,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Delete released encrypted deployment handoff",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 29,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Fail invalid continuation after publishing cleanup proof",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 30,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Fail after persisting a rehearsal Release continuation",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 31,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:31Z"
+          },
+          {
+            "name": "Advance the exact tracking Issue",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 32,
+            "started_at": "2026-10-22T17:44:31Z",
+            "completed_at": "2026-10-22T17:44:33Z"
+          },
+          {
+            "name": "Remove plaintext runner identity",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 33,
+            "started_at": "2026-10-22T17:44:33Z",
+            "completed_at": "2026-10-22T17:44:33Z"
+          },
+          {
+            "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 65,
+            "started_at": "2026-10-22T17:44:33Z",
+            "completed_at": "2026-10-22T17:44:33Z"
+          },
+          {
+            "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 66,
+            "started_at": "2026-10-22T17:44:33Z",
+            "completed_at": "2026-10-22T17:44:34Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 67,
+            "started_at": "2026-10-22T17:44:34Z",
+            "completed_at": "2026-10-22T17:44:34Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119985854448",
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "runner_id": 1000024605,
+        "runner_name": "GitHub Actions 1000024605",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 119987046577,
+        "run_id": 39824958109,
+        "workflow_name": "Chat Lifecycle Rehearsal Finalizer 39824958109",
+        "head_branch": "main",
+        "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39824958109",
+        "run_attempt": 1,
+        "node_id": "CR_kwDOJgfwyc8AAAAb78kIsQ",
+        "head_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/119987046577",
+        "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39824958109/job/119987046577",
+        "status": "in_progress",
+        "conclusion": null,
+        "created_at": "2026-10-22T17:44:38Z",
+        "started_at": "2026-10-22T17:44:40Z",
+        "completed_at": null,
+        "name": "Disable idle rehearsal finalizer schedule",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T17:44:41Z",
+            "completed_at": "2026-10-22T17:44:42Z"
+          },
+          {
+            "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T17:44:42Z",
+            "completed_at": "2026-10-22T17:44:47Z"
+          },
+          {
+            "name": "Prove global idle state before disabling future schedules",
+            "status": "in_progress",
+            "conclusion": null,
+            "number": 3,
+            "started_at": "2026-10-22T17:44:47Z",
+            "completed_at": null
+          },
+          {
+            "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+            "status": "pending",
+            "conclusion": null,
+            "number": 6,
+            "started_at": null,
+            "completed_at": null
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/119987046577",
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "runner_id": 1000024606,
+        "runner_name": "GitHub Actions 1000024606",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      }
+    ]
+  }
+}

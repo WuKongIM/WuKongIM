@@ -1,0 +1,31 @@
+{
+  "observed_at": "2026-10-22T18:15:52.078204+00:00",
+  "release_run_id": 39829507204,
+  "release_conclusion": "success",
+  "release_artifact_id": 12449025168,
+  "zip_sha256": "sha256:d816089a61e82b5fcf7bf077a20bbc4ab8b3173efd07485edbfecdb0120e045d",
+  "zip_bytes": 558,
+  "crc_valid": true,
+  "selector_matches_original": true,
+  "account_matches_original": true,
+  "zero_inventory_observed_at": "2026-10-22T18:14:57.935374705Z",
+  "zero_inventory_observed_at_asia_shanghai": "2026-10-23T02:14:57.935374+08:00",
+  "all_12_scopes": [
+    "disk_attachments",
+    "disks",
+    "eip_associations",
+    "eips",
+    "enis",
+    "instances",
+    "nat_gateways",
+    "route_entries",
+    "security_group_rules",
+    "security_groups",
+    "vpcs",
+    "vswitches"
+  ],
+  "analysis_grants_covered_by_security_group_rules": true,
+  "no_prepare_grants_created_this_session": true,
+  "paid_resources_zero": true,
+  "actual_provider_bill_available": false
+}

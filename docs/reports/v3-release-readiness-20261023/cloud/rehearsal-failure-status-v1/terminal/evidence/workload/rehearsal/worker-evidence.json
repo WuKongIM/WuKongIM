@@ -1,0 +1,64 @@
+{
+  "schema": "wukongim/chat-lifecycle-worker-evidence/v1",
+  "run_id": "chat-20261021T214505Z-00299e37-rehearsal-1",
+  "at": "2026-10-23T01:36:18.801475417+08:00",
+  "workers": [
+    {
+      "worker_id": 0,
+      "generation": 1,
+      "snapshot_sequence": 13,
+      "evidence": {
+        "classes": []
+      }
+    },
+    {
+      "worker_id": 1,
+      "generation": 1,
+      "snapshot_sequence": 13,
+      "evidence": {
+        "classes": []
+      }
+    },
+    {
+      "worker_id": 2,
+      "generation": 1,
+      "snapshot_sequence": 13,
+      "evidence": {
+        "classification": "product_failure",
+        "classes": [
+          {
+            "class": 3,
+            "count": 1,
+            "first": [
+              {
+                "stage": 5,
+                "code": 11,
+                "sample_index": 9223380832947807030,
+                "fingerprint": [
+                  221,
+                  42,
+                  199,
+                  44,
+                  64,
+                  232,
+                  135,
+                  117,
+                  8,
+                  92,
+                  40,
+                  71,
+                  9,
+                  131,
+                  104,
+                  224
+                ],
+                "value": 10000000000
+              }
+            ],
+            "last": null
+          }
+        ]
+      }
+    }
+  ]
+}

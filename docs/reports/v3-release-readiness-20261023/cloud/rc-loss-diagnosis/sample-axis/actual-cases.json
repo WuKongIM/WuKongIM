@@ -1,0 +1,245 @@
+{
+  "all_nominal_group1730_primary_sends": [
+    {
+      "group_ordinal": 3116,
+      "ideal_grant_second": 15,
+      "primary_ordinal": 31127,
+      "worker_id": 2
+    },
+    {
+      "group_ordinal": 5216,
+      "ideal_grant_second": 26,
+      "primary_ordinal": 52127,
+      "worker_id": 2
+    },
+    {
+      "group_ordinal": 5711,
+      "ideal_grant_second": 28,
+      "primary_ordinal": 57122,
+      "worker_id": 2
+    },
+    {
+      "group_ordinal": 6818,
+      "ideal_grant_second": 34,
+      "primary_ordinal": 68129,
+      "worker_id": 2
+    },
+    {
+      "group_ordinal": 9014,
+      "ideal_grant_second": 45,
+      "primary_ordinal": 90125,
+      "worker_id": 2
+    },
+    {
+      "group_ordinal": 9818,
+      "ideal_grant_second": 49,
+      "primary_ordinal": 98129,
+      "worker_id": 2
+    },
+    {
+      "group_ordinal": 11405,
+      "ideal_grant_second": 57,
+      "primary_ordinal": 114026,
+      "worker_id": 2
+    }
+  ],
+  "all_plan_incomplete_warning_count": 37,
+  "cloud_mutations": 0,
+  "decoded": {
+    "canary": false,
+    "domain": 4,
+    "domain_name": "ordinary_group",
+    "generation": 1,
+    "group_ordinal": 9014
+  },
+  "fallback_targets_not_replayed": true,
+  "fingerprint_reconstruction": {
+    "actual_source_function_executed": false,
+    "attempted_candidates": 3330,
+    "candidate_population": "initial user indexes [0,10000), each fixed roster index modulo2000; target owned by worker2",
+    "matches": [
+      {
+        "fingerprint": "dd2ac72c40e88775085c2847098368e0",
+        "sender_user_index": 1730,
+        "target_group_index": 1730
+      }
+    ],
+    "method": "independent Python transcription of frozen Go hash/math",
+    "same128bit_fingerprint": true,
+    "seed_assumption": 1
+  },
+  "group": {
+    "category": "medium",
+    "ideal_grant_is_not_wire_timestamp": true,
+    "ideal_grant_second": 45,
+    "inferred_distinct_local_recipient_index": 7730,
+    "initial_online_member_indexes": [
+      1730,
+      3730,
+      5730,
+      7730,
+      9730
+    ],
+    "member_count": 435,
+    "nominal_and_actual_fingerprint_target_index": 1730,
+    "primary_ordinal": 90125,
+    "worker2_local_member_indexes": [
+      1730,
+      7730
+    ]
+  },
+  "input_manifest_sha256": "50fba8e114bf93182734305a312808bc8c840981bd3ba03e869834cd482f7def",
+  "loss_observation_bracket": {
+    "first_positive_cut": {
+      "acknowledged": 119914,
+      "at": "2026-10-23T01:36:17.598955406+08:00",
+      "cut": "periodic",
+      "line": 161,
+      "losses": 1,
+      "online": 10000,
+      "received": 155794,
+      "sent": 120015
+    },
+    "last_zero_cut": {
+      "acknowledged": 109821,
+      "at": "2026-10-23T01:36:12.598954856+08:00",
+      "cut": "periodic",
+      "line": 160,
+      "losses": 0,
+      "online": 10000,
+      "received": 142180,
+      "sent": 110021
+    },
+    "not_exact_expiry_timestamp": true
+  },
+  "missing_exact_sample_fields": [
+    "registered_at",
+    "wire_written_at",
+    "positive_sendack_at",
+    "MessageID",
+    "MessageSeq",
+    "selected_recipient_lease_timeline",
+    "per-client physical RECV arrival and verifier consumption",
+    "exact delivery plan event identity"
+  ],
+  "mode": "offline-artifact-and-arithmetic-only",
+  "network_requests": 0,
+  "product_failure_reproduced": false,
+  "run_id": "chat-20261021T214505Z-00299e37-rehearsal-1",
+  "same_group_delivery_warning": [
+    {
+      "at": "2026-10-23 01:36:08.125",
+      "file": "service-3.log",
+      "line": 127,
+      "owner_node_id": 0,
+      "phase": "presence",
+      "recipients": 435,
+      "result": "timeout",
+      "roster_group_index": 1730,
+      "uid_user_index": 3730
+    }
+  ],
+  "sample_fingerprint": "dd2ac72c40e88775085c2847098368e0",
+  "sample_index": 9223380832947807030,
+  "schema": "wukongim/rc-offline-loss-sample-analysis/v1",
+  "source_changes": 0,
+  "terminal": {
+    "correlation": {
+      "conflicting_completions": 0,
+      "delivered": 1276,
+      "duplicate_completions": 0,
+      "expired": 1,
+      "outstanding": 0,
+      "pending_unfinished": 0,
+      "sampled": 1277,
+      "unknown_acknowledgments": 0
+    },
+    "current_qps_measured": false,
+    "current_sending": false,
+    "harness": {
+      "classification": "product_failure",
+      "command_saturation": 0,
+      "drain_timed_out": false,
+      "failures": 0,
+      "lifecycle_approval_rejections": {
+        "activity_fence": 0,
+        "deadline": 0,
+        "fence_exhausted": 0,
+        "invalid_shape": 0,
+        "invalidated": 0,
+        "missing_timer": 0,
+        "replay_expired": 0,
+        "replay_mismatch": 0,
+        "timer_fence": 0
+      },
+      "offered_underdelivery": 0,
+      "planned_cancellations": 109552,
+      "unexpected_exit": false
+    },
+    "historical_average_send_ack_per_second": 1992.7447568327998,
+    "messages": {
+      "corruptions": 0,
+      "duplicates": 0,
+      "first_attempt_failures": 0,
+      "first_attempts": 122002,
+      "losses": 1,
+      "receive_ack_failures": 0,
+      "receive_acknowledged": 158502,
+      "received": 158502,
+      "retry_attempts": 0,
+      "send_acknowledged": 122002,
+      "send_attempts": 122002,
+      "send_rejected": 0,
+      "sent": 122002,
+      "sequence_regressions": 0,
+      "terminal": 0,
+      "terminal_reasons": {
+        "non_retriable": 0,
+        "retry_exhausted": {
+          "attempt_timeout": 0,
+          "local_admission": 0,
+          "retryable_sendack": 0,
+          "total": 0,
+          "transport_error": 0,
+          "unclassified": 0
+        },
+        "session_closed": 0
+      }
+    },
+    "sessions": {
+      "close_reasons": {
+        "expired": 0,
+        "explicit_logout": 0,
+        "generation_stop": 10000,
+        "heartbeat_failed": 0,
+        "read_failed": 0,
+        "remote_terminal": 0,
+        "transport_close_failed": 0
+      },
+      "closing": 0,
+      "completed_new": 10000,
+      "completed_returning": 0,
+      "expired": 0,
+      "online": 0,
+      "planned_new": 8000,
+      "planned_returning": 2000,
+      "starting": 0,
+      "target": 10000,
+      "traffic_ready": 0
+    },
+    "window": {
+      "elapsed": 61223094218,
+      "end": "2026-10-23T01:36:18.801475417+08:00",
+      "final_at": "2026-10-23T03:35:17.578381188+08:00",
+      "qualification_at": "2026-10-24T01:35:17.578381188+08:00",
+      "start": "2026-10-23T01:35:17.578381188+08:00",
+      "warmup_end": "2026-10-23T03:35:17.578381188+08:00"
+    }
+  },
+  "verified_files": 49,
+  "warning_phase_counts": {
+    "owner_push": 1,
+    "presence": 36
+  },
+  "worker_id": 2
+}

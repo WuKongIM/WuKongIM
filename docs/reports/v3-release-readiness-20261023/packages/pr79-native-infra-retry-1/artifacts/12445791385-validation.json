@@ -1,0 +1,41 @@
+{
+  "artifact_api": {
+    "id": 12445791385,
+    "node_id": "MDg6QXJ0aWZhY3QxMjQ0NTc5MTM4NQ==",
+    "name": "native-object-delivery-fixture-test-only",
+    "size_in_bytes": 8409,
+    "url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12445791385",
+    "archive_download_url": "https://api.github.com/repos/WuKongIM/packages/actions/artifacts/12445791385/zip",
+    "expired": false,
+    "digest": "sha256:e301b1542ec7491f49ed2b3cf28eb1a89c24b98633b5486052db81212869957c",
+    "created_at": "2026-10-22T17:34:03Z",
+    "updated_at": "2026-10-22T17:34:03Z",
+    "expires_at": "2026-11-21T17:34:03Z",
+    "workflow_run": {
+      "id": 39821491408,
+      "repository_id": 1352603694,
+      "head_repository_id": 1352603694,
+      "head_branch": "codex/rpm-signature-status",
+      "head_sha": "b100f91a59902ad8d93b0632f9c84f3f7468e5f2"
+    }
+  },
+  "downloaded_at_utc": "2026-10-22T17:35:48.496541+00:00",
+  "downloaded_bytes": 8409,
+  "local_sha256": "e301b1542ec7491f49ed2b3cf28eb1a89c24b98633b5486052db81212869957c",
+  "api_sha256_matched": true,
+  "zip_crc_verified": true,
+  "members": [
+    {
+      "name": "result.json",
+      "bytes": 48482,
+      "sha256": "e8d675c3bbd5d82d297d03be06c83831a17b8020bb95d81d4a47301df1ea6943",
+      "crc32": "6623bfb1"
+    },
+    {
+      "name": "fixture-export.json",
+      "bytes": 2550,
+      "sha256": "0e311a501aef3541556aaf37730f4c0057a86aebd0a21222aa1f550cb468ad43",
+      "crc32": "9bcde567"
+    }
+  ]
+}

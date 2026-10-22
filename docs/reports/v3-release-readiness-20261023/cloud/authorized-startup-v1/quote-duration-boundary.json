@@ -1,0 +1,64 @@
+{
+  "observed_at": "2026-10-22T17:27:06.709022+00:00",
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "job_id": 119972873979,
+  "quote_step_started_at": "2026-10-22T17:17:33Z",
+  "quote_step_completed_at": "2026-10-22T17:23:49Z",
+  "step_seconds": 376,
+  "step_conclusion": "success",
+  "existing_limits": {
+    "workflow_job_minutes": 45,
+    "distinct_quote_step_timeout": null,
+    "cli_explicit_overall_quote_timeout": null,
+    "sdk_connect_milliseconds": 10000,
+    "sdk_read_milliseconds": 30000,
+    "discovery_max_pages": 20,
+    "discovery_page_size": 100
+  },
+  "source_flow": "Quote synchronously checks identity, paginated type/image/quota data, zone/type availability and prices, with read-only APIs. Per-call bounds are distinct from the full-job bound.",
+  "last_bounded_log": {
+    "bytes": 47279,
+    "sha256": "8cfcbffab24b8246229047017c351b2e78b4b224383c245c1062a03aaa165191",
+    "raw_log_private": true
+  },
+  "classification": "Completed successfully inside original bounds; duration alone does not distinguish discovery volume from individual external API waiting. No per-call timing trace was emitted, so a unique latency cause is not established.",
+  "deadline_changed": false,
+  "canceled_or_redispatched": false,
+  "source_files": [
+    {
+      "path": ".github/workflows/cloud-lease-provision.yml",
+      "bytes": 7038,
+      "sha256": "f67e53fb8490108bcac5bdfdf59c94f08a41904d0fa1f124732021fab7ee4110"
+    },
+    {
+      "path": "cmd/wkcloudlease/FLOW.md",
+      "bytes": 1998,
+      "sha256": "adb3ca83b4a7571d40ec40d0089a13841acb1b4ff9e05f3842c3574aef50cec1"
+    },
+    {
+      "path": "cmd/wkcloudlease/main.go",
+      "bytes": 9394,
+      "sha256": "11f370b6e4f1e4c5385c2e764eecb1fa95fc8a8162e8f462c13b67d6c709a4e2"
+    },
+    {
+      "path": "internal/usecase/cloudlease/FLOW.md",
+      "bytes": 2327,
+      "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/FLOW.md",
+      "bytes": 2508,
+      "sha256": "d4372bf9bda8ab65a7eb82626ede922b5b1af97dda3e2fa7c849562eeead0c28"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/openapi.go",
+      "bytes": 44510,
+      "sha256": "7199fc093075aba7fcb12438d4ba81756a9ab8e4ad539b32c9a57a78feff6eae"
+    },
+    {
+      "path": "internal/infra/cloudlease/alibaba/provider.go",
+      "bytes": 29986,
+      "sha256": "f748431d05fd73ee5a6d115d06a239030cfd171a9666656f8f71b57c740350b8"
+    }
+  ]
+}

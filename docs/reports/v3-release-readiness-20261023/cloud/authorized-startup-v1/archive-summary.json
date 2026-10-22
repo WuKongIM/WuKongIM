@@ -1,0 +1,7 @@
+{
+  "directory": "/tmp/wukongim-v3-readiness-20261021/cloud/pr1024-authorized-run-resume-20261023/startup-public-v1",
+  "manifest_files": 156,
+  "payload_bytes": 2400655,
+  "sha256sums_sha256": "bf305a54b37f9feee68f4b215842d666e85d589fa3ae05a92c26070b1e22e6cf",
+  "scope": "startup plus acquired resource evidence, no handoff/run-start/2h result yet"
+}

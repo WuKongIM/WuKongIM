@@ -1,0 +1,14 @@
+{
+  "observed_at": "2026-10-22T18:18:52.009756+00:00",
+  "artifact_id": 12447674805,
+  "source_sha": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "producer_run_id": 39829086075,
+  "zip_sha256": "sha256:fe6841e835358c7d6bdc01083d3f31a5cf029c006caedf1074165bc7531fbc53",
+  "zip_bytes": 1485,
+  "crc_valid": true,
+  "member_digests": {
+    "attempt-1/cloud-lease-release-chat-20261021T214505Z-00299e37/release.json": "eb22bb2b4ed1532175137fc437a250e7173f923634d08520caa4efe9bab7a314",
+    "cleanup.json": "b420922a57d95311648277b2dbfda97805aa44b96d873c45d9bf37d4d2f91188",
+    "zero-inventory.json": "eb22bb2b4ed1532175137fc437a250e7173f923634d08520caa4efe9bab7a314"
+  }
+}

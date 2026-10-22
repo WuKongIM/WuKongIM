@@ -1,0 +1,8 @@
+{
+  "created_at": "2026-10-22T17:47:33.492493+00:00",
+  "manifest_files": 49,
+  "manifest_sha256": "50fba8e114bf93182734305a312808bc8c840981bd3ba03e869834cd482f7def",
+  "file_bytes": 3680604,
+  "private_material_excluded": true,
+  "frozen": true
+}

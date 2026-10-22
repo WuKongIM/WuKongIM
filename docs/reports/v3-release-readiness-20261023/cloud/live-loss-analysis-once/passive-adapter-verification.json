@@ -1,0 +1,26 @@
+{
+  "observed_at": "2026-10-22T18:01:56.961153+00:00",
+  "wrapper_sha256": "006ea94611f6b37780e0e3d61d45800f2d36d9c677c2610161e4cb21bdfdf059",
+  "real_cli_version": "codex-cli 0.163.0-alpha.11.1",
+  "real_cli_path": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
+  "tests_passed": 9,
+  "checks": [
+    "probe_passthrough_--version",
+    "probe_passthrough_login",
+    "only_two_tools_removed_all_other_argv_unchanged",
+    "invalid_shape_rejected",
+    "invalid_shape_rejected",
+    "invalid_shape_rejected",
+    "invalid_shape_rejected",
+    "invalid_shape_rejected",
+    "invalid_shape_rejected"
+  ],
+  "removed_tools": [
+    "trace_start",
+    "profile_capture"
+  ],
+  "new_tools": [],
+  "other_argv_unchanged": true,
+  "repo_helper_workflow_modified": false,
+  "raw_argv_or_environment_logged": false
+}
