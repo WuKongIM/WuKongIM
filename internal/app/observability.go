@@ -454,6 +454,8 @@ func gatewaySendackReasonLabel(reason messageusecase.Reason) string {
 		return "send_ban"
 	case messageusecase.ReasonSystemError:
 		return "system_error"
+	case messageusecase.ReasonSystemBusy:
+		return "system_busy"
 	case messageusecase.ReasonUnsupported:
 		return "unsupported"
 	default:

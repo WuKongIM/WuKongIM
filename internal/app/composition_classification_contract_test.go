@@ -36,6 +36,7 @@ func TestCompositionMetricClassifiersKeepBoundedStableTaxonomy(t *testing.T) {
 		{name: "channel banned", reason: messageusecase.ReasonBan, want: "ban"},
 		{name: "channel disbanded", reason: messageusecase.ReasonDisband, want: "disband"},
 		{name: "sender banned", reason: messageusecase.ReasonSendBan, want: "send_ban"},
+		{name: "system busy", reason: messageusecase.ReasonSystemBusy, want: "system_busy"},
 		{name: "system failure", reason: messageusecase.ReasonSystemError, want: "system_error"},
 		{name: "unsupported", reason: messageusecase.ReasonUnsupported, want: "unsupported"},
 		{name: "future reason", reason: messageusecase.Reason(255), want: "unknown"},

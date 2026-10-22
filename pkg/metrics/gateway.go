@@ -278,6 +278,7 @@ func normalizeGatewaySendackReason(reason string) string {
 		"channel_not_exist",
 		"node_not_match",
 		"system_error",
+		"system_busy",
 		"unsupported":
 		return reason
 	default:

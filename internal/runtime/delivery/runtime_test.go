@@ -909,6 +909,83 @@ func TestRuntimeOwnerGroupingKeepsBatchOrderAndBoundsConcurrency(t *testing.T) {
 	}
 }
 
+func TestRuntimeTerminalObservationPreservesExactMessageIdentity(t *testing.T) {
+	presenceErr := errors.New("presence unavailable")
+	for _, tt := range []struct {
+		name       string
+		mode       onlinedelivery.Mode
+		sequence   uint64
+		presence   PlanPresenceResolver
+		context    func() context.Context
+		wantResult ObservationResult
+		wantPhase  PlanFailurePhase
+		wantErr    error
+		ownerError bool
+	}{
+		{name: "durable success", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993, wantResult: ObservationResultOK},
+		{name: "transient success", mode: onlinedelivery.ModeTransient, wantResult: ObservationResultOK},
+		{name: "presence failure", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,
+			presence: planPresenceResolverFunc(func(context.Context, []onlinedelivery.RecipientTargetBatch) []TargetPresenceResult {
+				return []TargetPresenceResult{{Err: presenceErr}}
+			}), wantResult: ObservationResultError, wantPhase: PlanFailurePhasePresence, wantErr: presenceErr},
+		{name: "canceled", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,
+			context:    func() context.Context { ctx, cancel := context.WithCancel(context.Background()); cancel(); return ctx },
+			wantResult: ObservationResultCanceled, wantPhase: PlanFailurePhaseContext, wantErr: context.Canceled},
+		{name: "expired deadline", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,
+			context: func() context.Context {
+				ctx, cancel := context.WithDeadline(context.Background(), time.Unix(0, 0))
+				cancel()
+				return ctx
+			},
+			wantResult: ObservationResultTimeout, wantPhase: PlanFailurePhaseContext, wantErr: context.DeadlineExceeded},
+		{name: "owner retry exhausted", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,
+			ownerError: true, wantResult: ObservationResultRetryExhausted, wantPhase: PlanFailurePhaseOwnerPush, wantErr: ErrOwnerPushRetryExhausted},
+		{name: "panic", mode: onlinedelivery.ModeDurable, sequence: 9007199254740993,
+			presence: planPresenceResolverFunc(func(context.Context, []onlinedelivery.RecipientTargetBatch) []TargetPresenceResult {
+				panic("presence failed")
+			}), wantResult: ObservationResultPanic, wantPhase: PlanFailurePhasePanic, wantErr: ErrPlanPanic},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			observer := &recordingRuntimeObserver{}
+			presence := tt.presence
+			if presence == nil {
+				presence = planPresenceResolverFunc(func(context.Context, []onlinedelivery.RecipientTargetBatch) []TargetPresenceResult {
+					if tt.ownerError {
+						route := runtimeRouteForTest()
+						route.OwnerNodeID = 2
+						return []TargetPresenceResult{{Routes: []onlinedelivery.Route{route}}}
+					}
+					return []TargetPresenceResult{{}}
+				})
+			}
+			runtime := NewRuntime(RuntimeOptions{
+				LocalNodeID: 1, Presence: presence, Observer: observer, RetryMaxAttempts: 1,
+				RemoteOwnerPusher: remoteOwnerPusherFunc(func(context.Context, onlinedelivery.OwnerPush) (onlinedelivery.OwnerPushResult, error) {
+					return onlinedelivery.OwnerPushResult{}, errors.New("owner unavailable")
+				}),
+			})
+			plan := runtimePlanForTest(18446744073709551614)
+			plan.Event.MessageSeq = tt.sequence
+			plan.Mode = tt.mode
+			ctx := context.Background()
+			if tt.context != nil {
+				ctx = tt.context()
+			}
+			runtime.runPlan(ctx, plan)
+			if got := len(observer.terminalResults()); got != 1 {
+				t.Fatalf("terminal observations = %d, want exactly one", got)
+			}
+			event := observer.lastTerminal()
+			if event.MessageID != 18446744073709551614 || event.MessageSeq != tt.sequence {
+				t.Fatalf("terminal identity = %d/%d, want exact input identity", event.MessageID, event.MessageSeq)
+			}
+			if event.Mode != tt.mode || event.Recipients != 1 || event.Result != tt.wantResult || event.Failure.Phase != tt.wantPhase || !errors.Is(event.Failure.Err, tt.wantErr) {
+				t.Fatalf("terminal observation = %#v, want unchanged mode/count/result/failure", event)
+			}
+		})
+	}
+}
+
 func TestRuntimeRetryExhaustionReportsBoundedTargetSample(t *testing.T) {
 	observer := &recordingRuntimeObserver{}
 	runtime := NewRuntime(RuntimeOptions{

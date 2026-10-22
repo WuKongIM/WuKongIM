@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	gatewayadapter "github.com/WuKongIM/WuKongIM/internal/access/gateway"
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
@@ -40,6 +41,46 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	dto "github.com/prometheus/client_model/go"
 )
+
+func TestGatewaySendackObserverPreservesBusyMetricReason(t *testing.T) {
+	reg := obsmetrics.New(1, "node-1")
+	observer := gatewayMetricsObserver{metrics: reg}
+	for _, event := range []gatewayadapter.SendackEvent{
+		{Reason: messageusecase.ReasonSystemBusy, Source: "batch_result_error", ErrorClass: "route_not_ready"},
+		{Reason: messageusecase.ReasonSuccess, Source: "single_result", ErrorClass: "none"},
+		{Reason: messageusecase.ReasonSystemError, Source: "single_error", ErrorClass: "other"},
+		{Reason: messageusecase.Reason(255), Source: "unbounded-source", ErrorClass: "unbounded-error"},
+	} {
+		observer.SendackWritten(event)
+	}
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	acks := requireAppMetricFamily(t, families, "wukongim_gateway_sendacks_total")
+	if len(acks.Metric) != 4 {
+		t.Fatalf("SENDACK series = %d, want four fixed result partitions", len(acks.Metric))
+	}
+	for _, labels := range []map[string]string{
+		{"reason": "system_busy", "source": "batch_result_error", "class": "route_not_ready"},
+		{"reason": "success", "source": "single_result", "class": "none"},
+		{"reason": "system_error", "source": "single_error", "class": "other"},
+		{"reason": "unknown", "source": "unknown", "class": "unknown"},
+	} {
+		if got := findAppMetricByLabels(t, acks, labels).GetCounter().GetValue(); got != 1 {
+			t.Fatalf("SENDACK count for %v = %v, want 1", labels, got)
+		}
+	}
+	for _, metric := range acks.Metric {
+		for _, label := range metric.Label {
+			switch label.GetName() {
+			case "node_id", "node_name", "reason", "source", "class":
+			default:
+				t.Fatalf("unexpected SENDACK label %q", label.GetName())
+			}
+		}
+	}
+}
 
 func TestChannelWorkerKindLabelIncludesMetaResolve(t *testing.T) {
 	if got := channelWorkerKindLabel(worker.TaskMetaResolve); got != "meta_resolve" {
