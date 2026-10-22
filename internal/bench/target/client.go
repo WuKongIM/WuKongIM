@@ -306,11 +306,15 @@ func (c *Client) DebugCluster(ctx context.Context) (DebugCluster, error) {
 
 // Metrics scrapes a bounded allowlist of Prometheus product and Go/process metrics.
 func (c *Client) Metrics(ctx context.Context) (MetricsSnapshot, error) {
-	encoded, err := c.getObservationBytes(ctx, "/metrics", maxObservationMetricsResponseBytes, "observation metrics response exceeds byte limit")
+	encoded, class, err := c.getObservationBytesClassified(ctx, "/metrics", maxObservationMetricsResponseBytes, "observation metrics response exceeds byte limit")
 	if err != nil {
-		return MetricsSnapshot{}, err
+		return MetricsSnapshot{}, &metricsError{class: class, cause: err}
 	}
-	return parseObservationMetrics(encoded)
+	snapshot, err := parseObservationMetrics(encoded)
+	if err != nil {
+		return MetricsSnapshot{}, &metricsError{class: metricsFailureParse, cause: err}
+	}
+	return snapshot, nil
 }
 
 // ForceGC uses the stdlib pprof heap gc=1 trigger and discards its bounded profile response.
@@ -734,23 +738,33 @@ func (c *Client) getObservationJSON(ctx context.Context, path string, out any, l
 }
 
 func (c *Client) getObservationBytes(ctx context.Context, path string, limit int64, limitError string) ([]byte, error) {
+	encoded, _, err := c.getObservationBytesClassified(ctx, path, limit, limitError)
+	return encoded, err
+}
+
+// getObservationBytesClassified preserves the existing acquisition decisions;
+// its additional output contains only closed failure classes, never responses.
+func (c *Client) getObservationBytesClassified(ctx context.Context, path string, limit int64, limitError string) ([]byte, metricsFailureClass, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, metricsContextFailure(err), err
 	}
 	addrs := c.addrs()
 	if len(addrs) == 0 {
-		return nil, errors.New("no target api addresses configured")
+		return nil, metricsFailureConfiguration, errors.New("no target api addresses configured")
 	}
 	var failures int
+	var classes metricsFailureSet
 	for _, addr := range addrs {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			if failures == 0 {
-				return nil, ctxErr
+				return nil, metricsContextFailure(ctxErr), ctxErr
 			}
+			classes.add(metricsContextFailure(ctxErr))
 			break
 		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, joinURL(addr, path), nil)
 		if err != nil {
+			classes.add(metricsFailureConfiguration)
 			failures++
 			continue
 		}
@@ -759,9 +773,14 @@ func (c *Client) getObservationBytes(ctx context.Context, path string, limit int
 		}
 		resp, err := c.http.Do(req)
 		if err != nil {
-			if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, ctxErr) && failures == 0 {
-				return nil, ctxErr
+			class := metricsFailureTransport
+			if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, ctxErr) {
+				class = metricsContextFailure(ctxErr)
+				if failures == 0 {
+					return nil, class, ctxErr
+				}
 			}
+			classes.add(class)
 			failures++
 			continue
 		}
@@ -770,32 +789,38 @@ func (c *Client) getObservationBytes(ctx context.Context, path string, limit int
 			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 512))
 			_ = resp.Body.Close()
 			if status == http.StatusUnauthorized || status == http.StatusForbidden {
-				return nil, fmt.Errorf("GET %s returned status %d", observationPath(path), status)
+				return nil, metricsFailureAuth, fmt.Errorf("GET %s returned status %d", observationPath(path), status)
 			}
+			classes.add(metricsFailureHTTPStatus)
 			failures++
 			continue
 		}
 		if resp.ContentLength > limit {
 			_ = resp.Body.Close()
-			return nil, errors.New(limitError)
+			return nil, metricsFailureResponseLimit, errors.New(limitError)
 		}
 		encoded, readErr := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 		_ = resp.Body.Close()
 		if readErr != nil {
 			// Preserve causal cancellation during body reads so a normal observer
 			// stop cannot become missing evidence. Independent read failures stay failures.
-			if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(readErr, ctxErr) && failures == 0 {
-				return nil, ctxErr
+			class := metricsFailureBodyRead
+			if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(readErr, ctxErr) {
+				class = metricsContextFailure(ctxErr)
+				if failures == 0 {
+					return nil, class, ctxErr
+				}
 			}
+			classes.add(class)
 			failures++
 			continue
 		}
 		if int64(len(encoded)) > limit {
-			return nil, errors.New(limitError)
+			return nil, metricsFailureResponseLimit, errors.New(limitError)
 		}
-		return encoded, nil
+		return encoded, metricsFailureNone, nil
 	}
-	return nil, fmt.Errorf("GET %s failed on %d target addresses", observationPath(path), failures)
+	return nil, classes.class(), fmt.Errorf("GET %s failed on %d target addresses", observationPath(path), failures)
 }
 
 func observationPath(path string) string {

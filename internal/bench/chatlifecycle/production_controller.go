@@ -21,6 +21,8 @@ type FinalizationFailure struct {
 	// Stage and Reason are projected through Bounded before external formatting.
 	Stage  string `json:"stage"`
 	Reason string `json:"reason,omitempty"`
+	// MetricsFetch is projected only for the exact metrics-fetch failure leaf.
+	MetricsFetch *MetricsFetchFailure `json:"metrics_fetch,omitempty"`
 	// Observed fields retain prior evidence without granting report validity.
 	ObservedOutcome  VerdictOutcome     `json:"observed_outcome,omitempty"`
 	ObservedCause    VerdictCause       `json:"observed_cause,omitempty"`
@@ -63,6 +65,11 @@ func (f FinalizationFailure) Bounded() FinalizationFailure {
 	}
 	if !valid {
 		f.Stage, f.Reason = "controller_unknown", "invalid"
+	}
+	if f.Stage == "meta_checkpoint" && f.Reason == "metrics_fetch" {
+		f.MetricsFetch = f.MetricsFetch.bounded()
+	} else {
+		f.MetricsFetch = nil
 	}
 	if !f.ObservedTerminal || !validVerdictOutcome(f.ObservedOutcome) || !validVerdictCause(f.ObservedCause) {
 		f.ObservedOutcome, f.ObservedCause, f.ObservedTerminal = "", "", false
