@@ -28,10 +28,13 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 2. Deactivate snapshots active state, removes local indexes first, observes
    offline only for the last active owner-local session, then queues the exact
    authority unregister tombstone.
-3. Authority recovery packs up to 512 UIDs across 256 targets per owner page,
-   locks cold admission lanes in a fixed order, and queries each current owner
-   once. Proven lookups bypass admission; complete results retain exact fences
-   and failed target groups do not discard successful siblings.
+3. Authority recovery packs up to 512 UIDs across 256 targets per owner page.
+   Bounded flights coalesce the same UID and distributed authority identity;
+   newly owned proofs install and release before joining older flights.
+   Four leader cohorts retain at most 2,048 keys and 128 MiB of owned UID bytes,
+   with 32 MiB per new subset. Proven lookups bypass admission; quota waits
+   reserve no partial keys and recheck proofs after waking. Complete results
+   retain exact fences and failed groups preserve successful siblings.
 4. Lookup delegates one UID, a batch, or aligned exact-target groups to optional
    authority batch ports; group errors do not abort successful siblings.
 
@@ -45,6 +48,9 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 - Production target-aware lookup preserves the complete fence and returns
   aligned results. The per-UID fallback exists only for limited compatibility
   implementations and cannot provide that target fence.
+- Flight completion stores no routes: callers reread current Directory proof,
+  including after FIFO eviction. Canceling a follower does not cancel its leader;
+  a canceled leader leaves live followers retryable without adding a retry.
 - Import-boundary tests reject concrete entry, protocol, cluster, and app imports.
 
 ## Read First
@@ -52,7 +58,7 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 - [Activation](activate.go)
 - [Deactivation](deactivate.go)
 - [Lookup](lookup.go)
-- [Touch](touch.go)
+- [Recovery admission](recovery_flights.go)
 - [Ports](ports.go)
 
 ## Update Triggers

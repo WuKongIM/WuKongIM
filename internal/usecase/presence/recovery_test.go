@@ -64,7 +64,7 @@ func TestAuthorityRecoveryRequiresCompleteOwnersAndRejectsOldCompletion(t *testi
 	}
 }
 
-func TestAuthorityRecoveryCancellationDoesNotWaitForBusyLane(t *testing.T) {
+func TestAuthorityRecoveryCancellationDoesNotQueryOwner(t *testing.T) {
 	directory := authority.NewDirectory(authority.DirectoryOptions{LocalNodeID: 1, RequireRecovery: true})
 	target := RouteTarget{HashSlot: 1, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 1}
 	directory.BecomeAuthority(target)
@@ -72,13 +72,11 @@ func TestAuthorityRecoveryCancellationDoesNotWaitForBusyLane(t *testing.T) {
 		t.Fatal("canceled recovery called owner")
 		return nil, nil
 	}))
-	recovery.lanes[1] <- struct{}{}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, err := recovery.Endpoints(ctx, target, []string{"bob"}); !errors.Is(err, context.Canceled) {
-		t.Fatalf("busy lane cancel=%v", err)
+		t.Fatalf("canceled lookup=%v", err)
 	}
-	<-recovery.lanes[1]
 }
 
 type recoveryBatchOwnersFunc func(context.Context, []EndpointLookupGroup) []EndpointLookupResult
