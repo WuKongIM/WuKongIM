@@ -77,10 +77,10 @@ func (c *ProductionMetaController) Checkpoint(
 	reheat bool,
 ) error {
 	if c == nil || ctx == nil {
-		return ErrLifecycleHarnessInvalid
+		return metaCheckpointFailure("guard", ErrLifecycleHarnessInvalid)
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return metaCheckpointFailure("guard", err)
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -91,16 +91,16 @@ func (c *ProductionMetaController) Checkpoint(
 	}
 	if c.initialized {
 		if expectation.assignmentID != c.assignmentID || expectation.generation != c.generation {
-			return ErrLifecycleHarnessInvalid
+			return metaCheckpointFailure("checkpoint_fence", ErrLifecycleHarnessInvalid)
 		}
 		for workerID := range expectation.personByWorker {
 			if expectation.sequences[workerID] <= c.sequences[workerID] {
-				return ErrLifecycleHarnessInvalid
+				return metaCheckpointFailure("checkpoint_sequence", ErrLifecycleHarnessInvalid)
 			}
 			for hashSlot := range expectation.personByWorker[workerID] {
 				if expectation.personByWorker[workerID][hashSlot] < c.person[workerID][hashSlot] ||
 					expectation.groupByWorker[workerID][hashSlot] < c.groups[workerID][hashSlot] {
-					return ErrLifecycleHarnessInvalid
+					return metaCheckpointFailure("checkpoint_vector_regression", ErrLifecycleHarnessInvalid)
 				}
 			}
 		}
@@ -110,7 +110,10 @@ func (c *ProductionMetaController) Checkpoint(
 		return err
 	}
 	if err := c.accounting.Checkpoint(expectation.person, expectation.groups, assignment, metrics, reheat); err != nil {
-		return err
+		if errors.Is(err, ErrLifecycleProductFailure) {
+			return err
+		}
+		return metaCheckpointFailure("accounting", err)
 	}
 	c.initialized = true
 	c.assignmentID = expectation.assignmentID
@@ -119,6 +122,18 @@ func (c *ProductionMetaController) Checkpoint(
 	c.person = expectation.personByWorker
 	c.groups = expectation.groupByWorker
 	return nil
+}
+
+// metaCheckpointFailure adds only a closed leaf diagnostic while preserving the
+// original private cause and every existing checkpoint failure classification.
+func metaCheckpointFailure(reason string, cause error) error {
+	switch {
+	case errors.Is(cause, context.Canceled):
+		reason = "context_canceled"
+	case errors.Is(cause, context.DeadlineExceeded):
+		reason = "context_deadline"
+	}
+	return newFinalizationError("meta_checkpoint", reason, cause)
 }
 
 // collectSettledMetrics gives authoritative counters one short bounded window
@@ -133,7 +148,7 @@ func (c *ProductionMetaController) collectSettledMetrics(
 	for attempt := 0; attempt < productionMetaSettleAttempts; attempt++ {
 		metrics, err := collectProductionMetaMetrics(ctx, c.metrics)
 		if err != nil {
-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
+			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("metrics_fetch", err)
 		}
 		preview := NewMetaCreateAccounting()
 		previewErr := preview.Checkpoint(person, groups, assignment, metrics, false)
@@ -141,18 +156,18 @@ func (c *ProductionMetaController) collectSettledMetrics(
 		case previewErr == nil:
 			return metrics, nil
 		case !errors.Is(previewErr, ErrLifecycleProductFailure):
-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, previewErr
+			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("metrics_preview", previewErr)
 		case attempt == productionMetaSettleAttempts-1:
 			return metrics, nil
 		}
 		if c.settleWait == nil {
-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, ErrLifecycleHarnessInvalid
+			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("settle_wait", ErrLifecycleHarnessInvalid)
 		}
 		if err := c.settleWait(ctx); err != nil {
-			return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
+			return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("settle_wait", err)
 		}
 	}
-	return [coordinatorWorkerCount]target.MetricsSnapshot{}, ErrLifecycleHarnessInvalid
+	return [coordinatorWorkerCount]target.MetricsSnapshot{}, metaCheckpointFailure("settle_wait", ErrLifecycleHarnessInvalid)
 }
 
 func waitProductionMetaSettle(ctx context.Context) error {
@@ -197,20 +212,22 @@ func collectProductionMetaExpectation(
 ) (productionMetaExpectationSnapshot, error) {
 	var expectation productionMetaExpectationSnapshot
 	if runID == "" || workerCount != coordinatorWorkerCount || groupLimit == 0 || len(workers) != coordinatorWorkerCount {
-		return expectation, ErrLifecycleHarnessInvalid
+		return expectation, metaCheckpointFailure("expectation_worker_shape", ErrLifecycleHarnessInvalid)
 	}
 	var seen [coordinatorWorkerCount]bool
 	var groupTotal uint64
 	for _, snapshot := range workers {
-		if snapshot.RunID != runID || snapshot.AssignmentID == "" || snapshot.Generation == 0 ||
-			snapshot.WorkerCount != workerCount || snapshot.WorkerID >= workerCount || snapshot.SnapshotSequence == 0 ||
+		if snapshot.RunID != runID || snapshot.AssignmentID == "" || snapshot.Generation == 0 {
+			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_fence", ErrLifecycleHarnessInvalid)
+		}
+		if snapshot.WorkerCount != workerCount || snapshot.WorkerID >= workerCount || snapshot.SnapshotSequence == 0 ||
 			(snapshot.Phase != WorkerPhaseRunning && snapshot.Phase != WorkerPhaseFinal) || seen[snapshot.WorkerID] {
-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
+			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_worker_shape", ErrLifecycleHarnessInvalid)
 		}
 		if expectation.assignmentID == "" {
 			expectation.assignmentID, expectation.generation = snapshot.AssignmentID, snapshot.Generation
 		} else if snapshot.AssignmentID != expectation.assignmentID || snapshot.Generation != expectation.generation {
-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
+			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_fence", ErrLifecycleHarnessInvalid)
 		}
 		workerID := int(snapshot.WorkerID)
 		seen[workerID] = true
@@ -220,29 +237,29 @@ func collectProductionMetaExpectation(
 		for hashSlot, count := range snapshot.MetaCreate.PersonByHashSlot {
 			var ok bool
 			if expectation.person[hashSlot], ok = checkedUint64Add(expectation.person[hashSlot], count); !ok {
-				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
+				return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
 			}
 			if expectation.groups[hashSlot], ok = checkedUint64Add(
 				expectation.groups[hashSlot], snapshot.MetaCreate.GroupByHashSlot[hashSlot],
 			); !ok {
-				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
+				return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
 			}
 		}
 		workerGroups := uint64(0)
 		for _, count := range snapshot.MetaCreate.GroupByHashSlot {
 			var ok bool
 			if workerGroups, ok = checkedUint64Add(workerGroups, count); !ok {
-				return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
+				return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
 			}
 		}
 		var ok bool
 		if groupTotal, ok = checkedUint64Add(groupTotal, workerGroups); !ok || groupTotal > groupLimit {
-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
+			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_vector_bound", ErrLifecycleHarnessInvalid)
 		}
 	}
 	for _, present := range seen {
 		if !present {
-			return productionMetaExpectationSnapshot{}, ErrLifecycleHarnessInvalid
+			return productionMetaExpectationSnapshot{}, metaCheckpointFailure("expectation_worker_shape", ErrLifecycleHarnessInvalid)
 		}
 	}
 	return expectation, nil

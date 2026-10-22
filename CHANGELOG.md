@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Identify metadata-checkpoint rejection stages in chat-lifecycle diagnostics
+  while retaining incomplete-report failures and prior product observations.
+  / 聊天生命周期诊断细分元数据核算拒绝阶段，保留报告不完整失败和此前产品观察。
+
 - Retain bounded chat-lifecycle finalization failure stages and prior product
   observations without changing report validation or release verdicts.
   / 聊天生命周期验收结束失败时保留有界的失败阶段和此前产品观察，不改变报告校验或发布结论。

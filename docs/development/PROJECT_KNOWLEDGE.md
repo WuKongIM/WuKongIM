@@ -1946,6 +1946,11 @@ specification, runbook, report, or module documentation; link to them when neede
   order remain unchanged. A failed Markdown output can leave readable JSON while
   the recorder's sequence remains uncommitted. A generic `invalid_observation`
   fallback alone does not identify the rejecting finalization branch.
+  Metadata-checkpoint leaves distinguish worker shape/fence/vector bounds,
+  baseline continuity, metrics fetch/preview and final accounting through the
+  same closed diagnostic envelope. They retain private cause chains, the
+  three-source join and existing bounded settle attempts. These diagnostics
+  cannot reconstruct missing worker vectors or certify a complete report.
 
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
