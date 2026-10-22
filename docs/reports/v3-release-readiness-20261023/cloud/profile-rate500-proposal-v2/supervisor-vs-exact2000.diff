@@ -1,0 +1,27 @@
+--- exact2000/supervise.py
++++ local500/supervise.py
+@@ -142,6 +142,7 @@
+ 
+ try:
+     exact_build = verify_exact_build()
++    assert hashlib.sha256((OUT / "original-distribution-local.yaml").read_bytes()).hexdigest() == "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694", "controlled_config_hash_mismatch"
+     assert not any((OUT / name).exists() for name in ("data", "workers", "pids", "report"))
+     assert resource.getrlimit(resource.RLIMIT_NOFILE)[0] >= 30000
+     assert not check_ports()
+@@ -166,7 +167,7 @@
+         "exact_build": exact_build, "memory": capture(["memory_pressure", "-Q"]), "swap": capture(["sysctl", "vm.swapusage"]),
+         "capabilities": capture(["sysctl", "hw.memsize", "hw.ncpu", "hw.model"]), "disk": capture(["df", "-Pk", str(OUT)]),
+         "binary_sha256": {name: hashlib.sha256(PRODUCT_BINARIES[name].read_bytes()).hexdigest() for name in ("wukongim", "wkcli")},
+-        "run_id": RUN_ID, "profile": "local", "original_workload_unchanged": True, "cloud_capacity_qualified": False,
++        "run_id": RUN_ID, "profile": "local", "original_workload_unchanged": False, "controlled_send_rate_per_second": 500, "derived_max_global_burst": 1000, "burst_credit_seconds": 2, "formal_or_performance_acceptance": False, "cloud_capacity_qualified": False,
+         "service_gomaxprocs": 2, "worker_coordinator_observer_gomaxprocs": 1, "all_observers_share_one_host_and_disk": True}
+     write("preflight.json", preflight)
+     env.update({"WK_BENCH_API_TOKEN": secrets.token_urlsafe(32), "WK_BENCH_WORKER_TOKEN": secrets.token_urlsafe(32),
+@@ -280,6 +281,7 @@
+         "observed_traffic_seconds": None if final is None else final.get("window", {}).get("elapsed", 0) / 1e9,
+         "supervisor_stop_requested_after_barrier_seconds": None if barrier is None or stop_at is None else max(0, stop_at - barrier),
+         "local_profile_only": True, "cloud_capacity_qualified": False, "product_source_changed": False,
++        "controlled_send_rate_per_second": 500, "derived_max_global_burst": 1000, "formal_or_performance_acceptance": False,
+         "final_report_present": final is not None, "original_verdict": None if final is None else final.get("verdict"),
+         "messages": None if final is None else final.get("messages"), "correlation": None if final is None else final.get("correlation"),
+         "cleanup": cleanup}

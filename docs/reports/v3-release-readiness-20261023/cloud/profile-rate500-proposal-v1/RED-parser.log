@@ -1,0 +1,54 @@
+test_real_loader_planner_one_field_and_original_receipt_control (__main__.Contract.test_real_loader_planner_one_field_and_original_receipt_control) ... ERROR
+test_strict_loader_rejects_unknown_key_and_zero_rate (__main__.Contract.test_strict_loader_rejects_unknown_key_and_zero_rate) ... ERROR
+
+======================================================================
+ERROR: test_real_loader_planner_one_field_and_original_receipt_control (__main__.Contract.test_real_loader_planner_one_field_and_original_receipt_control)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/parser_contract_test.py", line 12, in test_real_loader_planner_one_field_and_original_receipt_control
+    r=subprocess.run([str(HELPER),str(B),str(C)],capture_output=True,text=True,timeout=10);self.assertEqual(r.returncode,0,r.stderr);x=json.loads(r.stdout);diff=differences(x['baseline']['config'],x['candidate']['config']);self.assertEqual(len(diff),1,diff);self.assertEqual(diff[0][1:],(2000,500));self.assertEqual(x['baseline']['run_hash'],x['candidate']['run_hash']);self.assertNotEqual(x['baseline']['assignment_hash'],x['candidate']['assignment_hash'])
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/subprocess.py", line 554, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/subprocess.py", line 1972, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/offline-parser'
+
+======================================================================
+ERROR: test_strict_loader_rejects_unknown_key_and_zero_rate (__main__.Contract.test_strict_loader_rejects_unknown_key_and_zero_rate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/parser_contract_test.py", line 17, in test_strict_loader_rejects_unknown_key_and_zero_rate
+    d=Path(tempfile.mkdtemp(prefix='wk-rate500-parser-'));f=d/'invalid.yaml';f.write_text(text);r=subprocess.run([str(HELPER),str(B),str(f)],capture_output=True,text=True,timeout=10);self.assertNotEqual(r.returncode,0)
+                                                                                                  ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/subprocess.py", line 554, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/subprocess.py", line 1972, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/offline-parser'
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.005s
+
+FAILED (errors=2)

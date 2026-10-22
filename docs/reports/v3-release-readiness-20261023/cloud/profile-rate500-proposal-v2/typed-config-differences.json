@@ -1,0 +1,12 @@
+[
+  [
+    "/workload/max_global_burst",
+    4000,
+    1000
+  ],
+  [
+    "/workload/send_rate_per_second",
+    2000,
+    500
+  ]
+]

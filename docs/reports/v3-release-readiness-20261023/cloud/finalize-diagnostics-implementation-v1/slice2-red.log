@@ -1,0 +1,4 @@
+# github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle [github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.test]
+internal/bench/chatlifecycle/finalize_diagnostics_test.go:232:7: invalid operation: recorder.closed != beforeClosed || recorder.qualificationCaptured || recorder.aggregator.seen (mismatched types bool and [3]bool)
+FAIL	github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle [build failed]
+FAIL

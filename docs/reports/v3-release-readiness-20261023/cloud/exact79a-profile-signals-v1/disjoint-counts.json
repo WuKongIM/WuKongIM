@@ -1,0 +1,165 @@
+{
+  "profile_time": "2026-10-22T20:42:11.818699000Z",
+  "delivery_runWorker_disjoint": {
+    "presence_remote_authority_RPC": 209,
+    "presence_cold_lane_select": 57,
+    "presence_parallel_leader_join": 46,
+    "owner_push_parallel_join_or_inline": 7,
+    "presence_owner_recovery_RPC": 1
+  },
+  "delivery_runWorker_total": 320,
+  "Conn_Call_disjoint_nearest_non_transport_product_frame": [
+    {
+      "function": "internal/access/node.(*Client).EndpointsByTargets",
+      "line": 704,
+      "count": 399
+    },
+    {
+      "function": "internal/access/node.(*Client).ForwardSendBatch",
+      "line": 120,
+      "count": 102
+    },
+    {
+      "function": "pkg/slot/proxy.(*Store).callSendPermission",
+      "line": 332,
+      "count": 83
+    },
+    {
+      "function": "pkg/cluster/channels.(*QuorumPeerLink).Exchange",
+      "line": 45,
+      "count": 23
+    },
+    {
+      "function": "pkg/cluster/propose.(*NetworkForwardClient).forward",
+      "line": 39,
+      "count": 37
+    },
+    {
+      "function": "pkg/slot/proxy.callAuthoritativeRPCWithStatuses[go.shape.struct { Status string \"json:\\\"status\\\"\"; LeaderID uint64 \"json:\\\"leader_id,omitempty\\\"\"; Meta *github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelRuntimeMeta \"json:\\\"meta,omitempty\\\"\"; Metas []github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelRuntimeMeta \"json:\\\"metas,omitempty\\\"\"; Cursor github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelRuntimeMetaCursor \"json:\\\"cursor,omitempty\\\"\"; Done bool \"json:\\\"done,omitempty\\\"\" }]",
+      "line": 92,
+      "count": 7
+    },
+    {
+      "function": "internal/access/node.(*Client).PushBatch",
+      "line": 56,
+      "count": 8
+    },
+    {
+      "function": "pkg/slot/proxy.callAuthoritativeRPCWithStatuses[go.shape.struct { Status string \"json:\\\"status\\\"\"; LeaderID uint64 \"json:\\\"leader_id,omitempty\\\"\"; Channel *github.com/WuKongIM/WuKongIM/pkg/db/meta.Channel \"json:\\\"channel,omitempty\\\"\"; Channels []github.com/WuKongIM/WuKongIM/pkg/db/meta.Channel \"json:\\\"channels,omitempty\\\"\"; Cursor github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelCursor \"json:\\\"cursor,omitempty\\\"\"; Done bool \"json:\\\"done,omitempty\\\"\" }]",
+      "line": 92,
+      "count": 2
+    },
+    {
+      "function": "internal/access/node.(*Client).ReadOwnerRoutes",
+      "line": 44,
+      "count": 1
+    },
+    {
+      "function": "internal/access/node.(*Client).ReadOwnerRoutesByTargets",
+      "line": 60,
+      "count": 1
+    },
+    {
+      "function": "internal/access/node.(*Client).callService",
+      "line": 788,
+      "count": 1
+    }
+  ],
+  "Conn_Call_total": 664,
+  "enqueue_disjoint": {
+    "global_plan_queue_capacity_select_line81": 414
+  },
+  "slot_apply_executing_stacks": [
+    {
+      "count": 7,
+      "frames": [
+        {
+          "function": "runtime.gopark",
+          "file": "runtime/proc.go",
+          "line": 460
+        },
+        {
+          "function": "runtime.selectgo",
+          "file": "runtime/select.go",
+          "line": 351
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).submitResult",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit/coordinator.go",
+          "line": 329
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).SubmitWithOutcome",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit/coordinator.go",
+          "line": 274
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).Submit",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit/coordinator.go",
+          "line": 245
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*Batch).Commit",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/db/meta/batch.go",
+          "line": 389
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*WriteBatch).Commit",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/db/meta/compat.go",
+          "line": 914
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/slot/fsm.(*stateMachine).ApplyBatch",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/slot/fsm/statemachine.go",
+          "line": 308
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).applyCommittedEntries.func1",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft/slot.go",
+          "line": 1180
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).applyCommittedEntries",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft/slot.go",
+          "line": 1292
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).runApplyTask",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft/apply_pipeline.go",
+          "line": 361
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*applyPipeline).runQueue",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft/apply_pipeline.go",
+          "line": 209
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*applyPipeline).runWorker",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft/apply_pipeline.go",
+          "line": 187
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.newApplyPipeline.func1",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft/apply_pipeline.go",
+          "line": 105
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+          "line": 471
+        },
+        {
+          "function": "runtime/pprof.Do",
+          "file": "runtime/pprof/runtime.go",
+          "line": 51
+        },
+        {
+          "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+          "file": "github.com/WuKongIM/WuKongIM/pkg/goroutine/registry.go",
+          "line": 468
+        }
+      ]
+    }
+  ],
+  "limits": "Partitions are disjoint only within their own cohort. Cohorts overlap each other; one-node one-point counts, not durations. Nearest product frame classifies RPC caller, not remote serving wait."
+}

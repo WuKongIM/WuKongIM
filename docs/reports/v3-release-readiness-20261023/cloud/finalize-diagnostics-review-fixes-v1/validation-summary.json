@@ -1,0 +1,66 @@
+{
+  "schema": "wukongim/finalization-diagnostic-review-fix-validation/v1",
+  "head": "3d243bccc8caed21a8719071ad7c1883156713c2",
+  "base": "73c93ac22b4a20189d7b74cf93efd9fa61b1601d",
+  "production_changes": false,
+  "review_missing_cases": 7,
+  "required_cases": [
+    {
+      "test": "TestFinalizeGuardDiagnosticsDoNotInventTerminalEvidence/nil_receiver",
+      "status": "pass"
+    },
+    {
+      "test": "TestFinalizeGuardDiagnosticsDoNotInventTerminalEvidence/nil_context",
+      "status": "pass"
+    },
+    {
+      "test": "TestFinalizeGuardDiagnosticsDoNotInventTerminalEvidence/not_terminal",
+      "status": "pass"
+    },
+    {
+      "test": "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/continuous_known_hook",
+      "status": "pass"
+    },
+    {
+      "test": "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/continuous_unknown_hook",
+      "status": "pass"
+    },
+    {
+      "test": "TestFinalizeDiagnosticLogFailureDoesNotReplacePrimaryCause/write_error",
+      "status": "pass"
+    },
+    {
+      "test": "TestFinalizeDiagnosticLogFailureDoesNotReplacePrimaryCause/short_write",
+      "status": "pass"
+    }
+  ],
+  "passed_test_events": 1613,
+  "passed_top_level_tests": 866,
+  "failed_or_skipped_events": 0,
+  "full_package_pass_seconds": {
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark": 9.193,
+    "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle": 15.944
+  },
+  "full_command": "GOWORK=off go test -json ./internal/bench/chatlifecycle ./cmd/wkcli/internal/benchmark -count=1",
+  "full_final_attempts": 1,
+  "diff_check": "passed",
+  "test_characterization": "Review-required coverage additions, not product behavioral RED/GREEN. Five guard/log cases passed immediately. Two continuous cases initially failed to reach the target due to fixture tick/periodic-decision constraints; these two failed fixture attempts are preserved. The bounded boundary-clock fixture then reached Continuous Finalize and passed without production changes.",
+  "focused_attempts": [
+    {
+      "file": "focused-first-run.jsonl",
+      "classification": "fixture_failure_before_target_at_grant_tick",
+      "guard_and_log_cases_passed": true
+    },
+    {
+      "file": "focused-after-fixture-repair.jsonl",
+      "classification": "fixture_failure_before_target_at_periodic_decision_guard",
+      "guard_and_log_cases_passed": true
+    },
+    {
+      "file": "focused-after-boundary-clock.jsonl",
+      "classification": "all_14_test_events_passed"
+    }
+  ],
+  "no_real_tcp_sleep_services_cloud_or_load": true,
+  "push_pr_merge": false
+}

@@ -1,0 +1,4 @@
+# github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle [github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle.test]
+internal/bench/chatlifecycle/checkpoint.go:8:2: "fmt" imported and not used
+FAIL	github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle [build failed]
+FAIL

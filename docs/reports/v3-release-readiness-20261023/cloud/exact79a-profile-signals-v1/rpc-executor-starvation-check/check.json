@@ -1,0 +1,157 @@
+{
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "source_files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/access/node/FLOW.md",
+      "sha256": "095836bd2e270d9663e1aa33bdb4457d42a7706b0706dc14610e72fc6beb82a7"
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "sha256": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971"
+    },
+    {
+      "path": "pkg/transport/server.go",
+      "sha256": "595a6283946d6b8eb7a225f9c3fd87722c78cfdd3ed71d33e1c12d26c7edf19a"
+    },
+    {
+      "path": "pkg/transport/internal/rpc/service.go",
+      "sha256": "d93fe20c2b6ee60bf7fcb9503042b8268ef90c828b821788330d01b74afa1172"
+    },
+    {
+      "path": "pkg/transport/internal/rpc/executor.go",
+      "sha256": "16315d03e5f9de4d6cf2cc527c003b29c18f6979b21aa1c57436b87bb4e28b01"
+    },
+    {
+      "path": "pkg/transport/internal/conn/conn.go",
+      "sha256": "4385f155f3e7305d51ae1215d1672fb1ab244545c3baf5d5eaef4c42385c8a51"
+    },
+    {
+      "path": "pkg/transport/internal/core/types.go",
+      "sha256": "44b9b39ab50f1b82fd65a8650831bb560441b94512782aeb90d350e8391956d7"
+    },
+    {
+      "path": "pkg/cluster/net/transport.go",
+      "sha256": "d0a3d07ecf1220069b9c374af65eaa4ee0b400312da6cfb730391c91be8b9be9"
+    },
+    {
+      "path": "pkg/cluster/node_defaults.go",
+      "sha256": "8299936cc45ae6647321e5391c54765ccd8d319a110da24805c554ca59cc02e9"
+    },
+    {
+      "path": "internal/access/node/presence_owner_recovery.go",
+      "sha256": "f98894ecc89766834c680e39f7eaa2568c3882faa70bf3816c5646081ece212b"
+    },
+    {
+      "path": "internal/access/node/presence_owner_recovery_batch.go",
+      "sha256": "b1bf46ef8ec33ecfd2aeafcb60b6b62f973c85bf4d7efe485057a0a777a8553f"
+    }
+  ],
+  "frozen_derivative_inputs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/metrics-summary.json",
+      "bytes": 557225,
+      "sha256": "01e8e53ab5088273d4368ac7c6af3c47a5df1614289f355d5b3517e96f0d1b15"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/selected-stack-summary.json",
+      "bytes": 5979,
+      "sha256": "e5669eb50eba188aedb77e5adf9151b7a819ba80ffd44c61e102dfb88028819e"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/selected-stacks.json",
+      "bytes": 70620,
+      "sha256": "6e9d1c5f77b0b05874cc2a994be4256f0a54c3f4ad8e8b07cd85126f14edd6f8"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/disjoint-counts.json",
+      "bytes": 6488,
+      "sha256": "44c5b16c4e02b81ce669c5ee3efe80ff8df3db1f896a85b3d44f21c84ae7c1dd"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/goroutine-top-cum.txt",
+      "bytes": 4793,
+      "sha256": "f92c10b111c83bb126bf564619f93045a58075d02b3cc2a0fba149a33583588a"
+    }
+  ],
+  "no_original_profile_or_metrics_read": true,
+  "no_pprof_or_collection_or_load_or_code_change": true,
+  "node2_selected_cuts": [
+    {
+      "node": 2,
+      "cut": "first-measured",
+      "queue_and_retained": {
+        "channel quorum exchange": 0.0,
+        "channel quorum exchange retained": 2.0,
+        "node send permissions": 0.0,
+        "node send permissions retained": 57.0,
+        "presence authority": 207.0,
+        "presence authority retained": 335.0,
+        "presence owner action": 0.0,
+        "presence owner action retained": 0.0,
+        "slot raft batch": 0.0,
+        "slot raft batch retained": 0.0
+      },
+      "executing_inferred_from_retained_minus_queued": {
+        "presence authority": 128.0,
+        "presence owner action": 0.0,
+        "node send permissions": 57.0,
+        "channel quorum exchange": 2.0,
+        "slot raft batch": 0.0
+      },
+      "timing_limit": "Asynchronous saved cut, not exact same instant as GOR. Retained also includes ownership-tail work."
+    },
+    {
+      "node": 2,
+      "cut": "terminal",
+      "queue_and_retained": {
+        "channel quorum exchange": 0.0,
+        "channel quorum exchange retained": 0.0,
+        "node send permissions": 0.0,
+        "node send permissions retained": 0.0,
+        "presence authority": 0.0,
+        "presence authority retained": 0.0,
+        "presence owner action": 0.0,
+        "presence owner action retained": 0.0,
+        "slot raft batch": 0.0,
+        "slot raft batch retained": 0.0
+      },
+      "executing_inferred_from_retained_minus_queued": {
+        "presence authority": 0.0,
+        "presence owner action": 0.0,
+        "node send permissions": 0.0,
+        "channel quorum exchange": 0.0,
+        "slot raft batch": 0.0
+      },
+      "timing_limit": "Asynchronous saved cut, not exact same instant as GOR. Retained also includes ownership-tail work."
+    }
+  ],
+  "shared_executor_fact": "One Server Executor; capacity tuned to sum of registered per-service Concurrency. Per-service tokens and queues remain separate.",
+  "default_concurrency": {
+    "presence_authority": 128,
+    "presence_owner": 128,
+    "node_send_permissions": 128,
+    "quorum_exchange": 512,
+    "each_ordered_raft_service": 1
+  },
+  "admission": {
+    "per_service_queue": 4096,
+    "queue_bytes": 67108864,
+    "default_retained_bytes": 134217728,
+    "queue_timeout_seconds": 5,
+    "normal_handler_timeout_seconds": 30,
+    "executor_invoke_nonblocking": true,
+    "service_submit_retry_delay_nanoseconds": 10000
+  },
+  "correction": "An earlier coordination message mistakenly called retry delay1ms; actual source is10microseconds.",
+  "limits": [
+    "No independent owner/control physical executor, but shared is not a fixed128 total pool.",
+    "Source aggregate capacity budget weakens the proposed sole-presence global-pool starvation model; it does not prove all runtime headroom or absence of other starvation.",
+    "Global executor busy/capacity/waiting/rejected gauges were not preserved in these frozen derivatives.",
+    "No cross-node same-instant owner-service occupancy or wait duration.",
+    "Queued/retained arithmetic is not exact handler count because ownership may outlive token release."
+  ]
+}

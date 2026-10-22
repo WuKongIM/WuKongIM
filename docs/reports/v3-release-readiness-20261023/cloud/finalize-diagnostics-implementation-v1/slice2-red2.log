@@ -1,0 +1,20 @@
+--- FAIL: TestCheckpointFailureStagesPreserveSentinelsAndRecorderState (0.01s)
+    --- FAIL: TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/paths (0.00s)
+        finalize_diagnostics_test.go:230: failure boundary = {Stage:unknown Reason:unknown ObservedOutcome: ObservedCause: ObservedTerminal:false}
+    --- FAIL: TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/closed (0.00s)
+        finalize_diagnostics_test.go:230: failure boundary = {Stage:unknown Reason:unknown ObservedOutcome: ObservedCause: ObservedTerminal:false}
+    --- FAIL: TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/evidence (0.00s)
+        finalize_diagnostics_test.go:230: failure boundary = {Stage:unknown Reason:unknown ObservedOutcome: ObservedCause: ObservedTerminal:false}
+    --- FAIL: TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/dataset (0.00s)
+        finalize_diagnostics_test.go:230: failure boundary = {Stage:unknown Reason:unknown ObservedOutcome: ObservedCause: ObservedTerminal:false}
+    --- FAIL: TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/snapshot_cut (0.00s)
+        finalize_diagnostics_test.go:230: failure boundary = {Stage:unknown Reason:unknown ObservedOutcome: ObservedCause: ObservedTerminal:false}
+    --- FAIL: TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/histogram (0.00s)
+        finalize_diagnostics_test.go:230: failure boundary = {Stage:unknown Reason:unknown ObservedOutcome: ObservedCause: ObservedTerminal:false}
+    --- FAIL: TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/projection (0.00s)
+        finalize_diagnostics_test.go:226: error = chat lifecycle checkpoint: invalid evidence, want chat lifecycle report: invalid projection
+--- FAIL: TestFinalizationDiagnosticRejectsUnboundedOrInvalidFrozenValues (0.04s)
+    finalize_diagnostics_test.go:251: unsafe frozen observation entered diagnostics: {"event":"wkbench.chat_lifecycle.controller_failure","at":"2032-02-11T23:31:01Z","cut":"terminal","phase":"finalize","stage":"controller_guard","reason":"state","observed_outcome":"private-token-outcome","observed_cause":"private-token-cause","observed_terminal":true}
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle	0.613s
+FAIL

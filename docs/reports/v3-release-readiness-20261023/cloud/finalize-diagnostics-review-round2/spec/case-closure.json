@@ -1,0 +1,66 @@
+{
+  "schema": "wukongim/finalization-spec-review-closure/v1",
+  "previous_head": "73c93ac22b4a20189d7b74cf93efd9fa61b1601d",
+  "reviewed_head": "3d243bccc8caed21a8719071ad7c1883156713c2",
+  "previous_findings": 1,
+  "closed_findings": 1,
+  "open_findings": 0,
+  "required_case_count": 7,
+  "cases": [
+    {
+      "case": "nil controller receiver",
+      "matrix_line": 8,
+      "test": "TestFinalizeGuardDiagnosticsDoNotInventTerminalEvidence/nil_receiver",
+      "evidence_pass": true,
+      "source_semantics_reviewed": true
+    },
+    {
+      "case": "nil context on existing controller",
+      "matrix_line": 8,
+      "test": "TestFinalizeGuardDiagnosticsDoNotInventTerminalEvidence/nil_context",
+      "evidence_pass": true,
+      "source_semantics_reviewed": true
+    },
+    {
+      "case": "frozen.Terminal false",
+      "matrix_line": 13,
+      "test": "TestFinalizeGuardDiagnosticsDoNotInventTerminalEvidence/not_terminal",
+      "evidence_pass": true,
+      "source_semantics_reviewed": true
+    },
+    {
+      "case": "known classified hook failure at continuous finalize site",
+      "matrix_line": 34,
+      "test": "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/continuous_known_hook",
+      "evidence_pass": true,
+      "source_semantics_reviewed": true
+    },
+    {
+      "case": "unknown private hook error at continuous finalize site",
+      "matrix_line": 34,
+      "test": "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/continuous_unknown_hook",
+      "evidence_pass": true,
+      "source_semantics_reviewed": true
+    },
+    {
+      "case": "DiagnosticLog.Write returns error while Finalize already rejects",
+      "matrix_line": 39,
+      "test": "TestFinalizeDiagnosticLogFailureDoesNotReplacePrimaryCause/write_error",
+      "evidence_pass": true,
+      "source_semantics_reviewed": true
+    },
+    {
+      "case": "DiagnosticLog.Write returns short write while Finalize already rejects",
+      "matrix_line": 39,
+      "test": "TestFinalizeDiagnosticLogFailureDoesNotReplacePrimaryCause/short_write",
+      "evidence_pass": true,
+      "source_semantics_reviewed": true
+    }
+  ],
+  "assertion_notes": {
+    "continuous": "Formal configuration and keep-workers option reach a captured FinalCut with Continuous=true, Decision=completed and running snapshots; harness_invalid/finalize result has no continuation, all three exact-fence Stop calls counted once.",
+    "guards": "Nil receiver/context and nonterminal frozen state retain the broad sentinel and fixed safe text; only a valid pre-existing frozen observation survives, with no report or state mutation.",
+    "writer": "Error and short write each occur once on the existing failure record; errors.Is/As retain the injected primary dataset cause and exclude log error, while bounded observation and report absence remain unchanged.",
+    "fixture_clock": "Skips time only in a test clock before ticker setup; supplies no workload/duration/report acceptance evidence."
+  }
+}

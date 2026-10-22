@@ -1,0 +1,25 @@
+{
+  "schema": "wukongim/local500-proposal-final-static-preflight/v1",
+  "at_utc": "2026-10-22T21:03:21.451778+00:00",
+  "product_started": false,
+  "workload_started": false,
+  "native_product_or_cli_rebuilt": false,
+  "offline_helper_builds_total": 1,
+  "offline_helper_new_builds_in_v2": 0,
+  "runtime_state_dirs": {
+    "data": false,
+    "pids": false,
+    "workers": false,
+    "report": false
+  },
+  "old_pgid_checked": 8675,
+  "old_pgid_members": [],
+  "other_WK_processes": [],
+  "port_range": [
+    25000,
+    25063
+  ],
+  "listeners": [],
+  "parser_results": "2 methods passed,actualcontrolhash matched,twoexactfieldsdiff,strictunknown/zerorate rejected",
+  "runtime_start_requires_root_review_and_separate_authorization": true
+}

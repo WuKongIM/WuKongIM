@@ -1,0 +1,204 @@
+{
+  "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "source_worktree_clean": true,
+  "rule_digests": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2"
+    },
+    {
+      "path": "internal/runtime/presence/FLOW.md",
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee"
+    },
+    {
+      "path": "internal/runtime/delivery/FLOW.md",
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "ae0f99b28ea52be22ddb95c785574819a4e4c31614435bff9250e5b10b8ecff2"
+    }
+  ],
+  "input_files": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/profiles-node2/profiles/node-2-cpu.pb.gz",
+      "bytes": 42936,
+      "sha256": "e0c3d01ea942953e3f7b84465cf52cd4783c3b5db47c237994522db29058af96"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/profiles-node2/profiles/node-2-goroutine.pb.gz",
+      "bytes": 25282,
+      "sha256": "42c8ab9392acfce1b53dbbba0360ed298a68ee04e93d73abd4de4455aa78e697"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/profiles-node2/metadata.json",
+      "bytes": 567,
+      "sha256": "aad03a0b8c6d6369ed41f4e9e6467a1ef022e5aba0a2f5762cd97bf43bba9506"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/preflight.json",
+      "bytes": 3495,
+      "sha256": "da6c85e060a5e2d7d18b77a96e3502080d061dae09d1355022a8c61858307b06"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/report/final.json",
+      "bytes": 23630,
+      "sha256": "7301ce8e67fc70dc7eb8b83dc093476e32e3148aef737212e6264123585c9796"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/report/run-start.json",
+      "bytes": 387,
+      "sha256": "987c8f14a0cb9e82af6f13aefc24bd238b606104d6f04599d67ca89234539606"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/diagnostic-cuts.jsonl",
+      "bytes": 10656,
+      "sha256": "0f153ca6eb12a3caa69a3451eb7e8b10084e88b49688cf7a38c082118d72c312"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/profile-driver-status.json",
+      "bytes": 1780,
+      "sha256": "bc5789ea6dfc761bf79e0c0aeb3eeb4ca0c5d2ab22c3a6ed5e0045c40e51e063"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/cleanup-receipt.json",
+      "bytes": 919,
+      "sha256": "7b7f5c2d12497a9681bb0cfdb5d82206646b7ccfd2a0ace9443d7e82eb2cff11"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/diagnostic-result.json",
+      "bytes": 3336,
+      "sha256": "dba3a2a40da427a99af26a3b30be685301edfc2a14ce76f8976cba4eb82e885e"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/supervisor-events.json",
+      "bytes": 569,
+      "sha256": "25401d4698035128d5d9ada72df2c0e84c8f60d6623785130c9010f757ce1fdb"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/evidence/metrics-first-measured-node1.prom",
+      "bytes": 1027740,
+      "sha256": "d95b470b2919f3e4bbd3c4cfa1da5c15833f9054f62885b9be3fec20428de4e0"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/evidence/metrics-terminal-node1.prom",
+      "bytes": 1066893,
+      "sha256": "ce02d13455c61f49866e27d354aa9ae590a69fd15c1b3ee912d2b7439e197fd2"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/evidence/metrics-first-measured-node2.prom",
+      "bytes": 1008137,
+      "sha256": "cd590c0e6a15964c7cba118b15845e1e7e73f34f226c9b51712831cba98242ad"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/evidence/metrics-terminal-node2.prom",
+      "bytes": 1040557,
+      "sha256": "d31aaad13b8ac043b13fc037a1122c60c643e6e2350ab51256ace8bfd242aa56"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/evidence/metrics-first-measured-node3.prom",
+      "bytes": 1005648,
+      "sha256": "75dbe40ae5077524a3bd3e296e86e9c8e4bc4c76c4f9489376b6034accf03feb"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-exact79a-profile-v1/evidence/metrics-terminal-node3.prom",
+      "bytes": 1040222,
+      "sha256": "2560898700b8adef2e6dfb76fc4104cdee0777efba36f8d2efc299240749d7b7"
+    }
+  ],
+  "product_binary": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-cloud-flags-v1/darwin-arm64/wukongim",
+    "bytes": 64584898,
+    "sha256": "5b30743481398ad8175476d18ffbc676c6da5288657919ae8e704324e67351ab"
+  },
+  "toolchain_go_path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+  "pprof_tool_path": "/Users/tt/Library/Caches/go-build/3b/3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5-d/pprof",
+  "pprof_tool_sha256": "3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5",
+  "tool_go_buildinfo": "/Users/tt/Library/Caches/go-build/3b/3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5-d/pprof: go1.25.11\n\tpath\tcmd/pprof\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\tCGO_ENABLED=1\n\tbuild\tCGO_CFLAGS=\n\tbuild\tCGO_CPPFLAGS=\n\tbuild\tCGO_CXXFLAGS=\n\tbuild\tCGO_LDFLAGS=\n\tbuild\tGOARCH=arm64\n\tbuild\tGOOS=darwin\n\tbuild\tGOARM64=v8.0\n",
+  "environment_controls": {
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off"
+  },
+  "compiled_or_started_product": false,
+  "additional_source_digests": [
+    {
+      "path": "internal/runtime/channelappend/FLOW.md",
+      "sha256": "7ae41e62c0ba2a83051d9199d963e21dc4fd9c471b611b2c5a9224cdbfa689a5"
+    },
+    {
+      "path": "pkg/db/FLOW.md",
+      "sha256": "57578a266e60e804ee46f71205b92c7d64df00e0df6e6f9120cc0e1937334017"
+    },
+    {
+      "path": "pkg/db/meta/FLOW.md",
+      "sha256": "2fc1c3f670d8cd6a60e4e132c99ee71908c64f771c55bbce853eaa10fe0eaeac"
+    },
+    {
+      "path": "internal/usecase/presence/recovery.go",
+      "sha256": "dbbdc02e4922c1faef9aa81084ab06dd404be7f2a394a1fe4e4ff238e91542fb"
+    },
+    {
+      "path": "internal/infra/cluster/presence_recovery.go",
+      "sha256": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55"
+    },
+    {
+      "path": "internal/infra/cluster/presence.go",
+      "sha256": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a"
+    },
+    {
+      "path": "internal/runtime/delivery/runtime.go",
+      "sha256": "d23b63070067390e091d2dd2f60e7e06f5dbe409e562e64048e459cdfe645a5b"
+    },
+    {
+      "path": "internal/runtime/delivery/plan_queue.go",
+      "sha256": "47cb7c5ab5492e5755b1aa9e21c7722f55ec6a3a63ff9d7225ecd76360d5d5b1"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_cohort.go",
+      "sha256": "d84be076ccc93552ada25c867d2c641cdfb1b67ce78ef4ac154a3247b58ad352"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_rpc.go",
+      "sha256": "872417d9cb60df5d12a59f17da5fe17a055f29f166d7e38d8e763eccf9faa781"
+    },
+    {
+      "path": "pkg/slot/multiraft/read_barrier.go",
+      "sha256": "1305c33b42ae35f11e733202083ddea683d1dd7b983895ca40276054b1ac1f9a"
+    },
+    {
+      "path": "pkg/slot/multiraft/apply_pipeline.go",
+      "sha256": "1644cb52b83b9d878f357d14e7218972134b684e56e3db4d17086ae3c9c9426a"
+    },
+    {
+      "path": "pkg/db/internal/commit/coordinator.go",
+      "sha256": "0d15993e76046d5c2da5515f8f980ee87a3ac859950f0918fd694f53caf4becc"
+    },
+    {
+      "path": "pkg/db/internal/engine/batch.go",
+      "sha256": "07aa4a3403191d6b195394e54eb5d7d8672026ae4c93d1354b2c45d87198b980"
+    },
+    {
+      "path": "pkg/transport/internal/conn/conn.go",
+      "sha256": "4385f155f3e7305d51ae1215d1672fb1ab244545c3baf5d5eaef4c42385c8a51"
+    }
+  ],
+  "dependency_source": {
+    "path": "/Users/tt/go/pkg/mod/github.com/cockroachdb/pebble/v2@v2.1.4/commit.go",
+    "sha256": "aaf94b6b79c366c7666a5b4d85bd18818bc9e82d13629e1bd5e231255da470b8",
+    "interpreted_lines": "publish492 and Commit336; wait covers batch publication and/or WAL sync"
+  },
+  "original_input_hashes_reverified_after_analysis": true,
+  "source_still_clean": true,
+  "product_or_cloud_or_new_metric_request": false,
+  "full_raw_profile_or_UID_or_payload_publicly_copied": false,
+  "scope": "Exact native79a local diagnosis only; first-failure cause overall_first_attempt_rate; no cloud message_loss root-cause/qualification conclusion."
+}

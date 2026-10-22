@@ -1,0 +1,243 @@
+{
+  "schema": "wukongim/independent-finalize-standards-review-round2/v1",
+  "created_at_utc": "2026-10-22T21:03:55.351812+00:00",
+  "base": "2ab3e1a8bd95670603bc38314036c797a5124682",
+  "previous_reviewed_head": "73c93ac22b4a20189d7b74cf93efd9fa61b1601d",
+  "head": "3d243bccc8caed21a8719071ad7c1883156713c2",
+  "tree": "763f8432135e6b94df28451a43a4a635c7aba2a0",
+  "full_diff_command": "git diff 2ab3e1a8bd95670603bc38314036c797a5124682 3d243bccc8caed21a8719071ad7c1883156713c2",
+  "incremental_diff_command": "git diff 73c93ac22b4a20189d7b74cf93efd9fa61b1601d 3d243bccc8caed21a8719071ad7c1883156713c2",
+  "commit_list": [
+    "3d243bccc8caed21a8719071ad7c1883156713c2 test(bench): complete finalization diagnostic failure coverage",
+    "73c93ac22b4a20189d7b74cf93efd9fa61b1601d fix(bench): retain bounded finalization failure diagnostics"
+  ],
+  "worktree_clean": true,
+  "source_files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "e9bfbe3e0969fd9952b9038cf27dfd0c01160b3ece8e68e88389852a0087f42b",
+      "bytes": 192018
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "bytes": 12160
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+      "sha256": "c6cc87dee283da2f68a4fbb61a3499b5fa9efb29e2fc9ca40e8517ccd84f54c2",
+      "bytes": 8173
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "sha256": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee",
+      "bytes": 13193
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "1dbd3f7fdc393236a378a9f62698f091d098e30b14ac079be10ede71a1ce7308",
+      "bytes": 147049
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "bytes": 6617
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "bytes": 6514
+    },
+    {
+      "path": "internal/bench/chatlifecycle/checkpoint.go",
+      "sha256": "fc1f96b7ccf321f55b201de916ef5a370da6a5dfb7e2e66a28c1f97e9cc3bf53",
+      "bytes": 17615
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "bytes": 123128
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator_test.go",
+      "sha256": "498761c834159043a00dda02c40544cded063e541f4fe83efe933e03e4cd33e2",
+      "bytes": 169173
+    },
+    {
+      "path": "internal/bench/chatlifecycle/finalize_diagnostics_test.go",
+      "sha256": "2a27392c2f70d9315a5f3b7ed93a31ba5394f8f9229adc0d52526a0bdd768ae3",
+      "bytes": 22813
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "sha256": "8ed4d172ddadbc6dd3fb96134747921c563c86c38b513b92b7e73c1a245bfc42",
+      "bytes": 33591
+    }
+  ],
+  "production_files_byte_identical": [
+    {
+      "path": "internal/bench/chatlifecycle/checkpoint.go",
+      "sha256": "fc1f96b7ccf321f55b201de916ef5a370da6a5dfb7e2e66a28c1f97e9cc3bf53",
+      "byte_identical_to_reviewed_base": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "byte_identical_to_reviewed_base": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "sha256": "8ed4d172ddadbc6dd3fb96134747921c563c86c38b513b92b7e73c1a245bfc42",
+      "byte_identical_to_reviewed_base": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "sha256": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee",
+      "byte_identical_to_reviewed_base": true
+    }
+  ],
+  "evidence_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1",
+  "evidence_manifest_sha256": "58dcb8c05dfca232af1415f1f6e0f403c0c4516be155cc60c2760022fa7fc733",
+  "verified_evidence": [
+    {
+      "path": "README.md",
+      "bytes": 2092,
+      "sha256": "3f5c0b5ec936be51c56779092b1c12cc535a8f6acda8d936431cdd5c7809f155"
+    },
+    {
+      "path": "final-source-freeze.json",
+      "bytes": 1478,
+      "sha256": "3a0cfb51fa61e7f3ac075da8f8fe9a30f3045173f26f56545464b4ddb8392e4c"
+    },
+    {
+      "path": "focused-after-boundary-clock.jsonl",
+      "bytes": 15339,
+      "sha256": "66145d1ddc0e2d199b5f53119cc0cff8090198234e1fe3a531b5370421e27eee"
+    },
+    {
+      "path": "focused-after-fixture-repair.jsonl",
+      "bytes": 25090,
+      "sha256": "1c8fc35d1813d0c6346af490bb4aebe781109aee83c9595e1989fe0b6058aee0"
+    },
+    {
+      "path": "focused-first-run.jsonl",
+      "bytes": 25085,
+      "sha256": "fe7360a846c9ec0ca3921e79e6f915cb69c0fbbe18aaef2e8e4085fdd71290f4"
+    },
+    {
+      "path": "full-two-packages-first-final.jsonl",
+      "bytes": 1762460,
+      "sha256": "7574bf81f64fe3dfe7bb94dcea7061c2ed87e879763bab0e89c1a9977b093245"
+    },
+    {
+      "path": "incremental.patch",
+      "bytes": 11674,
+      "sha256": "58c1a45b8c3097dc33a81e78a4282b2d345bf98081581bbf0dcf618eb3ce4672"
+    },
+    {
+      "path": "review-required-cases-before-tests.json",
+      "bytes": 2012,
+      "sha256": "30bb9da9d6ee4ca5086d4e0d2ff504ba4ea3fb695b263355b9d67cca519a2c64"
+    },
+    {
+      "path": "review-source-hashes.json",
+      "bytes": 185,
+      "sha256": "0ce8ebd0b4f66476436e95c4ff540f7d0a41f0f549b768a90d6ce85718e5eaab"
+    },
+    {
+      "path": "source-rule-freeze.json",
+      "bytes": 715,
+      "sha256": "4a037dc6d4ff6b2da74f1e857c4b89d662fdfb44dff6a177eed20b6d1fea1946"
+    },
+    {
+      "path": "validation-summary.json",
+      "bytes": 2593,
+      "sha256": "207366e70520b5ed3360c6fe5cbc9217885dc7bdee0d136e60898a8c5bc15502"
+    },
+    {
+      "path": "PUBLIC_ALLOWLIST",
+      "bytes": 297,
+      "sha256": "527aefd620cab7bcb4544d1c5613f4f2e2cd83cd1b4a4ff53230e6e487a6372c"
+    }
+  ],
+  "documentation_verification_inputs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/README.md",
+      "sha256": "011be6a1b3a07c7e6c5aa07cfb063219b4982de9dac73b173261ab6acd11b976",
+      "bytes": 876
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/go-env.stdout",
+      "sha256": "5ef438a3dd5e925dda4d3c8ce417eafec099ab8f97b7eae10d65db1bc8972576",
+      "bytes": 462
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1/go-version.stdout",
+      "sha256": "954cf4d96f28964b8643ead63c6e11020d0b7ea407ae67222d56896da1df2c94",
+      "bytes": 34
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-cloud-flags-v1/README.md",
+      "sha256": "6a94190083f1dcfba0ea6bf44d3e26168fa2763b59b5b15e8666b2e3c28f34bf",
+      "bytes": 1742
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-cloud-flags-v1/completed.json",
+      "sha256": "6060a41c7ee59cdcf31eaa0eff418dfc682992a7496305d0c0f515216dacb31a",
+      "bytes": 169
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-cloud-flags-v1/linux-amd64-wukongim-identity.json",
+      "sha256": "5539e1ec8afcb5cce60566d50a3c0371c66efd188cfc819055079592c7fb626f",
+      "bytes": 437
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-cloud-flags-v1/linux-amd64-wkcli-identity.json",
+      "sha256": "27ac2f6f7fc4f6a0d4c645f5c9afb1d2fe5c79f94ce0879ffc3609682d746fd7",
+      "bytes": 434
+    },
+    {
+      "path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/VERSION",
+      "sha256": "1b48ef052c0a9f37d974cc6509e07b52172a5ca2a58fb181a9e1bf00b2634234",
+      "bytes": 36
+    },
+    {
+      "path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/cmd/go/internal/vcs/vcs.go",
+      "sha256": "a1c40768fd2ad50b345ab83e621107c82feb2dcdaf2e1ac2bb8ccc7b10bd0d6f",
+      "bytes": 40858
+    }
+  ],
+  "previous_review": {
+    "report_path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review/standards/standards.md",
+    "report_sha256": "96afd9608595b097584e8ffffc7753bc29eb67db0b6c37d0e139ebd309df9a39",
+    "source_hashes_path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review/standards/source-hashes.json",
+    "source_hashes_sha256": "5d31672a58a16f80a8887c7fe48b9a7ed2bd603ac0d74d29477523d6d80f8a8c"
+  },
+  "test_counts": {
+    "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle": {
+      "pass": 1311,
+      "top_level_pass": 680,
+      "package_pass": 1
+    },
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark": {
+      "pass": 304,
+      "top_level_pass": 186,
+      "package_pass": 1
+    }
+  },
+  "diff_check_exit": 0,
+  "new_go_build_test_or_external_operations": false,
+  "findings": {
+    "hard_violations": 0,
+    "heuristic_smells": 0
+  },
+  "limitations": [
+    "Retained local unit evidence reused without running tests.",
+    "Linux CI, historical root-cause attribution and release qualification remain outside this review."
+  ]
+}

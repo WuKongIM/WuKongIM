@@ -1,0 +1,39 @@
+{
+  "schema": "wukongim/finalization-diagnostic-review-fix-source/v1",
+  "base": "73c93ac22b4a20189d7b74cf93efd9fa61b1601d",
+  "head": "3d243bccc8caed21a8719071ad7c1883156713c2",
+  "tree": "763f8432135e6b94df28451a43a4a635c7aba2a0",
+  "worktree_clean": true,
+  "incremental_paths": [
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "1dbd3f7fdc393236a378a9f62698f091d098e30b14ac079be10ede71a1ce7308"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/finalize_diagnostics_test.go",
+      "sha256": "2a27392c2f70d9315a5f3b7ed93a31ba5394f8f9229adc0d52526a0bdd768ae3"
+    }
+  ],
+  "production_unchanged": [
+    {
+      "path": "internal/bench/chatlifecycle/checkpoint.go",
+      "sha256": "fc1f96b7ccf321f55b201de916ef5a370da6a5dfb7e2e66a28c1f97e9cc3bf53",
+      "byte_identical_to_reviewed_base": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "byte_identical_to_reviewed_base": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "sha256": "8ed4d172ddadbc6dd3fb96134747921c563c86c38b513b92b7e73c1a245bfc42",
+      "byte_identical_to_reviewed_base": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "sha256": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee",
+      "byte_identical_to_reviewed_base": true
+    }
+  ]
+}

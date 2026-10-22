@@ -1,0 +1,944 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index e964222a2..67bc80595 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Retain bounded chat-lifecycle finalization failure stages and prior product
++  observations without changing report validation or release verdicts.
++  / 聊天生命周期验收结束失败时保留有界的失败阶段和此前产品观察，不改变报告校验或发布结论。
++
+ - Distinguish busy SEND acknowledgements in metrics and include exact message
+   identities in existing incomplete online-delivery warnings.
+   / 指标单独标识发送繁忙回执，在线投递未完成告警补充精确消息编号与序号。
+diff --git a/cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go b/cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go
+index b90ba5f76..e281b655b 100644
+--- a/cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go
++++ b/cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go
+@@ -4,6 +4,7 @@ import (
+ 	"bytes"
+ 	"context"
+ 	"os"
++	"strings"
+ 	"syscall"
+ 	"testing"
+ 	"time"
+@@ -61,6 +62,40 @@ func TestChatLifecycleUnavailableSummaryIncludesObserverCode(t *testing.T) {
+ 	}
+ }
+ 
++func TestChatLifecycleFinalizationSummaryRetainsClosedBoundaryWithoutChangingVerdict(t *testing.T) {
++	result := chatlifecycle.CoordinatorResult{
++		Outcome: chatlifecycle.CoordinatorHarnessInvalid, Code: chatlifecycle.CoordinatorCodeFinalize,
++		FinalizationFailure: chatlifecycle.FinalizationFailure{
++			Stage: "meta_checkpoint", Reason: "invalid", ObservedDecision: chatlifecycle.CoordinatorProductFailure,
++			ObservedOutcome: chatlifecycle.VerdictProductFailure, ObservedCause: chatlifecycle.VerdictCauseMessageLoss, ObservedTerminal: true,
++		},
++	}
++	verdict := chatLifecycleCoordinatorVerdict(result)
++	if verdict.Outcome != chatlifecycle.VerdictHarnessInvalid || verdict.Cause != chatlifecycle.VerdictCauseInvalidObservation || chatLifecycleVerdictExitCode(verdict) != exitChatLifecycleHarness {
++		t.Fatalf("diagnostic observation replaced the failed finalization verdict: %+v", verdict)
++	}
++	got := chatLifecycleCoordinatorSummary(verdict, result, "unavailable")
++	for _, fragment := range []string{"finalization_stage=meta_checkpoint", "finalization_reason=invalid", "observed_decision=product_failure", "observed_outcome=product_failure", "observed_cause=message_loss", "observed_terminal=true", "report=unavailable"} {
++		if !strings.Contains(got, fragment) {
++			t.Errorf("summary %q misses %q", got, fragment)
++		}
++	}
++	// A report selected by the existing reader keeps its own verdict; the
++	// coordinator failure remains an additional diagnostic on that path.
++	chosenReportVerdict := chatlifecycle.VerdictSnapshot{Outcome: chatlifecycle.VerdictProductFailure, Cause: chatlifecycle.VerdictCauseTerminalSend, Terminal: true}
++	reported := chatLifecycleCoordinatorSummary(chosenReportVerdict, result, "existing-final.json")
++	if !strings.HasPrefix(reported, "chat-lifecycle outcome=product_failure cause=terminal_send ") || !strings.Contains(reported, "finalization_stage=meta_checkpoint") || chatLifecycleVerdictExitCode(chosenReportVerdict) != exitChatLifecycleProduct {
++		t.Fatalf("finalization diagnostics changed the selected report projection: %q", reported)
++	}
++	result.FinalizationFailure = chatlifecycle.FinalizationFailure{
++		Stage: "private-token-stage", Reason: "private-token-reason", ObservedOutcome: "private-token-outcome", ObservedCause: "private-token-cause", ObservedTerminal: true,
++	}
++	got = chatLifecycleCoordinatorSummary(verdict, result, "unavailable")
++	if strings.Contains(got, "private-token") || !strings.Contains(got, "finalization_stage=controller_unknown") || !strings.Contains(got, "observed_terminal=false") {
++		t.Fatalf("summary exposed unbounded finalization values: %q", got)
++	}
++}
++
+ func TestChatLifecycleFirstSignalRequestsGracefulStopAndWaitsForFinalResult(t *testing.T) {
+ 	runner := newSignalTestChatLifecycleRunner()
+ 	signals := make(chan os.Signal, 2)
+diff --git a/cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go b/cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go
+index 86e5bbfae..ff994dda5 100644
+--- a/cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go
++++ b/cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go
+@@ -7,6 +7,7 @@ import (
+ 	"net/http"
+ 	"os"
+ 	"path/filepath"
++	"strings"
+ 	"sync"
+ 	"time"
+ 
+@@ -253,7 +254,10 @@ func (r *productionChatLifecycleRunner) Run(ctx context.Context) (chatLifecycleR
+ 		}
+ 		return chatLifecycleRunResult{
+ 			Verdict: verdict,
+-			Summary: fmt.Sprintf("chat-lifecycle outcome=%s cause=%s report=%s\n", report.Verdict.Outcome, report.Verdict.Cause, finalPath),
++			Summary: chatLifecycleAppendFinalizationSummary(
++				fmt.Sprintf("chat-lifecycle outcome=%s cause=%s report=%s\n", report.Verdict.Outcome, report.Verdict.Cause, finalPath),
++				result.FinalizationFailure,
++			),
+ 		}, nil
+ 	}
+ 	verdict := chatLifecycleCoordinatorVerdict(result)
+@@ -268,9 +272,22 @@ func chatLifecycleCoordinatorSummary(
+ 	result chatlifecycle.CoordinatorResult,
+ 	report string,
+ ) string {
+-	return fmt.Sprintf(
++	return chatLifecycleAppendFinalizationSummary(fmt.Sprintf(
+ 		"chat-lifecycle outcome=%s cause=%s coordinator_code=%s grant_failure_code=%s worker_runtime_code=%s observer_code=%s preflight_code=%s report=%s\n",
+ 		verdict.Outcome, verdict.Cause, result.Code, result.GrantFailure, result.WorkerFailure.RuntimeCode, result.ObserverCode, result.Preflight.Code, report,
++	), result.FinalizationFailure)
++}
++
++// chatLifecycleAppendFinalizationSummary adds observations to either existing
++// result path without replacing its report preference, verdict, or exit code.
++func chatLifecycleAppendFinalizationSummary(summary string, failure chatlifecycle.FinalizationFailure) string {
++	failure = failure.Bounded()
++	if failure.Stage == "" {
++		return summary
++	}
++	return strings.TrimSuffix(summary, "\n") + fmt.Sprintf(
++		" finalization_stage=%s finalization_reason=%s observed_decision=%s observed_outcome=%s observed_cause=%s observed_terminal=%t\n",
++		failure.Stage, failure.Reason, failure.ObservedDecision, failure.ObservedOutcome, failure.ObservedCause, failure.ObservedTerminal,
+ 	)
+ }
+ 
+diff --git a/docs/development/PROJECT_KNOWLEDGE.md b/docs/development/PROJECT_KNOWLEDGE.md
+index 8cc688e73..b67da9348 100644
+--- a/docs/development/PROJECT_KNOWLEDGE.md
++++ b/docs/development/PROJECT_KNOWLEDGE.md
+@@ -1937,3 +1937,12 @@ specification, runbook, report, or module documentation; link to them when neede
+   evidence can exempt absent capacity documents. Passing outcomes still require
+   capacity evidence. Fixture artifact paths use a non-`WK_` environment variable
+   so product child processes do not treat test metadata as runtime configuration.
++
++- Chat-lifecycle finalization diagnostics retain a closed rejecting stage/reason
++  and the previously frozen outcome/cause as observations, never a substitute
++  report. Private error chains remain available to `errors.Is/As` but are not
++  formatted into retained diagnostics. Missing final output still fails closed;
++  the CLI's existing valid-JSON report preference and JSON-before-Markdown write
++  order remain unchanged. A failed Markdown output can leave readable JSON while
++  the recorder's sequence remains uncommitted. A generic `invalid_observation`
++  fallback alone does not identify the rejecting finalization branch.
+diff --git a/internal/bench/chatlifecycle/checkpoint.go b/internal/bench/chatlifecycle/checkpoint.go
+index 8368f085f..32f950b3b 100644
+--- a/internal/bench/chatlifecycle/checkpoint.go
++++ b/internal/bench/chatlifecycle/checkpoint.go
+@@ -5,7 +5,6 @@ import (
+ 	"encoding/hex"
+ 	"encoding/json"
+ 	"errors"
+-	"fmt"
+ 	"path/filepath"
+ 	"sync"
+ 	"time"
+@@ -107,10 +106,10 @@ func (r *CheckpointRecorder) CaptureAndWrite(
+ 	outputs CheckpointOutputPaths,
+ ) (Report, error) {
+ 	if r == nil {
+-		return Report{}, ErrCheckpointConfig
++		return Report{}, newFinalizationError("checkpoint_sequence", "invalid", ErrCheckpointConfig)
+ 	}
+ 	if outputs.JSON == "" || outputs.Markdown == "" || filepath.Clean(outputs.JSON) == filepath.Clean(outputs.Markdown) {
+-		return Report{}, ErrCheckpointOutput
++		return Report{}, newFinalizationError("write_json", "invalid_paths", ErrCheckpointOutput)
+ 	}
+ 	r.mu.Lock()
+ 	defer r.mu.Unlock()
+@@ -122,10 +121,10 @@ func (r *CheckpointRecorder) CaptureAndWrite(
+ 		return Report{}, err
+ 	}
+ 	if err := WriteReportAtomic(outputs.JSON, report, ReportFormatJSON); err != nil {
+-		return Report{}, fmt.Errorf("%w: JSON: %v", ErrCheckpointOutput, err)
++		return Report{}, newFinalizationError("write_json", "output_failed", errors.Join(ErrCheckpointOutput, err))
+ 	}
+ 	if err := WriteReportAtomic(outputs.Markdown, report, ReportFormatMarkdown); err != nil {
+-		return Report{}, fmt.Errorf("%w: Markdown: %v", ErrCheckpointOutput, err)
++		return Report{}, newFinalizationError("write_markdown", "output_failed", errors.Join(ErrCheckpointOutput, err))
+ 	}
+ 	r.aggregator = nextAggregator
+ 	r.datasetDigest = datasetDigest
+@@ -143,12 +142,12 @@ func (r *CheckpointRecorder) prepareLocked(
+ 	at = at.Round(0)
+ 	if r.closed || at.IsZero() || processElapsed < 0 || !validCheckpointEvidence(evidence) {
+ 		if !validCheckpointEvidence(evidence) {
+-			return Report{}, nil, "", false, false, ErrCheckpointEvidence
++			return Report{}, nil, "", false, false, newFinalizationError("checkpoint_evidence", "invalid_evidence", ErrCheckpointEvidence)
+ 		}
+-		return Report{}, nil, "", false, false, ErrCheckpointSequence
++		return Report{}, nil, "", false, false, newFinalizationError("checkpoint_sequence", "invalid", ErrCheckpointSequence)
+ 	}
+ 	if r.datasetDigest != "" && evidence.DatasetDigest != r.datasetDigest {
+-		return Report{}, nil, "", false, false, ErrCheckpointEvidence
++		return Report{}, nil, "", false, false, newFinalizationError("checkpoint_evidence", "dataset_mismatch", ErrCheckpointEvidence)
+ 	}
+ 
+ 	checkpointElapsed := r.cfg.Thresholds.Timeline.Checkpoint
+@@ -156,7 +155,7 @@ func (r *CheckpointRecorder) prepareLocked(
+ 	kind := CheckpointQualification
+ 	terminal := evidence.Verdict.Terminal
+ 	if r.cfg.Mode == ModeSoak && terminal && successfulVerdict(evidence.Verdict) && processElapsed < finalElapsed {
+-		return Report{}, nil, "", false, false, ErrCheckpointSequence
++		return Report{}, nil, "", false, false, newFinalizationError("checkpoint_sequence", "invalid", ErrCheckpointSequence)
+ 	}
+ 	switch {
+ 	case r.cfg.Mode == ModeCapacity && terminal:
+@@ -165,11 +164,11 @@ func (r *CheckpointRecorder) prepareLocked(
+ 		kind = CheckpointFinal
+ 	case !r.qualificationCaptured:
+ 		if processElapsed < checkpointElapsed {
+-			return Report{}, nil, "", false, false, ErrCheckpointSequence
++			return Report{}, nil, "", false, false, newFinalizationError("checkpoint_sequence", "invalid", ErrCheckpointSequence)
+ 		}
+ 		if processElapsed >= finalElapsed {
+ 			if !terminal || (r.cfg.Stage == StageFormal && evidence.Verdict.Outcome == VerdictPass) {
+-				return Report{}, nil, "", false, false, ErrCheckpointSequence
++				return Report{}, nil, "", false, false, newFinalizationError("checkpoint_sequence", "invalid", ErrCheckpointSequence)
+ 			}
+ 			kind = CheckpointFinal
+ 		} else {
+@@ -178,27 +177,27 @@ func (r *CheckpointRecorder) prepareLocked(
+ 	case terminal:
+ 		kind = CheckpointFinal
+ 	case processElapsed < finalElapsed:
+-		return Report{}, nil, "", false, false, ErrCheckpointSequence
++		return Report{}, nil, "", false, false, newFinalizationError("checkpoint_sequence", "invalid", ErrCheckpointSequence)
+ 	default:
+ 		kind = CheckpointFinal
+ 	}
+ 	if kind == CheckpointFinal && !terminal {
+-		return Report{}, nil, "", false, false, ErrCheckpointEvidence
++		return Report{}, nil, "", false, false, newFinalizationError("checkpoint_evidence", "invalid_evidence", ErrCheckpointEvidence)
+ 	}
+ 	if !validCheckpointSnapshotsForCut(
+ 		snapshots, processElapsed, kind, evidence.Verdict, evidence.Continuous && r.cfg.Mode == ModeSoak,
+ 	) {
+-		return Report{}, nil, "", false, false, ErrCheckpointEvidence
++		return Report{}, nil, "", false, false, newFinalizationError("checkpoint_evidence", "invalid_snapshot_cut", ErrCheckpointEvidence)
+ 	}
+ 
+ 	nextAggregator := cloneCheckpointAggregator(r.aggregator)
+ 	aggregated, err := nextAggregator.Aggregate(snapshots)
+ 	if err != nil {
+-		return Report{}, nil, "", false, false, err
++		return Report{}, nil, "", false, false, newFinalizationError("snapshot_aggregate", string(productionControllerSnapshotFailureReason(err)), err)
+ 	}
+ 	report := r.buildReport(kind, at, processElapsed, aggregated, evidence)
+ 	if err := validateReport(report); err != nil {
+-		return Report{}, nil, "", false, false, ErrCheckpointEvidence
++		return Report{}, nil, "", false, false, newFinalizationError("report_validation", "invalid", errors.Join(ErrCheckpointEvidence, err))
+ 	}
+ 	qualificationCaptured := r.qualificationCaptured
+ 	closed := r.closed
+diff --git a/internal/bench/chatlifecycle/coordinator.go b/internal/bench/chatlifecycle/coordinator.go
+index e4b3d96ab..f35f8608e 100644
+--- a/internal/bench/chatlifecycle/coordinator.go
++++ b/internal/bench/chatlifecycle/coordinator.go
+@@ -131,6 +131,9 @@ type CoordinatorResult struct {
+ 	// WorkerFailure retains the lowest-ID classified worker failure observed by
+ 	// a failed grant round. An empty RuntimeCode means no classification was available.
+ 	WorkerFailure CoordinatorWorkerFailure
++	// FinalizationFailure retains the rejecting stage and prior observations;
++	// it never substitutes for a valid final report or changes the outcome.
++	FinalizationFailure FinalizationFailure
+ 	// Continuation is an in-memory, process-local handoff available only after
+ 	// a passing formal Soak boundary. It is never report or restart state.
+ 	Continuation *CoordinatorContinuation
+@@ -1671,7 +1674,7 @@ observationComplete:
+ 			cancelHook()
+ 			if hookErr != nil {
+ 				c.stopAfterFailure(fence, attempted)
+-				result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeFinalize
++				result.failFinalization(hookErr, terminalDecision, "controller_unknown", "invalid")
+ 				return result
+ 			}
+ 		}
+@@ -1686,7 +1689,7 @@ observationComplete:
+ 	}
+ 	final, err := c.stopAssignedSnapshots(fence, assigned)
+ 	if err != nil {
+-		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeFinalize
++		result.failFinalization(err, terminalDecision, "worker_stop", "snapshot_unavailable")
+ 		return result
+ 	}
+ 	if c.hooks != nil {
+@@ -1697,13 +1700,13 @@ observationComplete:
+ 		})
+ 		cancelHook()
+ 		if hookErr != nil {
+-			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeFinalize
++			result.failFinalization(hookErr, terminalDecision, "controller_unknown", "invalid")
+ 			return result
+ 		}
+ 	}
+ 	aggregated, err := aggregator.Aggregate(final)
+ 	if err != nil {
+-		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeFinalize
++		result.failFinalization(err, terminalDecision, "snapshot_aggregate", string(productionControllerSnapshotFailureReason(err)))
+ 		return result
+ 	}
+ 	result.Outcome, result.Snapshot = terminalDecision, aggregated
+@@ -1718,6 +1721,15 @@ observationComplete:
+ 	return result
+ }
+ 
++// failFinalization records diagnostics while preserving the existing fail-closed
++// orchestration result. The observed decision remains separate from the verdict.
++func (r *CoordinatorResult) failFinalization(err error, decision CoordinatorOutcome, stage, reason string) {
++	r.Outcome, r.Code = CoordinatorHarnessInvalid, CoordinatorCodeFinalize
++	r.FinalizationFailure = finalizationDiagnostic(err, stage, reason)
++	r.FinalizationFailure.ObservedDecision = decision
++	r.FinalizationFailure = r.FinalizationFailure.Bounded()
++}
++
+ func lockCoordinatorTerminationReason(
+ 	ctx context.Context,
+ 	fallback CoordinatorCode,
+@@ -2307,8 +2319,18 @@ func (c *Coordinator) stopAssignedSnapshots(fence WorkerFence, assigned [coordin
+ 	wait.Wait()
+ 	snapshots := make([]WorkerSnapshot, coordinatorWorkerCount)
+ 	for workerID, result := range results {
+-		if !assigned[workerID] || result.err != nil {
+-			return nil, ErrCoordinatorSnapshotCount
++		if !assigned[workerID] {
++			return nil, newFinalizationError("worker_stop", "snapshot_unavailable", ErrCoordinatorSnapshotCount)
++		}
++		if result.err != nil {
++			reason := "control_failed"
++			switch {
++			case errors.Is(result.err, context.DeadlineExceeded):
++				reason = "deadline"
++			case errors.Is(result.err, context.Canceled):
++				reason = "canceled"
++			}
++			return nil, newFinalizationError("worker_stop", reason, errors.Join(ErrCoordinatorSnapshotCount, result.err))
+ 		}
+ 		snapshots[workerID] = result.snapshot
+ 	}
+diff --git a/internal/bench/chatlifecycle/finalize_diagnostics_test.go b/internal/bench/chatlifecycle/finalize_diagnostics_test.go
+new file mode 100644
+index 000000000..68bb3c42b
+--- /dev/null
++++ b/internal/bench/chatlifecycle/finalize_diagnostics_test.go
+@@ -0,0 +1,375 @@
++package chatlifecycle
++
++import (
++	"bytes"
++	"context"
++	"encoding/json"
++	"errors"
++	"os"
++	"path/filepath"
++	"reflect"
++	"strings"
++	"testing"
++	"time"
++)
++
++type finalizeDatasetProbe struct {
++	digest string
++	err    error
++}
++
++func (d *finalizeDatasetProbe) ProbeDatasetDigest(context.Context, Config) (string, error) {
++	return d.digest, d.err
++}
++
++type finalizeMetaProbe struct{ err error }
++
++func (m finalizeMetaProbe) Checkpoint(context.Context, []WorkerSnapshot, LifecycleSlotAssignment, bool) error {
++	return m.err
++}
++
++func newFinalizeDiagnosticFixture(t *testing.T) (*ProductionEvidenceController, CoordinatorFinalCut, *bytes.Buffer, *finalizeDatasetProbe) {
++	t.Helper()
++	cfg := LocalConfig()
++	cfg.RunID = "finalize-diagnostic-fixture"
++	start := time.Unix(1_960_155_000, 0).UTC()
++	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "private-finalize-assignment", Generation: 7}
++	accounting := NewMetaCreateAccounting()
++	dataset := &finalizeDatasetProbe{digest: hashReportValue("finalize-diagnostic-dataset")}
++	diagnostics := new(bytes.Buffer)
++	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
++		Config: cfg, OutputDir: t.TempDir(), Observation: newProductionControllerObservation(cfg, start),
++		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{
++			ProductFailures: 1, ReheatLatency: newWorkerHistogramSnapshot(),
++		}, done: make(chan struct{})},
++		Meta: &productionControllerMeta{accounting: accounting}, MetaAccounting: accounting,
++		Dataset: dataset, SlotAssignment: mustInitialLifecycleSlotAssignment(t), DiagnosticLog: diagnostics,
++	})
++	if err != nil {
++		t.Fatal(err)
++	}
++	t.Cleanup(controller.Close)
++	startCut := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
++	if err := controller.Begin(context.Background(), startCut); err != nil {
++		t.Fatal(err)
++	}
++	prepare := productionControllerWorkerSnapshots(cfg, fence, 1, time.Minute, WorkerPhaseRunning)
++	decision, err := controller.Observe(context.Background(), CoordinatorEvidenceCut{
++		Start: startCut, Kind: CoordinatorCutTerminal, At: start.Add(time.Minute), Snapshots: prepare, StopRequested: true,
++	})
++	if err != nil || decision != CoordinatorProductFailure {
++		t.Fatalf("prepare frozen product evidence = %q/%v", decision, err)
++	}
++	diagnostics.Reset()
++	return controller, CoordinatorFinalCut{
++		Start: startCut, At: start.Add(time.Minute + time.Second), Decision: decision, Prepare: prepare,
++		FinalSnapshots: productionControllerWorkerSnapshots(cfg, fence, 2, time.Minute+time.Second, WorkerPhaseFinal),
++	}, diagnostics, dataset
++}
++
++func TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation(t *testing.T) {
++	privateCause := errors.New("private uid=alice token=secret /private/path")
++	tests := []struct {
++		name, stage, reason string
++		mutate              func(*testing.T, *ProductionEvidenceController, *CoordinatorFinalCut, *finalizeDatasetProbe)
++		cause               error
++	}{
++		{"state", "controller_guard", "state", func(_ *testing.T, c *ProductionEvidenceController, _ *CoordinatorFinalCut, _ *finalizeDatasetProbe) {
++			c.closed = true
++		}, nil},
++		{"fence", "controller_guard", "fence", func(_ *testing.T, _ *ProductionEvidenceController, cut *CoordinatorFinalCut, _ *finalizeDatasetProbe) {
++			cut.Start.Fence.Generation++
++		}, nil},
++		{"time", "controller_guard", "time", func(_ *testing.T, _ *ProductionEvidenceController, cut *CoordinatorFinalCut, _ *finalizeDatasetProbe) {
++			cut.At = time.Time{}
++		}, nil},
++		{"count", "controller_guard", "snapshot_count", func(_ *testing.T, _ *ProductionEvidenceController, cut *CoordinatorFinalCut, _ *finalizeDatasetProbe) {
++			cut.FinalSnapshots = cut.FinalSnapshots[:2]
++		}, nil},
++		{"continuity", "controller_continuity", "mismatch", func(_ *testing.T, _ *ProductionEvidenceController, cut *CoordinatorFinalCut, _ *finalizeDatasetProbe) {
++			cut.Continuous = true
++		}, nil},
++		{"diagnostic_missing", "live_diagnostic", "missing", func(_ *testing.T, c *ProductionEvidenceController, _ *CoordinatorFinalCut, _ *finalizeDatasetProbe) {
++			c.diagnostics = nil
++		}, nil},
++		{"diagnostic_output", "live_diagnostic", "output_failed", func(t *testing.T, c *ProductionEvidenceController, _ *CoordinatorFinalCut, _ *finalizeDatasetProbe) {
++			c.diagnostics.path = obstructedFinalizePath(t, "status.json")
++		}, nil},
++		{"dataset_probe", "dataset", "probe_failed", func(_ *testing.T, _ *ProductionEvidenceController, _ *CoordinatorFinalCut, d *finalizeDatasetProbe) {
++			d.err = privateCause
++		}, privateCause},
++		{"dataset_mismatch", "dataset", "digest_mismatch", func(_ *testing.T, _ *ProductionEvidenceController, _ *CoordinatorFinalCut, d *finalizeDatasetProbe) {
++			d.digest = hashReportValue("different")
++		}, nil},
++		{"meta", "meta_checkpoint", "invalid", func(_ *testing.T, c *ProductionEvidenceController, _ *CoordinatorFinalCut, _ *finalizeDatasetProbe) {
++			c.meta = finalizeMetaProbe{err: privateCause}
++		}, privateCause},
++		{"json_output", "write_json", "output_failed", func(t *testing.T, c *ProductionEvidenceController, _ *CoordinatorFinalCut, _ *finalizeDatasetProbe) {
++			c.outputDir = obstructedFinalizePath(t, "reports")
++		}, nil},
++		{"markdown_output", "write_markdown", "output_failed", func(t *testing.T, c *ProductionEvidenceController, _ *CoordinatorFinalCut, _ *finalizeDatasetProbe) {
++			if err := os.Mkdir(filepath.Join(c.outputDir, "final.md"), 0o700); err != nil {
++				t.Fatal(err)
++			}
++		}, nil},
++	}
++	for _, test := range tests {
++		t.Run(test.name, func(t *testing.T) {
++			controller, cut, diagnostics, dataset := newFinalizeDiagnosticFixture(t)
++			before := controller.frozen
++			test.mutate(t, controller, &cut, dataset)
++			err := controller.Finalize(context.Background(), cut)
++			if err == nil || !errors.Is(err, errProductionController) {
++				t.Fatalf("Finalize error = %v, want production controller failure", err)
++			}
++			if test.cause != nil && !errors.Is(err, test.cause) {
++				t.Error("Finalize discarded the private underlying cause")
++			}
++			if strings.Contains(err.Error(), "private") || strings.Contains(diagnostics.String(), "private") {
++				t.Fatal("finalization diagnostics exposed private cause or identity")
++			}
++			if controller.frozen.Outcome != before.Outcome || controller.frozen.Cause != before.Cause || !controller.frozen.Terminal {
++				t.Fatalf("frozen product observation changed: %+v", controller.frozen)
++			}
++			found := false
++			for _, line := range bytes.Split(diagnostics.Bytes(), []byte{'\n'}) {
++				if len(line) == 0 {
++					continue
++				}
++				var record map[string]any
++				if err := json.Unmarshal(line, &record); err != nil {
++					t.Fatal(err)
++				}
++				if record["event"] != "wkbench.chat_lifecycle.controller_failure" {
++					continue
++				}
++				found = true
++				if record["phase"] != "finalize" || record["stage"] != test.stage || record["reason"] != test.reason ||
++					record["observed_outcome"] != string(before.Outcome) || record["observed_cause"] != string(before.Cause) || record["observed_terminal"] != true {
++					t.Fatalf("finalization diagnostic = %s", line)
++				}
++			}
++			if !found {
++				t.Errorf("missing fixed finalization diagnostic: %s", diagnostics.String())
++			}
++			if test.name == "markdown_output" {
++				if _, err := ReadReport(filepath.Join(controller.outputDir, "final.json")); err != nil {
++					t.Fatalf("existing JSON-before-Markdown semantics changed: %v", err)
++				}
++			} else if _, err := os.Stat(filepath.Join(controller.outputDir, "final.json")); err == nil {
++				t.Fatal("failed finalization invented a final report")
++			}
++		})
++	}
++}
++
++func obstructedFinalizePath(t *testing.T, leaf string) string {
++	t.Helper()
++	file := filepath.Join(t.TempDir(), "file")
++	if err := os.WriteFile(file, []byte("obstruction"), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	return filepath.Join(file, leaf)
++}
++
++func TestCheckpointFailureStagesPreserveSentinelsAndRecorderState(t *testing.T) {
++	tests := []struct {
++		name, stage, reason string
++		mutate              func(*CheckpointRecorder, *[]WorkerSnapshot, *CheckpointEvidence, *CheckpointOutputPaths)
++		cause               error
++	}{
++		{"paths", "write_json", "invalid_paths", func(_ *CheckpointRecorder, _ *[]WorkerSnapshot, _ *CheckpointEvidence, p *CheckpointOutputPaths) {
++			p.JSON = ""
++		}, ErrCheckpointOutput},
++		{"closed", "checkpoint_sequence", "invalid", func(r *CheckpointRecorder, _ *[]WorkerSnapshot, _ *CheckpointEvidence, _ *CheckpointOutputPaths) {
++			r.closed = true
++		}, ErrCheckpointSequence},
++		{"evidence", "checkpoint_evidence", "invalid_evidence", func(_ *CheckpointRecorder, _ *[]WorkerSnapshot, e *CheckpointEvidence, _ *CheckpointOutputPaths) {
++			e.TopologyValidated = false
++		}, ErrCheckpointEvidence},
++		{"dataset", "checkpoint_evidence", "dataset_mismatch", func(r *CheckpointRecorder, _ *[]WorkerSnapshot, _ *CheckpointEvidence, _ *CheckpointOutputPaths) {
++			r.datasetDigest = hashReportValue("other")
++		}, ErrCheckpointEvidence},
++		{"snapshot_cut", "checkpoint_evidence", "invalid_snapshot_cut", func(_ *CheckpointRecorder, s *[]WorkerSnapshot, _ *CheckpointEvidence, _ *CheckpointOutputPaths) {
++			(*s)[0].Uptime = 0
++		}, ErrCheckpointEvidence},
++		{"histogram", "snapshot_aggregate", "histogram_schema", func(_ *CheckpointRecorder, s *[]WorkerSnapshot, _ *CheckpointEvidence, _ *CheckpointOutputPaths) {
++			(*s)[0].Sync.ConnectLatency.Count++
++		}, ErrCoordinatorHistogramSchema},
++		{"projection", "report_validation", "invalid", func(r *CheckpointRecorder, _ *[]WorkerSnapshot, _ *CheckpointEvidence, _ *CheckpointOutputPaths) {
++			r.cfg.Workload.Topology.HashSlots = 0
++		}, ErrReportInvalid},
++	}
++	for _, test := range tests {
++		t.Run(test.name, func(t *testing.T) {
++			cfg := FormalConfig()
++			start := time.Unix(1_960_155_000, 0).UTC()
++			fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "private-assignment", Generation: 1}
++			recorder, err := NewCheckpointRecorder(cfg, fence, start)
++			if err != nil {
++				t.Fatal(err)
++			}
++			snapshots := coordinatorSnapshotFixture(fence, 1, 2*time.Second, 1)
++			evidence := checkpointEvidenceFixture(false)
++			evidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictProductFailure, Cause: VerdictCauseMessageLoss}
++			outputs := CheckpointOutputPaths{JSON: filepath.Join(t.TempDir(), "final.json"), Markdown: filepath.Join(t.TempDir(), "final.md")}
++			test.mutate(recorder, &snapshots, &evidence, &outputs)
++			if test.name == "projection" {
++				aggregator := cloneCheckpointAggregator(recorder.aggregator)
++				aggregated, err := aggregator.Aggregate(snapshots)
++				if err != nil || !validCheckpointEvidence(evidence) || validateReport(recorder.buildReport(CheckpointFinal, start.Add(time.Second), time.Second, aggregated, evidence)) == nil {
++					t.Fatal("report-only invalid projection fixture does not isolate validation")
++				}
++			}
++			beforeClosed := recorder.closed
++			_, err = recorder.CaptureAndWrite(start.Add(time.Second), snapshots, evidence, outputs)
++			if err == nil || !errors.Is(err, test.cause) {
++				t.Fatalf("error = %v, want %v", err, test.cause)
++			}
++			diagnostic := finalizationDiagnostic(err, "unknown", "unknown")
++			if diagnostic.Stage != test.stage || diagnostic.Reason != test.reason {
++				t.Errorf("failure boundary = %+v", diagnostic)
++			}
++			if recorder.closed != beforeClosed || recorder.qualificationCaptured || recorder.aggregator.seen != [3]bool{} {
++				t.Fatal("failed checkpoint committed recorder state")
++			}
++			if outputs.JSON != "" {
++				if _, err := os.Stat(outputs.JSON); err == nil {
++					t.Fatal("rejected checkpoint wrote a report")
++				}
++			}
++		})
++	}
++}
++
++func TestFinalizationDiagnosticRejectsUnboundedOrInvalidFrozenValues(t *testing.T) {
++	controller, cut, diagnostics, _ := newFinalizeDiagnosticFixture(t)
++	controller.frozen.Outcome = "private-token-outcome"
++	controller.frozen.Cause = "private-token-cause"
++	controller.closed = true
++	err := controller.Finalize(context.Background(), cut)
++	if err == nil || strings.Contains(diagnostics.String(), "private-token") {
++		t.Fatalf("unsafe frozen observation entered diagnostics: %s", diagnostics.String())
++	}
++	private := newFinalizationError("private-stage", "private-reason", errors.New("private-error"))
++	got := finalizationDiagnostic(private, "controller_unknown", "invalid")
++	if got.Stage != "controller_unknown" || got.Reason != "invalid" {
++		t.Fatalf("unbounded finalization classification = %+v", got)
++	}
++}
++
++type finalizeDiagnosticHooks struct {
++	*recordingCoordinatorRunHooks
++	err          error
++	corruptFinal bool
++}
++
++func (h *finalizeDiagnosticHooks) Finalize(_ context.Context, cut CoordinatorFinalCut) error {
++	if h.corruptFinal {
++		cut.FinalSnapshots[0].Sync.ConnectLatency.Count++
++	}
++	return h.err
++}
++
++func TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision(t *testing.T) {
++	private := errors.New("private rpc response token=secret")
++	known := &finalizationError{diagnostic: FinalizationFailure{
++		Stage: "meta_checkpoint", Reason: "invalid", ObservedOutcome: VerdictProductFailure,
++		ObservedCause: VerdictCauseMessageLoss, ObservedTerminal: true,
++	}, cause: private}
++	for _, test := range []struct {
++		name, stage, reason string
++		hookErr, stopErr    error
++		corrupt             bool
++	}{
++		{"stop", "worker_stop", "control_failed", nil, private, false},
++		{"known_hook", "meta_checkpoint", "invalid", known, nil, false},
++		{"unknown_hook", "controller_unknown", "invalid", private, nil, false},
++		{"final_aggregate", "snapshot_aggregate", "histogram_schema", nil, nil, true},
++	} {
++		t.Run(test.name, func(t *testing.T) {
++			cfg := LocalConfig()
++			configureFastCoordinatorCutoff(&cfg)
++			clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
++			started := make(chan struct{})
++			log := []string{}
++			workers := make([]CoordinatorWorker, coordinatorWorkerCount)
++			for i := range workers {
++				workers[i] = &recordingCoordinatorWorker{id: uint64(i), log: &log, grantBarrier: started}
++			}
++			workers[0].(*recordingCoordinatorWorker).stopErr = test.stopErr
++			hooks := &finalizeDiagnosticHooks{recordingCoordinatorRunHooks: newRecordingCoordinatorRunHooks(), err: test.hookErr, corruptFinal: test.corrupt}
++			hooks.terminalDecision = CoordinatorProductFailure
++			coordinator, err := NewCoordinator(CoordinatorOptions{
++				Generation: 17, Clock: clock, Workers: workers, Hooks: hooks,
++				Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
++					return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
++				}),
++				Setup: coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
++				Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
++					close(started)
++					<-ctx.Done()
++					return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
++				}),
++			})
++			if err != nil {
++				t.Fatal(err)
++			}
++			done := make(chan CoordinatorResult, 1)
++			go func() { done <- coordinator.Run(context.Background(), cfg) }()
++			<-started
++			<-clock.created
++			<-clock.created
++			clock.advance(cfg.Thresholds.Timeline.Final)
++			result := <-done
++			if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeFinalize || result.Continuation != nil {
++				t.Fatalf("finalization gate changed: %+v", result)
++			}
++			field := reflect.ValueOf(result).FieldByName("FinalizationFailure")
++			if !field.IsValid() {
++				t.Fatal("CoordinatorResult discarded finalization boundary")
++			}
++			failure := field.Interface().(FinalizationFailure)
++			body, _ := json.Marshal(failure)
++			var projection map[string]any
++			_ = json.Unmarshal(body, &projection)
++			if failure.Stage != test.stage || failure.Reason != test.reason || projection["observed_decision"] != string(CoordinatorProductFailure) {
++				t.Fatalf("finalization boundary = %s", body)
++			}
++			if test.name == "known_hook" && (failure.ObservedCause != VerdictCauseMessageLoss || !failure.ObservedTerminal) {
++				t.Fatal("known hook lost frozen product cause")
++			}
++			if strings.Contains(string(body), "private") {
++				t.Fatal("raw error leaked into coordinator result")
++			}
++			for _, suffix := range []string{"0", "1", "2"} {
++				found := false
++				for _, operation := range coordinatorTestLogSnapshot(&log) {
++					if operation == "stop-"+suffix {
++						found = true
++					}
++				}
++				if !found {
++					t.Fatalf("worker %s was not stopped", suffix)
++				}
++			}
++		})
++	}
++}
++
++func TestFinalWorkerStopPreservesPrivateCause(t *testing.T) {
++	private := errors.New("private-stop-token")
++	log := []string{}
++	workers := make([]CoordinatorWorker, 3)
++	for i := range workers {
++		workers[i] = &recordingCoordinatorWorker{id: uint64(i), log: &log, stopErr: private}
++	}
++	c := &Coordinator{workers: workers, cleanupTimeout: time.Second}
++	_, err := c.stopAssignedSnapshots(WorkerFence{}, [3]bool{true, true, true})
++	if !errors.Is(err, ErrCoordinatorSnapshotCount) || !errors.Is(err, private) {
++		t.Fatalf("stop error chain discarded cause: %v", err)
++	}
++	if strings.Contains(err.Error(), "private") {
++		t.Fatal("Stop error formatting exposed private cause")
++	}
++}
+diff --git a/internal/bench/chatlifecycle/production_controller.go b/internal/bench/chatlifecycle/production_controller.go
+index ca5477412..39bbd3625 100644
+--- a/internal/bench/chatlifecycle/production_controller.go
++++ b/internal/bench/chatlifecycle/production_controller.go
+@@ -15,6 +15,86 @@ import (
+ 
+ var errProductionController = errors.New("chat lifecycle production controller failed")
+ 
++// FinalizationFailure is a bounded diagnostic, never an alternative final report
++// or verdict. Private errors remain only in the finalization error's chain.
++type FinalizationFailure struct {
++	// Stage and Reason are projected through Bounded before external formatting.
++	Stage  string `json:"stage"`
++	Reason string `json:"reason,omitempty"`
++	// Observed fields retain prior evidence without granting report validity.
++	ObservedOutcome  VerdictOutcome     `json:"observed_outcome,omitempty"`
++	ObservedCause    VerdictCause       `json:"observed_cause,omitempty"`
++	ObservedTerminal bool               `json:"observed_terminal,omitempty"`
++	ObservedDecision CoordinatorOutcome `json:"observed_decision,omitempty"`
++}
++
++// Bounded projects only the closed finalization vocabulary and frozen verdict
++// fields. It is safe to format even when a caller supplies an unknown record.
++func (f FinalizationFailure) Bounded() FinalizationFailure {
++	if f.Stage == "" {
++		return FinalizationFailure{}
++	}
++	valid := false
++	switch f.Stage {
++	case "controller_guard":
++		valid = f.Reason == "invalid_receiver_or_context" || f.Reason == "state" || f.Reason == "fence" || f.Reason == "time" || f.Reason == "snapshot_count" || f.Reason == "terminal"
++	case "controller_continuity":
++		valid = f.Reason == "mismatch"
++	case "live_diagnostic":
++		valid = f.Reason == "missing" || f.Reason == "invalid" || f.Reason == "output_failed"
++	case "dataset":
++		valid = f.Reason == "probe_failed" || f.Reason == "digest_mismatch"
++	case "meta_checkpoint", "checkpoint_sequence", "report_validation", "controller_unknown":
++		valid = f.Reason == "invalid"
++	case "checkpoint_evidence":
++		valid = f.Reason == "invalid_evidence" || f.Reason == "dataset_mismatch" || f.Reason == "invalid_snapshot_cut"
++	case "snapshot_aggregate":
++		valid = f.Reason == "snapshot_count" || f.Reason == "snapshot_fence" || f.Reason == "snapshot_stale" || f.Reason == "histogram_schema" || f.Reason == "counter_regression" || f.Reason == "aggregate_overflow" || f.Reason == "invalid"
++	case "write_json", "write_markdown":
++		valid = f.Reason == "output_failed" || f.Reason == "invalid_paths"
++	case "worker_stop":
++		valid = f.Reason == "snapshot_unavailable" || f.Reason == "deadline" || f.Reason == "canceled" || f.Reason == "control_failed"
++	}
++	if !valid {
++		f.Stage, f.Reason = "controller_unknown", "invalid"
++	}
++	if !f.ObservedTerminal || !validVerdictOutcome(f.ObservedOutcome) || !validVerdictCause(f.ObservedCause) {
++		f.ObservedOutcome, f.ObservedCause, f.ObservedTerminal = "", "", false
++	}
++	switch f.ObservedDecision {
++	case CoordinatorCompleted, CoordinatorProductFailure, CoordinatorHarnessInvalid, CoordinatorInfrastructureFailure, CoordinatorStopped:
++	default:
++		f.ObservedDecision = ""
++	}
++	return f
++}
++
++// finalizationError keeps errors.Is/As useful without formatting private causes.
++type finalizationError struct {
++	diagnostic FinalizationFailure
++	cause      error
++}
++
++func (*finalizationError) Error() string { return "chat lifecycle finalization failed" }
++func (e *finalizationError) Unwrap() error {
++	if e == nil {
++		return nil
++	}
++	return e.cause
++}
++
++func newFinalizationError(stage, reason string, cause error) error {
++	return &finalizationError{diagnostic: FinalizationFailure{Stage: stage, Reason: reason}, cause: cause}
++}
++
++func finalizationDiagnostic(err error, stage, reason string) FinalizationFailure {
++	var failure *finalizationError
++	if errors.As(err, &failure) && failure != nil {
++		return failure.diagnostic.Bounded()
++	}
++	return FinalizationFailure{Stage: stage, Reason: reason}
++}
++
+ type productionControllerFailureStage string
+ type productionControllerFailureReason string
+ 
+@@ -400,25 +480,29 @@ func (c *ProductionEvidenceController) observeFailureReason(
+ 	reason productionControllerFailureReason,
+ 	err error,
+ ) (CoordinatorOutcome, error) {
++	c.writeFailureDiagnostic(cut.At, cut.Kind, "", FinalizationFailure{Stage: string(stage), Reason: string(reason)})
++	if err == nil {
++		err = errProductionController
++	}
++	return "", err
++}
++
++func (c *ProductionEvidenceController) writeFailureDiagnostic(at time.Time, cut CoordinatorCutKind, phase string, failure FinalizationFailure) {
+ 	if c != nil && c.diagnosticLog != nil {
+ 		record := struct {
+-			Event  string                            `json:"event"`
+-			At     time.Time                         `json:"at"`
+-			Cut    CoordinatorCutKind                `json:"cut"`
+-			Stage  productionControllerFailureStage  `json:"stage"`
+-			Reason productionControllerFailureReason `json:"reason,omitempty"`
++			Event string             `json:"event"`
++			At    time.Time          `json:"at"`
++			Cut   CoordinatorCutKind `json:"cut"`
++			Phase string             `json:"phase,omitempty"`
++			FinalizationFailure
+ 		}{
+ 			Event: "wkbench.chat_lifecycle.controller_failure",
+-			At:    cut.At, Cut: cut.Kind, Stage: stage, Reason: reason,
++			At:    at, Cut: cut, Phase: phase, FinalizationFailure: failure,
+ 		}
+ 		if body, marshalErr := json.Marshal(record); marshalErr == nil {
+ 			_, _ = c.diagnosticLog.Write(append(body, '\n'))
+ 		}
+ 	}
+-	if err == nil {
+-		err = errProductionController
+-	}
+-	return "", err
+ }
+ 
+ func productionControllerSnapshotFailureReason(err error) productionControllerFailureReason {
+@@ -529,26 +613,44 @@ func terminalCapacityVerdict(capacity CapacitySnapshot) VerdictSnapshot {
+ // Finalize joins lifecycle work, rechecks dataset/meta evidence against the
+ // final worker snapshots, and atomically writes both final formats.
+ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut CoordinatorFinalCut) error {
+-	if c == nil || ctx == nil {
+-		return errProductionController
++	if c == nil {
++		return newFinalizationError("controller_guard", "invalid_receiver_or_context", errProductionController)
+ 	}
+ 	c.mu.Lock()
+ 	defer c.mu.Unlock()
+-	if !c.begun || c.closed || cut.Start.Fence != c.start.Fence || cut.At.IsZero() ||
+-		len(cut.FinalSnapshots) != coordinatorWorkerCount || !c.frozen.Terminal {
+-		return errProductionController
++	if ctx == nil {
++		return c.finalizeFailure(cut, "controller_guard", "invalid_receiver_or_context", errProductionController)
++	}
++	switch {
++	case !c.begun || c.closed:
++		return c.finalizeFailure(cut, "controller_guard", "state", errProductionController)
++	case cut.Start.Fence != c.start.Fence:
++		return c.finalizeFailure(cut, "controller_guard", "fence", errProductionController)
++	case cut.At.IsZero():
++		return c.finalizeFailure(cut, "controller_guard", "time", errProductionController)
++	case len(cut.FinalSnapshots) != coordinatorWorkerCount:
++		return c.finalizeFailure(cut, "controller_guard", "snapshot_count", errProductionController)
++	case !c.frozen.Terminal:
++		return c.finalizeFailure(cut, "controller_guard", "terminal", errProductionController)
+ 	}
+ 	if cut.Continuous != (c.continuous && !c.continuing) {
+-		return errProductionController
++		return c.finalizeFailure(cut, "controller_continuity", "mismatch", errProductionController)
+ 	}
+-	if c.diagnostics == nil || c.diagnostics.Observe(cut.At, CoordinatorCutTerminal, cut.FinalSnapshots) != nil {
+-		return errProductionController
++	if c.diagnostics == nil {
++		return c.finalizeFailure(cut, "live_diagnostic", "missing", errProductionController)
++	}
++	if err := c.diagnostics.Observe(cut.At, CoordinatorCutTerminal, cut.FinalSnapshots); err != nil {
++		reason := "output_failed"
++		if errors.Is(err, errProductionController) {
++			reason = "invalid"
++		}
++		return c.finalizeFailure(cut, "live_diagnostic", reason, err)
+ 	}
+ 	if !cut.Continuous {
+ 		c.stopLifecycleLocked()
+ 	}
+ 	if err := c.refreshDatasetLocked(ctx); err != nil {
+-		return err
++		return c.finalizeFailure(cut, "dataset", "invalid", err)
+ 	}
+ 	beforeMeta := c.accounting.Snapshot()
+ 	hadMetaProduct := metaCreateSnapshotHasProductFailure(beforeMeta)
+@@ -557,7 +659,7 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
+ 	// harness-only reconciliation error cannot erase it or suppress the report.
+ 	metaProduct := hadMetaProduct || errors.Is(metaErr, ErrLifecycleProductFailure)
+ 	if metaErr != nil && !metaProduct {
+-		return errProductionController
++		return c.finalizeFailure(cut, "meta_checkpoint", "invalid", metaErr)
+ 	}
+ 	lifecycle := c.lifecycle.Snapshot()
+ 	current := VerdictSignal{Outcome: c.frozen.Outcome, Cause: c.frozen.Cause}
+@@ -577,7 +679,7 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
+ 	}
+ 	finalEvidence := c.checkpointEvidenceLocked(lifecycle, c.frozen, cut.Capacity)
+ 	if _, err := c.recorder.CaptureAndWrite(cut.At, cut.FinalSnapshots, finalEvidence, c.paths("final")); err != nil {
+-		return errProductionController
++		return c.finalizeFailure(cut, "checkpoint_evidence", "invalid_evidence", err)
+ 	}
+ 	if cut.Continuous {
+ 		c.awaitingCapacity = true
+@@ -587,6 +689,17 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
+ 	return nil
+ }
+ 
++// finalizeFailure preserves the primary private cause and the already-frozen
++// observation without turning incomplete finalization into a report verdict.
++func (c *ProductionEvidenceController) finalizeFailure(cut CoordinatorFinalCut, stage, reason string, cause error) error {
++	failure := finalizationDiagnostic(cause, stage, reason)
++	if c != nil && c.frozen.Terminal && validVerdictOutcome(c.frozen.Outcome) && validVerdictCause(c.frozen.Cause) && validCheckpointVerdict(c.frozen) {
++		failure.ObservedOutcome, failure.ObservedCause, failure.ObservedTerminal = c.frozen.Outcome, c.frozen.Cause, true
++	}
++	c.writeFailureDiagnostic(cut.At, CoordinatorCutTerminal, "finalize", failure)
++	return &finalizationError{diagnostic: failure, cause: errors.Join(errProductionController, cause)}
++}
++
+ // Close is idempotent and guarantees the long-running lifecycle loop is joined.
+ func (c *ProductionEvidenceController) Close() {
+ 	if c == nil {
+@@ -607,8 +720,11 @@ func (c *ProductionEvidenceController) validCut(cut CoordinatorEvidenceCut) bool
+ 
+ func (c *ProductionEvidenceController) refreshDatasetLocked(ctx context.Context) error {
+ 	digest, err := c.dataset.ProbeDatasetDigest(ctx, c.cfg)
+-	if err != nil || digest != c.datasetDigest {
+-		return errProductionController
++	if err != nil {
++		return newFinalizationError("dataset", "probe_failed", errors.Join(errProductionController, err))
++	}
++	if digest != c.datasetDigest {
++		return newFinalizationError("dataset", "digest_mismatch", errProductionController)
+ 	}
+ 	return nil
+ }

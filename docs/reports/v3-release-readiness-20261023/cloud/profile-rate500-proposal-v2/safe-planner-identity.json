@@ -1,0 +1,31 @@
+{
+  "schema": "wukongim/local500-real-planner-identity/v1",
+  "implementation": "existing LoadConfig+BuildCoordinatorAssignments(cfg,1),verbatimhashReportValue",
+  "baseline": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:f9814da7618b2c867b9e8b7e82745b2a5dd3de6cd0b04cf696f96bcc80bfcd8c",
+    "assignment_count": 3,
+    "generation": 1
+  },
+  "candidate": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc",
+    "assignment_count": 3,
+    "generation": 1
+  },
+  "parser_output_private_sha256": "18fb42f692f9d27f5ce7b53216bdccd4f3c3fe83d30315d634b3664964a95099",
+  "typed_differences": [
+    [
+      "/workload/max_global_burst",
+      4000,
+      1000
+    ],
+    [
+      "/workload/send_rate_per_second",
+      2000,
+      500
+    ]
+  ],
+  "helper_binary_sha256": "cd62c142b446c41488542f8ed8c4929ac470be3ea6fb1b874c934d6105d2af94",
+  "helper_construction_manifest_sha256": "5da67121e46fb9e542550c5a5dde7e84bf30f9edcad601b764d17e480c297081"
+}

@@ -1,0 +1,221 @@
+{
+  "schema": "wukongim/finalization-diagnostics-spec-review/v1",
+  "created_at_utc": "2026-10-22T20:50:17.998597+00:00",
+  "axis": "Spec",
+  "base_commit": "2ab3e1a8bd95670603bc38314036c797a5124682",
+  "head_commit": "73c93ac22b4a20189d7b74cf93efd9fa61b1601d",
+  "head_tree": "26067d613ec88d831af7b199f6fddb44fdb4511d",
+  "merge_base": "2ab3e1a8bd95670603bc38314036c797a5124682",
+  "worktree_clean": true,
+  "diff_command": "git diff 2ab3e1a8bd95670603bc38314036c797a5124682 73c93ac22b4a20189d7b74cf93efd9fa61b1601d",
+  "commits": [
+    "73c93ac22b4a20189d7b74cf93efd9fa61b1601d fix(bench): retain bounded finalization failure diagnostics"
+  ],
+  "findings": [
+    {
+      "priority": "P2",
+      "category": "partial_requirement",
+      "title": "Complete the approved failure-matrix coverage",
+      "locations": [
+        "internal/bench/chatlifecycle/finalize_diagnostics_test.go:76",
+        "internal/bench/chatlifecycle/finalize_diagnostics_test.go:284"
+      ],
+      "requirements": [
+        "proposal.md:37",
+        "failure-matrix.md:8",
+        "failure-matrix.md:13",
+        "failure-matrix.md:34",
+        "failure-matrix.md:39"
+      ],
+      "production_defect_claimed": false
+    }
+  ],
+  "source_files": [
+    {
+      "path": "CHANGELOG.md",
+      "base_sha256": "7ddf082b8a1560cef7e2f30a66a3e6876828538090cff72ccaca72343bff3903",
+      "head_sha256": "e9bfbe3e0969fd9952b9038cf27dfd0c01160b3ece8e68e88389852a0087f42b",
+      "bytes": 192018,
+      "matches_worktree": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+      "base_sha256": "3523188362feaaf11a06d5b1aa459adcae48957af357728e91ff76dea18a0ea9",
+      "head_sha256": "c6cc87dee283da2f68a4fbb61a3499b5fa9efb29e2fc9ca40e8517ccd84f54c2",
+      "bytes": 8173,
+      "matches_worktree": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "base_sha256": "abbfff7c6eb088c548896e4151103657327d95c92722faaff263647b25ffaa75",
+      "head_sha256": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee",
+      "bytes": 13193,
+      "matches_worktree": true
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "base_sha256": "d8188e165a55d017b68f0d5c74ba5909b1fd04d3a415a3c4dabae332a797f7ef",
+      "head_sha256": "75eaf2ffb96c02505d20419147ac158dfb45fb332556e972f6e5fad187746225",
+      "bytes": 146494,
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/checkpoint.go",
+      "base_sha256": "aea78c57780fa71013ddb27446c9ead3a528283e2b33633ee84f43c3e3aa8988",
+      "head_sha256": "fc1f96b7ccf321f55b201de916ef5a370da6a5dfb7e2e66a28c1f97e9cc3bf53",
+      "bytes": 17615,
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "base_sha256": "83e035c6120fff170d6ef798675792b8036a146b9586c2c1930c03117bf3a4d2",
+      "head_sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "bytes": 123128,
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/finalize_diagnostics_test.go",
+      "base_sha256": null,
+      "head_sha256": "3c94161e81183d9ccb3ddab245b8d32fe908e0fb4074236a70e838645fb8e880",
+      "bytes": 16920,
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "base_sha256": "fef17bdf5ade437c5c68d58cfd9a9519a2a4a875bee2097ecb84f734ce7b4dba",
+      "head_sha256": "8ed4d172ddadbc6dd3fb96134747921c563c86c38b513b92b7e73c1a245bfc42",
+      "bytes": 33591,
+      "matches_worktree": true
+    }
+  ],
+  "reviewed_context": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "matches_head": true
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "matches_head": true
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "matches_head": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "matches_head": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/live_diagnostics.go",
+      "bytes": 14768,
+      "sha256": "808d895a3735b7fa1509cdae64b43bf12f624b1bafd9bdecf4ae6fd34dca1fce",
+      "matches_head": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/report.go",
+      "bytes": 37534,
+      "sha256": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+      "matches_head": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/checkpoint_test.go",
+      "bytes": 22193,
+      "sha256": "30c1fec0714a9ab67bbb199d008eeacf66d69d15a4ed813da9f7e7b1a1de1fc1",
+      "matches_head": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator_test.go",
+      "bytes": 169173,
+      "sha256": "498761c834159043a00dda02c40544cded063e541f4fe83efe933e03e4cd33e2",
+      "matches_head": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller_test.go",
+      "bytes": 41294,
+      "sha256": "6319e3a6130b7fc5cb90acb9acc048763ba128204d797657afb56e28fd920538",
+      "matches_head": true
+    }
+  ],
+  "spec_inputs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostic-gap-proposal/proposal.md",
+      "bytes": 8737,
+      "sha256": "f939742eedc40fec710d3e115579c4b14c8901af5efb7d98921364b4dbea34bf"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostic-gap-proposal/failure-matrix.md",
+      "bytes": 7860,
+      "sha256": "1046a45cbe6cc8d0fd82d6fe1ad3d6effde29e8055da81081cc90218ecd14671"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostic-gap-proposal/review-result.json",
+      "bytes": 764,
+      "sha256": "1b4f6e5f2a3a1c06f19635c1fcd78ae05915754628d582ea2ec3bafd7490bf52"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostic-gap-proposal/source-freeze.json",
+      "bytes": 4926,
+      "sha256": "7b504492f5f1d14cb5ca229cab1b43c69801794109d483260d022b7a7e72ba39"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/failure-matrix-before-code.md",
+      "bytes": 7860,
+      "sha256": "1046a45cbe6cc8d0fd82d6fe1ad3d6effde29e8055da81081cc90218ecd14671"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/validation-summary.json",
+      "bytes": 4266,
+      "sha256": "9fcd6ac484126f9c1188409ae417fcddbf06f43c60b1920240375ffd503c591a"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/README.md",
+      "bytes": 1584,
+      "sha256": "adc50a7eb269df316e99a4aa7501df3fabaf6c12b4b651ce5d26e8cc07bace6f"
+    }
+  ],
+  "implementation_manifest": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/PUBLIC_SHA256SUMS",
+    "sha256": "9d8158a0e656c0c7051a68a8dc74057b5c6d8d97de735ce45d151b609d0c43b4",
+    "verified_entries": 19,
+    "allowlist_matches": true
+  },
+  "independently_parsed_validation": {
+    "raw_path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/full-two-packages.jsonl",
+    "raw_bytes": 1753027,
+    "raw_sha256": "84f7aaf5a3260a066d633431acf9ceee33f5130837be2bfb08102ae631331a85",
+    "top_level_passes": 864,
+    "pass_events": 1604,
+    "fail_events": 0,
+    "skip_events": 0,
+    "package_results": {
+      "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark": "pass",
+      "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle": "pass"
+    }
+  },
+  "reviewer_actions": {
+    "source_edits": false,
+    "go_build_or_test": false,
+    "workload_or_cloud": false,
+    "push_or_pr": false,
+    "other_axis_consulted": false
+  },
+  "report": {
+    "path": "spec.md",
+    "sha256": "8e6ede7cc759dbd5d35a1ace2cb39abe44d6195e0d096a240d41a85b5f26e3b3",
+    "word_count": 301
+  },
+  "missing_required_cases": {
+    "path": "missing-required-cases.json",
+    "sha256": "30bb9da9d6ee4ca5086d4e0d2ff504ba4ea3fb695b263355b9d67cca519a2c64",
+    "cases": 7,
+    "new_logging_gate_required": false
+  }
+}

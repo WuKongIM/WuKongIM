@@ -1,0 +1,11 @@
+--- FAIL: TestChatLifecycleFinalizationSummaryRetainsClosedBoundaryWithoutChangingVerdict (0.00s)
+    chat_lifecycle_run_test.go:80: summary "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=finalize grant_failure_code= worker_runtime_code= observer_code= preflight_code= report=unavailable\n" misses "finalization_stage=meta_checkpoint"
+    chat_lifecycle_run_test.go:80: summary "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=finalize grant_failure_code= worker_runtime_code= observer_code= preflight_code= report=unavailable\n" misses "finalization_reason=invalid"
+    chat_lifecycle_run_test.go:80: summary "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=finalize grant_failure_code= worker_runtime_code= observer_code= preflight_code= report=unavailable\n" misses "observed_decision=product_failure"
+    chat_lifecycle_run_test.go:80: summary "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=finalize grant_failure_code= worker_runtime_code= observer_code= preflight_code= report=unavailable\n" misses "observed_outcome=product_failure"
+    chat_lifecycle_run_test.go:80: summary "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=finalize grant_failure_code= worker_runtime_code= observer_code= preflight_code= report=unavailable\n" misses "observed_cause=message_loss"
+    chat_lifecycle_run_test.go:80: summary "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=finalize grant_failure_code= worker_runtime_code= observer_code= preflight_code= report=unavailable\n" misses "observed_terminal=true"
+    chat_lifecycle_run_test.go:88: summary exposed unbounded finalization values: "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=finalize grant_failure_code= worker_runtime_code= observer_code= preflight_code= report=unavailable\n"
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark	0.360s
+FAIL

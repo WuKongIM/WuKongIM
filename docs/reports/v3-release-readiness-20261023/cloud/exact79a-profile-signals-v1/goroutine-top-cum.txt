@@ -1,0 +1,47 @@
+File: wukongim
+Type: goroutine
+Time: 2026-10-23 04:42:11 CST
+Showing nodes accounting for 4906, 99.55% of 4928 total
+Dropped 288 nodes (cum <= 24)
+Showing top 40 nodes out of 172
+      flat  flat%   sum%        cum   cum%
+      4904 99.51% 99.51%       4904 99.51%  runtime.gopark
+         0     0% 99.51%       3232 65.58%  runtime.selectgo
+         0     0% 99.51%       2225 45.15%  runtime/pprof.Do
+         2 0.041% 99.55%       2221 45.07%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1
+         0     0% 99.55%       2219 45.03%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1
+         0     0% 99.55%       1295 26.28%  github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.*uint8]).run.func1
+         0     0% 99.55%       1130 22.93%  github.com/panjf2000/ants/v2.(*goWorker).run.func1
+         0     0% 99.55%       1000 20.29%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*OrderedSubmitter).run
+         0     0% 99.55%        948 19.24%  runtime.goparkunlock (inline)
+         0     0% 99.55%        820 16.64%  sync.(*Cond).Wait
+         0     0% 99.55%        820 16.64%  sync.runtime_notifyListWait
+         0     0% 99.55%        673 13.66%  runtime.chanrecv
+         0     0% 99.55%        664 13.47%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Client).CallOwned
+         0     0% 99.55%        664 13.47%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Call
+         0     0% 99.55%        635 12.89%  runtime.chanrecv2
+         0     0% 99.55%        604 12.26%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).CallRPC
+         0     0% 99.55%        604 12.26%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportClient).Call
+         0     0% 99.55%        604 12.26%  github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportClient).CallShard
+         0     0% 99.55%        604 12.26%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Client).Call
+         0     0% 99.55%        477  9.68%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func1
+         0     0% 99.55%        431  8.75%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).endpointsByTargetsOnce.func2
+         0     0% 99.55%        431  8.75%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.runBoundedPresenceLeaderBatches.func1 (partial-inline)
+         0     0% 99.55%        415  8.42%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).runCommit.func1
+         0     0% 99.55%        415  8.42%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).runCommit.func1.1
+         0     0% 99.55%        415  8.42%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*workerPool).submitWithCompletion.func2
+         0     0% 99.55%        415  8.42%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.commitEffect.run
+         0     0% 99.55%        415  8.42%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.dispatchCommittedRecipientsForTarget (inline)
+         0     0% 99.55%        415  8.42%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.dispatchRecipientSetResultForMode (inline)
+         0     0% 99.55%        415  8.42%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.dispatchRecipientSetResultForModeWithScratch
+         0     0% 99.55%        415  8.42%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.dispatchRecipientsForTarget
+         0     0% 99.55%        414  8.40%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.dispatchRecipientDelivery
+         0     0% 99.55%        414  8.40%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.dispatchRecipientPlans
+         0     0% 99.55%        414  8.40%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.dispatchRecipientPlans.func1
+         0     0% 99.55%        414  8.40%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).EnqueueRecipientDeliveryPlan
+         0     0% 99.55%        414  8.40%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*orderedPlanQueue).enqueue
+         0     0% 99.55%        399  8.10%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).EndpointsByTargets
+         0     0% 99.55%        320  6.49%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).Start.func1
+         0     0% 99.55%        320  6.49%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan
+         0     0% 99.55%        320  6.49%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runPlan
+         0     0% 99.55%        320  6.49%  github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).runWorker

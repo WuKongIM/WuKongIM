@@ -1,0 +1,81 @@
+{
+  "schema": "wukongim/finalization-diagnostics-validation/v1",
+  "base": "2ab3e1a8bd95670603bc38314036c797a5124682",
+  "head": "73c93ac22b4a20189d7b74cf93efd9fa61b1601d",
+  "full_command": "GOWORK=off go test -json ./internal/bench/chatlifecycle ./cmd/wkcli/internal/benchmark -count=1",
+  "full_package_pass_seconds": {
+    "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark": 8.871,
+    "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle": 15.651
+  },
+  "passed_test_events": 1604,
+  "passed_top_level_tests": 864,
+  "new_test_events": 29,
+  "new_top_level_tests": 6,
+  "failed_events": 0,
+  "skipped_events": 0,
+  "new_tests": [
+    "TestChatLifecycleFinalizationSummaryRetainsClosedBoundaryWithoutChangingVerdict",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation/state",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation/fence",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation/time",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation/count",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation/continuity",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation/diagnostic_missing",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation/diagnostic_output",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation/dataset_probe",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation/dataset_mismatch",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation/meta",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation/json_output",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation/markdown_output",
+    "TestFinalizeRecordsFailureBoundaryWithoutDiscardingProductObservation",
+    "TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/paths",
+    "TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/closed",
+    "TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/evidence",
+    "TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/dataset",
+    "TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/snapshot_cut",
+    "TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/histogram",
+    "TestCheckpointFailureStagesPreserveSentinelsAndRecorderState/projection",
+    "TestCheckpointFailureStagesPreserveSentinelsAndRecorderState",
+    "TestFinalizationDiagnosticRejectsUnboundedOrInvalidFrozenValues",
+    "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/stop",
+    "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/known_hook",
+    "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/unknown_hook",
+    "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/final_aggregate",
+    "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision",
+    "TestFinalWorkerStopPreservesPrivateCause"
+  ],
+  "diff_check": "passed",
+  "test_first_slices": [
+    {
+      "slice": 1,
+      "red": "slice1-red.log",
+      "red_kind": "12 behavioral finalization boundary failures, including private dataset/meta cause loss",
+      "intermediate_failure": "slice1-green.log (unused fmt import)",
+      "green": "slice1-green2.log"
+    },
+    {
+      "slice": 2,
+      "initial_fixture_failure": "slice2-red.log (bool versus [3]bool assertion)",
+      "red": "slice2-red2.log",
+      "red_kind": "7 recorder boundaries and invalid frozen-value leakage",
+      "green": "slice2-green.log"
+    },
+    {
+      "slice": 3,
+      "red": "slice3-red.log",
+      "red_kind": "four discarded coordinator finalization boundaries plus private Stop cause loss",
+      "green": "slice3-green.log"
+    },
+    {
+      "slice": 4,
+      "red": "slice4-red.log",
+      "extended_red": "slice4-red2.log",
+      "red_kind": "missing closed summary fields on unavailable/report projection and missing bounded fallback",
+      "green": "slice4-green.log"
+    }
+  ],
+  "service_or_cloud_started": false,
+  "new_load_started": false,
+  "push_pr_merge": false,
+  "provenance_note": "Source-only diagnostics. Does not identify the historical B128 failure branch or original cloud message-loss root cause."
+}

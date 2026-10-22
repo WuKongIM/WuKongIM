@@ -1,0 +1,208 @@
+{
+  "schema": "wukongim/finalization-spec-round2/v1",
+  "created_at_utc": "2026-10-22T21:04:37.674374+00:00",
+  "axis": "Spec",
+  "base": "2ab3e1a8bd95670603bc38314036c797a5124682",
+  "previous_head": "73c93ac22b4a20189d7b74cf93efd9fa61b1601d",
+  "head": "3d243bccc8caed21a8719071ad7c1883156713c2",
+  "tree": "763f8432135e6b94df28451a43a4a635c7aba2a0",
+  "direct_parent_verified": true,
+  "worktree_clean": true,
+  "commits": [
+    "73c93ac22b4a20189d7b74cf93efd9fa61b1601d fix(bench): retain bounded finalization failure diagnostics",
+    "3d243bccc8caed21a8719071ad7c1883156713c2 test(bench): complete finalization diagnostic failure coverage"
+  ],
+  "full_diff_command": "git diff 2ab3e1a8bd95670603bc38314036c797a5124682 3d243bccc8caed21a8719071ad7c1883156713c2",
+  "incremental_diff_command": "git diff 73c93ac22b4a20189d7b74cf93efd9fa61b1601d 3d243bccc8caed21a8719071ad7c1883156713c2",
+  "source_files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 192018,
+      "sha256": "e9bfbe3e0969fd9952b9038cf27dfd0c01160b3ece8e68e88389852a0087f42b",
+      "matches_worktree": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+      "bytes": 8173,
+      "sha256": "c6cc87dee283da2f68a4fbb61a3499b5fa9efb29e2fc9ca40e8517ccd84f54c2",
+      "matches_worktree": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "bytes": 13193,
+      "sha256": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee",
+      "matches_worktree": true
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 147049,
+      "sha256": "1dbd3f7fdc393236a378a9f62698f091d098e30b14ac079be10ede71a1ce7308",
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/checkpoint.go",
+      "bytes": 17615,
+      "sha256": "fc1f96b7ccf321f55b201de916ef5a370da6a5dfb7e2e66a28c1f97e9cc3bf53",
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "bytes": 123128,
+      "sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/finalize_diagnostics_test.go",
+      "bytes": 22813,
+      "sha256": "2a27392c2f70d9315a5f3b7ed93a31ba5394f8f9229adc0d52526a0bdd768ae3",
+      "matches_worktree": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "bytes": 33591,
+      "sha256": "8ed4d172ddadbc6dd3fb96134747921c563c86c38b513b92b7e73c1a245bfc42",
+      "matches_worktree": true
+    }
+  ],
+  "production_byte_identity": [
+    {
+      "path": "internal/bench/chatlifecycle/checkpoint.go",
+      "sha256": "fc1f96b7ccf321f55b201de916ef5a370da6a5dfb7e2e66a28c1f97e9cc3bf53",
+      "matches_prior_review_and_new_head": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "matches_prior_review_and_new_head": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "sha256": "8ed4d172ddadbc6dd3fb96134747921c563c86c38b513b92b7e73c1a245bfc42",
+      "matches_prior_review_and_new_head": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "sha256": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee",
+      "matches_prior_review_and_new_head": true
+    }
+  ],
+  "review_fix_manifest": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/PUBLIC_SHA256SUMS",
+    "sha256": "58dcb8c05dfca232af1415f1f6e0f403c0c4516be155cc60c2760022fa7fc733",
+    "verified_entries": 12
+  },
+  "prior_manifest": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review/spec/SHA256SUMS",
+    "sha256": "0c6f9497d711654c2887a10eacf318580ae0eb26a006b4fb9d536520dfe2f33d"
+  },
+  "validation": {
+    "raw_sha256": "7574bf81f64fe3dfe7bb94dcea7061c2ed87e879763bab0e89c1a9977b093245",
+    "top_level_passes": 866,
+    "pass_events": 1613,
+    "fail_events": 0,
+    "skip_events": 0,
+    "required_cases_passed": [
+      "TestFinalizeGuardDiagnosticsDoNotInventTerminalEvidence/nil_receiver",
+      "TestFinalizeGuardDiagnosticsDoNotInventTerminalEvidence/nil_context",
+      "TestFinalizeGuardDiagnosticsDoNotInventTerminalEvidence/not_terminal",
+      "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/continuous_known_hook",
+      "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/continuous_unknown_hook",
+      "TestFinalizeDiagnosticLogFailureDoesNotReplacePrimaryCause/write_error",
+      "TestFinalizeDiagnosticLogFailureDoesNotReplacePrimaryCause/short_write"
+    ],
+    "focused_pass_events": 14,
+    "package_results": {
+      "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark": "pass",
+      "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle": "pass"
+    },
+    "failed_fixture_attempts": [
+      {
+        "path": "focused-first-run.jsonl",
+        "failed_target_cases": [
+          "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/continuous_known_hook",
+          "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/continuous_unknown_hook"
+        ],
+        "classification": "fixture rejected before Finalize; not product RED"
+      },
+      {
+        "path": "focused-after-fixture-repair.jsonl",
+        "failed_target_cases": [
+          "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/continuous_known_hook",
+          "TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/continuous_unknown_hook"
+        ],
+        "classification": "fixture rejected before Finalize; not product RED"
+      }
+    ]
+  },
+  "authorized_knowledge_evidence": {
+    "build_scopes": [
+      {
+        "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-v1",
+        "manifest_sha256": "7ee1a801a5e324ba4bb126bce37a5404f8355c6dabf6ba78b7564772a9e2b413",
+        "verified_entries": 53
+      },
+      {
+        "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-79a-cloud-flags-v1",
+        "manifest_sha256": "20d0d2b07d94e02ccf97771575b29997386d37147344626a1c74873739d0058f",
+        "verified_entries": 23
+      }
+    ],
+    "toolchain_source": {
+      "path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/cmd/go/internal/vcs/vcs.go",
+      "bytes": 40858,
+      "sha256": "a1c40768fd2ad50b345ab83e621107c82feb2dcdaf2e1ac2bb8ccc7b10bd0d6f",
+      "verified_lines": [
+        "217-219: .git root must be a directory",
+        "582-642: ancestor search checks expected root type"
+      ]
+    },
+    "retained_linux_identity_records": [
+      {
+        "platform": "linux-amd64",
+        "binary": "wukongim",
+        "sha256": "99469fc9ab58c6180c909ccef65b2fdb8ad8fc9f0b91161292bda9b69b0eed00",
+        "bytes": 68186260,
+        "linkflags": "-s -w -buildid=",
+        "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "compiler": "go1.25.11",
+        "CGO_ENABLED": 0,
+        "trimpath": true,
+        "cloud_sha256": "99469fc9ab58c6180c909ccef65b2fdb8ad8fc9f0b91161292bda9b69b0eed00",
+        "cloud_byte_equal": true
+      },
+      {
+        "platform": "linux-amd64",
+        "binary": "wkcli",
+        "sha256": "43dd65554569ef29596d5a21349f0a3e08c4093652413afbd2f654f1856c884b",
+        "bytes": 42950804,
+        "linkflags": "-s -w -buildid=",
+        "source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+        "compiler": "go1.25.11",
+        "CGO_ENABLED": 0,
+        "trimpath": true,
+        "cloud_sha256": "43dd65554569ef29596d5a21349f0a3e08c4093652413afbd2f654f1856c884b",
+        "cloud_byte_equal": true
+      }
+    ],
+    "native_mac_linux_performance_claimed": false
+  },
+  "findings": {
+    "previous_closed": 1,
+    "open": 0
+  },
+  "report": {
+    "path": "spec.md",
+    "sha256": "1714be73c15093e162a95d174bdd527a884bca4cb6dff3efd9a2ceb9bd5d351c",
+    "words": 298
+  },
+  "closure": {
+    "path": "case-closure.json",
+    "sha256": "38c55b1241d57e0be9b239dff2afca11216eb90a92d2a848d4807307bbc6590a"
+  },
+  "reviewer_actions": {
+    "source_edits": false,
+    "go_build_or_test": false,
+    "services_or_cloud": false,
+    "other_axis_consulted": false
+  }
+}

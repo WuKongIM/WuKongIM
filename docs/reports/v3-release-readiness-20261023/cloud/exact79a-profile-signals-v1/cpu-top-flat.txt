@@ -1,0 +1,48 @@
+File: wukongim
+Type: cpu
+Time: 2026-10-23 04:42:06 CST
+Duration: 10.13s, Total samples = 4.21s (41.56%)
+Showing nodes accounting for 3.58s, 85.04% of 4.21s total
+Dropped 523 nodes (cum <= 0.02s)
+Showing top 40 nodes out of 299
+      flat  flat%   sum%        cum   cum%
+     1.08s 25.65% 25.65%      1.08s 25.65%  syscall.syscallX
+     0.61s 14.49% 40.14%      0.61s 14.49%  syscall.syscall
+     0.39s  9.26% 49.41%      0.39s  9.26%  runtime.madvise
+     0.32s  7.60% 57.01%      0.32s  7.60%  syscall.syscall6
+     0.21s  4.99% 62.00%      0.21s  4.99%  runtime.kevent
+     0.21s  4.99% 66.98%      0.21s  4.99%  runtime.memclrNoHeapPointers
+     0.12s  2.85% 69.83%      0.12s  2.85%  runtime.memmove
+     0.10s  2.38% 72.21%      0.10s  2.38%  runtime.pthread_cond_wait
+     0.07s  1.66% 73.87%      0.07s  1.66%  cmpbody
+     0.06s  1.43% 75.30%      0.16s  3.80%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel
+     0.05s  1.19% 76.48%      0.05s  1.19%  runtime.duffcopy
+     0.05s  1.19% 77.67%      0.07s  1.66%  runtime.findObject
+     0.05s  1.19% 78.86%      0.21s  4.99%  runtime.scanobject
+     0.04s  0.95% 79.81%      0.04s  0.95%  runtime.usleep
+     0.03s  0.71% 80.52%      0.06s  1.43%  runtime.(*mspan).typePointersOfUnchecked
+     0.03s  0.71% 81.24%      0.03s  0.71%  runtime.fcntl
+     0.03s  0.71% 81.95%      0.03s  0.71%  runtime.gopark
+     0.03s  0.71% 82.66%      0.03s  0.71%  runtime.pthread_cond_signal
+     0.02s  0.48% 83.14%      0.03s  0.71%  runtime.(*mspan).heapBitsSmallForAddr
+     0.02s  0.48% 83.61%      0.03s  0.71%  runtime.greyobject
+     0.01s  0.24% 83.85%      0.08s  1.90%  bytes.Compare
+     0.01s  0.24% 84.09%      0.03s  0.71%  github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.dispatchSubscriberSnapshot
+     0.01s  0.24% 84.32%      0.25s  5.94%  github.com/panjf2000/gnet/v2/pkg/netpoll.(*Poller).Polling
+     0.01s  0.24% 84.56%      0.06s  1.43%  runtime.(*mcentral).cacheSpan
+     0.01s  0.24% 84.80%      0.25s  5.94%  runtime.gcDrain
+     0.01s  0.24% 85.04%      0.08s  1.90%  runtime.mallocgcSmallNoscan
+         0     0% 85.04%      0.03s  0.71%  context.removeChild
+         0     0% 85.04%      0.03s  0.71%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).debugBearerMiddleware.func2
+         0     0% 85.04%      0.03s  0.71%  github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).restoreMaintenanceMiddleware.func3
+         0     0% 85.04%      0.03s  0.71%  github.com/WuKongIM/WuKongIM/internal/access/api.New.openCORSMiddleware.func1
+         0     0% 85.04%      0.08s  1.90%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*Handler).writeSendack
+         0     0% 85.04%      0.09s  2.14%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func1
+         0     0% 85.04%      0.08s  1.90%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func1.1
+         0     0% 85.04%      0.10s  2.38%  github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func2
+         0     0% 85.04%      0.03s  0.71%  github.com/WuKongIM/WuKongIM/internal/access/gateway.gatewayPresenceSession.WriteDelivery
+         0     0% 85.04%      0.08s  1.90%  github.com/WuKongIM/WuKongIM/internal/access/gateway.writeSendack
+         0     0% 85.04%      0.04s  0.95%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).HandlePresenceAuthorityRPC
+         0     0% 85.04%      0.04s  0.95%  github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).handlePresenceEndpointsByTargets
+         0     0% 85.04%      0.08s  1.90%  github.com/WuKongIM/WuKongIM/internal/app.nodeRPCHandlerFunc.HandleRPC
+         0     0% 85.04%      0.05s  1.19%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceDirectoryAuthority).EndpointsByTargets

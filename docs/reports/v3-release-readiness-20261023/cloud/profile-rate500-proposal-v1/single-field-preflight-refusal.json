@@ -1,0 +1,25 @@
+{
+  "schema": "wukongim/rate500-single-field-preflight-refusal/v1",
+  "at_utc": "2026-10-22T20:59:25.145486+00:00",
+  "product_started": false,
+  "workload_started": false,
+  "new_product_or_cli_builds": 0,
+  "candidate_yaml_sha256": "55edc14a87c2319bc7a95437990f8b680e4f97b210814e763059b0c36f197ee1",
+  "only_requested_change": {
+    "workload.send_rate_per_second": [
+      2000,
+      500
+    ]
+  },
+  "real_LoadConfig_error": "workload.max_global_burst: must equal burst_credit times send_rate_per_second",
+  "source_path": "internal/bench/chatlifecycle/validation_workload.go",
+  "source_lines": [
+    81,
+    82
+  ],
+  "source_sha256": "2f00dbc46081f052791076d28f40a135f9d10a746419f4ad5d05323151636aab",
+  "required_relationship": "MaxGlobalBurst = BurstCredit_seconds * SendRatePerSecond;2s*500=1000, original4000 invalid",
+  "requested_resolution": "Root decision needed for explicitly documented derived burst4000\u21921000 in separate candidate; preserve original one-field refusal",
+  "hash_result": "not generated for invalid candidate; no fabricated run/assignment fence",
+  "test_log_note": "GREEN-parser.log filename was the attempted green run but contains actual FAIL; no pass is claimed for invalid one-field candidate"
+}

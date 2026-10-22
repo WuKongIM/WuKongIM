@@ -1,0 +1,167 @@
+{
+  "goroutine": {
+    "file_sha256": "42c8ab9392acfce1b53dbbba0360ed298a68ee04e93d73abd4de4455aa78e697",
+    "bytes": 25282,
+    "time_utc": "2026-10-22T20:42:11.818699000Z",
+    "time_unix_nanos": "1792701731818699000",
+    "duration_nanos": "0",
+    "end_utc": "2026-10-22T20:42:11.818699000Z",
+    "period": 1,
+    "types": [
+      {
+        "type": "goroutine",
+        "unit": "count"
+      }
+    ]
+  },
+  "cpu": {
+    "file_sha256": "e0c3d01ea942953e3f7b84465cf52cd4783c3b5db47c237994522db29058af96",
+    "bytes": 42936,
+    "time_utc": "2026-10-22T20:42:06.791800000Z",
+    "time_unix_nanos": "1792701726791800000",
+    "duration_nanos": "10129369000",
+    "end_utc": "2026-10-22T20:42:16.921169000Z",
+    "period": 10000000,
+    "types": [
+      {
+        "type": "samples",
+        "unit": "count"
+      },
+      {
+        "type": "cpu",
+        "unit": "nanoseconds"
+      }
+    ]
+  },
+  "total_goroutine_count": 4928,
+  "distinct_aggregated_stacks": 156,
+  "category_counts_overlapping": {
+    "delivery_plan_enqueue": 414,
+    "permission_cohort": 282,
+    "transport_call": 664,
+    "delivery_plan_processing": 321,
+    "presence_recover_page": 206,
+    "slot_read_barrier": 212,
+    "slot_apply": 7,
+    "presence_owner_recovery": 2,
+    "presence_owner_read": 2,
+    "storage_coordinator_run": 2,
+    "storage_publish_wait": 3
+  },
+  "selected_matching_line_counts": [
+    {
+      "category": "delivery_plan_enqueue",
+      "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*orderedPlanQueue).enqueue",
+      "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/plan_queue.go",
+      "line": 81,
+      "count": 414
+    },
+    {
+      "category": "permission_cohort",
+      "function": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadSendPermissionMetadataBatch",
+      "file": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy/send_permission_cohort.go",
+      "line": 187,
+      "count": 230
+    },
+    {
+      "category": "transport_call",
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Call",
+      "file": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn/conn.go",
+      "line": 207,
+      "count": 664
+    },
+    {
+      "category": "delivery_plan_processing",
+      "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan",
+      "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+      "line": 521,
+      "count": 313
+    },
+    {
+      "category": "presence_recover_page",
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+      "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/recovery.go",
+      "line": 132,
+      "count": 204
+    },
+    {
+      "category": "slot_read_barrier",
+      "function": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).readBarrier",
+      "file": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft/read_barrier.go",
+      "line": 96,
+      "count": 212
+    },
+    {
+      "category": "permission_cohort",
+      "function": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadSendPermissionMetadataBatch.func3",
+      "file": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy/send_permission_cohort.go",
+      "line": 184,
+      "count": 52
+    },
+    {
+      "category": "slot_apply",
+      "function": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).runApplyTask",
+      "file": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft/apply_pipeline.go",
+      "line": 361,
+      "count": 7
+    },
+    {
+      "category": "delivery_plan_processing",
+      "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan.func1",
+      "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+      "line": 574,
+      "count": 8
+    },
+    {
+      "category": "delivery_plan_processing",
+      "function": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery.(*Runtime).processPlan",
+      "file": "github.com/WuKongIM/WuKongIM/internal/runtime/delivery/runtime.go",
+      "line": 595,
+      "count": 7
+    },
+    {
+      "category": "presence_owner_read",
+      "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage",
+      "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence_recovery.go",
+      "line": 182,
+      "count": 1
+    },
+    {
+      "category": "presence_owner_recovery",
+      "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).RecoverRoutesByTargets",
+      "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence_recovery.go",
+      "line": 106,
+      "count": 2
+    },
+    {
+      "category": "presence_recover_page",
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+      "file": "github.com/WuKongIM/WuKongIM/internal/usecase/presence/recovery.go",
+      "line": 167,
+      "count": 2
+    },
+    {
+      "category": "presence_owner_read",
+      "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage",
+      "file": "github.com/WuKongIM/WuKongIM/internal/infra/cluster/presence_recovery.go",
+      "line": 196,
+      "count": 1
+    },
+    {
+      "category": "storage_publish_wait",
+      "function": "github.com/cockroachdb/pebble/v2.(*commitPipeline).publish",
+      "file": "github.com/cockroachdb/pebble/v2@v2.1.4/commit.go",
+      "line": 492,
+      "count": 3
+    },
+    {
+      "category": "storage_coordinator_run",
+      "function": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+      "file": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit/coordinator.go",
+      "line": 413,
+      "count": 2
+    }
+  ],
+  "selected_stack_count": 19,
+  "scope": "one node, one point; counts are not elapsed/off-CPU durations; overlapping categories must not be added"
+}

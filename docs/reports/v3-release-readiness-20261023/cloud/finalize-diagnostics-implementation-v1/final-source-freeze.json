@@ -1,0 +1,58 @@
+{
+  "schema": "wukongim/finalization-diagnostics-source-freeze/v1",
+  "base": "2ab3e1a8bd95670603bc38314036c797a5124682",
+  "head": "73c93ac22b4a20189d7b74cf93efd9fa61b1601d",
+  "tree": "26067d613ec88d831af7b199f6fddb44fdb4511d",
+  "worktree_clean": true,
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "base_sha256": "7ddf082b8a1560cef7e2f30a66a3e6876828538090cff72ccaca72343bff3903",
+      "head_sha256": "e9bfbe3e0969fd9952b9038cf27dfd0c01160b3ece8e68e88389852a0087f42b",
+      "head_bytes": 192018
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_run_test.go",
+      "base_sha256": "3523188362feaaf11a06d5b1aa459adcae48957af357728e91ff76dea18a0ea9",
+      "head_sha256": "c6cc87dee283da2f68a4fbb61a3499b5fa9efb29e2fc9ca40e8517ccd84f54c2",
+      "head_bytes": 8173
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "base_sha256": "abbfff7c6eb088c548896e4151103657327d95c92722faaff263647b25ffaa75",
+      "head_sha256": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee",
+      "head_bytes": 13193
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "base_sha256": "d8188e165a55d017b68f0d5c74ba5909b1fd04d3a415a3c4dabae332a797f7ef",
+      "head_sha256": "75eaf2ffb96c02505d20419147ac158dfb45fb332556e972f6e5fad187746225",
+      "head_bytes": 146494
+    },
+    {
+      "path": "internal/bench/chatlifecycle/checkpoint.go",
+      "base_sha256": "aea78c57780fa71013ddb27446c9ead3a528283e2b33633ee84f43c3e3aa8988",
+      "head_sha256": "fc1f96b7ccf321f55b201de916ef5a370da6a5dfb7e2e66a28c1f97e9cc3bf53",
+      "head_bytes": 17615
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "base_sha256": "83e035c6120fff170d6ef798675792b8036a146b9586c2c1930c03117bf3a4d2",
+      "head_sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "head_bytes": 123128
+    },
+    {
+      "path": "internal/bench/chatlifecycle/finalize_diagnostics_test.go",
+      "base_sha256": null,
+      "head_sha256": "3c94161e81183d9ccb3ddab245b8d32fe908e0fb4074236a70e838645fb8e880",
+      "head_bytes": 16920
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "base_sha256": "fef17bdf5ade437c5c68d58cfd9a9519a2a4a875bee2097ecb84f734ce7b4dba",
+      "head_sha256": "8ed4d172ddadbc6dd3fb96134747921c563c86c38b513b92b7e73c1a245bfc42",
+      "head_bytes": 33591
+    }
+  ],
+  "applicable_rule_freeze": "source-rule-freeze.json"
+}

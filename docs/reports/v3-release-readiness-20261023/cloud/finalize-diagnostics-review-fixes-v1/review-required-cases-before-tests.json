@@ -1,0 +1,44 @@
+{
+  "schema": "wukongim/finalization-spec-missing-cases/v1",
+  "reviewed_head": "73c93ac22b4a20189d7b74cf93efd9fa61b1601d",
+  "finding_count": 1,
+  "cases": [
+    {
+      "matrix_line": 8,
+      "case": "nil controller receiver",
+      "expected": "controller_guard/invalid_receiver_or_context; original rejection and no invented observation"
+    },
+    {
+      "matrix_line": 8,
+      "case": "nil context on existing controller",
+      "expected": "controller_guard/invalid_receiver_or_context; original rejection and safe bounded observation"
+    },
+    {
+      "matrix_line": 13,
+      "case": "frozen.Terminal false",
+      "expected": "controller_guard/terminal; no fabricated terminal outcome/cause"
+    },
+    {
+      "matrix_line": 34,
+      "case": "known classified hook failure at continuous finalize site",
+      "expected": "bounded details retained; harness_invalid/finalize; exact workers cleaned up; no continuation"
+    },
+    {
+      "matrix_line": 34,
+      "case": "unknown private hook error at continuous finalize site",
+      "expected": "controller_unknown/invalid; no private text; exact workers cleaned up; no continuation"
+    },
+    {
+      "matrix_line": 39,
+      "case": "DiagnosticLog.Write returns error while Finalize already rejects",
+      "expected": "best-effort write does not replace primary rejection/private cause, change verdict, or add a new gate"
+    },
+    {
+      "matrix_line": 39,
+      "case": "DiagnosticLog.Write returns short write while Finalize already rejects",
+      "expected": "best-effort write does not replace primary rejection/private cause, change verdict, add retry or add a new gate"
+    }
+  ],
+  "coverage_basis": "Read new failure tables and searched existing chatlifecycle/CLI benchmark tests; filesystem status/report obstruction differs from diagnostic-log writer rejection. This is a finite actionable omission list, not a claim that every other matrix combination is exhaustively tested.",
+  "production_behavior_defect_claimed": false
+}

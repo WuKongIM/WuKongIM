@@ -1,0 +1,1123 @@
+{
+  "schema": "wukongim/readiness-public-archive-copy-batch/v1",
+  "batch": 10,
+  "status": "copied_and_verified_before_exact_staging",
+  "started_at_utc": "2026-10-22T21:11:37.870336+00:00",
+  "finished_at_utc": "2026-10-22T21:11:37.988916+00:00",
+  "authorization_plan": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/archive-batch10-preflight/plan.json",
+    "bytes": 41569,
+    "sha256": "03ea2e8eccaa685826e7eb3df9ae472cb0aac0abee7c5be49e65260ca3315fc6"
+  },
+  "source_files": 99,
+  "source_bytes": 4525906,
+  "source_groups": [
+    {
+      "name": "exact79a-profile-signals-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 1472,
+        "sha256": "0b220bbd305d812d305ea8422a0fa3c121c2a8ce349cfdf63ddf561dd6051552"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST.txt",
+        "bytes": 350,
+        "sha256": "7de236fedf3a8111406790bc172e7f44448eb13234749f4c00d9a114dfc22175"
+      },
+      "source_allowlist_entries": 17,
+      "source_manifest_entries_verified": 17,
+      "allowlist_lists_itself": true,
+      "manifest_contains_allowlist": true,
+      "selected_files": 19,
+      "selected_bytes": 734981,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "exact79a-profile-signals-v1/rpc-executor-starvation-check",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 240,
+        "sha256": "00f06a517ac08e114ca12cb65369bfb7bf808061a0ee6cd9e7c3c133e4841785"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST.txt",
+        "bytes": 42,
+        "sha256": "bb8156c9be8dec89ea11e2fff0708375660800d0601946c02de4787ba3246048"
+      },
+      "source_allowlist_entries": 3,
+      "source_manifest_entries_verified": 3,
+      "allowlist_lists_itself": true,
+      "manifest_contains_allowlist": true,
+      "selected_files": 5,
+      "selected_bytes": 9426,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "finalize-diagnostics-implementation-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 1599,
+        "sha256": "9d8158a0e656c0c7051a68a8dc74057b5c6d8d97de735ce45d151b609d0c43b4"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 328,
+        "sha256": "2dc4cb5c51d3ea26aec2ec49e208496e5fc6a6192f96ecd59978621d1e9cb07f"
+      },
+      "source_allowlist_entries": 18,
+      "source_manifest_entries_verified": 19,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": true,
+      "selected_files": 20,
+      "selected_bytes": 1834311,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "finalize-diagnostics-review/spec",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review/spec",
+      "source_manifest": {
+        "path": "SHA256SUMS",
+        "bytes": 336,
+        "sha256": "0c6f9497d711654c2887a10eacf318580ae0eb26a006b4fb9d536520dfe2f33d"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 55,
+        "sha256": "6235273dd3a881139b7015dea1f863f326cd8c9e036b67f09c58536b27cb1f0b"
+      },
+      "source_allowlist_entries": 3,
+      "source_manifest_entries_verified": 4,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": true,
+      "selected_files": 5,
+      "selected_bytes": 13440,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "finalize-diagnostics-review-fixes-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 1106,
+        "sha256": "58dcb8c05dfca232af1415f1f6e0f403c0c4516be155cc60c2760022fa7fc733"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 297,
+        "sha256": "527aefd620cab7bcb4544d1c5613f4f2e2cd83cd1b4a4ff53230e6e487a6372c"
+      },
+      "source_allowlist_entries": 11,
+      "source_manifest_entries_verified": 12,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": true,
+      "selected_files": 13,
+      "selected_bytes": 1850126,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "finalize-diagnostics-review-round2/spec",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-round2/spec",
+      "source_manifest": {
+        "path": "SHA256SUMS",
+        "bytes": 326,
+        "sha256": "b8fc3de87ba044ecb939b5099b8479d9f56d86653f38809070f64a9e43766e00"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 45,
+        "sha256": "ff1a22e1be75547fe973d1857418db4df88e11782dbbe6c236d537dadb8cd808"
+      },
+      "source_allowlist_entries": 3,
+      "source_manifest_entries_verified": 4,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": true,
+      "selected_files": 5,
+      "selected_bytes": 14019,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "profile-rate500-proposal-v1",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 887,
+        "sha256": "5da67121e46fb9e542550c5a5dde7e84bf30f9edcad601b764d17e480c297081"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 227,
+        "sha256": "1bb9243067e64cccf959b638b44e50d80b84c708db10304d66ef705d3c30a47a"
+      },
+      "source_allowlist_entries": 10,
+      "source_manifest_entries_verified": 10,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 12,
+      "selected_bytes": 17610,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "profile-rate500-proposal-v2",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2",
+      "source_manifest": {
+        "path": "PUBLIC_SHA256SUMS",
+        "bytes": 1259,
+        "sha256": "fc7c92a97ad56000cf431116a7dd82228fb2e0508ddea830f9011e217822f643"
+      },
+      "source_allowlist": {
+        "path": "PUBLIC_ALLOWLIST",
+        "bytes": 335,
+        "sha256": "51f80b45a0a335a2169fdf8ce8ae58db1fafab86eeb14fd3f89aa35335fcf07e"
+      },
+      "source_allowlist_entries": 14,
+      "source_manifest_entries_verified": 14,
+      "allowlist_lists_itself": false,
+      "manifest_contains_allowlist": false,
+      "selected_files": 16,
+      "selected_bytes": 29901,
+      "recursive_inclusion": false
+    },
+    {
+      "name": "finalize-diagnostics-review/standards",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review/standards",
+      "source_manifest": null,
+      "source_allowlist": null,
+      "selection_contract": "Exact two parent-named standards report/source-hash files; no recursive selection or invented source manifest.",
+      "selected_files": 2,
+      "selected_bytes": 9903
+    },
+    {
+      "name": "finalize-diagnostics-review-round2/standards",
+      "source_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-round2/standards",
+      "source_manifest": null,
+      "source_allowlist": null,
+      "selection_contract": "Exact two parent-named standards report/source-hash files; no recursive selection or invented source manifest.",
+      "selected_files": 2,
+      "selected_bytes": 12189
+    }
+  ],
+  "copied": [
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/decode_selected.py",
+      "target_relative": "cloud/exact79a-profile-signals-v1/decode_selected.py",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/decode_selected.py",
+      "bytes": 5218,
+      "sha256": "db1aada2183b8dd72613c800e1618557ce22e1ad25e252e8631aea1a29e7cee8"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/classify_selected.py",
+      "target_relative": "cloud/exact79a-profile-signals-v1/classify_selected.py",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/classify_selected.py",
+      "bytes": 3020,
+      "sha256": "b5280de003ca19b19fd82d0c4921860a6612000b6b95826ec9464a3610ed72d5"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/metrics.py",
+      "target_relative": "cloud/exact79a-profile-signals-v1/metrics.py",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/metrics.py",
+      "bytes": 3409,
+      "sha256": "abcf7c36a51fc3c105837d4b590d2f4768277ecb335a9681ee5b1f28dea42508"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/cpu-top-flat.txt",
+      "target_relative": "cloud/exact79a-profile-signals-v1/cpu-top-flat.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/cpu-top-flat.txt",
+      "bytes": 3901,
+      "sha256": "5934eda1b37d6a7b8a1f4ee426ee73910e85562819ed8a8107ef9884fe358100"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/cpu-top-cum.txt",
+      "target_relative": "cloud/exact79a-profile-signals-v1/cpu-top-cum.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/cpu-top-cum.txt",
+      "bytes": 3379,
+      "sha256": "0c01aedf328c39429c3f52dbcf84aa38878299cfe633c2f7b18689ca4f4a157c"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/goroutine-top-flat.txt",
+      "target_relative": "cloud/exact79a-profile-signals-v1/goroutine-top-flat.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/goroutine-top-flat.txt",
+      "bytes": 5508,
+      "sha256": "4d102f16d7687c60ba33a4e312b6e37ad4cb51c88bb6703ad8386ece8a9de253"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/goroutine-top-cum.txt",
+      "target_relative": "cloud/exact79a-profile-signals-v1/goroutine-top-cum.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/goroutine-top-cum.txt",
+      "bytes": 4793,
+      "sha256": "f92c10b111c83bb126bf564619f93045a58075d02b3cc2a0fba149a33583588a"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/pprof-receipt.json",
+      "target_relative": "cloud/exact79a-profile-signals-v1/pprof-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/pprof-receipt.json",
+      "bytes": 2959,
+      "sha256": "86812a7baff0c5184c66ef94f504ad57f1abc4a5fb8348b573cf7e7d9c8db218"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/selected-stack-summary.json",
+      "target_relative": "cloud/exact79a-profile-signals-v1/selected-stack-summary.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/selected-stack-summary.json",
+      "bytes": 5979,
+      "sha256": "e5669eb50eba188aedb77e5adf9151b7a819ba80ffd44c61e102dfb88028819e"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/selected-stacks.json",
+      "target_relative": "cloud/exact79a-profile-signals-v1/selected-stacks.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/selected-stacks.json",
+      "bytes": 70620,
+      "sha256": "6e9d1c5f77b0b05874cc2a994be4256f0a54c3f4ad8e8b07cd85126f14edd6f8"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/disjoint-counts.json",
+      "target_relative": "cloud/exact79a-profile-signals-v1/disjoint-counts.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/disjoint-counts.json",
+      "bytes": 6488,
+      "sha256": "44c5b16c4e02b81ce669c5ee3efe80ff8df3db1f896a85b3d44f21c84ae7c1dd"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/delivery-worker-selected-stacks.json",
+      "target_relative": "cloud/exact79a-profile-signals-v1/delivery-worker-selected-stacks.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/delivery-worker-selected-stacks.json",
+      "bytes": 33264,
+      "sha256": "f6da3a7b456d159e11c8c219f640a9f5bc3a1767e28946b43cb274258fd0c43f"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/metrics-summary.json",
+      "target_relative": "cloud/exact79a-profile-signals-v1/metrics-summary.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/metrics-summary.json",
+      "bytes": 557225,
+      "sha256": "01e8e53ab5088273d4368ac7c6af3c47a5df1614289f355d5b3517e96f0d1b15"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/source-input-binding.json",
+      "target_relative": "cloud/exact79a-profile-signals-v1/source-input-binding.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/source-input-binding.json",
+      "bytes": 9362,
+      "sha256": "9431738d37214f1cc4f98d9f0514ca2f309b3750053684f2c0b4780fbb35ede3"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/run-summary.json",
+      "target_relative": "cloud/exact79a-profile-signals-v1/run-summary.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/run-summary.json",
+      "bytes": 10401,
+      "sha256": "9614b23bfd1e109e2804f5a2a76273d0663b99d38d1b12cab9bff2ed35439fe8"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/report.md",
+      "target_relative": "cloud/exact79a-profile-signals-v1/report.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/report.md",
+      "bytes": 6161,
+      "sha256": "e38198ea27d4f86cd2dbdc5c5b8c8920ab7889d8713649eba19f7d102e35d809"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/PUBLIC_ALLOWLIST.txt",
+      "target_relative": "cloud/exact79a-profile-signals-v1/PUBLIC_ALLOWLIST.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/PUBLIC_ALLOWLIST.txt",
+      "bytes": 350,
+      "sha256": "7de236fedf3a8111406790bc172e7f44448eb13234749f4c00d9a114dfc22175"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/exact79a-profile-signals-v1/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/PUBLIC_SHA256SUMS",
+      "bytes": 1472,
+      "sha256": "0b220bbd305d812d305ea8422a0fa3c121c2a8ce349cfdf63ddf561dd6051552"
+    },
+    {
+      "group": "exact79a-profile-signals-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/SHA256SUMS",
+      "target_relative": "cloud/exact79a-profile-signals-v1/SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/SHA256SUMS",
+      "bytes": 1472,
+      "sha256": "0b220bbd305d812d305ea8422a0fa3c121c2a8ce349cfdf63ddf561dd6051552"
+    },
+    {
+      "group": "exact79a-profile-signals-v1/rpc-executor-starvation-check",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/check.json",
+      "target_relative": "cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/check.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/check.json",
+      "bytes": 6245,
+      "sha256": "e282ef730fea7727258a6513b7ce313aa029de71886359356871980ee644bb02"
+    },
+    {
+      "group": "exact79a-profile-signals-v1/rpc-executor-starvation-check",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/report.md",
+      "target_relative": "cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/report.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/report.md",
+      "bytes": 2659,
+      "sha256": "669984adbf3ecd4c1b2c8b9683f916eb4bf8cacb411821b2b82f4d30ae507c43"
+    },
+    {
+      "group": "exact79a-profile-signals-v1/rpc-executor-starvation-check",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/PUBLIC_ALLOWLIST.txt",
+      "target_relative": "cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/PUBLIC_ALLOWLIST.txt",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/PUBLIC_ALLOWLIST.txt",
+      "bytes": 42,
+      "sha256": "bb8156c9be8dec89ea11e2fff0708375660800d0601946c02de4787ba3246048"
+    },
+    {
+      "group": "exact79a-profile-signals-v1/rpc-executor-starvation-check",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/PUBLIC_SHA256SUMS",
+      "bytes": 240,
+      "sha256": "00f06a517ac08e114ca12cb65369bfb7bf808061a0ee6cd9e7c3c133e4841785"
+    },
+    {
+      "group": "exact79a-profile-signals-v1/rpc-executor-starvation-check",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/SHA256SUMS",
+      "target_relative": "cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/exact79a-profile-signals-v1/rpc-executor-starvation-check/SHA256SUMS",
+      "bytes": 240,
+      "sha256": "00f06a517ac08e114ca12cb65369bfb7bf808061a0ee6cd9e7c3c133e4841785"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/README.md",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/README.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/README.md",
+      "bytes": 1584,
+      "sha256": "adc50a7eb269df316e99a4aa7501df3fabaf6c12b4b651ce5d26e8cc07bace6f"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/change.patch",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/change.patch",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/change.patch",
+      "bytes": 45248,
+      "sha256": "228a042d7c42bcbc7c352bc5a2a6a09d567cf12731acc7ac34581553dc6479cf"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/failure-matrix-before-code.md",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/failure-matrix-before-code.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/failure-matrix-before-code.md",
+      "bytes": 7860,
+      "sha256": "1046a45cbe6cc8d0fd82d6fe1ad3d6effde29e8055da81081cc90218ecd14671"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/final-source-freeze.json",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/final-source-freeze.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/final-source-freeze.json",
+      "bytes": 2501,
+      "sha256": "f1efa3767d145139162660b53845bc7ab0745978739094fb37de10a7c1057724"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/full-two-packages.jsonl",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/full-two-packages.jsonl",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/full-two-packages.jsonl",
+      "bytes": 1753027,
+      "sha256": "84f7aaf5a3260a066d633431acf9ceee33f5130837be2bfb08102ae631331a85"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice1-green.log",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/slice1-green.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice1-green.log",
+      "bytes": 284,
+      "sha256": "1857303d50d06de0bac5126878b4927eeecfd03483752905439cac8220e3c95e"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice1-green2.log",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/slice1-green2.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice1-green2.log",
+      "bytes": 70,
+      "sha256": "4703064ba5730463bfd493cf95745399b509a07ac4f164fe8bebfba294670189"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice1-red.log",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/slice1-red.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice1-red.log",
+      "bytes": 8811,
+      "sha256": "704c909054792d3a1a7c99ae943a9a45caba0558ffc87adf49640846c64c9e47"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice2-green.log",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/slice2-green.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice2-green.log",
+      "bytes": 70,
+      "sha256": "d792fafff1fdb01aeb771cf4a851b4d459433875c8d0844267091a8efb65691b"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice2-red.log",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/slice2-red.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice2-red.log",
+      "bytes": 422,
+      "sha256": "4949ee287676e18df5863c7aa718f14d07e71a936567489f36863b238e17bb95"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice2-red2.log",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/slice2-red2.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice2-red2.log",
+      "bytes": 2264,
+      "sha256": "fd2e59380ce0074e0740f59323c294d5108e95dd46e978e9af97da7d51b0c12c"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice3-green.log",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/slice3-green.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice3-green.log",
+      "bytes": 70,
+      "sha256": "d3a48eb5e83a65364795637fe58d9ec16df2c644f8789397ed2735c8985378ed"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice3-red.log",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/slice3-red.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice3-red.log",
+      "bytes": 1100,
+      "sha256": "6274139300836795d4842adf32cf8672b1e5dbba402ca0011b92a2c3efc9baee"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice4-green.log",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/slice4-green.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice4-green.log",
+      "bytes": 70,
+      "sha256": "e84725d9734b4f6c3b1c1008233c3ee21dd92459a8fbcd2a5266e6c475dbb360"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice4-red.log",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/slice4-red.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice4-red.log",
+      "bytes": 2055,
+      "sha256": "0ae7633711c6f3074771e6c21d21f90b3d4bed1d858d71d1c6425536d9a913a5"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice4-red2.log",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/slice4-red2.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/slice4-red2.log",
+      "bytes": 2075,
+      "sha256": "9a063875f3bb0a93463cc258a5ec623d2a4112f9dd1ab3cd3e243f7919efaf12"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/source-rule-freeze.json",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/source-rule-freeze.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/source-rule-freeze.json",
+      "bytes": 607,
+      "sha256": "1407aa19c046e42c171b5e8adda8605c846ffe0fb907f2da88024c86ccea7640"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/validation-summary.json",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/validation-summary.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/validation-summary.json",
+      "bytes": 4266,
+      "sha256": "9fcd6ac484126f9c1188409ae417fcddbf06f43c60b1920240375ffd503c591a"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/PUBLIC_ALLOWLIST",
+      "bytes": 328,
+      "sha256": "2dc4cb5c51d3ea26aec2ec49e208496e5fc6a6192f96ecd59978621d1e9cb07f"
+    },
+    {
+      "group": "finalize-diagnostics-implementation-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/finalize-diagnostics-implementation-v1/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-implementation-v1/PUBLIC_SHA256SUMS",
+      "bytes": 1599,
+      "sha256": "9d8158a0e656c0c7051a68a8dc74057b5c6d8d97de735ce45d151b609d0c43b4"
+    },
+    {
+      "group": "finalize-diagnostics-review/spec",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review/spec/spec.md",
+      "target_relative": "cloud/finalize-diagnostics-review/spec/spec.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review/spec/spec.md",
+      "bytes": 2575,
+      "sha256": "8e6ede7cc759dbd5d35a1ace2cb39abe44d6195e0d096a240d41a85b5f26e3b3"
+    },
+    {
+      "group": "finalize-diagnostics-review/spec",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review/spec/source-hashes.json",
+      "target_relative": "cloud/finalize-diagnostics-review/spec/source-hashes.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review/spec/source-hashes.json",
+      "bytes": 8462,
+      "sha256": "ae2c9162e5371085d6628ccac8ffa5cf2fdad27ccaaa2ff445d5c3a8c6f70f71"
+    },
+    {
+      "group": "finalize-diagnostics-review/spec",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review/spec/missing-required-cases.json",
+      "target_relative": "cloud/finalize-diagnostics-review/spec/missing-required-cases.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review/spec/missing-required-cases.json",
+      "bytes": 2012,
+      "sha256": "30bb9da9d6ee4ca5086d4e0d2ff504ba4ea3fb695b263355b9d67cca519a2c64"
+    },
+    {
+      "group": "finalize-diagnostics-review/spec",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review/spec/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/finalize-diagnostics-review/spec/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review/spec/PUBLIC_ALLOWLIST",
+      "bytes": 55,
+      "sha256": "6235273dd3a881139b7015dea1f863f326cd8c9e036b67f09c58536b27cb1f0b"
+    },
+    {
+      "group": "finalize-diagnostics-review/spec",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review/spec/SHA256SUMS",
+      "target_relative": "cloud/finalize-diagnostics-review/spec/SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review/spec/SHA256SUMS",
+      "bytes": 336,
+      "sha256": "0c6f9497d711654c2887a10eacf318580ae0eb26a006b4fb9d536520dfe2f33d"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/README.md",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/README.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/README.md",
+      "bytes": 2092,
+      "sha256": "3f5c0b5ec936be51c56779092b1c12cc535a8f6acda8d936431cdd5c7809f155"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/final-source-freeze.json",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/final-source-freeze.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/final-source-freeze.json",
+      "bytes": 1478,
+      "sha256": "3a0cfb51fa61e7f3ac075da8f8fe9a30f3045173f26f56545464b4ddb8392e4c"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/focused-after-boundary-clock.jsonl",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/focused-after-boundary-clock.jsonl",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/focused-after-boundary-clock.jsonl",
+      "bytes": 15339,
+      "sha256": "66145d1ddc0e2d199b5f53119cc0cff8090198234e1fe3a531b5370421e27eee"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/focused-after-fixture-repair.jsonl",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/focused-after-fixture-repair.jsonl",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/focused-after-fixture-repair.jsonl",
+      "bytes": 25090,
+      "sha256": "1c8fc35d1813d0c6346af490bb4aebe781109aee83c9595e1989fe0b6058aee0"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/focused-first-run.jsonl",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/focused-first-run.jsonl",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/focused-first-run.jsonl",
+      "bytes": 25085,
+      "sha256": "fe7360a846c9ec0ca3921e79e6f915cb69c0fbbe18aaef2e8e4085fdd71290f4"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/full-two-packages-first-final.jsonl",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/full-two-packages-first-final.jsonl",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/full-two-packages-first-final.jsonl",
+      "bytes": 1762460,
+      "sha256": "7574bf81f64fe3dfe7bb94dcea7061c2ed87e879763bab0e89c1a9977b093245"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/incremental.patch",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/incremental.patch",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/incremental.patch",
+      "bytes": 11674,
+      "sha256": "58c1a45b8c3097dc33a81e78a4282b2d345bf98081581bbf0dcf618eb3ce4672"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/review-required-cases-before-tests.json",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/review-required-cases-before-tests.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/review-required-cases-before-tests.json",
+      "bytes": 2012,
+      "sha256": "30bb9da9d6ee4ca5086d4e0d2ff504ba4ea3fb695b263355b9d67cca519a2c64"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/review-source-hashes.json",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/review-source-hashes.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/review-source-hashes.json",
+      "bytes": 185,
+      "sha256": "0ce8ebd0b4f66476436e95c4ff540f7d0a41f0f549b768a90d6ce85718e5eaab"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/source-rule-freeze.json",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/source-rule-freeze.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/source-rule-freeze.json",
+      "bytes": 715,
+      "sha256": "4a037dc6d4ff6b2da74f1e857c4b89d662fdfb44dff6a177eed20b6d1fea1946"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/validation-summary.json",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/validation-summary.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/validation-summary.json",
+      "bytes": 2593,
+      "sha256": "207366e70520b5ed3360c6fe5cbc9217885dc7bdee0d136e60898a8c5bc15502"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/PUBLIC_ALLOWLIST",
+      "bytes": 297,
+      "sha256": "527aefd620cab7bcb4544d1c5613f4f2e2cd83cd1b4a4ff53230e6e487a6372c"
+    },
+    {
+      "group": "finalize-diagnostics-review-fixes-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/finalize-diagnostics-review-fixes-v1/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-fixes-v1/PUBLIC_SHA256SUMS",
+      "bytes": 1106,
+      "sha256": "58dcb8c05dfca232af1415f1f6e0f403c0c4516be155cc60c2760022fa7fc733"
+    },
+    {
+      "group": "finalize-diagnostics-review-round2/spec",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-round2/spec/spec.md",
+      "target_relative": "cloud/finalize-diagnostics-review-round2/spec/spec.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-round2/spec/spec.md",
+      "bytes": 2303,
+      "sha256": "1714be73c15093e162a95d174bdd527a884bca4cb6dff3efd9a2ceb9bd5d351c"
+    },
+    {
+      "group": "finalize-diagnostics-review-round2/spec",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-round2/spec/case-closure.json",
+      "target_relative": "cloud/finalize-diagnostics-review-round2/spec/case-closure.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-round2/spec/case-closure.json",
+      "bytes": 2988,
+      "sha256": "38c55b1241d57e0be9b239dff2afca11216eb90a92d2a848d4807307bbc6590a"
+    },
+    {
+      "group": "finalize-diagnostics-review-round2/spec",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-round2/spec/source-hashes.json",
+      "target_relative": "cloud/finalize-diagnostics-review-round2/spec/source-hashes.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-round2/spec/source-hashes.json",
+      "bytes": 8357,
+      "sha256": "511cc3295b7764c63a70160043e93b49f5e3e8dec63addf097c9deb1d9028e6c"
+    },
+    {
+      "group": "finalize-diagnostics-review-round2/spec",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-round2/spec/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/finalize-diagnostics-review-round2/spec/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-round2/spec/PUBLIC_ALLOWLIST",
+      "bytes": 45,
+      "sha256": "ff1a22e1be75547fe973d1857418db4df88e11782dbbe6c236d537dadb8cd808"
+    },
+    {
+      "group": "finalize-diagnostics-review-round2/spec",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-round2/spec/SHA256SUMS",
+      "target_relative": "cloud/finalize-diagnostics-review-round2/spec/SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-round2/spec/SHA256SUMS",
+      "bytes": 326,
+      "sha256": "b8fc3de87ba044ecb939b5099b8479d9f56d86653f38809070f64a9e43766e00"
+    },
+    {
+      "group": "profile-rate500-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/failure-matrix.md",
+      "target_relative": "cloud/profile-rate500-proposal-v1/failure-matrix.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v1/failure-matrix.md",
+      "bytes": 1810,
+      "sha256": "083d63eba625ca7e62d08df80795d762c27bf20c9106c9a3fb734e850bdacf61"
+    },
+    {
+      "group": "profile-rate500-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/initial-status.json",
+      "target_relative": "cloud/profile-rate500-proposal-v1/initial-status.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v1/initial-status.json",
+      "bytes": 601,
+      "sha256": "2e5b0c9028c791c6efc1ad137a091148a1663e14dda5ae20697af2901e6c537c"
+    },
+    {
+      "group": "profile-rate500-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/config-rate-only.diff",
+      "target_relative": "cloud/profile-rate500-proposal-v1/config-rate-only.diff",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v1/config-rate-only.diff",
+      "bytes": 457,
+      "sha256": "eb748a7de031f6cd6f45c5cbb7538aedc4549dc621ab45d1720d7cb0b8268f46"
+    },
+    {
+      "group": "profile-rate500-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/single-field-preflight-refusal.json",
+      "target_relative": "cloud/profile-rate500-proposal-v1/single-field-preflight-refusal.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v1/single-field-preflight-refusal.json",
+      "bytes": 1240,
+      "sha256": "2546572494e0425d5a98f23a8228601dc6ffd61fd68ccd5c3350117fc12f1f72"
+    },
+    {
+      "group": "profile-rate500-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/RED-parser.log",
+      "target_relative": "cloud/profile-rate500-proposal-v1/RED-parser.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v1/RED-parser.log",
+      "bytes": 4608,
+      "sha256": "8c0813d383445fdb2a05225f0558d635cc1d9c6a29f2fe6f1698392a7efabf67"
+    },
+    {
+      "group": "profile-rate500-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/GREEN-parser.log",
+      "target_relative": "cloud/profile-rate500-proposal-v1/GREEN-parser.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v1/GREEN-parser.log",
+      "bytes": 1644,
+      "sha256": "f2e62abf2eabed6ff07c0b2736503337ab0321556d2531c3351786ac5027f492"
+    },
+    {
+      "group": "profile-rate500-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/parser-build-receipt.json",
+      "target_relative": "cloud/profile-rate500-proposal-v1/parser-build-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v1/parser-build-receipt.json",
+      "bytes": 1719,
+      "sha256": "2503cbc5a48077b967dc9113ede2738f78b3a7d1f3f440270b2d460ee8177ffc"
+    },
+    {
+      "group": "profile-rate500-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/parser-module-binding.json",
+      "target_relative": "cloud/profile-rate500-proposal-v1/parser-module-binding.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v1/parser-module-binding.json",
+      "bytes": 744,
+      "sha256": "8d493b2d6ebead0f5da95c276a057d3d6c0136b72e185f5b5557499edb0de000"
+    },
+    {
+      "group": "profile-rate500-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/parser-module/main.go",
+      "target_relative": "cloud/profile-rate500-proposal-v1/parser-module/main.go",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v1/parser-module/main.go",
+      "bytes": 1546,
+      "sha256": "f678bce1032b41ad4ad2e4ea334fdcf596da25a8470703d617c260481e336bcc"
+    },
+    {
+      "group": "profile-rate500-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/parser_contract_test.py",
+      "target_relative": "cloud/profile-rate500-proposal-v1/parser_contract_test.py",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v1/parser_contract_test.py",
+      "bytes": 2127,
+      "sha256": "4bb8b303688463699ce4ba142af58605cf793c2d2d9bf3af1f3f14130183f846"
+    },
+    {
+      "group": "profile-rate500-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/profile-rate500-proposal-v1/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v1/PUBLIC_ALLOWLIST",
+      "bytes": 227,
+      "sha256": "1bb9243067e64cccf959b638b44e50d80b84c708db10304d66ef705d3c30a47a"
+    },
+    {
+      "group": "profile-rate500-proposal-v1",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v1/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/profile-rate500-proposal-v1/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v1/PUBLIC_SHA256SUMS",
+      "bytes": 887,
+      "sha256": "5da67121e46fb9e542550c5a5dde7e84bf30f9edcad601b764d17e480c297081"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/README.md",
+      "target_relative": "cloud/profile-rate500-proposal-v2/README.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/README.md",
+      "bytes": 3000,
+      "sha256": "61e0878896d601d15fc74f548527254dbfe0a82210c96b7b8c831f88ae3d43b6"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/failure-matrix.md",
+      "target_relative": "cloud/profile-rate500-proposal-v2/failure-matrix.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/failure-matrix.md",
+      "bytes": 1631,
+      "sha256": "7431d138d775d33e1fd58641d6d56c0ecc8234dd99141ef28840f263d1b9a057"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/config-rate-derived-burst.diff",
+      "target_relative": "cloud/profile-rate500-proposal-v2/config-rate-derived-burst.diff",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/config-rate-derived-burst.diff",
+      "bytes": 743,
+      "sha256": "a0a828719c6cc96916b53443d9aeaaf55a3bbce21dadb4084b220df1d30e40f3"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/typed-config-differences.json",
+      "target_relative": "cloud/profile-rate500-proposal-v2/typed-config-differences.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/typed-config-differences.json",
+      "bytes": 130,
+      "sha256": "88de58302686aaab89bb8f81927ca69a6ba1007f7a9afdcfe6f3acac6b5bc707"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/safe-planner-identity.json",
+      "target_relative": "cloud/profile-rate500-proposal-v2/safe-planner-identity.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/safe-planner-identity.json",
+      "bytes": 1159,
+      "sha256": "c1697e11529022ef48c0266c573b7f0856e7d9e17aee97ae8500959c9a60c85e"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/parser_contract_test.py",
+      "target_relative": "cloud/profile-rate500-proposal-v2/parser_contract_test.py",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/parser_contract_test.py",
+      "bytes": 2233,
+      "sha256": "b022386dd753cfdd1918ca3a71488a9475ca2433b5343c6c14c9879fb07a672b"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/GREEN-parser.log",
+      "target_relative": "cloud/profile-rate500-proposal-v2/GREEN-parser.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/GREEN-parser.log",
+      "bytes": 386,
+      "sha256": "4abd0e8e2b7fb50fefe177b9be2100124d97a6d8a1196ad6adf52dc0f38e137b"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/GREEN-parser-final.log",
+      "target_relative": "cloud/profile-rate500-proposal-v2/GREEN-parser-final.log",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/GREEN-parser-final.log",
+      "bytes": 404,
+      "sha256": "31049d712b88450acc19c4e0b40aee716e97bc66f9a6d95eefcd22ee63a1dec1"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/materialize.py",
+      "target_relative": "cloud/profile-rate500-proposal-v2/materialize.py",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/materialize.py",
+      "bytes": 6358,
+      "sha256": "905a479d3a4396d2d36440701a464c9295e6e22dd75df8c59a32780b1f4bf9b2"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/launcher-vs-exact2000.diff",
+      "target_relative": "cloud/profile-rate500-proposal-v2/launcher-vs-exact2000.diff",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/launcher-vs-exact2000.diff",
+      "bytes": 3038,
+      "sha256": "a4bd6f0172c061d46432b3b0791ef6c22ee17d051442e7d95cf825afbef62ded"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/supervisor-vs-exact2000.diff",
+      "target_relative": "cloud/profile-rate500-proposal-v2/supervisor-vs-exact2000.diff",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/supervisor-vs-exact2000.diff",
+      "bytes": 2373,
+      "sha256": "9aceff8f78b9d86fb62344d15d73954b8b7a4b3acb119c2f1f6701122c5c2768"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/materialization-receipt.json",
+      "target_relative": "cloud/profile-rate500-proposal-v2/materialization-receipt.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/materialization-receipt.json",
+      "bytes": 4090,
+      "sha256": "4e0ee05d6cb08e3d0c58d4b111c3e400ce314b462e0cc8881fc2775c90092458"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/static-exact-build-preflight.json",
+      "target_relative": "cloud/profile-rate500-proposal-v2/static-exact-build-preflight.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/static-exact-build-preflight.json",
+      "bytes": 2022,
+      "sha256": "a5bf2be238cc5c8423380554e7010d3e583ce6f3646fe5cf29e2413c8e92fc81"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/final-preflight.json",
+      "target_relative": "cloud/profile-rate500-proposal-v2/final-preflight.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/final-preflight.json",
+      "bytes": 740,
+      "sha256": "3a0dbb00fb75064f4bedd290e1c3ada0bb543bf57cf4391c64a26156027076f4"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/PUBLIC_ALLOWLIST",
+      "target_relative": "cloud/profile-rate500-proposal-v2/PUBLIC_ALLOWLIST",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/PUBLIC_ALLOWLIST",
+      "bytes": 335,
+      "sha256": "51f80b45a0a335a2169fdf8ce8ae58db1fafab86eeb14fd3f89aa35335fcf07e"
+    },
+    {
+      "group": "profile-rate500-proposal-v2",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-rate500-proposal-v2/PUBLIC_SHA256SUMS",
+      "target_relative": "cloud/profile-rate500-proposal-v2/PUBLIC_SHA256SUMS",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/profile-rate500-proposal-v2/PUBLIC_SHA256SUMS",
+      "bytes": 1259,
+      "sha256": "fc7c92a97ad56000cf431116a7dd82228fb2e0508ddea830f9011e217822f643"
+    },
+    {
+      "group": "finalize-diagnostics-review/standards",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review/standards/standards.md",
+      "target_relative": "cloud/finalize-diagnostics-review/standards/standards.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review/standards/standards.md",
+      "bytes": 2821,
+      "sha256": "96afd9608595b097584e8ffffc7753bc29eb67db0b6c37d0e139ebd309df9a39"
+    },
+    {
+      "group": "finalize-diagnostics-review/standards",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review/standards/source-hashes.json",
+      "target_relative": "cloud/finalize-diagnostics-review/standards/source-hashes.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review/standards/source-hashes.json",
+      "bytes": 7082,
+      "sha256": "5d31672a58a16f80a8887c7fe48b9a7ed2bd603ac0d74d29477523d6d80f8a8c"
+    },
+    {
+      "group": "finalize-diagnostics-review-round2/standards",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-round2/standards/standards.md",
+      "target_relative": "cloud/finalize-diagnostics-review-round2/standards/standards.md",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-round2/standards/standards.md",
+      "bytes": 2809,
+      "sha256": "df9a33b4ae00f81d9041a70713c23042dcf1747a9dc1d8f0b9be10c932ebe163"
+    },
+    {
+      "group": "finalize-diagnostics-review-round2/standards",
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/finalize-diagnostics-review-round2/standards/source-hashes.json",
+      "target_relative": "cloud/finalize-diagnostics-review-round2/standards/source-hashes.json",
+      "repository_relative": "docs/reports/v3-release-readiness-20261023/cloud/finalize-diagnostics-review-round2/standards/source-hashes.json",
+      "bytes": 9380,
+      "sha256": "c0cf4abeee8841602eaef994d635d9e541953ddb478eadc2ed686d5f3f173267"
+    }
+  ],
+  "scope_semantics": {
+    "allowlist": "99 copied targets only, excluding three root COPY_BATCH10 metadata files. Batch SHA256SUMS covers99 targets plus its allowlist and receipt (101 entries), excluding itself.",
+    "source_schemas": "Eight independently frozen source manifests and two exact two-file Standards axes. Source allowlist inclusion varies and is recorded per group; no source manifest invented for the two Standards axes.",
+    "nested_scope": "RPC starvation child and review axes explicitly selected independently. Parent profile signals list is not recursive.",
+    "partial_public_archive": "Only finite named UTF8 text/JSON and controlled-source Go test JSONL. Raw binary profiles/executables/runtime identities/body/config/logs/DBs remain private and are not claimed fully archived.",
+    "running500_or_CI_or_merge_outputs_included": false
+  },
+  "sensitivity": {
+    "all_selected_bytes_utf8": true,
+    "binary_or_profile_magic_hits": 0,
+    "credential_literals_or_raw_identity_payload_json_fields": 0,
+    "source_controlled_jsonl_audit": [
+      {
+        "path": "cloud/finalize-diagnostics-implementation-v1/full-two-packages.jsonl",
+        "bytes": 1753027,
+        "sha256": "84f7aaf5a3260a066d633431acf9ceee33f5130837be2bfb08102ae631331a85",
+        "events": 6789,
+        "packages": [
+          "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+          "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
+        ],
+        "output_events": 3413,
+        "sensitive_name_output_events": 78,
+        "runtime_raw_json_identity_fields": 0,
+        "classification": "Go test-json from exactly the two source-controlled packages. Sensitive-name hits are test/case names and synthetic fixture aggregate dumps (formal-chat-lifecycle), not real cloud/local-run identity/body data. Original private runtime JSONL not selected."
+      },
+      {
+        "path": "cloud/finalize-diagnostics-review-fixes-v1/focused-after-boundary-clock.jsonl",
+        "bytes": 15339,
+        "sha256": "66145d1ddc0e2d199b5f53119cc0cff8090198234e1fe3a531b5370421e27eee",
+        "events": 60,
+        "packages": [
+          "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
+        ],
+        "output_events": 30,
+        "sensitive_name_output_events": 0,
+        "runtime_raw_json_identity_fields": 0,
+        "classification": "Go test-json from exactly the two source-controlled packages. Sensitive-name hits are test/case names and synthetic fixture aggregate dumps (formal-chat-lifecycle), not real cloud/local-run identity/body data. Original private runtime JSONL not selected."
+      },
+      {
+        "path": "cloud/finalize-diagnostics-review-fixes-v1/focused-after-fixture-repair.jsonl",
+        "bytes": 25090,
+        "sha256": "1c8fc35d1813d0c6346af490bb4aebe781109aee83c9595e1989fe0b6058aee0",
+        "events": 68,
+        "packages": [
+          "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
+        ],
+        "output_events": 38,
+        "sensitive_name_output_events": 2,
+        "runtime_raw_json_identity_fields": 0,
+        "classification": "Go test-json from exactly the two source-controlled packages. Sensitive-name hits are test/case names and synthetic fixture aggregate dumps (formal-chat-lifecycle), not real cloud/local-run identity/body data. Original private runtime JSONL not selected."
+      },
+      {
+        "path": "cloud/finalize-diagnostics-review-fixes-v1/focused-first-run.jsonl",
+        "bytes": 25085,
+        "sha256": "fe7360a846c9ec0ca3921e79e6f915cb69c0fbbe18aaef2e8e4085fdd71290f4",
+        "events": 68,
+        "packages": [
+          "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
+        ],
+        "output_events": 38,
+        "sensitive_name_output_events": 2,
+        "runtime_raw_json_identity_fields": 0,
+        "classification": "Go test-json from exactly the two source-controlled packages. Sensitive-name hits are test/case names and synthetic fixture aggregate dumps (formal-chat-lifecycle), not real cloud/local-run identity/body data. Original private runtime JSONL not selected."
+      },
+      {
+        "path": "cloud/finalize-diagnostics-review-fixes-v1/full-two-packages-first-final.jsonl",
+        "bytes": 1762460,
+        "sha256": "7574bf81f64fe3dfe7bb94dcea7061c2ed87e879763bab0e89c1a9977b093245",
+        "events": 6825,
+        "packages": [
+          "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+          "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
+        ],
+        "output_events": 3431,
+        "sensitive_name_output_events": 78,
+        "runtime_raw_json_identity_fields": 0,
+        "classification": "Go test-json from exactly the two source-controlled packages. Sensitive-name hits are test/case names and synthetic fixture aggregate dumps (formal-chat-lifecycle), not real cloud/local-run identity/body data. Original private runtime JSONL not selected."
+      }
+    ],
+    "jsonl_boundary": "Five finite selected Go test-json files are source-controlled tests/fixtures, not private runtime data. Selection is based on source allowlists, parsed schema/package context and sensitive scan, not file extension.",
+    "excluded_scopes": [
+      "exact79a-profile-signals-v1/initial-binding.json (not in source public list)",
+      "All raw CPU/GOR protobufs, binaries, DBs, actual runtime config/logs/worker snapshots and original run UID/body/JSONL",
+      "profile-rate500-proposal-v1/offline-parser binary, original-single-field-invalid.yaml, unlisted parser module/build files",
+      "profile-rate500-proposal-v2/parser-output.json, launcher.proposed.sh, supervise.proposed.py, unlisted actual config outputs",
+      "Running500 local diagnostic and any future unsealed scope",
+      "PR1028 CI/merge scope owned separately; running CI not selected",
+      "All nested directories except explicitly listed independently bound RPC child and named review axes"
+    ]
+  },
+  "source_git_object_references_verified": {
+    "finalize-diagnostics-implementation-v1/final-source-freeze.json": 8,
+    "finalize-diagnostics-review/standards/source-hashes.json": 12,
+    "finalize-diagnostics-review/spec/source-hashes.json": 8,
+    "finalize-diagnostics-review-round2/standards/source-hashes.json": 13,
+    "finalize-diagnostics-review-round2/spec/source-hashes.json": 8
+  },
+  "interpretation": [
+    "Original Spec missing-required-cases finding and initial failures are retained; round2 closure is a separate generation.",
+    "Finalization observation/classification patch is not an original cloud message-loss fix and CI/merge status is not inferred from these files.",
+    "Exact79a profile signals and RPC starvation check retain bounded evidence/hypotheses, not cloud performance or causal proof.",
+    "First rate-only500 proposal refusal and offline parser construction are preserved separately from validv2 proposal. No500 run result in this scope."
+  ],
+  "mutable_report_observation_boundary": {
+    "goroutine_cut": "UTC20:42:11.818699 node2 only,4928G;204cold-lane,212ReadBarrier-response,7admitted-meta-pending waits. Not a duration/full-window measurement.",
+    "delivery_worker_partition": "209remote-presence+57local-lane+46leader-join+1owner-RPC+7owner-push=320 disjoint workers. Remote owner holders cannot be uniquely joined from one-node stacks.",
+    "rpc_capacity": "Total is sum of service quotas with separate queues; owner0/0 and quorum0/2 only refute the fixed-global128 exhaustion explanation.",
+    "commit_stage_and_causality": "Metadata internal commit-stage metrics absent; no original cloud root-cause inference.",
+    "time_fence": "As of UTC21:09,PR1028 first CI and500 local diagnostic running; this batch contains implementation/review/proposals only, no such CI/run results."
+  },
+  "preservation": {
+    "qualification_head_before_staging": "fb713bbc07b3d03518cc03e5f24e098261c76a39",
+    "index_tree_before_staging": "34843bba5c5c08a56c0535a333e211265d55ba81",
+    "previous_checkpoint": {
+      "bytes": 408039,
+      "sha256": "cd5a9f5a6f43a6055524d4826c1497a1c76d4b88b67cf5d226510e9a05372d18"
+    },
+    "previous_checkpoint_entries": 2286,
+    "old_payloads_unchanged_except_authorized_mutable_report_readme": true,
+    "mutable_documents": [
+      "docs/reports/2026-10-23-v3-release-readiness.md",
+      "docs/reports/v3-release-readiness-20261023/README.md"
+    ],
+    "immutable_log_patch_whitespace_preserved": true,
+    "stage_commit_push_not_yet_performed_at_receipt": true
+  }
+}

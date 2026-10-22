@@ -1,0 +1,7 @@
+test_real_loader_planner_one_field_and_original_receipt_control (__main__.Contract.test_real_loader_planner_one_field_and_original_receipt_control) ... ok
+test_strict_loader_rejects_unknown_key_and_zero_rate (__main__.Contract.test_strict_loader_rejects_unknown_key_and_zero_rate) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.018s
+
+OK

@@ -1,0 +1,14 @@
+--- FAIL: TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision (0.00s)
+    --- FAIL: TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/stop (0.00s)
+        finalize_diagnostics_test.go:330: CoordinatorResult discarded finalization boundary
+    --- FAIL: TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/known_hook (0.00s)
+        finalize_diagnostics_test.go:330: CoordinatorResult discarded finalization boundary
+    --- FAIL: TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/unknown_hook (0.00s)
+        finalize_diagnostics_test.go:330: CoordinatorResult discarded finalization boundary
+    --- FAIL: TestCoordinatorRetainsFinalizationBoundaryAndOriginalDecision/final_aggregate (0.00s)
+        finalize_diagnostics_test.go:330: CoordinatorResult discarded finalization boundary
+--- FAIL: TestFinalWorkerStopPreservesPrivateCause (0.00s)
+    finalize_diagnostics_test.go:370: stop error chain discarded cause: chat lifecycle coordinator: snapshot count must equal three
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle	0.526s
+FAIL

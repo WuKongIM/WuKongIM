@@ -1,0 +1,12 @@
+{
+  "schema": "wukongim/local500-proposal-initial/v1",
+  "at_utc": "2026-10-22T20:56:20.657592+00:00",
+  "product_started": false,
+  "sampler_changed": false,
+  "config_diff": "one literal rate line only; typed existing-parser comparison pending",
+  "new_assignment_hash": "pending existing exported planner execution; not synthesized",
+  "native_product_builds": 0,
+  "runtime_state_directories_present": false,
+  "original_config_sha256": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+  "new_config_sha256": "55edc14a87c2319bc7a95437990f8b680e4f97b210814e763059b0c36f197ee1"
+}
