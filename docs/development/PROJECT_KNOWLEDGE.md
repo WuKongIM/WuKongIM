@@ -1244,6 +1244,14 @@ specification, runbook, report, or module documentation; link to them when neede
   Publish bilingual routes together and derive current versions from their canonical
   manifests/Changelog. Historical SDK or benchmark receipts do not certify newer
   artifacts. Keep public contracts separate from private interface inventories.
+- iOS EasySDK 1.2.0 provides typed stream options and `onCustomEvent` callbacks;
+  native SwiftUI examples retain listener tokens and use independent peers.
+  Public package consumers and native streaming have separate release receipts.
+- Android EasySDK 1.1.0 tutorials use the shared EasySDK manifest and expose
+  `createInstance()`, stream SEND options and custom EVENT callbacks. Each peer
+  initializes once; destroy does not reset its identity. Stream projections merge
+  UTF-8 byte offsets, while trusted backends append events and authorize history
+  recovery. New Maven/API 34 evidence does not replace historical four-platform runs.
 - Public onboarding follows Docker single-node cluster → Chat Demo exchange →
   platform SDK integration. Tutorial screenshots depict real versioned runs;
   keep original captures and bilingual numbered captions aligned through
@@ -2049,3 +2057,5 @@ specification, runbook, report, or module documentation; link to them when neede
   to 4096 routes, while each versioned response page also caps total routes at
   4096. A continuation shares one original owner deadline, validates membership
   and owner boot across pages, and never converts incomplete proof into offline.
+
+- Flutter EasySDK versions are selected in `docs-site/lib/easy-sdk-releases.json`; `/sdk/easy/flutter/streaming` documents independent peers and backend recovery. Keep historical 1.1.0 matrix identities separate from 1.2.1 pub.dev/native evidence.

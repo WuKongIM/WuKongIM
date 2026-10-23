@@ -14,7 +14,9 @@ Keep the existing `/sdk/easy` routes and Chinese/English parity. The overview
 helps choose a platform. `examples` prepares a development single-node cluster,
 credentials with matching device categories, and eight runnable entry points.
 Each platform quickstart follows prepare, install, connect/listen, exchange,
-cleanup, and troubleshooting, in that order.
+cleanup, and troubleshooting, in that order. Native streaming follows each
+quickstart at `/sdk/easy/android/streaming`, `/sdk/easy/ios/streaming` and `/sdk/easy/flutter/streaming`, keeping advanced projection and
+backend event responsibilities out of the first-message path.
 
 Use one default installation path. Put alternative installations after these
 tasks. Preserve each platform's real singleton, callback, timeout, and cleanup
@@ -42,7 +44,12 @@ PR; other platforms remain manual. See the README for the maintenance workflow.
 Check examples against their released package or pinned source. Source examples
 are not package-consumer verification. Web 2.0.5 includes the handshake-failure
 reconnect repair; keep its independent package validation separate from
-historical Web 2.0.4 four-platform results.
+historical Web 2.0.4 four-platform results. Android 1.1.0 adds independent peers,
+stream SEND options and custom EVENT callbacks; its Maven artifact and native
+API 34 streaming acceptance are distinct from the historical Android 1.0.5
+four-platform matrix. iOS 1.2.0 adds typed stream SEND options and custom EVENT
+callbacks; its SwiftPM/CocoaPods consumer and native streaming evidence is
+separate from the historical iOS 1.1.1 matrix.
 
 ## Validation reference
 
@@ -63,3 +70,7 @@ APIs, installs, cleanup, bounded examples, and provenance separation.
 archive prerequisites, and callback constraints. Run the normal documentation
 verification gate for navigation, links, lint, MDX/types, static export and
 machine-readable outputs. Record compilation separately from a live message run.
+
+Flutter 1.2.0 adds independent peers, typed stream settings, JSON-string EVENT decoding and a native streaming demo. Its exact pub.dev consumer, native iOS acceptance and Web build are distinct from historical Flutter 1.1.0 matrix results.
+
+Flutter 1.2.1 repairs the acceptance runner's executable discovery; its SDK and Dart demo code are unchanged from 1.2.0. Current selection requires independent exact 1.2.1 public-package verification.

@@ -9,7 +9,7 @@ This tutorial uses **WK_EASYSDK_IOS_VERSION** to exchange online messages betwee
 
 Prepare the following:
 
-- Set the iOS deployment target to **iOS 15 or later**. The package manifest declares iOS 13, but the public `WuKongEasySDK` class in `v1.1.1` is marked `@available(iOS 15.0, ...)`, so this tutorial uses the more conservative API limit.
+- Set the iOS deployment target to **iOS 15 or later**. The package manifest declares iOS 13, but the public `WuKongEasySDK` class in historical `v1.1.1` and the selected `WK_EASYSDK_IOS_TAG` is marked `@available(iOS 15.0, ...)`, so this tutorial uses the more conservative API limit.
 - Use an Xcode toolchain that supports Swift 5.7 packages.
 - Run a WuKongIM single-node cluster or multi-node cluster whose `/readyz` is healthy and whose WebSocket Gateway is reachable from the device.
 - Have the product backend return `uid`, a short-lived `token`, and `websocketUrl` separately for Alice and Bob.
@@ -203,4 +203,8 @@ Run `pod install`, then open the `.xcworkspace`. Choose one installation method,
 
 ## Next
 
+For incremental replies, continue with [iOS Streaming Messages](/en/sdk/easy/ios/streaming) and the native SwiftUI demo.
+
 Continue with [messaging](/en/guide/integration/messaging) and [production checks](/en/guide/integration/acceptance). For offline recovery, conversations, unread counts, or push, see [SDK selection](/en/sdk). [Versions and validation records](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#ios) retain the exact environments and scope of past runs.
+
+The [independent iOS 1.2.0 acceptance record](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-10-23-ios-easysdk-1.2.0.md) records package resolution, Swift compilation, and native streaming validation scope.

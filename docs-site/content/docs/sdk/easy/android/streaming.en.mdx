@@ -1,0 +1,193 @@
+---
+title: Android Streaming Messages
+description: Receive live stream events with the native Android SDK, create stream parents, and use your backend for appends, terminal snapshots, and reconnect recovery.
+---
+
+Use **WK_EASYSDK_ANDROID_VERSION** with `SendOptions`, `MessageSetting`, and `CUSTOM_EVENT` to update one reply bubble incrementally. Complete the [Android quickstart](/en/sdk/easy/android/getting-started) first and confirm that your cluster includes online EVENT delivery.
+
+## 1. Install and assign ownership
+
+```kotlin
+dependencies {
+    implementation("com.githubim:easysdk-android:WK_EASYSDK_ANDROID_VERSION")
+}
+```
+
+| Owner | Responsibility |
+| --- | --- |
+| Android client | Authenticate with the current user's credentials; receive base messages and live events; maintain bubble projections |
+| Trusted application backend | Authorize users, authors, and channels; append events; expose history and cancellation endpoints |
+| Agent backend | Hold model keys, read model SSE, and write deltas and terminal states in order |
+
+The examples use a group channel (`channel_type = 2`) already authorized by your backend. The server and SDK do not build your UI projection. Ordinary clients receive no bot token, model key, or WuKongIM HTTP API management credentials.
+
+## 2. Receive base messages and live events
+
+Add this helper to your application. Build `config` with the quickstart's `WuKongConfig.Builder()` using credentials and a device-reachable WebSocket address from your backend. An Application connection manager or ViewModel owns `StreamReader`; call `connect()` from a coroutine and `close()` when discarding it.
+
+```kotlin
+import android.content.Context
+import com.githubim.easysdk.WuKongConfig
+import com.githubim.easysdk.WuKongEasySDK
+import com.githubim.easysdk.enums.WuKongEvent
+import com.githubim.easysdk.listener.WuKongEventListener
+import com.githubim.easysdk.model.ConnectResult
+import com.githubim.easysdk.model.EventNotification
+import com.githubim.easysdk.model.Message
+import kotlinx.coroutines.withTimeout
+
+class StreamReader(
+    context: Context,
+    config: WuKongConfig,
+    private val channelId: String,
+    private val onConnected: () -> Unit,
+    private val onBase: (Message) -> Unit,
+    private val onStreamEvent: (EventNotification) -> Unit,
+) {
+    private val sdk = WuKongEasySDK.createInstance()
+
+    // Keep strong listener references for this reader's entire lifetime.
+    private val connectListener = object : WuKongEventListener<ConnectResult> {
+        override fun onEvent(result: ConnectResult) { onConnected() }
+    }
+    private val messageListener = object : WuKongEventListener<Message> {
+        override fun onEvent(message: Message) {
+            if (message.channelId == channelId && message.channelType == 2 &&
+                message.setting?.stream == true && !message.clientMsgNo.isNullOrBlank()
+            ) onBase(message)
+        }
+    }
+    private val eventListener = object : WuKongEventListener<EventNotification> {
+        override fun onEvent(event: EventNotification) {
+            val data = event.data as? Map<*, *> ?: return
+            if (data["channel_id"] != channelId ||
+                (data["channel_type"] as? Number)?.toInt() != 2
+            ) return
+            if ((data["client_msg_no"] as? String).isNullOrBlank()) return
+            if (!event.type.startsWith("stream.")) return
+            if (data["event_key"] != "main" && event.type != "stream.finish") return
+            onStreamEvent(event)
+        }
+    }
+
+    init {
+        sdk.init(context.applicationContext, config)
+        sdk.addEventListener(WuKongEvent.CONNECT, connectListener)
+        sdk.addEventListener(WuKongEvent.MESSAGE, messageListener)
+        sdk.addEventListener(WuKongEvent.CUSTOM_EVENT, eventListener)
+    }
+
+    suspend fun connect() {
+        try {
+            withTimeout(20_000) { sdk.connect() }
+        } catch (error: Exception) {
+            sdk.disconnect()
+            throw error
+        }
+    }
+
+    fun close() {
+        sdk.destroy()
+    }
+}
+```
+
+`onConnected` fires after initial authentication and automatic reconnection; the application starts the history recovery described in section 5. `onBase` and `onStreamEvent` are application-supplied UI callbacks: the first creates or finds a bubble by `message.clientMsgNo`, and the second merges data by `event.data.client_msg_no`. SDK listeners run on the main thread, so callbacks should stay light. Read numeric values in `event.data` as `Number`. The SDK already decodes JSON-string `data`; do not Base64-decode it again.
+
+`createInstance()` creates an independent connection without changing the shared instance returned by `getInstance()`. Initialize each instance once. `destroy()` removes listeners and disconnects; it does not reset that instance's configuration. For a new identity or configuration, discard the old instance and initialize a new one.
+
+## 3. Create the stream parent message
+
+The producer must finish authenticating first. This method sends a base message **as the authenticated producer itself**. An Agent backend normally owns the author connection; ordinary Android users do not sign in as a bot. The application generates and saves `clientMsgNo` once per reply, then reuses it on retries.
+
+```kotlin
+import com.githubim.easysdk.WuKongEasySDK
+import com.githubim.easysdk.enums.WuKongChannelType
+import com.githubim.easysdk.model.MessageSetting
+import com.githubim.easysdk.model.SendOptions
+import com.githubim.easysdk.model.SendResult
+
+suspend fun sendStreamParent(
+    producer: WuKongEasySDK,
+    channelId: String,
+    clientMsgNo: String,
+): SendResult {
+    require(clientMsgNo.isNotBlank())
+    val ack = producer.send(
+        channelId = channelId,
+        channelType = WuKongChannelType.GROUP,
+        payload = mapOf("type" to 1, "content" to ""),
+        options = SendOptions(
+            clientMsgNo = clientMsgNo,
+            setting = MessageSetting(stream = true),
+        ),
+    )
+    check(ack.reasonCode == 1) { "Stream parent was not accepted" }
+    return ack
+}
+```
+
+Append events only after `reasonCode == 1`. A successful SENDACK accepts the parent; it does not prove that a recipient received it. `stream: true` requires a persisted base message: do not set `Header(noPersist = true)` or `syncOnce = true`. `Message.setting?.stream` is the corresponding receive flag.
+
+## 4. Append events from the backend
+
+For author `author-42`, group `room-42`, and client message number `reply-42`, the **trusted backend** calls [POST /message/event](/en/api/product-http/messages/appendMessageEvent) sequentially with these three JSON request bodies:
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:1",
+  "event_type": "stream.open", "event_key": "main", "visibility": "public",
+  "payload": { "kind": "text" }
+}
+```
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:2",
+  "event_type": "stream.delta", "event_key": "main", "visibility": "public",
+  "payload": { "kind": "text", "delta": "你好🙂" }
+}
+```
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:3",
+  "event_type": "stream.finish", "visibility": "public",
+  "payload": { "snapshot": { "kind": "text", "text": "你好🙂" } }
+}
+```
+
+Check both HTTP and application results before proceeding. Persist event IDs and payloads before writing; retry the original ID. Reconcile an uncertain write instead of blindly appending with a new ID. The server supplies the UTF-8 byte `text_offset` on online events; producers do not set it. `stream.finish` uses the reserved `__finish__` lane, so receivers must not filter exclusively on `event_key == "main"`.
+
+Keep model requests and event appends on the backend. Model keys never enter the APK, messages, logs, or history. See [Agent Streaming Replies](/en/sdk/easy/agent-streaming) for model integration, cancellation endpoints, and SSE handling.
+
+## 5. Projection, terminal states, and recovery
+
+The application projection handles events passed to `onStreamEvent`:
+
+| Event / condition | Application behavior |
+| --- | --- |
+| Base message or `stream.open` | Find the same bubble by `client_msg_no`; allow events to arrive first and retain existing text |
+| `stream.delta` | Deduplicate by Event ID, then merge `payload.delta` using UTF-8 **byte** `text_offset`; `你好🙂` occupies 10 bytes, not its Kotlin string length |
+| Overlap / gap | Skip bytes already covered by a snapshot; wait for a complete snapshot on a gap instead of appending at the end |
+| `stream.snapshot` / `stream.finish` | Replace text with the complete `kind: "text"`, `text` in `payload.snapshot`; finish marks completion |
+| Cancellation / model failure | The backend aborts the model, writes `stream.cancel` / `stream.error` with a partial snapshot, then `stream.finish`; retain cancelled / failed status |
+| Late events after a terminal state | Do not reopen the reply; finish does not overwrite cancelled or failed status |
+
+Bound projection and buffer sizes, for example 40 messages, 16,384 characters per message, 2,048 deduplication IDs per message, and 2,048 buffered events during recovery. The native example's [StreamTimeline](https://github.com/WuKongIM/WuKongEasySDK-Android/blob/WK_EASYSDK_ANDROID_TAG/example/src/main/java/com/githubim/easysdk/example/stream/StreamTimeline.kt) implements byte merging, terminal states, and bounded projections.
+
+**Online events are best effort, with no RECVACK or offline event queue.** After every successful connection or reconnection, your backend authorizes and performs one [/channel/messagesync](/en/api/product-http/messages/syncQuickstartChannelMessages) read with `event_summary_mode: "full"`. Buffer live events during recovery, apply snapshots and status from history's `event_meta.events`, then replay buffered deltas by byte offset. Sort by message sequence to preserve conversation order. Do not poll history while online or use `/message/eventsync` as the live transport.
+
+## 6. Run the native demo
+
+Build and install `example` using the [official Android example steps](/en/sdk/easy/examples#android), then select **流式聊天 Demo** in the toolbar.
+
+- HTTP API address: use `http://10.0.2.2:5001` from an emulator accessing its host, or your development machine's LAN address from a physical device.
+- The WebSocket address returned by `/route` must also be device-reachable, for example `ws://10.0.2.2:5200` in an emulator. Cleartext is for development; use HTTPS / WSS in production.
+- Create and connect the demo session, then send a question. In demo settings, adjust simulated content or configure a compatible model URL, model name, and API key.
+- Try cancellation, simulated failure, generation with the receiver disconnected, and reconnection. Check that the bubble and recovered history contain the same text.
+
+For development convenience, the native demo writes demo accounts, channels, and events directly and keeps the model key only in the current screen's memory. This direct access is not a production backend pattern. See the complete [Android streaming chat guide](https://github.com/WuKongIM/WuKongEasySDK-Android/blob/WK_EASYSDK_ANDROID_TAG/example/STREAMING.md). The [1.1.0 release acceptance](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.1.0) covers signatures, dependency builds, and API 34 device checks of the Maven artifact; it does not certify every device or real model provider.

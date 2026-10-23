@@ -9,6 +9,8 @@ description: 看懂消息链路，接入真实模型，用 SDK 实时更新同�
   使用 `easyjssdk@WK_EASYSDK_JAVASCRIPT_VERSION`，先完成 [Web 快速接入](/zh/sdk/easy/javascript/getting-started)。服务端须包含在线 EVENT 投递实现，旧发布镜像需核实。
 </Callout>
 
+原生接入使用 [Android 流消息](/zh/sdk/easy/android/streaming)或 [iOS 流消息](/zh/sdk/easy/ios/streaming)，与下文共享基础消息、流事件和历史快照协议。
+
 ## 1. 看懂链路
 
 ```mermaid
@@ -163,3 +165,5 @@ flowchart TD
 验收顺序：**正常回复 → 重复事件 → 取消 → 模型断流 → 离线重连**。每次核对同一气泡与历史文本一致；fixture 通过后仍需验证实际模型。
 
 接口详情：[消息事件](/zh/api/product-http/messages/appendMessageEvent) · [历史同步](/zh/api/product-http/messages/syncQuickstartChannelMessages) · [JSON-RPC](/zh/api/client-protocols/json-rpc)
+
+Flutter 原生接收和独立连接的使用方式见 [Flutter 流消息](/zh/sdk/easy/flutter/streaming)。

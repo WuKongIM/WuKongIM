@@ -68,7 +68,7 @@ data class IMBootstrap(
 
 The product backend authenticates the current product user and selects a WebSocket address. The Android client receives only its own connection material and no WuKongIM HTTP API management credential.
 
-Android EasySDK is a process singleton, and `WK_EASYSDK_ANDROID_TAG` cannot be initialized a second time with another configuration. This example fits a minimal run with one UID per process. A production application that switches accounts must first design and test a complete logout strategy around this limitation.
+`getInstance()` returns a process-shared instance, and an initialized instance cannot call `init` again with different configuration. This example retains shared ownership for a minimal one-UID run. Use `createInstance()` for independently owned connections or account switching, discarding the old instance before creating a new one; see [Android Streaming Messages](/en/sdk/easy/android/streaming).
 
 ```kotlin
 import android.os.Bundle
@@ -145,7 +145,7 @@ class ChatActivity : AppCompatActivity() {
                     current.debugLogging == config.debugLogging
             ) {
                 "WuKongEasySDK WK_EASYSDK_ANDROID_TAG cannot apply changed identity or configuration; " +
-                    "stop and restart the process or upgrade the SDK"
+                    "discard the old owner and initialize a new createInstance() peer"
             }
         }
         registerListeners()
@@ -218,7 +218,7 @@ fun sendText(targetUid: String, text: String) {
 
 A returned `send` result means Alice obtained a result for the request. Bob must independently observe the message through his `MESSAGE` listener. Do not mark the peer as “received” inside Alice's send callback.
 
-Because the SDK is a process singleton, use two devices, two emulators, or two independent application processes:
+This example uses a shared `getInstance()` connection, so validate with two devices, two emulators, or two independent application processes. `createInstance()` also supports independent identities in one process:
 
 1. Alice and Bob each obtain their own connection material from the product backend.
 2. Both sides observe `CONNECT`; on failure, record only a stable error code and stage, never the original error text.
@@ -229,12 +229,12 @@ Because the SDK is a process singleton, use two devices, two emulators, or two i
 
 ## 5. Clean up
 
-`onDestroy()` removes this page’s listeners and disconnects when the Activity finishes. An application connection belongs to the Application. Version `WK_EASYSDK_ANDROID_VERSION` cannot reinitialize with another identity or configuration; never silently reuse an old Token.
+`onDestroy()` removes this page’s listeners and disconnects when the Activity finishes. An application connection belongs to the Application. Each instance can be initialized only once. Call `destroy()` when discarding an independent peer, then use `createInstance()` and initialize a new peer for a changed identity; never silently reuse an old Token.
 
 ## 6. Troubleshooting
 
 - **`SDK is not initialized`:** preserve the `init → addEventListener → connect` order.
-- **The same UID gets a refreshed token or route and configuration changes:** `WK_EASYSDK_ANDROID_TAG` has no public reset API. Stop explicitly and restart the process; do not continue with a stale token or URL.
+- **The same UID gets a refreshed token or route and configuration changes:** An instance cannot reset its configuration. Explicitly stop the old shared owner; for account switching, discard it and initialize a new `createInstance()` peer rather than keeping a stale token or URL.
 - **The emulator connects but a physical device does not:** confirm that the address is reachable outside the host or container and have the product backend return the device-reachable WSS ingress.
 - **CONNECT, SEND, or RECVACK parsing fails:** confirm the server includes the EasySDK JSON-RPC compatibility implementation. The current server accepts snake_case fields and the README-aligned Android JSON text-string payload, as well as JSON objects and Base64 payloads, and returns snake_case results for Android. Use APP `0`, WEB `1`, and PC `2`; do not carry forward older literals.
 - **Raw JSON or `Params` still appears in Logcat with `debugLogging` disabled:** first confirm Gradle resolved `WK_EASYSDK_ANDROID_VERSION`, clean the old build, then use a non-production canary to distinguish SDK output from application or third-party network logs. Stop the rollout and file a minimal reproduction if the Release artifact still exposes that canary.
@@ -242,4 +242,8 @@ Because the SDK is a process singleton, use two devices, two emulators, or two i
 
 ## Next
 
+For incremental replies, continue with [Android Streaming Messages](/en/sdk/easy/android/streaming) and the native demo.
+
 Continue with [messaging](/en/guide/integration/messaging) and [production checks](/en/guide/integration/acceptance). For offline recovery, conversations, unread counts, or push, see [SDK selection](/en/sdk). [Versions and validation records](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#android) retain the exact environments and scope of past runs.
+
+See the [independent Android 1.1.0 acceptance record](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-10-23-android-easysdk-1.1.0.md) for Maven signatures, compilation, and native streaming verification.
