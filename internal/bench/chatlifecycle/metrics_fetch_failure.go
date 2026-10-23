@@ -27,6 +27,9 @@ func (f *MetricsFetchFailure) UnmarshalJSON(encoded []byte) error {
 		Kinds        [coordinatorWorkerCount]target.MetricsFailureKind `json:"kinds"`
 		ParseReasons metricsParseReasonsField                          `json:"parse_reasons"`
 	}
+	// Preserve default decoding of omitted/null legacy fields on reused receivers.
+	// The optional diagnostic starts absent for each independent object.
+	wire.SourceMask, wire.Kinds = f.SourceMask, f.Kinds
 	if err := json.Unmarshal(encoded, &wire); err != nil {
 		return err
 	}
