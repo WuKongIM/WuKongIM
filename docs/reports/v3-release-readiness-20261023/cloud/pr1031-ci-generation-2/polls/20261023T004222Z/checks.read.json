@@ -1,0 +1,15 @@
+{
+  "started_at": "2026-10-23T00:42:26.962307+00:00",
+  "finished_at": "2026-10-23T00:42:28.067133+00:00",
+  "method": "GET",
+  "endpoint": "commits/2662fe93b754d614422f2936185cf781a33b831a/check-runs?per_page=100",
+  "exit_code": 0,
+  "timeout": false,
+  "stdout_bytes": 63580,
+  "stdout_sha256": "e1fc5dff6f100e614578a120a296883d6d73e249acaba6d9f6d4fe837b037575",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_response": "private sibling excluded",
+  "retry_count": 0,
+  "public_json_sha256": "82e8353952526bbecbca4ef62fabb40b7a64dcf970ae894e5248d902a161f4a9"
+}

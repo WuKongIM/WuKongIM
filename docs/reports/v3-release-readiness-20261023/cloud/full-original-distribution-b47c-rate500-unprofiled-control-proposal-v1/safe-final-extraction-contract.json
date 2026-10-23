@@ -1,0 +1,79 @@
+{
+  "schema": "wukongim/2662-postcleanup-safe-final-projection-contract/v1",
+  "not_a_runtime_collector": true,
+  "only_leaf": {
+    "stage": "meta_checkpoint",
+    "reason": "metrics_fetch"
+  },
+  "optional_field": "metrics_fetch",
+  "shape": {
+    "source_mask": "integer type exactly; 1..7; only bits0..2",
+    "kinds": "array length exactly3; strings from closed set; position i nonempty iff source_mask bit i set"
+  },
+  "closed_nonempty_kinds": [
+    "configuration",
+    "context_canceled",
+    "context_deadline",
+    "transport",
+    "auth",
+    "http_status",
+    "response_limit",
+    "body_read",
+    "parse",
+    "mixed",
+    "unknown"
+  ],
+  "successful_position_kind": "",
+  "source_positions": "observation.service_nodes declared order; source positions are not node identity until bound to unchanged config declaration",
+  "other_leaf": "omit metrics_fetch entirely",
+  "invalid_shape_or_foreign_text": "do not publish values; retain immutable raw diagnostic privately and report fixed projection-invalid marker",
+  "missing_optional_field": "explicit missing; no inferred failure kind",
+  "source_files": [
+    {
+      "path": "internal/bench/chatlifecycle/metrics_fetch_failure.go",
+      "sha256": "9ae64f4a129bf2d8735ccfe62cbc6d0eda69cbf31b1346cc8a79e4e3808961f6"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "sha256": "0c7a41292bc61a0b68ddea2e6a2cff4d78bbd4293f0395d77674c128ef8f9b09"
+    },
+    {
+      "path": "internal/bench/target/metrics_failure.go",
+      "sha256": "7a075f5707876778c2264f053be43c3ac93a6337eb006e5891673fab93d0d98a"
+    },
+    {
+      "path": "internal/bench/target/metrics_parse_failure.go",
+      "sha256": "b928bc664dba8c1355cab6f5f67926e3cb9cd23ce92730e66deaa69430eb4314"
+    }
+  ],
+  "future_implementation": "bounded offline extraction after terminal cleanup; no new run probe, service request or runtime behavior change",
+  "optional_parse_reasons": {
+    "field": "parse_reasons",
+    "shape": "if present, exactly three short <=64-byte strings within <=1024-byte optional field; only positions with kind parse may be nonempty; else optional vector absent",
+    "closed_nonempty_values": [
+      "line_limit",
+      "series_limit",
+      "invalid_value",
+      "incomplete_metadata_results",
+      "invalid_sample",
+      "invalid_labels",
+      "invalid_metadata_labels",
+      "invalid_metadata_slot",
+      "invalid_metadata_counter",
+      "invalid_metadata_result",
+      "duplicate_metadata_slot_result",
+      "aggregate_overflow",
+      "unsupported_family",
+      "invalid_queue_labels",
+      "invalid_queue_family",
+      "duplicate_or_excess_queue_series",
+      "unpaired_queue_series",
+      "invalid_queue_utilization",
+      "invalid_sample_name",
+      "label_cardinality_limit",
+      "unknown"
+    ],
+    "malformed_optional": "do not publish arbitrary text; omit optional parse_reasons independently and preserve valid mask/kinds",
+    "null_or_missing": "absent; never infer a parser leaf"
+  }
+}

@@ -1,0 +1,214 @@
+{
+  "commands_once": true,
+  "environment": {
+    "PATH": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    "HOME": "/Users/tt",
+    "GOPATH": "/Users/tt/go",
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "2",
+    "GOFLAGS": "-p=1",
+    "TMPDIR": "/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/"
+  },
+  "source_and_tests_hashes_pre_post_verified": true,
+  "production_unchanged": true,
+  "results": [
+    {
+      "phase": "budget-control",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "./internal/usecase/presence",
+        "-run",
+        "^TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth$",
+        "-count=1",
+        "-p=1",
+        "-timeout=30s",
+        "-json"
+      ],
+      "started_utc": "2026-10-23T02:11:16.537365+00:00",
+      "elapsed_seconds": 1.629,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 97679,
+      "output_bytes": {
+        "stdout": 1577,
+        "stderr": 0
+      },
+      "events": [
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+          "Test": "TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+          "Elapsed": 0.508
+        }
+      ],
+      "bounded_diagnostics": [
+        "--- PASS: TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth (0.00s)",
+        "PASS"
+      ]
+    },
+    {
+      "phase": "public-width-red",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/usecase/presence",
+        "-run",
+        "^(TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget|TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys)$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=40s",
+        "-json"
+      ],
+      "started_utc": "2026-10-23T02:11:18.168408+00:00",
+      "elapsed_seconds": 6.162,
+      "exit_code": 1,
+      "outer_or_output_kill": null,
+      "pgid": 97693,
+      "output_bytes": {
+        "stdout": 5480,
+        "stderr": 0
+      },
+      "events": [
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+          "Test": "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/1",
+          "Elapsed": 2
+        },
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+          "Test": "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/512",
+          "Elapsed": 2
+        },
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+          "Test": "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget",
+          "Elapsed": 4
+        },
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+          "Test": "TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys",
+          "Elapsed": 1
+        },
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+          "Elapsed": 5.767
+        }
+      ],
+      "bounded_diagnostics": [
+        "recovery_width16_integration_test.go:103: owner round 4 did not enter",
+        "--- FAIL: TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/1 (2.00s)",
+        "recovery_width16_integration_test.go:103: owner round 4 did not enter",
+        "--- FAIL: TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/512 (2.00s)",
+        "--- FAIL: TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget (4.00s)",
+        "uid_flight_integration_test.go:347: owner did not enter",
+        "--- FAIL: TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys (1.00s)",
+        "FAIL",
+        "FAIL\tgithub.com/WuKongIM/WuKongIM/internal/usecase/presence\t5.767s"
+      ]
+    },
+    {
+      "phase": "adapter-width-red",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/infra/cluster",
+        "-run",
+        "^TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=30s",
+        "-json"
+      ],
+      "started_utc": "2026-10-23T02:11:24.331860+00:00",
+      "elapsed_seconds": 17.737,
+      "exit_code": 1,
+      "outer_or_output_kill": null,
+      "pgid": 97708,
+      "output_bytes": {
+        "stdout": 2004,
+        "stderr": 0
+      },
+      "events": [
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/internal/infra/cluster",
+          "Test": "TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth",
+          "Elapsed": 2
+        },
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/internal/infra/cluster",
+          "Elapsed": 2.396
+        }
+      ],
+      "bounded_diagnostics": [
+        "presence_recovery_width16_integration_test.go:95: only 4 independent recovery rounds entered owner reads, want 16",
+        "--- FAIL: TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth (2.00s)",
+        "FAIL",
+        "FAIL\tgithub.com/WuKongIM/WuKongIM/internal/infra/cluster\t2.396s"
+      ]
+    },
+    {
+      "phase": "byte-boundary-red",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/usecase/presence",
+        "-run",
+        "^TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=90s",
+        "-json"
+      ],
+      "started_utc": "2026-10-23T02:11:42.070023+00:00",
+      "elapsed_seconds": 10.499,
+      "exit_code": 1,
+      "outer_or_output_kill": null,
+      "pgid": 97914,
+      "output_bytes": {
+        "stdout": 1931,
+        "stderr": 0
+      },
+      "events": [
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+          "Test": "TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts",
+          "Elapsed": 10.09
+        },
+        {
+          "Action": "fail",
+          "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+          "Elapsed": 10.245
+        }
+      ],
+      "bounded_diagnostics": [
+        "recovery_width16_integration_test.go:167: owner round 104 did not enter",
+        "--- FAIL: TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts (10.09s)",
+        "FAIL",
+        "FAIL\tgithub.com/WuKongIM/WuKongIM/internal/usecase/presence\t10.245s"
+      ]
+    }
+  ]
+}

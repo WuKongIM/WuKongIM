@@ -1,0 +1,26 @@
+{
+  "id": 120191789002,
+  "run_id": 39884710344,
+  "name": "Candidate migration and messaging E2E",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 86490,
+  "sha256": "91641bd0db37ab8cbfc4a171235e992ae1450c6f2484c8655a6b19448780e25c",
+  "actual_checkout_candidates": [
+    "b6007c97971b5b3645b8917fc5a14c9499d0cfed"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+    "Record exact source and initial case state",
+    "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+    "Build once and run migration, cross-node delivery, and self-chat serially",
+    "Reject tracked-tree mutation",
+    "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+    "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+    "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

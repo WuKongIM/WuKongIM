@@ -1,0 +1,14 @@
+{
+  "release_base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "prior_candidate": "11debae7337dc0f0497ff732600d5ebf03949544",
+  "parser_complete_client_equal_after_only_constructor_normalization": true,
+  "parser_byte_identical_to_prior_candidate": true,
+  "parser_sha256": "d392bf84cf7175830838e758a4d3df1ecc953b153af1da5e8cfc35c7daf11d5e",
+  "base_parser_sha256": "797ac967cb5f771d2cd3c146d42eff579cb51570aefe91ac8b566372dcb9e2e7",
+  "closed_families": 20,
+  "constructor_sites": 30,
+  "wire_complete_file_equal_to_prior_after_removing_only_seed_and_two_comments": true,
+  "wire_prior_sha256": "2669204b0a5d5f80cb4fea0f46dbf8cecf0bb1f3c7ec9b8208f9e0a3119186ae",
+  "wire_candidate_sha256": "9ae64f4a129bf2d8735ccfe62cbc6d0eda69cbf31b1346cc8a79e4e3808961f6",
+  "other_source_changes": "None; the only other new source path is independent supplement2 test file. Original7 and null supplement test files remain pinned."
+}

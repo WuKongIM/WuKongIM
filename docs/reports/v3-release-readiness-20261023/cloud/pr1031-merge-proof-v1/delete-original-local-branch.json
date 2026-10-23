@@ -1,0 +1,17 @@
+{
+  "operation": "delete-original-local-branch",
+  "argv": [
+    "git",
+    "branch",
+    "-d",
+    "codex/v3-metrics-parse-leaf-diagnostics"
+  ],
+  "started_at": "2026-10-23T01:02:26.190014+00:00",
+  "finished_at": "2026-10-23T01:02:26.208336+00:00",
+  "exit_code": 0,
+  "stdout_bytes": 72,
+  "stdout_sha256": "0a4e53451bc360028276c0c0205253b50188470cc0775834a3267eed284c8e25",
+  "stderr_bytes": 191,
+  "stderr_sha256": "a6e954936c3ae88eb3d39b4a8b32475ab07a87b317ddadf566534d20247e090a",
+  "force": false
+}

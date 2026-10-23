@@ -1,0 +1,25 @@
+{
+  "id": 120216989095,
+  "run_id": 39893010250,
+  "name": "PR 500 QPS / mixed-send",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 86765,
+  "sha256": "3a1a241d19cbfe4742d1cf4c44913061767cfa22a215d9cd9bc2346bccb867bd",
+  "actual_checkout_candidates": [
+    "9e8332ed8ea69540e5f248c7e483716e987a2546"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Checkout candidate",
+    "Set up Go",
+    "Run fixed sustained 500 QPS profile",
+    "Reject tracked-tree mutation",
+    "Upload every performance result",
+    "Post Set up Go",
+    "Post Checkout candidate",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

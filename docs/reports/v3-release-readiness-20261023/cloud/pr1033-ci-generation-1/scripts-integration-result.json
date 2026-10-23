@@ -1,0 +1,48 @@
+{
+  "artifact_id": 12476290066,
+  "identity": {
+    "source_sha": "9e8332ed8ea69540e5f248c7e483716e987a2546",
+    "policy_sha": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+    "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "event": "pull_request",
+    "run_id": "39893010352",
+    "run_attempt": "1"
+  },
+  "command": {
+    "arguments": [
+      "go",
+      "test",
+      "-tags=integration",
+      "./scripts/...",
+      "-count=1",
+      "-timeout=9m",
+      "-parallel=2"
+    ],
+    "working_dir": ".",
+    "timeout_seconds": 600,
+    "max_output_bytes": 8388608,
+    "named_check": "scripts-integration",
+    "environment": {
+      "GOWORK": "off",
+      "GOFLAGS": "-p=2 -json"
+    }
+  },
+  "result": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 2290,
+    "output_bytes": 1507079,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 2290,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 519.119
+  }
+}

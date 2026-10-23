@@ -1,0 +1,1 @@
+{"synthetic_process_integration": "PASS", "queries": 6, "exact_two_uint64_warning_joins": true, "private_UID_not_public": true, "outer_owned_group_zero": true, "real_DB_or_log_or_product_requests": 0}

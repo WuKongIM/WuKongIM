@@ -1,0 +1,41 @@
+{
+  "phase": "app-observability-race",
+  "args": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "-race",
+    "./internal/app",
+    "-run",
+    "^Test(RuntimePressureAdapter|TransportMetricsObserver|ConfigureObservability|MultiChannelObserver)",
+    "-count=1",
+    "-p=1",
+    "-timeout=2m",
+    "-json"
+  ],
+  "environment": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "2",
+    "GOFLAGS": "-p=1"
+  },
+  "started_at": "2026-10-23T01:31:05.494669+00:00",
+  "wall_seconds": 59.376129125012085,
+  "exit_code": 0,
+  "reason": "exited",
+  "pid_pgid": 86217,
+  "observed_bytes": {
+    "stdout": 15131,
+    "stderr": 0
+  },
+  "limits": {
+    "stdout": 4194304,
+    "stderr": 1048576
+  },
+  "outer_seconds": 180,
+  "test_pins_sha256": "e02a12029e2f4c570be7c11feac38b06abb8a7c000a351f063edf4635fc07362",
+  "same_test_hashes": true,
+  "supplemental_test_pins_sha256": null,
+  "source_diff": ""
+}

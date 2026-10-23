@@ -1,0 +1,53 @@
+test_parent_handler_only_sets_stop_without_async_exception (__main__.ControlledStop.test_parent_handler_only_sets_stop_without_async_exception) ... ERROR
+test_prestart_stop_creates_no_child_or_output (__main__.ControlledStop.test_prestart_stop_creates_no_child_or_output) ... ERROR
+test_stop_after_spawn_always_kills_and_reaps_registered_child (__main__.ControlledStop.test_stop_after_spawn_always_kills_and_reaps_registered_child) ... ERROR
+test_stop_during_eof_but_alive_wait_reaps_without_async_cleanup_exception (__main__.ControlledStop.test_stop_during_eof_but_alive_wait_reaps_without_async_cleanup_exception) ... ERROR
+
+======================================================================
+ERROR: test_parent_handler_only_sets_stop_without_async_exception (__main__.ControlledStop.test_parent_handler_only_sets_stop_without_async_exception)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/2662-trace-offline-synthetic-tests-v1/controlled_stop_test.py", line 17, in test_parent_handler_only_sets_stop_without_async_exception
+    L.signal_stop(signal.SIGTERM,None)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/2662-three-execution-trace-offline-v1/run_offline.py", line 19, in signal_stop
+    raise InterruptedError()
+InterruptedError
+
+======================================================================
+ERROR: test_prestart_stop_creates_no_child_or_output (__main__.ControlledStop.test_prestart_stop_creates_no_child_or_output)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/2662-trace-offline-synthetic-tests-v1/controlled_stop_test.py", line 24, in test_prestart_stop_creates_no_child_or_output
+    r=self.run_child(lambda:True,'raise SystemExit(0)')
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/2662-trace-offline-synthetic-tests-v1/controlled_stop_test.py", line 12, in run_child
+    return A.run_bounded([sys.executable,'-c',code],self.env,stdout_path=self.root/'stdout',stderr_path=self.root/'stderr',stdout_cap=64,stderr_cap=64,timeout_seconds=2,stop_requested=stop)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: run_bounded() got an unexpected keyword argument 'stop_requested'
+
+======================================================================
+ERROR: test_stop_after_spawn_always_kills_and_reaps_registered_child (__main__.ControlledStop.test_stop_after_spawn_always_kills_and_reaps_registered_child)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/2662-trace-offline-synthetic-tests-v1/controlled_stop_test.py", line 30, in test_stop_after_spawn_always_kills_and_reaps_registered_child
+    r=self.run_child(stop,'import signal;signal.pause()')
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/2662-trace-offline-synthetic-tests-v1/controlled_stop_test.py", line 12, in run_child
+    return A.run_bounded([sys.executable,'-c',code],self.env,stdout_path=self.root/'stdout',stderr_path=self.root/'stderr',stdout_cap=64,stderr_cap=64,timeout_seconds=2,stop_requested=stop)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: run_bounded() got an unexpected keyword argument 'stop_requested'
+
+======================================================================
+ERROR: test_stop_during_eof_but_alive_wait_reaps_without_async_cleanup_exception (__main__.ControlledStop.test_stop_during_eof_but_alive_wait_reaps_without_async_cleanup_exception)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/2662-trace-offline-synthetic-tests-v1/controlled_stop_test.py", line 42, in test_stop_during_eof_but_alive_wait_reaps_without_async_cleanup_exception
+    r=self.run_child(lambda:state['stop'],'import os,signal;os.close(1);os.close(2);signal.pause()')
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/2662-trace-offline-synthetic-tests-v1/controlled_stop_test.py", line 12, in run_child
+    return A.run_bounded([sys.executable,'-c',code],self.env,stdout_path=self.root/'stdout',stderr_path=self.root/'stderr',stdout_cap=64,stderr_cap=64,timeout_seconds=2,stop_requested=stop)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: run_bounded() got an unexpected keyword argument 'stop_requested'
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.002s
+
+FAILED (errors=4)

@@ -1,0 +1,75 @@
+{
+  "artifact_id": 12470290772,
+  "source_sha": "5b3fef1c7a3418c13c4a4392533f112915d97ffe",
+  "binary_sha256": "b3f9efb9f81bf4496a3592001af98cd72d296b2de69489927bf2ca662f3ccc03",
+  "go_version": "go version go1.25.11 linux/amd64",
+  "visible_cpus": "4",
+  "cpu_model": "AMD EPYC 9V45 96-Core Processor",
+  "measurement_windows": [
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 178.055554,
+      "scheduled_to_start_p99_ms": 1.066485,
+      "service_p99_ms": 177.357845
+    },
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 178.043337,
+      "scheduled_to_start_p99_ms": 1.067618,
+      "service_p99_ms": 177.338117
+    },
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 178.061199,
+      "scheduled_to_start_p99_ms": 1.065991,
+      "service_p99_ms": 177.343247
+    }
+  ],
+  "warmup_windows": [
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 178.077203,
+      "scheduled_to_start_p99_ms": 1.075414,
+      "service_p99_ms": 177.364463
+    }
+  ],
+  "measurement_second_cohorts": 180,
+  "warmup_second_cohorts": 60,
+  "data_filesystem": {
+    "filesystems": [
+      {
+        "target": "/",
+        "source": "/dev/nvme0n1p1",
+        "fstype": "ext4",
+        "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+      }
+    ]
+  },
+  "result": {
+    "status": "pass"
+  }
+}

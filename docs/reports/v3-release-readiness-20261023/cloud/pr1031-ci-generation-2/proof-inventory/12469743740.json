@@ -1,0 +1,62 @@
+{
+  "id": 12469743740,
+  "name": "v3-candidate-default-39879047480-1",
+  "size_in_bytes": 8240,
+  "digest": "sha256:8af2bdd145902e13e7b6a9952ab3a45594c2faeb5f9aefa80254acd28e9db735",
+  "expired": false,
+  "state": "verified_private_original",
+  "zip_sha256": "8af2bdd145902e13e7b6a9952ab3a45594c2faeb5f9aefa80254acd28e9db735",
+  "full_size_sha_crc_valid": true,
+  "members": [
+    {
+      "path": "command.json",
+      "bytes": 334,
+      "compressed_bytes": 213,
+      "crc32": "c797ebb8",
+      "sha256": "0cb6625e3ac51b84b8154054b2295ed766dcd7cb0cb0967da00310244dffa3d9",
+      "utf8_text": true
+    },
+    {
+      "path": "go-version.txt",
+      "bytes": 33,
+      "compressed_bytes": 35,
+      "crc32": "dd48af92",
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+      "utf8_text": true
+    },
+    {
+      "path": "identity.json",
+      "bytes": 286,
+      "compressed_bytes": 188,
+      "crc32": "63ffd475",
+      "sha256": "e868c18a12876f619d4a569e33f7186b2f39ecf1eaa693e14a61492d16a6a0f3",
+      "utf8_text": true
+    },
+    {
+      "path": "policy.json",
+      "bytes": 14492,
+      "compressed_bytes": 2758,
+      "crc32": "4b2851e1",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "utf8_text": true
+    },
+    {
+      "path": "result.json",
+      "bytes": 370,
+      "compressed_bytes": 195,
+      "crc32": "3f5929c5",
+      "sha256": "3d82c778a9b46e47c0aba630f687ff91a7e3b850df3eaaf9b71c818f03707679",
+      "utf8_text": true
+    },
+    {
+      "path": "stdout-stderr.log",
+      "bytes": 22029,
+      "compressed_bytes": 4121,
+      "crc32": "a860a707",
+      "sha256": "c63a8ff554a82ec227af2d420988eeecf3f66d71143bf997cb213633df39100c",
+      "utf8_text": true
+    }
+  ],
+  "member_count": 6,
+  "raw_identity_profiles_logs_excluded_from_public": true
+}

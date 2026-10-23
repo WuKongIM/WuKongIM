@@ -1,0 +1,10 @@
+{
+  "scope": "local final source-binding only",
+  "first_error_exit_code": 128,
+  "path": ".github/workflows/review-agent-userns-diagnostic.yaml",
+  "reason": "Historical disabled GitHub workflow metadata was incorrectly assumed to imply an existing source file",
+  "preserved_first_error": "fatal: path does not exist in exact base 8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "correction": "Check explicit absence at both base and merge, while preserving independent live API metadata equality",
+  "repository_or_workflow_failure": false,
+  "mutation_retry": false
+}

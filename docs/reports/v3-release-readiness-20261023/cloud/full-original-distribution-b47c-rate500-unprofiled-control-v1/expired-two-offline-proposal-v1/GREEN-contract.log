@@ -1,0 +1,8 @@
+test_first_invalid_and_second_sample_divergent_stop_all_later (__main__.TwoSamples.test_first_invalid_and_second_sample_divergent_stop_all_later) ... ok
+test_streaming_stdout_and_stderr_limits_stop_later_queries (__main__.TwoSamples.test_streaming_stdout_and_stderr_limits_stop_later_queries) ... ok
+test_two_valid_samples_use_six_queries (__main__.TwoSamples.test_two_valid_samples_use_six_queries) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 2.992s
+
+OK

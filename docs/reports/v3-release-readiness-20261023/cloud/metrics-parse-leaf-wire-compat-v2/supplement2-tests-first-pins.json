@@ -1,0 +1,11 @@
+{
+  "phase": "supplement2 frozen before compatibility production fix",
+  "base": "11debae7337dc0f0497ff732600d5ebf03949544",
+  "files": {
+    "internal/bench/chatlifecycle/metrics_parse_reuse_diagnostics_test.go": {
+      "sha256": "45d923f9c8be3a7bd83f4337d35dd920071b041281205d65dece105f7982435d",
+      "bytes": 5579
+    }
+  },
+  "coverage": "18 nonzero receiver cases +14 repeated outer-object cases +6 legacy/JSON error cases; independent default-encoding/json old DTO oracle. Optional absence explicitly clears prior new-only vector while old absent/null fields retain their default semantics."
+}

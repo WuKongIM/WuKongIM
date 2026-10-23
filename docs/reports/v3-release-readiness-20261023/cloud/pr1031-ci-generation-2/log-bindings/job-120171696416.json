@@ -1,0 +1,26 @@
+{
+  "id": 120171696416,
+  "run_id": 39879047447,
+  "name": "PR three-node correctness",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 86873,
+  "sha256": "7b561e6d108c477d5c84f66764d51a54a273c9cca52afdaf37b8a4dc336284f2",
+  "actual_checkout_candidates": [
+    "5b3fef1c7a3418c13c4a4392533f112915d97ffe"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Checkout candidate",
+    "Set up Go",
+    "Prepare isolated PR evidence root",
+    "Run bounded three-node 500 QPS correctness smoke",
+    "Reject tracked-tree mutation",
+    "Upload PR regression evidence",
+    "Post Set up Go",
+    "Post Checkout candidate",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

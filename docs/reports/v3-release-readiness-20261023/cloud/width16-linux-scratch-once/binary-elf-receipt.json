@@ -1,0 +1,34 @@
+[
+  {
+    "name": "presence",
+    "sha256": "f6e6676cf2f5c2ade533618e1e3ede672237435aafd0b4eb1cbbae38d1b89a0d",
+    "bytes": 7098250,
+    "mode": "0o555",
+    "elf_machine": 183,
+    "program_header_types": [
+      6,
+      4,
+      1,
+      1,
+      1,
+      1685382481
+    ],
+    "static_no_PT_INTERP_or_PT_DYNAMIC": true
+  },
+  {
+    "name": "cluster",
+    "sha256": "f0e444f9b68bc03ff6902cd22fa2eea31a461f1e8b6aff90618b3f6fd4f65fde",
+    "bytes": 26062067,
+    "mode": "0o555",
+    "elf_machine": 183,
+    "program_header_types": [
+      6,
+      4,
+      1,
+      1,
+      1,
+      1685382481
+    ],
+    "static_no_PT_INTERP_or_PT_DYNAMIC": true
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "head": "2662fe93b754d614422f2936185cf781a33b831a",
+  "tree": "1182b14d5b659eb60f2e7b694ff91b6641189106",
+  "parent": "11debae7337dc0f0497ff732600d5ebf03949544",
+  "parent_tree": "5ac5aa9cbbedcc75696ef45811245a205ad8c471",
+  "release_base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "branch": "codex/v3-metrics-parse-leaf-diagnostics",
+  "clean_worktree": true,
+  "changed_path_count_from_prior": 2,
+  "changed_paths_exactly_source_pins": true,
+  "every_other_tracked_path_unchanged_from_prior": true,
+  "production_diff_from_prior": "One legacy-field seed assignment and two explanatory comment lines only.",
+  "all_test_pins_sha256": "8eb0ea8e44d86b17a2b41e671b4406c5e3db9c3f7f3c5b2b3b1e57f1d3cd6032",
+  "supplement2_pins_sha256": "1db1e0090c139d1865114ffa8433e0d8f99d1ce856db1a149d5dc0ca8dc6960e",
+  "equivalence_sha256": "9a1de57d03c43b90612831370a3490369526a94a3a4bcdc4b949a3aa021e4d5f",
+  "source_pins_sha256": "2f77521330fd6be283b4ad3c701ddf00c7d1607506e26aab5ed96009b0f62811",
+  "no_runtime_or_cloud_or_DB": true,
+  "no_old_CI_rerun_or_acceptance_reuse": true
+}

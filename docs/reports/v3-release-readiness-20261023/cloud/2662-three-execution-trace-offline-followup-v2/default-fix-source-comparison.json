@@ -1,0 +1,10 @@
+{
+  "old_module_sha256": "5b207e2915d5cff37b5c76f062494072d8b1fd08778e533dadd4da799a2e5dbf",
+  "new_module_sha256": "0cb28eccf0f351cba873cb9b8ca9e29ab92f4e805a764564678c31aeee1f8eed",
+  "exactly_optional_string_index_defaults_changed": true,
+  "fields_and_packed_byte_identical": true,
+  "worker_byte_identical": true,
+  "required_id_type_value_bounds_unchanged": true,
+  "test_RED_log_sha256": "3ab5337279fd57819277b2886f10d19c909a6cd30f2262ffbea4c7a12566a181",
+  "test_GREEN30_log_sha256": "d755ab228fb25684fc46d2fed87e99685cbb45a8f66ad33e5ce9ddb21a9e693b"
+}

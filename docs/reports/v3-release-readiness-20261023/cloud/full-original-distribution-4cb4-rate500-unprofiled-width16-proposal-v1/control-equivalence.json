@@ -1,0 +1,20 @@
+{
+  "all_supervisor_functions_AST_equal_A": {
+    "now": true,
+    "write": true,
+    "event": true,
+    "capture": true,
+    "group_members": true,
+    "coordinator_pid": true,
+    "stop": true,
+    "samples": true,
+    "check_ports": true,
+    "bounded_metrics": true,
+    "verify_launch_inputs": true
+  },
+  "watchdog_byte_equal_A": true,
+  "slotchecker_byte_equal_A": true,
+  "only_binding_changes_in_controls": true,
+  "no_sampler_or_new_probe": true,
+  "runtime_budget_and_config_changes": []
+}

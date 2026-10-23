@@ -1,0 +1,14 @@
+{
+  "completed_at_utc": "2026-10-23T01:30:10.514359+00:00",
+  "six_input_receipts_verified": true,
+  "content_reads_per_input": 1,
+  "selected_node_service_combinations": 9,
+  "selected_monotone_counter_histogram_series": 63,
+  "endpoint_gauge_series": 36,
+  "unknown_selected_delta_series": 0,
+  "real_runtime_or_network_actions": 0,
+  "raw_metrics_copied": false,
+  "resource_gauges_extracted": false,
+  "source_files_verified": 13,
+  "new_source_or_test_changes": false
+}

@@ -1,0 +1,15 @@
+{
+  "started_at": "2026-10-23T00:50:20.452138+00:00",
+  "finished_at": "2026-10-23T00:50:21.606676+00:00",
+  "method": "GET",
+  "endpoint": "pulls/1031",
+  "exit_code": 0,
+  "timeout": false,
+  "stdout_bytes": 18846,
+  "stdout_sha256": "9ecd7875e207ed36c73a10a1c930dd6f53787dcdc93ab579e301c1a86f21357b",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_response": "private sibling excluded",
+  "retry_count": 0,
+  "public_json_sha256": "c6789060285ac954ea814ed0a2df8f9f67e8a79036a3946f86611d8fa916c659"
+}

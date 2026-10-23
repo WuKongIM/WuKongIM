@@ -1,0 +1,173 @@
+{
+  "phases": [
+    {
+      "phase": "reuse-red",
+      "exit_code": 1,
+      "wall_seconds": 4.723964749951847,
+      "counts_including_parent_tests_and_subtests": {
+        "fail_case": 28,
+        "pass_case": 13,
+        "fail_package": 1
+      },
+      "failed_test_names": [
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/valid_new_only",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/malformed_new_only",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/wrong_new_type",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/empty_object",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/old_null_mask",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/old_null_array",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/old_both_null",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/explicit_zero_mask",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/explicit_zero_array",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/empty_array",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/short_array",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/short_null_array",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/array_null_cells",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields/whole_null",
+        "TestMetricsParseReasonsPreserveLegacyReceiverFields",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields/{\"parse_reasons\":[null,\"\",\"\"]}",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields/{\"parse_reasons\":[\"invalid_value\",\"\",\"\"]}",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields/{\"parse_reasons\":false}",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields/{}",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields/{\"source_mask\":null}",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields/{\"kinds\":null}",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields/{\"source_mask\":null,\"kinds\":null,\"parse_reasons\":[null,\"\",\"\"]}",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields/{\"source_mask\":0}",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields/{\"kinds\":[]}",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields/{\"kinds\":[\"parse\"]}",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields/{\"kinds\":[null]}",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields/{\"kinds\":[null,null,null]}",
+        "TestMetricsParseReasonsPreserveRepeatedOuterFields"
+      ],
+      "all_9_pinned_test_files_unchanged": true,
+      "supplement2_pins_sha256": "1db1e0090c139d1865114ffa8433e0d8f99d1ce856db1a149d5dc0ca8dc6960e"
+    },
+    {
+      "phase": "reuse-green",
+      "exit_code": 0,
+      "wall_seconds": 3.6687811670126393,
+      "counts_including_parent_tests_and_subtests": {
+        "pass_case": 41,
+        "pass_package": 1
+      },
+      "failed_test_names": [],
+      "all_9_pinned_test_files_unchanged": true,
+      "supplement2_pins_sha256": "1db1e0090c139d1865114ffa8433e0d8f99d1ce856db1a149d5dc0ca8dc6960e"
+    },
+    {
+      "phase": "final-related-normal",
+      "exit_code": 0,
+      "wall_seconds": 43.41606304200832,
+      "counts_including_parent_tests_and_subtests": {
+        "pass_case": 2605,
+        "pass_package": 11,
+        "skip_package": 3
+      },
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+          "action": "pass",
+          "seconds": 0.437
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+          "action": "pass",
+          "seconds": 15.797
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli",
+          "action": "pass",
+          "seconds": 0.379
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/bench",
+          "action": "pass",
+          "seconds": 0.431
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+          "action": "pass",
+          "seconds": 6.929
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command",
+          "action": "skip",
+          "seconds": 0
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context",
+          "action": "pass",
+          "seconds": 0.289
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/database",
+          "action": "pass",
+          "seconds": 7.418
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/diagnostics",
+          "action": "pass",
+          "seconds": 0.407
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/migrate",
+          "action": "skip",
+          "seconds": 0
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/nodeops",
+          "action": "pass",
+          "seconds": 0.355
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/sim",
+          "action": "pass",
+          "seconds": 0.491
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top",
+          "action": "pass",
+          "seconds": 0.301
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top/topapi",
+          "action": "skip",
+          "seconds": 0
+        }
+      ],
+      "all_9_pinned_test_files_unchanged": true
+    },
+    {
+      "phase": "final-related-race",
+      "exit_code": 0,
+      "wall_seconds": 118.27631591598038,
+      "counts_including_parent_tests_and_subtests": {
+        "pass_case": 2321,
+        "pass_package": 3
+      },
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+          "action": "pass",
+          "seconds": 2.769
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+          "action": "pass",
+          "seconds": 88.305
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+          "action": "pass",
+          "seconds": 18.29
+        }
+      ],
+      "all_9_pinned_test_files_unchanged": true
+    }
+  ],
+  "case_inventory": {
+    "receiver_reuse": 18,
+    "repeated_outer_object": 14,
+    "old_field_and_whole_json_rejection": 6
+  }
+}

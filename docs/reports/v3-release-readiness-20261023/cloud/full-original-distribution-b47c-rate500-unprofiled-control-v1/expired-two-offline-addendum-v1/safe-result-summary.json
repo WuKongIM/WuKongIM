@@ -1,0 +1,72 @@
+{
+  "schema": "b47c-two-expired-exact-association-summary/v1",
+  "queries": 6,
+  "query_exit0_and_joined": true,
+  "samples": [
+    {
+      "fingerprint": "959d866140319ee8df82f2dcd8a59214",
+      "message_id": "2113450116886040577",
+      "message_seq": "1",
+      "replicas_matching": 3,
+      "clientno_fingerprint_matches": true,
+      "exact_message_warning_matches": [
+        {
+          "node_id": 1,
+          "at": "2026-10-23T09:59:13.692000+08:00",
+          "message_id": "2113450116886040577",
+          "message_seq": "1",
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "owner_node_id": 0,
+          "recipient_uid_present": true,
+          "fixed_error_reason": "deadline_exceeded",
+          "within_firstgrant_terminal_window": true,
+          "exact_db_messageID_and_seq_match": true
+        }
+      ],
+      "exact_message_warning_match_count": 1,
+      "status": "exact_message_warning_found"
+    },
+    {
+      "fingerprint": "a27116fae1607de909889a19351a43a1",
+      "message_id": "2113450150155268096",
+      "message_seq": "1",
+      "replicas_matching": 3,
+      "clientno_fingerprint_matches": true,
+      "exact_message_warning_matches": [
+        {
+          "node_id": 3,
+          "at": "2026-10-23T09:59:21.675000+08:00",
+          "message_id": "2113450150155268096",
+          "message_seq": "1",
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "owner_node_id": 0,
+          "recipient_uid_present": true,
+          "fixed_error_reason": "deadline_exceeded",
+          "within_firstgrant_terminal_window": true,
+          "exact_db_messageID_and_seq_match": true
+        }
+      ],
+      "exact_message_warning_match_count": 1,
+      "status": "exact_message_warning_found"
+    }
+  ],
+  "canonical_window": {
+    "first_grant": "2026-10-23T09:58:53.698647+08:00",
+    "terminal_cut": "2026-10-23T09:59:26.774676+08:00"
+  },
+  "original_unchanged": true,
+  "original_engine_never_opened": true,
+  "owned_group_zero": true,
+  "outer_elapsed_seconds": 0.6604273330885917,
+  "limits": [
+    "exact private DB channel+client fingerprint to ID/seq to same-run canonical warning available tuple",
+    "log has no ChannelID or ChannelType",
+    "durable row does not prove online RECV",
+    "presence timeout is failure phase, not inner or cloud root cause",
+    "one invocation only, no retries or more samples"
+  ]
+}

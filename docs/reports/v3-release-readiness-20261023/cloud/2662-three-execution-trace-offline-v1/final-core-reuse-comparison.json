@@ -1,0 +1,9 @@
+{
+  "final_module_sha256": "5b207e2915d5cff37b5c76f062494072d8b1fd08778e533dadd4da799a2e5dbf",
+  "functions_byte_identical_sha256": {
+    "fields": "5627c299330e3db07b74a11ad013cbb7a82b99681c747a9f5fa7187ac855e798",
+    "packed": "a3b87633d9dd72ec825a38020b82a1bafba95844eeffc02d898a9d92c67ca96a"
+  },
+  "symbol_parsing_core_byte_identical": true,
+  "symbol_core_sha256": "87b67c6844a3b126db837dea78c26b33f6c9d334c321b04dccc6a4e7aa322e86"
+}

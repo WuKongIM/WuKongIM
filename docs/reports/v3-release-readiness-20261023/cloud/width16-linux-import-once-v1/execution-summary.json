@@ -1,0 +1,489 @@
+{
+  "records": [
+    {
+      "phase": "import-help",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "import",
+        "--help"
+      ],
+      "started_utc": "2026-10-23T03:17:34.434927+00:00",
+      "elapsed_seconds": 0.282,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16229,
+      "observed_bytes": {
+        "stdout": 406,
+        "stderr": 0
+      },
+      "outer_seconds": 5,
+      "stdout_bytes_limit": 8192,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "tag-preflight",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "ls",
+        "--no-trunc",
+        "--filter",
+        "reference=wukongim-width16-import:4cb45b340-once-v1",
+        "--format",
+        "{{.ID}}"
+      ],
+      "started_utc": "2026-10-23T03:17:34.716932+00:00",
+      "elapsed_seconds": 0.022,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16243,
+      "observed_bytes": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "outer_seconds": 15,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "rootfs-import",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "import",
+        "--platform",
+        "linux/arm64",
+        "--change",
+        "USER 65534:65534",
+        "--change",
+        "WORKDIR /tmp",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-import-once-v1/empty-rootfs.tar",
+        "wukongim-width16-import:4cb45b340-once-v1"
+      ],
+      "started_utc": "2026-10-23T03:17:34.739299+00:00",
+      "elapsed_seconds": 0.034,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16244,
+      "observed_bytes": {
+        "stdout": 72,
+        "stderr": 0
+      },
+      "outer_seconds": 15,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "image-inspect",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "inspect",
+        "--format",
+        "{\"Id\":{{json .Id}},\"Os\":{{json .Os}},\"Architecture\":{{json .Architecture}},\"RepoDigests\":{{json .RepoDigests}},\"Config\":{{json .Config}}}",
+        "sha256:584d68771fd6700702c4b82c821b69a977559acfb80a5a1a29a450531ceaac1a"
+      ],
+      "started_utc": "2026-10-23T03:17:34.773607+00:00",
+      "elapsed_seconds": 0.018,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16245,
+      "observed_bytes": {
+        "stdout": 421,
+        "stderr": 0
+      },
+      "outer_seconds": 15,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "create-presence",
+      "argv": [
+        "/usr/local/bin/docker",
+        "create",
+        "--name",
+        "wk-width16-import-presence-6e4bcf348ab2",
+        "--label",
+        "wukongim.width16.import=4cb45b340-once-v1",
+        "--platform",
+        "linux/arm64",
+        "--pull=never",
+        "--network=none",
+        "--cpus=2",
+        "--memory=2g",
+        "--memory-swap=2g",
+        "--pids-limit=128",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges",
+        "--user=65534:65534",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777",
+        "--mount",
+        "type=bind,src=/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/context/presence.test,dst=/tests/presence.test,readonly",
+        "sha256:584d68771fd6700702c4b82c821b69a977559acfb80a5a1a29a450531ceaac1a",
+        "/tests/presence.test",
+        "-test.run",
+        "^(TestAuthorityRecoveryWidth16(AdmitsCohortsAndFullKeyBudget|Keeps128MiBByteBudgetWithFreeCohorts)|TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth|TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys)$",
+        "-test.count=1",
+        "-test.parallel=1",
+        "-test.timeout=90s",
+        "-test.v"
+      ],
+      "started_utc": "2026-10-23T03:17:34.791986+00:00",
+      "elapsed_seconds": 0.039,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16246,
+      "observed_bytes": {
+        "stdout": 65,
+        "stderr": 0
+      },
+      "outer_seconds": 15,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "run-presence",
+      "argv": [
+        "/usr/local/bin/docker",
+        "start",
+        "--attach",
+        "d122679801b7cae6a5c619b992377c8ace131761865c31c30f789a38ab0cd46a"
+      ],
+      "started_utc": "2026-10-23T03:17:34.831088+00:00",
+      "elapsed_seconds": 0.231,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16249,
+      "observed_bytes": {
+        "stdout": 937,
+        "stderr": 0
+      },
+      "outer_seconds": 120,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "state-presence",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "--type",
+        "container",
+        "--format",
+        "{{json .State}}",
+        "d122679801b7cae6a5c619b992377c8ace131761865c31c30f789a38ab0cd46a"
+      ],
+      "started_utc": "2026-10-23T03:17:35.062680+00:00",
+      "elapsed_seconds": 0.03,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16250,
+      "observed_bytes": {
+        "stdout": 224,
+        "stderr": 0
+      },
+      "outer_seconds": 15,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "remove-presence",
+      "argv": [
+        "/usr/local/bin/docker",
+        "rm",
+        "--force",
+        "d122679801b7cae6a5c619b992377c8ace131761865c31c30f789a38ab0cd46a"
+      ],
+      "started_utc": "2026-10-23T03:17:35.093142+00:00",
+      "elapsed_seconds": 0.021,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16251,
+      "observed_bytes": {
+        "stdout": 65,
+        "stderr": 0
+      },
+      "outer_seconds": 20,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "absence-presence",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "--type",
+        "container",
+        "d122679801b7cae6a5c619b992377c8ace131761865c31c30f789a38ab0cd46a"
+      ],
+      "started_utc": "2026-10-23T03:17:35.114823+00:00",
+      "elapsed_seconds": 0.019,
+      "exit_code": 1,
+      "outer_or_output_kill": null,
+      "pgid": 16252,
+      "observed_bytes": {
+        "stdout": 3,
+        "stderr": 112
+      },
+      "outer_seconds": 10,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "create-cluster",
+      "argv": [
+        "/usr/local/bin/docker",
+        "create",
+        "--name",
+        "wk-width16-import-cluster-c9f6d5efee54",
+        "--label",
+        "wukongim.width16.import=4cb45b340-once-v1",
+        "--platform",
+        "linux/arm64",
+        "--pull=never",
+        "--network=none",
+        "--cpus=2",
+        "--memory=2g",
+        "--memory-swap=2g",
+        "--pids-limit=128",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges",
+        "--user=65534:65534",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777",
+        "--mount",
+        "type=bind,src=/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/context/cluster.test,dst=/tests/cluster.test,readonly",
+        "sha256:584d68771fd6700702c4b82c821b69a977559acfb80a5a1a29a450531ceaac1a",
+        "/tests/cluster.test",
+        "-test.run",
+        "^TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth$",
+        "-test.count=1",
+        "-test.parallel=1",
+        "-test.timeout=30s",
+        "-test.v"
+      ],
+      "started_utc": "2026-10-23T03:17:35.133827+00:00",
+      "elapsed_seconds": 0.034,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16253,
+      "observed_bytes": {
+        "stdout": 65,
+        "stderr": 0
+      },
+      "outer_seconds": 15,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "run-cluster",
+      "argv": [
+        "/usr/local/bin/docker",
+        "start",
+        "--attach",
+        "0bd64c840043b2de39b39b7279ade1a3e178c07e02060f78cf4cc634c9bbca33"
+      ],
+      "started_utc": "2026-10-23T03:17:35.168344+00:00",
+      "elapsed_seconds": 0.21,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16254,
+      "observed_bytes": {
+        "stdout": 183,
+        "stderr": 0
+      },
+      "outer_seconds": 60,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "state-cluster",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "--type",
+        "container",
+        "--format",
+        "{{json .State}}",
+        "0bd64c840043b2de39b39b7279ade1a3e178c07e02060f78cf4cc634c9bbca33"
+      ],
+      "started_utc": "2026-10-23T03:17:35.379764+00:00",
+      "elapsed_seconds": 0.036,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16255,
+      "observed_bytes": {
+        "stdout": 224,
+        "stderr": 0
+      },
+      "outer_seconds": 15,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "remove-cluster",
+      "argv": [
+        "/usr/local/bin/docker",
+        "rm",
+        "--force",
+        "0bd64c840043b2de39b39b7279ade1a3e178c07e02060f78cf4cc634c9bbca33"
+      ],
+      "started_utc": "2026-10-23T03:17:35.417007+00:00",
+      "elapsed_seconds": 0.03,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16261,
+      "observed_bytes": {
+        "stdout": 65,
+        "stderr": 0
+      },
+      "outer_seconds": 20,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "absence-cluster",
+      "argv": [
+        "/usr/local/bin/docker",
+        "inspect",
+        "--type",
+        "container",
+        "0bd64c840043b2de39b39b7279ade1a3e178c07e02060f78cf4cc634c9bbca33"
+      ],
+      "started_utc": "2026-10-23T03:17:35.447710+00:00",
+      "elapsed_seconds": 0.024,
+      "exit_code": 1,
+      "outer_or_output_kill": null,
+      "pgid": 16262,
+      "observed_bytes": {
+        "stdout": 3,
+        "stderr": 112
+      },
+      "outer_seconds": 10,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "remove-owned-import-image",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "rm",
+        "sha256:584d68771fd6700702c4b82c821b69a977559acfb80a5a1a29a450531ceaac1a"
+      ],
+      "started_utc": "2026-10-23T03:17:35.532996+00:00",
+      "elapsed_seconds": 0.032,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16265,
+      "observed_bytes": {
+        "stdout": 214,
+        "stderr": 0
+      },
+      "outer_seconds": 20,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "final-task-tags",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "ls",
+        "--no-trunc",
+        "--filter",
+        "reference=wukongim-width16-scratch:4cb45b340-local",
+        "--filter",
+        "reference=wukongim-width16-import:4cb45b340-once-v1",
+        "--format",
+        "{{json .}}"
+      ],
+      "started_utc": "2026-10-23T03:17:35.564957+00:00",
+      "elapsed_seconds": 0.021,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 16266,
+      "observed_bytes": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "outer_seconds": 10,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    }
+  ],
+  "runtime_results": [
+    {
+      "name": "presence",
+      "container_id": "d122679801b7cae6a5c619b992377c8ace131761865c31c30f789a38ab0cd46a",
+      "cli_exit": 0,
+      "state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-23T03:17:34.859050632Z",
+        "FinishedAt": "2026-10-23T03:17:35.040238008Z"
+      },
+      "expected_names": [
+        "TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys",
+        "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget",
+        "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/1",
+        "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/512",
+        "TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts",
+        "TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth"
+      ],
+      "actual_passed_names": [
+        "TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys",
+        "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget",
+        "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/1",
+        "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/512",
+        "TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts",
+        "TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth"
+      ],
+      "failed_names": [],
+      "pass": true
+    },
+    {
+      "name": "cluster",
+      "container_id": "0bd64c840043b2de39b39b7279ade1a3e178c07e02060f78cf4cc634c9bbca33",
+      "cli_exit": 0,
+      "state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-23T03:17:35.193597091Z",
+        "FinishedAt": "2026-10-23T03:17:35.358881966Z"
+      },
+      "expected_names": [
+        "TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth"
+      ],
+      "actual_passed_names": [
+        "TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth"
+      ],
+      "failed_names": [],
+      "pass": true
+    }
+  ],
+  "success": true,
+  "image_id": "sha256:584d68771fd6700702c4b82c821b69a977559acfb80a5a1a29a450531ceaac1a",
+  "image_removed": true,
+  "source": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate",
+  "head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "tree": "1f2826553a264053e954229ac2581bcf48afe6ad"
+}

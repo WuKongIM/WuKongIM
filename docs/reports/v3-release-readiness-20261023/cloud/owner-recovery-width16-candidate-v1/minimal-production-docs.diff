@@ -1,0 +1,97 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index cbb7c5139..61c60a37a 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Allow up to 16 independent cold presence recovery rounds while retaining the
++  128 MiB owned UID byte budget and existing owner-read deadlines.
++  / 在线路由冷恢复允许最多 16 个独立恢复组并行，保持 128 MiB 自有 UID 字节预算及原有 owner 读取时限。
++
+ - Keep runtime queue depth, capacity and byte gauges coherent within each
+   metrics scrape when queue observations change concurrently.
+   / 队列状态并发变化时，同次指标采集保持运行时队列深度、容量和字节数一致。
+diff --git a/docs/development/PROJECT_KNOWLEDGE.md b/docs/development/PROJECT_KNOWLEDGE.md
+index 016b33b74..ecf68cb31 100644
+--- a/docs/development/PROJECT_KNOWLEDGE.md
++++ b/docs/development/PROJECT_KNOWLEDGE.md
+@@ -1072,9 +1072,10 @@ specification, runbook, report, or module documentation; link to them when neede
+   owner-local. Authority changes require bounded reconstruction before an empty
+   route can be treated as offline, never a scan of every session.
+ - Cold presence recovery coalesces UID proofs by the five-field distributed
+-  identity, excluding local revision/AuthorityEpoch counters. Four caller-owned
+-  cohorts bound retained keys to 2,048 and owned UID clones to 128 MiB (32 MiB
+-  per new subset); these byte budgets do not describe all presence/RPC heap.
++  identity, excluding local revision/AuthorityEpoch counters. Sixteen caller-owned
++  cohorts bound retained keys to 8,192 and owned UID clones to an independent
++  128 MiB (32 MiB per new subset), matching the node-wide 16-round owner-read
++  gate; these byte budgets do not describe all presence/RPC heap.
+   The original 512-UID/256-target page fits maximum 65,535-byte stored identities.
+   Larger arbitrary lookup strings can now remain explicitly not ready. Quota
+   waits hold no partial keys; owned proofs publish/release before joining old
+diff --git a/internal/infra/cluster/FLOW.md b/internal/infra/cluster/FLOW.md
+index db48cce9f..d1042c148 100644
+--- a/internal/infra/cluster/FLOW.md
++++ b/internal/infra/cluster/FLOW.md
+@@ -42,7 +42,8 @@ management, plugins, diagnostics, and bounded operations observations.
+ 2. Presence reconstruction coalesces target groups into one bounded read per
+    active owner instead of repeating unavailable-owner timeouts per Hash Slot. It validates each
+    owner boot identity, and rechecks current membership and Slot authority before
+-   publishing a complete result. Unknown or unavailable proof remains explicit.
++   publishing a complete result. One node-wide gate admits at most 16 recovery
++   owner-read rounds. Unknown or unavailable proof remains explicit.
+ 3. Presence and recipient adapters resolve exact fenced targets, group work by
+    owner, and choose the local authority or one typed RPC envelope per owner.
+    UID-list endpoint lookup resolves at most 256 inputs per page, groups by the
+diff --git a/internal/infra/cluster/presence_recovery.go b/internal/infra/cluster/presence_recovery.go
+index 491d6b313..fb4b2f0b5 100644
+--- a/internal/infra/cluster/presence_recovery.go
++++ b/internal/infra/cluster/presence_recovery.go
+@@ -30,7 +30,7 @@ type PresenceRecoveryOwners struct {
+ 
+ // NewPresenceRecoveryOwners shares bounded owner-read admission across UID authorities.
+ func NewPresenceRecoveryOwners(node PresenceRecoveryNode, local presence.OwnerRouteReader) *PresenceRecoveryOwners {
+-	return &PresenceRecoveryOwners{node: node, local: local, remote: accessnode.NewClient(node), admission: make(chan struct{}, 4)}
++	return &PresenceRecoveryOwners{node: node, local: local, remote: accessnode.NewClient(node), admission: make(chan struct{}, 16)}
+ }
+ 
+ // ValidatePresenceTarget checks the distributed identity; local diagnostic
+diff --git a/internal/usecase/presence/FLOW.md b/internal/usecase/presence/FLOW.md
+index d60110d71..a57132aba 100644
+--- a/internal/usecase/presence/FLOW.md
++++ b/internal/usecase/presence/FLOW.md
+@@ -31,7 +31,7 @@ It does not own gateway frames, concrete cluster routing, or session storage.
+ 3. Authority recovery packs up to 512 UIDs across 256 targets per owner page.
+    Bounded flights coalesce the same UID and distributed authority identity;
+    newly owned proofs install and release before joining older flights.
+-   Four leader cohorts retain at most 2,048 keys and 128 MiB of owned UID bytes,
++   Sixteen leader cohorts retain at most 8,192 keys and 128 MiB of owned UID bytes,
+    with 32 MiB per new subset. Proven lookups bypass admission; quota waits
+    reserve no partial keys and recheck proofs after waking. Complete results
+    retain exact fences and failed groups preserve successful siblings.
+diff --git a/internal/usecase/presence/recovery_flights.go b/internal/usecase/presence/recovery_flights.go
+index e1ff793ae..ae022efdb 100644
+--- a/internal/usecase/presence/recovery_flights.go
++++ b/internal/usecase/presence/recovery_flights.go
+@@ -9,14 +9,15 @@ import (
+ )
+ 
+ const (
+-	// Four leaders match the production node-wide owner-read admission. Keys and
+-	// bytes bound only registry-owned UID clones, not caller/Directory/RPC heap.
+-	recoveryMaxCohorts = 4
++	// Sixteen leaders match the production node-wide owner-read admission. Keys
++	// and bytes bound only registry-owned UID clones, not caller/Directory/RPC heap.
++	recoveryMaxCohorts = 16
+ 	recoveryMaxKeys    = recoveryMaxCohorts * authority.RecoveryBatchSize
+ 	// A full page of 512 maximum-length stored UIDs (65535 bytes each) fits.
+ 	// This is a new internal admission budget, not an RPC string-size contract.
+ 	recoveryPageUIDBytes = 32 << 20
+-	recoveryMaxUIDBytes  = recoveryMaxCohorts * recoveryPageUIDBytes
++	// The byte budget is independent of cohort width.
++	recoveryMaxUIDBytes = 128 << 20
+ )
+ 
+ // recoveryUIDKey uses the distributed authority identity. Local routing revision

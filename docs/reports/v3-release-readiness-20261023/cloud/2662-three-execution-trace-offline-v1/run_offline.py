@@ -1,0 +1,107 @@
+"""One exact approved serial analysis; no browser/server or optional state extractor."""
+import argparse,datetime,hashlib,json,os,pathlib,signal,time
+import trace_offline as A
+B=pathlib.Path('/tmp/wukongim-v3-readiness-20261023/cloud')
+O=B/'2662-three-execution-trace-offline-v1'
+P=pathlib.Path('/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1')
+Q=B/'2662-three-execution-trace-offline-proposal-v1'
+R=B/'full-original-distribution-2662-rate500-three-trace-v1'
+SCOPE=B/'2662-three-execution-trace-offline-root-scope-v1/approval.json'
+PYTHON='/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/bin/python3.13'
+PYTHON_SHA='a1f6d9dc20d4787a84dc2fe782094a7bac5946f49a962aa0af48a02f0e8d5bc5'
+STOP=False
+
+def signal_stop(sig,frame):
+    global STOP
+    STOP=True
+    # Do not raise across Popen registration or cleanup; the drain polls STOP.
+
+def save(path,value,cap=1048576):
+    raw=(json.dumps(value,indent=2)+'\n').encode()
+    if len(raw)>cap:raise A.OfflineError('projection_invalid')
+    fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+    with os.fdopen(fd,'wb') as f:
+        if f.write(raw)!=len(raw):raise A.OfflineError('io_failure')
+
+def verify_manifest(path,expected):
+    A.verify_tool(path,expected)
+    for line in path.read_text().splitlines():
+        h,name=line.split(None,1)
+        if pathlib.Path(name).name!=name:raise A.OfflineError('unsafe_path')
+        A.verify_tool(path.parent/name,h)
+
+def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--execute',action='store_true');parser.add_argument('--code-manifest-sha',required=True);args=parser.parse_args()
+    if not args.execute:print('{"status":"not_executed"}');return
+    for s in [signal.SIGINT,signal.SIGTERM]:signal.signal(s,signal_stop)
+    started=time.monotonic();deadline=started+1020;began=datetime.datetime.now(datetime.timezone.utc).isoformat()
+    verify_manifest(O/'READY_SHA256SUMS',args.code_manifest_sha)
+    verify_manifest(Q/'PUBLIC_SHA256SUMS','84d9c0b9aa1cb465376893512de8fc0b55d0ab4b385174cdd6c88b111c479330')
+    A.verify_tool(SCOPE,'8715dc955cd9c140ed60796d57662473d17680b47d243ded503c6e8edbc64181')
+    scope=json.loads(SCOPE.read_text());plan=json.loads((Q/'command-plan.json').read_text());pins=json.loads((Q/'tool-source-pins.json').read_text())
+    if scope['schema']!='wukongim.trace-offline-root-scope/v1' or scope['source']['head']!='2662fe93b754d614422f2936185cf781a33b831a' or scope['proposal_manifest_sha256']!='84d9c0b9aa1cb465376893512de8fc0b55d0ab4b385174cdd6c88b111c479330' or not scope['cleanup']['complete']:raise A.OfflineError('projection_invalid')
+    if len(scope['inputs'])!=3 or len(scope['metadata'])!=15 or len(plan['commands'])!=27:raise A.OfflineError('projection_invalid')
+    expected={n:R/f'traces-three-node/node-{n}/traces/node-{n}-execution.trace' for n in [1,2,3]};inputs={r['node_id']:r for r in scope['inputs']}
+    if set(inputs)!={1,2,3}:raise A.OfflineError('projection_invalid')
+    for d in [O,P,*[P/n for n in ['isolated-home','tmp','empty-binary-path']]]:
+        A._safe_path(d)
+        if not d.is_dir() or d.stat().st_uid!=os.getuid() or d.stat().st_mode&0o077:raise A.OfflineError('unsafe_path')
+    def verify_sources():
+        for row in pins['tool_pins']+pins['source_and_prior_artifact_pins']:A.verify_tool(pathlib.Path(row['path']),row['sha256'])
+        A.verify_tool(pathlib.Path(PYTHON),PYTHON_SHA)
+        verify_manifest(O/'READY_SHA256SUMS',args.code_manifest_sha)
+    def snapshot():
+        rows=[]
+        for node in [1,2,3]:rows.append({'node_id':node,'path':inputs[node]['path'],**A.verify_trace_input(inputs[node],expected)})
+        for row in scope['metadata']:
+            p=A._safe_path(pathlib.Path(row['path']))
+            if R not in p.parents or not p.is_file() or p.stat().st_size>131072:raise A.OfflineError('unsafe_path')
+            s=p.stat();actual={'path':str(p),'sha256':A._sha(p),'bytes':s.st_size,'mtime_ns':s.st_mtime_ns,'device':s.st_dev,'inode':s.st_ino}
+            if any(actual[k]!=row[k] for k in actual):raise A.OfflineError('input_changed')
+            rows.append(actual)
+        return rows
+    verify_sources();before=snapshot();(O/'analysis-once.claim').mkdir(mode=0o700);save(O/'original-inputs-before.json',before)
+    receipts=[];coverage={};generated={};decoded={};aggregates={};state='complete';failure=None
+    def invoke(node,kind,argv,timeout,stdout,stderr,cap):
+        if STOP or time.monotonic()+timeout+3>deadline:raise A.OfflineError('timeout')
+        row={'node_id':node,'kind':kind,'argv':argv,'env':plan['environment_exact'],'started_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'timeout_seconds':timeout,'maximum_stdout_bytes':cap,'maximum_stderr_bytes':16384,'input_before':A.verify_trace_input(inputs[node],expected)}
+        A.verify_tool(pathlib.Path(argv[0]),PYTHON_SHA if argv[0]==PYTHON else next(p['sha256'] for p in pins['tool_pins'] if p['path']==argv[0]))
+        result=A.run_bounded(argv,plan['environment_exact'],stdout_path=stdout,stderr_path=stderr,stdout_cap=cap,stderr_cap=16384,timeout_seconds=timeout,stop_requested=lambda:STOP)
+        row.update(result);row['completed_at_utc']=datetime.datetime.now(datetime.timezone.utc).isoformat();row['input_after']=A.verify_trace_input(inputs[node],expected);receipts.append(row)
+        save(O/f'command-{len(receipts):02d}.json',row,65536)
+        print(json.dumps({'command':len(receipts),'node_id':node,'kind':kind,'status':result['status'],'error_class':result['error_class'],'elapsed_seconds':result['elapsed_seconds']}),flush=True)
+        return result
+    try:
+        for cmd in plan['commands']:
+            node=cmd['node_id'];kind=cmd['kind']
+            if kind=='full_reader_validation':
+                result=invoke(node,kind,cmd['argv'],30,None,P/f'node-{node}-parsed.stderr',268435456);coverage[node]=A.coverage_from_reader(result)
+            elif kind.startswith('generate_'):
+                profile_kind=kind.removeprefix('generate_');key=(node,profile_kind);stem=f'node-{node}-{profile_kind}';prof=pathlib.Path(cmd['stdout_private_path'])
+                result=invoke(node,kind,cmd['argv'],30,prof,pathlib.Path(cmd['stderr_private_path']),4194304);generated[key]=result
+                if result['status']!='complete':continue
+                argv=[PYTHON,'-B',str(O/'decode_trace_profile_worker.py'),str(prof),str(node),profile_kind,coverage[node],result['stdout_sha256'],str(P/(stem+'-decoded.json'))]
+                dr=invoke(node,'decode_'+profile_kind,argv,10,P/(stem+'-aggregate.json'),P/(stem+'-decoder.stderr'),65536);decoded[key]=dr
+                if dr['status']=='complete':
+                    data=json.loads((P/(stem+'-aggregate.json')).read_bytes())
+                    required={'node_id','profile_type','coverage','aggregate_record_count','total_contentions_count','total_delay_ns','flat_disjoint_known_symbol_or_other','overlapping_known_symbol_counts_and_delay_explicitly_not_additive'}
+                    if set(data)!=required or (data['node_id'],data['profile_type'],data['coverage'])!=(node,profile_kind,coverage[node]):raise A.OfflineError('projection_invalid')
+                    if any(type(data[k]) is not int or not 0<=data[k]<=A.MAX_I64 for k in ['aggregate_record_count','total_contentions_count','total_delay_ns']):raise A.OfflineError('projection_invalid')
+                    for listname in ['flat_disjoint_known_symbol_or_other','overlapping_known_symbol_counts_and_delay_explicitly_not_additive']:
+                        for v in data[listname]:
+                            if set(v)!={'function','count','delay_ns'} or v['function'] not in A.SYMBOLS|{'other'} or any(type(v[k]) is not int or not 0<=v[k]<=A.MAX_I64 for k in ['count','delay_ns']):raise A.OfflineError('projection_invalid')
+                    save(O/(stem+'-aggregate.json'),data,65536);aggregates[stem]=data
+            else:
+                profile_kind=kind.removeprefix('top_');key=(node,profile_kind)
+                if decoded.get(key,{}).get('status')!='complete':continue
+                invoke(node,kind,cmd['argv'],30,pathlib.Path(cmd['stdout_private_path']),pathlib.Path(cmd['stderr_private_path']),1048576)
+        if len(receipts)!=39 or len(aggregates)!=12 or any(r['status']!='complete' for r in receipts):state='partial'
+    except Exception as error:
+        state='partial';failure=str(error) if isinstance(error,A.OfflineError) else 'unknown'
+    finally:
+        if STOP:state='partial';failure='timeout'
+        try:after=snapshot();save(O/'original-inputs-after.json',after);unchanged=after==before;verify_sources()
+        except Exception:unchanged=False;state='partial';failure='input_changed'
+        save(O/'commands.json',receipts)
+        save(O/'completion-receipt.json',{'status':state,'error_class':failure,'started_at_utc':began,'completed_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'elapsed_seconds':time.monotonic()-started,'command_count':len(receipts),'aggregate_count':len(aggregates),'coverage_by_node':coverage,'all_direct_roots_joined':all(r['joined'] for r in receipts),'original_inputs_and_metadata_unchanged':unchanged,'controlled_signal_stop':STOP,'no_retry':True,'no_optional_state_extractor':True,'no_RPC_or_percentile_claim':True})
+if __name__=='__main__':main()

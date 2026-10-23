@@ -1,0 +1,9 @@
+test_parent_handler_only_sets_stop_without_async_exception (__main__.ControlledStop.test_parent_handler_only_sets_stop_without_async_exception) ... ok
+test_prestart_stop_creates_no_child_or_output (__main__.ControlledStop.test_prestart_stop_creates_no_child_or_output) ... ok
+test_stop_after_spawn_always_kills_and_reaps_registered_child (__main__.ControlledStop.test_stop_after_spawn_always_kills_and_reaps_registered_child) ... ok
+test_stop_during_eof_but_alive_wait_reaps_without_async_cleanup_exception (__main__.ControlledStop.test_stop_during_eof_but_alive_wait_reaps_without_async_cleanup_exception) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.130s
+
+OK

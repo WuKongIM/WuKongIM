@@ -1,0 +1,9 @@
+{
+  "kind": "local_observer_schema_assumption",
+  "operation": "source-authority projection",
+  "error_class": "KeyError",
+  "missing_field": "checks",
+  "actual_authority_field": "trusted_checks",
+  "CI_failure": false,
+  "source_or_provider_mutation": false
+}

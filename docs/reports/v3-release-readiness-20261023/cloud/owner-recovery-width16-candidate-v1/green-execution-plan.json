@@ -1,0 +1,202 @@
+{
+  "scope": "reversible local experimental candidate only; no product workload/PR/merge/cloud; further commands await root acknowledgement",
+  "same_four_commands_authorized": true,
+  "additional_commands_await_root_check": true,
+  "environment_allowlist": [
+    "PATH exacttoolchain + /usr/bin:/bin:/usr/sbin:/sbin",
+    "HOME inherited unchanged",
+    "TMPDIR inherited unchanged if present",
+    "GOPATH=/Users/tt/go",
+    "GOWORK=off",
+    "GOTOOLCHAIN=local",
+    "GOPROXY=off",
+    "GOSUMDB=off",
+    "GOMAXPROCS=2",
+    "GOFLAGS=-p=1"
+  ],
+  "commands": [
+    {
+      "phase": "budget-control",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "./internal/usecase/presence",
+        "-run",
+        "^TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth$",
+        "-count=1",
+        "-p=1",
+        "-timeout=30s",
+        "-json"
+      ],
+      "outer_seconds": 60,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536,
+      "expected": "PASS on unchanged frozen test source under C16/K8192/explicit128MiB/owner16"
+    },
+    {
+      "phase": "public-width-green",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/usecase/presence",
+        "-run",
+        "^(TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget|TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys)$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=40s",
+        "-json"
+      ],
+      "outer_seconds": 60,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536,
+      "expected": "PASS on unchanged frozen test source under C16/K8192/explicit128MiB/owner16"
+    },
+    {
+      "phase": "adapter-width-green",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/infra/cluster",
+        "-run",
+        "^TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=30s",
+        "-json"
+      ],
+      "outer_seconds": 60,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536,
+      "expected": "PASS on unchanged frozen test source under C16/K8192/explicit128MiB/owner16"
+    },
+    {
+      "phase": "byte-boundary-green",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/usecase/presence",
+        "-run",
+        "^TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=90s",
+        "-json"
+      ],
+      "outer_seconds": 120,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536,
+      "expected": "PASS on unchanged frozen test source under C16/K8192/explicit128MiB/owner16"
+    },
+    {
+      "phase": "two-package-normal",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "./internal/usecase/presence",
+        "./internal/infra/cluster",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=90s",
+        "-json"
+      ],
+      "outer_seconds": 120,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536,
+      "expected": "PASS; first result retained; no automatic retry"
+    },
+    {
+      "phase": "two-package-race",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-race",
+        "./internal/usecase/presence",
+        "./internal/infra/cluster",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=120s",
+        "-json"
+      ],
+      "outer_seconds": 180,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536,
+      "expected": "PASS; first result retained; no automatic retry"
+    },
+    {
+      "phase": "existing-presence-integration",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/usecase/presence",
+        "./internal/infra/cluster",
+        "-run",
+        "^(TestAuthorityRecovery(ColdUIDIsolation_.*|ProvenLookupDoesNotWaitForColdOwner|UIDFlight(PartialOverlapPublishesBeforeJoin|LeaderCancellationKeepsFollowerRetryable|DistributedIdentity|LocalMetadataCoalesces|OwnsUIDBacking|PackingBounds|PageBytesAndLegalStoredUIDs|LateWaiterMustRereadEvictedProof|MixedGroupsDuplicatesAndTombstone))|TestRecoveryColdFanoutFitsDeliveryDeadlineWithUnavailableOwner)$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=90s",
+        "-json"
+      ],
+      "outer_seconds": 120,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536,
+      "expected": "PASS; first result retained; no automatic retry"
+    },
+    {
+      "phase": "presence-integration-race",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-race",
+        "-tags=integration",
+        "./internal/usecase/presence",
+        "./internal/infra/cluster",
+        "-run",
+        "(^(TestAuthorityRecovery(ColdUIDIsolation_.*|ProvenLookupDoesNotWaitForColdOwner|UIDFlight(PartialOverlapPublishesBeforeJoin|LeaderCancellationKeepsFollowerRetryable|DistributedIdentity|LocalMetadataCoalesces|OwnsUIDBacking|PackingBounds|PageBytesAndLegalStoredUIDs|LateWaiterMustRereadEvictedProof|MixedGroupsDuplicatesAndTombstone))|TestRecoveryColdFanoutFitsDeliveryDeadlineWithUnavailableOwner)$)|(^(TestAuthorityRecovery(Width16AdmitsCohortsAndFullKeyBudget|UIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys)|TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth)$)",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=180s",
+        "-json"
+      ],
+      "outer_seconds": 240,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536,
+      "expected": "PASS; first result retained; no automatic retry"
+    }
+  ],
+  "named_checks_from_exact_policy": {
+    "go-format": {
+      "arguments": [
+        "review-agent-check",
+        "go-format"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 300,
+      "max_output_bytes": 1048576
+    },
+    "flow-doc-contracts": {
+      "arguments": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 60,
+      "max_output_bytes": 1048576
+    }
+  },
+  "named_check_adapter": "go-format selector uses existing exact-source helper binary; build helper once under60s if needed, no custom copied gofmt command. flow-doc-contracts executes original policy argv. Policy timeouts/output limits retained.",
+  "byte_memory": "Heavy 128MiB-clone byte fixture once only in same-four GREEN. Integration race explicitly excludes heavy byte fixture; validates16/17 and full8192-key controls. No parallel load."
+}

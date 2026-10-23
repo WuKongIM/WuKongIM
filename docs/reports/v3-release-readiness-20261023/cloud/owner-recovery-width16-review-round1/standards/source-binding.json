@@ -1,0 +1,154 @@
+{
+  "axis": "Standards",
+  "at_utc": "2026-10-23T02:24:26.529391+00:00",
+  "base": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+  "head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "merge_base": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+  "commits": [
+    "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac Tune bounded cold presence recovery concurrency"
+  ],
+  "diff_command": [
+    "git",
+    "diff",
+    "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+    "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac"
+  ],
+  "diff_sha256": "aaa26531aaba42adac969c06eb5c68470ad0dde9d76d88a8bf07c2a6efb0222b",
+  "clean_before": true,
+  "source_files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "changed": false
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 193828,
+      "sha256": "9857561a0e9fb5f3890bc627054887c4ff44fb1db936700a8b01c65985a048a3",
+      "changed": true
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "changed": false
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "bytes": 1615,
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+      "changed": false
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "bytes": 19368,
+      "sha256": "c9729527286e58ad3e40a9a5374f5fa5ca6a3c3c27a46598a145428fff45bb49",
+      "changed": true
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 150013,
+      "sha256": "d854eb770e96c52a7f97f452561f9c0ad844ae92b814e3a27e455592a0cddf72",
+      "changed": true
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "bytes": 8680,
+      "sha256": "534e7fce0d3e53d1cef322c0529f779b9dba5453643e1a5e8a3396f228f2abdc",
+      "changed": true
+    },
+    {
+      "path": "internal/infra/cluster/presence_recovery.go",
+      "bytes": 8455,
+      "sha256": "bbd399c04d4e33ccdf3e0a6c34439bf4cb5d1e22cf7408e9751ffc55fe53ad46",
+      "changed": true
+    },
+    {
+      "path": "internal/infra/cluster/presence_recovery_width16_integration_test.go",
+      "bytes": 5106,
+      "sha256": "849650425f4a206ce16f3acfeb20064571863512859ce531cbd54dd3f9874923",
+      "changed": true
+    },
+    {
+      "path": "internal/runtime/presence/FLOW.md",
+      "bytes": 2490,
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "changed": false
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "bytes": 3195,
+      "sha256": "bf5dc014ecbb61f951e11d0576189ed3cfadf5d319ffb312fbe9cc84f2742a49",
+      "changed": true
+    },
+    {
+      "path": "internal/usecase/presence/recovery_byte_budget_contract_test.go",
+      "bytes": 510,
+      "sha256": "e8053f7350056caa22718c5e734e7763eb8788dcf9ee66fe98a673590a7db01d",
+      "changed": true
+    },
+    {
+      "path": "internal/usecase/presence/recovery_flights.go",
+      "bytes": 8505,
+      "sha256": "5af40084a1a35cfadf0cc713309229ac873044e4e8defec9fd2d9b6a593ba31c",
+      "changed": true
+    },
+    {
+      "path": "internal/usecase/presence/recovery_width16_integration_test.go",
+      "bytes": 6948,
+      "sha256": "074d65ff0ea81183071d0786f32839dcff39216099514c7f765f658b0c76e67c",
+      "changed": true
+    },
+    {
+      "path": "internal/usecase/presence/uid_flight_integration_test.go",
+      "bytes": 20117,
+      "sha256": "1b75d6b5cffd6ac920ae7d425265479509ab0c1d3993a44d0b4d184737bf6fe5",
+      "changed": true
+    }
+  ],
+  "read_evidence": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/owner-recovery-width16-tests-first-v1/failure-matrix.md",
+      "bytes": 3532,
+      "sha256": "704e780615bc6359032d7488422956c2abc849d7ee0a7175f408817201c0c8db"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/owner-recovery-width16-tests-first-v1/tests-first-pins.json",
+      "bytes": 1308,
+      "sha256": "95886b40b4712a6c113dac69d60923b49f4844be55643e7cc5bc24d8802ccb34"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/owner-recovery-width16-tests-first-v1/red-first-results.json",
+      "bytes": 7225,
+      "sha256": "f9c71596aee470be724593da3fbebf2ae8a151450db725d4b63690e76775f160"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/owner-recovery-width16-tests-first-v1/red-first-assessment.md",
+      "bytes": 1124,
+      "sha256": "5c8982ebab4ebec9ebe3ff939d068a424347a7efca8253624b0d0f38de394446"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/owner-recovery-width16-tests-first-v1/red-post-state.json",
+      "bytes": 621,
+      "sha256": "023c77fbb6648a23cb33dbafb77fb1663319e1ed6ce51d78c38783e047f19a73"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/owner-recovery-width16-candidate-v1/validation-summary.json",
+      "bytes": 16798,
+      "sha256": "3bf325aa1ceeed90a715d7a73a1fbb1e2c87f828b25dfe8177cc064ea451f97a"
+    }
+  ],
+  "tests_equal_preimplementation_freeze": {
+    "internal/usecase/presence/recovery_byte_budget_contract_test.go": true,
+    "internal/usecase/presence/recovery_width16_integration_test.go": true,
+    "internal/usecase/presence/uid_flight_integration_test.go": true,
+    "internal/infra/cluster/presence_recovery_width16_integration_test.go": true
+  },
+  "skill_sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143",
+  "executed_tests": false,
+  "network_or_product_actions": false,
+  "other_axis_read": false,
+  "actual_rules_copied": false
+}

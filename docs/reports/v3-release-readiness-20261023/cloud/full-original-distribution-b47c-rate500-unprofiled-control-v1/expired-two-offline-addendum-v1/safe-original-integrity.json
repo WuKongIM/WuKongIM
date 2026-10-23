@@ -1,0 +1,15 @@
+{
+  "schema": "b47c-two-offline-original-integrity/v1",
+  "files": 36,
+  "bytes": 82376917,
+  "frozen_inventory_sha256": "dd9d5b87b06bf3bdb6894e111b4b81966526d27eedee0464d9a549780ca68ad8",
+  "original_before_file_sha256": "dd9d5b87b06bf3bdb6894e111b4b81966526d27eedee0464d9a549780ca68ad8",
+  "original_after_file_sha256": "dd9d5b87b06bf3bdb6894e111b4b81966526d27eedee0464d9a549780ca68ad8",
+  "copy_mapping_sha256": "d1581d40d8f4674d1f9891553bcf454b2fdf80f68fb5e489d6a8197505b12738",
+  "original_SHA_size_mtime_equal": true,
+  "copy_full_SHA_size_mapping_equal_before_any_CLI_open": true,
+  "original_DB_engine_opened": false,
+  "original_run_public_manifest_sha256": "691f3d25b5ca362e8b4ef1f9c645ebe0fa04cc7ba9d686001d2275ce59424241",
+  "proposal_manifest_sha256": "4ad09018149fe7caae96171d2270a4597bac7acfd669fd40570e04aea48fe005",
+  "driver_sha256": "94c166cecad063dee27381eb50731d82a74561c36825942893561526636356cb"
+}

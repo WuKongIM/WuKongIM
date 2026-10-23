@@ -1,0 +1,16 @@
+"""Synthetic process integration only; real driver guards replaced with a bounded fake store."""
+from pathlib import Path
+import json,os,subprocess,sys,tempfile
+P=Path(__file__).parent
+with tempfile.TemporaryDirectory() as d:
+ root=Path(d);run=root/'run';run.mkdir();(run/'report').mkdir();out=run/'out';cli=root/'fake-cli';program=(P/'fake_cli.py').read_text().replace('FIXTURE_ROOT',repr(str(root))).replace('FIXTURE_CASES','{}');cli.write_text('#!'+sys.executable+'\n'+program.split('\n',1)[1]);cli.chmod(0o700)
+ for node in [1,2,3]:
+  db=run/f'data/node{node}/messages';db.mkdir(parents=True);(db/'synthetic').write_bytes(b'synthetic');log=run/f'logs/node{node}';log.mkdir(parents=True);(log/'warn.log').write_text('')
+ (run/'report/run-start.json').write_text(json.dumps({'started_at':'2026-10-23T09:58:53+08:00'}));(run/'safe-worker-cuts.json').write_text(json.dumps({'cuts':[{'cut':'terminal','at':'2026-10-23T09:59:26+08:00'}]}))
+ lines=[]
+ for i in [0,1]:
+  item={'event':'internal.app.delivery.plan_incomplete','phase':'presence','result':'timeout','mode':'durable','messageID':9223372036854775931+i,'messageSeq':1,'uid':'synthetic-private-uid','ownerNodeID':i+1,'error':'context deadline exceeded'};lines.append('2026-10-23 09:59:10.000 WARN online delivery plan incomplete '+json.dumps(item)+'\n')
+ (run/'logs/node2/warn.log').write_text(''.join(lines));runner=root/'runner.py';runner.write_text("from pathlib import Path\nimport json,sys\nns={'__name__':'synthetic-driver','__file__':__file__}\nexec(compile(Path("+repr(str(P/'PRIVATE_offline_db_inspect.proposed.py'))+").read_text(),'synthetic-fixed-driver','exec'),ns)\nns.update(RUN=Path("+repr(str(run))+"),OUT=Path("+repr(str(out))+"),CLI=Path("+repr(str(cli))+"))\nsamples=[({'worker_id':i,'sample_index':100+i,'fingerprint':str(i)*32,'decoded':{'ordinal':i},'matches':[{'target_group_index':i}]},{'ChannelID':f'synthetic-channel-{i}','ClientMsgNo':f'synthetic-client-{i}'}) for i in [0,1]]\noriginal=ns['original_inventory']()\nns['guard_before_mkdir']=lambda deadline:(original,original,samples)\nraise SystemExit(ns['main']())\n")
+ env={'PATH':'/usr/bin:/bin:/usr/sbin:/sbin','HOME':'/Users/tt','TMPDIR':'/tmp','LANG':'C','LC_ALL':'C','TZ':'Asia/Shanghai','EXECUTOR_SECRET_SENTINEL':'must-not-inherit'}
+ process=subprocess.run([sys.executable,str(runner)],env=env,capture_output=True,timeout=8);assert process.returncode==0,process.stderr.decode();outer=json.loads(process.stdout);assert outer['child_joined'] and not outer['owned_group_alive'];result=json.loads((out/'safe-offline-db-message-identity.json').read_text());joined=json.loads((out/'safe-exact-message-warning-join.json').read_text());assert result['queries_started']==6 and result['original_bytes_mtime_unchanged'];assert len(joined['samples'])==2 and all(x['exact_message_warning_match_count']==1 and x['status']=='exact_message_warning_found' for x in joined['samples']);assert [x['message_id'] for x in joined['samples']]==['9223372036854775931','9223372036854775932'];assert 'synthetic-private-uid' not in json.dumps(joined);assert len(json.loads((out/'PRIVATE_exact-warning-tuples.json').read_text()))==2
+ print(json.dumps({'synthetic_process_integration':'PASS','queries':6,'exact_two_uint64_warning_joins':True,'private_UID_not_public':True,'outer_owned_group_zero':True,'real_DB_or_log_or_product_requests':0}))

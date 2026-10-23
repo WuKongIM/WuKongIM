@@ -1,0 +1,115 @@
+{
+  "head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "base": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+  "head_tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "read_at": "2026-10-23T03:07:37.885987+00:00",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "base_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "head_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "unchanged": true,
+      "bytes": 13284
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "base_sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "head_sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "unchanged": true,
+      "bytes": 85960
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "base_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "head_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "unchanged": true,
+      "bytes": 14492
+    },
+    {
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "base_sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f",
+      "head_sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f",
+      "unchanged": true,
+      "bytes": 13951
+    },
+    {
+      "path": ".github/workflows/three-node-chat-lifecycle-regression.yml",
+      "base_sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71",
+      "head_sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71",
+      "unchanged": true,
+      "bytes": 13037
+    },
+    {
+      "path": ".github/workflows/native-package-preview.yml",
+      "base_sha256": "a620e3d2345f670f701d6661869a33fe1673e32a66d02b1d1caf587cf343ccf2",
+      "head_sha256": "a620e3d2345f670f701d6661869a33fe1673e32a66d02b1d1caf587cf343ccf2",
+      "unchanged": true,
+      "bytes": 6230
+    }
+  ],
+  "FLOW_applicable": [
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "head_sha256": "bf5dc014ecbb61f951e11d0576189ed3cfadf5d319ffb312fbe9cc84f2742a49",
+      "bytes": 3195
+    },
+    {
+      "path": "internal/runtime/presence/FLOW.md",
+      "head_sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "bytes": 2490
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "head_sha256": "534e7fce0d3e53d1cef322c0529f779b9dba5453643e1a5e8a3396f228f2abdc",
+      "bytes": 8680
+    }
+  ],
+  "rules_copied": false,
+  "policy": {
+    "go-unit": {
+      "arguments": [
+        "go",
+        "test",
+        "./cmd/...",
+        "./internal/...",
+        "./pkg/...",
+        "./scripts/...",
+        "./docker/...",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    },
+    "scripts-integration": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./scripts/...",
+        "-count=1",
+        "-timeout=9m",
+        "-parallel=2"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 600,
+      "max_output_bytes": 8388608
+    }
+  },
+  "README_sections_read": [
+    [
+      176,
+      436
+    ],
+    [
+      732,
+      820
+    ],
+    [
+      1250,
+      1265
+    ]
+  ],
+  "no_mutations_or_source_execution": true,
+  "specialist_integration_scope": "Dedicated Linux width16 integration is independently owned by presence_candidate_ci; not executed or represented as automatic workflow coverage here."
+}

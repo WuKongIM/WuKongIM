@@ -1,0 +1,12 @@
+{
+  "endpoint": "actions/jobs/120174419825/logs",
+  "method": "GET",
+  "exit_code": 0,
+  "problem": null,
+  "stdout_bytes": 86355,
+  "stdout_sha256": "7d3f0a2a28d3c0ef1de608b641f0290e9ca11a77fe354d8c45e64d27a087a135",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "private_raw_only": true,
+  "all_owned_processes_terminal": true
+}

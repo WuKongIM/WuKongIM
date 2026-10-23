@@ -1,0 +1,118 @@
+{
+  "schema": "localb47c-unprofiled-diagnostic-summary/v1",
+  "source_revision": "b47c03d461a6d8918e537e027bf56539ce78c585",
+  "source_tree": "7ce68e726fea61bd6d176fbc7053dede920d5b00",
+  "supervisor_started_at_utc": "2026-10-23T01:54:39.136354+00:00",
+  "first_grant_at": "2026-10-23T09:58:53.698647+08:00",
+  "terminal_cut_at": "2026-10-23T09:59:26.774676+08:00",
+  "launcher_exit_status": 7,
+  "final_report_present": true,
+  "original_final_verdict": {
+    "outcome": "product_failure",
+    "cause": "message_loss",
+    "terminal": true,
+    "cleanup_error_count": 0
+  },
+  "finalization_failure_record_present": false,
+  "first_cut": {
+    "at": "2026-10-23T09:58:58.72642825+08:00",
+    "cut": "periodic",
+    "elapsed_since_firstgrant_seconds": 5.027781,
+    "messages": {
+      "sent": 2499,
+      "send_attempts": 2526,
+      "first_attempts": 2499,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 2072,
+      "send_rejected": 0,
+      "received": 2490,
+      "receive_acknowledged": 2490,
+      "receive_ack_failures": 0,
+      "retry_attempts": 27,
+      "terminal": 0,
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "offered_first_attempts_per_elapsed_second": 497.03835548923075,
+    "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+  },
+  "first_loss_cut": {
+    "at": "2026-10-23T09:59:18.7265185+08:00",
+    "cut": "periodic",
+    "elapsed_since_firstgrant_seconds": 25.027871,
+    "messages": {
+      "sent": 12502,
+      "send_attempts": 12682,
+      "first_attempts": 12502,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 12191,
+      "send_rejected": 0,
+      "received": 15148,
+      "receive_acknowledged": 15148,
+      "receive_ack_failures": 0,
+      "retry_attempts": 180,
+      "terminal": 0,
+      "losses": 1,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "offered_first_attempts_per_elapsed_second": 499.52311165420343,
+    "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+  },
+  "terminal_cut": {
+    "at": "2026-10-23T09:59:26.774676+08:00",
+    "cut": "terminal",
+    "elapsed_since_firstgrant_seconds": 33.076029,
+    "messages": {
+      "sent": 13002,
+      "send_attempts": 13201,
+      "first_attempts": 13002,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 13002,
+      "send_rejected": 0,
+      "received": 16204,
+      "receive_acknowledged": 16204,
+      "receive_ack_failures": 0,
+      "retry_attempts": 199,
+      "terminal": 0,
+      "losses": 2,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "offered_first_attempts_per_elapsed_second": 393.09434636183204,
+    "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+  },
+  "generated": {
+    "primary": 13000,
+    "person": 11700,
+    "group": 1300,
+    "canary": 2,
+    "payload_bytes": 9917440
+  },
+  "final_window": {
+    "start": "2026-10-23T09:58:53.698647+08:00",
+    "end": "2026-10-23T09:59:26.774676+08:00",
+    "elapsed": 33075881333
+  },
+  "profile_captures": 0,
+  "cleanup_complete": true,
+  "runtime_seconds": 379.5482695000246,
+  "config_sha256": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+  "configured_SEND_per_second": 500,
+  "target_measured_seconds": 120,
+  "limits_unchanged": true,
+  "no_rerun": true,
+  "no_DB_or_new_service_or_HTTP_after_stop": true,
+  "topology_clarification": "256 HashSlots and12 physical Slot Raft identities, unchanged source/config; prior proposal logical-slot phrasing corrected by root approval",
+  "limitations": [
+    "native shared Macarm64 diagnostic, not Linux/formal acceptance",
+    "first failure stopped original120second target early",
+    "unprofiled run still proves message_loss under this local workload, but not the exact cloud root cause",
+    "coherent metrics collector now permits this proper product_failure final report; no finalization failure or parser mask is invented",
+    "no exact identity reconstruction or DB read was performed"
+  ]
+}

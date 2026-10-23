@@ -1,0 +1,15 @@
+test_final_wait_timeout_never_claims_joined (__main__.UnjoinedReceipt.test_final_wait_timeout_never_claims_joined) ... FAIL
+
+======================================================================
+FAIL: test_final_wait_timeout_never_claims_joined (__main__.UnjoinedReceipt.test_final_wait_timeout_never_claims_joined)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/2662-trace-offline-synthetic-tests-v1/unjoined_receipt_test.py", line 19, in test_final_wait_timeout_never_claims_joined
+    self.assertEqual(r['error_class'],'unjoined');self.assertFalse(r['joined'])
+                                                  ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: True is not false
+
+----------------------------------------------------------------------
+Ran 1 test in 0.020s
+
+FAILED (failures=1)

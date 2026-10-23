@@ -1,0 +1,59 @@
+{
+  "checks": [
+    {
+      "name": "task-image-after-failure",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "ls",
+        "--no-trunc",
+        "--filter",
+        "reference=wukongim-width16-scratch:4cb45b340-local",
+        "--format",
+        "{{.ID}}"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "task-containers-after-failure",
+      "argv": [
+        "/usr/local/bin/docker",
+        "ps",
+        "-a",
+        "--no-trunc",
+        "--filter",
+        "label=wukongim.width16.local=4cb45b340",
+        "--format",
+        "{{.ID}} {{.Names}} {{.Status}}"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "owned-pgids-after-failure",
+      "argv": [
+        "ps",
+        "-p",
+        "14396,14399,14916,15575,15577",
+        "-o",
+        "pid=,pgid=,command="
+      ],
+      "exit_code": 1,
+      "timeout": false,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "image_iid_exists": false,
+  "source_status": "",
+  "source_head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "source_tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "runtime_not_started": true,
+  "tests_not_executed": true,
+  "no_auto_retry": true
+}

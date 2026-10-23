@@ -1,0 +1,13 @@
+{
+  "production_delta_exactly_normalizes_to_base": true,
+  "recovery_flights_go": "C4 to16; keys derived16*512; bytebudget explicit128<<20; English comments only",
+  "presence_recovery_go": "admission channel capacity4 to16 only",
+  "unchanged_source_bindings": {
+    "internal/usecase/presence/recovery.go": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b",
+    "internal/usecase/presence/owner_recovery.go": "d2c49e662a578ab380bccc2b594e9f4b100558137c007078ab4694e5d32e6717",
+    "pkg/cluster/net/transport.go": "d0a3d07ecf1220069b9c374af65eaa4ee0b400312da6cfb730391c91be8b9be9",
+    "internal/runtime/delivery/runtime.go": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561"
+  },
+  "semantics_unchanged": "512UID/256target/32MiB page; ownership/whole-subset/no partialreserve/followercancel/freshDirectory/fences/boot/tombstone; owner250ms/plan5s; retries/CancelRunning=false13/14; parser/report/gates unchanged",
+  "scope": "experimental width candidate, not message_loss rootcause or confirmed fix; no PR/push/merge/productrun"
+}

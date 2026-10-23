@@ -1,0 +1,8 @@
+{
+  "schema": "localb47c-postcleanup-independent-zero/v1",
+  "at_utc": "2026-10-23T03:00:30.717091+00:00",
+  "owned_pgid": 7232,
+  "owned_group_and_other_WK": [],
+  "all64_selected_LISTEN_ports_zero": true,
+  "method": "ps closed process names and lsof LISTEN; no service/HTTP probe"
+}

@@ -1,0 +1,34 @@
+{
+  "phase": "all tests-first fixture sources frozen before production changes and before any Go execution",
+  "base": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+  "tree": "7ce68e726fea61bd6d176fbc7053dede920d5b00",
+  "files": {
+    "internal/usecase/presence/recovery_byte_budget_contract_test.go": {
+      "sha256": "e8053f7350056caa22718c5e734e7763eb8788dcf9ee66fe98a673590a7db01d",
+      "bytes": 510
+    },
+    "internal/usecase/presence/recovery_width16_integration_test.go": {
+      "sha256": "074d65ff0ea81183071d0786f32839dcff39216099514c7f765f658b0c76e67c",
+      "bytes": 6948
+    },
+    "internal/usecase/presence/uid_flight_integration_test.go": {
+      "sha256": "1b75d6b5cffd6ac920ae7d425265479509ab0c1d3993a44d0b4d184737bf6fe5",
+      "bytes": 20117
+    },
+    "internal/infra/cluster/presence_recovery_width16_integration_test.go": {
+      "sha256": "849650425f4a206ce16f3acfeb20064571863512859ce531cbd54dd3f9874923",
+      "bytes": 5106
+    }
+  },
+  "not_executed": [
+    "gofmt",
+    "Go",
+    "tests",
+    "builds",
+    "products",
+    "network",
+    "cloud"
+  ],
+  "existing_quota_diff": "Only held-cohort count4\u219216 and matching17th target/loop/counter values; proof-install-before-wake, follower cancellation and no-partial-key checks retained.",
+  "production_unchanged": true
+}

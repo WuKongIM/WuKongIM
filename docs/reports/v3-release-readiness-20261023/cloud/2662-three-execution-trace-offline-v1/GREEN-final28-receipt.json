@@ -1,0 +1,55 @@
+{
+  "argv": [
+    "/opt/homebrew/bin/python3",
+    "-B",
+    "-m",
+    "unittest",
+    "trace_offline_test",
+    "controlled_stop_test",
+    "unjoined_receipt_test",
+    "-v"
+  ],
+  "env": {
+    "PATH": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "TZ": "UTC",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOENV": "off",
+    "GOFLAGS": "",
+    "GOEXPERIMENT": "",
+    "GOMAXPROCS": "1",
+    "GOMEMLIMIT": "512MiB",
+    "GOTELEMETRY": "off",
+    "HOME": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/isolated-home",
+    "TMPDIR": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/tmp",
+    "PPROF_TMPDIR": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/tmp",
+    "PPROF_BINARY_PATH": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/empty-binary-path",
+    "PYTHONPATH": "/tmp/wukongim-v3-readiness-20261023/cloud/2662-three-execution-trace-offline-v1:/tmp/wukongim-v3-readiness-20261023/cloud/2662-trace-offline-synthetic-tests-v1"
+  },
+  "cwd": "/tmp/wukongim-v3-readiness-20261023/cloud/2662-three-execution-trace-offline-v1",
+  "started_at_utc": "2026-10-23T01:21:47.891227+00:00",
+  "completed_at_utc": "2026-10-23T01:21:48.531230+00:00",
+  "elapsed_seconds": 0.6400111250113696,
+  "exit_status": 0,
+  "tests": [
+    {
+      "name": "trace_offline_test.py",
+      "sha256": "9fed71ed016ced1b07ce306dc16391afa76e230aaa6ca4e88790e22a607e342a"
+    },
+    {
+      "name": "controlled_stop_test.py",
+      "sha256": "cdca449e305fb0a01701b14c69c643e5027d40fb7a5a16a7300a422acd45d2ce"
+    },
+    {
+      "name": "unjoined_receipt_test.py",
+      "sha256": "7c52d60e5887897682f6dec9d3f7c070ed430cd4809d38c78dd1cab36932b37a"
+    }
+  ],
+  "module_sha256": "5b207e2915d5cff37b5c76f062494072d8b1fd08778e533dadd4da799a2e5dbf",
+  "log_sha256": "16193bda2657a2e859e70b25f49b9359e50442a99bf6ef4be8cd447b579586a9",
+  "actual_trace_reads": 0
+}

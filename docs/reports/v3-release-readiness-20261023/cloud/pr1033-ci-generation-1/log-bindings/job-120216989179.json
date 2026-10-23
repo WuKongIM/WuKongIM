@@ -1,0 +1,25 @@
+{
+  "id": 120216989179,
+  "run_id": 39893010250,
+  "name": "PR 500 QPS / tcp-sendack",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 84636,
+  "sha256": "28193a9cb77f85e923e74f5c02707b21a92ce537d831b47bbded31ae66c3c9e5",
+  "actual_checkout_candidates": [
+    "9e8332ed8ea69540e5f248c7e483716e987a2546"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Checkout candidate",
+    "Set up Go",
+    "Run fixed sustained 500 QPS profile",
+    "Reject tracked-tree mutation",
+    "Upload every performance result",
+    "Post Set up Go",
+    "Post Checkout candidate",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

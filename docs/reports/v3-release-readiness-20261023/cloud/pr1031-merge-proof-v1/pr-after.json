@@ -1,0 +1,10 @@
+{
+  "number": 1031,
+  "state": "closed",
+  "merged": true,
+  "merged_at": "2026-10-23T00:56:16Z",
+  "merge_commit_sha": "364253b3be532acb023757791a54b85d4c76cbd2",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/pull/1031",
+  "head": "2662fe93b754d614422f2936185cf781a33b831a",
+  "base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf"
+}

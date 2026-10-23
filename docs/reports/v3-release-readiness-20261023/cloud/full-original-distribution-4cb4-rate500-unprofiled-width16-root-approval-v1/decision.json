@@ -1,0 +1,61 @@
+{
+  "schema": "local-unprofiled-width-counterfactual-single-invocation-root-approval/v1",
+  "at_utc": "2026-10-23T02:33:29.835505+00:00",
+  "root_approved": true,
+  "single_invocation": true,
+  "automatic_retry": false,
+  "authorization": "Human requested ending cloud Lease then local reproduction and repair; exact cloud inventory already zero. One local counterfactual only.",
+  "source": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "source_is_unmerged_experimental_candidate": true,
+  "runtime_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-4cb4-rate500-unprofiled-width16-v1",
+  "proposal_manifest": "8125f96dc6d6d312f6b8580ddc9d765643da6f25d2a21349cd04fb44214ceb22",
+  "build_manifest": "76418e4686412d60e94552f377d16f1c998842eb9e616bb2c39aa1fa28b2b680",
+  "baseline_manifest": "691f3d25b5ca362e8b4ef1f9c645ebe0fa04cc7ba9d686001d2275ce59424241",
+  "baseline_exact_presence_association_manifest": "ed2ad7f8937d860a518924f9cb5d83ed3220829b2c1ed6da639bd217a6e5b84e",
+  "tests_first_RED_manifest": "11b036fa8df4be43c0364412cc9b0cbda7b508a8f842736226341bc30c8697da",
+  "local_validation_manifest": "da5d08373635d54d3648be838d4f6bd70df1ddc17c788be43a8ea3900f9eb01f",
+  "independent_reviews": {
+    "standards_findings": 0,
+    "standards_manifest": "fa5551a99edd26d434b0575632a7b234fe23fd9e74a437517c2036c07cd6e6bc",
+    "spec_findings": 0,
+    "spec_manifest": "965df3a39643517c024978def31a39930bf229ca44f68e76bfa5749aa97418fe"
+  },
+  "static_pins": {
+    "launcher.sh": "af10f04516ad50c9ebb5320d0079c2bef4ac80061196a973945e165c14c6149d",
+    "supervise.py": "7de50f7f5806036f188ce79b0e668b466ba39618f0ea3903480977de0e209573",
+    "exact_build_guard.py": "3ac915f13ec8dbd296a3abc512fff7a19bf7d2c02710a60ea9c3925d8d4cf32e",
+    "original-distribution-local.yaml": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe"
+  },
+  "bounds": {
+    "outer_seconds": 600,
+    "independent_term_seconds": 570,
+    "kill_seconds": 5,
+    "startup_seconds": 360,
+    "traffic_target_seconds": 120,
+    "latest_stop_seconds": 480,
+    "exit7_hold_seconds": 90,
+    "send_qps": 500,
+    "online_target": 10000,
+    "groups": 2000,
+    "service_gomaxprocs": 2,
+    "load_gomaxprocs": 1
+  },
+  "requirements": [
+    "fresh once-claim, strict preflight and actual zero ports/process admission",
+    "same config/planner/canary/expiry/retry/256hashslots/12physicalSlotRaftidentities/verdict gates as A",
+    "fresh DB and no profiles/traces/new probes/builds/tests while measurement",
+    "first failure stops and original valid final outcome or absence is preserved",
+    "on any failed B stop width hypothesis, no further width/byte-budget escalation",
+    "complete owned PGID and all64ports/otherWK zero, independently recheck",
+    "safe closed facts only; raw config/identities/logs/DB private",
+    "no automatic B2/A2/PR/merge/cloud/publication and no Linux/GA acceptance claim"
+  ],
+  "root_prior_zero_checked_at_utc": "2026-10-23T02:32:42.499538+00:00",
+  "limitations": [
+    "One shared-Mac unprofiled control supports a narrow local hypothesis only; exact cloud inner cause remains unconfirmed.",
+    "Builds have a post-completion output cap check with actual zero output; no hard streaming build cap is claimed."
+  ]
+}

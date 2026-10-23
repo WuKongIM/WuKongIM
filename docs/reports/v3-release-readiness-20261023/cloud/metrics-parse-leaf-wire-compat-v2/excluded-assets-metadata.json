@@ -1,0 +1,77 @@
+{
+  "assets": [
+    {
+      "file": "final-related-normal.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "final-related-normal.stdout.log",
+      "bytes": 2709347,
+      "sha256": "79e1a0e16ceba26646d18e7c8ea0d5b46c1ad0f7392688b6a1e9b7fd31801d0f",
+      "public_payload": false
+    },
+    {
+      "file": "final-related-race.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "final-related-race.stdout.log",
+      "bytes": 2425585,
+      "sha256": "709b28bc94b42a0084288ca6a15040ece11a85dfbfd3c768d436fb1e8bd617c6",
+      "public_payload": false
+    },
+    {
+      "file": "flow-doc-contracts.stderr.log",
+      "bytes": 1313,
+      "sha256": "b9504b22efcfe4444671fbe52836125dc260654ab09619180c153b6c75e445a9",
+      "public_payload": false
+    },
+    {
+      "file": "flow-doc-contracts.stdout.log",
+      "bytes": 63,
+      "sha256": "da392f7d3b5c111f2b0a5d462f6bb9404c336d8fd2f665d43cb0f0ea04f8bcbc",
+      "public_payload": false
+    },
+    {
+      "file": "go-format.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "go-format.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "reuse-green.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "reuse-green.stdout.log",
+      "bytes": 44708,
+      "sha256": "8b289283a24a48e0f6c03e0aadc6f4ad0cb1d4203dfbdc96e1761f6b4e915424",
+      "public_payload": false
+    },
+    {
+      "file": "reuse-red.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "reuse-red.stdout.log",
+      "bytes": 53482,
+      "sha256": "c7960d2bbfcd72345d7474574101d6a65d6e699c1fcc916cd7da84b006f842e4",
+      "public_payload": false
+    }
+  ],
+  "raw_outputs_excluded": true
+}

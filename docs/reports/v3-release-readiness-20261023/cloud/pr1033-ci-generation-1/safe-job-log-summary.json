@@ -1,0 +1,456 @@
+{
+  "jobs": [
+    {
+      "job_id": 120216894761,
+      "name": "Build and install deb/rpm preview",
+      "log_bytes": 230806,
+      "log_sha256": "ec902924ce38eb1b7c1eaa2c8bdce98ef2c34398929fcb5faaa3e490c05ef58f",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wukongim\t3.710s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli\t0.040s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/bench\t0.012s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark\t15.762s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context\t0.007s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/database\t21.230s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/diagnostics\t0.024s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/nodeops\t0.158s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/sim\t0.213s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top\t0.022s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/config\t0.170s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t2.390s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t0.013s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t3.797s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t40.657s"
+      ],
+      "successful_steps": [
+        "Set up job",
+        "Check out exact source",
+        "Set up repository Go toolchain",
+        "Run package and CLI contracts",
+        "Run single-node cluster SEND integration",
+        "Build deb and rpm preview",
+        "Validate signed repository metadata closure",
+        "Inspect package metadata",
+        "Install on Ubuntu 24.04",
+        "Install on Debian 12",
+        "Install on Rocky Linux 9",
+        "Install on AlmaLinux 9",
+        "Upload preview packages",
+        "Reject tracked-tree mutation",
+        "Post Set up repository Go toolchain",
+        "Post Check out exact source",
+        "Complete job"
+      ],
+      "skipped_steps": [],
+      "cosign_tool_verification_skipped": true,
+      "production_native_publication": false
+    },
+    {
+      "job_id": 120216894882,
+      "name": "PR performance baseline evidence",
+      "log_bytes": 72228,
+      "log_sha256": "8cbe8820033f755ac66b82020d4a361387db8935d777aeee581cea4e43288629",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [],
+      "successful_steps": [
+        "Set up job",
+        "Checkout exact candidate without credentials",
+        "Check identical-input successful main baseline",
+        "Post Checkout exact candidate without credentials",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "job_id": 120216894970,
+      "name": "Emit credential-free wake-up",
+      "log_bytes": 2098,
+      "log_sha256": "3a857873e09bfb44aadd245a3452d2d0e637c6961f7ee3362384e0346b5d3c0b",
+      "source_checkout": [],
+      "conclusion": "success",
+      "package_pass_summaries": [],
+      "successful_steps": [
+        "Set up job",
+        "Record trusted event kind",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "job_id": 120216895108,
+      "name": "PR messaging unit and race",
+      "log_bytes": 81770,
+      "log_sha256": "579ec5ff7adcc4770d9f71e18a34ddf20e8e64b32fb7919ca61eba0d10485b5b",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/arrival\t0.031s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle\t30.398s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/workload\t2.751s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/worker\t5.447s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/bench/model\t0.007s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/client\t0.770s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/gateway\t0.012s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/gateway/core\t1.414s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/gateway/protocol/jsonrpc\t0.005s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/gateway/protocol/mqtt\t0.004s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wkproto\t0.009s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wsmux\t0.008s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/gateway/session\t0.025s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/gateway/testkit\t0.014s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet\t0.014s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/gateway/types\t0.006s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/gateway/wkprotoenc\t0.008s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/workload\t4.167s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/worker\t7.241s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/client\t1.938s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet\t1.075s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/arrival\t10.718s"
+      ],
+      "successful_steps": [
+        "Set up job",
+        "Checkout candidate",
+        "Set up Go",
+        "Run focused unit and race gates",
+        "Exercise bounded arrival saturation under race detection",
+        "Reject tracked-tree mutation",
+        "Post Set up Go",
+        "Post Checkout candidate",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "job_id": 120216895157,
+      "name": "PR three-node correctness",
+      "log_bytes": 87293,
+      "log_sha256": "290fab49184ce6158474b596748f950feb80cfdf82a9e44da671b2f14eb16f77",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [],
+      "successful_steps": [
+        "Set up job",
+        "Checkout candidate",
+        "Set up Go",
+        "Prepare isolated PR evidence root",
+        "Run bounded three-node 500 QPS correctness smoke",
+        "Reject tracked-tree mutation",
+        "Upload PR regression evidence",
+        "Post Set up Go",
+        "Post Checkout candidate",
+        "Complete job"
+      ],
+      "skipped_steps": [],
+      "terminal_summary": {
+        "outcome": "operator_stop",
+        "cause": "operator_requested",
+        "hot_sendack_p99_limit_ms": 1000,
+        "hot_sendack_count": 31966,
+        "hot_sendack_mean_ms": 18.043845190139525,
+        "sent": 76002,
+        "acknowledged": 76002
+      },
+      "full_correctness_artifact_downloaded": false
+    },
+    {
+      "job_id": 120216896601,
+      "name": "Candidate scripts integration",
+      "log_bytes": 86518,
+      "log_sha256": "876c74d7b9b3b4e723c2d3fa7cd14b044b85be09ff0e5a571d280c5ab30ef57b",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [],
+      "successful_steps": [
+        "Set up job",
+        "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "Freeze source and named-check authority",
+        "Validate workflow static contracts",
+        "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+        "Run frozen scripts-integration named check once",
+        "Reject tracked-tree mutation",
+        "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+        "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "job_id": 120216896746,
+      "name": "Candidate default suite (go-unit)",
+      "log_bytes": 86335,
+      "log_sha256": "db5b35f48a3203661fd0142955eefefa858ae0e2d1d1dcf5a78fddb9679ad00d",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [],
+      "successful_steps": [
+        "Set up job",
+        "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "Freeze source and named-check authority",
+        "Validate workflow static contracts",
+        "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+        "Run frozen go-unit named check once",
+        "Reject tracked-tree mutation",
+        "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+        "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "job_id": 120216989095,
+      "name": "PR 500 QPS / mixed-send",
+      "log_bytes": 86765,
+      "log_sha256": "3a1a241d19cbfe4742d1cf4c44913061767cfa22a215d9cd9bc2346bccb867bd",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [],
+      "successful_steps": [
+        "Set up job",
+        "Checkout candidate",
+        "Set up Go",
+        "Run fixed sustained 500 QPS profile",
+        "Reject tracked-tree mutation",
+        "Upload every performance result",
+        "Post Set up Go",
+        "Post Checkout candidate",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "job_id": 120216989136,
+      "name": "PR 500 QPS / channel-append",
+      "log_bytes": 84110,
+      "log_sha256": "b8ed80152fb8068b28c36064315af8819dbb0a127c6b2e0354e2b35d4ab67505",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [],
+      "successful_steps": [
+        "Set up job",
+        "Checkout candidate",
+        "Set up Go",
+        "Run fixed sustained 500 QPS profile",
+        "Reject tracked-tree mutation",
+        "Upload every performance result",
+        "Post Set up Go",
+        "Post Checkout candidate",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "job_id": 120216989179,
+      "name": "PR 500 QPS / tcp-sendack",
+      "log_bytes": 84636,
+      "log_sha256": "28193a9cb77f85e923e74f5c02707b21a92ce537d831b47bbded31ae66c3c9e5",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [],
+      "successful_steps": [
+        "Set up job",
+        "Checkout candidate",
+        "Set up Go",
+        "Run fixed sustained 500 QPS profile",
+        "Reject tracked-tree mutation",
+        "Upload every performance result",
+        "Post Set up Go",
+        "Post Checkout candidate",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "job_id": 120218564677,
+      "name": "PR three-node regression",
+      "log_bytes": 2674,
+      "log_sha256": "a115867876ac5e87abec35bc5384b1e04a70c8ee48239dd9db1c9e55d5c787a6",
+      "source_checkout": [],
+      "conclusion": "success",
+      "package_pass_summaries": [],
+      "successful_steps": [
+        "Set up job",
+        "Require every independent check",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "job_id": 120218693859,
+      "name": "Candidate migration and messaging E2E",
+      "log_bytes": 86616,
+      "log_sha256": "a2bd4e7f654efc8e846dea7f76b2dfa374ffd97ff99f8b33c44caf912f025fd7",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [],
+      "successful_steps": [
+        "Set up job",
+        "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "Record exact source and initial case state",
+        "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+        "Build once and run migration, cross-node delivery, and self-chat serially",
+        "Reject tracked-tree mutation",
+        "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+        "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "job_id": 120218774996,
+      "name": "Exercise Debian 12 package lifecycle",
+      "log_bytes": 83598,
+      "log_sha256": "7d4ff971e12694a7f123ef3f49bc4976a760ced71f3e85733a70098ba0173164",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t42.584s"
+      ],
+      "successful_steps": [
+        "Set up job",
+        "Check out exact source",
+        "Set up repository Go toolchain",
+        "Download the exact preview packages",
+        "Verify the downloaded package set",
+        "Exercise the operator-owned lifecycle",
+        "Reject tracked-tree mutation",
+        "Post Set up repository Go toolchain",
+        "Post Check out exact source",
+        "Complete job"
+      ],
+      "skipped_steps": [],
+      "enabled_real_systemd_lifecycle_test": true,
+      "native_package_digest_check": true,
+      "inner_success_output_not_retained_by_CombinedOutput_test": true
+    },
+    {
+      "job_id": 120218775120,
+      "name": "Exercise AlmaLinux 9 package lifecycle",
+      "log_bytes": 83700,
+      "log_sha256": "52f651b58d6369fa9bb0f3ccf65e513cab45ab729ff2318632795bc1c6f11a7a",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t59.058s"
+      ],
+      "successful_steps": [
+        "Set up job",
+        "Check out exact source",
+        "Set up repository Go toolchain",
+        "Download the exact preview packages",
+        "Verify the downloaded package set",
+        "Exercise the operator-owned lifecycle",
+        "Reject tracked-tree mutation",
+        "Post Set up repository Go toolchain",
+        "Post Check out exact source",
+        "Complete job"
+      ],
+      "skipped_steps": [],
+      "enabled_real_systemd_lifecycle_test": true,
+      "native_package_digest_check": true,
+      "inner_success_output_not_retained_by_CombinedOutput_test": true
+    },
+    {
+      "job_id": 120218775124,
+      "name": "Exercise Ubuntu 24.04 package lifecycle",
+      "log_bytes": 83707,
+      "log_sha256": "2c176634d87488ae8e129407ba33eadd82a6ed0f42a24558d166164876f6d94a",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t38.971s"
+      ],
+      "successful_steps": [
+        "Set up job",
+        "Check out exact source",
+        "Set up repository Go toolchain",
+        "Download the exact preview packages",
+        "Verify the downloaded package set",
+        "Exercise the operator-owned lifecycle",
+        "Reject tracked-tree mutation",
+        "Post Set up repository Go toolchain",
+        "Post Check out exact source",
+        "Complete job"
+      ],
+      "skipped_steps": [],
+      "enabled_real_systemd_lifecycle_test": true,
+      "native_package_digest_check": true,
+      "inner_success_output_not_retained_by_CombinedOutput_test": true
+    },
+    {
+      "job_id": 120218775142,
+      "name": "Exercise Rocky Linux 9 package lifecycle",
+      "log_bytes": 83621,
+      "log_sha256": "e38f0e26302ecf663cde773eae99664424e7cd255a19c92f5d4317387f6b891f",
+      "source_checkout": [
+        "9e8332ed8ea69540e5f248c7e483716e987a2546"
+      ],
+      "conclusion": "success",
+      "package_pass_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t51.892s"
+      ],
+      "successful_steps": [
+        "Set up job",
+        "Check out exact source",
+        "Set up repository Go toolchain",
+        "Download the exact preview packages",
+        "Verify the downloaded package set",
+        "Exercise the operator-owned lifecycle",
+        "Reject tracked-tree mutation",
+        "Post Set up repository Go toolchain",
+        "Post Check out exact source",
+        "Complete job"
+      ],
+      "skipped_steps": [],
+      "enabled_real_systemd_lifecycle_test": true,
+      "native_package_digest_check": true,
+      "inner_success_output_not_retained_by_CombinedOutput_test": true
+    }
+  ],
+  "native_lifecycle_contract_source": {
+    "scripts/native_package_lifecycle_integration_test.go": {
+      "bytes": 1181,
+      "sha256": "57f008589f2c6b7811e01a3b68b42d54ae9b8de2a4397e07e3927d229e315cfd"
+    },
+    "scripts/validate-native-package-lifecycle-container.sh": {
+      "bytes": 15701,
+      "sha256": "1238e68e5f0a774a7184f6b6cfa42a7f9b083288a0569cf8260863b6ec7f0d72"
+    }
+  },
+  "limits": [
+    "Successful Go lifecycle wrapper consumes and suppresses inner success output; public proof binds enabled real-systemd test, exact checkout, successful step and nonverbose Go result. No independent container zero-inventory receipt is invented.",
+    "Large native/correctness artifact bodies were not downloaded; API declared digests are separate from local proof ZIP digests.",
+    "TEST ONLY signed repository fixture and unsigned preview are not stable package publication."
+  ]
+}

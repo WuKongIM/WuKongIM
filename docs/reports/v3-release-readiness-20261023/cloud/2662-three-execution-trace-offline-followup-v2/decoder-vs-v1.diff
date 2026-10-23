@@ -1,0 +1,11 @@
+--- sealed-v1/trace_offline.py
++++ followup-v2/trace_offline.py
+@@ -66,7 +66,7 @@
+     fn=functions[ln[1]]
+     # Only immutable symbol names and source file/line: never decode labels,
+     # print string tables, addresses, raw goroutine IDs or message identities.
+-    name=st[fn[2]];file=st[fn[4]]
++    name=st[fn.get(2,0)];file=st[fn.get(4,0)]
+     frames.append({'function':name,'file':file,'line':ln.get(2,0)})
+   result.append({'values':sample['values'],'frames':frames})
+  return header,types,st,result

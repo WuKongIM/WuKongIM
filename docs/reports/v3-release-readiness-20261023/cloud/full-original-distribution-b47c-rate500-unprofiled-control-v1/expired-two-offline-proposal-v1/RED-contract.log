@@ -1,0 +1,105 @@
+test_first_invalid_and_second_sample_divergent_stop_all_later (__main__.TwoSamples.test_first_invalid_and_second_sample_divergent_stop_all_later) ... 
+  test_first_invalid_and_second_sample_divergent_stop_all_later (__main__.TwoSamples.test_first_invalid_and_second_sample_divergent_stop_all_later) (cases={'0-1': 'invalid'}) ... ERROR
+  test_first_invalid_and_second_sample_divergent_stop_all_later (__main__.TwoSamples.test_first_invalid_and_second_sample_divergent_stop_all_later) (cases={'0-2': 'has_more'}) ... ERROR
+  test_first_invalid_and_second_sample_divergent_stop_all_later (__main__.TwoSamples.test_first_invalid_and_second_sample_divergent_stop_all_later) (cases={'1-1': 'nonunique'}) ... ERROR
+  test_first_invalid_and_second_sample_divergent_stop_all_later (__main__.TwoSamples.test_first_invalid_and_second_sample_divergent_stop_all_later) (cases={'1-2': 'divergent'}) ... ERROR
+test_streaming_stdout_and_stderr_limits_stop_later_queries (__main__.TwoSamples.test_streaming_stdout_and_stderr_limits_stop_later_queries) ... 
+  test_streaming_stdout_and_stderr_limits_stop_later_queries (__main__.TwoSamples.test_streaming_stdout_and_stderr_limits_stop_later_queries) (mode='overflow') ... ERROR
+  test_streaming_stdout_and_stderr_limits_stop_later_queries (__main__.TwoSamples.test_streaming_stdout_and_stderr_limits_stop_later_queries) (mode='stderr_overflow') ... ERROR
+test_two_valid_samples_use_six_queries (__main__.TwoSamples.test_two_valid_samples_use_six_queries) ... ERROR
+
+======================================================================
+ERROR: test_first_invalid_and_second_sample_divergent_stop_all_later (__main__.TwoSamples.test_first_invalid_and_second_sample_divergent_stop_all_later) (cases={'0-1': 'invalid'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 21, in test_first_invalid_and_second_sample_divergent_stop_all_later
+    with self.subTest(cases=cases):self.case(cases,hits)
+                                   ~~~~~~~~~^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 14, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+                                           ~~~~~~~~~~~~^^
+  File "prepared-driver-fixture", line 145, in worker
+TypeError: list indices must be integers or slices, not str
+
+======================================================================
+ERROR: test_first_invalid_and_second_sample_divergent_stop_all_later (__main__.TwoSamples.test_first_invalid_and_second_sample_divergent_stop_all_later) (cases={'0-2': 'has_more'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 21, in test_first_invalid_and_second_sample_divergent_stop_all_later
+    with self.subTest(cases=cases):self.case(cases,hits)
+                                   ~~~~~~~~~^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 14, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+                                           ~~~~~~~~~~~~^^
+  File "prepared-driver-fixture", line 145, in worker
+TypeError: list indices must be integers or slices, not str
+
+======================================================================
+ERROR: test_first_invalid_and_second_sample_divergent_stop_all_later (__main__.TwoSamples.test_first_invalid_and_second_sample_divergent_stop_all_later) (cases={'1-1': 'nonunique'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 21, in test_first_invalid_and_second_sample_divergent_stop_all_later
+    with self.subTest(cases=cases):self.case(cases,hits)
+                                   ~~~~~~~~~^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 14, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+                                           ~~~~~~~~~~~~^^
+  File "prepared-driver-fixture", line 145, in worker
+TypeError: list indices must be integers or slices, not str
+
+======================================================================
+ERROR: test_first_invalid_and_second_sample_divergent_stop_all_later (__main__.TwoSamples.test_first_invalid_and_second_sample_divergent_stop_all_later) (cases={'1-2': 'divergent'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 21, in test_first_invalid_and_second_sample_divergent_stop_all_later
+    with self.subTest(cases=cases):self.case(cases,hits)
+                                   ~~~~~~~~~^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 14, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+                                           ~~~~~~~~~~~~^^
+  File "prepared-driver-fixture", line 145, in worker
+TypeError: list indices must be integers or slices, not str
+
+======================================================================
+ERROR: test_streaming_stdout_and_stderr_limits_stop_later_queries (__main__.TwoSamples.test_streaming_stdout_and_stderr_limits_stop_later_queries) (mode='overflow')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 24, in test_streaming_stdout_and_stderr_limits_stop_later_queries
+    with self.subTest(mode=mode):self.case({'0-1':mode},[(0,1)])
+                                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 14, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+                                           ~~~~~~~~~~~~^^
+  File "prepared-driver-fixture", line 145, in worker
+TypeError: list indices must be integers or slices, not str
+
+======================================================================
+ERROR: test_streaming_stdout_and_stderr_limits_stop_later_queries (__main__.TwoSamples.test_streaming_stdout_and_stderr_limits_stop_later_queries) (mode='stderr_overflow')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 24, in test_streaming_stdout_and_stderr_limits_stop_later_queries
+    with self.subTest(mode=mode):self.case({'0-1':mode},[(0,1)])
+                                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 14, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+                                           ~~~~~~~~~~~~^^
+  File "prepared-driver-fixture", line 145, in worker
+TypeError: list indices must be integers or slices, not str
+
+======================================================================
+ERROR: test_two_valid_samples_use_six_queries (__main__.TwoSamples.test_two_valid_samples_use_six_queries)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 18, in test_two_valid_samples_use_six_queries
+    def test_two_valid_samples_use_six_queries(self):self.case({},[(s,n) for s in [0,1] for n in [1,2,3]],True)
+                                                     ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/driver_contract_test.py", line 12, in case
+    if valid:result=ns['worker']();self.assertEqual(result['queries'],6)
+                    ~~~~~~~~~~~~^^
+  File "prepared-driver-fixture", line 145, in worker
+TypeError: list indices must be integers or slices, not str
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.044s
+
+FAILED (errors=7)

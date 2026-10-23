@@ -1,0 +1,445 @@
+{
+  "phases": [
+    {
+      "phase": "compile-red",
+      "exit_code": 1,
+      "wall_seconds": 8.542231249972247,
+      "same_original_test_hashes": true,
+      "supplemental_test_pins_sha256": null,
+      "counts_including_subtests": {
+        "fail_package": 2,
+        "pass_case": 1,
+        "pass_package": 1
+      },
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+          "action": "fail",
+          "seconds": 0
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+          "action": "fail",
+          "seconds": 0
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+          "action": "pass",
+          "seconds": 0.506
+        }
+      ],
+      "failed_test_names": [],
+      "meaning": "Expected missing new API/DTO compile failure; not a behavior RED."
+    },
+    {
+      "phase": "behavior-red",
+      "exit_code": 1,
+      "wall_seconds": 1.41840924997814,
+      "same_original_test_hashes": true,
+      "supplemental_test_pins_sha256": null,
+      "counts_including_subtests": {
+        "fail_case": 51,
+        "pass_case": 18,
+        "fail_package": 3
+      },
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+          "action": "fail",
+          "seconds": 0.308
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+          "action": "fail",
+          "seconds": 0
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+          "action": "fail",
+          "seconds": 0
+        }
+      ],
+      "failed_test_names": [
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/line_limit",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/series_limit",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_value",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/incomplete_metadata_results",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_sample",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_labels",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_metadata_labels",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_metadata_slot",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_metadata_counter",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_metadata_result",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/duplicate_metadata_slot_result",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/aggregate_overflow",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/unsupported_family",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_queue_labels",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_queue_family",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/duplicate_or_excess_queue_series",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/unpaired_queue_series",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_queue_utilization",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_sample_name",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/label_cardinality_limit",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText",
+        "TestMetricsParseLeavesAtRealParserBoundaries/line_count",
+        "TestMetricsParseLeavesAtRealParserBoundaries/line_token",
+        "TestMetricsParseLeavesAtRealParserBoundaries/series_count",
+        "TestMetricsParseLeavesAtRealParserBoundaries/nonfinite",
+        "TestMetricsParseLeavesAtRealParserBoundaries/negative_metadata_first_guard",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_incomplete",
+        "TestMetricsParseLeavesAtRealParserBoundaries/sample_fields",
+        "TestMetricsParseLeavesAtRealParserBoundaries/labels_syntax",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_labels",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_slot",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_slot_noncanonical",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_fraction",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_counter_bound",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_result",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_duplicate",
+        "TestMetricsParseLeavesAtRealParserBoundaries/float_sum",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_sum",
+        "TestMetricsParseLeavesAtRealParserBoundaries/unsupported_helper",
+        "TestMetricsParseLeavesAtRealParserBoundaries/queue_family_helper",
+        "TestMetricsParseLeavesAtRealParserBoundaries/queue_duplicate",
+        "TestMetricsParseLeavesAtRealParserBoundaries/queue_count",
+        "TestMetricsParseLeavesAtRealParserBoundaries/queue_unpaired",
+        "TestMetricsParseLeavesAtRealParserBoundaries/queue_over_capacity",
+        "TestMetricsParseLeavesAtRealParserBoundaries/queue_missing_key_same_count",
+        "TestMetricsParseLeavesAtRealParserBoundaries/sample_name_helper",
+        "TestMetricsParseLeavesAtRealParserBoundaries/label_count",
+        "TestMetricsParseLeavesAtRealParserBoundaries/label_duplicate",
+        "TestMetricsParseLeavesAtRealParserBoundaries",
+        "TestMetricsParseReasonProvenanceAndUnknown/wrapped_authentic",
+        "TestMetricsParseReasonProvenanceAndUnknown"
+      ],
+      "meaning": "Target behavior RED plus downstream malformed minimal DTO shell; syntax mistake retained, not counted as complete behavior RED."
+    },
+    {
+      "phase": "behavior-red-complete",
+      "exit_code": 1,
+      "wall_seconds": 6.234015292022377,
+      "same_original_test_hashes": true,
+      "supplemental_test_pins_sha256": null,
+      "counts_including_subtests": {
+        "fail_case": 74,
+        "pass_case": 34,
+        "fail_package": 3
+      },
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+          "action": "fail",
+          "seconds": 0.174
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+          "action": "fail",
+          "seconds": 0.32
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+          "action": "fail",
+          "seconds": 0.298
+        }
+      ],
+      "failed_test_names": [
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/line_limit",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/series_limit",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_value",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/incomplete_metadata_results",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_sample",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_labels",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_metadata_labels",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_metadata_slot",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_metadata_counter",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_metadata_result",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/duplicate_metadata_slot_result",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/aggregate_overflow",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/unsupported_family",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_queue_labels",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_queue_family",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/duplicate_or_excess_queue_series",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/unpaired_queue_series",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_queue_utilization",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/invalid_sample_name",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText/label_cardinality_limit",
+        "TestMetricsParseLeafCatalogKeepsPrivateErrorText",
+        "TestMetricsParseLeavesAtRealParserBoundaries/line_count",
+        "TestMetricsParseLeavesAtRealParserBoundaries/line_token",
+        "TestMetricsParseLeavesAtRealParserBoundaries/series_count",
+        "TestMetricsParseLeavesAtRealParserBoundaries/nonfinite",
+        "TestMetricsParseLeavesAtRealParserBoundaries/negative_metadata_first_guard",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_incomplete",
+        "TestMetricsParseLeavesAtRealParserBoundaries/sample_fields",
+        "TestMetricsParseLeavesAtRealParserBoundaries/labels_syntax",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_labels",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_slot",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_slot_noncanonical",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_fraction",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_counter_bound",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_result",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_duplicate",
+        "TestMetricsParseLeavesAtRealParserBoundaries/float_sum",
+        "TestMetricsParseLeavesAtRealParserBoundaries/metadata_sum",
+        "TestMetricsParseLeavesAtRealParserBoundaries/unsupported_helper",
+        "TestMetricsParseLeavesAtRealParserBoundaries/queue_family_helper",
+        "TestMetricsParseLeavesAtRealParserBoundaries/queue_duplicate",
+        "TestMetricsParseLeavesAtRealParserBoundaries/queue_count",
+        "TestMetricsParseLeavesAtRealParserBoundaries/queue_unpaired",
+        "TestMetricsParseLeavesAtRealParserBoundaries/queue_over_capacity",
+        "TestMetricsParseLeavesAtRealParserBoundaries/queue_missing_key_same_count",
+        "TestMetricsParseLeavesAtRealParserBoundaries/sample_name_helper",
+        "TestMetricsParseLeavesAtRealParserBoundaries/label_count",
+        "TestMetricsParseLeavesAtRealParserBoundaries/label_duplicate",
+        "TestMetricsParseLeavesAtRealParserBoundaries",
+        "TestMetricsParseReasonProvenanceAndUnknown/wrapped_authentic",
+        "TestMetricsParseReasonProvenanceAndUnknown",
+        "TestMetricsParseReasonsCollectedInDeclaredSourceOrder/1",
+        "TestMetricsParseReasonsCollectedInDeclaredSourceOrder/2",
+        "TestMetricsParseReasonsCollectedInDeclaredSourceOrder/3",
+        "TestMetricsParseReasonsCollectedInDeclaredSourceOrder/4",
+        "TestMetricsParseReasonsCollectedInDeclaredSourceOrder/5",
+        "TestMetricsParseReasonsCollectedInDeclaredSourceOrder/6",
+        "TestMetricsParseReasonsCollectedInDeclaredSourceOrder/7",
+        "TestMetricsParseReasonsCollectedInDeclaredSourceOrder",
+        "TestMetricsParseReasonsOptionalJSONCompatibility/known",
+        "TestMetricsParseReasonsOptionalJSONCompatibility/unknown",
+        "TestMetricsParseReasonsOptionalJSONCompatibility/empty_parse",
+        "TestMetricsParseReasonsOptionalJSONCompatibility/stray_nonparse",
+        "TestMetricsParseReasonsOptionalJSONCompatibility/object",
+        "TestMetricsParseReasonsOptionalJSONCompatibility/scalar",
+        "TestMetricsParseReasonsOptionalJSONCompatibility/nonstring",
+        "TestMetricsParseReasonsOptionalJSONCompatibility/nested",
+        "TestMetricsParseReasonsOptionalJSONCompatibility/huge_field",
+        "TestMetricsParseReasonsOptionalJSONCompatibility/duplicate_last_invalid",
+        "TestMetricsParseReasonsOptionalJSONCompatibility/duplicate_last_valid",
+        "TestMetricsParseReasonsOptionalJSONCompatibility/escaped_known",
+        "TestMetricsParseReasonsOptionalJSONCompatibility",
+        "TestMetricsParseReasonsMaskStageAndOwnershipControls",
+        "TestMetricsParseDiagnosticCannotChangeCLIOutcome"
+      ],
+      "meaning": "All three packages compiled; original parser unchanged; full behavior RED before implementation."
+    },
+    {
+      "phase": "focused-green",
+      "exit_code": 0,
+      "wall_seconds": 6.670141624985263,
+      "same_original_test_hashes": true,
+      "supplemental_test_pins_sha256": null,
+      "counts_including_subtests": {
+        "pass_case": 108,
+        "pass_package": 3
+      },
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+          "action": "pass",
+          "seconds": 0.299
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+          "action": "pass",
+          "seconds": 0.311
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+          "action": "pass",
+          "seconds": 0.287
+        }
+      ],
+      "failed_test_names": [],
+      "meaning": "Original frozen test set GREEN after implementation."
+    },
+    {
+      "phase": "related-normal",
+      "exit_code": 0,
+      "wall_seconds": 24.520926000084728,
+      "same_original_test_hashes": true,
+      "supplemental_test_pins_sha256": null,
+      "counts_including_subtests": {
+        "pass_case": 2276,
+        "pass_package": 3
+      },
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+          "action": "pass",
+          "seconds": 0.311
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+          "action": "pass",
+          "seconds": 15.816
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+          "action": "pass",
+          "seconds": 6.875
+        }
+      ],
+      "failed_test_names": [],
+      "meaning": "Pre-null-correction complete three-related-package suite GREEN."
+    },
+    {
+      "phase": "null-elements-red",
+      "exit_code": 1,
+      "wall_seconds": 3.532387249986641,
+      "same_original_test_hashes": true,
+      "supplemental_test_pins_sha256": null,
+      "counts_including_subtests": {
+        "fail_case": 4,
+        "fail_package": 1
+      },
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+          "action": "fail",
+          "seconds": 0.306
+        }
+      ],
+      "failed_test_names": [
+        "TestMetricsParseReasonsRejectsNullElements/parse_position",
+        "TestMetricsParseReasonsRejectsNullElements/successful_position",
+        "TestMetricsParseReasonsRejectsNullElements/transport_position",
+        "TestMetricsParseReasonsRejectsNullElements"
+      ],
+      "meaning": "Three separately frozen null-position cases fail current decoder before corrective change."
+    },
+    {
+      "phase": "null-elements-green",
+      "exit_code": 0,
+      "wall_seconds": 3.4982480839826167,
+      "same_original_test_hashes": true,
+      "supplemental_test_pins_sha256": "e687376c70b6d4f598f8b11c71cda6dcf179f95d28f657b4f8235d987c19121b",
+      "counts_including_subtests": {
+        "pass_case": 4,
+        "pass_package": 1
+      },
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+          "action": "pass",
+          "seconds": 0.312
+        }
+      ],
+      "failed_test_names": [],
+      "meaning": "Same three null-position cases pass after Token/string assertion."
+    },
+    {
+      "phase": "final-related-normal",
+      "exit_code": 0,
+      "wall_seconds": 61.0591826250311,
+      "same_original_test_hashes": true,
+      "supplemental_test_pins_sha256": "e687376c70b6d4f598f8b11c71cda6dcf179f95d28f657b4f8235d987c19121b",
+      "counts_including_subtests": {
+        "pass_case": 2564,
+        "pass_package": 11,
+        "skip_package": 3
+      },
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+          "action": "pass",
+          "seconds": 0.29
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+          "action": "pass",
+          "seconds": 15.844
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli",
+          "action": "pass",
+          "seconds": 0.387
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/bench",
+          "action": "pass",
+          "seconds": 0.314
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+          "action": "pass",
+          "seconds": 6.977
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command",
+          "action": "skip",
+          "seconds": 0
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context",
+          "action": "pass",
+          "seconds": 0.289
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/database",
+          "action": "pass",
+          "seconds": 7.552
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/diagnostics",
+          "action": "pass",
+          "seconds": 0.364
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/migrate",
+          "action": "skip",
+          "seconds": 0
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/nodeops",
+          "action": "pass",
+          "seconds": 0.346
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/sim",
+          "action": "pass",
+          "seconds": 0.479
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top",
+          "action": "pass",
+          "seconds": 0.367
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top/topapi",
+          "action": "skip",
+          "seconds": 0
+        }
+      ],
+      "failed_test_names": [],
+      "meaning": "Final normal suite including full cmd/wkcli/... after null fix."
+    },
+    {
+      "phase": "final-related-race",
+      "exit_code": 0,
+      "wall_seconds": 127.31870170799084,
+      "same_original_test_hashes": true,
+      "supplemental_test_pins_sha256": "e687376c70b6d4f598f8b11c71cda6dcf179f95d28f657b4f8235d987c19121b",
+      "counts_including_subtests": {
+        "pass_case": 2280,
+        "pass_package": 3
+      },
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+          "action": "pass",
+          "seconds": 2.768
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle",
+          "action": "pass",
+          "seconds": 88.777
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark",
+          "action": "pass",
+          "seconds": 18.391
+        }
+      ],
+      "failed_test_names": [],
+      "meaning": "Final three-related-package complete race suite after null correction."
+    }
+  ]
+}

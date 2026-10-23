@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-23T00:52:34.351052+00:00",
+  "scope": "local public-manifest safety checker only",
+  "process_exit_code": 1,
+  "failure": "Scanner matched its own detector literal rather than a signed URL; archive was not sealed",
+  "before_script_sha256": "fc25e3c12e47ae90a79324274c3e8b3a97023e9172756f103f3d6d769c88d280",
+  "after_script_sha256": "02e92ddc21e70d35ebc9e74faf7c1f28fa2e06093f50b025ee019dd249b46f4e",
+  "fix": "require an actual HTTP(S) URL and nonempty signature value; retain all prior payload bytes",
+  "CI_failure": false,
+  "CI_retry": false
+}

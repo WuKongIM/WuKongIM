@@ -1,0 +1,97 @@
+{
+  "phase": "proposed; root must approve before execution",
+  "execution": "Each command once, sequentially; no retry; no production edits; Go1.25.11; GOMAXPROCS2; offline module access; stdout1MiB/stderr64KiB per command; process-group kill on outer/output cap; preserve first results and full finite logs privately.",
+  "environment_allowlist": [
+    "PATH exacttoolchain + /usr/bin:/bin:/usr/sbin:/sbin",
+    "HOME inherited unchanged",
+    "TMPDIR inherited unchanged if present",
+    "GOPATH=/Users/tt/go",
+    "GOWORK=off",
+    "GOTOOLCHAIN=local",
+    "GOPROXY=off",
+    "GOSUMDB=off",
+    "GOMAXPROCS=2",
+    "GOFLAGS=-p=1"
+  ],
+  "commands": [
+    {
+      "phase": "budget-control",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "./internal/usecase/presence",
+        "-run",
+        "^TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth$",
+        "-count=1",
+        "-p=1",
+        "-timeout=30s",
+        "-json"
+      ],
+      "outer_seconds": 60,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536,
+      "expected": "PASS unchanged128MiB/32MiB contract; auxiliary guard only"
+    },
+    {
+      "phase": "public-width-red",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/usecase/presence",
+        "-run",
+        "^(TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget|TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys)$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=40s",
+        "-json"
+      ],
+      "outer_seconds": 60,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536,
+      "expected": "Behavior RED: positive fifth owner entry blocked under current C4/K2048; retain both1-UID/full512 pages and proof-recheck fixture"
+    },
+    {
+      "phase": "adapter-width-red",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/infra/cluster",
+        "-run",
+        "^TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=30s",
+        "-json"
+      ],
+      "outer_seconds": 60,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536,
+      "expected": "Behavior RED: only4 independent owner read hooks enter, not16; joins/cancels all"
+    },
+    {
+      "phase": "byte-boundary-red",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/usecase/presence",
+        "-run",
+        "^TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=90s",
+        "-json"
+      ],
+      "outer_seconds": 120,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536,
+      "expected": "Current C4 blocks fifth2048-byte fill. This RED cannot yet attribute independent byte limit; after C16 same fixture reaches128MiB and rejects sixth1-byte request with free cohorts, detecting erroneous512MiB derivation."
+    }
+  ],
+  "memory": "Root reported32GiB physical/~3.69GiB free near02:07Z; transient observation supports one sequential >256MiB byte fixture, not RSS guarantee. No race yet; separate approval/admission needed."
+}

@@ -1,0 +1,72 @@
+--- sealed2662/supervise.py
++++ prepared-b47c-unprofiled/supervise.py
+@@ -13,17 +13,14 @@
+ import urllib.request
+ from exact_build_guard import verify_exact_build, PRODUCT_BINARIES
+ 
+-ROOT = Path("/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf")
++ROOT = Path("/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-b47c-queue-snapshot")
+ OUT = Path(__file__).resolve().parent
+-SOURCE = "2662fe93b754d614422f2936185cf781a33b831a"
++SOURCE = "b47c03d461a6d8918e537e027bf56539ce78c585"
+ RUN_ID = "chat-20261021T214505Z-00299e37-rehearsal-1"
+ BASE = 25000
+ TOTAL_SECONDS = 600
+ TRAFFIC_SECONDS = 120
+-INPUT_HASHES = {'launcher.sh': '629948db2cefa526f1d4bdf135c01e501bfefadd6c9a9f899292924e8f277881', 'original-distribution-local.yaml': '308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694', 'watchdog.py': 'cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415', 'verify-slots.py': '220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe'}
+-SAMPLER_ROOT = Path('/tmp/wukongim-v3-readiness-20261023/cloud/execution-trace-first-grant-proposal-v1')
+-SAMPLER_MANIFEST_SHA = '7be1e02538753c50fb7282cf8817a1d36a41811edfe5c06b16ba5cf0798e9957'
+-SAMPLER_FILES = {'capture-execution-trace.py': 'b05bd2cf0cc85f7601a52d174a2c17c4d7c6c4dfaca1d3060b36e43e574565ac', 'watch-three-node-execution-trace.proposed.py': '20bbbfc83b9b958f29569ea4de1587f3764ed1cd217fcbcb06a8bff61be518f8'}
++INPUT_HASHES = {'launcher.sh': 'f60d7db1942b57909d66bb3157eade6bfc8f1d220b75e8cef8dfbb75426dac84', 'original-distribution-local.yaml': '308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694', 'watchdog.py': 'cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415', 'verify-slots.py': '220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe'}
+ owned = None
+ started_mono = time.monotonic()
+ started_wall = datetime.datetime.now(datetime.timezone.utc)
+@@ -87,7 +84,6 @@
+     if stop_sent:
+         return
+     reason, stop_sent, stop_at = code, True, time.monotonic()
+-    (OUT / "evidence/profile-stop").write_text(code + "\n")
+     pid = coordinator_pid()
+     if pid is None:
+         os.killpg(owned.pid, signal.SIGTERM)
+@@ -149,21 +145,12 @@
+     for name, expected in INPUT_HASHES.items():
+         path = OUT / name
+         assert path.is_file() and not path.is_symlink() and hashlib.sha256(path.read_bytes()).hexdigest() == expected, "launch_input_mismatch"
+-    assert hashlib.sha256((SAMPLER_ROOT / "PUBLIC_SHA256SUMS").read_bytes()).hexdigest() == SAMPLER_MANIFEST_SHA, "sampler_manifest_mismatch"
+-    for line in (SAMPLER_ROOT / "PUBLIC_SHA256SUMS").read_text().splitlines():
+-        expected, name = line.split("  ", 1)
+-        path = Path(name)
+-        assert not path.is_absolute() and ".." not in path.parts, "sampler_member_path_invalid"
+-        member = SAMPLER_ROOT / path
+-        assert member.is_file() and not member.is_symlink() and hashlib.sha256(member.read_bytes()).hexdigest() == expected, "sampler_member_mismatch"
+-    for name, expected in SAMPLER_FILES.items():
+-        assert hashlib.sha256((SAMPLER_ROOT / name).read_bytes()).hexdigest() == expected, "sampler_input_mismatch"
+     return INPUT_HASHES["launcher.sh"]
+ 
+ 
+ try:
+     exact_build = verify_exact_build()
+-    sealed_launcher_sha = verify_launch_inputs()
++    verify_launch_inputs()
+     assert hashlib.sha256((OUT / "original-distribution-local.yaml").read_bytes()).hexdigest() == "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694", "controlled_config_hash_mismatch"
+     assert not any((OUT / name).exists() for name in ("data", "workers", "pids", "report"))
+     assert resource.getrlimit(resource.RLIMIT_NOFILE)[0] >= 30000
+@@ -181,7 +168,7 @@
+     (OUT / "evidence").mkdir(exist_ok=True)
+     (OUT / "logs").mkdir(exist_ok=True)
+     env = {key: value for key, value in os.environ.items() if not key.startswith("WK_") and key not in ("GOFAIL_HTTP", "GOFAIL_FAILPOINTS", "GOMAXPROCS", "GODEBUG")}
+-    env.update({"GOWORK": "off", "GOMAXPROCS": "1", "LOCAL_PROFILE_LAUNCHER_SHA256": sealed_launcher_sha})
++    env.update({"GOWORK": "off", "GOMAXPROCS": "1"})
+     assert time.monotonic() - started_mono <= 60
+     initial = samples()
+     assert not initial["other_wukongim_processes"]
+@@ -302,7 +289,7 @@
+         "measured_barrier_reached": barrier is not None, "requested_traffic_seconds": TRAFFIC_SECONDS,
+         "observed_traffic_seconds": None if final is None else final.get("window", {}).get("elapsed", 0) / 1e9,
+         "supervisor_stop_requested_after_barrier_seconds": None if barrier is None or stop_at is None else max(0, stop_at - barrier),
+-        "local_profile_only": True, "cloud_capacity_qualified": False, "product_source_changed": True,
++        "local_diagnostic_only": True, "cloud_capacity_qualified": False, "product_source_changed": True,
+         "controlled_send_rate_per_second": 500, "derived_max_global_burst": 1000, "formal_or_performance_acceptance": False,
+         "final_report_present": final is not None, "original_verdict": None if final is None else final.get("verdict"),
+         "messages": None if final is None else final.get("messages"), "correlation": None if final is None else final.get("correlation"),

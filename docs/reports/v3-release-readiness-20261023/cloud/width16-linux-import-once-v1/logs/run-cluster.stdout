@@ -1,0 +1,3 @@
+=== RUN   TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth
+--- PASS: TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth (0.10s)
+PASS

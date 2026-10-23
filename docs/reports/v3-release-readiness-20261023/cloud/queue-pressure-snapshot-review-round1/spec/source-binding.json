@@ -1,0 +1,134 @@
+{
+  "axis": "Spec",
+  "recorded_utc": "2026-10-23T01:38:00.131488+00:00",
+  "base": "364253b3be532acb023757791a54b85d4c76cbd2",
+  "head": "b47c03d461a6d8918e537e027bf56539ce78c585",
+  "tree": "7ce68e726fea61bd6d176fbc7053dede920d5b00",
+  "diff_command": "git diff 364253b3be532acb023757791a54b85d4c76cbd2...b47c03d461a6d8918e537e027bf56539ce78c585 --",
+  "source_files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 193543,
+      "sha256": "9361990552f6fdb3fdfbff434018e19fbe34c5eb137c4bfd0a0e739f7b803bb7",
+      "git_blob": "cbb7c5139dd07e63f5ed6a5ad36792980d0525d6"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 149944,
+      "sha256": "a77fcb1cbd3b9379b76b48ce84f5b452a6432d142a28679022e297754f1fbd71",
+      "git_blob": "016b33b7438f93b193cb306bc15328166898dfd8"
+    },
+    {
+      "path": "pkg/metrics/runtime_pressure.go",
+      "bytes": 17268,
+      "sha256": "b5cdd014aff8a54b81d9a02239c8f88d16db370b7aea2ebff152ccdb1ac9feca",
+      "git_blob": "eb6d1c4fdba6a3c7d36fdc71904651e7d7734ef3"
+    },
+    {
+      "path": "pkg/metrics/runtime_pressure_queue_collector.go",
+      "bytes": 2374,
+      "sha256": "0e5c8566928c985b2d65fba79b5cc4179e266671368cb85d1a1cbf7eed9c8e80",
+      "git_blob": "ee8aa3ce74eec2fcd1f170a9577336877687de40"
+    },
+    {
+      "path": "pkg/metrics/runtime_pressure_snapshot_test.go",
+      "bytes": 9451,
+      "sha256": "0790f9951c8671b348296ed1cdebd507300905edcd159605feb737b7a21af18c",
+      "git_blob": "ac859639fd0cd32af049d5374369b527393fb292"
+    }
+  ],
+  "rules_and_context": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-queue-pressure-snapshot/AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-queue-pressure-snapshot/CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    }
+  ],
+  "applicable_FLOW_discovery": {
+    "pkg/FLOW.md": false,
+    "pkg/metrics/FLOW.md": false,
+    "pkg/AGENTS.md": false,
+    "pkg/metrics/AGENTS.md": false
+  },
+  "spec_sources": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/runtime-queue-snapshot-implementation-v1/failure-matrix.md",
+      "bytes": 1977,
+      "sha256": "6b58f4b968867f431cf4fcf658b0b4dc958533b4d6f4ae22b325c7d014bc9cd4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/runtime-queue-snapshot-implementation-v1/frozen-source.json",
+      "bytes": 2193,
+      "sha256": "895f0f9a1ec8fbcf30b33fda47d3736650abd328ac8531c8f2f4bc5fa1d6a37c"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/runtime-queue-snapshot-implementation-v1/delivery.md",
+      "bytes": 2703,
+      "sha256": "c0eb781b76fff39df5e05204de812e1ed11c1f0eeaad72248ff8408d053584d4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/runtime-queue-snapshot-implementation-v1/preserved-boundaries.json",
+      "bytes": 921,
+      "sha256": "16122f7a2b5e7d5ed8f157bd276c15e5df405a32297972f7ef7ca96aa7732999"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/runtime-queue-snapshot-implementation-v1/all-test-pins.json",
+      "bytes": 1237,
+      "sha256": "e02a12029e2f4c570be7c11feac38b06abb8a7c000a351f063edf4635fc07362"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/runtime-queue-snapshot-implementation-v1/test-results.json",
+      "bytes": 2447,
+      "sha256": "2024c3a63d56cbebcc1c4f98e119ac26d11c43d9e870b9be9bc5668d9900f333"
+    }
+  ],
+  "implementation_manifest": {
+    "sha256": "eb911231dd8e4df942cdd0de8f30f192b27ad3a41151847efaaf51108e8e89b4",
+    "entries": 21,
+    "payload_bytes": 33536,
+    "all_payload_hashes_match": true
+  },
+  "test_pins_sha256": "e02a12029e2f4c570be7c11feac38b06abb8a7c000a351f063edf4635fc07362",
+  "all_seven_test_hashes_match": true,
+  "independent_unchanged_region_checks": [
+    {
+      "name": "constructor_gauge_names_help_labels",
+      "bytes": 2566,
+      "sha256": "c75906b7ad32a1aa19cb0d70e5e8fbbc8a397a6735464912eb0b3d9c7743c33a",
+      "byte_equal_to_base": true
+    },
+    {
+      "name": "revisioned_queue_setter",
+      "bytes": 946,
+      "sha256": "72f4666ba3175e87bb91a12628b9db8de896fbcf50f409436a35c233feba3776",
+      "byte_equal_to_base": true
+    },
+    {
+      "name": "binding_caches_label_normalizers_and_clamps",
+      "bytes": 5855,
+      "sha256": "cc543ce4d8e8bf9c0a5545f744eef91a82a718beea3b6b4678ba8b60ef5894c9",
+      "byte_equal_to_base": true
+    }
+  ],
+  "prometheus_primary_source_inspected": [
+    {
+      "path": "/Users/tt/go/pkg/mod/github.com/prometheus/client_golang@v1.16.0/prometheus/value.go",
+      "bytes": 7318,
+      "sha256": "e5bb85421c943c3e9e424b175ce3e9148d63dacc7f9ad2ba5a11c2ba79c082d2"
+    },
+    {
+      "path": "/Users/tt/go/pkg/mod/github.com/prometheus/client_golang@v1.16.0/prometheus/gauge.go",
+      "bytes": 10780,
+      "sha256": "b82321b280e4be9521cd053afca0a16fa4ee2efc2347477781a9e25a794758f1"
+    }
+  ],
+  "findings": 0,
+  "fowler_heuristic_findings": 0,
+  "head_tree_clean_fenced_before_after": true,
+  "static_only_no_tests_build_network_cloud_or_repository_mutation": true
+}

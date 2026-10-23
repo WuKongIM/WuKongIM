@@ -1,0 +1,91 @@
+{
+  "head": "2662fe93b754d614422f2936185cf781a33b831a",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "equals_exact_commit_blob": true
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "bytes": 12335,
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "equals_exact_commit_blob": true
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "bytes": 14273,
+      "sha256": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971",
+      "equals_exact_commit_blob": true
+    },
+    {
+      "path": "internal/access/node/FLOW.md",
+      "bytes": 6088,
+      "sha256": "095836bd2e270d9663e1aa33bdb4457d42a7706b0706dc14610e72fc6beb82a7",
+      "equals_exact_commit_blob": true
+    },
+    {
+      "path": "pkg/metrics/runtime_pressure.go",
+      "bytes": 16885,
+      "sha256": "ee405c8569dda66eb557840672788b21ebb59198364fbaa75e5cd5564a1e00d0",
+      "equals_exact_commit_blob": true
+    },
+    {
+      "path": "pkg/metrics/registry.go",
+      "bytes": 5670,
+      "sha256": "de1dfc8aa53b4271c83dc511250462cf1de70ec8e9636613ac7bd650b5981e02",
+      "equals_exact_commit_blob": true
+    },
+    {
+      "path": "pkg/metrics/transport.go",
+      "bytes": 17496,
+      "sha256": "d834af3b9b5c6c4e5ca65ffdb2389113ac08ad83d4f0b727a56baa41906b5489",
+      "equals_exact_commit_blob": true
+    },
+    {
+      "path": "internal/app/observability.go",
+      "bytes": 93080,
+      "sha256": "27eb7f43fc390a240988e56f92764929aee7432c594ef991d2515203718278b5",
+      "equals_exact_commit_blob": true
+    },
+    {
+      "path": "pkg/cluster/net/ids.go",
+      "bytes": 12556,
+      "sha256": "b47b71fc9f1a4c5a942411a4d5c710af3e3bea01c61864c7bb5d102254017b38",
+      "equals_exact_commit_blob": true
+    },
+    {
+      "path": "pkg/cluster/net/transport.go",
+      "bytes": 16654,
+      "sha256": "d0a3d07ecf1220069b9c374af65eaa4ee0b400312da6cfb730391c91be8b9be9",
+      "equals_exact_commit_blob": true
+    },
+    {
+      "path": "pkg/transport/server.go",
+      "bytes": 9854,
+      "sha256": "595a6283946d6b8eb7a225f9c3fd87722c78cfdd3ed71d33e1c12d26c7edf19a",
+      "equals_exact_commit_blob": true
+    },
+    {
+      "path": "pkg/transport/internal/core/observer_aggregate.go",
+      "bytes": 3123,
+      "sha256": "c01e278466ce980ba3137cc839ce4bb1c6ec631e26c91e5a4f382a736cc3200a",
+      "equals_exact_commit_blob": true
+    },
+    {
+      "path": "pkg/transport/internal/rpc/service.go",
+      "bytes": 16391,
+      "sha256": "d93fe20c2b6ee60bf7fcb9503042b8268ef90c828b821788330d01b74afa1172",
+      "equals_exact_commit_blob": true
+    }
+  ],
+  "missing_flow_confirmed": [
+    "pkg/FLOW.md",
+    "pkg/metrics/FLOW.md",
+    "pkg/transport/FLOW.md",
+    "pkg/transport/internal/rpc/FLOW.md",
+    "pkg/transport/internal/core/FLOW.md"
+  ],
+  "no_actual_rule_files_copied": true
+}

@@ -1,0 +1,25 @@
+{
+  "id": 120190156417,
+  "run_id": 39884710345,
+  "name": "PR 500 QPS / channel-append",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 83746,
+  "sha256": "ed5bcca71f1f0867774071ae4372a27b63ebf23bfc40365afc8297c17c58fdd9",
+  "actual_checkout_candidates": [
+    "b6007c97971b5b3645b8917fc5a14c9499d0cfed"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Checkout candidate",
+    "Set up Go",
+    "Run fixed sustained 500 QPS profile",
+    "Reject tracked-tree mutation",
+    "Upload every performance result",
+    "Post Set up Go",
+    "Post Checkout candidate",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

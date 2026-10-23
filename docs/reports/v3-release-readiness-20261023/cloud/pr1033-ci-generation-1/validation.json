@@ -1,0 +1,1044 @@
+{
+  "bounded_log_GET_failures_preserved": [
+    {
+      "endpoint": "actions/jobs/120216989095/logs",
+      "method": "GET",
+      "exit_code": null,
+      "problem": "TimeoutError",
+      "stdout_bytes": 31767,
+      "stdout_sha256": "592060822a58499db2569119d577d052db866042966a55119e606af84a092302",
+      "stderr_bytes": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "private_raw_only": true,
+      "all_owned_processes_terminal": true
+    }
+  ],
+  "observed_at": "2026-10-23T03:16:51.104817+00:00",
+  "source": {
+    "head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+    "base": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+    "actual_checkout": "9e8332ed8ea69540e5f248c7e483716e987a2546",
+    "tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+    "exact_tree_equal": true,
+    "merge_parents": [
+      "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+      "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac"
+    ],
+    "actual_checkout_job_count": 14
+  },
+  "runs": [
+    {
+      "id": 39893010410,
+      "name": "Safety Automation - Issue Agent PR Signal",
+      "event": "pull_request",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T03:04:16Z",
+      "updated_at": "2026-10-23T03:04:23Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010410"
+    },
+    {
+      "id": 39893010250,
+      "name": "Three-Node Chat Lifecycle Regression pull_request 1033 attempt 1",
+      "event": "pull_request",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T03:04:16Z",
+      "updated_at": "2026-10-23T03:10:05Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250"
+    },
+    {
+      "id": 39893010300,
+      "name": "Safety Automation - Validate Native Package Preview",
+      "event": "pull_request",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T03:04:16Z",
+      "updated_at": "2026-10-23T03:12:44Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010300"
+    },
+    {
+      "id": 39893010352,
+      "name": "V3 Candidate Regression pull_request 1033 attempt 1",
+      "event": "pull_request",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T03:04:16Z",
+      "updated_at": "2026-10-23T03:15:04Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010352"
+    }
+  ],
+  "job_conclusions": {
+    "success": 16,
+    "skipped": 2
+  },
+  "all_first_attempt": true,
+  "primary_main_unchanged": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "all_artifact_workflow_identities_verified": true,
+  "draft_at_final_read": false,
+  "named_checks": {
+    "go-unit": {
+      "artifact_id": 12475263185,
+      "identity": {
+        "source_sha": "9e8332ed8ea69540e5f248c7e483716e987a2546",
+        "policy_sha": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+        "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "event": "pull_request",
+        "run_id": "39893010352",
+        "run_attempt": "1"
+      },
+      "command": {
+        "arguments": [
+          "go",
+          "test",
+          "./cmd/...",
+          "./internal/...",
+          "./pkg/...",
+          "./scripts/...",
+          "./docker/...",
+          "-count=1"
+        ],
+        "working_dir": ".",
+        "timeout_seconds": 1800,
+        "max_output_bytes": 8388608,
+        "named_check": "go-unit",
+        "environment": {
+          "GOWORK": "off",
+          "GOFLAGS": "-p=2"
+        }
+      },
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 2282,
+        "output_bytes": 22029,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 2282,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 337.412
+      }
+    },
+    "scripts-integration": {
+      "artifact_id": 12476290066,
+      "identity": {
+        "source_sha": "9e8332ed8ea69540e5f248c7e483716e987a2546",
+        "policy_sha": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+        "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "event": "pull_request",
+        "run_id": "39893010352",
+        "run_attempt": "1"
+      },
+      "command": {
+        "arguments": [
+          "go",
+          "test",
+          "-tags=integration",
+          "./scripts/...",
+          "-count=1",
+          "-timeout=9m",
+          "-parallel=2"
+        ],
+        "working_dir": ".",
+        "timeout_seconds": 600,
+        "max_output_bytes": 8388608,
+        "named_check": "scripts-integration",
+        "environment": {
+          "GOWORK": "off",
+          "GOFLAGS": "-p=2 -json"
+        }
+      },
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 2290,
+        "output_bytes": 1507079,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 2290,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 519.119
+      }
+    }
+  },
+  "default_summary": {
+    "passed": true,
+    "package_pass_count": 219,
+    "no_test_file_summaries": 15,
+    "elapsed_seconds": 337.412,
+    "output_bytes": 22029,
+    "individual_test_case_counts_unavailable_nonverbose": true,
+    "source_log_sha256": "6b32ac77a8445103938f8f049ee6b03f7b1e31464140ed195e9565054ff2ca84"
+  },
+  "scripts_summary": {
+    "root_counts": {
+      "run": 657,
+      "output": 1750,
+      "pass": 651,
+      "pause": 215,
+      "cont": 215,
+      "skip": 6
+    },
+    "all_test_counts": {
+      "run": 1323,
+      "output": 3150,
+      "pass": 1317,
+      "pause": 249,
+      "cont": 249,
+      "skip": 6
+    },
+    "package_counts": {
+      "start": 7,
+      "output": 14,
+      "pass": 7
+    },
+    "failed": [],
+    "unfinished": [],
+    "skips": [
+      {
+        "Time": "2026-10-23T03:07:10.879398588Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestDockerImageRuntimeContract",
+        "Elapsed": 0
+      },
+      {
+        "Time": "2026-10-23T03:07:10.90902979Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestDockerImageEmbeddedPrometheus",
+        "Elapsed": 0
+      },
+      {
+        "Time": "2026-10-23T03:07:11.588867359Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestEasySDKReadinessSerialDelayFixture",
+        "Elapsed": 0
+      },
+      {
+        "Time": "2026-10-23T03:07:40.059252499Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageLifecycle",
+        "Elapsed": 0
+      },
+      {
+        "Time": "2026-10-23T03:07:40.059304679Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageSignedRepository",
+        "Elapsed": 0
+      },
+      {
+        "Time": "2026-10-23T03:07:40.427950513Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageRepositoryDeadlineFixture",
+        "Elapsed": 0
+      }
+    ],
+    "elapsed_seconds": 519.119,
+    "output_bytes": 1507079,
+    "output_truncated": false,
+    "source_log_sha256": "b582873534fb04b550c81102833686c88718f3358eb1751d133f53ed351a78dc",
+    "raw_Output_lines_private": true,
+    "test_name_filter_applied": false
+  },
+  "selected_scripts_regression_events": [
+    {
+      "Time": "2026-10-23T03:10:42.676248862Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node0_HUP",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-23T03:10:42.704271527Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node0_INT",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-23T03:10:42.731707221Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node0_TERM",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-23T03:10:42.775100674Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node1_HUP",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-23T03:10:42.818024053Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node1_INT",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-23T03:10:42.860567621Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node1_TERM",
+      "Elapsed": 0.04
+    },
+    {
+      "Time": "2026-10-23T03:10:42.913154874Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node2_HUP",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-23T03:10:42.965697363Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node2_INT",
+      "Elapsed": 0.05
+    },
+    {
+      "Time": "2026-10-23T03:10:43.021776855Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node2_TERM",
+      "Elapsed": 0.06
+    },
+    {
+      "Time": "2026-10-23T03:10:43.021790327Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration",
+      "Elapsed": 0.37
+    },
+    {
+      "Time": "2026-10-23T03:10:43.054144983Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-23T03:12:56.692471863Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleTerminalEvidenceRetention",
+      "Elapsed": 16.7
+    },
+    {
+      "Time": "2026-10-23T03:13:13.760329154Z",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire",
+      "Elapsed": 0.08
+    }
+  ],
+  "e2e": {
+    "artifact_id": 12475642596,
+    "identity": {
+      "source_sha": "9e8332ed8ea69540e5f248c7e483716e987a2546",
+      "policy_sha": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+      "run_id": "39893010352",
+      "run_attempt": "1"
+    },
+    "binary_sha256": "16b20ab30218707d60733a1b6197e2ed3cd3545bbb35cb27411fce31be04c596",
+    "embedded_vcs_revision": "9e8332ed8ea69540e5f248c7e483716e987a2546",
+    "embedded_vcs_modified": false,
+    "cases": {
+      "build": {
+        "command": {
+          "arguments": [
+            "go",
+            "build",
+            "-tags=e2e",
+            "-o",
+            "/home/runner/work/_temp/v3-candidate-39893010352-1/e2e/wukongim-e2e",
+            "./cmd/wukongim"
+          ],
+          "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+          "timeout_seconds": 720,
+          "max_output_bytes": 67108864
+        },
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 2367,
+          "output_bytes": 5051,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 2367,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 71.347
+        },
+        "test_pass_events": [],
+        "skip_events": [],
+        "fail_events": []
+      },
+      "ordinary_history": {
+        "command": {
+          "arguments": [
+            "go",
+            "test",
+            "-tags=e2e",
+            "./test/e2e/migration/ordinary_history",
+            "-count=1",
+            "-timeout=12m",
+            "-p=1",
+            "-parallel=1",
+            "-json"
+          ],
+          "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+          "timeout_seconds": 780,
+          "max_output_bytes": 67108864
+        },
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 7880,
+          "output_bytes": 27564,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 7880,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 95.446
+        },
+        "test_pass_events": [
+          {
+            "Time": "2026-10-23T03:12:28.187676064Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+            "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+            "Elapsed": 18.29
+          },
+          {
+            "Time": "2026-10-23T03:12:44.833809121Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+            "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+            "Elapsed": 16.65
+          },
+          {
+            "Time": "2026-10-23T03:12:56.445257768Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+            "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+            "Elapsed": 11.61
+          },
+          {
+            "Time": "2026-10-23T03:13:11.602958039Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+            "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+            "Elapsed": 15.16
+          },
+          {
+            "Time": "2026-10-23T03:13:31.523487641Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+            "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+            "Elapsed": 19.92
+          },
+          {
+            "Time": "2026-10-23T03:13:31.523499409Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/migration/ordinary_history",
+            "Test": "TestOriginalOrdinaryHistoryTopology",
+            "Elapsed": 81.63
+          }
+        ],
+        "skip_events": [],
+        "fail_events": []
+      },
+      "cross_node_delivery": {
+        "command": {
+          "arguments": [
+            "go",
+            "test",
+            "-tags=e2e",
+            "./test/e2e/message/cross_node_delivery",
+            "-count=1",
+            "-timeout=2m",
+            "-p=1",
+            "-json"
+          ],
+          "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+          "timeout_seconds": 180,
+          "max_output_bytes": 67108864
+        },
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 13750,
+          "output_bytes": 8444,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 13750,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 51.138
+        },
+        "test_pass_events": [
+          {
+            "Time": "2026-10-23T03:13:49.60044127Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+            "Test": "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+            "Elapsed": 16.4
+          },
+          {
+            "Time": "2026-10-23T03:14:01.757587889Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+            "Test": "TestThreeNodeReplicaTwoClusterConvergesSlotTopology",
+            "Elapsed": 12.16
+          },
+          {
+            "Time": "2026-10-23T03:14:10.648285934Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+            "Test": "TestThreeNodeReplicaThreeClusterConvergesSlotTopology",
+            "Elapsed": 8.89
+          },
+          {
+            "Time": "2026-10-23T03:14:22.876580684Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+            "Test": "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+            "Elapsed": 12.23
+          }
+        ],
+        "skip_events": [
+          {
+            "Time": "2026-10-23T03:14:22.876606533Z",
+            "Action": "skip",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/cross_node_delivery",
+            "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+            "Elapsed": 0
+          }
+        ],
+        "fail_events": []
+      },
+      "self_chat": {
+        "command": {
+          "arguments": [
+            "go",
+            "test",
+            "-tags=e2e",
+            "./test/e2e/message/self_chat",
+            "-count=1",
+            "-timeout=4m",
+            "-p=1",
+            "-json"
+          ],
+          "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+          "timeout_seconds": 300,
+          "max_output_bytes": 67108864
+        },
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "session_id": 14061,
+          "output_bytes": 3701,
+          "output_truncated": false,
+          "passed": true,
+          "cleanup": {
+            "session_id": 14061,
+            "verified": true,
+            "complete": true,
+            "initial_processes": [],
+            "remaining_processes": []
+          },
+          "command_status": "passed",
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 37.23
+        },
+        "test_pass_events": [
+          {
+            "Time": "2026-10-23T03:14:38.259757219Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/self_chat",
+            "Test": "TestSelfChatPersistsAcrossClusterRestart/1-node-cluster",
+            "Elapsed": 13.95
+          },
+          {
+            "Time": "2026-10-23T03:15:00.189103154Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/self_chat",
+            "Test": "TestSelfChatPersistsAcrossClusterRestart/3-node-cluster",
+            "Elapsed": 21.93
+          },
+          {
+            "Time": "2026-10-23T03:15:00.189504962Z",
+            "Action": "pass",
+            "Package": "github.com/WuKongIM/WuKongIM/test/e2e/message/self_chat",
+            "Test": "TestSelfChatPersistsAcrossClusterRestart",
+            "Elapsed": 35.88
+          }
+        ],
+        "skip_events": [],
+        "fail_events": []
+      }
+    },
+    "self_chat": {
+      "passed": true,
+      "hash_slots": 256,
+      "token_authentication": "production_default",
+      "suppression_window_ms": 1000,
+      "cases": [
+        {
+          "nodes": 1,
+          "passed": true,
+          "binary_sha256": "16b20ab30218707d60733a1b6197e2ed3cd3545bbb35cb27411fce31be04c596",
+          "invalid_auth_refused": true,
+          "whole_cluster_restarts": 1,
+          "sender_suppression_windows": 4,
+          "acknowledged_count": 6,
+          "receive_count": 16,
+          "history_count": 3
+        },
+        {
+          "nodes": 3,
+          "passed": true,
+          "binary_sha256": "16b20ab30218707d60733a1b6197e2ed3cd3545bbb35cb27411fce31be04c596",
+          "invalid_auth_refused": true,
+          "whole_cluster_restarts": 1,
+          "sender_suppression_windows": 4,
+          "acknowledged_count": 6,
+          "receive_count": 16,
+          "history_count": 9
+        }
+      ]
+    },
+    "raw_identity_report_private": true
+  },
+  "migration_history_count": 55,
+  "migration_temporary_retry_sum": 1,
+  "performance": {
+    "tcp-sendack": {
+      "artifact_id": 12475861198,
+      "source_sha": "9e8332ed8ea69540e5f248c7e483716e987a2546",
+      "binary_sha256": "4eb851d9f34fd345afc1168453f92b0671d58df995a547c0fb7da2258e0feda6",
+      "go_version": "go version go1.25.11 linux/amd64",
+      "visible_cpus": "4",
+      "cpu_model": "AMD EPYC 9V45 96-Core Processor",
+      "measurement_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.023683,
+          "scheduled_to_start_p99_ms": 1.06148,
+          "service_p99_ms": 177.296082
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 177.988608,
+          "scheduled_to_start_p99_ms": 1.060167,
+          "service_p99_ms": 177.282364
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.00932,
+          "scheduled_to_start_p99_ms": 1.062867,
+          "service_p99_ms": 177.266444
+        }
+      ],
+      "warmup_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 177.995908,
+          "scheduled_to_start_p99_ms": 1.044237,
+          "service_p99_ms": 177.331629
+        }
+      ],
+      "measurement_second_cohorts": 180,
+      "warmup_second_cohorts": 60,
+      "data_filesystem": {
+        "filesystems": [
+          {
+            "target": "/",
+            "source": "/dev/nvme0n1p1",
+            "fstype": "ext4",
+            "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+          }
+        ]
+      },
+      "result": {
+        "status": "pass"
+      }
+    },
+    "channel-append": {
+      "artifact_id": 12476040679,
+      "source_sha": "9e8332ed8ea69540e5f248c7e483716e987a2546",
+      "binary_sha256": "ccd542c00dcb478a561b273f6450acb481cc0aba8cecd70e14c9003c9c2c7c17",
+      "go_version": "go version go1.25.11 linux/amd64",
+      "visible_cpus": "4",
+      "cpu_model": "AMD EPYC 7763 64-Core Processor",
+      "measurement_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 33.469629,
+          "scheduled_to_start_p99_ms": 1.090924,
+          "service_p99_ms": 32.827162
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 6.488777,
+          "scheduled_to_start_p99_ms": 1.086,
+          "service_p99_ms": 4.767249
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 8.325372,
+          "scheduled_to_start_p99_ms": 1.16583,
+          "service_p99_ms": 6.242527
+        }
+      ],
+      "warmup_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 25.679058,
+          "scheduled_to_start_p99_ms": 1.100668,
+          "service_p99_ms": 25.319577
+        }
+      ],
+      "measurement_second_cohorts": 180,
+      "warmup_second_cohorts": 60,
+      "data_filesystem": {
+        "filesystems": [
+          {
+            "target": "/",
+            "source": "/dev/sda1",
+            "fstype": "ext4",
+            "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+          }
+        ]
+      },
+      "result": {
+        "status": "pass"
+      },
+      "counters_window": {
+        "counter_scope": "post-setup through completed handlers; includes boundary snapshot and benchmark timer overhead; three-node aggregate; replication stages sampled 1/32; physical batches unsampled",
+        "counter_window_seconds": 180.002804245,
+        "ended_at": "2026-10-23T03:09:30.163069418Z",
+        "go_version": "go1.25.11",
+        "goarch": "amd64",
+        "gomaxprocs": 4,
+        "goos": "linux",
+        "handlers_completed": true,
+        "offered_qps": 500,
+        "operations": 90000,
+        "profile_enabled": false,
+        "schema": "channel-append-counters/v1",
+        "started_at": "2026-10-23T03:06:30.160265173Z"
+      }
+    },
+    "mixed-send": {
+      "artifact_id": 12475319411,
+      "source_sha": "9e8332ed8ea69540e5f248c7e483716e987a2546",
+      "binary_sha256": "1f46bb3e50f92aeb6f23e3c7bc77d6506bd325e07f45a6103db91f77a1b3496e",
+      "go_version": "go version go1.25.11 linux/amd64",
+      "visible_cpus": "4",
+      "cpu_model": "AMD EPYC 7763 64-Core Processor",
+      "measurement_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 15.605289,
+          "scheduled_to_start_p99_ms": 1.303941,
+          "service_p99_ms": 14.190024
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 17.940705,
+          "scheduled_to_start_p99_ms": 1.625994,
+          "service_p99_ms": 16.321485
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 20.693029,
+          "scheduled_to_start_p99_ms": 2.000655,
+          "service_p99_ms": 19.196224
+        }
+      ],
+      "warmup_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 12.434122,
+          "scheduled_to_start_p99_ms": 1.265945,
+          "service_p99_ms": 11.229858
+        }
+      ],
+      "measurement_second_cohorts": 180,
+      "warmup_second_cohorts": 60,
+      "data_filesystem": {
+        "filesystems": [
+          {
+            "target": "/",
+            "source": "/dev/sda1",
+            "fstype": "ext4",
+            "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+          }
+        ]
+      },
+      "result": {
+        "status": "pass"
+      },
+      "counters_window": {
+        "counter_scope": "post-warmup through completed handlers; rolling trace and one-second sampler enabled; see flight receipt for actual instrumentation interval",
+        "counter_window_seconds": 180.035085329,
+        "ended_at": "2026-10-23T03:09:53.55115107Z",
+        "go_version": "go1.25.11",
+        "goarch": "amd64",
+        "gomaxprocs": 4,
+        "goos": "linux",
+        "handlers_completed": true,
+        "offered_qps": 500,
+        "operations": 90000,
+        "profile_enabled": true,
+        "schema": "mixed-send-counters/v1",
+        "started_at": "2026-10-23T03:06:53.516065741Z"
+      }
+    }
+  },
+  "owned_SID_cleanup": [
+    {
+      "check": "go-unit",
+      "session_id": 2282,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    {
+      "check": "scripts-integration",
+      "session_id": 2290,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    {
+      "check": "build",
+      "session_id": 2367,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    {
+      "check": "ordinary_history",
+      "session_id": 7880,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    {
+      "check": "cross_node_delivery",
+      "session_id": 13750,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    {
+      "check": "self_chat",
+      "session_id": 14061,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    }
+  ],
+  "review_agent_workflows": [
+    {
+      "id": 324186999,
+      "name": "Safety Automation - Review Agent PR Signal",
+      "path": ".github/workflows/review-agent-pr-signal.yml",
+      "state": "disabled_manually",
+      "created_at": "2026-07-31T11:36:34.000+08:00",
+      "updated_at": "2026-09-07T15:54:41.000+08:00",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/review-agent-pr-signal.yml"
+    },
+    {
+      "id": 324187001,
+      "name": "Agent Tool - Review Pull Request",
+      "path": ".github/workflows/review-agent-run.yml",
+      "state": "disabled_manually",
+      "created_at": "2026-07-31T11:36:34.000+08:00",
+      "updated_at": "2026-09-07T15:54:34.000+08:00",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/review-agent-run.yml"
+    },
+    {
+      "id": 324248914,
+      "name": "Temporary Review Agent User Namespace Diagnostic",
+      "path": ".github/workflows/review-agent-userns-diagnostic.yaml",
+      "state": "disabled_manually",
+      "created_at": "2026-07-31T14:19:27.000+08:00",
+      "updated_at": "2026-07-31T17:32:16.000+08:00",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/review-agent-userns-diagnostic.yaml"
+    },
+    {
+      "id": 324187004,
+      "name": "Safety Automation - Review Agent Controller",
+      "path": ".github/workflows/review-agent.yml",
+      "state": "disabled_manually",
+      "created_at": "2026-07-31T11:36:34.000+08:00",
+      "updated_at": "2026-09-07T15:54:32.000+08:00",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/review-agent.yml"
+    }
+  ],
+  "small_ZIP_count": 6,
+  "small_ZIP_bytes": 407299,
+  "small_ZIP_members": 80,
+  "full_small_ZIP_size_SHA_CRC_UTF8_verified": true,
+  "all_raw_ZIPs_and_logs_private": true,
+  "metadata_only_artifacts": [
+    {
+      "id": 12474854563,
+      "name": "wukongim-native-package-preview-39893010300",
+      "size_in_bytes": 77908150,
+      "digest": "sha256:7e8382f3411207aacdbed2d0097ba1e59364963c4f95470f022a75e0fd238615",
+      "expired": false,
+      "state": "metadata_only",
+      "reason": "large correctness/native binary package or outside small proof allowlist",
+      "full_archive_hash_locally_recomputed": false
+    },
+    {
+      "id": 12475537081,
+      "name": "three-node-pr-1033-9e8332ed8ea69540e5f248c7e483716e987a2546-1",
+      "size_in_bytes": 230246103,
+      "digest": "sha256:d25850497a68b65d269c79e967929f25d332c0d2dcf6842de79f6199e52d95d8",
+      "expired": false,
+      "state": "metadata_only",
+      "reason": "large correctness/native binary package or outside small proof allowlist",
+      "full_archive_hash_locally_recomputed": false
+    }
+  ],
+  "limitations": [
+    "Default go-unit nonverbose summaries do not enumerate individual test-case totals. Local test counts are not substituted for Linux evidence.",
+    "Scripts opt-in tests, two non-PR three-node jobs and the optional 2000QPS comparison are skipped, not passes. Standalone EasySDK/Manager workflows were not triggered.",
+    "Large correctness/native ZIPs remain metadata-only: API declared digests are not locally recomputed full hashes.",
+    "The native Go wrapper suppresses successful inner systemd stdout. Evidence binds exact checkout, enabling env, actual command, successful step and Go result; no independent container zero-inventory receipt is claimed.",
+    "Optional cosign tool verification was unavailable; no production signing or stable publication occurred.",
+    "Retention parent PASS is retained; nested 79 process receipts are not separately uploaded and no per-case Linux receipt is invented.",
+    "PR acceptance does not establish GA, resolve historical cloud failures, or prove long-duration stability.",
+    "Width16 presence/cluster integration fixtures are independently validated by another auditor; these natural workflow commands do not directly select those integration packages."
+  ],
+  "no_workflow_or_GitHub_mutation_source_execution_cloud_action": true,
+  "all_owned_processes_terminal": true,
+  "conclusion": "Exact reviewed tree passes all applicable first-attempt automatic CI; skips and evidence limits remain explicit. Ready/merge belongs to parent."
+}

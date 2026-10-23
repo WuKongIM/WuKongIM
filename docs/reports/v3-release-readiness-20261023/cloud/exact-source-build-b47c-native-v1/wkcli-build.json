@@ -1,0 +1,28 @@
+{
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "build",
+    "-p=1",
+    "-trimpath",
+    "-buildvcs=true",
+    "-mod=readonly",
+    "-ldflags=-s -w -buildid=",
+    "-o",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-b47c-native-v1/darwin-arm64/wkcli",
+    "./cmd/wkcli"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-b47c-queue-snapshot",
+  "started_at": "2026-10-23T01:41:46.372600+00:00",
+  "finished_at": "2026-10-23T01:41:47.703445+00:00",
+  "elapsed_seconds": 1.3308388750301674,
+  "exit_code": 0,
+  "timeout_seconds": 60,
+  "combined_output_cap": 1048576,
+  "output_cap_checked_after_completion": true,
+  "stdout_bytes": 0,
+  "stderr_bytes": 0,
+  "path": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-b47c-native-v1/darwin-arm64/wkcli",
+  "bytes": 41060466,
+  "sha256": "d4e76e3ff0b770a5450923cb5bd8f04195758b4daeea48b9856b3ba706982c41",
+  "buildinfo_sha256": "7b51428a0b1b995408aa499cfe41ca75472e2d3f7d1c6062b0668260d04de781"
+}

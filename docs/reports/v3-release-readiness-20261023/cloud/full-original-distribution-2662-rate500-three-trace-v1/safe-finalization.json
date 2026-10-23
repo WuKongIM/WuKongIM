@@ -1,0 +1,25 @@
+{
+  "schema": "local2662-closed-finalization/v1",
+  "finalization": {
+    "stage": "meta_checkpoint",
+    "reason": "metrics_fetch",
+    "observed_outcome": "product_failure",
+    "observed_cause": "message_loss",
+    "observed_terminal": true,
+    "metrics_fetch": {
+      "source_mask": 4,
+      "kinds": [
+        "",
+        "",
+        "parse"
+      ],
+      "parse_reasons": [
+        "",
+        "",
+        "invalid_queue_utilization"
+      ]
+    }
+  },
+  "final_report_present": false,
+  "limitation": "prior observed product failure remains observation; exit8 and absent final report are not a complete final verdict"
+}

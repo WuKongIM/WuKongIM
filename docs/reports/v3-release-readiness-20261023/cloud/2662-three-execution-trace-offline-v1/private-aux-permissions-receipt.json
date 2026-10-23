@@ -1,0 +1,47 @@
+{
+  "tightened": [
+    {
+      "relative_path": "isolated-home/Library",
+      "before_mode": "0o755",
+      "after_mode": "0o700"
+    },
+    {
+      "relative_path": "isolated-home/Library/Application Support",
+      "before_mode": "0o755",
+      "after_mode": "0o700"
+    },
+    {
+      "relative_path": "isolated-home/Library/Application Support/go",
+      "before_mode": "0o755",
+      "after_mode": "0o700"
+    },
+    {
+      "relative_path": "isolated-home/Library/Application Support/go/telemetry",
+      "before_mode": "0o755",
+      "after_mode": "0o700"
+    },
+    {
+      "relative_path": "isolated-home/Library/Application Support/go/telemetry/local",
+      "before_mode": "0o755",
+      "after_mode": "0o700"
+    },
+    {
+      "relative_path": "isolated-home/Library/Application Support/go/telemetry/local/trace@go1.25.11-go1.25.11-darwin-arm64-2026-10-23.v1.count",
+      "before_mode": "0o644",
+      "after_mode": "0o600"
+    },
+    {
+      "relative_path": "isolated-home/Library/Application Support/go/telemetry/local/weekends",
+      "before_mode": "0o644",
+      "after_mode": "0o600"
+    },
+    {
+      "relative_path": "isolated-home/Library/Application Support/go/telemetry/local/pprof@go1.25.11-go1.25.11-darwin-arm64-2026-10-23.v1.count",
+      "before_mode": "0o644",
+      "after_mode": "0o600"
+    }
+  ],
+  "ancestor_private_root_mode": "0700",
+  "raw_derived_and_fullstack_outputs_created_0600": true,
+  "aux_only_not_original_inputs": true
+}

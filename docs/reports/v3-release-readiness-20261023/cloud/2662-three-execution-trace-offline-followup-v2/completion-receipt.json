@@ -1,0 +1,20 @@
+{
+  "status": "complete",
+  "error_class": null,
+  "command_count": 9,
+  "coverage_by_node": {
+    "1": "full_reader_accepted",
+    "2": "full_reader_accepted",
+    "3": "full_reader_accepted"
+  },
+  "original18_plus_derived3_unchanged": true,
+  "all_direct_roots_joined": true,
+  "started_at_utc": "2026-10-23T01:33:05.527674+00:00",
+  "completed_at_utc": "2026-10-23T01:33:17.336445+00:00",
+  "elapsed_seconds": 11.808734416030347,
+  "controlled_stop": false,
+  "automatic_retry": false,
+  "new_profile_generation": false,
+  "optional_state_extractor": false,
+  "v1_partials_retained": true
+}

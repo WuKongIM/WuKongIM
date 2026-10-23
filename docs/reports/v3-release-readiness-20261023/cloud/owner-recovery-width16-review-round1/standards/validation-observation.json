@@ -1,0 +1,134 @@
+{
+  "read_existing_receipts_only": true,
+  "rows": [
+    {
+      "phase": "public-width-red",
+      "exit_code": 1,
+      "stdout_sha256": "614e1aca4fd762673d532e61bfe0d4d08dfcdb1bddcdca41f022636b97e9d7af",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pass_tests": 0,
+      "failed_tests": [
+        "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/1",
+        "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/512",
+        "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget",
+        "TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys"
+      ],
+      "race_diagnostic": false,
+      "diagnostics": [
+        "recovery_width16_integration_test.go:103: owner round 4 did not enter",
+        "recovery_width16_integration_test.go:103: owner round 4 did not enter",
+        "uid_flight_integration_test.go:347: owner did not enter"
+      ]
+    },
+    {
+      "phase": "adapter-width-red",
+      "exit_code": 1,
+      "stdout_sha256": "b32929a7beb32628dbd30dff0910d81eb254bd882517588084f1ae3e7dc1a182",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pass_tests": 0,
+      "failed_tests": [
+        "TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth"
+      ],
+      "race_diagnostic": false,
+      "diagnostics": [
+        "presence_recovery_width16_integration_test.go:95: only 4 independent recovery rounds entered owner reads, want 16"
+      ]
+    },
+    {
+      "phase": "byte-boundary-red",
+      "exit_code": 1,
+      "stdout_sha256": "9167e3bc5c24eae921e76e02516aa8c4490499d1575e5a99788fcee8ba095487",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pass_tests": 0,
+      "failed_tests": [
+        "TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts"
+      ],
+      "race_diagnostic": false,
+      "diagnostics": [
+        "recovery_width16_integration_test.go:167: owner round 104 did not enter"
+      ]
+    },
+    {
+      "phase": "public-width-green",
+      "exit_code": 0,
+      "stdout_sha256": "de9c2c4b19b8c15b96e73f2c89c7c56552999dd16ead60ceb261362fd703d68e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pass_tests": 4,
+      "failed_tests": [],
+      "race_diagnostic": false,
+      "diagnostics": []
+    },
+    {
+      "phase": "adapter-width-green",
+      "exit_code": 0,
+      "stdout_sha256": "afc2ba1b9d1df2f6b6792ced21997a7da247d1d586f989a2065f2b9ea90d1e84",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pass_tests": 1,
+      "failed_tests": [],
+      "race_diagnostic": false,
+      "diagnostics": []
+    },
+    {
+      "phase": "byte-boundary-green",
+      "exit_code": 0,
+      "stdout_sha256": "a279cf35a018abf4371ff62abc1c8d6298a42688329566443d673d7db8bed83b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pass_tests": 1,
+      "failed_tests": [],
+      "race_diagnostic": false,
+      "diagnostics": []
+    },
+    {
+      "phase": "presence-integration-race",
+      "exit_code": 0,
+      "stdout_sha256": "f6c8bf2106ab1e16113c07607629207fb4825ad28f88fa9adb37700f7c98d8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pass_tests": 37,
+      "failed_tests": [],
+      "race_diagnostic": false,
+      "diagnostics": []
+    },
+    {
+      "phase": "two-package-normal",
+      "exit_code": 0,
+      "stdout_sha256": "3e3eaa7e4222f44b42e27170e2c254e228aa5076918d53729b17931dd5e65dcb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pass_tests": 397,
+      "failed_tests": [],
+      "race_diagnostic": false,
+      "diagnostics": []
+    },
+    {
+      "phase": "two-package-race",
+      "exit_code": 0,
+      "stdout_sha256": "7c6fa57a729239db86417f9aa1d467670e4a0ab4250f6e1c037ff332d007f944",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pass_tests": 397,
+      "failed_tests": [],
+      "race_diagnostic": false,
+      "diagnostics": []
+    },
+    {
+      "phase": "flow-doc-contracts",
+      "exit_code": 1,
+      "stdout_sha256": "da392f7d3b5c111f2b0a5d462f6bb9404c336d8fd2f665d43cb0f0ea04f8bcbc",
+      "stderr_sha256": "1765ee462afcc1c80026dc0e04308c290276cbb4dfe1c397fc57c33daad6ac04",
+      "pass_tests": 0,
+      "failed_tests": [],
+      "race_diagnostic": false,
+      "diagnostics": [],
+      "flow_stderr": "docs-site/FLOW.md: 115 lines exceeds the 100-line target\ninternal/access/api/FLOW.md: 148 lines exceeds the 100-line target\ninternal/access/mqtt/FLOW.md: 102 lines exceeds the 100-line target\ninternal/access/node/FLOW.md: 106 lines exceeds the 100-line target\ninternal/app/FLOW.md: 148 lines exceeds the 100-line target\ninternal/bench/FLOW.md: 125 lines exceeds the 100-line target\ninternal/bench/chatlifecycle/FLOW.md: 113 lines exceeds the 100-line target\ninternal/infra/cluster/FLOW.md: 134 lines exceeds the 100-line target\ninternal/runtime/channelappend/FLOW.md: 118 lines exceeds the 100-line target\ninternal/runtime/mqttsession/FLOW.md: 102 lines exceeds the 100-line target\ninternal/usecase/message/FLOW.md: 132 lines exceeds the 100-line target\ninternal/usecase/mqttsession/FLOW.md: 125 lines exceeds the 100-line target\npkg/channel/FLOW.md: 150 lines exceeds the 100-line target\npkg/channel/reactor/FLOW.md: 102 lines exceeds the 100-line target\npkg/cluster/FLOW.md: 150 lines exceeds the 100-line target\npkg/db/message/FLOW.md: 150 lines exceeds the 100-line target\npkg/db/meta/FLOW.md: 123 lines exceeds the 100-line target\npkg/gateway/FLOW.md: 111 lines exceeds the 100-line target\npkg/slot/FLOW.md: 115 lines exceeds the 100-line target\ntest/e2e/suite/FLOW.md: 105 lines exceeds the 100-line target\ndocs/development/FLOW_INDEX.md: generated index is missing or stale\nexit status 1\n"
+    },
+    {
+      "phase": "flow-doc-contracts-after-index",
+      "exit_code": 0,
+      "stdout_sha256": "da392f7d3b5c111f2b0a5d462f6bb9404c336d8fd2f665d43cb0f0ea04f8bcbc",
+      "stderr_sha256": "7e8825e26e172bb1d2b8a412ea6d32e9e2fe71a9d658264d980d7fb7d514b065",
+      "pass_tests": 0,
+      "failed_tests": [],
+      "race_diagnostic": false,
+      "diagnostics": [],
+      "flow_stderr": "docs-site/FLOW.md: 115 lines exceeds the 100-line target\ninternal/access/api/FLOW.md: 148 lines exceeds the 100-line target\ninternal/access/mqtt/FLOW.md: 102 lines exceeds the 100-line target\ninternal/access/node/FLOW.md: 106 lines exceeds the 100-line target\ninternal/app/FLOW.md: 148 lines exceeds the 100-line target\ninternal/bench/FLOW.md: 125 lines exceeds the 100-line target\ninternal/bench/chatlifecycle/FLOW.md: 113 lines exceeds the 100-line target\ninternal/infra/cluster/FLOW.md: 134 lines exceeds the 100-line target\ninternal/runtime/channelappend/FLOW.md: 118 lines exceeds the 100-line target\ninternal/runtime/mqttsession/FLOW.md: 102 lines exceeds the 100-line target\ninternal/usecase/message/FLOW.md: 132 lines exceeds the 100-line target\ninternal/usecase/mqttsession/FLOW.md: 125 lines exceeds the 100-line target\npkg/channel/FLOW.md: 150 lines exceeds the 100-line target\npkg/channel/reactor/FLOW.md: 102 lines exceeds the 100-line target\npkg/cluster/FLOW.md: 150 lines exceeds the 100-line target\npkg/db/message/FLOW.md: 150 lines exceeds the 100-line target\npkg/db/meta/FLOW.md: 123 lines exceeds the 100-line target\npkg/gateway/FLOW.md: 111 lines exceeds the 100-line target\npkg/slot/FLOW.md: 115 lines exceeds the 100-line target\ntest/e2e/suite/FLOW.md: 105 lines exceeds the 100-line target\n"
+    }
+  ]
+}

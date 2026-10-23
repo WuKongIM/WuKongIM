@@ -1,0 +1,62 @@
+{
+  "id": 12475263185,
+  "name": "v3-candidate-default-39893010352-1",
+  "size_in_bytes": 8233,
+  "digest": "sha256:9b9a1b9edc2a63c60c1915b80bfcedc1e59b0738e5522d241395cf5877edca2e",
+  "expired": false,
+  "state": "verified_private_original",
+  "zip_sha256": "9b9a1b9edc2a63c60c1915b80bfcedc1e59b0738e5522d241395cf5877edca2e",
+  "full_size_sha_crc_valid": true,
+  "members": [
+    {
+      "path": "command.json",
+      "bytes": 334,
+      "compressed_bytes": 213,
+      "crc32": "c797ebb8",
+      "sha256": "0cb6625e3ac51b84b8154054b2295ed766dcd7cb0cb0967da00310244dffa3d9",
+      "utf8_text": true
+    },
+    {
+      "path": "identity.json",
+      "bytes": 286,
+      "compressed_bytes": 188,
+      "crc32": "5d91c80f",
+      "sha256": "109c4d66e358e6b56dceacc04ae89097eebd49d2d8faedd940bf830579f16f83",
+      "utf8_text": true
+    },
+    {
+      "path": "go-version.txt",
+      "bytes": 33,
+      "compressed_bytes": 35,
+      "crc32": "dd48af92",
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+      "utf8_text": true
+    },
+    {
+      "path": "policy.json",
+      "bytes": 14492,
+      "compressed_bytes": 2758,
+      "crc32": "4b2851e1",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "utf8_text": true
+    },
+    {
+      "path": "result.json",
+      "bytes": 370,
+      "compressed_bytes": 193,
+      "crc32": "3ce7958a",
+      "sha256": "8564b00e2973b591534dc9a1dd15f95499304b669ae90ad2b11379962a08cc79",
+      "utf8_text": true
+    },
+    {
+      "path": "stdout-stderr.log",
+      "bytes": 22029,
+      "compressed_bytes": 4116,
+      "crc32": "c6960d3d",
+      "sha256": "6b32ac77a8445103938f8f049ee6b03f7b1e31464140ed195e9565054ff2ca84",
+      "utf8_text": true
+    }
+  ],
+  "member_count": 6,
+  "raw_identity_profiles_logs_excluded_from_public": true
+}

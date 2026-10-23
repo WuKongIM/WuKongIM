@@ -1,0 +1,19 @@
+test_existing_timestamped_profile_is_a_real_old_behavior_control (__main__.LegacyEnvelopeBehavior.test_existing_timestamped_profile_is_a_real_old_behavior_control) ... ok
+test_trace_profile_without_wall_time_is_accepted_with_null_time (__main__.LegacyEnvelopeBehavior.test_trace_profile_without_wall_time_is_accepted_with_null_time) ... ERROR
+
+======================================================================
+ERROR: test_trace_profile_without_wall_time_is_accepted_with_null_time (__main__.LegacyEnvelopeBehavior.test_trace_profile_without_wall_time_is_accepted_with_null_time)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/2662-trace-offline-synthetic-tests-v1/legacy_envelope_red_test.py", line 18, in test_trace_profile_without_wall_time_is_accepted_with_null_time
+    meta,records=self.old.load_profile(self.path)
+                 ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/offline_adapter.py", line 111, in load_profile
+    return {'file_sha256':hashlib.sha256(raw).hexdigest(),'bytes':len(raw),'time_utc':stamp(header[9]),'time_unix_nanos':str(header[9]),'duration_nanos':str(header.get(10,0)),'end_utc':stamp(header[9]+header.get(10,0)),'period':header.get(12),'types':[{'type':st[t[1]],'unit':st[t[2]]} for t in types]},result
+                                                                                            ~~~~~~^^^
+KeyError: 9
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.005s
+
+FAILED (errors=1)

@@ -1,0 +1,46 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 120167844446,
+      "run_id": 39877882484,
+      "run_attempt": 1,
+      "head_sha": "11debae7337dc0f0497ff732600d5ebf03949544",
+      "name": "Emit credential-free wake-up",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T00:24:02Z",
+      "completed_at": "2026-10-23T00:24:04Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39877882484/job/120167844446",
+      "runner_id": 1000024750,
+      "runner_name": "GitHub Actions 1000024750",
+      "runner_group_name": "GitHub Actions",
+      "steps": [
+        {
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T00:24:02Z",
+          "completed_at": "2026-10-23T00:24:02Z"
+        },
+        {
+          "name": "Record trusted event kind",
+          "number": 2,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T00:24:02Z",
+          "completed_at": "2026-10-23T00:24:03Z"
+        },
+        {
+          "name": "Complete job",
+          "number": 3,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T00:24:03Z",
+          "completed_at": "2026-10-23T00:24:03Z"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "source_head": "2662fe93b754d614422f2936185cf781a33b831a",
+  "source_tree": "1182b14d5b659eb60f2e7b694ff91b6641189106",
+  "source_pins": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/.github/review-agent/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/internal/app/FLOW.md",
+      "bytes": 12335,
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/internal/app/observability.go",
+      "bytes": 93080,
+      "sha256": "27eb7f43fc390a240988e56f92764929aee7432c594ef991d2515203718278b5"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/metrics/transport.go",
+      "bytes": 17496,
+      "sha256": "d834af3b9b5c6c4e5ca65ffdb2389113ac08ad83d4f0b727a56baa41906b5489"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/metrics/runtime_pressure.go",
+      "bytes": 16885,
+      "sha256": "ee405c8569dda66eb557840672788b21ebb59198364fbaa75e5cd5564a1e00d0"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/metrics/node_resource.go",
+      "bytes": 2816,
+      "sha256": "e8da0f325f1bb6ac18467ef631649ef0edd5b1d4798c85ea354001a3648f2f9e"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/metrics/registry.go",
+      "bytes": 5670,
+      "sha256": "de1dfc8aa53b4271c83dc511250462cf1de70ec8e9636613ac7bd650b5981e02"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/metrics/gateway.go",
+      "bytes": 13435,
+      "sha256": "6eb278c3e9822675d8db6cabb88782526fb9e74f5716083526abdf023584f425"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/transport/internal/core/observer_aggregate.go",
+      "bytes": 3123,
+      "sha256": "c01e278466ce980ba3137cc839ce4bb1c6ec631e26c91e5a4f382a736cc3200a"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/transport/internal/core/observer.go",
+      "bytes": 6432,
+      "sha256": "85408802e60f8c886693ba396334cd79b798f94410791017f9d302eae75d266b"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/transport/client.go",
+      "bytes": 4914,
+      "sha256": "37eb6c62c720f19432b2df2e71eec676cdb3dafd7a073b5b745a77c3b39f1604"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/transport/internal/sched/scheduler.go",
+      "bytes": 15700,
+      "sha256": "ae60b961a0e69dadf4a263a2371b7a57463c6b1aac219953de8c7626f316cb7a"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/cluster/net/transport.go",
+      "bytes": 16654,
+      "sha256": "d0a3d07ecf1220069b9c374af65eaa4ee0b400312da6cfb730391c91be8b9be9"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/cluster/net/ids.go",
+      "bytes": 12556,
+      "sha256": "b47b71fc9f1a4c5a942411a4d5c710af3e3bea01c61864c7bb5d102254017b38"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/transport/internal/rpc/service.go",
+      "bytes": 16391,
+      "sha256": "d93fe20c2b6ee60bf7fcb9503042b8268ef90c828b821788330d01b74afa1172"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/pkg/transport/server.go",
+      "bytes": 9854,
+      "sha256": "595a6283946d6b8eb7a225f9c3fd87722c78cfdd3ed71d33e1c12d26c7edf19a"
+    }
+  ],
+  "valid_FLOW_read": "internal/app/FLOW.md scope:package; no valid FLOW in pkg/metrics or pkg/cluster/net/transport scope",
+  "first_projection_status": "V1 preserved as incomplete alias-filter projection; corrected V2 uses the installed aliases only.",
+  "exact_alias_chain": "ids.go RPCPresenceAuthority13 -> presence authority / RPCPresenceOwner14 -> presence owner action; server serviceOptions sets opts.Alias and transportClientObserver sets event.ServiceAlias before app observer",
+  "corrected_pass_authority": "Root explicitly authorized exactly one corrected numeric alias pass over the same six original pins; no third parse.",
+  "prior_incomplete_manifest": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/2662-transport-two-cut-metrics-v1/PUBLIC_SHA256SUMS",
+    "sha256": "ea4d197a5a2725187cbcb629fa80eabd60e74ae43b65d67119d8839d1f5689c3"
+  },
+  "semantics": {
+    "aliases": "pkg/cluster/net/ids.go:35-38,200-203; pkg/cluster/net/transport.go:166-168,333",
+    "metrics_labels_and_exact_count": "pkg/metrics/transport.go:80-102,210-231",
+    "app_projection": "internal/app/observability.go:1068-1130,1701-1759",
+    "duration_sampling_and_drop": "pkg/transport/internal/core/observer_aggregate.go:5-6,30-32,62,82-97,103-128",
+    "client_outcome_and_span": "pkg/transport/client.go:86-115",
+    "scheduler_admission_wait": "pkg/transport/internal/sched/scheduler.go:115-189,527",
+    "server_ignored_send_is_hypothesis_only": "pkg/transport/server.go:299",
+    "resource_gauge_semantics": "pkg/metrics/node_resource.go"
+  }
+}

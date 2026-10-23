@@ -1,0 +1,11 @@
+{
+  "schema": "wukongim/56c-retained-real-planner-identity/v1",
+  "identity": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc",
+    "assignment_count": 3,
+    "generation": 1
+  },
+  "basis": "unchanged YAML and whole deterministic loader/validation/planner/identity source vs c495; prior actual real planner proof retained",
+  "equivalence_sha256": "78878c740c80ab3abde6e495944def133bfdb829b5d402c974907e2e8e820e4f"
+}

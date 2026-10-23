@@ -1,0 +1,18 @@
+{
+  "id": 39877882453,
+  "name": "Three-Node Chat Lifecycle Regression pull_request 1031 attempt 1",
+  "path": ".github/workflows/three-node-chat-lifecycle-regression.yml",
+  "head_sha": "11debae7337dc0f0497ff732600d5ebf03949544",
+  "head_branch": "codex/v3-metrics-parse-leaf-diagnostics",
+  "event": "pull_request",
+  "run_number": 411,
+  "run_attempt": 1,
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-10-23T00:23:59Z",
+  "updated_at": "2026-10-23T00:29:47Z",
+  "run_started_at": "2026-10-23T00:23:59Z",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39877882453",
+  "workflow_id": 339511363,
+  "check_suite_id": 108085284722
+}

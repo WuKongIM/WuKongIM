@@ -1,0 +1,76 @@
+{
+  "preconditions_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/pr1032-ordinary-merge-preconditions-v1",
+  "preconditions_manifest_sha256": "8705d6391633a82f98489af2a99dfc7cfb6bd963feb670e23a2da3812d28506e",
+  "preconditions_files_verified": [
+    {
+      "path": "actor-permissions.json",
+      "bytes": 228,
+      "sha256": "ca85b23d3fd021ffbbeedb42fe1366eba40a81b0500e8f9096264aaf3b2488e5"
+    },
+    {
+      "path": "actor.json",
+      "bytes": 44,
+      "sha256": "c807268e38058a0b08eac2edfabca5bce2d708b8bc196be0234433463147ef66"
+    },
+    {
+      "path": "decision.json",
+      "bytes": 744,
+      "sha256": "840efced1860767957585ed8e677aa360645f5919f04ead247472a2355e46313"
+    },
+    {
+      "path": "main-protection-before.json",
+      "bytes": 1409,
+      "sha256": "f553400dcb686bf004920590fbda515f2e9ccb9db7c271882e5a18f980a29904"
+    },
+    {
+      "path": "main-protection-final.json",
+      "bytes": 1409,
+      "sha256": "f553400dcb686bf004920590fbda515f2e9ccb9db7c271882e5a18f980a29904"
+    },
+    {
+      "path": "pr-before.json",
+      "bytes": 10797,
+      "sha256": "8ed04140202e7e0ace568844f14eb88e7a333a7b8c459d865ad804e5dc666787"
+    },
+    {
+      "path": "pr-final.json",
+      "bytes": 10207,
+      "sha256": "f64c529c42f094ba9d1f35ee97e65bfc9ec05656c5ca6c63e1b50e3ce4610cf5"
+    },
+    {
+      "path": "reviews-before.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "reviews-final.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "rulesets-before.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "rulesets-final.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "workflows-before.json",
+      "bytes": 1125,
+      "sha256": "ecf2f9d650861f292ad88b2d56a7950f27c010a2e26837c9604c64392994a882"
+    },
+    {
+      "path": "workflows-final.json",
+      "bytes": 1125,
+      "sha256": "ecf2f9d650861f292ad88b2d56a7950f27c010a2e26837c9604c64392994a882"
+    }
+  ],
+  "main_protection_structurally_identical": true,
+  "rulesets_structurally_identical": true,
+  "four_review_agent_workflow_states_and_metadata_identical": true,
+  "all_four_disabled_manually": true,
+  "approved_exact_head_and_base_match": true
+}

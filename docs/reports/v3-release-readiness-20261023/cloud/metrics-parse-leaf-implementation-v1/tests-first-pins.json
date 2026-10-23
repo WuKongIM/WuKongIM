@@ -1,0 +1,48 @@
+{
+  "phase": "tests frozen before production code",
+  "base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "approved_matrix_sha256": "0319b4d2b5ca8da96555d79b96514b73b9f9b2c4b90242116ad7bcb273ee1e01",
+  "files": {
+    "internal/bench/target/metrics_parse_diagnostics_test.go": {
+      "sha256": "73e78969236377346fb62938d74eed09afbf198ef8dd354723f94e8054093b4c",
+      "bytes": 11204
+    },
+    "internal/bench/chatlifecycle/metrics_parse_diagnostics_test.go": {
+      "sha256": "9d80ca2103480d3a6442daf3f40465454346e06dd8fa10a3f12e491beb49a40a",
+      "bytes": 9577
+    },
+    "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go": {
+      "sha256": "dc22fec67d315ab81dbdfa56b8157af017cf9b920162f6b49d5623d9aebf1eb2",
+      "bytes": 18792
+    },
+    "cmd/wkcli/internal/benchmark/metrics_parse_diagnostics_test.go": {
+      "sha256": "e7baa1e353a200bbb552701fadbc08220225af9faf288f4adad4b37a9cfd6410",
+      "bytes": 1725
+    },
+    "internal/bench/target/metrics_failure_diagnostics_test.go": {
+      "sha256": "aa1bf6986fbd9771eae13031dd1446bf0e2ab52689c4dee620d58b4801ee3ae5",
+      "bytes": 15365
+    },
+    "internal/bench/target/client_test.go": {
+      "sha256": "e48732178091c95ceb654dbcc68be1eb9b04b3338a7f1c758bdd15a8373c930f",
+      "bytes": 60790
+    },
+    "cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go": {
+      "sha256": "3ec85fc977ef3065d2b53695471961795616cf381b5a64be28a1e8bb8b64f4ff",
+      "bytes": 1388
+    }
+  },
+  "production_client_sha256": "797ac967cb5f771d2cd3c146d42eff579cb51570aefe91ac8b566372dcb9e2e7",
+  "coverage_map": {
+    "20_reason_families": "TestMetricsParseLeafCatalogKeepsPrivateErrorText; TestMetricsParseLeavesAtRealParserBoundaries, defensive guard catalog-only exception explicit",
+    "nil_authentic_forged_unknown": "TestMetricsParseReasonProvenanceAndUnknown",
+    "parser_limits_and_earlier_precedence": "TestMetricsParseLeavesAtRealParserBoundaries; TestMetricsParseLeafValidAndExistingGuardControls; existing TestMetricsFailureParserBoundary",
+    "HTTP_limits_fallback_context": "existing TestMetricsFailureBoundary and SharedObservationHelpers",
+    "three_source_mask_order_join": "TestMetricsParseReasonsCollectedInDeclaredSourceOrder; existing TestMetricsFetchThreeSourceJoinAndOrder and SameKindSourceMasks",
+    "parent_context_and_harness_chain": "existing TestMetricsFetchParentContext*/ParentDeadline*/PrivateCauseIsolation plus new collection tests",
+    "optional_vector_compat_bounds_syntax": "TestMetricsParseReasonsOptionalJSONCompatibility; TestMetricsParseReasonsDoNotAcceptInvalidJSONOrOldFields",
+    "mask_stage_copy_ownership": "TestMetricsParseReasonsMaskStageAndOwnershipControls; existing BoundedProjection",
+    "nonparse_nested_leaf": "TestMetricsParseReasonsDoNotReclassifyNonparseAcquisition",
+    "observed_verdict_exit_no_final": "TestMetricsParseReasonsDoNotChangeObservedFailure; TestMetricsParseDiagnosticCannotChangeCLIOutcome; existing FinalizePreservesFailureAndNoReport"
+  }
+}

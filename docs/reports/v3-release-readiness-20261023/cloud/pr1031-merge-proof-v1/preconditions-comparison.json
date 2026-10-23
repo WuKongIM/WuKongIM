@@ -1,0 +1,66 @@
+{
+  "preconditions_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/pr1031-ordinary-merge-preconditions-v1",
+  "preconditions_manifest_sha256": "0d431c92a25613b5871578684b78c1c28b289c755abde3418d83898d22e7a1f1",
+  "preconditions_files_verified": [
+    {
+      "path": "actor-permissions.json",
+      "bytes": 1096,
+      "sha256": "5e9f414d4809706f540713c117879aba65362578cdaca19ad45a20cb52c17755"
+    },
+    {
+      "path": "actor.json",
+      "bytes": 35,
+      "sha256": "f15dde9d38c1fd75c1218fc7fd5dfab5321561891527999865e657f69867a741"
+    },
+    {
+      "path": "decision.json",
+      "bytes": 1019,
+      "sha256": "91a549b3af6aebf803a78b82026ff59ddb8241205d5d96e3d23e50c077ab4586"
+    },
+    {
+      "path": "main-protection-before.json",
+      "bytes": 1200,
+      "sha256": "20d7e38e9ee07736822d3b21bd9b803e633c60bdf8520baf00b9ea0d66231396"
+    },
+    {
+      "path": "pr-before.json",
+      "bytes": 6952,
+      "sha256": "7729d04c644750644eacece2bf7bb5405e3316bbb9068f1835f0479622395d78"
+    },
+    {
+      "path": "pr-body-readback.json",
+      "bytes": 1680,
+      "sha256": "ca04c543f4368cf67974b05faa66ee48f61902968135cce362ece2f105898689"
+    },
+    {
+      "path": "pr-final.json",
+      "bytes": 7507,
+      "sha256": "ed759f5c6f6f1223f03d455c3c79f0cba69ca081343dfaa3b619898f98093fb0"
+    },
+    {
+      "path": "remote-refs-before.txt",
+      "bytes": 149,
+      "sha256": "d8384de87a8611caba72150ff12c9155c6af666fd0d25b59ddfe7262d9871c06"
+    },
+    {
+      "path": "reviews-before.json",
+      "bytes": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": "rulesets-before.json",
+      "bytes": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": "workflows-before.json",
+      "bytes": 21497,
+      "sha256": "2d498c83c47689fcac7b302cf4001aa7f964e01697a9f3818a182cbd74f2165c"
+    }
+  ],
+  "main_protection_structurally_identical": true,
+  "rulesets_structurally_identical": true,
+  "four_review_agent_workflow_states_and_metadata_identical": true,
+  "all_four_disabled_manually": true,
+  "approved_exact_head_and_base_match": true
+}

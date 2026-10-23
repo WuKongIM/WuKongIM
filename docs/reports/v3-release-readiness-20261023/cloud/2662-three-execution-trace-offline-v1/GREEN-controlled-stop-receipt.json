@@ -1,0 +1,39 @@
+{
+  "argv": [
+    "/opt/homebrew/bin/python3",
+    "-B",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/2662-trace-offline-synthetic-tests-v1/controlled_stop_test.py",
+    "-v"
+  ],
+  "env": {
+    "PATH": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "TZ": "UTC",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOENV": "off",
+    "GOFLAGS": "",
+    "GOEXPERIMENT": "",
+    "GOMAXPROCS": "1",
+    "GOMEMLIMIT": "512MiB",
+    "GOTELEMETRY": "off",
+    "HOME": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/isolated-home",
+    "TMPDIR": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/tmp",
+    "PPROF_TMPDIR": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/tmp",
+    "PPROF_BINARY_PATH": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/empty-binary-path",
+    "PYTHONPATH": "/tmp/wukongim-v3-readiness-20261023/cloud/2662-three-execution-trace-offline-v1"
+  },
+  "cwd": "/tmp/wukongim-v3-readiness-20261023/cloud/2662-three-execution-trace-offline-v1",
+  "started_at_utc": "2026-10-23T01:20:13.127293+00:00",
+  "completed_at_utc": "2026-10-23T01:20:13.316629+00:00",
+  "elapsed_seconds": 0.18934708298183978,
+  "exit_status": 0,
+  "test_sha256": "cdca449e305fb0a01701b14c69c643e5027d40fb7a5a16a7300a422acd45d2ce",
+  "module_sha256": "a27c640777a741fee8061b2de711f6c24a2bc5746409765a24c0acc386db37e1",
+  "runner_sha256": "cd5cd469e56153f990e71710697c4c0587eb5fbbea6d419b76cb25e60fa04f99",
+  "log_sha256": "f7a071652685cab53d5c00a6acd002205b6d53574b74cc27760b237be57fef12",
+  "actual_trace_reads": 0
+}

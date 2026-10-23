@@ -1,0 +1,1434 @@
+{
+  "schema": "wukongim/offline-service-pressure/v1",
+  "source": "2662fe93b754d614422f2936185cf781a33b831a",
+  "nodes": [
+    {
+      "node": 1,
+      "series": [
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push",
+            "result": "ok"
+          },
+          "first": "571",
+          "terminal": "3942",
+          "status": "same_initialized_series_monotone",
+          "delta": "3371"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "first": "5751",
+          "terminal": "14471",
+          "status": "same_initialized_series_monotone",
+          "delta": "8720"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "first": "7281",
+          "terminal": "10870",
+          "status": "same_initialized_series_monotone",
+          "delta": "3589"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "delivery push"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "first": "5",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "5"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push"
+          },
+          "first": "4096",
+          "terminal": "4096",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "4096"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "first": "4096",
+          "terminal": "4096",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "4096"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "first": "4096",
+          "terminal": "4096",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "4096"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "delivery push",
+            "le": "+Inf"
+          },
+          "first": "18",
+          "terminal": "124",
+          "status": "same_initialized_series_monotone",
+          "delta": "106"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "+Inf"
+          },
+          "first": "179",
+          "terminal": "453",
+          "status": "same_initialized_series_monotone",
+          "delta": "274"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "+Inf"
+          },
+          "first": "228",
+          "terminal": "340",
+          "status": "same_initialized_series_monotone",
+          "delta": "112"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "delivery push"
+          },
+          "first": "18",
+          "terminal": "124",
+          "status": "same_initialized_series_monotone",
+          "delta": "106"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "first": "179",
+          "terminal": "453",
+          "status": "same_initialized_series_monotone",
+          "delta": "274"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "first": "228",
+          "terminal": "340",
+          "status": "same_initialized_series_monotone",
+          "delta": "112"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "delivery push"
+          },
+          "first": "0.000466417",
+          "terminal": "0.003186758",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.002720341"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "first": "3.5093532859999987",
+          "terminal": "50.15948925299998",
+          "status": "same_initialized_series_monotone",
+          "delta": "46.6501359669999813"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "first": "0.007151291999999999",
+          "terminal": "0.02727708400000002",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.020125792000000021"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "first": "18",
+          "terminal": "124",
+          "status": "same_initialized_series_monotone",
+          "delta": "106"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "first": "180",
+          "terminal": "453",
+          "status": "same_initialized_series_monotone",
+          "delta": "273"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "first": "228",
+          "terminal": "340",
+          "status": "same_initialized_series_monotone",
+          "delta": "112"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push",
+            "result": "ok"
+          },
+          "first": "18",
+          "terminal": "124",
+          "status": "same_initialized_series_monotone",
+          "delta": "106"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "first": "180",
+          "terminal": "453",
+          "status": "same_initialized_series_monotone",
+          "delta": "273"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "first": "228",
+          "terminal": "340",
+          "status": "same_initialized_series_monotone",
+          "delta": "112"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push",
+            "result": "ok"
+          },
+          "first": "0.059316708",
+          "terminal": "0.42129195999999997",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.36197525199999997"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "first": "0.138019797",
+          "terminal": "0.6387628370000006",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.5007430400000006"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "first": "0.138926827",
+          "terminal": "0.28774353500000005",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.14881670800000005"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "delivery push"
+          },
+          "first": "128",
+          "terminal": "128",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "128"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "first": "128",
+          "terminal": "128",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "128"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "first": "128",
+          "terminal": "128",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "128"
+        }
+      ],
+      "observer_dropped_first": "0",
+      "observer_dropped_terminal": "0",
+      "observer_dropped_delta": "0"
+    },
+    {
+      "node": 2,
+      "series": [
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push",
+            "result": "ok"
+          },
+          "first": "556",
+          "terminal": "3824",
+          "status": "same_initialized_series_monotone",
+          "delta": "3268"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "first": "5975",
+          "terminal": "15440",
+          "status": "same_initialized_series_monotone",
+          "delta": "9465"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "first": "7234",
+          "terminal": "10670",
+          "status": "same_initialized_series_monotone",
+          "delta": "3436"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "delivery push"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "first": "17",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "17"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push"
+          },
+          "first": "4096",
+          "terminal": "4096",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "4096"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "first": "4096",
+          "terminal": "4096",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "4096"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "first": "4096",
+          "terminal": "4096",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "4096"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "delivery push",
+            "le": "+Inf"
+          },
+          "first": "18",
+          "terminal": "120",
+          "status": "same_initialized_series_monotone",
+          "delta": "102"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "+Inf"
+          },
+          "first": "187",
+          "terminal": "483",
+          "status": "same_initialized_series_monotone",
+          "delta": "296"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "+Inf"
+          },
+          "first": "227",
+          "terminal": "334",
+          "status": "same_initialized_series_monotone",
+          "delta": "107"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "delivery push"
+          },
+          "first": "18",
+          "terminal": "120",
+          "status": "same_initialized_series_monotone",
+          "delta": "102"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "first": "187",
+          "terminal": "483",
+          "status": "same_initialized_series_monotone",
+          "delta": "296"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "first": "227",
+          "terminal": "334",
+          "status": "same_initialized_series_monotone",
+          "delta": "107"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "delivery push"
+          },
+          "first": "0.000341709",
+          "terminal": "0.002422294",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.002080585"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "first": "4.106241005000002",
+          "terminal": "76.60729409",
+          "status": "same_initialized_series_monotone",
+          "delta": "72.501053084999998"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "first": "0.0035412899999999995",
+          "terminal": "0.013908582000000001",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.0103672920000000015"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "first": "18",
+          "terminal": "120",
+          "status": "same_initialized_series_monotone",
+          "delta": "102"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "first": "187",
+          "terminal": "483",
+          "status": "same_initialized_series_monotone",
+          "delta": "296"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "first": "227",
+          "terminal": "334",
+          "status": "same_initialized_series_monotone",
+          "delta": "107"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push",
+            "result": "ok"
+          },
+          "first": "18",
+          "terminal": "120",
+          "status": "same_initialized_series_monotone",
+          "delta": "102"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "first": "187",
+          "terminal": "483",
+          "status": "same_initialized_series_monotone",
+          "delta": "296"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "first": "227",
+          "terminal": "334",
+          "status": "same_initialized_series_monotone",
+          "delta": "107"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push",
+            "result": "ok"
+          },
+          "first": "0.039472085",
+          "terminal": "0.20937454499999994",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.16990245999999994"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "first": "0.08361957600000001",
+          "terminal": "100.33957487199996",
+          "status": "same_initialized_series_monotone",
+          "delta": "100.25595529599995999"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "first": "0.07555812199999998",
+          "terminal": "0.250128955",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.17457083300000002"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "delivery push"
+          },
+          "first": "128",
+          "terminal": "128",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "128"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "first": "128",
+          "terminal": "128",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "128"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "first": "128",
+          "terminal": "128",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "128"
+        }
+      ],
+      "observer_dropped_first": "0",
+      "observer_dropped_terminal": "0",
+      "observer_dropped_delta": "0"
+    },
+    {
+      "node": 3,
+      "series": [
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push",
+            "result": "ok"
+          },
+          "first": "584",
+          "terminal": "3977",
+          "status": "same_initialized_series_monotone",
+          "delta": "3393"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "first": "5781",
+          "terminal": "14605",
+          "status": "same_initialized_series_monotone",
+          "delta": "8824"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "first": "7289",
+          "terminal": "10829",
+          "status": "same_initialized_series_monotone",
+          "delta": "3540"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "delivery push"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "first": "7",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "7"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push"
+          },
+          "first": "4096",
+          "terminal": "4096",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "4096"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "first": "4096",
+          "terminal": "4096",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "4096"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "first": "4096",
+          "terminal": "4096",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "4096"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "first": "0",
+          "terminal": "0",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "0"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "delivery push",
+            "le": "+Inf"
+          },
+          "first": "19",
+          "terminal": "125",
+          "status": "same_initialized_series_monotone",
+          "delta": "106"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "+Inf"
+          },
+          "first": "181",
+          "terminal": "457",
+          "status": "same_initialized_series_monotone",
+          "delta": "276"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "+Inf"
+          },
+          "first": "228",
+          "terminal": "339",
+          "status": "same_initialized_series_monotone",
+          "delta": "111"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "delivery push"
+          },
+          "first": "19",
+          "terminal": "125",
+          "status": "same_initialized_series_monotone",
+          "delta": "106"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "first": "181",
+          "terminal": "457",
+          "status": "same_initialized_series_monotone",
+          "delta": "276"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "first": "228",
+          "terminal": "339",
+          "status": "same_initialized_series_monotone",
+          "delta": "111"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "delivery push"
+          },
+          "first": "0.00035308199999999995",
+          "terminal": "0.007874497999999999",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.00752141599999999905"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "first": "2.5316421300000003",
+          "terminal": "58.085852346000024",
+          "status": "same_initialized_series_monotone",
+          "delta": "55.5542102160000237"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "first": "0.004858209999999999",
+          "terminal": "0.010830049",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.005971839000000001"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "first": "19",
+          "terminal": "125",
+          "status": "same_initialized_series_monotone",
+          "delta": "106"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "first": "181",
+          "terminal": "457",
+          "status": "same_initialized_series_monotone",
+          "delta": "276"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "first": "228",
+          "terminal": "339",
+          "status": "same_initialized_series_monotone",
+          "delta": "111"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push",
+            "result": "ok"
+          },
+          "first": "19",
+          "terminal": "125",
+          "status": "same_initialized_series_monotone",
+          "delta": "106"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "first": "181",
+          "terminal": "457",
+          "status": "same_initialized_series_monotone",
+          "delta": "276"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "first": "228",
+          "terminal": "339",
+          "status": "same_initialized_series_monotone",
+          "delta": "111"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "delivery push",
+            "result": "ok"
+          },
+          "first": "0.056147582",
+          "terminal": "0.361639419",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.305491837"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "first": "0.20932937299999999",
+          "terminal": "36.815342657",
+          "status": "same_initialized_series_monotone",
+          "delta": "36.60601328400000001"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "first": "0.087819244",
+          "terminal": "0.2774832840000001",
+          "status": "same_initialized_series_monotone",
+          "delta": "0.1896640400000001"
+        },
+        {
+          "service_id": 15,
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "delivery push"
+          },
+          "first": "128",
+          "terminal": "128",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "128"
+        },
+        {
+          "service_id": 13,
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "first": "128",
+          "terminal": "128",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "128"
+        },
+        {
+          "service_id": 14,
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "first": "128",
+          "terminal": "128",
+          "status": "snapshot_only",
+          "maximum_of_available_snapshots": "128"
+        }
+      ],
+      "observer_dropped_first": "0",
+      "observer_dropped_terminal": "0",
+      "observer_dropped_delta": "0"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "total_count": 3,
+  "artifacts": [
+    {
+      "id": 12472730028,
+      "name": "500qps-channel-append-b6007c97971b5b3645b8917fc5a14c9499d0cfed-1",
+      "size_in_bytes": 25072,
+      "digest": "sha256:d70071134e14cfd9b0258886cd501f12a99706e3fec431745766375aee59c254",
+      "expired": false,
+      "created_at": "2026-10-23T01:39:06Z",
+      "updated_at": "2026-10-23T01:39:06Z",
+      "expires_at": "2026-11-06T01:39:06Z",
+      "workflow_run": {
+        "id": 39884710345,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-queue-pressure-snapshot",
+        "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585"
+      }
+    },
+    {
+      "id": 12471713193,
+      "name": "500qps-tcp-sendack-b6007c97971b5b3645b8917fc5a14c9499d0cfed-1",
+      "size_in_bytes": 8118,
+      "digest": "sha256:458cba577a8a2255a4938f7a6668058296256d87baa20f335df0f68f2e00cf4d",
+      "expired": false,
+      "created_at": "2026-10-23T01:38:52Z",
+      "updated_at": "2026-10-23T01:38:52Z",
+      "expires_at": "2026-11-06T01:38:51Z",
+      "workflow_run": {
+        "id": 39884710345,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-queue-pressure-snapshot",
+        "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585"
+      }
+    },
+    {
+      "id": 12471264956,
+      "name": "three-node-pr-1032-b6007c97971b5b3645b8917fc5a14c9499d0cfed-1",
+      "size_in_bytes": 229432588,
+      "digest": "sha256:9195826f233b5a0c3c3a164723b2f4fc831c260de8eeb83b5e8e325deb6541f8",
+      "expired": false,
+      "created_at": "2026-10-23T01:38:34Z",
+      "updated_at": "2026-10-23T01:38:34Z",
+      "expires_at": "2026-10-30T01:38:21Z",
+      "workflow_run": {
+        "id": 39884710345,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-queue-pressure-snapshot",
+        "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585"
+      }
+    }
+  ]
+}

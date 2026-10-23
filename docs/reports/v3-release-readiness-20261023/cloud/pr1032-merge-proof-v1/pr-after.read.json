@@ -1,0 +1,11 @@
+{
+  "method": "GET",
+  "endpoint": "pulls/1032",
+  "started_at": "2026-10-23T01:54:12.355267+00:00",
+  "finished_at": "2026-10-23T01:54:13.400040+00:00",
+  "exit_code": 0,
+  "stdout_bytes": 18149,
+  "stdout_sha256": "8de79063d4c2dd964f2a2e902a1b672022822dfc0e42d3da7e6d312858f3106b",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

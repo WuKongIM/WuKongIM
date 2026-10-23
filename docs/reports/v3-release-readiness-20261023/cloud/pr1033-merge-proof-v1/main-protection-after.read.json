@@ -1,0 +1,12 @@
+{
+  "method": "GET",
+  "endpoint": "branches/main/protection",
+  "started_at": "2026-10-23T03:32:59.560572+00:00",
+  "finished_at": "2026-10-23T03:33:00.488996+00:00",
+  "exit_code": 0,
+  "stdout_bytes": 1200,
+  "stdout_sha256": "20d7e38e9ee07736822d3b21bd9b803e633c60bdf8520baf00b9ea0d66231396",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_private_only": true
+}

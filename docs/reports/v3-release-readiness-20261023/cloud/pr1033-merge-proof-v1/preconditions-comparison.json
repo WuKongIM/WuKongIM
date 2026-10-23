@@ -1,0 +1,415 @@
+{
+  "preconditions_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/pr1033-ordinary-merge-preconditions-v1",
+  "preconditions_manifest_sha256": "005e9385ad92657bea27ec2d1cd91080f57724741bf3408e45b3223392e0b2b2",
+  "preconditions_files_verified": [
+    {
+      "path": "PUBLIC_ALLOWLIST.txt",
+      "sha256": "f4b1c90f561fc45d7d8152943f96ada11a04da0471b3b2c93eabd9e74b7595e3",
+      "bytes": 537
+    },
+    {
+      "path": "README.md",
+      "sha256": "76601d1e1aa7af0b7da42f9fdff3525e18acfbaec20b248dc7595b6ca9e19f68",
+      "bytes": 1862
+    },
+    {
+      "path": "actor-permission.json",
+      "sha256": "389da980b0ae125fabc98f5b7ff568d3556858a4c23078907d4bccb6e4b227dc",
+      "bytes": 228
+    },
+    {
+      "path": "actor-permission.read.json",
+      "sha256": "967df6616e5128056b53bfd0147b75ffab2e63b9fa5c4005622b60b4a7e4e297",
+      "bytes": 557
+    },
+    {
+      "path": "actor.json",
+      "sha256": "3166e2ceef74cc03c36727d65fa9a49f77e337fceefc4592e1f05b9914822984",
+      "bytes": 45
+    },
+    {
+      "path": "actor.read.json",
+      "sha256": "ba86b9bc9195583ca592e894a4d78fb05a56b7e9286664b26cf03c30fd619be5",
+      "bytes": 503
+    },
+    {
+      "path": "collect-readonly.py",
+      "sha256": "ad5190fb3de134ee90ee4d995c744d4d9b59f3446c60e5238c68431f8f673450",
+      "bytes": 8911
+    },
+    {
+      "path": "decision.json",
+      "sha256": "06768412af2058a04b43285adfd108c3afba88dc83ed55f2baa30b3e894f100a",
+      "bytes": 1474
+    },
+    {
+      "path": "local-after.json",
+      "sha256": "4111428d418df91cccf7a901e119a67888d15a7d95385707084655bfe0b9c381",
+      "bytes": 30840
+    },
+    {
+      "path": "local-before.json",
+      "sha256": "4e0826ca3a2e25f3c392560cf12befa3a7c4cd069d5f134702f3d4a66ebef418",
+      "bytes": 30840
+    },
+    {
+      "path": "main-protection-before.json",
+      "sha256": "f553400dcb686bf004920590fbda515f2e9ccb9db7c271882e5a18f980a29904",
+      "bytes": 1409
+    },
+    {
+      "path": "main-protection-before.read.json",
+      "sha256": "064c8bdf4fa061875afeefc5b2253701fc5eb355a797921e2fe227d1432f8f9b",
+      "bytes": 547
+    },
+    {
+      "path": "pr-before.json",
+      "sha256": "256e6109196570fa093f2016d44e8c17153d03967d709de22be2bac08e8054e1",
+      "bytes": 8003
+    },
+    {
+      "path": "pr-before.read.json",
+      "sha256": "93851936d4b0fa1dd186217b7f4c7ee95983c500e228d3dc0fca3b2c6a77cdfb",
+      "bytes": 644
+    },
+    {
+      "path": "pr-final.json",
+      "sha256": "256e6109196570fa093f2016d44e8c17153d03967d709de22be2bac08e8054e1",
+      "bytes": 8003
+    },
+    {
+      "path": "pr-final.read.json",
+      "sha256": "b7947705058e0b27c93920e65401e407485c000a7057d996d3b09ec000ee33ca",
+      "bytes": 644
+    },
+    {
+      "path": "protected-source-binding.json",
+      "sha256": "f066e77ce10933a2969d844754f935a2fc76140faedbd25338fa30a19d36f28a",
+      "bytes": 2540
+    },
+    {
+      "path": "remote-main.json",
+      "sha256": "d8340a9f981c98a61eb6c62b398084c6d9e6bf37a5d3a2eaf396811b4744a602",
+      "bytes": 95
+    },
+    {
+      "path": "remote-main.read.json",
+      "sha256": "215e3d76560ee91d2ca713b8c5384bd3c8ff558efce6547c10b341cd909fefea",
+      "bytes": 536
+    },
+    {
+      "path": "reviews-before.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3
+    },
+    {
+      "path": "reviews-before.read.json",
+      "sha256": "2f980783b520771caa634e5524c508f54816359da3b902a950fe4606d6b76ad8",
+      "bytes": 551
+    },
+    {
+      "path": "reviews-final.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3
+    },
+    {
+      "path": "reviews-final.read.json",
+      "sha256": "b0212f3f93b5f1ae2dfac7fb2ddf97d32711107fb74eec82d297df9f9dd81e09",
+      "bytes": 551
+    },
+    {
+      "path": "rulesets-before.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3
+    },
+    {
+      "path": "rulesets-before.read.json",
+      "sha256": "b6ca5b0571307dfee531a4ef959f3e9f8362897b50897d9dcc0c68afc538b56f",
+      "bytes": 541
+    },
+    {
+      "path": "workflows-before.json",
+      "sha256": "ecf2f9d650861f292ad88b2d56a7950f27c010a2e26837c9604c64392994a882",
+      "bytes": 1125
+    },
+    {
+      "path": "workflows-before.read.json",
+      "sha256": "0e4bcfc840a84fef2cbb2bf1f79d79526698f219246f5cc317911fb5c4d78e2c",
+      "bytes": 554
+    }
+  ],
+  "main_protection_structurally_identical": true,
+  "rulesets_structurally_identical": true,
+  "four_review_agent_metadata_identical": true,
+  "all_four_disabled_manually": true,
+  "approved_exact_head_base_and_body_match": true,
+  "protected_objects": [
+    {
+      "path": "AGENTS.md",
+      "base_object": "b89d41eebadc701ada7157b387c2f45e8ff76354",
+      "merge_object": "b89d41eebadc701ada7157b387c2f45e8ff76354",
+      "identical": true
+    },
+    {
+      "path": ".github/workflows",
+      "base_object": "42a35f7aea532bb258807c78a2faecef0d4d2a01",
+      "merge_object": "42a35f7aea532bb258807c78a2faecef0d4d2a01",
+      "identical": true
+    },
+    {
+      "path": ".github/review-agent",
+      "base_object": "acfc77b75668dbf21d4b192f1a391d4e0f5ccec2",
+      "merge_object": "acfc77b75668dbf21d4b192f1a391d4e0f5ccec2",
+      "identical": true
+    },
+    {
+      "path": ".github/issue-agent",
+      "base_object": "2a263629c579125f16c95e928fd4ce8024e9ea17",
+      "merge_object": "2a263629c579125f16c95e928fd4ce8024e9ea17",
+      "identical": true
+    },
+    {
+      "path": ".agents/skill-tests.json",
+      "base_object": "b620c7c18bae2ef92b50020983d48bf044ec4571",
+      "merge_object": "b620c7c18bae2ef92b50020983d48bf044ec4571",
+      "identical": true
+    },
+    {
+      "path": "docs/agents",
+      "base_object": "10ebc44ee79f72c48521b1ca7569670c4142ce49",
+      "merge_object": "10ebc44ee79f72c48521b1ca7569670c4142ce49",
+      "identical": true
+    }
+  ],
+  "historical_userns_api_path_absent_in_base_head_merge": {
+    "9e5d8eeadb7b4c1998857640d2160c3af3232996": true,
+    "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac": true,
+    "966ec67df1435ad07bbb82724cd940f550755179": true
+  },
+  "original_18_first_attempt_checks_preserved": [
+    {
+      "id": 120218775142,
+      "name": "Exercise Rocky Linux 9 package lifecycle",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:10:42Z",
+      "completed_at": "2026-10-23T03:12:35Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010300/job/120218775142",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010300/job/120218775142"
+    },
+    {
+      "id": 120218775124,
+      "name": "Exercise Ubuntu 24.04 package lifecycle",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:10:42Z",
+      "completed_at": "2026-10-23T03:12:16Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010300/job/120218775124",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010300/job/120218775124"
+    },
+    {
+      "id": 120218775120,
+      "name": "Exercise AlmaLinux 9 package lifecycle",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:10:42Z",
+      "completed_at": "2026-10-23T03:12:43Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010300/job/120218775120",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010300/job/120218775120"
+    },
+    {
+      "id": 120218774996,
+      "name": "Exercise Debian 12 package lifecycle",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:10:42Z",
+      "completed_at": "2026-10-23T03:12:27Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010300/job/120218774996",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010300/job/120218774996"
+    },
+    {
+      "id": 120218693859,
+      "name": "Candidate migration and messaging E2E",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:10:26Z",
+      "completed_at": "2026-10-23T03:15:03Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010352/job/120218693859",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010352/job/120218693859"
+    },
+    {
+      "id": 120218564677,
+      "name": "PR three-node regression",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:10:01Z",
+      "completed_at": "2026-10-23T03:10:04Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120218564677",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120218564677"
+    },
+    {
+      "id": 120216989179,
+      "name": "PR 500 QPS / tcp-sendack",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:04:37Z",
+      "completed_at": "2026-10-23T03:09:15Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216989179",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216989179"
+    },
+    {
+      "id": 120216989136,
+      "name": "PR 500 QPS / channel-append",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:04:37Z",
+      "completed_at": "2026-10-23T03:09:36Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216989136",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216989136"
+    },
+    {
+      "id": 120216989095,
+      "name": "PR 500 QPS / mixed-send",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:04:37Z",
+      "completed_at": "2026-10-23T03:09:58Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216989095",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216989095"
+    },
+    {
+      "id": 120216896746,
+      "name": "Candidate default suite (go-unit)",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:04:18Z",
+      "completed_at": "2026-10-23T03:10:24Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010352/job/120216896746",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010352/job/120216896746"
+    },
+    {
+      "id": 120216896601,
+      "name": "Candidate scripts integration",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:04:19Z",
+      "completed_at": "2026-10-23T03:13:22Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010352/job/120216896601",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010352/job/120216896601"
+    },
+    {
+      "id": 120216896136,
+      "name": "Nightly direct 500 QPS qualification",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-23T03:04:17Z",
+      "completed_at": "2026-10-23T03:04:16Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216896136",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216896136"
+    },
+    {
+      "id": 120216895996,
+      "name": "Fixed Linux SEND diagnosis",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-23T03:04:17Z",
+      "completed_at": "2026-10-23T03:04:16Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216895996",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216895996"
+    },
+    {
+      "id": 120216895157,
+      "name": "PR three-node correctness",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:04:19Z",
+      "completed_at": "2026-10-23T03:09:16Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216895157",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216895157"
+    },
+    {
+      "id": 120216895108,
+      "name": "PR messaging unit and race",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:04:19Z",
+      "completed_at": "2026-10-23T03:07:17Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216895108",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216895108"
+    },
+    {
+      "id": 120216894970,
+      "name": "Emit credential-free wake-up",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:04:19Z",
+      "completed_at": "2026-10-23T03:04:22Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010410/job/120216894970",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010410/job/120216894970"
+    },
+    {
+      "id": 120216894882,
+      "name": "PR performance baseline evidence",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:04:18Z",
+      "completed_at": "2026-10-23T03:04:35Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216894882",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010250/job/120216894882"
+    },
+    {
+      "id": 120216894761,
+      "name": "Build and install deb/rpm preview",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:04:18Z",
+      "completed_at": "2026-10-23T03:10:40Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010300/job/120216894761",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010300/job/120216894761"
+    }
+  ],
+  "additional_current_checks": [
+    {
+      "id": 120224747216,
+      "name": "Emit credential-free wake-up",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:31:23Z",
+      "completed_at": "2026-10-23T03:31:27Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39895462315/job/120224747216",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39895462315/job/120224747216"
+    },
+    {
+      "id": 120224495330,
+      "name": "Emit credential-free wake-up",
+      "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T03:30:33Z",
+      "completed_at": "2026-10-23T03:30:36Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39895385963/job/120224495330",
+      "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39895385963/job/120224495330"
+    }
+  ],
+  "all_four_original_runs_first_attempt_success": true,
+  "no_product_workflow_cloud_execution": true
+}

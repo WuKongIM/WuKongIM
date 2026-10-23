@@ -1,0 +1,90 @@
+{
+  "artifact_id": 12472675512,
+  "source_sha": "b6007c97971b5b3645b8917fc5a14c9499d0cfed",
+  "binary_sha256": "9fedb3dbf3088a5fb9033d4f9bd8ee43b3c566341b49fb0e2ddb980ff90ae4da",
+  "go_version": "go version go1.25.11 linux/amd64",
+  "visible_cpus": "4",
+  "cpu_model": "AMD EPYC 9V45 96-Core Processor",
+  "measurement_windows": [
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 18.279301,
+      "scheduled_to_start_p99_ms": 1.195233,
+      "service_p99_ms": 17.596523
+    },
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 15.074114,
+      "scheduled_to_start_p99_ms": 1.217852,
+      "service_p99_ms": 14.198593
+    },
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 14.543992,
+      "scheduled_to_start_p99_ms": 1.187142,
+      "service_p99_ms": 13.558314
+    }
+  ],
+  "warmup_windows": [
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 155.246784,
+      "scheduled_to_start_p99_ms": 1.156081,
+      "service_p99_ms": 155.21613
+    }
+  ],
+  "measurement_second_cohorts": 180,
+  "warmup_second_cohorts": 60,
+  "data_filesystem": {
+    "filesystems": [
+      {
+        "target": "/",
+        "source": "/dev/nvme0n1p1",
+        "fstype": "ext4",
+        "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+      }
+    ]
+  },
+  "result": {
+    "status": "pass"
+  },
+  "counters_window": {
+    "counter_scope": "post-warmup through completed handlers; rolling trace and one-second sampler enabled; see flight receipt for actual instrumentation interval",
+    "counter_window_seconds": 180.022898288,
+    "ended_at": "2026-10-23T01:39:19.388084649Z",
+    "go_version": "go1.25.11",
+    "goarch": "amd64",
+    "gomaxprocs": 4,
+    "goos": "linux",
+    "handlers_completed": true,
+    "offered_qps": 500,
+    "operations": 90000,
+    "profile_enabled": true,
+    "schema": "mixed-send-counters/v1",
+    "started_at": "2026-10-23T01:36:19.365186361Z"
+  }
+}

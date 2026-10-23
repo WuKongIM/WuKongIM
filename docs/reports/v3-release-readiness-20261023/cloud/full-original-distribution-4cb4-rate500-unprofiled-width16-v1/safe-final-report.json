@@ -1,0 +1,43 @@
+{
+  "schema": "local4cb4-original-final-report-projection/v1",
+  "raw_final_present": true,
+  "raw_final_sha256": "00cfdf3fc116a7d8f7cc08152e91c6dd2c6399c93107074cec82fc518033b083",
+  "verdict": {
+    "outcome": "operator_stop",
+    "cause": "operator_requested",
+    "terminal": true,
+    "cleanup_error_count": 0
+  },
+  "messages": {
+    "sent": 60503,
+    "send_attempts": 60848,
+    "first_attempts": 60503,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 60503,
+    "send_rejected": 0,
+    "received": 78654,
+    "receive_acknowledged": 78654,
+    "receive_ack_failures": 0,
+    "retry_attempts": 345,
+    "terminal": 0,
+    "losses": 0,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "generated": {
+    "primary": 60500,
+    "person": 54450,
+    "group": 6050,
+    "canary": 3,
+    "payload_bytes": 46154240
+  },
+  "window": {
+    "start": "2026-10-23T10:38:55.971746+08:00",
+    "end": "2026-10-23T10:40:58.950212+08:00",
+    "elapsed": 122978234792
+  },
+  "finalization_failure_record_present": false,
+  "no_metrics_mask_inferred": true,
+  "formal_or_Linux_acceptance": false
+}

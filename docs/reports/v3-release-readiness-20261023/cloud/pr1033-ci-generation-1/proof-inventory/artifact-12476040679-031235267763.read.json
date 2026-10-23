@@ -1,0 +1,12 @@
+{
+  "endpoint": "actions/artifacts/12476040679/zip",
+  "method": "GET",
+  "exit_code": 0,
+  "problem": null,
+  "stdout_bytes": 25354,
+  "stdout_sha256": "b46fe4429fa3cea71649c6216c5590eb3f634c934f26d2c023f5e0e91a1eea3f",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "private_raw_only": true,
+  "all_owned_processes_terminal": true
+}

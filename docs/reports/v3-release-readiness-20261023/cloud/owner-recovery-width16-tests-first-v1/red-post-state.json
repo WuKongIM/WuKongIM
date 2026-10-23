@@ -1,0 +1,15 @@
+{
+  "recorded_utc": "2026-10-23T02:12:27.259534+00:00",
+  "head": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+  "tree": "7ce68e726fea61bd6d176fbc7053dede920d5b00",
+  "recorded_pgids_absent": [
+    "97679",
+    "97693",
+    "97708",
+    "97914"
+  ],
+  "ps_exit": 1,
+  "git_status": " M internal/usecase/presence/uid_flight_integration_test.go\n?? internal/infra/cluster/presence_recovery_width16_integration_test.go\n?? internal/usecase/presence/recovery_byte_budget_contract_test.go\n?? internal/usecase/presence/recovery_width16_integration_test.go\n",
+  "production_unchanged": true,
+  "frozen_tests_unchanged": true
+}

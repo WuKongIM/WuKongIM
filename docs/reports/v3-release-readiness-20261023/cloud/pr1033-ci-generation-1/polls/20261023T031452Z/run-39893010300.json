@@ -1,0 +1,18 @@
+{
+  "id": 39893010300,
+  "name": "Safety Automation - Validate Native Package Preview",
+  "path": ".github/workflows/native-package-preview.yml",
+  "head_sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "head_branch": "codex/v3-owner-recovery-width16",
+  "event": "pull_request",
+  "run_number": 214,
+  "run_attempt": 1,
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-10-23T03:04:16Z",
+  "updated_at": "2026-10-23T03:12:44Z",
+  "run_started_at": "2026-10-23T03:04:16Z",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39893010300",
+  "workflow_id": 347160795,
+  "check_suite_id": 108125580745
+}

@@ -1,0 +1,41 @@
+{
+  "phase": "compile-red",
+  "args": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "./internal/bench/target",
+    "./internal/bench/chatlifecycle",
+    "./cmd/wkcli/internal/benchmark",
+    "-run",
+    "^TestMetricsParse",
+    "-count=1",
+    "-p=1",
+    "-timeout=2m",
+    "-json"
+  ],
+  "environment": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "2",
+    "GOFLAGS": "-p=1"
+  },
+  "started_at": "2026-10-23T00:13:19.408244+00:00",
+  "wall_seconds": 8.542231249972247,
+  "exit_code": 1,
+  "reason": "exited",
+  "pid_pgid": 71973,
+  "observed_bytes": {
+    "stdout": 9771,
+    "stderr": 0
+  },
+  "limits": {
+    "stdout": 4194304,
+    "stderr": 1048576
+  },
+  "outer_seconds": 180,
+  "test_pins_sha256": "8c0d7d4e066f82318778cb801693812edb14add539351d97d37d837205902910",
+  "same_test_hashes": true,
+  "source_diff": " .../chatlifecycle/metrics_fetch_diagnostics_test.go   | 19 ++++++++++++++++++-\n 1 file changed, 18 insertions(+), 1 deletion(-)\n"
+}

@@ -1,0 +1,12 @@
+ CHANGELOG.md                                       |   4 +
+ docs/development/FLOW_INDEX.md                     |   2 +-
+ docs/development/PROJECT_KNOWLEDGE.md              |   7 +-
+ internal/infra/cluster/FLOW.md                     |   3 +-
+ internal/infra/cluster/presence_recovery.go        |   2 +-
+ .../presence_recovery_width16_integration_test.go  | 153 +++++++++++++++++
+ internal/usecase/presence/FLOW.md                  |   2 +-
+ .../presence/recovery_byte_budget_contract_test.go |  14 ++
+ internal/usecase/presence/recovery_flights.go      |   9 +-
+ .../presence/recovery_width16_integration_test.go  | 189 +++++++++++++++++++++
+ .../presence/uid_flight_integration_test.go        |  29 ++--
+ 11 files changed, 390 insertions(+), 24 deletions(-)

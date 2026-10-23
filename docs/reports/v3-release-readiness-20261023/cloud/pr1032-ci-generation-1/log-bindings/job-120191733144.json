@@ -1,0 +1,17 @@
+{
+  "id": 120191733144,
+  "run_id": 39884710345,
+  "name": "PR three-node regression",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 2681,
+  "sha256": "d678d5ce0b363ec1344d403788ec107864ef3e4eecf58b99123c76245fcb9e31",
+  "actual_checkout_candidates": [],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Require every independent check",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-23T00:41:05.924301+00:00",
+  "scope": "local read-only collector only",
+  "error": "KeyError: jobs; read-receipt glob included alongside jobs API projection",
+  "process_exit_code": 1,
+  "old_script_sha256": "f19162666550fc09b6f9ad1b6f8754f002ee45ba4e3f89713732d097d875d2f7",
+  "fixed_script_sha256": "f65b58d8e9869e38b77383892671ce848a6e5a251269bffb90ff449817637487",
+  "CI_failure": false,
+  "fix": "exclude .read.json envelope; no CI retry; no network performed before error"
+}

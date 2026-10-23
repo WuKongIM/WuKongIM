@@ -1,0 +1,64 @@
+[
+  {
+    "name": "presence",
+    "container_id": "d122679801b7cae6a5c619b992377c8ace131761865c31c30f789a38ab0cd46a",
+    "cli_exit": 0,
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-23T03:17:34.859050632Z",
+      "FinishedAt": "2026-10-23T03:17:35.040238008Z"
+    },
+    "expected_names": [
+      "TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys",
+      "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget",
+      "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/1",
+      "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/512",
+      "TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts",
+      "TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth"
+    ],
+    "actual_passed_names": [
+      "TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys",
+      "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget",
+      "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/1",
+      "TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/512",
+      "TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts",
+      "TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth"
+    ],
+    "failed_names": [],
+    "pass": true
+  },
+  {
+    "name": "cluster",
+    "container_id": "0bd64c840043b2de39b39b7279ade1a3e178c07e02060f78cf4cc634c9bbca33",
+    "cli_exit": 0,
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-23T03:17:35.193597091Z",
+      "FinishedAt": "2026-10-23T03:17:35.358881966Z"
+    },
+    "expected_names": [
+      "TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth"
+    ],
+    "actual_passed_names": [
+      "TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth"
+    ],
+    "failed_names": [],
+    "pass": true
+  }
+]

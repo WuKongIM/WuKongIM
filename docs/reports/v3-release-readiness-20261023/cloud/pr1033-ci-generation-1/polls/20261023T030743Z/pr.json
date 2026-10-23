@@ -1,0 +1,20 @@
+{
+  "number": 1033,
+  "state": "open",
+  "draft": false,
+  "mergeable": true,
+  "mergeable_state": "unstable",
+  "merged": false,
+  "merged_at": null,
+  "merge_commit_sha": "9e8332ed8ea69540e5f248c7e483716e987a2546",
+  "updated_at": "2026-10-23T03:04:12Z",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/pull/1033",
+  "head": {
+    "sha": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+    "ref": "codex/v3-owner-recovery-width16"
+  },
+  "base": {
+    "sha": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+    "ref": "main"
+  }
+}

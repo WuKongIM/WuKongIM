@@ -1,0 +1,137 @@
+{
+  "aggregate_record_count": 371,
+  "coverage": "prefix_or_unknown",
+  "flat_disjoint_known_symbol_or_other": [
+    {
+      "count": 1,
+      "delay_ns": 1772736,
+      "function": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).ReadOwnerRoutes"
+    },
+    {
+      "count": 7,
+      "delay_ns": 6666112,
+      "function": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).ReadOwnerRoutesByTargets"
+    },
+    {
+      "count": 8,
+      "delay_ns": 18452416,
+      "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).RecoverRoutesByTargets"
+    },
+    {
+      "count": 1,
+      "delay_ns": 33280,
+      "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage"
+    },
+    {
+      "count": 1864,
+      "delay_ns": 117606639615,
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).admitRecoveryPage"
+    },
+    {
+      "count": 1,
+      "delay_ns": 74176,
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).executeRecoveryCohort"
+    },
+    {
+      "count": 1,
+      "delay_ns": 81158848,
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage"
+    },
+    {
+      "count": 11898,
+      "delay_ns": 1219211106298,
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Call"
+    },
+    {
+      "count": 84,
+      "delay_ns": 536385984,
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Send"
+    },
+    {
+      "count": 13,
+      "delay_ns": 60526144,
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop"
+    },
+    {
+      "count": 21903,
+      "delay_ns": 368909534451,
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop"
+    },
+    {
+      "count": 8,
+      "delay_ns": 36142336,
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch"
+    },
+    {
+      "count": 106658,
+      "delay_ns": 12398231803608,
+      "function": "other"
+    }
+  ],
+  "node_id": 1,
+  "overlapping_known_symbol_counts_and_delay_explicitly_not_additive": [
+    {
+      "count": 139,
+      "delay_ns": 5657589760,
+      "function": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).ReadOwnerRoutes"
+    },
+    {
+      "count": 725,
+      "delay_ns": 31295681922,
+      "function": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).ReadOwnerRoutesByTargets"
+    },
+    {
+      "count": 873,
+      "delay_ns": 36971757378,
+      "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).RecoverRoutesByTargets"
+    },
+    {
+      "count": 865,
+      "delay_ns": 36953304962,
+      "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage"
+    },
+    {
+      "count": 1864,
+      "delay_ns": 117606639615,
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).admitRecoveryPage"
+    },
+    {
+      "count": 874,
+      "delay_ns": 36971831554,
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).executeRecoveryCohort"
+    },
+    {
+      "count": 2739,
+      "delay_ns": 154659630017,
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage"
+    },
+    {
+      "count": 11910,
+      "delay_ns": 1219217621434,
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Call"
+    },
+    {
+      "count": 84,
+      "delay_ns": 536385984,
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Send"
+    },
+    {
+      "count": 13,
+      "delay_ns": 60526144,
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop"
+    },
+    {
+      "count": 21911,
+      "delay_ns": 368945676787,
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop"
+    },
+    {
+      "count": 8,
+      "delay_ns": 36142336,
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch"
+    }
+  ],
+  "profile_type": "sync",
+  "total_contentions_count": 142447,
+  "total_delay_ns": 14104700296004
+}

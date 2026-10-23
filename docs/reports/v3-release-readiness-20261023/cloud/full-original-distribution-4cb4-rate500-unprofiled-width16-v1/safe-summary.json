@@ -1,0 +1,106 @@
+{
+  "schema": "local4cb4-unprofiled-diagnostic-summary/v1",
+  "source_revision": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "source_tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "supervisor_started_at_utc": "2026-10-23T02:34:35.770306+00:00",
+  "first_grant_at": "2026-10-23T10:38:55.971746+08:00",
+  "terminal_cut_at": "2026-10-23T10:40:58.950212+08:00",
+  "launcher_exit_status": 130,
+  "final_report_present": true,
+  "original_final_verdict": {
+    "outcome": "operator_stop",
+    "cause": "operator_requested",
+    "terminal": true,
+    "cleanup_error_count": 0
+  },
+  "finalization_failure_record_present": false,
+  "first_cut": {
+    "at": "2026-10-23T10:39:00.991349625+08:00",
+    "cut": "periodic",
+    "elapsed_since_firstgrant_seconds": 5.019603,
+    "messages": {
+      "sent": 2500,
+      "send_attempts": 2526,
+      "first_attempts": 2500,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 1960,
+      "send_rejected": 0,
+      "received": 2484,
+      "receive_acknowledged": 2484,
+      "receive_ack_failures": 0,
+      "retry_attempts": 26,
+      "terminal": 0,
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "offered_first_attempts_per_elapsed_second": 498.0473555378782,
+    "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+  },
+  "first_loss_cut": null,
+  "terminal_cut": {
+    "at": "2026-10-23T10:40:58.950212+08:00",
+    "cut": "terminal",
+    "elapsed_since_firstgrant_seconds": 122.978466,
+    "messages": {
+      "sent": 60503,
+      "send_attempts": 60848,
+      "first_attempts": 60503,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 60503,
+      "send_rejected": 0,
+      "received": 78654,
+      "receive_acknowledged": 78654,
+      "receive_ack_failures": 0,
+      "retry_attempts": 345,
+      "terminal": 0,
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "offered_first_attempts_per_elapsed_second": 491.9804415189241,
+    "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+  },
+  "generated": {
+    "primary": 60500,
+    "person": 54450,
+    "group": 6050,
+    "canary": 3,
+    "payload_bytes": 46154240
+  },
+  "final_window": {
+    "start": "2026-10-23T10:38:55.971746+08:00",
+    "end": "2026-10-23T10:40:58.950212+08:00",
+    "elapsed": 122978234792
+  },
+  "profile_captures": 0,
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 664,
+    "delivered": 664,
+    "expired": 0,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "supervisor_stop_after_firstgrant_seconds": 120.10938466596417,
+  "cleanup_complete": true,
+  "runtime_seconds": 388.0248027909547,
+  "config_sha256": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+  "configured_SEND_per_second": 500,
+  "target_measured_seconds": 120,
+  "limits_unchanged": true,
+  "no_rerun": true,
+  "no_DB_or_new_service_or_HTTP_after_stop": true,
+  "topology_clarification": "256 HashSlots and12 physical Slot Raft identities, unchanged source/config; prior proposal logical-slot phrasing corrected by root approval",
+  "limitations": [
+    "native shared Macarm64 diagnostic, not Linux/formal acceptance",
+    "original supervisor requested stop after120second target; operator_stop is not a formal pass",
+    "shared Mac and one local zero-loss window do not establish exact cloud root cause or eliminate temporal variation",
+    "proper final report and zero pending correlation are retained without inventing a finalization failure or parser mask",
+    "no exact identity reconstruction or DB read was performed"
+  ]
+}

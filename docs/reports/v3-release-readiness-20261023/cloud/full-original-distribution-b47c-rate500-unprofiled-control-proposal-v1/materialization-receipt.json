@@ -1,0 +1,63 @@
+{
+  "schema": "b47c-unprofiled-control-materialization/v1",
+  "prepared_only": true,
+  "output": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1",
+  "baseline_actual": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1",
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-b47c-queue-snapshot",
+  "source_revision": "b47c03d461a6d8918e537e027bf56539ce78c585",
+  "source_tree": "7ce68e726fea61bd6d176fbc7053dede920d5b00",
+  "build_manifest_sha256": "1d0ee29c0a8c78fb59b6072ee9c7cef2f9c183d1bdea8f6889d1b2eed6d0c279",
+  "build_manifest_members": 12,
+  "binaries": {
+    "wukongim": "5ffa70c36e7272cb2dac30f160ebb2af5a59c973936b973984e0d16c995f2b91",
+    "wkcli": "d4e76e3ff0b770a5450923cb5bd8f04195758b4daeea48b9856b3ba706982c41"
+  },
+  "runtime_static_pins": {
+    "launcher.sh": "f60d7db1942b57909d66bb3157eade6bfc8f1d220b75e8cef8dfbb75426dac84",
+    "supervise.py": "e3a45c39d8f90114de88653f8ddf05ca7048d5f1f2a7b04bd980af5e2947c320",
+    "exact_build_guard.py": "c011c6430e113bd94f5d91e9a453504478dc39fdd11581c519e81d5f44b35fe5",
+    "original-distribution-local.yaml": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe"
+  },
+  "config_semantic_diff": [],
+  "identity": {
+    "schema": "wukongim/56c-retained-real-planner-identity/v1",
+    "identity": {
+      "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+      "assignment_hash": "sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc",
+      "assignment_count": 3,
+      "generation": 1
+    },
+    "basis": "unchanged YAML and whole deterministic loader/validation/planner/identity source vs c495; prior actual real planner proof retained",
+    "equivalence_sha256": "78878c740c80ab3abde6e495944def133bfdb829b5d402c974907e2e8e820e4f"
+  },
+  "profile_sampler_present": false,
+  "sampler_HTTP_requests": 0,
+  "new_API_probes": 0,
+  "measurements_unchanged": "existing coordinator/process collector/hostmetrics and retained metric cuts only",
+  "limits": {
+    "total_seconds": 600,
+    "independent_TERM": 570,
+    "KILL_after": 5,
+    "startup": 360,
+    "traffic_target": 120,
+    "latest_stop": 480,
+    "exit7hold": 90,
+    "first_failure_stop": true
+  },
+  "runtime_fresh_six_static_only": [
+    "exact_build_guard.py",
+    "launcher.sh",
+    "original-distribution-local.yaml",
+    "supervise.py",
+    "verify-slots.py",
+    "watchdog.py"
+  ],
+  "pending": [
+    "root merge/final CI closure",
+    "root separate one-run approval"
+  ],
+  "Go_CLI_planner_product_HTTP_DB_cloud_operations": 0,
+  "B16_width_code_change": false
+}

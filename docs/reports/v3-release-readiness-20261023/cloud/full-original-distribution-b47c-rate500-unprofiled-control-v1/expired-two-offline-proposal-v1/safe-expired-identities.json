@@ -1,0 +1,54 @@
+{
+  "schema": "b47c-two-expired-safe-identity/v1",
+  "results": [
+    {
+      "attempted_candidates": 3335,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 714
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "959d866140319ee8df82f2dcd8a59214",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1803,
+          "target_group_index": 1803
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798730,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 0
+    },
+    {
+      "attempted_candidates": 3335,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 1114
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "a27116fae1607de909889a19351a43a1",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1849,
+          "target_group_index": 1849
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947799130,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 1
+    }
+  ],
+  "selected_samples": 2
+}

@@ -1,0 +1,75 @@
+{
+  "root_counts": {
+    "run": 657,
+    "output": 1750,
+    "pass": 651,
+    "pause": 215,
+    "cont": 215,
+    "skip": 6
+  },
+  "all_test_counts": {
+    "run": 1323,
+    "output": 3150,
+    "pass": 1317,
+    "pause": 249,
+    "cont": 249,
+    "skip": 6
+  },
+  "package_counts": {
+    "start": 7,
+    "output": 14,
+    "pass": 7
+  },
+  "failed": [],
+  "unfinished": [],
+  "skips": [
+    {
+      "Time": "2026-10-23T03:07:10.879398588Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageRuntimeContract",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-23T03:07:10.90902979Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageEmbeddedPrometheus",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-23T03:07:11.588867359Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestEasySDKReadinessSerialDelayFixture",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-23T03:07:40.059252499Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageLifecycle",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-23T03:07:40.059304679Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageSignedRepository",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-23T03:07:40.427950513Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageRepositoryDeadlineFixture",
+      "Elapsed": 0
+    }
+  ],
+  "elapsed_seconds": 519.119,
+  "output_bytes": 1507079,
+  "output_truncated": false,
+  "source_log_sha256": "b582873534fb04b550c81102833686c88718f3358eb1751d133f53ed351a78dc",
+  "raw_Output_lines_private": true,
+  "test_name_filter_applied": false
+}

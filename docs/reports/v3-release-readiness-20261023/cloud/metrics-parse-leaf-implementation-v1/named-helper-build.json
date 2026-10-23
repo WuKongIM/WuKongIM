@@ -1,0 +1,36 @@
+{
+  "phase": "named-helper-build",
+  "args": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "build",
+    "-o",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-parse-leaf-implementation-v1/review-agent-check",
+    "./cmd/wkreviewcheck"
+  ],
+  "environment": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "2",
+    "GOFLAGS": "-p=1"
+  },
+  "started_at": "2026-10-23T00:20:25.936937+00:00",
+  "wall_seconds": 0.23217266704887152,
+  "exit_code": 0,
+  "reason": "exited",
+  "pid_pgid": 73309,
+  "observed_bytes": {
+    "stdout": 0,
+    "stderr": 0
+  },
+  "limits": {
+    "stdout": 4194304,
+    "stderr": 1048576
+  },
+  "outer_seconds": 60,
+  "test_pins_sha256": "8c0d7d4e066f82318778cb801693812edb14add539351d97d37d837205902910",
+  "same_test_hashes": true,
+  "supplemental_test_pins_sha256": "e687376c70b6d4f598f8b11c71cda6dcf179f95d28f657b4f8235d987c19121b",
+  "source_diff": ""
+}

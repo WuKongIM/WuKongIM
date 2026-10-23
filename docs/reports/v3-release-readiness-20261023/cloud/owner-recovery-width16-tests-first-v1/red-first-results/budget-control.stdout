@@ -1,0 +1,8 @@
+{"Time":"2026-10-23T10:11:17.632072+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence"}
+{"Time":"2026-10-23T10:11:18.138787+08:00","Action":"run","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Test":"TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth"}
+{"Time":"2026-10-23T10:11:18.138973+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Test":"TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth","Output":"=== RUN   TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth\n"}
+{"Time":"2026-10-23T10:11:18.139031+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Test":"TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth","Output":"--- PASS: TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth (0.00s)\n"}
+{"Time":"2026-10-23T10:11:18.139035+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Test":"TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth","Elapsed":0}
+{"Time":"2026-10-23T10:11:18.13905+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Output":"PASS\n"}
+{"Time":"2026-10-23T10:11:18.140273+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Output":"ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/presence\t0.508s\n"}
+{"Time":"2026-10-23T10:11:18.140311+08:00","Action":"pass","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Elapsed":0.508}

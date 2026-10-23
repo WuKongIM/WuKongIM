@@ -1,0 +1,26 @@
+{
+  "id": 120173328166,
+  "run_id": 39879047427,
+  "name": "Exercise Debian 12 package lifecycle",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 83426,
+  "sha256": "47cd737e16812ed327ad5e1c8fc668c1d9022a74988905d02e9e71cfd260cf02",
+  "actual_checkout_candidates": [
+    "5b3fef1c7a3418c13c4a4392533f112915d97ffe"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Check out exact source",
+    "Set up repository Go toolchain",
+    "Download the exact preview packages",
+    "Verify the downloaded package set",
+    "Exercise the operator-owned lifecycle",
+    "Reject tracked-tree mutation",
+    "Post Set up repository Go toolchain",
+    "Post Check out exact source",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

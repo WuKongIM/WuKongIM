@@ -1,0 +1,12 @@
+safe-cleanup-receipt.json
+safe-control-status.json
+safe-final-report.json
+safe-host-resources.json
+safe-independent-zero.json
+safe-input-immutability.json
+safe-metrics-receipts.json
+safe-private-artifact-inventory.json
+safe-run-proof-projector.py
+safe-summary.json
+safe-worker-cuts.json
+safe-worker-evidence.json

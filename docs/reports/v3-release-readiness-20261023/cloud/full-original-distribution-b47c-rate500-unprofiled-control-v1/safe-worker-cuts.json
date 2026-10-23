@@ -1,0 +1,149 @@
+{
+  "schema": "localb47c-fixed-coordinator-cuts/v1",
+  "cuts": [
+    {
+      "at": "2026-10-23T09:58:58.72642825+08:00",
+      "cut": "periodic",
+      "elapsed_since_firstgrant_seconds": 5.027781,
+      "messages": {
+        "sent": 2499,
+        "send_attempts": 2526,
+        "first_attempts": 2499,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 2072,
+        "send_rejected": 0,
+        "received": 2490,
+        "receive_acknowledged": 2490,
+        "receive_ack_failures": 0,
+        "retry_attempts": 27,
+        "terminal": 0,
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "offered_first_attempts_per_elapsed_second": 497.03835548923075,
+      "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+    },
+    {
+      "at": "2026-10-23T09:59:03.7264535+08:00",
+      "cut": "periodic",
+      "elapsed_since_firstgrant_seconds": 10.027806,
+      "messages": {
+        "sent": 4994,
+        "send_attempts": 5072,
+        "first_attempts": 4994,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 4653,
+        "send_rejected": 0,
+        "received": 5758,
+        "receive_acknowledged": 5758,
+        "receive_ack_failures": 0,
+        "retry_attempts": 78,
+        "terminal": 0,
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "offered_first_attempts_per_elapsed_second": 498.0152188823757,
+      "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+    },
+    {
+      "at": "2026-10-23T09:59:08.726473375+08:00",
+      "cut": "periodic",
+      "elapsed_since_firstgrant_seconds": 15.027826,
+      "messages": {
+        "sent": 7493,
+        "send_attempts": 7618,
+        "first_attempts": 7493,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 7201,
+        "send_rejected": 0,
+        "received": 9053,
+        "receive_acknowledged": 9053,
+        "receive_ack_failures": 0,
+        "retry_attempts": 125,
+        "terminal": 0,
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "offered_first_attempts_per_elapsed_second": 498.6083815450086,
+      "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+    },
+    {
+      "at": "2026-10-23T09:59:13.726495584+08:00",
+      "cut": "periodic",
+      "elapsed_since_firstgrant_seconds": 20.027848,
+      "messages": {
+        "sent": 10004,
+        "send_attempts": 10155,
+        "first_attempts": 10004,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 9768,
+        "send_rejected": 0,
+        "received": 12233,
+        "receive_acknowledged": 12233,
+        "receive_ack_failures": 0,
+        "retry_attempts": 151,
+        "terminal": 0,
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "offered_first_attempts_per_elapsed_second": 499.5044899481962,
+      "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+    },
+    {
+      "at": "2026-10-23T09:59:18.7265185+08:00",
+      "cut": "periodic",
+      "elapsed_since_firstgrant_seconds": 25.027871,
+      "messages": {
+        "sent": 12502,
+        "send_attempts": 12682,
+        "first_attempts": 12502,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 12191,
+        "send_rejected": 0,
+        "received": 15148,
+        "receive_acknowledged": 15148,
+        "receive_ack_failures": 0,
+        "retry_attempts": 180,
+        "terminal": 0,
+        "losses": 1,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "offered_first_attempts_per_elapsed_second": 499.52311165420343,
+      "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+    },
+    {
+      "at": "2026-10-23T09:59:26.774676+08:00",
+      "cut": "terminal",
+      "elapsed_since_firstgrant_seconds": 33.076029,
+      "messages": {
+        "sent": 13002,
+        "send_attempts": 13201,
+        "first_attempts": 13002,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 13002,
+        "send_rejected": 0,
+        "received": 16204,
+        "receive_acknowledged": 16204,
+        "receive_ack_failures": 0,
+        "retry_attempts": 199,
+        "terminal": 0,
+        "losses": 2,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "offered_first_attempts_per_elapsed_second": 393.09434636183204,
+      "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "recorded_utc": "2026-10-23T03:19:34.419956+00:00",
+  "all_recorded_pgids_absent": [
+    "16229",
+    "16243",
+    "16244",
+    "16245",
+    "16246",
+    "16249",
+    "16250",
+    "16251",
+    "16252",
+    "16253",
+    "16254",
+    "16255",
+    "16261",
+    "16262",
+    "16265",
+    "16266"
+  ],
+  "task_containers_query": [
+    "/usr/local/bin/docker",
+    "ps",
+    "-a",
+    "--no-trunc",
+    "--filter",
+    "label=wukongim.width16.import=4cb45b340-once-v1",
+    "--format",
+    "{{.ID}}"
+  ],
+  "task_containers_exit": 0,
+  "task_containers_stdout": "",
+  "task_containers_stderr": "",
+  "both_exact_container_inspect_absent": true,
+  "image_removed": "sha256:584d68771fd6700702c4b82c821b69a977559acfb80a5a1a29a450531ceaac1a",
+  "old_and_new_task_tags_empty": {
+    "exit_code": 0,
+    "stdout": "",
+    "old_iid_exists": false,
+    "new_image_id": "sha256:584d68771fd6700702c4b82c821b69a977559acfb80a5a1a29a450531ceaac1a",
+    "new_image_removed": true
+  },
+  "source_clean": true,
+  "four_frozen_test_hashes_unchanged": true,
+  "source_head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "source_tree": "1f2826553a264053e954229ac2581bcf48afe6ad"
+}

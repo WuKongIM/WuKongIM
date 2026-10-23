@@ -1,0 +1,11 @@
+# A two-expired offline proposal failures (before adaptation)
+
+- Select exactly the two retained expired samples from sealed A evidence; unsupported domain/nonunique client fingerprint mapping stops without query or another identity. No source/client/DB schema guessing.
+- Wrong source/tree/clean real.git/CLI SHA/run manifest/worker evidence/identity/source/inventory/warn pins or current SHA-size-mtime drift: stop before any future output/copy/query.
+- Original DB paths are only stat/hashed. One private copy of each of the three message stores, exact full path-size-SHA mapping checked before any CLI opens any copy. Never open original engine.
+- Exactly at most two exact group+ClientMsgNo queries per node, at most six total; one shared90s outer/85s work including copies, reads, original postcheck and owned cleanup. Per-query operation cutoff10s; bounded TERM2/KILL1 cleanup within outer budget, no retry.
+- Stream stdout<=256KiB and stderr<=64KiB per query. Any+1B overflow/nonzero/timeout/invalid JSON/incomplete frame/has_more/nonunique/mismatched ClientMsgNo/invalid uint64/replica divergence stops all subsequent queries. No partial later sample success claim.
+- Two SQL identities are private. Public output only fixed sample index/fingerprint/counts and exact decimal-string MessageID/seq, closed phase/reason. UID/channel/ClientMsgNo/SQL/body/error/log bytes remain private.
+- Canonical same-run warning inventory only (three fixed files,4MiB each/12MiB total), one bounded pass for two tuples, firstgrant→terminal window. Exact full ChannelType/ChannelID/MessageID/seq tuple plus fingerprint mapping required; no group/time-only association.
+- All children get an explicit minimal environment, no inherited WK/cloud/GitHub/proxy credentials. Any unconfirmed ownership/join/original postcheck stays unknown. No global PID scan/kill.
+- Current preparation may hash original files and derive bounded identities; no DB copies/query, no warning decode, no API/profile/product/cloud or new load. Root must approve one later invocation.

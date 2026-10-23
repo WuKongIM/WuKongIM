@@ -1,0 +1,33 @@
+{
+  "id": 120190062325,
+  "run_id": 39884710282,
+  "name": "Build and install deb/rpm preview",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 230549,
+  "sha256": "abda267d3baf5152ed0f7507fbad93e5dd0ad9c082ec228ca7a7d466263feab4",
+  "actual_checkout_candidates": [
+    "b6007c97971b5b3645b8917fc5a14c9499d0cfed"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Check out exact source",
+    "Set up repository Go toolchain",
+    "Run package and CLI contracts",
+    "Run single-node cluster SEND integration",
+    "Build deb and rpm preview",
+    "Validate signed repository metadata closure",
+    "Inspect package metadata",
+    "Install on Ubuntu 24.04",
+    "Install on Debian 12",
+    "Install on Rocky Linux 9",
+    "Install on AlmaLinux 9",
+    "Upload preview packages",
+    "Reject tracked-tree mutation",
+    "Post Set up repository Go toolchain",
+    "Post Check out exact source",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

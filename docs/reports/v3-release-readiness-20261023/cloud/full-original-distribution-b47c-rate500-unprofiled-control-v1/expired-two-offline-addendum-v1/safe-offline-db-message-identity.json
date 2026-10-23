@@ -1,0 +1,240 @@
+{
+  "schema": "b47c-two-expired-offline-db/v1",
+  "started_at_utc": "2026-10-23T02:23:59.649400+00:00",
+  "binary_sha256": "d4e76e3ff0b770a5450923cb5bd8f04195758b4daeea48b9856b3ba706982c41",
+  "original_databases_opened": false,
+  "maximum_queries": 6,
+  "operation_timeout_seconds_each": 10,
+  "query_TERM_KILL_within_shared_outer_seconds": [
+    2,
+    1
+  ],
+  "overall_bound_seconds": 90,
+  "stdout_cap_each": 262144,
+  "stderr_cap_each": 65536,
+  "queries_started": 6,
+  "samples": [
+    {
+      "worker_id": 0,
+      "sample_index": "9223380832947798730",
+      "ordinal": 714,
+      "group_index": 1803,
+      "fingerprint": "959d866140319ee8df82f2dcd8a59214",
+      "nodes": [
+        {
+          "node_id": 1,
+          "opened_copy": true,
+          "exit_code": 0,
+          "elapsed_seconds": 0.07569079205859452,
+          "process_joined": true,
+          "query_failure": null,
+          "argv_redacted": [
+            "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-b47c-native-v1/darwin-arm64/wkcli",
+            "db",
+            "--message-path",
+            "PRIVATE_copy/node1",
+            "--format",
+            "json",
+            "query",
+            "PRIVATE_exact_channel_and_clientno_limit100"
+          ],
+          "argv_full_sha256": "a8964c6f835fc3d102ea028746d307ec800f682cbbb3fd15ba5e2fed86adc69d",
+          "stdout_bytes": 452,
+          "stdout_sha256": "92b8b0d0d22fcc9523ae7661d206808767dc22c906c9031c55d9935d8feabba1",
+          "stderr_bytes": 4758,
+          "stderr_sha256": "52de33175e12f9fefa7bd7386f90df5cbc92b787d1e7f7c318b315ca0557539e",
+          "matching_messages": [
+            {
+              "message_id": "2113450116886040577",
+              "message_seq": "1",
+              "client_msg_no_fingerprint_match": true
+            }
+          ],
+          "status": "unique_matching_durable_row",
+          "matching_row_count": 1,
+          "has_more": false
+        },
+        {
+          "node_id": 2,
+          "opened_copy": true,
+          "exit_code": 0,
+          "elapsed_seconds": 0.06843424995895475,
+          "process_joined": true,
+          "query_failure": null,
+          "argv_redacted": [
+            "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-b47c-native-v1/darwin-arm64/wkcli",
+            "db",
+            "--message-path",
+            "PRIVATE_copy/node2",
+            "--format",
+            "json",
+            "query",
+            "PRIVATE_exact_channel_and_clientno_limit100"
+          ],
+          "argv_full_sha256": "e1cbbaa3323abc1a14411a83ba0ff540423155444daf8484dc504880a91c2687",
+          "stdout_bytes": 452,
+          "stdout_sha256": "92b8b0d0d22fcc9523ae7661d206808767dc22c906c9031c55d9935d8feabba1",
+          "stderr_bytes": 4757,
+          "stderr_sha256": "a0554f88d6e3637049c10589dae9ad3b8edf4ca5fc4388e23f17b4f4bb2a5a59",
+          "matching_messages": [
+            {
+              "message_id": "2113450116886040577",
+              "message_seq": "1",
+              "client_msg_no_fingerprint_match": true
+            }
+          ],
+          "status": "unique_matching_durable_row",
+          "matching_row_count": 1,
+          "has_more": false
+        },
+        {
+          "node_id": 3,
+          "opened_copy": true,
+          "exit_code": 0,
+          "elapsed_seconds": 0.06689283298328519,
+          "process_joined": true,
+          "query_failure": null,
+          "argv_redacted": [
+            "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-b47c-native-v1/darwin-arm64/wkcli",
+            "db",
+            "--message-path",
+            "PRIVATE_copy/node3",
+            "--format",
+            "json",
+            "query",
+            "PRIVATE_exact_channel_and_clientno_limit100"
+          ],
+          "argv_full_sha256": "75454fd8663c8912ef37095c4c27b8c5342256df560d593cb7f73dbfe91504f4",
+          "stdout_bytes": 452,
+          "stdout_sha256": "92b8b0d0d22fcc9523ae7661d206808767dc22c906c9031c55d9935d8feabba1",
+          "stderr_bytes": 4757,
+          "stderr_sha256": "54797ab136d7d1eace07f7dbdaf6288a4bca4e876a09cc9ec1d6505b04ecaca7",
+          "matching_messages": [
+            {
+              "message_id": "2113450116886040577",
+              "message_seq": "1",
+              "client_msg_no_fingerprint_match": true
+            }
+          ],
+          "status": "unique_matching_durable_row",
+          "matching_row_count": 1,
+          "has_more": false
+        }
+      ]
+    },
+    {
+      "worker_id": 1,
+      "sample_index": "9223380832947799130",
+      "ordinal": 1114,
+      "group_index": 1849,
+      "fingerprint": "a27116fae1607de909889a19351a43a1",
+      "nodes": [
+        {
+          "node_id": 1,
+          "opened_copy": true,
+          "exit_code": 0,
+          "elapsed_seconds": 0.06645333301275969,
+          "process_joined": true,
+          "query_failure": null,
+          "argv_redacted": [
+            "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-b47c-native-v1/darwin-arm64/wkcli",
+            "db",
+            "--message-path",
+            "PRIVATE_copy/node1",
+            "--format",
+            "json",
+            "query",
+            "PRIVATE_exact_channel_and_clientno_limit100"
+          ],
+          "argv_full_sha256": "dfa20886f06bf6d605dd049b2a5f9e69a16d4a3770927d1f86d12be7b046215d",
+          "stdout_bytes": 452,
+          "stdout_sha256": "071420c5d2e5c0064c564fd625baee87d9c4fae42dc88961e04291057e80e500",
+          "stderr_bytes": 4758,
+          "stderr_sha256": "52de33175e12f9fefa7bd7386f90df5cbc92b787d1e7f7c318b315ca0557539e",
+          "matching_messages": [
+            {
+              "message_id": "2113450150155268096",
+              "message_seq": "1",
+              "client_msg_no_fingerprint_match": true
+            }
+          ],
+          "status": "unique_matching_durable_row",
+          "matching_row_count": 1,
+          "has_more": false
+        },
+        {
+          "node_id": 2,
+          "opened_copy": true,
+          "exit_code": 0,
+          "elapsed_seconds": 0.0681902919895947,
+          "process_joined": true,
+          "query_failure": null,
+          "argv_redacted": [
+            "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-b47c-native-v1/darwin-arm64/wkcli",
+            "db",
+            "--message-path",
+            "PRIVATE_copy/node2",
+            "--format",
+            "json",
+            "query",
+            "PRIVATE_exact_channel_and_clientno_limit100"
+          ],
+          "argv_full_sha256": "ae05534671ffedba5608845fe96335ab0f85b10caea7833f1f198b5682c3c2d5",
+          "stdout_bytes": 452,
+          "stdout_sha256": "071420c5d2e5c0064c564fd625baee87d9c4fae42dc88961e04291057e80e500",
+          "stderr_bytes": 4757,
+          "stderr_sha256": "ae648d034e26ea800f939fd62655ec07601e19e1e11c3e82f9d01cdbdf95f8ae",
+          "matching_messages": [
+            {
+              "message_id": "2113450150155268096",
+              "message_seq": "1",
+              "client_msg_no_fingerprint_match": true
+            }
+          ],
+          "status": "unique_matching_durable_row",
+          "matching_row_count": 1,
+          "has_more": false
+        },
+        {
+          "node_id": 3,
+          "opened_copy": true,
+          "exit_code": 0,
+          "elapsed_seconds": 0.06447325006593019,
+          "process_joined": true,
+          "query_failure": null,
+          "argv_redacted": [
+            "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-b47c-native-v1/darwin-arm64/wkcli",
+            "db",
+            "--message-path",
+            "PRIVATE_copy/node3",
+            "--format",
+            "json",
+            "query",
+            "PRIVATE_exact_channel_and_clientno_limit100"
+          ],
+          "argv_full_sha256": "1d1773595586634b17ea58dab4f951036df151b73a17afa5209371552205e439",
+          "stdout_bytes": 452,
+          "stdout_sha256": "071420c5d2e5c0064c564fd625baee87d9c4fae42dc88961e04291057e80e500",
+          "stderr_bytes": 4757,
+          "stderr_sha256": "dbfe1c28974bd0fa93be46e6d656ad89c3aa242d10f56297cea944d02a2b66ce",
+          "matching_messages": [
+            {
+              "message_id": "2113450150155268096",
+              "message_seq": "1",
+              "client_msg_no_fingerprint_match": true
+            }
+          ],
+          "status": "unique_matching_durable_row",
+          "matching_row_count": 1,
+          "has_more": false
+        }
+      ]
+    }
+  ],
+  "copy_integrity_verified_before_any_CLI_open": true,
+  "original_bytes_mtime_unchanged": true,
+  "finished_at_utc": "2026-10-23T02:24:00.169397+00:00",
+  "original_file_count": 36,
+  "original_bytes": 82376917,
+  "expected_inventory_sha256": "dd9d5b87b06bf3bdb6894e111b4b81966526d27eedee0464d9a549780ca68ad8"
+}

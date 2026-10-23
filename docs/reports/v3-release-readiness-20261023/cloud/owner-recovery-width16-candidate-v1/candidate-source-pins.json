@@ -1,0 +1,17 @@
+{
+  "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+  "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+  "internal/usecase/presence/FLOW.md": "bf5dc014ecbb61f951e11d0576189ed3cfadf5d319ffb312fbe9cc84f2742a49",
+  "internal/runtime/presence/FLOW.md": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+  "internal/infra/cluster/FLOW.md": "534e7fce0d3e53d1cef322c0529f779b9dba5453643e1a5e8a3396f228f2abdc",
+  ".github/review-agent/policy.json": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  ".github/workflows/README.md": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+  "internal/usecase/presence/recovery_flights.go": "5af40084a1a35cfadf0cc713309229ac873044e4e8defec9fd2d9b6a593ba31c",
+  "internal/infra/cluster/presence_recovery.go": "bbd399c04d4e33ccdf3e0a6c34439bf4cb5d1e22cf7408e9751ffc55fe53ad46",
+  "internal/usecase/presence/recovery.go": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b",
+  "internal/usecase/presence/owner_recovery.go": "d2c49e662a578ab380bccc2b594e9f4b100558137c007078ab4694e5d32e6717",
+  "pkg/cluster/net/transport.go": "d0a3d07ecf1220069b9c374af65eaa4ee0b400312da6cfb730391c91be8b9be9",
+  "internal/runtime/delivery/runtime.go": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561",
+  "CHANGELOG.md": "9857561a0e9fb5f3890bc627054887c4ff44fb1db936700a8b01c65985a048a3",
+  "docs/development/PROJECT_KNOWLEDGE.md": "d854eb770e96c52a7f97f452561f9c0ad844ae92b814e3a27e455592a0cddf72"
+}

@@ -1,0 +1,134 @@
+{
+  "records": [
+    {
+      "phase": "tag-preflight",
+      "argv": [
+        "/usr/local/bin/docker",
+        "image",
+        "ls",
+        "--no-trunc",
+        "--filter",
+        "reference=wukongim-width16-scratch:4cb45b340-local",
+        "--format",
+        "{{.ID}}"
+      ],
+      "started_utc": "2026-10-23T03:08:27.232451+00:00",
+      "elapsed_seconds": 0.064,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 14396,
+      "observed_bytes": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "outer_seconds": 15,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "compile-presence",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-c",
+        "-tags=integration",
+        "-buildvcs=true",
+        "-o",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/context/presence.test",
+        "./internal/usecase/presence"
+      ],
+      "started_utc": "2026-10-23T03:08:27.296934+00:00",
+      "elapsed_seconds": 12.448,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 14399,
+      "observed_bytes": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "outer_seconds": 180,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "compile-cluster",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-c",
+        "-tags=integration",
+        "-buildvcs=true",
+        "-o",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/context/cluster.test",
+        "./internal/infra/cluster"
+      ],
+      "started_utc": "2026-10-23T03:08:39.745786+00:00",
+      "elapsed_seconds": 28.042,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 14916,
+      "observed_bytes": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "outer_seconds": 180,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "binary-build-info",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "version",
+        "-m",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/context/presence.test",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/context/cluster.test"
+      ],
+      "started_utc": "2026-10-23T03:09:07.815625+00:00",
+      "elapsed_seconds": 0.008,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 15575,
+      "observed_bytes": {
+        "stdout": 1046,
+        "stderr": 0
+      },
+      "outer_seconds": 15,
+      "stdout_bytes_limit": 65536,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "scratch-build",
+      "argv": [
+        "/usr/local/bin/docker",
+        "build",
+        "--pull=false",
+        "--network=none",
+        "--no-cache",
+        "--iidfile",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/image.iid",
+        "-t",
+        "wukongim-width16-scratch:4cb45b340-local",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/context"
+      ],
+      "started_utc": "2026-10-23T03:09:07.858441+00:00",
+      "elapsed_seconds": 60.023,
+      "exit_code": -9,
+      "outer_or_output_kill": "outer_timeout",
+      "pgid": 15577,
+      "observed_bytes": {
+        "stdout": 0,
+        "stderr": 209
+      },
+      "outer_seconds": 60,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    }
+  ],
+  "runtime_results": [],
+  "success": false,
+  "image_left_for_parent_review": null,
+  "source": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate",
+  "head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "tree": "1f2826553a264053e954229ac2581bcf48afe6ad"
+}

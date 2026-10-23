@@ -1,0 +1,385 @@
+{
+  "status": "complete",
+  "error_class": "ok",
+  "exit_status": 0,
+  "pid": 88228,
+  "joined": true,
+  "elapsed_seconds": 3.7364192079985514,
+  "stdout_eof": true,
+  "stderr_eof": true,
+  "stdout_stream_bytes": 1032782759,
+  "stdout_retained_bytes": 0,
+  "stderr_retained_bytes": 0,
+  "stdout_sha256": "e9dd82be8810ccf435dd88a5e8d24c6e9c24f3cf07bb604850a8e6304b487760",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "node_id": 1,
+  "kind": "full_reader_validation_v2",
+  "argv": [
+    "/Users/tt/Library/Caches/go-build/63/630763ab897112a29e73d0a4ff8803389c5842fd7f0017aa1223049621925f6e-d/trace",
+    "-d=parsed",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-1/traces/node-1-execution.trace"
+  ],
+  "env": {
+    "PATH": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "TZ": "UTC",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOENV": "off",
+    "GOFLAGS": "",
+    "GOEXPERIMENT": "",
+    "GOMAXPROCS": "1",
+    "GOMEMLIMIT": "512MiB",
+    "GOTELEMETRY": "off",
+    "HOME": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-followup-v2/isolated-home",
+    "TMPDIR": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-followup-v2/tmp",
+    "PPROF_TMPDIR": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-followup-v2/tmp",
+    "PPROF_BINARY_PATH": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-followup-v2/empty-binary-path"
+  },
+  "input_before": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-1/traces/node-1-execution.trace",
+      "sha256": "d9136fdc91a8f1c37a677d6f455f7f14bc95e2075024631557f643ad48e74e9b",
+      "bytes": 8709571,
+      "mtime_ns": 1792717616343668045,
+      "device": 16777233,
+      "inode": 410614899
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-2/traces/node-2-execution.trace",
+      "sha256": "f72ee145d3e9df291554f44ee6379925d2661683e6bb9ebb80518359b389919f",
+      "bytes": 7901266,
+      "mtime_ns": 1792717616329454331,
+      "device": 16777233,
+      "inode": 410614901
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-3/traces/node-3-execution.trace",
+      "sha256": "bd83b49a8787649f5f484103e5530b343c6583effb1e652dfcb572b094d28b15",
+      "bytes": 7535779,
+      "mtime_ns": 1792717616329893333,
+      "device": 16777233,
+      "inode": 410614904
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/safe-trace-manifest.json",
+      "sha256": "5964aeae46282da0b8c306635f2a730ec02e358884e1d4b347c9fa1fe980b04d",
+      "bytes": 3700,
+      "mtime_ns": 1792717938672854754,
+      "device": 16777233,
+      "inode": 410615713
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/profile-driver-status.json",
+      "sha256": "3ff092b8c611cca6ab6b1d410dfac19082eeca7d5a3bae620673e144ab26e4a2",
+      "bytes": 10599,
+      "mtime_ns": 1792717616410794062,
+      "device": 16777233,
+      "inode": 410615066
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/report/run-start.json",
+      "sha256": "2f66717820fe8b3160a46e1a3c91d6883c02b0cb63cc83abf05a56efb4919ac5",
+      "bytes": 391,
+      "mtime_ns": 1792717602191960135,
+      "device": 16777233,
+      "inode": 410614829
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/report/diagnostic-status.json",
+      "sha256": "be56ceded1d49be017c35f7bdd9d679c807485181e609c032c20594252e61ac2",
+      "bytes": 9062,
+      "mtime_ns": 1792717637811647904,
+      "device": 16777233,
+      "inode": 410615335
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/evidence/first-measured-status.json",
+      "sha256": "a9a835694b7774b8f558abd7e485480ff0cb920cad217b328f2d76b579a45dc0",
+      "bytes": 5783,
+      "mtime_ns": 1792717607308816804,
+      "device": 16777233,
+      "inode": 410614923
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/supervisor-events.json",
+      "sha256": "bde6337aa436d24a1c4b60285c9d3af545a3f2f2acf9b557831975acfad7e9d8",
+      "bytes": 556,
+      "mtime_ns": 1792717638130898431,
+      "device": 16777233,
+      "inode": 410615354
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/cleanup-receipt.json",
+      "sha256": "efe26af63ef52cd4eed6eeade07f947d966c71e7676b410cc2d2c1f3a66d51d4",
+      "bytes": 920,
+      "mtime_ns": 1792717640050441398,
+      "device": 16777233,
+      "inode": 410615385
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/evidence/coordinator-exit-status",
+      "sha256": "aa67a169b0bba217aa0aa88a65346920c84c42447c36ba5f7ea65f422c1fe5d8",
+      "bytes": 2,
+      "mtime_ns": 1792717637899986116,
+      "device": 16777233,
+      "inode": 410615351
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/evidence/profile-driver-exit-status",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "mtime_ns": 1792717637900135950,
+      "device": 16777233,
+      "inode": 410615352
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-1/metadata.json",
+      "sha256": "630970323215b9a2d0ae008f8568c5eb8d655b740863d5685d46ebcb1967f5cc",
+      "bytes": 556,
+      "mtime_ns": 1792717616389050614,
+      "device": 16777233,
+      "inode": 410615065
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-1/requests/node-1-execution-trace.json",
+      "sha256": "51f06bbe2a7868d720f621470861ccff50e6102ebb860637189e73c3ef7f57a0",
+      "bytes": 860,
+      "mtime_ns": 1792717616374771441,
+      "device": 16777233,
+      "inode": 410615064
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-2/metadata.json",
+      "sha256": "8224c90ae6dfd8e01568d1f937e3815f403a8cca8d6e2ef01620ef659e23c358",
+      "bytes": 556,
+      "mtime_ns": 1792717616330515585,
+      "device": 16777233,
+      "inode": 410615059
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-2/requests/node-2-execution-trace.json",
+      "sha256": "8b482416acd052ba81cbdefeecda9ca19abc97ddb6f7125fd4acbfc3b4d15a6e",
+      "bytes": 860,
+      "mtime_ns": 1792717616330419918,
+      "device": 16777233,
+      "inode": 410615058
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-3/metadata.json",
+      "sha256": "db148728392f6af8781ed985739a10b3fda6393ad21cadd4789addbda2f054ac",
+      "bytes": 556,
+      "mtime_ns": 1792717616374767441,
+      "device": 16777233,
+      "inode": 410615063
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-3/requests/node-3-execution-trace.json",
+      "sha256": "913e92f2fd7b2bdd8c17d0ac343855e12c35349445638f5a247ae6b8afcce5b9",
+      "bytes": 860,
+      "mtime_ns": 1792717616371105596,
+      "device": 16777233,
+      "inode": 410615062
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/node-1-sched.pb.gz",
+      "sha256": "64c074822cac07d4f659bf2d8379e5320ba269092fe0e0ab9ddd1afb608d7403",
+      "bytes": 49810,
+      "mtime_ns": 1792718593810277203,
+      "device": 16777233,
+      "inode": 410616408
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/node-2-sched.pb.gz",
+      "sha256": "9a319a7d1ee3a4b6bd93360153e15f22f446a4dd87ad6647a986338f3b735122",
+      "bytes": 54951,
+      "mtime_ns": 1792718596016229730,
+      "device": 16777233,
+      "inode": 410616451
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/node-3-sched.pb.gz",
+      "sha256": "d534ed64779cfb05810948b74ddaa6b426cd1fd667e7b2236f6dd6771c8357df",
+      "bytes": 48681,
+      "mtime_ns": 1792718598301566237,
+      "device": 16777233,
+      "inode": 410616493
+    }
+  ],
+  "input_after": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-1/traces/node-1-execution.trace",
+      "sha256": "d9136fdc91a8f1c37a677d6f455f7f14bc95e2075024631557f643ad48e74e9b",
+      "bytes": 8709571,
+      "mtime_ns": 1792717616343668045,
+      "device": 16777233,
+      "inode": 410614899
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-2/traces/node-2-execution.trace",
+      "sha256": "f72ee145d3e9df291554f44ee6379925d2661683e6bb9ebb80518359b389919f",
+      "bytes": 7901266,
+      "mtime_ns": 1792717616329454331,
+      "device": 16777233,
+      "inode": 410614901
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-3/traces/node-3-execution.trace",
+      "sha256": "bd83b49a8787649f5f484103e5530b343c6583effb1e652dfcb572b094d28b15",
+      "bytes": 7535779,
+      "mtime_ns": 1792717616329893333,
+      "device": 16777233,
+      "inode": 410614904
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/safe-trace-manifest.json",
+      "sha256": "5964aeae46282da0b8c306635f2a730ec02e358884e1d4b347c9fa1fe980b04d",
+      "bytes": 3700,
+      "mtime_ns": 1792717938672854754,
+      "device": 16777233,
+      "inode": 410615713
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/profile-driver-status.json",
+      "sha256": "3ff092b8c611cca6ab6b1d410dfac19082eeca7d5a3bae620673e144ab26e4a2",
+      "bytes": 10599,
+      "mtime_ns": 1792717616410794062,
+      "device": 16777233,
+      "inode": 410615066
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/report/run-start.json",
+      "sha256": "2f66717820fe8b3160a46e1a3c91d6883c02b0cb63cc83abf05a56efb4919ac5",
+      "bytes": 391,
+      "mtime_ns": 1792717602191960135,
+      "device": 16777233,
+      "inode": 410614829
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/report/diagnostic-status.json",
+      "sha256": "be56ceded1d49be017c35f7bdd9d679c807485181e609c032c20594252e61ac2",
+      "bytes": 9062,
+      "mtime_ns": 1792717637811647904,
+      "device": 16777233,
+      "inode": 410615335
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/evidence/first-measured-status.json",
+      "sha256": "a9a835694b7774b8f558abd7e485480ff0cb920cad217b328f2d76b579a45dc0",
+      "bytes": 5783,
+      "mtime_ns": 1792717607308816804,
+      "device": 16777233,
+      "inode": 410614923
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/supervisor-events.json",
+      "sha256": "bde6337aa436d24a1c4b60285c9d3af545a3f2f2acf9b557831975acfad7e9d8",
+      "bytes": 556,
+      "mtime_ns": 1792717638130898431,
+      "device": 16777233,
+      "inode": 410615354
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/cleanup-receipt.json",
+      "sha256": "efe26af63ef52cd4eed6eeade07f947d966c71e7676b410cc2d2c1f3a66d51d4",
+      "bytes": 920,
+      "mtime_ns": 1792717640050441398,
+      "device": 16777233,
+      "inode": 410615385
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/evidence/coordinator-exit-status",
+      "sha256": "aa67a169b0bba217aa0aa88a65346920c84c42447c36ba5f7ea65f422c1fe5d8",
+      "bytes": 2,
+      "mtime_ns": 1792717637899986116,
+      "device": 16777233,
+      "inode": 410615351
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/evidence/profile-driver-exit-status",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "mtime_ns": 1792717637900135950,
+      "device": 16777233,
+      "inode": 410615352
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-1/metadata.json",
+      "sha256": "630970323215b9a2d0ae008f8568c5eb8d655b740863d5685d46ebcb1967f5cc",
+      "bytes": 556,
+      "mtime_ns": 1792717616389050614,
+      "device": 16777233,
+      "inode": 410615065
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-1/requests/node-1-execution-trace.json",
+      "sha256": "51f06bbe2a7868d720f621470861ccff50e6102ebb860637189e73c3ef7f57a0",
+      "bytes": 860,
+      "mtime_ns": 1792717616374771441,
+      "device": 16777233,
+      "inode": 410615064
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-2/metadata.json",
+      "sha256": "8224c90ae6dfd8e01568d1f937e3815f403a8cca8d6e2ef01620ef659e23c358",
+      "bytes": 556,
+      "mtime_ns": 1792717616330515585,
+      "device": 16777233,
+      "inode": 410615059
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-2/requests/node-2-execution-trace.json",
+      "sha256": "8b482416acd052ba81cbdefeecda9ca19abc97ddb6f7125fd4acbfc3b4d15a6e",
+      "bytes": 860,
+      "mtime_ns": 1792717616330419918,
+      "device": 16777233,
+      "inode": 410615058
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-3/metadata.json",
+      "sha256": "db148728392f6af8781ed985739a10b3fda6393ad21cadd4789addbda2f054ac",
+      "bytes": 556,
+      "mtime_ns": 1792717616374767441,
+      "device": 16777233,
+      "inode": 410615063
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/traces-three-node/node-3/requests/node-3-execution-trace.json",
+      "sha256": "913e92f2fd7b2bdd8c17d0ac343855e12c35349445638f5a247ae6b8afcce5b9",
+      "bytes": 860,
+      "mtime_ns": 1792717616371105596,
+      "device": 16777233,
+      "inode": 410615062
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/node-1-sched.pb.gz",
+      "sha256": "64c074822cac07d4f659bf2d8379e5320ba269092fe0e0ab9ddd1afb608d7403",
+      "bytes": 49810,
+      "mtime_ns": 1792718593810277203,
+      "device": 16777233,
+      "inode": 410616408
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/node-2-sched.pb.gz",
+      "sha256": "9a319a7d1ee3a4b6bd93360153e15f22f446a4dd87ad6647a986338f3b735122",
+      "bytes": 54951,
+      "mtime_ns": 1792718596016229730,
+      "device": 16777233,
+      "inode": 410616451
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/private/2662-three-execution-trace-offline-v1/node-3-sched.pb.gz",
+      "sha256": "d534ed64779cfb05810948b74ddaa6b426cd1fd667e7b2236f6dd6771c8357df",
+      "bytes": 48681,
+      "mtime_ns": 1792718598301566237,
+      "device": 16777233,
+      "inode": 410616493
+    }
+  ],
+  "timeout_seconds": 30,
+  "stdout_cap": 2147483648,
+  "stderr_cap": 16384
+}

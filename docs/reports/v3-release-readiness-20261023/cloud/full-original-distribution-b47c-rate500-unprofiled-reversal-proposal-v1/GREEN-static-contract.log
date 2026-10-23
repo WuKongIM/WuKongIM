@@ -1,0 +1,8 @@
+test_every_changed_input_rejected (__main__.StaticControl.test_every_changed_input_rejected) ... ok
+test_no_capture_or_sampler_dependency (__main__.StaticControl.test_no_capture_or_sampler_dependency) ... ok
+test_valid_four_inputs_without_sampler_return_pinned_launcher (__main__.StaticControl.test_valid_four_inputs_without_sampler_return_pinned_launcher) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.012s
+
+OK

@@ -1,0 +1,37 @@
+{
+  "total_count": 37,
+  "review_agent_workflows": [
+    {
+      "id": 324186999,
+      "name": "Safety Automation - Review Agent PR Signal",
+      "path": ".github/workflows/review-agent-pr-signal.yml",
+      "state": "disabled_manually",
+      "created_at": "2026-07-31T11:36:34.000+08:00",
+      "updated_at": "2026-09-07T15:54:41.000+08:00"
+    },
+    {
+      "id": 324187001,
+      "name": "Agent Tool - Review Pull Request",
+      "path": ".github/workflows/review-agent-run.yml",
+      "state": "disabled_manually",
+      "created_at": "2026-07-31T11:36:34.000+08:00",
+      "updated_at": "2026-09-07T15:54:34.000+08:00"
+    },
+    {
+      "id": 324187004,
+      "name": "Safety Automation - Review Agent Controller",
+      "path": ".github/workflows/review-agent.yml",
+      "state": "disabled_manually",
+      "created_at": "2026-07-31T11:36:34.000+08:00",
+      "updated_at": "2026-09-07T15:54:32.000+08:00"
+    },
+    {
+      "id": 324248914,
+      "name": "Temporary Review Agent User Namespace Diagnostic",
+      "path": ".github/workflows/review-agent-userns-diagnostic.yaml",
+      "state": "disabled_manually",
+      "created_at": "2026-07-31T14:19:27.000+08:00",
+      "updated_at": "2026-07-31T17:32:16.000+08:00"
+    }
+  ]
+}

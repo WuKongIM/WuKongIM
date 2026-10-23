@@ -1,0 +1,15 @@
+{
+  "started_at": "2026-10-23T00:40:22.318242+00:00",
+  "finished_at": "2026-10-23T00:40:23.204093+00:00",
+  "method": "GET",
+  "endpoint": "actions/workflows/review-agent-pr-signal.yml",
+  "exit_code": 0,
+  "timeout": false,
+  "stdout_bytes": 585,
+  "stdout_sha256": "ffd3857ca3b30174e046984fb77b37c51908bacf63f71f01d9f6e2103da4fc9a",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_response": "private sibling excluded",
+  "retry_count": 0,
+  "public_json_sha256": "44471445ded99190c0a83b71e27b7ce7f73fa115d86b95eb622c71c34b21aeef"
+}

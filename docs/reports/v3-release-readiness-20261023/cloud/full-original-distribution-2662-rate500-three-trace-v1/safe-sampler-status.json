@@ -1,0 +1,254 @@
+{
+  "schema": "wukongim/temporary-three-node-first-grant-execution-trace-driver/v1",
+  "fixture_or_real_target": "caller_declared_loopback_physical_nodes1_2_3",
+  "status": "transfer_complete",
+  "reason": "ok",
+  "started_at_utc": "2026-10-23T01:02:58.554727+00:00",
+  "completed_at_utc": "2026-10-23T01:06:56.401493+00:00",
+  "owner_pgid": 78820,
+  "driver_pid": 79248,
+  "receipt": {
+    "sha256": "2f66717820fe8b3160a46e1a3c91d6883c02b0cb63cc83abf05a56efb4919ac5",
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc",
+    "generation": 1,
+    "started_at": "2026-10-23T09:06:42.178747+08:00",
+    "seen_at": "2026-10-23T01:06:42.232249+00:00",
+    "detection_lag_seconds": 0.053502,
+    "publication_lag_limit": "receipt written after firstgrant and datasetprobe; capture is scheduled nominally at firstgrant+4s",
+    "nominal_capture_start_at": "2026-10-23T09:06:46.178747+08:00",
+    "scheduled_start_lateness_limit_seconds": 2,
+    "scheduled_launch_lateness_seconds": 0.007529333001002669
+  },
+  "nodes": [
+    {
+      "node_id": 1,
+      "binding": {
+        "node_id": 1,
+        "API_URL": "http://127.0.0.1:25001",
+        "config_sha256": "ff5fe20ce9fb7942d7a7e59c9e5cc160388b6f4664e40d2da813c8e3a976b25d",
+        "config_node_id": 1,
+        "observed_slot_NodeID": 1,
+        "slot_receipt_sha256": "6ce1e66367479bd04bc605fdf149dfbbcd3d35725b82b42ba6a60c885a844bb2",
+        "launcher_sha256": "629948db2cefa526f1d4bdf135c01e501bfefadd6c9a9f899292924e8f277881",
+        "effective_env_binding": {
+          "WK_NODE_ID": "1",
+          "WK_API_LISTEN_ADDR": "127.0.0.1:25001"
+        },
+        "port_binding_evidence": "sealed launcher mapping reviewed before run; TOML API default is overridden by this environment; existing manager Slot node IDs, no extra API probe"
+      },
+      "capture_pid": 83401,
+      "capture_joined": true,
+      "helper_exit_status": 0,
+      "kill_escalated": false,
+      "helper_launch_parent_observed_at": "2026-10-23T01:06:46.208746+00:00",
+      "status": "transfer_complete",
+      "reason": "ok",
+      "metadata": {
+        "schema": "wukongim.local_execution_trace_capture/v1",
+        "capture": {
+          "status": "transfer_complete",
+          "reason": "ok",
+          "transfer_complete": true,
+          "trace_format_valid": null,
+          "trace_decoded": false,
+          "requested_seconds": 10,
+          "started_at_utc": "2026-10-23T01:06:46.280721+00:00",
+          "completed_at_utc": "2026-10-23T01:06:56.378760+00:00"
+        },
+        "nodes": [
+          {
+            "node": "node-1",
+            "execution_trace": "transfer_complete"
+          }
+        ],
+        "accepted_body_cap_bytes": 67108864,
+        "server_byte_or_memory_cap_claimed": false
+      },
+      "request": {
+        "schema": "wukongim/local-execution-trace-transfer/v1",
+        "node_id": 1,
+        "kind": "execution_trace",
+        "status": "transfer_complete",
+        "reason": "ok",
+        "curl_exit_code": 0,
+        "http_status": "200",
+        "curl_joined": true,
+        "kill_escalated": false,
+        "retained_body_bytes": 8709571,
+        "received_body_bytes": 8709571,
+        "max_bytes": 67108864,
+        "sha256": "d9136fdc91a8f1c37a677d6f455f7f14bc95e2075024631557f643ad48e74e9b",
+        "connect_timeout_seconds": 2,
+        "curl_total_timeout_seconds": 15,
+        "requested_trace_seconds": 10,
+        "curl_launch_parent_observed_at": "2026-10-23T01:06:46.280938+00:00",
+        "completed_at_utc": "2026-10-23T01:06:56.349173+00:00",
+        "stderr_retained_bytes": 25,
+        "stderr_total_bytes": 25,
+        "stderr_sha256": "ebecf34615e4b0abb04225212c5e047f911abd5a2c94417e91a859d7737b8e6a",
+        "trace_format_valid": null,
+        "trace_decoded": false
+      }
+    },
+    {
+      "node_id": 2,
+      "binding": {
+        "node_id": 2,
+        "API_URL": "http://127.0.0.1:25002",
+        "config_sha256": "de5adcfca4ae05293f05402974499e76558b470fee0a9431fa05905381bdde0e",
+        "config_node_id": 2,
+        "observed_slot_NodeID": 2,
+        "slot_receipt_sha256": "6ce1e66367479bd04bc605fdf149dfbbcd3d35725b82b42ba6a60c885a844bb2",
+        "launcher_sha256": "629948db2cefa526f1d4bdf135c01e501bfefadd6c9a9f899292924e8f277881",
+        "effective_env_binding": {
+          "WK_NODE_ID": "2",
+          "WK_API_LISTEN_ADDR": "127.0.0.1:25002"
+        },
+        "port_binding_evidence": "sealed launcher mapping reviewed before run; TOML API default is overridden by this environment; existing manager Slot node IDs, no extra API probe"
+      },
+      "capture_pid": 83402,
+      "capture_joined": true,
+      "helper_exit_status": 0,
+      "kill_escalated": false,
+      "helper_launch_parent_observed_at": "2026-10-23T01:06:46.214043+00:00",
+      "status": "transfer_complete",
+      "reason": "ok",
+      "metadata": {
+        "schema": "wukongim.local_execution_trace_capture/v1",
+        "capture": {
+          "status": "transfer_complete",
+          "reason": "ok",
+          "transfer_complete": true,
+          "trace_format_valid": null,
+          "trace_decoded": false,
+          "requested_seconds": 10,
+          "started_at_utc": "2026-10-23T01:06:46.284787+00:00",
+          "completed_at_utc": "2026-10-23T01:06:56.330432+00:00"
+        },
+        "nodes": [
+          {
+            "node": "node-2",
+            "execution_trace": "transfer_complete"
+          }
+        ],
+        "accepted_body_cap_bytes": 67108864,
+        "server_byte_or_memory_cap_claimed": false
+      },
+      "request": {
+        "schema": "wukongim/local-execution-trace-transfer/v1",
+        "node_id": 2,
+        "kind": "execution_trace",
+        "status": "transfer_complete",
+        "reason": "ok",
+        "curl_exit_code": 0,
+        "http_status": "200",
+        "curl_joined": true,
+        "kill_escalated": false,
+        "retained_body_bytes": 7901266,
+        "received_body_bytes": 7901266,
+        "max_bytes": 67108864,
+        "sha256": "f72ee145d3e9df291554f44ee6379925d2661683e6bb9ebb80518359b389919f",
+        "connect_timeout_seconds": 2,
+        "curl_total_timeout_seconds": 15,
+        "requested_trace_seconds": 10,
+        "curl_launch_parent_observed_at": "2026-10-23T01:06:46.285082+00:00",
+        "completed_at_utc": "2026-10-23T01:06:56.330108+00:00",
+        "stderr_retained_bytes": 25,
+        "stderr_total_bytes": 25,
+        "stderr_sha256": "ebecf34615e4b0abb04225212c5e047f911abd5a2c94417e91a859d7737b8e6a",
+        "trace_format_valid": null,
+        "trace_decoded": false
+      }
+    },
+    {
+      "node_id": 3,
+      "binding": {
+        "node_id": 3,
+        "API_URL": "http://127.0.0.1:25003",
+        "config_sha256": "0052bc446b21a56ae3eb02eede154b32e1df6c6beb15767c0baa27ff4006b305",
+        "config_node_id": 3,
+        "observed_slot_NodeID": 3,
+        "slot_receipt_sha256": "6ce1e66367479bd04bc605fdf149dfbbcd3d35725b82b42ba6a60c885a844bb2",
+        "launcher_sha256": "629948db2cefa526f1d4bdf135c01e501bfefadd6c9a9f899292924e8f277881",
+        "effective_env_binding": {
+          "WK_NODE_ID": "3",
+          "WK_API_LISTEN_ADDR": "127.0.0.1:25003"
+        },
+        "port_binding_evidence": "sealed launcher mapping reviewed before run; TOML API default is overridden by this environment; existing manager Slot node IDs, no extra API probe"
+      },
+      "capture_pid": 83403,
+      "capture_joined": true,
+      "helper_exit_status": 0,
+      "kill_escalated": false,
+      "helper_launch_parent_observed_at": "2026-10-23T01:06:46.223862+00:00",
+      "status": "transfer_complete",
+      "reason": "ok",
+      "metadata": {
+        "schema": "wukongim.local_execution_trace_capture/v1",
+        "capture": {
+          "status": "transfer_complete",
+          "reason": "ok",
+          "transfer_complete": true,
+          "trace_format_valid": null,
+          "trace_decoded": false,
+          "requested_seconds": 10,
+          "started_at_utc": "2026-10-23T01:06:46.304635+00:00",
+          "completed_at_utc": "2026-10-23T01:06:56.371141+00:00"
+        },
+        "nodes": [
+          {
+            "node": "node-3",
+            "execution_trace": "transfer_complete"
+          }
+        ],
+        "accepted_body_cap_bytes": 67108864,
+        "server_byte_or_memory_cap_claimed": false
+      },
+      "request": {
+        "schema": "wukongim/local-execution-trace-transfer/v1",
+        "node_id": 3,
+        "kind": "execution_trace",
+        "status": "transfer_complete",
+        "reason": "ok",
+        "curl_exit_code": 0,
+        "http_status": "200",
+        "curl_joined": true,
+        "kill_escalated": false,
+        "retained_body_bytes": 7535779,
+        "received_body_bytes": 7535779,
+        "max_bytes": 67108864,
+        "sha256": "bd83b49a8787649f5f484103e5530b343c6583effb1e652dfcb572b094d28b15",
+        "connect_timeout_seconds": 2,
+        "curl_total_timeout_seconds": 15,
+        "requested_trace_seconds": 10,
+        "curl_launch_parent_observed_at": "2026-10-23T01:06:46.304960+00:00",
+        "completed_at_utc": "2026-10-23T01:06:56.331240+00:00",
+        "stderr_retained_bytes": 25,
+        "stderr_total_bytes": 25,
+        "stderr_sha256": "ebecf34615e4b0abb04225212c5e047f911abd5a2c94417e91a859d7737b8e6a",
+        "trace_format_valid": null,
+        "trace_decoded": false
+      }
+    }
+  ],
+  "requested_trace_seconds_per_node": 10,
+  "nominal_firstgrant_offset_seconds": 4,
+  "trace_receiver_max_bytes_per_node": 67108864,
+  "maximum_trace_bodies_bytes_all_nodes": 201326592,
+  "maximum_trace_HTTP_requests": 3,
+  "trace_format_valid": null,
+  "trace_decoded": false,
+  "server_byte_or_memory_cap_claimed": false,
+  "cancel_join_budget_is_shared_not_serial": true,
+  "ownership_snapshot_error_class": null,
+  "cancel_descendant_cleanup_confirmed": null,
+  "cancel_retained_descendant_pids": [],
+  "cancel_remaining_descendant_pids": [],
+  "capture_joined_semantics": "registered direct helper reaped only; not proof that every descendant was joined; unconfirmed ancestry depends on final whole-owned-PGID cleanup",
+  "actual_server_trace_start_offsets": "not independently observed; local helper launches and nominal firstgrant+4s only; nodes are not exactly synchronized",
+  "phase_label_semantics": "matching firstgrant receipt until observed stop/terminal; does not prove active SEND throughout; profiles may mix active/drain",
+  "additional_sampling_disturbance": true,
+  "causal_performance_comparison": false,
+  "no_performance_acceptance": true
+}

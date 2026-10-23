@@ -1,0 +1,62 @@
+{
+  "base": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+  "tree": "7ce68e726fea61bd6d176fbc7053dede920d5b00",
+  "branch": "codex/v3-owner-recovery-width16",
+  "approved_plan_manifest_sha256": "d5640f0862ea11cd023f1ab5d1cfe73770bc1573eda18231dcb6b7836f54ad91",
+  "files": {
+    "AGENTS.md": {
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    "CONTEXT.md": {
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "bytes": 12160
+    },
+    "internal/usecase/presence/FLOW.md": {
+      "sha256": "438ba6664b276dc9b055c14e234b1bcefad55d8f56f649a3779c6df66d780d4e",
+      "bytes": 3192
+    },
+    "internal/runtime/presence/FLOW.md": {
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "bytes": 2490
+    },
+    "internal/infra/cluster/FLOW.md": {
+      "sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+      "bytes": 8612
+    },
+    ".github/review-agent/policy.json": {
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "bytes": 14492
+    },
+    ".github/workflows/README.md": {
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "bytes": 85960
+    },
+    "internal/usecase/presence/recovery_flights.go": {
+      "sha256": "53bb1b4f03152f76bef2e833dc658103f58f334dd38f948f2e2f0de1471cce95",
+      "bytes": 8482
+    },
+    "internal/infra/cluster/presence_recovery.go": {
+      "sha256": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55",
+      "bytes": 8454
+    },
+    "internal/usecase/presence/recovery.go": {
+      "sha256": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b",
+      "bytes": 3764
+    },
+    "internal/usecase/presence/owner_recovery.go": {
+      "sha256": "d2c49e662a578ab380bccc2b594e9f4b100558137c007078ab4694e5d32e6717",
+      "bytes": 4604
+    },
+    "pkg/cluster/net/transport.go": {
+      "sha256": "d0a3d07ecf1220069b9c374af65eaa4ee0b400312da6cfb730391c91be8b9be9",
+      "bytes": 16654
+    },
+    "internal/runtime/delivery/runtime.go": {
+      "sha256": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561",
+      "bytes": 41825
+    }
+  },
+  "phase": "source-writing preparation only; A running; no Go/gofmt/tests/builds/CLI/network/profile/product execution",
+  "source_invariants": "production remains C4/K2048/128MiB and adapter4; no production change authorized until valid A old-message-loss final + cleanup + root followup"
+}

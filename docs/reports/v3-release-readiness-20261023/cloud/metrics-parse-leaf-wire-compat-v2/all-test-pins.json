@@ -1,0 +1,43 @@
+{
+  "files": {
+    "internal/bench/target/metrics_parse_diagnostics_test.go": {
+      "sha256": "73e78969236377346fb62938d74eed09afbf198ef8dd354723f94e8054093b4c",
+      "bytes": 11204
+    },
+    "internal/bench/chatlifecycle/metrics_parse_diagnostics_test.go": {
+      "sha256": "9d80ca2103480d3a6442daf3f40465454346e06dd8fa10a3f12e491beb49a40a",
+      "bytes": 9577
+    },
+    "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go": {
+      "sha256": "dc22fec67d315ab81dbdfa56b8157af017cf9b920162f6b49d5623d9aebf1eb2",
+      "bytes": 18792
+    },
+    "cmd/wkcli/internal/benchmark/metrics_parse_diagnostics_test.go": {
+      "sha256": "e7baa1e353a200bbb552701fadbc08220225af9faf288f4adad4b37a9cfd6410",
+      "bytes": 1725
+    },
+    "internal/bench/target/metrics_failure_diagnostics_test.go": {
+      "sha256": "aa1bf6986fbd9771eae13031dd1446bf0e2ab52689c4dee620d58b4801ee3ae5",
+      "bytes": 15365
+    },
+    "internal/bench/target/client_test.go": {
+      "sha256": "e48732178091c95ceb654dbcc68be1eb9b04b3338a7f1c758bdd15a8373c930f",
+      "bytes": 60790
+    },
+    "cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go": {
+      "sha256": "3ec85fc977ef3065d2b53695471961795616cf381b5a64be28a1e8bb8b64f4ff",
+      "bytes": 1388
+    },
+    "internal/bench/chatlifecycle/metrics_parse_null_diagnostics_test.go": {
+      "sha256": "24923bffeb8c086af01e93e2ea5767dc5bbe563ca8c269e0ace23905b4a24fae",
+      "bytes": 848
+    },
+    "internal/bench/chatlifecycle/metrics_parse_reuse_diagnostics_test.go": {
+      "sha256": "45d923f9c8be3a7bd83f4337d35dd920071b041281205d65dece105f7982435d",
+      "bytes": 5579
+    }
+  },
+  "original7_unchanged": true,
+  "null_supplement1_unchanged": true,
+  "supplement2_new_only": true
+}

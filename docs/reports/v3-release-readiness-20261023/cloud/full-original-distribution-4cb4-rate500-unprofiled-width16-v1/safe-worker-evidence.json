@@ -1,0 +1,24 @@
+{
+  "schema": "local4cb4-closed-worker-evidence/v1",
+  "workers": [
+    {
+      "worker_id": 0,
+      "generation": 1,
+      "snapshot_sequence": 26,
+      "classes": []
+    },
+    {
+      "worker_id": 1,
+      "generation": 1,
+      "snapshot_sequence": 26,
+      "classes": []
+    },
+    {
+      "worker_id": 2,
+      "generation": 1,
+      "snapshot_sequence": 26,
+      "classes": []
+    }
+  ],
+  "no_identity_reconstruction_or_DB_query": true
+}

@@ -1,0 +1,17 @@
+{
+  "operation": "delete-original-local-branch",
+  "argv": [
+    "git",
+    "branch",
+    "-d",
+    "codex/v3-queue-pressure-snapshot"
+  ],
+  "started_at": "2026-10-23T01:54:24.348587+00:00",
+  "finished_at": "2026-10-23T01:54:24.374317+00:00",
+  "exit_code": 0,
+  "stdout_bytes": 65,
+  "stdout_sha256": "5f2348c0b534a73c4a9687ff1e0da6f5b272f242fd287aa3496805128c68540e",
+  "stderr_bytes": 177,
+  "stderr_sha256": "8d912a8152cd7b906e5d33a6838bde68fb0f696d3aee5db3e3f9b2630795d6d0",
+  "force": false
+}

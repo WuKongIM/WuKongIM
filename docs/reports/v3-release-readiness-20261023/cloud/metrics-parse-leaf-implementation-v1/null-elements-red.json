@@ -1,0 +1,39 @@
+{
+  "phase": "null-elements-red",
+  "args": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "./internal/bench/chatlifecycle",
+    "-run",
+    "^TestMetricsParseReasonsRejectsNullElements$",
+    "-count=1",
+    "-p=1",
+    "-timeout=2m",
+    "-json"
+  ],
+  "environment": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "2",
+    "GOFLAGS": "-p=1"
+  },
+  "started_at": "2026-10-23T00:18:58.831293+00:00",
+  "wall_seconds": 3.532387249986641,
+  "exit_code": 1,
+  "reason": "exited",
+  "pid_pgid": 72747,
+  "observed_bytes": {
+    "stdout": 5421,
+    "stderr": 0
+  },
+  "limits": {
+    "stdout": 4194304,
+    "stderr": 1048576
+  },
+  "outer_seconds": 180,
+  "test_pins_sha256": "8c0d7d4e066f82318778cb801693812edb14add539351d97d37d837205902910",
+  "same_test_hashes": true,
+  "source_diff": " CHANGELOG.md                                       |  4 ++\n docs/development/FLOW_INDEX.md                     |  4 +-\n docs/development/PROJECT_KNOWLEDGE.md              |  7 ++\n internal/bench/FLOW.md                             |  7 +-\n internal/bench/chatlifecycle/FLOW.md               |  7 +-\n .../metrics_fetch_diagnostics_test.go              | 19 +++++-\n .../bench/chatlifecycle/metrics_fetch_failure.go   | 77 +++++++++++++++++++++-\n internal/bench/chatlifecycle/production_meta.go    |  5 ++\n internal/bench/target/client.go                    | 60 ++++++++---------\n 9 files changed, 151 insertions(+), 39 deletions(-)\n"
+}

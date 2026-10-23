@@ -1,0 +1,9 @@
+{"Time":"2026-10-23T10:11:42.310842+08:00","Action":"start","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence"}
+{"Time":"2026-10-23T10:11:42.465117+08:00","Action":"run","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Test":"TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts"}
+{"Time":"2026-10-23T10:11:42.465153+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Test":"TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts","Output":"=== RUN   TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts\n"}
+{"Time":"2026-10-23T10:11:52.542631+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Test":"TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts","Output":"    recovery_width16_integration_test.go:167: owner round 104 did not enter\n"}
+{"Time":"2026-10-23T10:11:52.551674+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Test":"TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts","Output":"--- FAIL: TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts (10.09s)\n"}
+{"Time":"2026-10-23T10:11:52.551689+08:00","Action":"fail","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Test":"TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts","Elapsed":10.09}
+{"Time":"2026-10-23T10:11:52.551718+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Output":"FAIL\n"}
+{"Time":"2026-10-23T10:11:52.555759+08:00","Action":"output","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Output":"FAIL\tgithub.com/WuKongIM/WuKongIM/internal/usecase/presence\t10.245s\n"}
+{"Time":"2026-10-23T10:11:52.555772+08:00","Action":"fail","Package":"github.com/WuKongIM/WuKongIM/internal/usecase/presence","Elapsed":10.245}

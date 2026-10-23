@@ -1,0 +1,34 @@
+{
+  "base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "branch": "codex/v3-metrics-parse-leaf-diagnostics",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-metrics-parse-leaf-diagnostics",
+  "files": {
+    "AGENTS.md": {
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    "CONTEXT.md": {
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "bytes": 12160
+    },
+    "internal/bench/FLOW.md": {
+      "sha256": "52cf2d48010eac69056be43ed5679bae9e50d0aa04b0ddd12e4199e6a99e76e4",
+      "bytes": 6836
+    },
+    "internal/bench/chatlifecycle/FLOW.md": {
+      "sha256": "f938521d9c3129762f11ac914f5172ae1ea8df53c615f13e3d9615424ed91673",
+      "bytes": 6750
+    },
+    ".github/review-agent/policy.json": {
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "bytes": 14492
+    },
+    ".github/workflows/README.md": {
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "bytes": 85960
+    }
+  },
+  "preapproved_tests_first_scope": "20 typed parse families plus52 approved failure/control cases; all tests frozen before production code per root instruction",
+  "skill_deviation": "Root explicitly requires all52 failure/control tests first; this takes precedence over TDD skill vertical-slice preference. Seams are exactly approved target/parser and bounded diagnostic/CLI seams."
+}

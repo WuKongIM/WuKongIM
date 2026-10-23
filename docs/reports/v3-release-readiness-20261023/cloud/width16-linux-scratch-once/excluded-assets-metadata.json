@@ -1,0 +1,30 @@
+{
+  "context_assets": [
+    {
+      "file": "context/Dockerfile",
+      "bytes": 121,
+      "sha256": "ddc08008689c963d226f8188c2ecbacd5f9ec2e9145abae29fee57d3d7d4380d",
+      "mode": "0o600",
+      "included_as_payload": true
+    },
+    {
+      "file": "context/cluster.test",
+      "bytes": 26062067,
+      "sha256": "f0e444f9b68bc03ff6902cd22fa2eea31a461f1e8b6aff90618b3f6fd4f65fde",
+      "mode": "0o555",
+      "included_as_payload": false
+    },
+    {
+      "file": "context/presence.test",
+      "bytes": 7098250,
+      "sha256": "f6e6676cf2f5c2ade533618e1e3ede672237435aafd0b4eb1cbbae38d1b89a0d",
+      "mode": "0o555",
+      "included_as_payload": false
+    }
+  ],
+  "not_created": [
+    "image.iid",
+    "runtime-results.json"
+  ],
+  "executor_sha256": "cdd953b2b178cbd654edbbb95cf63e2ed181f7148298780de526375cb0128cc4"
+}

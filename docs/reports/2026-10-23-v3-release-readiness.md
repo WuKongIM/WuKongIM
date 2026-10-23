@@ -1,6 +1,6 @@
 # v3 正式版发布复核（2026-10-23）
 
-结论仍为 **NO-GO**。迁移修复及候选 Linux 性能底线已经通过；本次云 RC 两小时预演因投递采样过期提前失败，生产 stable 的签名包公网交付和精确版本 APT/RPM 客户端验收仍未完成。测试夹具和 SDK 演练通过不能代替这两项实际交付。
+结论仍为 **NO-GO**。迁移修复及既定 Linux 性能门禁已通过；新增本地 A–B–A 对照支持冷 presence 恢复并发宽度是本地采样过期的关键因素，相应修复已合并。候选的正常 Linux 并发边界回归和三个固定 500 QPS/400 ms 绝对门禁通过，但本地 120 秒主动停止不是正式 RC 通过，也不证明相对旧版本无退化。原云两小时预演仍失败，72 小时长稳未完成；生产 stable 签名包公网交付和精确版本 APT/RPM 客户端验收也未完成。
 
 本报告承接 [10 月 21 日的完整历史记录](2026-10-21-v3-release-readiness.md)。旧报告和原失败证据保持原样；新证据收录在 [本次有限公开归档](v3-release-readiness-20261023/README.md)。
 
@@ -135,7 +135,37 @@
 
 本轮唯一过期样本已通过一次独立有界离线查询精确关联：三个预先完整校验的私有只读副本均返回唯一完整行，MessageID 为十进制字符串 **`2113414966718509057` / seq `1`**；同次 **node 3** canonical 日志在北京时间 **07:39:33.369** 有唯一相同 tuple 的 **presence/timeout/durable/deadline_exceeded** 警告，处于本轮 first grant→终态窗口内。这仅确定该样本的 presence plan 失败阶段，不证明历史线上 RECV、下层等待来源或原云同根因，也不把 metrics 来源位置 3 与物理节点作额外绑定。3 次查询 **0.382091 秒**完成，无其他群/重试，owned PGID 71330 独立核零；36 个原文件、**66,550,277 字节**的 size/SHA/mtime 前后及最终复核一致，全部副本 path/size/SHA 在任何 CLI 打开前匹配，原 DB 未被 engine 打开，warning 原件不变。SQL、驱动、UID/channel/ClientMsgNo、查询 body/error 和 DB 继续私存。
 
-为后续真实 parse 失败取得更细且封闭的原因，已封存基于合并 `8dfcd35b` 的 **52 项写代码前 failure/control cases** 与 typed parser leaf 设计，root 已批准 tests-first 实施。设计保留 20 组原错误条件/文本、原判定顺序、界限和 acquisition/settle/accounting/verdict；用真实私有 typed cause 识别，不按 Error 字符串猜测。可选三来源 parse_reasons 保留 legacy absence，不能补造历史 unknown 或改变既有 mask/kinds 的有效性。**当前有限清单仅设计，尚无新 candidate、回归/独审/CI 或根因修复完成证据**；真实 transport cancellation 独立方案也仍属 prepared，不是本次过期的因果证明或 GA 通过。
+为后续真实 parse 失败取得更细且封闭的原因，已封存基于合并 `8dfcd35b` 的 **52 项写代码前 failure/control cases** 与 typed parser leaf 设计，root 已批准 tests-first 实施。设计保留 20 组原错误条件/文本、原判定顺序、界限和 acquisition/settle/accounting/verdict；用真实私有 typed cause 识别，不按 Error 字符串猜测。可选三来源 parse_reasons 保留 legacy absence，不能补造历史 unknown 或改变既有 mask/kinds 的有效性。**第十五批当时仅归档设计；后续已完成的实现和验证见下节**；真实 transport cancellation 独立方案也仍属 prepared，不是本次过期的因果证明或 GA 通过。
+
+## 后续修复与受控对照
+
+本节更新第十五批之后的完成状态；前述早期段落及封存材料中的 `pending` 均指各自冻结时点，原失败与限制不被新结果覆盖。证据入口为[第十六批有限清单](v3-release-readiness-20261023/COPY_BATCH16_ALLOWLIST)。
+
+[#1031](https://github.com/WuKongIM/WuKongIM/pull/1031) 已交付 typed parse leaf 诊断及 legacy 字段复用兼容修正。精确候选 `2662fe93b754d614422f2936185cf781a33b831a` 的测试先行、差分兼容回归、相关 normal/race、第二轮双轴复核和最终 Linux CI 均已封存；普通合并为 `364253b3be532acb023757791a54b85d4c76cbd2`，合并树与候选树一致，干净任务工作树及本地分支已普通清理。该改动只细化有界诊断，不改变原 parser 判断、超时、重试或验收门禁，也不是投递过期修复。
+
+随后精确 2662 的三节点 trace 诊断仍观察到 **4 个采样过期**，并把收尾错误细分为 `meta_checkpoint/metrics_fetch`、来源位置 3 的 `parse/invalid_queue_utilization`；仍为 exit 8、没有完整 final report。实际失败 response 未保留，不能由相邻成功 scrape 反推具体错误指标行。三份原始 trace 只私存；离线首轮完整事件读取触及输出上限、三份 sched profile 解码失败的记录保留。后续一次有限补充兼容合法的可选空符号，并以完整 EOF 读取接受三份 trace，未重跑原产品负载。各类 profile 的计数与累计等待可以跨 goroutine 重叠，sched 数值采用工具自身定义，不是逐 RPC 延迟、精确 runnable 区间或逐消息因果关联。六份固定 scrape 的修正别名分析观察到 authority 队列等待，但首次切面缺失的 timeout series，其差值和比率仍为未知；端点、每 32 次抽样直方图及 trace 窗口不能证明整个运行期资源余量。
+
+[#1032](https://github.com/WuKongIM/WuKongIM/pull/1032) 独立复现了同一 queue 的 Gauge 值在收集与写出之间被更新而形成混合观测的缺陷，改为一次冻结 depth/capacity/bytes 四项值后发布不可变指标。冻结用例先 RED 后 GREEN，相关 normal/race、双轴复核及首次 Linux CI 通过；精确候选 `b47c03d461a6d8918e537e027bf56539ce78c585` 普通合并为 `9e5d8eeadb7b4c1998857640d2160c3af3232996`。原失败 scrape 缺失，不能追溯声称已证明它由此缺陷造成。后续不采 profile 的 A 对照恢复了有效的 `product_failure/message_loss` 最终报告，但仍有 **2 个采样过期**。
+
+A 的两个过期样本经一次有界离线调用，在三个预先完整校验的私有 DB 副本中各读得唯一、相同的 MessageID/sequence，并分别与本轮 node 1/node 3 的精确 **presence/timeout/durable/deadline_exceeded** 警告关联。6 次查询在 **0.660427 秒**内完成，原 36 个文件、82,376,917 字节的 size/SHA/mtime 未变，原件未被 engine 打开，所属进程组已独立核零。这把两个样本定位到 presence plan 失败阶段；持久行不证明在线 RECV，日志没有 ChannelID/ChannelType，也不解释内部等待来源或原云同根因。见[两样本关联收据](v3-release-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-addendum-v1/README.md)。
+
+相应修复候选 `4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac` 仅把冷恢复 leader cohorts **4→16**、key 配额 **2,048→8,192**、owner admission **4→16**；registry 新持有 UID 字符串的合计预算显式固定为 **128 MiB**，不是进程总堆内存上限。32 MiB 页预算、512 UID/256 targets、原超时/重试、proof/fence、取消语义和全部验收门禁保持。实现前冻结失败矩阵和用例，保留旧实现 RED；新宽度、17th waiter 取消、完整 key 配额及有空余 cohort 时的真实 128 MiB 字节边界在候选通过。Mac 的相关 normal/race 和独立双轴复核通过；重型字节场景只作 normal，不冒称 race 覆盖。初次 FLOW index 校验失败与单行修正也保留，没有隐藏为全程首次通过。
+
+三轮均固定原 10,000 在线、2,000 群、seed 1、500 总 SEND/s、同一配置与监督边界，均不采 profile。下面的过期数仅是**采样关联过期**；SENDACK 表示发送确认，不能等同于全部消息端到端收到。
+
+| 轮次 | 产品来源 | SEND = SENDACK | 采样关联过期 | 保留的原始终态 | 最终窗口（含排空） |
+| --- | --- | ---: | ---: | --- | ---: |
+| A | b47，旧宽度 | 13,002 | 2 | product_failure / message_loss | 33.076 秒 |
+| B | 4cb，宽度 16 | 60,503 | 0 | operator_stop / operator_requested | 122.978 秒 |
+| A2 | b47，恢复旧宽度 | 18,002 | 1 | product_failure / message_loss | 38.530 秒 |
+
+B 的监督器在 first grant 后 **120.109 秒**请求停止，终态关联采样 **664/664 收到、0 过期、0 pending/outstanding**；这不是对全部 60,503 次发送的端到端投递证明，也不是正式 `pass`。A/A2 的 safe-summary 没有 correlation 字段，不据此补零或臆造完整采样分母；A2 未作 DB/MessageID 关联。三轮均保留有效 final report，所属产品进程组及 64 端口均独立清零。A–B–A 的 **2/0/1** 结果支持恢复并发宽度是此本地负载的重要因素；共享 Mac 的时间变化及残余混杂未完全排除，更不能认定原云故障的唯一根因、Linux 全量性能或长稳验收通过。
+
+[#1033](https://github.com/WuKongIM/WuKongIM/pull/1033) 精确 4cb 的四个自然 CI run 均 attempt 1 成功，原 18 项检查为 **16 成功/2 条件跳过**；之后两个自然 Issue PR Signal 成功，不是 CI 重跑。默认套件 **219 个 package PASS**；scripts **519.119 秒**，651 个顶层 PASS、6 个显式 SKIP、7 个 package PASS。五种迁移拓扑（含 1→3）有 **55 次 history 校验**，其中 1→3 整群重启后 node 1 的 rows4 场景使用 **1 次原合同允许的临时只读重试**；六个 owned-SID 清理均完整且为零。三个固定 seam 各完成三窗 60 秒/500 QPS，合计 **270,000** 次测量、零 errors/drop，另有 90,000 次 warmup；P99 最大值 TCP **178.023683 ms**、append **33.469629 ms**、mixed **20.693029 ms**，均在未变的 **400 ms** 绝对门禁内。这不是与旧候选配对的相对无退化结论，也不覆盖原分布两小时或 72 小时长稳。四发行版 TEST ONLY 签名仓库/真实 systemd 生命周期通过，不能代替生产渠道发布；大 correctness/native artifacts 仅保留 API 元数据，未下载验证其字节。
+
+自然 CI 不直接执行新带 integration tag 的 presence/owner 边界夹具，因此另作了固定 Linux ARM64 正常功能补测。首次 legacy image build 在 **60 秒**超时，两个测试尚未执行，这份失败保留；后续改用不依赖 builder 的空 rootfs import 准备，沿用同一对已编译、精确 VCS 绑定的 ELF，两个隔离、断网、只读容器各执行一次并正常退出、无 OOM。实际有 **5 个顶层测试及 2 个子测试，共 7 个 PASS 事件**，包括并发/取消、proof 重查和真实 128 MiB 边界；task container/image/tag/PGID 均已清零。**Linux race 未执行**，不能由 Mac race 替代。该项是功能回归，不是 Linux 原分布性能验收。空 tar 二进制不入归档，只保留[外部完整清单身份和明确排除元数据](v3-release-readiness-20261023/cloud/width16-linux-import-once-v1/SOURCE_MANIFEST_METADATA.json)；原 13 成员 manifest 不被冒充为完整归档校验表。
+
+#1033 于 **UTC 2026-10-23 03:31:17（北京时间 11:31:17）** 普通合并为 **`966ec67df1435ad07bbb82724cd940f550755179`**，父提交为 9e5/4cb，tree `1f2826553a264053e954229ac2581bcf48afe6ad` 与独审、实际 CI 和专项来源一致。保护/rulesets 及四个禁用 Review Agent 状态未变；确认 candidate tip 是 target 祖先且任务干净后，原工作树和本地分支已普通删除。其他 13 个 linked worktree、8 个 real-Git 来源 clone 及 clean primary `a804f4a5` 均保留。至此交付了本地有证据支持的有界修复；原云内层原因仍未知，生产 stable 仍关闭，发布结论仍为 **NO-GO**。
 
 ## 包交付实现
 
@@ -161,7 +191,7 @@
 
 ## 继续处理的条件
 
-1. #1030 有界 metrics-fetch 诊断已合并并通过首轮 focused Linux CI，但精确 56c 原分布实验仍有 1 个过期、exit 8 且无完整 final report。该样本已独立精确关联本轮 MessageID/seq 与 node3 presence timeout，仍不知下层或原云根因；三个 profile 切面及其环境/worker hash/stdout 监督限制完整保留，不能当作一全局瞬时或完全符合计划的性能证据。六份近邻 scrape 全通过不能解释未保存的实际失败 response；52 项 typed parser leaf tests-first 设计已批，当前归档只有设计。继续原门禁下的本地受控刻画/诊断，保留全部失败/refutation；新付费 RC 及正式发布未授权。
-2. #80 权限/清理修复及 Linux CI 已完成并合并，后续以该精确来源接续生产上传/激活入口。
-3. 完成真实 OSS/CDN、TLS、精确运行身份与权限接入、生产候选来源/签名/审计和版本公网验收。当前 ECS 授权不扩展为包分发资源采购或正式发布授权；具体实现与报价准备完成后再处理所需的最后授权。
-4. 满足前述条件后，冻结正式目标版本和 CHANGELOG，执行最终 tag 对应的发布门禁，并完成适用 signed native channel 的公开 APT/RPM 精确版本安装验证。
+1. 本地有界修复及上述回归/合并已完成，Linux race 未验证；原云内层原因仍未知。原两小时预演失败、72 小时长稳、容量及恢复阶段尚未完成。后续应对精确修复来源补齐正式 Linux 验收；新的付费云启动须另有明确授权，不复用已释放租约，也不把合并许可当作采购或发布许可。
+2. #80 权限/清理修复及 Linux CI 已完成并合并，生产上传/激活入口仍仅部分实现，继续补齐 SDK 正向编排和真实签名候选的审计链。
+3. 完成实际 OSS/CDN、TLS、精确运行身份与权限接入，以及生产候选来源、签名、审计和公网验收。stable 当前关闭；TEST ONLY、SDK 夹具、构建或合并成功不代表已发布。现有 ECS 授权不扩展为包分发资源采购或正式发布授权。
+4. 满足前述条件后，冻结正式目标版本和 CHANGELOG，执行最终 tag 对应的发布门禁，并完成适用 signed native channel 的公开 APT/RPM 精确版本安装验证；任何一项未完成都不能报告正式发布完成。

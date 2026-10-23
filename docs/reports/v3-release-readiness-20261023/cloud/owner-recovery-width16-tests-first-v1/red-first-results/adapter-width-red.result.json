@@ -1,0 +1,44 @@
+{
+  "phase": "adapter-width-red",
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "-tags=integration",
+    "./internal/infra/cluster",
+    "-run",
+    "^TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth$",
+    "-count=1",
+    "-p=1",
+    "-parallel=1",
+    "-timeout=30s",
+    "-json"
+  ],
+  "started_utc": "2026-10-23T02:11:24.331860+00:00",
+  "elapsed_seconds": 17.737,
+  "exit_code": 1,
+  "outer_or_output_kill": null,
+  "pgid": 97708,
+  "output_bytes": {
+    "stdout": 2004,
+    "stderr": 0
+  },
+  "events": [
+    {
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/internal/infra/cluster",
+      "Test": "TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth",
+      "Elapsed": 2
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/internal/infra/cluster",
+      "Elapsed": 2.396
+    }
+  ],
+  "bounded_diagnostics": [
+    "presence_recovery_width16_integration_test.go:95: only 4 independent recovery rounds entered owner reads, want 16",
+    "--- FAIL: TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth (2.00s)",
+    "FAIL",
+    "FAIL\tgithub.com/WuKongIM/WuKongIM/internal/infra/cluster\t2.396s"
+  ]
+}

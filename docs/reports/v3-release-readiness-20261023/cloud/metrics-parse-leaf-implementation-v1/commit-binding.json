@@ -1,0 +1,16 @@
+{
+  "head": "11debae7337dc0f0497ff732600d5ebf03949544",
+  "tree": "5ac5aa9cbbedcc75696ef45811245a205ad8c471",
+  "base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "base_tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "branch": "codex/v3-metrics-parse-leaf-diagnostics",
+  "clean_worktree": true,
+  "changed_path_count": 14,
+  "changed_paths_exactly_source_pins": true,
+  "every_other_tracked_path_blob_unchanged": true,
+  "source_pins_sha256": "d583af9a1e39d835ab4be43238059797a8143ed3f947d5dfa72546910648147b",
+  "original_test_pins_sha256": "8c0d7d4e066f82318778cb801693812edb14add539351d97d37d837205902910",
+  "supplemental_test_pins_sha256": "e687376c70b6d4f598f8b11c71cda6dcf179f95d28f657b4f8235d987c19121b",
+  "not_a_loss_fix": true,
+  "no_runtime_or_cloud_run": true
+}

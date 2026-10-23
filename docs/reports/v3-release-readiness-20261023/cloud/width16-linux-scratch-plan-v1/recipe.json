@@ -1,0 +1,182 @@
+{
+  "status": "prepared only; no commands executed; wait root-confirmed A2cleanupzero and execution authorization",
+  "source": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-owner-recovery-width16",
+    "head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+    "tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+    "clean": true,
+    "go_mod_sha256": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d",
+    "go_sum_sha256": "68ffe83def79e0889fffa722ac7d0a18d7bce52e01e8d8395da56da1e96975fb"
+  },
+  "toolchain": {
+    "path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "binary_sha256": "b65655bf3d496007755bd132e9611f9e5e64c46e33d89fcafdef916e299587fd",
+    "expected": "Go1.25.11; actual Linux binary ELF/build info and source vcs revision4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac must be checked after authorized crosscompile"
+  },
+  "compile_env": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "2",
+    "GOFLAGS": "-p=1",
+    "GOOS": "linux",
+    "GOARCH": "arm64",
+    "CGO_ENABLED": "0",
+    "GOPATH": "/Users/tt/go"
+  },
+  "execution_order": [
+    "verify clean exact source head/tree, frozen testpins and host toolchain hash; create fresh context containing only exact Dockerfile and two binaries",
+    "two crosscompile commands once serially; no tests execute in host compile",
+    "verify ELF64 little-endian e_machine183(AArch64), no PT_INTERP or PT_DYNAMIC program header; hash both binaries; go version -m both binaries to bindGo1.25.11/GOOSlinux/GOARCHarm64/CGO0/vcs4cb/source-unmodified",
+    "local legacy build once, immutable local imageID inspect OSlinux/archarm64; no official base or RepoDigest exists for this local scratch image",
+    "two exact-ID normal-only containers sequentially; heavybyte once; preserve first results and cleanup exact owned IDs",
+    "record source/toolchain/Dockerfile/binary/image/container IDs and hashes, argv/env/start/end/exits/caps/cleanup; no rerun or PR/merge/cloud"
+  ],
+  "compile": [
+    {
+      "phase": "compile-presence",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-c",
+        "-tags=integration",
+        "-buildvcs=true",
+        "-o",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/context/presence.test",
+        "./internal/usecase/presence"
+      ],
+      "outer_seconds": 180,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    },
+    {
+      "phase": "compile-cluster",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-c",
+        "-tags=integration",
+        "-buildvcs=true",
+        "-o",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/context/cluster.test",
+        "./internal/infra/cluster"
+      ],
+      "outer_seconds": 180,
+      "stdout_bytes_limit": 1048576,
+      "stderr_bytes_limit": 65536
+    }
+  ],
+  "binary_build_info": {
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "version",
+      "-m",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/context/presence.test",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/context/cluster.test"
+    ],
+    "outer_seconds": 15,
+    "stdout_bytes_limit": 65536,
+    "stderr_bytes_limit": 65536
+  },
+  "docker_build": {
+    "environment_override": {
+      "DOCKER_BUILDKIT": "0"
+    },
+    "argv": [
+      "/usr/local/bin/docker",
+      "build",
+      "--pull=false",
+      "--network=none",
+      "--no-cache",
+      "--iidfile",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/image.iid",
+      "-t",
+      "wukongim-width16-scratch:4cb45b340-local",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-once/context"
+    ],
+    "outer_seconds": 60,
+    "stdout_bytes_limit": 1048576,
+    "stderr_bytes_limit": 65536,
+    "builder_rationale": "Explicit Docker27.3.1 legacy local-daemon builder, not default buildx/BuildKit; no bootstrap builder image. FROM scratch is built-in empty rootfs, not a remote base. No RUN/ADD/downloader/remote context. Legacy builder is deprecated; retain warning; if unavailable fail without enabling/downloading another builder.",
+    "provenance": "Do not claim existing ID or public RepoDigest. Actual successful build must record returned sha256 imageID and Docker inspect Id/Os/Architecture/RepoDigests (expected []); config ID is not a registry manifest digest."
+  },
+  "runtime": [
+    {
+      "name": "presence",
+      "binary_argv": [
+        "/tests/presence.test",
+        "-test.run",
+        "^(TestAuthorityRecoveryWidth16(AdmitsCohortsAndFullKeyBudget|Keeps128MiBByteBudgetWithFreeCohorts)|TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth|TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys)$",
+        "-test.count=1",
+        "-test.parallel=1",
+        "-test.timeout=90s",
+        "-test.v"
+      ],
+      "outer_seconds": 120,
+      "heavy_byte_fixture_once": true
+    },
+    {
+      "name": "cluster",
+      "binary_argv": [
+        "/tests/cluster.test",
+        "-test.run",
+        "^TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth$",
+        "-test.count=1",
+        "-test.parallel=1",
+        "-test.timeout=30s",
+        "-test.v"
+      ],
+      "outer_seconds": 60,
+      "heavy_byte_fixture_once": false
+    }
+  ],
+  "container": {
+    "create_argv_template": [
+      "/usr/local/bin/docker",
+      "create",
+      "--name",
+      "EXACT_UNIQUE_TASK_NAME",
+      "--label",
+      "wukongim.width16.local=4cb45b340",
+      "--platform",
+      "linux/arm64",
+      "--pull=never",
+      "--network=none",
+      "--cpus=2",
+      "--memory=2g",
+      "--memory-swap=2g",
+      "--pids-limit=128",
+      "--read-only",
+      "--cap-drop=ALL",
+      "--security-opt=no-new-privileges",
+      "--user=65534:65534",
+      "--tmpfs",
+      "/tmp:rw,nosuid,nodev,noexec,size=64m",
+      "ACTUAL_LOCAL_IMAGE_ID",
+      "BINARY_ARGV_FROM_RUNTIME"
+    ],
+    "start_argv": [
+      "/usr/local/bin/docker",
+      "start",
+      "--attach",
+      "EXACT_OWNED_CONTAINER_ID"
+    ],
+    "read_only_binary_source": "Binaries are COPYed into the immutable image rootfs; runtime rootfs is read-only. No host mounts, source/Go/module/credential/SSH/Docker socket needed.",
+    "create_outer_seconds": 15,
+    "stdout_bytes_limit": 1048576,
+    "stderr_bytes_limit": 65536,
+    "cleanup": "On success/failure/outer/output/OOM: record exact owned container State.ExitCode/OOMKilled; kill/remove only that ID within20s; inspect absence. Do not prune or touch any other resource. Preserve first failure and stop dependent commands. Unique image/tag may remain for parent review; never publish/push.",
+    "race": "Linuxnormal-only. No Linuxrace claimed fromCGO0. ExistingMacrace remains separate evidence."
+  },
+  "no_external_base_dependency": true,
+  "explicitly_not_executed": [
+    "Go",
+    "compile",
+    "dockerbuild",
+    "container",
+    "pull",
+    "test",
+    "WKendpoint"
+  ]
+}

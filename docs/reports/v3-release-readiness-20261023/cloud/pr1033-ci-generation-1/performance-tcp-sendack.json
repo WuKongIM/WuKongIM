@@ -1,0 +1,75 @@
+{
+  "artifact_id": 12475861198,
+  "source_sha": "9e8332ed8ea69540e5f248c7e483716e987a2546",
+  "binary_sha256": "4eb851d9f34fd345afc1168453f92b0671d58df995a547c0fb7da2258e0feda6",
+  "go_version": "go version go1.25.11 linux/amd64",
+  "visible_cpus": "4",
+  "cpu_model": "AMD EPYC 9V45 96-Core Processor",
+  "measurement_windows": [
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 178.023683,
+      "scheduled_to_start_p99_ms": 1.06148,
+      "service_p99_ms": 177.296082
+    },
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 177.988608,
+      "scheduled_to_start_p99_ms": 1.060167,
+      "service_p99_ms": 177.282364
+    },
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 178.00932,
+      "scheduled_to_start_p99_ms": 1.062867,
+      "service_p99_ms": 177.266444
+    }
+  ],
+  "warmup_windows": [
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 177.995908,
+      "scheduled_to_start_p99_ms": 1.044237,
+      "service_p99_ms": 177.331629
+    }
+  ],
+  "measurement_second_cohorts": 180,
+  "warmup_second_cohorts": 60,
+  "data_filesystem": {
+    "filesystems": [
+      {
+        "target": "/",
+        "source": "/dev/nvme0n1p1",
+        "fstype": "ext4",
+        "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+      }
+    ]
+  },
+  "result": {
+    "status": "pass"
+  }
+}

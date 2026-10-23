@@ -1,0 +1,17 @@
+{
+  "operation": "remove-original-worktree",
+  "argv": [
+    "git",
+    "worktree",
+    "remove",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-queue-pressure-snapshot"
+  ],
+  "started_at": "2026-10-23T01:54:23.898480+00:00",
+  "finished_at": "2026-10-23T01:54:24.348412+00:00",
+  "exit_code": 0,
+  "stdout_bytes": 0,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "force": false
+}

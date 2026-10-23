@@ -1,0 +1,56 @@
+{
+  "merge": "364253b3be532acb023757791a54b85d4c76cbd2",
+  "head": "2662fe93b754d614422f2936185cf781a33b831a",
+  "tree": "1182b14d5b659eb60f2e7b694ff91b6641189106",
+  "head_ancestor_of_origin_main_proved_before_cleanup": true,
+  "target_clean_including_ignored_proved_before_cleanup": true,
+  "only_original_worktree_removed": true,
+  "only_original_local_branch_deleted": true,
+  "force_delete_used": false,
+  "primary_branch_and_working_copy_unchanged": true,
+  "unrelated_linked_worktrees_and_local_branches_exactly_unchanged": true,
+  "exact_source_real_git_clone_preserved": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf",
+    "head": "2662fe93b754d614422f2936185cf781a33b831a",
+    "tree": "1182b14d5b659eb60f2e7b694ff91b6641189106",
+    "git_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf/.git"
+  },
+  "steps": [
+    {
+      "operation": "remove-original-worktree",
+      "argv": [
+        "git",
+        "worktree",
+        "remove",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-metrics-parse-leaf-diagnostics"
+      ],
+      "started_at": "2026-10-23T01:02:25.273625+00:00",
+      "finished_at": "2026-10-23T01:02:26.189849+00:00",
+      "exit_code": 0,
+      "stdout_bytes": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_bytes": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "force": false
+    },
+    {
+      "operation": "delete-original-local-branch",
+      "argv": [
+        "git",
+        "branch",
+        "-d",
+        "codex/v3-metrics-parse-leaf-diagnostics"
+      ],
+      "started_at": "2026-10-23T01:02:26.190014+00:00",
+      "finished_at": "2026-10-23T01:02:26.208336+00:00",
+      "exit_code": 0,
+      "stdout_bytes": 72,
+      "stdout_sha256": "0a4e53451bc360028276c0c0205253b50188470cc0775834a3267eed284c8e25",
+      "stderr_bytes": 191,
+      "stderr_sha256": "a6e954936c3ae88eb3d39b4a8b32475ab07a87b317ddadf566534d20247e090a",
+      "force": false
+    }
+  ],
+  "all_owned_local_processes_terminal": true,
+  "no_GitHub_workflow_cloud_product_actions": true
+}

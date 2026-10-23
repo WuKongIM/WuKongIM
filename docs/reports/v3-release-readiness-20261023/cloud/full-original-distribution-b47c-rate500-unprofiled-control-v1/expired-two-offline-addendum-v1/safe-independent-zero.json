@@ -1,0 +1,9 @@
+{
+  "schema": "b47c-two-offline-owned-zero/v1",
+  "at_utc": "2026-10-23T02:26:18.180590+00:00",
+  "owned_pgid": 99029,
+  "direct_child_joined": true,
+  "owned_pgid_alive": false,
+  "method": "killpg(ownedPGID,0) only; no global process scan or signal",
+  "elapsed_seconds": 0.6604273330885917
+}

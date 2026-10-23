@@ -1,0 +1,22 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12470041127,
+      "name": "wukongim-native-package-preview-39879047427",
+      "size_in_bytes": 77899362,
+      "digest": "sha256:076da177cdb7e7857c40e4cfcd6e1dc54888383513c8b4ec5dc1edfd7cbc7963",
+      "expired": false,
+      "created_at": "2026-10-23T00:40:46Z",
+      "updated_at": "2026-10-23T00:40:46Z",
+      "expires_at": "2026-11-06T00:40:43Z",
+      "workflow_run": {
+        "id": 39879047427,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-metrics-parse-leaf-diagnostics",
+        "head_sha": "2662fe93b754d614422f2936185cf781a33b831a"
+      }
+    }
+  ]
+}

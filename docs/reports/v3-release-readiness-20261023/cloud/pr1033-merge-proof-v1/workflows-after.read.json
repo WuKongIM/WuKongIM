@@ -1,0 +1,12 @@
+{
+  "method": "GET",
+  "endpoint": "actions/workflows?per_page=100",
+  "started_at": "2026-10-23T03:32:59.560697+00:00",
+  "finished_at": "2026-10-23T03:33:00.528800+00:00",
+  "exit_code": 0,
+  "stdout_bytes": 21497,
+  "stdout_sha256": "2d498c83c47689fcac7b302cf4001aa7f964e01697a9f3818a182cbd74f2165c",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_private_only": true
+}

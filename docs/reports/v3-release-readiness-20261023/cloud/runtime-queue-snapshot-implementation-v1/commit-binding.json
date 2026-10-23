@@ -1,0 +1,13 @@
+{
+  "head": "b47c03d461a6d8918e537e027bf56539ce78c585",
+  "tree": "7ce68e726fea61bd6d176fbc7053dede920d5b00",
+  "base": "364253b3be532acb023757791a54b85d4c76cbd2",
+  "base_tree": "1182b14d5b659eb60f2e7b694ff91b6641189106",
+  "clean_worktree": true,
+  "changed_path_count": 5,
+  "source_pins_sha256": "f230586e74a21ff77a050ee0509f4602c0430691cf04500412fe2c21ec17705b",
+  "all_test_pins_sha256": "e02a12029e2f4c570be7c11feac38b06abb8a7c000a351f063edf4635fc07362",
+  "all_other_tracked_files_unchanged": true,
+  "no_self_review_or_merge": true,
+  "not_attribution_of_original_loss_or_unretained_response": true
+}

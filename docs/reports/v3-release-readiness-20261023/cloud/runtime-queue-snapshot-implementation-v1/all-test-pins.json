@@ -1,0 +1,33 @@
+{
+  "phase": "all failure/control tests frozen before production change",
+  "files": {
+    "pkg/metrics/runtime_pressure_snapshot_test.go": {
+      "sha256": "0790f9951c8671b348296ed1cdebd507300905edcd159605feb737b7a21af18c",
+      "bytes": 9451
+    },
+    "pkg/metrics/runtime_pressure_test.go": {
+      "sha256": "baf4af682e44bf2f28cd0319cd2f025292ed1dec2834cd357f2a940cef2d6d1e",
+      "bytes": 4186
+    },
+    "pkg/metrics/registry_test.go": {
+      "sha256": "aa0b70afdeb291e70b9aece952d9a97b048e4eb43cac9611828db507fa78f54d",
+      "bytes": 116028
+    },
+    "internal/bench/target/metrics_parse_diagnostics_test.go": {
+      "sha256": "73e78969236377346fb62938d74eed09afbf198ef8dd354723f94e8054093b4c",
+      "bytes": 11204
+    },
+    "internal/bench/target/metrics_failure_diagnostics_test.go": {
+      "sha256": "aa1bf6986fbd9771eae13031dd1446bf0e2ab52689c4dee620d58b4801ee3ae5",
+      "bytes": 15365
+    },
+    "internal/bench/target/client_test.go": {
+      "sha256": "e48732178091c95ceb654dbcc68be1eb9b04b3338a7f1c758bdd15a8373c930f",
+      "bytes": 60790
+    },
+    "internal/app/observability_test.go": {
+      "sha256": "d51dbfdffd3ba6e90dbbab2a44e83d60d31d52a1a5897c966801f8a4f7784008",
+      "bytes": 113163
+    }
+  }
+}

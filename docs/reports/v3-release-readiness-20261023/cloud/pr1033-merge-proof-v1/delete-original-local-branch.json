@@ -1,0 +1,17 @@
+{
+  "operation": "delete-original-local-branch",
+  "argv": [
+    "git",
+    "branch",
+    "-d",
+    "codex/v3-owner-recovery-width16"
+  ],
+  "started_at": "2026-10-23T03:33:44.381126+00:00",
+  "finished_at": "2026-10-23T03:33:44.407133+00:00",
+  "exit_code": 0,
+  "stdout_bytes": 64,
+  "stdout_sha256": "031ff0965fd8ae38d5ccbe2f4fbf64b9033199c9adf6a990bfd24ced87712e45",
+  "stderr_bytes": 175,
+  "stderr_sha256": "c6d35239312407f3d0cffd77defd88374fa05bb3585b04616e72499713d6bf33",
+  "force": false
+}

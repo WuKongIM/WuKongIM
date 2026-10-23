@@ -1,0 +1,13 @@
+{
+  "old_actual_public_manifest_sha256": "881f2a3dd3f8b64ae827a40842b506d9d88df06bffc24a3e9841f882409d7cd4",
+  "old_actual_controls": {
+    "launcher.sh": "629948db2cefa526f1d4bdf135c01e501bfefadd6c9a9f899292924e8f277881",
+    "supervise.py": "00c504061bf6f5eac8ae90dd164db3735b49237e2b5699c8ab5ca8317e9c1097",
+    "exact_build_guard.py": "80fb1501a52f4f460e95ccb3d1792799fac7bbd9bc5d7d56613a68a1cacf1adf",
+    "original-distribution-local.yaml": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe"
+  },
+  "old_proposal_manifest_sha256": "9d014566e89421354387b1702d6a9c1b653af988ea35204e1629727f94578b0d",
+  "old_source_or_runtime_mutation": false
+}

@@ -1,0 +1,78 @@
+{
+  "phases": [
+    {
+      "phase": "snapshot-red",
+      "exit_code": 1,
+      "wall_seconds": 2.163596292026341,
+      "counts_including_parent_tests_and_subtests": {
+        "fail_case": 6,
+        "pass_case": 2,
+        "fail_package": 1
+      },
+      "failed_test_names": [
+        "TestRuntimePressureQueueSnapshotAcrossDeferredWrite/gather",
+        "TestRuntimePressureQueueSnapshotAcrossDeferredWrite/http",
+        "TestRuntimePressureQueueSnapshotAcrossDeferredWrite/gather_revisioned",
+        "TestRuntimePressureQueueSnapshotAcrossDeferredWrite/http_revisioned",
+        "TestRuntimePressureQueueSnapshotAcrossDeferredWrite",
+        "TestRuntimePressureQueueSnapshotMembershipIsComplete"
+      ],
+      "same_frozen_test_hashes": true
+    },
+    {
+      "phase": "snapshot-green",
+      "exit_code": 0,
+      "wall_seconds": 1.2566283330088481,
+      "counts_including_parent_tests_and_subtests": {
+        "pass_case": 8,
+        "pass_package": 1
+      },
+      "failed_test_names": [],
+      "same_frozen_test_hashes": true
+    },
+    {
+      "phase": "metrics-target-normal",
+      "exit_code": 0,
+      "wall_seconds": 3.4654991250718012,
+      "counts_including_parent_tests_and_subtests": {
+        "pass_case": 292,
+        "pass_package": 2
+      },
+      "failed_test_names": [],
+      "same_frozen_test_hashes": true
+    },
+    {
+      "phase": "app-observability-normal",
+      "exit_code": 0,
+      "wall_seconds": 23.141448082984425,
+      "counts_including_parent_tests_and_subtests": {
+        "pass_case": 15,
+        "pass_package": 1
+      },
+      "failed_test_names": [],
+      "same_frozen_test_hashes": true
+    },
+    {
+      "phase": "metrics-target-race",
+      "exit_code": 0,
+      "wall_seconds": 8.192273542052135,
+      "counts_including_parent_tests_and_subtests": {
+        "pass_case": 292,
+        "pass_package": 2
+      },
+      "failed_test_names": [],
+      "same_frozen_test_hashes": true
+    },
+    {
+      "phase": "app-observability-race",
+      "exit_code": 0,
+      "wall_seconds": 59.376129125012085,
+      "counts_including_parent_tests_and_subtests": {
+        "pass_case": 15,
+        "pass_package": 1
+      },
+      "same_frozen_test_hashes": true
+    }
+  ],
+  "reproduced_signal": "Old real Gather/promhttp emits [8,1,10,10] between two individually-valid observations; new immutable snapshot emits [8,10,80,100]. This is not attribution of the unretained runtime response."
+}

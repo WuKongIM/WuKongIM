@@ -1,0 +1,11 @@
+--- sealed-original-A/launcher.sh
++++ prepared-A2-reversal/launcher.sh
+@@ -2,7 +2,7 @@
+ set -euo pipefail
+ umask 077
+ ROOT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-b47c-queue-snapshot
+-RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1'
++RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-reversal-v1'
+ BASE_PORT=25000
+ READY_TIMEOUT=60
+ CLEANUP_TIMEOUT=15

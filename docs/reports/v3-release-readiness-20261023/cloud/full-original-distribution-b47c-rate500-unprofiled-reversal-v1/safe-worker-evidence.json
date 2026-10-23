@@ -1,0 +1,38 @@
+{
+  "schema": "localb47c-closed-worker-evidence/v1",
+  "workers": [
+    {
+      "worker_id": 0,
+      "generation": 1,
+      "snapshot_sequence": 8,
+      "classes": [
+        {
+          "class": 3,
+          "count": 1,
+          "samples": [
+            {
+              "stage": 5,
+              "code": 11,
+              "sample_index": "9223380832947799030",
+              "fingerprint": "70880a9a77930be76d3b28ad30f1849d",
+              "value": 10000000000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "worker_id": 1,
+      "generation": 1,
+      "snapshot_sequence": 8,
+      "classes": []
+    },
+    {
+      "worker_id": 2,
+      "generation": 1,
+      "snapshot_sequence": 8,
+      "classes": []
+    }
+  ],
+  "no_identity_reconstruction_or_DB_query": true
+}

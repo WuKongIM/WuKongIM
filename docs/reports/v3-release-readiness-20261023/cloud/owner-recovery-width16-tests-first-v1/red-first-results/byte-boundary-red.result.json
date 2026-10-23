@@ -1,0 +1,44 @@
+{
+  "phase": "byte-boundary-red",
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "-tags=integration",
+    "./internal/usecase/presence",
+    "-run",
+    "^TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts$",
+    "-count=1",
+    "-p=1",
+    "-parallel=1",
+    "-timeout=90s",
+    "-json"
+  ],
+  "started_utc": "2026-10-23T02:11:42.070023+00:00",
+  "elapsed_seconds": 10.499,
+  "exit_code": 1,
+  "outer_or_output_kill": null,
+  "pgid": 97914,
+  "output_bytes": {
+    "stdout": 1931,
+    "stderr": 0
+  },
+  "events": [
+    {
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+      "Test": "TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts",
+      "Elapsed": 10.09
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+      "Elapsed": 10.245
+    }
+  ],
+  "bounded_diagnostics": [
+    "recovery_width16_integration_test.go:167: owner round 104 did not enter",
+    "--- FAIL: TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts (10.09s)",
+    "FAIL",
+    "FAIL\tgithub.com/WuKongIM/WuKongIM/internal/usecase/presence\t10.245s"
+  ]
+}

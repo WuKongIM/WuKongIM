@@ -1,0 +1,20 @@
+--- sealed-A/supervise.py
++++ prepared-B-width16/supervise.py
+@@ -13,14 +13,14 @@
+ import urllib.request
+ from exact_build_guard import verify_exact_build, PRODUCT_BINARIES
+ 
+-ROOT = Path("/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-b47c-queue-snapshot")
++ROOT = Path("/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate")
+ OUT = Path(__file__).resolve().parent
+-SOURCE = "b47c03d461a6d8918e537e027bf56539ce78c585"
++SOURCE = "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac"
+ RUN_ID = "chat-20261021T214505Z-00299e37-rehearsal-1"
+ BASE = 25000
+ TOTAL_SECONDS = 600
+ TRAFFIC_SECONDS = 120
+-INPUT_HASHES = {'launcher.sh': 'f60d7db1942b57909d66bb3157eade6bfc8f1d220b75e8cef8dfbb75426dac84', 'original-distribution-local.yaml': '308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694', 'watchdog.py': 'cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415', 'verify-slots.py': '220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe'}
++INPUT_HASHES = {'launcher.sh': 'af10f04516ad50c9ebb5320d0079c2bef4ac80061196a973945e165c14c6149d', 'original-distribution-local.yaml': '308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694', 'watchdog.py': 'cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415', 'verify-slots.py': '220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe'}
+ owned = None
+ started_mono = time.monotonic()
+ started_wall = datetime.datetime.now(datetime.timezone.utc)

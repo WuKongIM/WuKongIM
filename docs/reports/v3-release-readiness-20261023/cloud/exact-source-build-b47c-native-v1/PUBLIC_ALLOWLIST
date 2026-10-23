@@ -1,0 +1,11 @@
+build-receipt.json
+instructions-freeze.json
+embedded-assets-comparison.json
+wukongim-build.json
+wukongim-buildinfo.txt
+wukongim-build.stdout
+wukongim-build.stderr
+wkcli-build.json
+wkcli-buildinfo.txt
+wkcli-build.stdout
+wkcli-build.stderr

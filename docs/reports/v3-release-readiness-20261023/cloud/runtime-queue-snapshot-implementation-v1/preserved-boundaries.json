@@ -1,0 +1,22 @@
+{
+  "base": "364253b3be532acb023757791a54b85d4c76cbd2",
+  "unchanged_files": {
+    "pkg/metrics/channel_runtime.go": {
+      "sha256": "4b516e84d602737c96e99aa03504a6094b3f23e1a3049c0a1cc8190bb77b58b4",
+      "bytes": 26661
+    },
+    "internal/bench/target/client.go": {
+      "sha256": "d392bf84cf7175830838e758a4d3df1ecc953b153af1da5e8cfc35c7daf11d5e",
+      "bytes": 52758
+    },
+    "internal/bench/chatlifecycle/production_observation.go": {
+      "sha256": "85c147271c695a2af5f40fd35d16b13301dde3e3da9588f3bb78843b937bf8b7",
+      "bytes": 38176
+    },
+    "internal/bench/chatlifecycle/report.go": {
+      "sha256": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+      "bytes": 37534
+    }
+  },
+  "scope": "All parser/report/threshold/capacity/deadline/Channel-worker sources remain unchanged; current source delta consists only metrics collector/publication, tests and release knowledge."
+}

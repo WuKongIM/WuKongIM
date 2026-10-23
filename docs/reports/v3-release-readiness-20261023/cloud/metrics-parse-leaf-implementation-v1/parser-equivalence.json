@@ -1,0 +1,33 @@
+{
+  "base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "parser_file": "internal/bench/target/client.go",
+  "base_sha256": "797ac967cb5f771d2cd3c146d42eff579cb51570aefe91ac8b566372dcb9e2e7",
+  "actual_sha256": "d392bf84cf7175830838e758a4d3df1ecc953b153af1da5e8cfc35c7daf11d5e",
+  "normalization": "Each closed factory call replaced with the corresponding original immutable errors.New literal; entire client.go byte-identical to base afterward. No runtime classification by error text.",
+  "entire_client_identical_after_normalizing_only_error_construction": true,
+  "fixed_family_count": 20,
+  "guard_return_count": 30,
+  "family_return_counts": {
+    "line_limit": 2,
+    "series_limit": 1,
+    "invalid_value": 1,
+    "incomplete_metadata_results": 1,
+    "invalid_sample": 2,
+    "invalid_labels": 7,
+    "invalid_metadata_labels": 2,
+    "invalid_metadata_slot": 1,
+    "invalid_metadata_counter": 1,
+    "invalid_metadata_result": 1,
+    "duplicate_metadata_slot_result": 1,
+    "aggregate_overflow": 2,
+    "unsupported_family": 1,
+    "invalid_queue_labels": 1,
+    "invalid_queue_family": 1,
+    "duplicate_or_excess_queue_series": 1,
+    "unpaired_queue_series": 1,
+    "invalid_queue_utilization": 1,
+    "invalid_sample_name": 1,
+    "label_cardinality_limit": 1
+  },
+  "tests_first_pins_sha256": "8c0d7d4e066f82318778cb801693812edb14add539351d97d37d837205902910"
+}

@@ -1,0 +1,17 @@
+GREEN-static-contract.log
+README.md
+exact_build_guard.proposed.py
+exact_build_guard.py-vs-A.diff
+failure-matrix.md
+final-preflight.json
+instructions-freeze.json
+launcher.proposed.sh
+launcher.sh-vs-A.diff
+materialization-receipt.json
+planner-config-equivalence.json
+prior-proof-immutability.json
+safe-final-extraction-contract.json
+safe-planner-identity.json
+static_contract_test.py
+supervise.proposed.py
+supervise.py-vs-A.diff

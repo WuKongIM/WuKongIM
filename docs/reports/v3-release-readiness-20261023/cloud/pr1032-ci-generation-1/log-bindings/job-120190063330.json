@@ -1,0 +1,27 @@
+{
+  "id": 120190063330,
+  "run_id": 39884710344,
+  "name": "Candidate default suite (go-unit)",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 86209,
+  "sha256": "315076eaee16fdbdebf289f329424b96cd2ee0ea0c43585591b25ad8ddb0f6ed",
+  "actual_checkout_candidates": [
+    "b6007c97971b5b3645b8917fc5a14c9499d0cfed"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+    "Freeze source and named-check authority",
+    "Validate workflow static contracts",
+    "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+    "Run frozen go-unit named check once",
+    "Reject tracked-tree mutation",
+    "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+    "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+    "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

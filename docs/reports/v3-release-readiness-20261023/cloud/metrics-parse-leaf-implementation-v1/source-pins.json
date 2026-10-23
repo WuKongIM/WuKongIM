@@ -1,0 +1,65 @@
+{
+  "base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "changed_files": {
+    "CHANGELOG.md": {
+      "sha256": "e7c47e14637293f1ca50e286856cf2ec0733e46b659ad044a81ac18d1c2a96c0",
+      "bytes": 193296
+    },
+    "cmd/wkcli/internal/benchmark/metrics_parse_diagnostics_test.go": {
+      "sha256": "e7baa1e353a200bbb552701fadbc08220225af9faf288f4adad4b37a9cfd6410",
+      "bytes": 1725
+    },
+    "docs/development/FLOW_INDEX.md": {
+      "sha256": "14c48918e3a965f1ea8ebfe2e18c1b9ade134f44f1bcbd2e09be33bdaf213102",
+      "bytes": 19368
+    },
+    "docs/development/PROJECT_KNOWLEDGE.md": {
+      "sha256": "adf15d7693d5794813c82aa5e6168407341d1be1b94db56ab70ed103295fdf7a",
+      "bytes": 149395
+    },
+    "internal/bench/FLOW.md": {
+      "sha256": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73",
+      "bytes": 6925
+    },
+    "internal/bench/chatlifecycle/FLOW.md": {
+      "sha256": "ff2b4ae3474dcd49cb81e2365b4c425335bb28e57e1df224a967bf57abf47106",
+      "bytes": 6932
+    },
+    "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go": {
+      "sha256": "dc22fec67d315ab81dbdfa56b8157af017cf9b920162f6b49d5623d9aebf1eb2",
+      "bytes": 18792
+    },
+    "internal/bench/chatlifecycle/metrics_fetch_failure.go": {
+      "sha256": "2669204b0a5d5f80cb4fea0f46dbf8cecf0bb1f3c7ec9b8208f9e0a3119186ae",
+      "bytes": 3840
+    },
+    "internal/bench/chatlifecycle/metrics_parse_diagnostics_test.go": {
+      "sha256": "9d80ca2103480d3a6442daf3f40465454346e06dd8fa10a3f12e491beb49a40a",
+      "bytes": 9577
+    },
+    "internal/bench/chatlifecycle/metrics_parse_null_diagnostics_test.go": {
+      "sha256": "24923bffeb8c086af01e93e2ea5767dc5bbe563ca8c269e0ace23905b4a24fae",
+      "bytes": 848
+    },
+    "internal/bench/chatlifecycle/production_meta.go": {
+      "sha256": "0b67229f24ec2a7e8320a5c6ca9f7a7f959944bc2b81eb000fa553c1b9e289fd",
+      "bytes": 12679
+    },
+    "internal/bench/target/client.go": {
+      "sha256": "d392bf84cf7175830838e758a4d3df1ecc953b153af1da5e8cfc35c7daf11d5e",
+      "bytes": 52758
+    },
+    "internal/bench/target/metrics_parse_diagnostics_test.go": {
+      "sha256": "73e78969236377346fb62938d74eed09afbf198ef8dd354723f94e8054093b4c",
+      "bytes": 11204
+    },
+    "internal/bench/target/metrics_parse_failure.go": {
+      "sha256": "b928bc664dba8c1355cab6f5f67926e3cb9cd23ce92730e66deaa69430eb4314",
+      "bytes": 3416
+    }
+  },
+  "original_tests_first_sha256": "8c0d7d4e066f82318778cb801693812edb14add539351d97d37d837205902910",
+  "supplemental_tests_first_sha256": "e687376c70b6d4f598f8b11c71cda6dcf179f95d28f657b4f8235d987c19121b",
+  "all_original_and_supplemental_test_files_still_identical": true,
+  "untouched_paths": "Every other tracked source path is unchanged according to git diff from the exact base. Final commit/tree binding recorded separately."
+}

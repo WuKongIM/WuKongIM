@@ -1,0 +1,21 @@
+{
+  "id": 120190063369,
+  "run_id": 39884710345,
+  "name": "PR performance baseline evidence",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 72105,
+  "sha256": "8830010f1e232b8320a5acead4f21ab84cd0dac0c28f664a9cce77b8e1f1a0e2",
+  "actual_checkout_candidates": [
+    "b6007c97971b5b3645b8917fc5a14c9499d0cfed"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Checkout exact candidate without credentials",
+    "Check identical-input successful main baseline",
+    "Post Checkout exact candidate without credentials",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

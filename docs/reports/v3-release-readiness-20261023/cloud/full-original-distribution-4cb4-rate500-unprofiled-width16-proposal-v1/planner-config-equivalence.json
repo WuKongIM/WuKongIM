@@ -1,0 +1,87 @@
+{
+  "A_source": "b47c03d461a6d8918e537e027bf56539ce78c585",
+  "B_source": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "comparisons": [
+    {
+      "path": "internal/bench/chatlifecycle/io.go",
+      "scope": "whole file",
+      "A_sha256": "1c24ae291bbad7e71238af96dcfb87d6e64f9727c9c7d9d491f8dca3f387b343",
+      "B_sha256": "1c24ae291bbad7e71238af96dcfb87d6e64f9727c9c7d9d491f8dca3f387b343",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/config.go",
+      "scope": "whole file",
+      "A_sha256": "ca7a92060eb984f3ab4fa55a58353e802f41999c8cc53b1ba0f1c0dd596b7289",
+      "B_sha256": "ca7a92060eb984f3ab4fa55a58353e802f41999c8cc53b1ba0f1c0dd596b7289",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/types.go",
+      "scope": "whole file",
+      "A_sha256": "bb21602adf6597e6e839044a2691e28d0c7cc6bee76fc7cd6acb5f80e8085eac",
+      "B_sha256": "bb21602adf6597e6e839044a2691e28d0c7cc6bee76fc7cd6acb5f80e8085eac",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/report.go",
+      "scope": "whole file",
+      "A_sha256": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+      "B_sha256": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "scope": "whole file",
+      "A_sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "B_sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/identity.go",
+      "scope": "whole file",
+      "A_sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "B_sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/traffic.go",
+      "scope": "whole file",
+      "A_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "B_sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "byte_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/evidence.go",
+      "scope": "whole file",
+      "A_sha256": "3f630c9086b727ed7bab5b541c8ddab6fb7eca3fe89d06c32874f2983c12d852",
+      "B_sha256": "3f630c9086b727ed7bab5b541c8ddab6fb7eca3fe89d06c32874f2983c12d852",
+      "byte_equal": true
+    },
+    {
+      "path": "scripts/wukongim/wukongim-node1.toml",
+      "scope": "whole file",
+      "A_sha256": "3cbe215c8564808fc61b06e91f80f5a6c70e29aa107482f32531c56923129d21",
+      "B_sha256": "3cbe215c8564808fc61b06e91f80f5a6c70e29aa107482f32531c56923129d21",
+      "byte_equal": true
+    },
+    {
+      "path": "scripts/wukongim/wukongim-node2.toml",
+      "scope": "whole file",
+      "A_sha256": "6f485b514ca36570e75ee021889ed0f63c1da0cec1650743cde88b6bde9cfad3",
+      "B_sha256": "6f485b514ca36570e75ee021889ed0f63c1da0cec1650743cde88b6bde9cfad3",
+      "byte_equal": true
+    },
+    {
+      "path": "scripts/wukongim/wukongim-node3.toml",
+      "scope": "whole file",
+      "A_sha256": "965c6a5a4d3f72614792c9a8b29cf9fb3a7f179af00232139f8273d80b78ecc0",
+      "B_sha256": "965c6a5a4d3f72614792c9a8b29cf9fb3a7f179af00232139f8273d80b78ecc0",
+      "byte_equal": true
+    }
+  ],
+  "YAML_byte_equal": true,
+  "typed_config_diff": [],
+  "prior_real_plan_identity_reused": true,
+  "CLI_or_planner_invocations": 0
+}

@@ -1,0 +1,73 @@
+{
+  "total_count": 4,
+  "artifacts": [
+    {
+      "id": 12470290772,
+      "name": "500qps-tcp-sendack-5b3fef1c7a3418c13c4a4392533f112915d97ffe-1",
+      "size_in_bytes": 8258,
+      "digest": "sha256:aa540711a847b380e875d7dcfe582391e642097f0c9afd7e9f7fa52bb251c857",
+      "expired": false,
+      "created_at": "2026-10-23T00:40:37Z",
+      "updated_at": "2026-10-23T00:40:37Z",
+      "expires_at": "2026-11-06T00:40:36Z",
+      "workflow_run": {
+        "id": 39879047447,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-metrics-parse-leaf-diagnostics",
+        "head_sha": "2662fe93b754d614422f2936185cf781a33b831a"
+      }
+    },
+    {
+      "id": 12470196154,
+      "name": "500qps-channel-append-5b3fef1c7a3418c13c4a4392533f112915d97ffe-1",
+      "size_in_bytes": 25923,
+      "digest": "sha256:b4cdd6cd024944d6ebc67a867abba5d60ca6e3dc125044601f497e1db5f2c342",
+      "expired": false,
+      "created_at": "2026-10-23T00:40:50Z",
+      "updated_at": "2026-10-23T00:40:50Z",
+      "expires_at": "2026-11-06T00:40:49Z",
+      "workflow_run": {
+        "id": 39879047447,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-metrics-parse-leaf-diagnostics",
+        "head_sha": "2662fe93b754d614422f2936185cf781a33b831a"
+      }
+    },
+    {
+      "id": 12470185704,
+      "name": "500qps-mixed-send-5b3fef1c7a3418c13c4a4392533f112915d97ffe-1",
+      "size_in_bytes": 228644,
+      "digest": "sha256:dc66221425f74e02d2a07e4d87729a78eb3825c41dbda855ea4d7dc339ed4519",
+      "expired": false,
+      "created_at": "2026-10-23T00:41:15Z",
+      "updated_at": "2026-10-23T00:41:15Z",
+      "expires_at": "2026-11-06T00:41:15Z",
+      "workflow_run": {
+        "id": 39879047447,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-metrics-parse-leaf-diagnostics",
+        "head_sha": "2662fe93b754d614422f2936185cf781a33b831a"
+      }
+    },
+    {
+      "id": 12469118418,
+      "name": "three-node-pr-1031-5b3fef1c7a3418c13c4a4392533f112915d97ffe-1",
+      "size_in_bytes": 229226446,
+      "digest": "sha256:a9752d0df5ff0647f44b84a0477812723a1592d95e3d668d5e06b90dcc67f849",
+      "expired": false,
+      "created_at": "2026-10-23T00:40:29Z",
+      "updated_at": "2026-10-23T00:40:29Z",
+      "expires_at": "2026-10-30T00:40:16Z",
+      "workflow_run": {
+        "id": 39879047447,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-metrics-parse-leaf-diagnostics",
+        "head_sha": "2662fe93b754d614422f2936185cf781a33b831a"
+      }
+    }
+  ]
+}

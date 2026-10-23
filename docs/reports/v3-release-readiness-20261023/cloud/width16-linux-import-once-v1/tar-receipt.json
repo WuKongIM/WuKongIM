@@ -1,0 +1,20 @@
+{
+  "sha256": "ae1c98cc869af5063bc290bdbe44701dc961ef833c427b1717a1cf3b6cdbfbdc",
+  "bytes": 10240,
+  "format": "USTAR",
+  "entries": [
+    {
+      "name": "tests/",
+      "mode": "0555"
+    },
+    {
+      "name": "tmp/",
+      "mode": "1777"
+    }
+  ],
+  "uid": 0,
+  "gid": 0,
+  "mtime": 0,
+  "files": 0,
+  "host_reads_during_tar_generation": false
+}

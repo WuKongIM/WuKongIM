@@ -1,0 +1,81 @@
+{
+  "schema": "wukongim.trace-offline.code-preparation/v1",
+  "at_utc": "2026-10-23T01:12:58.457736+00:00",
+  "tests_first_manifest_sha256": "73637e8f5ecc3d249948ffe20dff84579cbe10ba17b8908ad93d880361abaa39",
+  "source_test_files_unchanged": true,
+  "old_behavior_RED": {
+    "methods": 2,
+    "pass": 1,
+    "error": 1,
+    "expected_error": "KeyError9",
+    "actual_exit": 1
+  },
+  "missing_API_RED": {
+    "collection_import_error": true,
+    "actual_exit": 1,
+    "methods_executed": 0
+  },
+  "first_GREEN": {
+    "methods": 23,
+    "pass": 23,
+    "exit": 0,
+    "reported_seconds": 0.434
+  },
+  "files": [
+    {
+      "name": "trace_offline.py",
+      "bytes": 10782,
+      "sha256": "6d9bb3069aed807e1f032345d58684e2f25c6b14547ce99f7a9c399cc0375e79"
+    },
+    {
+      "name": "decode_trace_profile_worker.py",
+      "bytes": 1431,
+      "sha256": "22b2b7bac47bdf3dda034c1c6704395a727435afe567622c508a635821f32fb1"
+    },
+    {
+      "name": "core-reuse-comparison.json",
+      "bytes": 838,
+      "sha256": "5e70b4431eaee9fed442078e0fc469d4718eb79dcc5e0a27abd68813e9df751c"
+    },
+    {
+      "name": "RED-legacy-envelope.log",
+      "bytes": 1655,
+      "sha256": "ec45cb3ff01177f45bca4011e5ee92fb3883b33bc0a14f2c639a408f0088a8c9"
+    },
+    {
+      "name": "RED-legacy-envelope-receipt.json",
+      "bytes": 1654,
+      "sha256": "826f87a07d731a28963bdb206eb781dfed41ea74460d7315dc1e810ee961e835"
+    },
+    {
+      "name": "RED-missing-new-API.log",
+      "bytes": 250,
+      "sha256": "8b88d4fd30cf5aad5ff06449f72ecb842422ada1110231c77cc90c13a4fe5fd3"
+    },
+    {
+      "name": "RED-missing-new-API-receipt.json",
+      "bytes": 1647,
+      "sha256": "5660af2c3766e68960a3eba4f836490f073977e91d9399279be936271b49d652"
+    },
+    {
+      "name": "GREEN-synthetic-first.log",
+      "bytes": 3352,
+      "sha256": "7c12790790d2e6df9a401271d14816bb021a0adfed39574b89429be8baca7552"
+    },
+    {
+      "name": "GREEN-synthetic-first-receipt.json",
+      "bytes": 1788,
+      "sha256": "3ef8679daa55d7d7e2a9d5ad07d0589291a535fe29fd067109d4e27f3debcc0c"
+    }
+  ],
+  "python": {
+    "invoked_executable": "/opt/homebrew/bin/python3",
+    "resolved_executable": "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/bin/python3.13",
+    "version": "3.13.5 (main, Jun 11 2025, 15:36:57) [Clang 17.0.0 (clang-1700.0.13.3)]",
+    "resolved_sha256": "a1f6d9dc20d4787a84dc2fe782094a7bac5946f49a962aa0af48a02f0e8d5bc5"
+  },
+  "actual_trace_reads": 0,
+  "actual_offline_tool_invocations": 0,
+  "actual_scope_approval_pending": true,
+  "final_manifest_not_sealed": true
+}

@@ -1,0 +1,124 @@
+{
+  "schema": "wukongim/readiness-text-only-source-boundary/v1",
+  "source_scope": "width16-linux-import-once-v1",
+  "source_manifest": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-import-once-v1/SHA256SUMS",
+    "bytes": 1121,
+    "sha256": "741578e927c009846bbcf1fd02cab9badea419348f5e1d9325f7ba3ac6d474eb",
+    "entries": 13,
+    "all_source_members_verified_before_projection": true,
+    "archived_as_checksum_file": false,
+    "meaning": "External full-source manifest identity only. It includes a deliberately omitted binary and is NOT the archive checksum."
+  },
+  "source_members": [
+    {
+      "path": "source-binary-binding.json",
+      "bytes": 1213,
+      "sha256": "fd524d9d1d755b6178f2396bce55558b56b182af8d70991cd97dc8bf345c546c",
+      "archived": true
+    },
+    {
+      "path": "tar-receipt.json",
+      "bytes": 352,
+      "sha256": "8a2197114855a54bfe1d03dc7d18229fff143e5b1c2d28f9db70b2330ae7a64d",
+      "archived": true
+    },
+    {
+      "path": "empty-rootfs.tar",
+      "bytes": 10240,
+      "sha256": "ae1c98cc869af5063bc290bdbe44701dc961ef833c427b1717a1cf3b6cdbfbdc",
+      "archived": false
+    },
+    {
+      "path": "image-receipt.json",
+      "bytes": 791,
+      "sha256": "504b2f5c2d95e23369373fdde901592c871adb783e426ec9a0e2211999bae206",
+      "archived": true
+    },
+    {
+      "path": "runtime-results.json",
+      "bytes": 2188,
+      "sha256": "dde37b5e0adf219587adbb26f5d838f1a526bb28af97aa0f0e3ce37ac11a25d6",
+      "archived": true
+    },
+    {
+      "path": "execution-summary.json",
+      "bytes": 14396,
+      "sha256": "cd0fdde191737e2544a66e6552eb2fb62bf07633801b7f0d6c6bd54ec1ee60f0",
+      "archived": true
+    },
+    {
+      "path": "final-task-tags.json",
+      "bytes": 186,
+      "sha256": "fa467f49019b6f2bf8e9cc5f86b44480c985f877bdafc008a22fbfd078c0696f",
+      "archived": true
+    },
+    {
+      "path": "post-state.json",
+      "bytes": 1161,
+      "sha256": "e6eb9d036a2251c24650d39ad60723474491426f9d90fb6bb91e7eb0ca61d1dc",
+      "archived": true
+    },
+    {
+      "path": "assessment.md",
+      "bytes": 2414,
+      "sha256": "62680f3b7b527bc69715fa4a62488fd2eb53b38575de42e59ca4da86f8320e39",
+      "archived": true
+    },
+    {
+      "path": "logs/run-presence.stdout",
+      "bytes": 937,
+      "sha256": "fb04b6bae1af8c048e725cae5fbfa49d646c3d43d65924b519a078745bc3030e",
+      "archived": true
+    },
+    {
+      "path": "logs/run-cluster.stdout",
+      "bytes": 183,
+      "sha256": "0548b2ab2121b021fb0e08888c286995a0392cc266cc588e6321f4e74fb6fcd7",
+      "archived": true
+    },
+    {
+      "path": "executor.py",
+      "bytes": 9463,
+      "sha256": "0ee5838bb58170076b001c96e3db34ab522f983b0eb440367942e08b46276c02",
+      "archived": true
+    },
+    {
+      "path": "excluded-log-metadata.json",
+      "bytes": 8537,
+      "sha256": "1ef0460b80047cfdf7026692982cac3c9b4e01660a0bbc6f3b03284ecc6b5679",
+      "archived": true
+    }
+  ],
+  "omitted_binary": [
+    {
+      "source_relative": "empty-rootfs.tar",
+      "bytes": 10240,
+      "sha256": "ae1c98cc869af5063bc290bdbe44701dc961ef833c427b1717a1cf3b6cdbfbdc",
+      "archived": false,
+      "reason": "binary excluded by text-only archive policy; original source receipt and two-entry directory manifest retained"
+    }
+  ],
+  "tar_directory_manifest": {
+    "sha256": "ae1c98cc869af5063bc290bdbe44701dc961ef833c427b1717a1cf3b6cdbfbdc",
+    "bytes": 10240,
+    "format": "USTAR",
+    "entries": [
+      {
+        "name": "tests/",
+        "mode": "0555"
+      },
+      {
+        "name": "tmp/",
+        "mode": "1777"
+      }
+    ],
+    "uid": 0,
+    "gid": 0,
+    "mtime": 0,
+    "files": 0,
+    "host_reads_during_tar_generation": false
+  },
+  "archive_validation": "Only selected text files and this metadata projection enter COPY_BATCH16_SHA256SUMS and CHECKPOINT_SHA256SUMS. No full-source completeness is claimed for the archive. Original SHA256SUMS and all original files remain unmodified.",
+  "same_original_source_text_bytes": true
+}

@@ -1,0 +1,26 @@
+{
+  "id": 120218775120,
+  "run_id": 39893010300,
+  "name": "Exercise AlmaLinux 9 package lifecycle",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 83700,
+  "sha256": "52f651b58d6369fa9bb0f3ccf65e513cab45ab729ff2318632795bc1c6f11a7a",
+  "actual_checkout_candidates": [
+    "9e8332ed8ea69540e5f248c7e483716e987a2546"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Check out exact source",
+    "Set up repository Go toolchain",
+    "Download the exact preview packages",
+    "Verify the downloaded package set",
+    "Exercise the operator-owned lifecycle",
+    "Reject tracked-tree mutation",
+    "Post Set up repository Go toolchain",
+    "Post Check out exact source",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

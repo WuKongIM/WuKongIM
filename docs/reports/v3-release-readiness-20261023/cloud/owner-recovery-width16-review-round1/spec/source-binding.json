@@ -1,0 +1,115 @@
+{
+  "review_axis": "Spec",
+  "utc": "2026-10-23T02:26:41.414471+00:00",
+  "head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "base": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+  "merge_base": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+  "commits": [
+    "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac Tune bounded cold presence recovery concurrency"
+  ],
+  "diff_command": "git diff 9e5d8eeadb7b4c1998857640d2160c3af3232996 4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "diff_sha256": "aaa26531aaba42adac969c06eb5c68470ad0dde9d76d88a8bf07c2a6efb0222b",
+  "clean_before_after": true,
+  "rules": {
+    "AGENTS.md": {
+      "base_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "head_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    "CONTEXT.md": {
+      "base_sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "head_sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    "internal/usecase/presence/FLOW.md": {
+      "base_sha256": "438ba6664b276dc9b055c14e234b1bcefad55d8f56f649a3779c6df66d780d4e",
+      "head_sha256": "bf5dc014ecbb61f951e11d0576189ed3cfadf5d319ffb312fbe9cc84f2742a49"
+    },
+    "internal/infra/cluster/FLOW.md": {
+      "base_sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+      "head_sha256": "534e7fce0d3e53d1cef322c0529f779b9dba5453643e1a5e8a3396f228f2abdc"
+    }
+  },
+  "specs": {
+    "/tmp/wukongim-v3-readiness-20261023/cloud/b47-owner-recovery-width16-static-plan-v1/report.md": {
+      "sha256": "4230814285e7406c00b75428148c741b1dd0aa480210bc52e4a25f98e5ce277d",
+      "bytes": 5617
+    },
+    "/tmp/wukongim-v3-readiness-20261023/cloud/owner-recovery-width16-tests-first-v1/failure-matrix.md": {
+      "sha256": "704e780615bc6359032d7488422956c2abc849d7ee0a7175f408817201c0c8db",
+      "bytes": 3532
+    },
+    "/tmp/wukongim-v3-readiness-20261023/cloud/owner-recovery-width16-candidate-v1/green-execution-plan.json": {
+      "sha256": "3db81be199240615b9c588cb71e4a3668916f763fcf5cabdd9620956cfd8ac83",
+      "bytes": 7321
+    }
+  },
+  "changed_files": {
+    "CHANGELOG.md": {
+      "sha256": "9857561a0e9fb5f3890bc627054887c4ff44fb1db936700a8b01c65985a048a3",
+      "bytes": 193828
+    },
+    "docs/development/FLOW_INDEX.md": {
+      "sha256": "c9729527286e58ad3e40a9a5374f5fa5ca6a3c3c27a46598a145428fff45bb49",
+      "bytes": 19368
+    },
+    "docs/development/PROJECT_KNOWLEDGE.md": {
+      "sha256": "d854eb770e96c52a7f97f452561f9c0ad844ae92b814e3a27e455592a0cddf72",
+      "bytes": 150013
+    },
+    "internal/infra/cluster/FLOW.md": {
+      "sha256": "534e7fce0d3e53d1cef322c0529f779b9dba5453643e1a5e8a3396f228f2abdc",
+      "bytes": 8680
+    },
+    "internal/infra/cluster/presence_recovery.go": {
+      "sha256": "bbd399c04d4e33ccdf3e0a6c34439bf4cb5d1e22cf7408e9751ffc55fe53ad46",
+      "bytes": 8455
+    },
+    "internal/infra/cluster/presence_recovery_width16_integration_test.go": {
+      "sha256": "849650425f4a206ce16f3acfeb20064571863512859ce531cbd54dd3f9874923",
+      "bytes": 5106
+    },
+    "internal/usecase/presence/FLOW.md": {
+      "sha256": "bf5dc014ecbb61f951e11d0576189ed3cfadf5d319ffb312fbe9cc84f2742a49",
+      "bytes": 3195
+    },
+    "internal/usecase/presence/recovery_byte_budget_contract_test.go": {
+      "sha256": "e8053f7350056caa22718c5e734e7763eb8788dcf9ee66fe98a673590a7db01d",
+      "bytes": 510
+    },
+    "internal/usecase/presence/recovery_flights.go": {
+      "sha256": "5af40084a1a35cfadf0cc713309229ac873044e4e8defec9fd2d9b6a593ba31c",
+      "bytes": 8505
+    },
+    "internal/usecase/presence/recovery_width16_integration_test.go": {
+      "sha256": "074d65ff0ea81183071d0786f32839dcff39216099514c7f765f658b0c76e67c",
+      "bytes": 6948
+    },
+    "internal/usecase/presence/uid_flight_integration_test.go": {
+      "sha256": "1b75d6b5cffd6ac920ae7d425265479509ab0c1d3993a44d0b4d184737bf6fe5",
+      "bytes": 20117
+    }
+  },
+  "unchanged_boundaries": {
+    "internal/usecase/presence/recovery.go": {
+      "sha256": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b",
+      "base_equals_head": true
+    },
+    "internal/usecase/presence/owner_recovery.go": {
+      "sha256": "d2c49e662a578ab380bccc2b594e9f4b100558137c007078ab4694e5d32e6717",
+      "base_equals_head": true
+    },
+    "pkg/cluster/net/transport.go": {
+      "sha256": "d0a3d07ecf1220069b9c374af65eaa4ee0b400312da6cfb730391c91be8b9be9",
+      "base_equals_head": true
+    },
+    "internal/runtime/delivery/runtime.go": {
+      "sha256": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561",
+      "base_equals_head": true
+    }
+  },
+  "review_activity": "Read-only Git and text/source inspection; no Go/test/build/network/product execution. Only these review artifacts were written.",
+  "skill": {
+    "path": "/Users/tt/.agents/skills/code-review/SKILL.md",
+    "sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143"
+  }
+}

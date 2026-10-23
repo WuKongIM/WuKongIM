@@ -1,0 +1,44 @@
+{
+  "schema": "b47c-A2-reversal-static-preflight/v1",
+  "at_utc": "2026-10-23T02:46:58.289378+00:00",
+  "source_exact_original_A_real_git_clean": true,
+  "build12_members_verified": true,
+  "binaries": {
+    "wukongim": {
+      "sha256": "5ffa70c36e7272cb2dac30f160ebb2af5a59c973936b973984e0d16c995f2b91",
+      "bytes": 64618866,
+      "sealed_buildinfo_sha256": "ec4792c204e5f4daad848a41473cf01958a51c48b65d02429327207a5efc984d"
+    },
+    "wkcli": {
+      "sha256": "d4e76e3ff0b770a5450923cb5bd8f04195758b4daeea48b9856b3ba706982c41",
+      "bytes": 41060466,
+      "sealed_buildinfo_sha256": "7b51428a0b1b995408aa499cfe41ca75472e2d3f7d1c6062b0668260d04de781"
+    }
+  },
+  "assets76_verified": true,
+  "original_exact_guard_byte_equal": true,
+  "guard_watchdog_slotchecker_YAML_byte_equal_A": true,
+  "launcher_only_new_R_substitution": true,
+  "supervisor_only_new_launcher_pin_substitution": true,
+  "actual_four_pin_gate_passed": true,
+  "AST_and_bash_n": true,
+  "all_runtime_gates_and_functions_unchanged": true,
+  "prior_groups_and_otherWK": [],
+  "all64_LISTEN_ports_zero": true,
+  "fd_limit": [
+    1048575,
+    9223372036854775807
+  ],
+  "runtime_state": {
+    "data": false,
+    "pids": false,
+    "workers": false,
+    "report": false,
+    "config": false,
+    "traces-three-node": false,
+    "profiles-three-node": false
+  },
+  "Go_CLI_DB_HTTP_product_runs": 0,
+  "runtime_Go_buildinfo_reread": "not invoked at preparation; original exact guard retained",
+  "pending_root_single_run_approval": true
+}

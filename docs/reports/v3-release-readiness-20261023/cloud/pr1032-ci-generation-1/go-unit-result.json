@@ -1,0 +1,49 @@
+{
+  "artifact_id": 12472765279,
+  "identity": {
+    "source_sha": "b6007c97971b5b3645b8917fc5a14c9499d0cfed",
+    "policy_sha": "364253b3be532acb023757791a54b85d4c76cbd2",
+    "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "event": "pull_request",
+    "run_id": "39884710344",
+    "run_attempt": "1"
+  },
+  "command": {
+    "arguments": [
+      "go",
+      "test",
+      "./cmd/...",
+      "./internal/...",
+      "./pkg/...",
+      "./scripts/...",
+      "./docker/...",
+      "-count=1"
+    ],
+    "working_dir": ".",
+    "timeout_seconds": 1800,
+    "max_output_bytes": 8388608,
+    "named_check": "go-unit",
+    "environment": {
+      "GOWORK": "off",
+      "GOFLAGS": "-p=2"
+    }
+  },
+  "result": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 2324,
+    "output_bytes": 22029,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 2324,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 308.746
+  }
+}

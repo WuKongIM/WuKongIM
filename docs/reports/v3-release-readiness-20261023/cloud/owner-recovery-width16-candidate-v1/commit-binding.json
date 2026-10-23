@@ -1,0 +1,58 @@
+{
+  "head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "base": "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+  "branch": "codex/v3-owner-recovery-width16",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-owner-recovery-width16",
+  "clean": true,
+  "changed_files": {
+    "CHANGELOG.md": {
+      "sha256": "9857561a0e9fb5f3890bc627054887c4ff44fb1db936700a8b01c65985a048a3",
+      "bytes": 193828
+    },
+    "docs/development/FLOW_INDEX.md": {
+      "sha256": "c9729527286e58ad3e40a9a5374f5fa5ca6a3c3c27a46598a145428fff45bb49",
+      "bytes": 19368
+    },
+    "docs/development/PROJECT_KNOWLEDGE.md": {
+      "sha256": "d854eb770e96c52a7f97f452561f9c0ad844ae92b814e3a27e455592a0cddf72",
+      "bytes": 150013
+    },
+    "internal/infra/cluster/FLOW.md": {
+      "sha256": "534e7fce0d3e53d1cef322c0529f779b9dba5453643e1a5e8a3396f228f2abdc",
+      "bytes": 8680
+    },
+    "internal/infra/cluster/presence_recovery.go": {
+      "sha256": "bbd399c04d4e33ccdf3e0a6c34439bf4cb5d1e22cf7408e9751ffc55fe53ad46",
+      "bytes": 8455
+    },
+    "internal/infra/cluster/presence_recovery_width16_integration_test.go": {
+      "sha256": "849650425f4a206ce16f3acfeb20064571863512859ce531cbd54dd3f9874923",
+      "bytes": 5106
+    },
+    "internal/usecase/presence/FLOW.md": {
+      "sha256": "bf5dc014ecbb61f951e11d0576189ed3cfadf5d319ffb312fbe9cc84f2742a49",
+      "bytes": 3195
+    },
+    "internal/usecase/presence/recovery_byte_budget_contract_test.go": {
+      "sha256": "e8053f7350056caa22718c5e734e7763eb8788dcf9ee66fe98a673590a7db01d",
+      "bytes": 510
+    },
+    "internal/usecase/presence/recovery_flights.go": {
+      "sha256": "5af40084a1a35cfadf0cc713309229ac873044e4e8defec9fd2d9b6a593ba31c",
+      "bytes": 8505
+    },
+    "internal/usecase/presence/recovery_width16_integration_test.go": {
+      "sha256": "074d65ff0ea81183071d0786f32839dcff39216099514c7f765f658b0c76e67c",
+      "bytes": 6948
+    },
+    "internal/usecase/presence/uid_flight_integration_test.go": {
+      "sha256": "1b75d6b5cffd6ac920ae7d425265479509ab0c1d3993a44d0b4d184737bf6fe5",
+      "bytes": 20117
+    }
+  },
+  "tests_first_manifest": "/tmp/wukongim-v3-readiness-20261023/cloud/owner-recovery-width16-tests-first-v1/SHA256SUMS",
+  "tests_first_manifest_sha256": "11b036fa8df4be43c0364412cc9b0cbda7b508a8f842736226341bc30c8697da",
+  "test_pins_sha256": "95886b40b4712a6c113dac69d60923b49f4844be55643e7cc5bc24d8802ccb34",
+  "scope": "local experimental candidate; not pushed or PRd; no product run or proven message_loss fix"
+}

@@ -1,0 +1,9 @@
+AssertionError: ('scratch-build', -9, 'outer_timeout')
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-executor.py", line 47, in <module>
+    c=plan['docker_build'];run('scratch-build',c['argv'],c['outer_seconds'],c['stdout_bytes_limit'],c['stderr_bytes_limit'],dict(baseenv,**c['environment_override']))
+                           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/width16-linux-scratch-executor.py", line 30, in run
+    if not allow_error:assert rc==0 and killed is None,(name,rc,killed)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('scratch-build', -9, 'outer_timeout')

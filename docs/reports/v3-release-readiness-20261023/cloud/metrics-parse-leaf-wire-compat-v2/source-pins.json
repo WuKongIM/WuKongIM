@@ -1,0 +1,16 @@
+{
+  "base": "11debae7337dc0f0497ff732600d5ebf03949544",
+  "changed_files": {
+    "internal/bench/chatlifecycle/metrics_fetch_failure.go": {
+      "sha256": "9ae64f4a129bf2d8735ccfe62cbc6d0eda69cbf31b1346cc8a79e4e3808961f6",
+      "bytes": 4045
+    },
+    "internal/bench/chatlifecycle/metrics_parse_reuse_diagnostics_test.go": {
+      "sha256": "45d923f9c8be3a7bd83f4337d35dd920071b041281205d65dece105f7982435d",
+      "bytes": 5579
+    }
+  },
+  "all_test_pins_sha256": "8eb0ea8e44d86b17a2b41e671b4406c5e3db9c3f7f3c5b2b3b1e57f1d3cd6032",
+  "original_and_null_supplement_remain_unchanged": true,
+  "all_other_tracked_paths_unchanged_from_prior_candidate": true
+}

@@ -1,0 +1,38 @@
+--- sealed-A/exact_build_guard.py
++++ prepared-B-width16/exact_build_guard.py
+@@ -1,12 +1,12 @@
+-"""Read-only fixedb47c construction gate; never builds or executes a product."""
++"""Read-only fixed4cb4 construction gate; never builds or executes a product."""
+ from pathlib import Path
+ import hashlib,json,os,subprocess
+-SOURCE = "b47c03d461a6d8918e537e027bf56539ce78c585"
+-SOURCE_TREE = "7ce68e726fea61bd6d176fbc7053dede920d5b00"
+-SOURCE_ROOT = Path('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-b47c-queue-snapshot')
+-BUILD_ROOT = Path('/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-b47c-native-v1')
+-EXACT_SERVER_SHA = "5ffa70c36e7272cb2dac30f160ebb2af5a59c973936b973984e0d16c995f2b91"
+-EXACT_CLI_SHA = "d4e76e3ff0b770a5450923cb5bd8f04195758b4daeea48b9856b3ba706982c41"
++SOURCE = "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac"
++SOURCE_TREE = "1f2826553a264053e954229ac2581bcf48afe6ad"
++SOURCE_ROOT = Path('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate')
++BUILD_ROOT = Path('/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-width16-native-v1')
++EXACT_SERVER_SHA = "0c258855fdd4439abab5cc3ab87b7608dca5f4b936ec5033cd5eb5899e708618"
++EXACT_CLI_SHA = "4a250e92881403a1657fd8bfcaa28b34975424c6ee6cf808bd3b0078ffe9ec98"
+ PRODUCT_BINARIES = {name:BUILD_ROOT/'darwin-arm64'/name for name in ['wukongim','wkcli']}
+ sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+ def verify_exact_build():
+@@ -14,7 +14,7 @@
+  assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=SOURCE_ROOT,text=True,timeout=3).strip()==SOURCE,'source_revision_mismatch'
+  assert subprocess.check_output(['git','rev-parse','HEAD^{tree}'],cwd=SOURCE_ROOT,text=True,timeout=3).strip()==SOURCE_TREE,'source_tree_mismatch'
+  assert not subprocess.check_output(['git','status','--porcelain','--untracked-files=all'],cwd=SOURCE_ROOT,text=True,timeout=3),'source_not_clean'
+- for root,digest in [(BUILD_ROOT,'1d0ee29c0a8c78fb59b6072ee9c7cef2f9c183d1bdea8f6889d1b2eed6d0c279')]:
++ for root,digest in [(BUILD_ROOT,'76418e4686412d60e94552f377d16f1c998842eb9e616bb2c39aa1fa28b2b680')]:
+   assert sha(root/'PUBLIC_SHA256SUMS')==digest,'build_receipt_manifest_mismatch'
+   lines=(root/'PUBLIC_SHA256SUMS').read_text().splitlines();assert len(lines)==12,'build_receipt_member_count_mismatch'
+   for line in lines:
+@@ -39,5 +39,5 @@
+   for k,v in {'-trimpath':'true','CGO_ENABLED':'0','GOOS':'darwin','GOARCH':'arm64','vcs.revision':SOURCE,'vcs.modified':'false'}.items():assert settings.get(k)==v,'embedded_setting_mismatch:'+k
+   assert sha(BUILD_ROOT/(name+'-buildinfo.txt'))==hashlib.sha256(info.encode()).hexdigest(),'buildinfo_recheck_mismatch'
+   result[name]={'path':str(binary),'sha256':expected,'compiler':'go1.25.11','build_settings':settings}
+- return {'schema':'wukongim/exact-b47c-native-readonly-preflight/v1','verified':True,'product_started':False,'source_root':str(SOURCE_ROOT),'source_revision':SOURCE,'source_clean':True,'real_git_directory':True,'binaries':result,'build_receipt_manifest_sha256':sha(BUILD_ROOT/'PUBLIC_SHA256SUMS'),'cloud_binary_byte_equality_claimed':False,'runtime_limit':'native shared Macarm64 diagnosis, not a Linux performance environment'}
++ return {'schema':'wukongim/exact-4cb4-native-readonly-preflight/v1','verified':True,'product_started':False,'source_root':str(SOURCE_ROOT),'source_revision':SOURCE,'source_clean':True,'real_git_directory':True,'binaries':result,'build_receipt_manifest_sha256':sha(BUILD_ROOT/'PUBLIC_SHA256SUMS'),'cloud_binary_byte_equality_claimed':False,'runtime_limit':'native shared Macarm64 diagnosis, not a Linux performance environment'}
+ if __name__=='__main__':print(json.dumps(verify_exact_build(),indent=2))

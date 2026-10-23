@@ -1,0 +1,15 @@
+{
+  "started_at": "2026-10-23T00:40:19.439566+00:00",
+  "finished_at": "2026-10-23T00:40:20.564917+00:00",
+  "method": "GET",
+  "endpoint": "actions/runs/39879047447/attempts/1/jobs?per_page=100",
+  "exit_code": 0,
+  "timeout": false,
+  "stdout_bytes": 14765,
+  "stdout_sha256": "8c766a90c1310401851f6f671b8d3d777de33c181afc29c1d323ff627a4fe027",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "raw_response": "private sibling excluded",
+  "retry_count": 0,
+  "public_json_sha256": "cb0382065ad7fd7cff4949fe6d8013b42417e1b3e3a9c691398481fab07f3f0e"
+}

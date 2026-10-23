@@ -1,0 +1,27 @@
+{
+  "id": 120216896601,
+  "run_id": 39893010352,
+  "name": "Candidate scripts integration",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 86518,
+  "sha256": "876c74d7b9b3b4e723c2d3fa7cd14b044b85be09ff0e5a571d280c5ab30ef57b",
+  "actual_checkout_candidates": [
+    "9e8332ed8ea69540e5f248c7e483716e987a2546"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+    "Freeze source and named-check authority",
+    "Validate workflow static contracts",
+    "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+    "Run frozen scripts-integration named check once",
+    "Reject tracked-tree mutation",
+    "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+    "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+    "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

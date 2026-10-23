@@ -1,0 +1,13 @@
+=== RUN   TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth
+--- PASS: TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth (0.00s)
+=== RUN   TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget
+=== RUN   TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/1
+=== RUN   TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/512
+--- PASS: TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget (0.01s)
+    --- PASS: TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/1 (0.00s)
+    --- PASS: TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget/512 (0.01s)
+=== RUN   TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts
+--- PASS: TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts (0.10s)
+=== RUN   TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys
+--- PASS: TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys (0.00s)
+PASS

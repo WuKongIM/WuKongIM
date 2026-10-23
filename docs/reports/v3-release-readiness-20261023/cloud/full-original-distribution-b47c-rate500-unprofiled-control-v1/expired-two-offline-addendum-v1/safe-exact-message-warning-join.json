@@ -1,0 +1,91 @@
+{
+  "schema": "b47c-two-expired-exact-warning-join/v1",
+  "samples": [
+    {
+      "fingerprint": "959d866140319ee8df82f2dcd8a59214",
+      "message_id": "2113450116886040577",
+      "message_seq": "1",
+      "replicas_matching": 3,
+      "clientno_fingerprint_matches": true,
+      "exact_message_warning_matches": [
+        {
+          "node_id": 1,
+          "at": "2026-10-23T09:59:13.692000+08:00",
+          "message_id": "2113450116886040577",
+          "message_seq": "1",
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "owner_node_id": 0,
+          "recipient_uid_present": true,
+          "fixed_error_reason": "deadline_exceeded",
+          "within_firstgrant_terminal_window": true,
+          "exact_db_messageID_and_seq_match": true
+        }
+      ],
+      "exact_message_warning_match_count": 1,
+      "status": "exact_message_warning_found"
+    },
+    {
+      "fingerprint": "a27116fae1607de909889a19351a43a1",
+      "message_id": "2113450150155268096",
+      "message_seq": "1",
+      "replicas_matching": 3,
+      "clientno_fingerprint_matches": true,
+      "exact_message_warning_matches": [
+        {
+          "node_id": 3,
+          "at": "2026-10-23T09:59:21.675000+08:00",
+          "message_id": "2113450150155268096",
+          "message_seq": "1",
+          "phase": "presence",
+          "result": "timeout",
+          "mode": "durable",
+          "owner_node_id": 0,
+          "recipient_uid_present": true,
+          "fixed_error_reason": "deadline_exceeded",
+          "within_firstgrant_terminal_window": true,
+          "exact_db_messageID_and_seq_match": true
+        }
+      ],
+      "exact_message_warning_match_count": 1,
+      "status": "exact_message_warning_found"
+    }
+  ],
+  "canonical_log_window": {
+    "first_grant": "2026-10-23T09:58:53.698647+08:00",
+    "terminal_cut": "2026-10-23T09:59:26.774676+08:00"
+  },
+  "canonical_nodes": [
+    {
+      "node_id": 1,
+      "sha256": "cbec6d88c71a2c4212b107e2011f2f6c3b305261b02fea7aa2d38e5e969963e6",
+      "bytes": 17040,
+      "in_window_incomplete_warnings": 46,
+      "outside_window_incomplete_warnings": 0,
+      "unparseable_candidates": 0
+    },
+    {
+      "node_id": 2,
+      "sha256": "70f586f99737560a2a3a0a587df2c5d94cfc5ef603361d3d6f1e6a848e0c1448",
+      "bytes": 17785,
+      "in_window_incomplete_warnings": 47,
+      "outside_window_incomplete_warnings": 0,
+      "unparseable_candidates": 0
+    },
+    {
+      "node_id": 3,
+      "sha256": "66892486d3b24f0f0252d27857ab0ff8237b1b24d96e837efd8cad896bd95f6a",
+      "bytes": 18891,
+      "in_window_incomplete_warnings": 50,
+      "outside_window_incomplete_warnings": 0,
+      "unparseable_candidates": 0
+    }
+  ],
+  "limits": [
+    "durable row does not prove online RECV",
+    "log has no ChannelID/ChannelType; private DB channel+ClientMsgNo to exactID/seq joins only available canonical tuple",
+    "phase/error is observed outcome, not root cause",
+    "at most2groups/6queries; no retry or new service request"
+  ]
+}

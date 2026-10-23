@@ -1,0 +1,78 @@
+{
+  "source_root": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1",
+  "read_mode": "one bounded content read per file; receipt SHA comparison, buffer pre/post parse SHA, source stat pre/post",
+  "files": [
+    {
+      "file": "metrics-first-measured-node1.prom",
+      "node": 1,
+      "phase": "first-measured",
+      "bytes": 1014244,
+      "sha256_before_parse": "ece9ec4e27390dc66fdfc798b3f4134b453ec30cbefc7be30c3a53b5a8a72ac2",
+      "sha256_buffer_after_parse": "ece9ec4e27390dc66fdfc798b3f4134b453ec30cbefc7be30c3a53b5a8a72ac2",
+      "source_stat_unchanged": true,
+      "expected_receipt_matches": true,
+      "selected_series": 33,
+      "content_reads": 1
+    },
+    {
+      "file": "metrics-first-measured-node2.prom",
+      "node": 2,
+      "phase": "first-measured",
+      "bytes": 1005177,
+      "sha256_before_parse": "c13eb3b2d6b2fa8b149a5a5c7e96798309617604a229b28e35fc04050516db5a",
+      "sha256_buffer_after_parse": "c13eb3b2d6b2fa8b149a5a5c7e96798309617604a229b28e35fc04050516db5a",
+      "source_stat_unchanged": true,
+      "expected_receipt_matches": true,
+      "selected_series": 33,
+      "content_reads": 1
+    },
+    {
+      "file": "metrics-first-measured-node3.prom",
+      "node": 3,
+      "phase": "first-measured",
+      "bytes": 989485,
+      "sha256_before_parse": "65fda1bb6cbf69f5b3e2d178508c54709ac4990ffecff43ffb3996183952a8b1",
+      "sha256_buffer_after_parse": "65fda1bb6cbf69f5b3e2d178508c54709ac4990ffecff43ffb3996183952a8b1",
+      "source_stat_unchanged": true,
+      "expected_receipt_matches": true,
+      "selected_series": 33,
+      "content_reads": 1
+    },
+    {
+      "file": "metrics-terminal-node1.prom",
+      "node": 1,
+      "phase": "terminal",
+      "bytes": 1063980,
+      "sha256_before_parse": "5d6f9fc61cb0fd9df9c8636c62b2e2fe2aec956620b87f296414d71a123e9df2",
+      "sha256_buffer_after_parse": "5d6f9fc61cb0fd9df9c8636c62b2e2fe2aec956620b87f296414d71a123e9df2",
+      "source_stat_unchanged": true,
+      "expected_receipt_matches": true,
+      "selected_series": 33,
+      "content_reads": 1
+    },
+    {
+      "file": "metrics-terminal-node2.prom",
+      "node": 2,
+      "phase": "terminal",
+      "bytes": 1045713,
+      "sha256_before_parse": "776841371a54abe504826a860382af9df91665bc7b551591324da8a0c5e01142",
+      "sha256_buffer_after_parse": "776841371a54abe504826a860382af9df91665bc7b551591324da8a0c5e01142",
+      "source_stat_unchanged": true,
+      "expected_receipt_matches": true,
+      "selected_series": 33,
+      "content_reads": 1
+    },
+    {
+      "file": "metrics-terminal-node3.prom",
+      "node": 3,
+      "phase": "terminal",
+      "bytes": 1033691,
+      "sha256_before_parse": "3035e287fd0691c4fc27b44d33defed9471f5c1479ad4977b68c71b80dc462b0",
+      "sha256_buffer_after_parse": "3035e287fd0691c4fc27b44d33defed9471f5c1479ad4977b68c71b80dc462b0",
+      "source_stat_unchanged": true,
+      "expected_receipt_matches": true,
+      "selected_series": 33,
+      "content_reads": 1
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": 39884710344,
+  "name": "V3 Candidate Regression pull_request 1032 attempt 1",
+  "path": ".github/workflows/v3-candidate-regression.yml",
+  "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585",
+  "head_branch": "codex/v3-queue-pressure-snapshot",
+  "event": "pull_request",
+  "run_number": 24,
+  "run_attempt": 1,
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-10-23T01:33:54Z",
+  "updated_at": "2026-10-23T01:44:56Z",
+  "run_started_at": "2026-10-23T01:33:54Z",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39884710344",
+  "workflow_id": 391316847,
+  "check_suite_id": 108103365861
+}

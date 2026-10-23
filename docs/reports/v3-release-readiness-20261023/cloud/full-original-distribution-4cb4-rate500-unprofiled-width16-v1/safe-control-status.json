@@ -1,0 +1,24 @@
+{
+  "schema": "local4cb4-unprofiled-control-status/v1",
+  "expected_recorded_process_names": [
+    "coordinator",
+    "host-metrics-1",
+    "host-metrics-2",
+    "host-metrics-3",
+    "host-metrics-load",
+    "launcher",
+    "process-metrics-collector",
+    "service-1",
+    "service-2",
+    "service-3",
+    "watchdog",
+    "worker-1",
+    "worker-2",
+    "worker-3"
+  ],
+  "profile_capture_invocations": 0,
+  "profile_driver_PID_or_status_created": false,
+  "extra_API_probes": false,
+  "no_B16_width_change": true,
+  "basis": "sealed source diff and static contract;14 recorded PID names and no capture state paths; final ownedPGID zero separately proved"
+}

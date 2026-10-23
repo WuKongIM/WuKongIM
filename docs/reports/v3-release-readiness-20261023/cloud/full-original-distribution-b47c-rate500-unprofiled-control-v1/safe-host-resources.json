@@ -1,0 +1,12 @@
+{
+  "schema": "localb47c-retained-resource-aggregates/v1",
+  "sample_count": 74,
+  "first_sample_at": "2026-10-23T01:54:39.360233+00:00",
+  "last_sample_at": "2026-10-23T02:00:54.723213+00:00",
+  "maximum_owned_RSS_sum_bytes": 4469948416,
+  "maximum_owned_process_CPU_percent_sum": 87.3,
+  "maximum_all_process_CPU_percent_sum": 340.59999999999985,
+  "other_WK_seen": false,
+  "actual_physical_headroom": null,
+  "limitation": "retained ps percent fields may reflect process lifetime averages; sums and RSS do not establish instantaneous CPU headroom or unique physical memory"
+}

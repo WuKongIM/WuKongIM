@@ -1,0 +1,10 @@
+{
+  "id": 12470041127,
+  "name": "wukongim-native-package-preview-39879047427",
+  "size_in_bytes": 77899362,
+  "digest": "sha256:076da177cdb7e7857c40e4cfcd6e1dc54888383513c8b4ec5dc1edfd7cbc7963",
+  "expired": false,
+  "state": "metadata_only",
+  "reason": "large correctness/native binary package or outside small proof allowlist",
+  "full_archive_hash_locally_recomputed": false
+}

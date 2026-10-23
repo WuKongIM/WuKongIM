@@ -1,0 +1,90 @@
+{
+  "artifact_id": 12470196154,
+  "source_sha": "5b3fef1c7a3418c13c4a4392533f112915d97ffe",
+  "binary_sha256": "020d665df688785b40561c17d6e5467322d5e4da8a9508e2a232d3de8cae44b4",
+  "go_version": "go version go1.25.11 linux/amd64",
+  "visible_cpus": "4",
+  "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
+  "measurement_windows": [
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 7.486905,
+      "scheduled_to_start_p99_ms": 1.077535,
+      "service_p99_ms": 3.800687
+    },
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 8.613676,
+      "scheduled_to_start_p99_ms": 1.090725,
+      "service_p99_ms": 4.360135
+    },
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 12.705597,
+      "scheduled_to_start_p99_ms": 2.447406,
+      "service_p99_ms": 8.723377
+    }
+  ],
+  "warmup_windows": [
+    {
+      "planned": 30000,
+      "started": 30000,
+      "completed": 30000,
+      "errors": 0,
+      "dropped": 0,
+      "target_per_second": 500,
+      "started_per_second": 500,
+      "scheduled_to_completion_p99_ms": 104.607166,
+      "scheduled_to_start_p99_ms": 1.080114,
+      "service_p99_ms": 104.598366
+    }
+  ],
+  "measurement_second_cohorts": 180,
+  "warmup_second_cohorts": 60,
+  "data_filesystem": {
+    "filesystems": [
+      {
+        "target": "/",
+        "source": "/dev/nvme0n1p1",
+        "fstype": "ext4",
+        "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+      }
+    ]
+  },
+  "result": {
+    "status": "pass"
+  },
+  "counters_window": {
+    "counter_scope": "post-setup through completed handlers; includes boundary snapshot and benchmark timer overhead; three-node aggregate; replication stages sampled 1/32; physical batches unsampled",
+    "counter_window_seconds": 180.003485665,
+    "ended_at": "2026-10-23T00:40:48.744569168Z",
+    "go_version": "go1.25.11",
+    "goarch": "amd64",
+    "gomaxprocs": 4,
+    "goos": "linux",
+    "handlers_completed": true,
+    "offered_qps": 500,
+    "operations": 90000,
+    "profile_enabled": false,
+    "schema": "channel-append-counters/v1",
+    "started_at": "2026-10-23T00:37:48.741083503Z"
+  }
+}

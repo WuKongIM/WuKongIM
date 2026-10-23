@@ -1,0 +1,28 @@
+{
+  "source_path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate",
+  "real_git_directory": true,
+  "chmod_binaries": "0555; byteshash unchanged",
+  "tmpfs": "/tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777",
+  "tag_preexistence": "checked before build; existing tag aborts",
+  "source_head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "source_tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "frozen_test_hashes": {
+    "internal/usecase/presence/recovery_byte_budget_contract_test.go": {
+      "sha256": "e8053f7350056caa22718c5e734e7763eb8788dcf9ee66fe98a673590a7db01d",
+      "bytes": 510
+    },
+    "internal/usecase/presence/recovery_width16_integration_test.go": {
+      "sha256": "074d65ff0ea81183071d0786f32839dcff39216099514c7f765f658b0c76e67c",
+      "bytes": 6948
+    },
+    "internal/usecase/presence/uid_flight_integration_test.go": {
+      "sha256": "1b75d6b5cffd6ac920ae7d425265479509ab0c1d3993a44d0b4d184737bf6fe5",
+      "bytes": 20117
+    },
+    "internal/infra/cluster/presence_recovery_width16_integration_test.go": {
+      "sha256": "849650425f4a206ce16f3acfeb20064571863512859ce531cbd54dd3f9874923",
+      "bytes": 5106
+    }
+  },
+  "root_A2_zero_attestation": "03:02:44Z PGID7232/otherWK/64ports zero; explicit root execution approval"
+}

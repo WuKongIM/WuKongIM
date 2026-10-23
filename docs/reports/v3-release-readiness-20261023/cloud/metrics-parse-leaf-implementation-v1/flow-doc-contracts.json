@@ -1,0 +1,20 @@
+{
+  "name": "flow-doc-contracts",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "arguments": [
+    "go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "check"
+  ],
+  "timeout_seconds": 60,
+  "max_output_bytes": 1048576,
+  "exit_code": 0,
+  "wall_seconds": 0.26085500000044703,
+  "stdout_bytes": 63,
+  "stderr_bytes": 1313,
+  "helper_binary_sha256": "26951f4877e8b42e2eb96020aef5b0e9a2d9f89a171a2a5085ea24cfac397237",
+  "helper_source_base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "helper_source_unchanged": true
+}

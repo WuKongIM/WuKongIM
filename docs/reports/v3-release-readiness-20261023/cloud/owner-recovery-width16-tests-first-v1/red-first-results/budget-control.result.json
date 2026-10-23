@@ -1,0 +1,40 @@
+{
+  "phase": "budget-control",
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "./internal/usecase/presence",
+    "-run",
+    "^TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth$",
+    "-count=1",
+    "-p=1",
+    "-timeout=30s",
+    "-json"
+  ],
+  "started_utc": "2026-10-23T02:11:16.537365+00:00",
+  "elapsed_seconds": 1.629,
+  "exit_code": 0,
+  "outer_or_output_kill": null,
+  "pgid": 97679,
+  "output_bytes": {
+    "stdout": 1577,
+    "stderr": 0
+  },
+  "events": [
+    {
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+      "Test": "TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth",
+      "Elapsed": 0
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/internal/usecase/presence",
+      "Elapsed": 0.508
+    }
+  ],
+  "bounded_diagnostics": [
+    "--- PASS: TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth (0.00s)",
+    "PASS"
+  ]
+}

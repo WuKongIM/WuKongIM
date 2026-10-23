@@ -1,0 +1,41 @@
+{
+  "phase": "final-related-race",
+  "args": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "-race",
+    "./internal/bench/target",
+    "./internal/bench/chatlifecycle",
+    "./cmd/wkcli/internal/benchmark",
+    "-count=1",
+    "-p=1",
+    "-timeout=4m",
+    "-json"
+  ],
+  "environment": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "2",
+    "GOFLAGS": "-p=1"
+  },
+  "started_at": "2026-10-23T00:32:49.176625+00:00",
+  "wall_seconds": 118.27631591598038,
+  "exit_code": 0,
+  "reason": "exited",
+  "pid_pgid": 75931,
+  "observed_bytes": {
+    "stdout": 2425585,
+    "stderr": 0
+  },
+  "limits": {
+    "stdout": 4194304,
+    "stderr": 1048576
+  },
+  "outer_seconds": 300,
+  "test_pins_sha256": "8eb0ea8e44d86b17a2b41e671b4406c5e3db9c3f7f3c5b2b3b1e57f1d3cd6032",
+  "same_test_hashes": true,
+  "supplemental_test_pins_sha256": "1db1e0090c139d1865114ffa8433e0d8f99d1ce856db1a149d5dc0ca8dc6960e",
+  "source_diff": ""
+}

@@ -1,0 +1,26 @@
+{
+  "id": 120191609878,
+  "run_id": 39884710282,
+  "name": "Exercise Ubuntu 24.04 package lifecycle",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 83578,
+  "sha256": "b28723a7781d2d1463d6dba06fe7959bf6b8fb6452530d4868f93891db13e15e",
+  "actual_checkout_candidates": [
+    "b6007c97971b5b3645b8917fc5a14c9499d0cfed"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Check out exact source",
+    "Set up repository Go toolchain",
+    "Download the exact preview packages",
+    "Verify the downloaded package set",
+    "Exercise the operator-owned lifecycle",
+    "Reject tracked-tree mutation",
+    "Post Set up repository Go toolchain",
+    "Post Check out exact source",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

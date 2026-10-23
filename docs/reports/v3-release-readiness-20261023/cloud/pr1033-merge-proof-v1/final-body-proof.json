@@ -1,0 +1,8 @@
+{
+  "local_body_path": "/tmp/wukongim-v3-readiness-20261023/width16-pr-body.md",
+  "body_bytes": 2888,
+  "local_sha256": "461f4de16ec2441fad1da5da6a4c3617993f2b50db5c46feff6a24ed48f2644d",
+  "remote_sha256": "461f4de16ec2441fad1da5da6a4c3617993f2b50db5c46feff6a24ed48f2644d",
+  "exact_bytes_equal": true,
+  "ordinary_exact_head_merge": "Parent reported successful gh ordinary exact-head merge; two-parent Git merge and REST merged identity independently verified. No admin override reported or performed here."
+}

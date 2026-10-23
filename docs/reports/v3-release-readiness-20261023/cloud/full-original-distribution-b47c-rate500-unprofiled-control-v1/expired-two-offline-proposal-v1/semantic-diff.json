@@ -1,0 +1,24 @@
+{
+  "base": "reviewed56c single-sample driver",
+  "changes": [
+    "source/run/nativeCLI and all frozen input/inventory pins",
+    "exactly two identities, one copy per node, at most6queries, any invalid sample stops all remaining",
+    "13model/control inputs pinned before mkdir",
+    "explicit child environment for outer worker/Git/CLI",
+    "per-query streaming stdout256KiB/stderr64KiB cap plus original shared90/85 budget",
+    "single bounded canonical warning pass joins two exact tuples, private UID/owner retention and closed projection",
+    "original stoppedPGID check"
+  ],
+  "unchanged": [
+    "ten inventory/ownership/outer90s functions byte equal56c",
+    "ReadOnly engine/schema/codec/identity source10files equal56c",
+    "SQL selection/limit100/nohas_more and exactuint64 identity semantics"
+  ],
+  "tests": {
+    "contract_methods": 3,
+    "contract_cases": 8,
+    "blackbox_synthetic_process_integration": 1,
+    "real_DB_or_warning_decode_operations": 0
+  },
+  "driver_sha256": "94c166cecad063dee27381eb50731d82a74561c36825942893561526636356cb"
+}

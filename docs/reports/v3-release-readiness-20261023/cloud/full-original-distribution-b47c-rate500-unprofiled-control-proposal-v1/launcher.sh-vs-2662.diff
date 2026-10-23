@@ -1,0 +1,59 @@
+--- sealed2662/launcher.sh
++++ prepared-b47c-unprofiled/launcher.sh
+@@ -1,18 +1,17 @@
+ #!/bin/bash
+ set -euo pipefail
+ umask 077
+-ROOT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf
+-RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1'
++ROOT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-b47c-queue-snapshot
++RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-b47c-rate500-unprofiled-control-v1'
+ BASE_PORT=25000
+ READY_TIMEOUT=60
+ CLEANUP_TIMEOUT=15
+ RUNTIME_DEFAULTS=1
+ PIDS=()
+ NAMES=()
+-PPROF_PID=""
+ WAIT_CHILD_STATUS=0
+-WUKONGIM_BIN=/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-2662-native-v1/darwin-arm64/wukongim
+-WK_CLI_BIN=/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-2662-native-v1/darwin-arm64/wkcli
++WUKONGIM_BIN=/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-b47c-native-v1/darwin-arm64/wukongim
++WK_CLI_BIN=/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-b47c-native-v1/darwin-arm64/wkcli
+ CONFIG_DIR="$RUN_DIR/config"
+ DATA_DIR="$RUN_DIR/data"
+ LOG_DIR="$RUN_DIR/logs"
+@@ -66,16 +65,6 @@
+ 
+ stop_recorded_processes() {
+   local pid deadline alive
+-  if [[ -n "${HOT_PPROF_PID:-}" ]]; then
+-    kill -TERM "$HOT_PPROF_PID" 2>/dev/null || true
+-    wait_child_uninterrupted "$HOT_PPROF_PID"
+-    HOT_PPROF_PID=""
+-  fi
+-  if [[ -n "$PPROF_PID" ]]; then
+-    kill -TERM "$PPROF_PID" 2>/dev/null || true
+-    wait_child_uninterrupted "$PPROF_PID"
+-    PPROF_PID=""
+-  fi
+   if [[ "${#PIDS[@]}" -eq 0 ]]; then
+     return 0
+   fi
+@@ -354,16 +343,10 @@
+ COORDINATOR_PID=$!
+ record_pid coordinator "$COORDINATOR_PID"
+ 
+-# One optional three-node execution-trace diagnostic in the same owned workload process group.
+-python3 /tmp/wukongim-v3-readiness-20261023/cloud/execution-trace-first-grant-proposal-v1/watch-three-node-execution-trace.proposed.py --run-dir "$RUN_DIR" --out-dir "$RUN_DIR/traces-three-node" --source-root "$ROOT_DIR" --source-revision 2662fe93b754d614422f2936185cf781a33b831a --binary "$WUKONGIM_BIN" --binary-sha256 4610c33298f9c58666473e26900f9a6468293d7b0657409a0de6716697f0d234 --helper /tmp/wukongim-v3-readiness-20261023/cloud/execution-trace-first-grant-proposal-v1/capture-execution-trace.py --helper-sha256 b05bd2cf0cc85f7601a52d174a2c17c4d7c6c4dfaca1d3060b36e43e574565ac --launcher-sha256 "$LOCAL_PROFILE_LAUNCHER_SHA256" --base-port 25000 --run-hash sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52 --assignment-hash sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc --generation 1 --owner-pgid "$$" --deadline-mono "$LOCAL_REPRO_DEADLINE_MONO" >"$LOG_DIR/profile-driver.log" 2>&1 &
+-PROFILE_DRIVER_PID=$!
+-record_pid profile-driver "$PROFILE_DRIVER_PID"
+ start_process_metrics_collector
+ wait_child_uninterrupted "$COORDINATOR_PID"
+ COORDINATOR_EXIT_STATUS="$WAIT_CHILD_STATUS"
+ printf '%s\n' "$COORDINATOR_EXIT_STATUS" >"$EVIDENCE_DIR/coordinator-exit-status"
+-wait_child_uninterrupted "$PROFILE_DRIVER_PID"
+-printf '%s\n' "$WAIT_CHILD_STATUS" >"$EVIDENCE_DIR/profile-driver-exit-status"
+ WAIT_CHILD_STATUS="$COORDINATOR_EXIT_STATUS"
+ if [[ "$WAIT_CHILD_STATUS" -eq 7 ]]; then
+   diagnosis_hold_end=$((SECONDS + 90))

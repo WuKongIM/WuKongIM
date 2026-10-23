@@ -1,0 +1,28 @@
+test_child_receives_exact_environment_from_creation (__main__.BoundedProcess.test_child_receives_exact_environment_from_creation) ... ok
+test_exact_cap_is_complete_and_cap_plus_one_never_written (__main__.BoundedProcess.test_exact_cap_is_complete_and_cap_plus_one_never_written) ... ok
+test_existing_or_symlink_output_is_not_overwritten (__main__.BoundedProcess.test_existing_or_symlink_output_is_not_overwritten) ... ok
+test_files_are_private_at_creation_even_when_umask_is_zero (__main__.BoundedProcess.test_files_are_private_at_creation_even_when_umask_is_zero) ... ok
+test_normal_eof_nonzero_and_private_error_do_not_leak (__main__.BoundedProcess.test_normal_eof_nonzero_and_private_error_do_not_leak) ... ok
+test_parsed_drain_cap_plus_one_is_partial_without_file (__main__.BoundedProcess.test_parsed_drain_cap_plus_one_is_partial_without_file) ... ok
+test_parsed_drain_retains_no_stdout_but_hashes_complete_stream (__main__.BoundedProcess.test_parsed_drain_retains_no_stdout_but_hashes_complete_stream) ... ok
+test_short_write_or_disk_error_cancels_reaps_and_stays_private (__main__.BoundedProcess.test_short_write_or_disk_error_cancels_reaps_and_stays_private) ... ok
+test_stalled_term_ignoring_child_is_killed_and_reaped (__main__.BoundedProcess.test_stalled_term_ignoring_child_is_killed_and_reaped) ... ok
+test_stderr_cap_applies_before_write (__main__.BoundedProcess.test_stderr_cap_applies_before_write) ... ok
+test_immutable_input_roundtrip (__main__.InputPins.test_immutable_input_roundtrip) ... ok
+test_rejects_missing_changed_metadata_content_wrong_node_and_path (__main__.InputPins.test_rejects_missing_changed_metadata_content_wrong_node_and_path) ... ok
+test_rejects_symlink_and_empty_or_oversize_input (__main__.InputPins.test_rejects_symlink_and_empty_or_oversize_input) ... ok
+test_tool_pin_rejects_drift (__main__.InputPins.test_tool_pin_rejects_drift) ... ok
+test_arbitrary_function_or_user_label_becomes_other_not_public_text (__main__.ProfileEnvelope.test_arbitrary_function_or_user_label_becomes_other_not_public_text) ... ok
+test_disjoint_and_overlapping_counts_are_explicit_and_labels_stay_private (__main__.ProfileEnvelope.test_disjoint_and_overlapping_counts_are_explicit_and_labels_stay_private) ... ok
+test_empty_valid_profile_has_zero_totals (__main__.ProfileEnvelope.test_empty_valid_profile_has_zero_totals) ... ok
+test_missing_time_headers_are_null_and_count_delay_are_preserved (__main__.ProfileEnvelope.test_missing_time_headers_are_null_and_count_delay_are_preserved) ... ok
+test_projection_rejects_unknown_node_kind_and_coverage (__main__.ProfileEnvelope.test_projection_rejects_unknown_node_kind_and_coverage) ... ok
+test_rejects_corrupt_truncated_and_expansion_limit (__main__.ProfileEnvelope.test_rejects_corrupt_truncated_and_expansion_limit) ... ok
+test_rejects_negative_overflow_and_aggregate_overflow (__main__.ProfileEnvelope.test_rejects_negative_overflow_and_aggregate_overflow) ... ok
+test_rejects_wrong_sample_types_and_value_cardinality (__main__.ProfileEnvelope.test_rejects_wrong_sample_types_and_value_cardinality) ... ok
+test_only_complete_zero_exit_and_both_eof_imply_full_reader_acceptance (__main__.ReaderCoverage.test_only_complete_zero_exit_and_both_eof_imply_full_reader_acceptance) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 0.428s
+
+OK

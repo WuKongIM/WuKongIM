@@ -1,0 +1,10 @@
+{
+  "axis": "Standards",
+  "hard_findings": 0,
+  "actionable_heuristic_findings": 0,
+  "source_pre_post_identical": true,
+  "head_and_clean_state_unchanged": true,
+  "all_owned_processes_terminal": true,
+  "other_axis_read": false,
+  "at_utc": "2026-10-23T02:25:05.877479+00:00"
+}

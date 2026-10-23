@@ -1,0 +1,28 @@
+{
+  "Id": "sha256:584d68771fd6700702c4b82c821b69a977559acfb80a5a1a29a450531ceaac1a",
+  "Os": "linux",
+  "Architecture": "arm64",
+  "RepoDigests": [],
+  "Config": {
+    "AttachStderr": false,
+    "AttachStdin": false,
+    "AttachStdout": false,
+    "Cmd": null,
+    "Domainname": "",
+    "Entrypoint": null,
+    "Env": null,
+    "Hostname": "",
+    "Image": "",
+    "Labels": null,
+    "OnBuild": null,
+    "OpenStdin": false,
+    "StdinOnce": false,
+    "Tty": false,
+    "User": "65534:65534",
+    "Volumes": null,
+    "WorkingDir": "/tmp"
+  },
+  "daemon_reported_config_digest": "sha256:584d68771fd6700702c4b82c821b69a977559acfb80a5a1a29a450531ceaac1a",
+  "config_projection_sha256": "6e58f0151d5240d2b4b5104dc803dbb3d14f67fa59bda58efd025db2838d75ac",
+  "registry_manifest_digest": null
+}

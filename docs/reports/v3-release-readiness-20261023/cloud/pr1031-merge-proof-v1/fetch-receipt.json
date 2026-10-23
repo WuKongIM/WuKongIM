@@ -1,0 +1,17 @@
+{
+  "started_at": "2026-10-23T01:01:46.476987+00:00",
+  "completed_at": "2026-10-23T01:01:47.783651+00:00",
+  "argv": [
+    "git",
+    "fetch",
+    "--no-tags",
+    "origin",
+    "refs/heads/main:refs/remotes/origin/main"
+  ],
+  "exit_code": 0,
+  "stdout_bytes": 0,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_bytes": 93,
+  "stderr_sha256": "f60d8e16ad5e5b363ca70616b80e9c88785ac07efabd4ab6fd64b605c6c857e4",
+  "primary_branch_updated": false
+}

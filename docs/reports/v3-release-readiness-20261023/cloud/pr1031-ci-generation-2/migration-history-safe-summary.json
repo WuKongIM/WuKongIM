@@ -1,0 +1,487 @@
+{
+  "artifact_id": 12469194479,
+  "source_member": "ordinary_history/stdout.jsonl",
+  "source_member_sha256": "8bd14bc9ca26ca07df75b0fe9af4b063ce1a58c93cefb4dd2036eecd10269fdb",
+  "topologies": [
+    {
+      "time": "2026-10-23T00:46:30.765092949Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "source_nodes": 1,
+      "target_nodes": 1,
+      "history_credentials_appends_idempotency_restart_applicable_failover_passed": true
+    },
+    {
+      "time": "2026-10-23T00:46:47.810097614Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "source_nodes": 1,
+      "target_nodes": 3,
+      "history_credentials_appends_idempotency_restart_applicable_failover_passed": true
+    },
+    {
+      "time": "2026-10-23T00:47:00.7934892Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "source_nodes": 3,
+      "target_nodes": 1,
+      "history_credentials_appends_idempotency_restart_applicable_failover_passed": true
+    },
+    {
+      "time": "2026-10-23T00:47:21.996066996Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "source_nodes": 3,
+      "target_nodes": 3,
+      "history_credentials_appends_idempotency_restart_applicable_failover_passed": true
+    },
+    {
+      "time": "2026-10-23T00:47:44.142306782Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "source_nodes": 3,
+      "target_nodes": 5,
+      "history_credentials_appends_idempotency_restart_applicable_failover_passed": true
+    }
+  ],
+  "history_verification_count": 55,
+  "history": [
+    {
+      "time": "2026-10-23T00:46:26.979272586Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:27.016966133Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:30.75322103Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:30.765068502Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 5,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:37.961184455Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:37.962400592Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 2,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:37.969498047Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 3,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:38.023450031Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:38.024397873Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:38.025599199Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:42.086710211Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:42.087538672Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:42.089372974Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:46.441788203Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "after-leader-stop",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:47.806539407Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:47.809119516Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 2,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:47.810086147Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 3,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:56.017911349Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:46:56.055187903Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:00.782511353Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:00.793473807Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 5,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:08.663960943Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:08.674012618Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 2,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:08.675124017Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-import",
+      "node": 3,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:08.774629933Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:08.775828043Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:08.776641297Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:15.836792924Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:15.838275574Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:15.839402717Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-full-restart",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:20.198381166Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "after-leader-stop",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:21.990620829Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:21.99372328Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 2,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:21.996053786Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+      "phase": "final",
+      "node": 3,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:30.621516504Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 1,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:30.623797004Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 2,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:30.62536292Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 3,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:30.626416322Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 4,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:30.628470906Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-import",
+      "node": 5,
+      "rows": 3,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:30.75086613Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:30.75209097Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:30.753080525Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:30.753885442Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 4,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:30.755123883Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-protocol-append",
+      "node": 5,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:39.702873513Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 1,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:39.705047977Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 2,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:39.706501433Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 3,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:39.707602425Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 4,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:39.70962779Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-full-restart",
+      "node": 5,
+      "rows": 4,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:43.094690049Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "after-leader-stop",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:44.133744322Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 1,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:44.135323978Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 2,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:44.138694891Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 3,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:44.140018034Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 4,
+      "rows": 6,
+      "temporary_retries": 0
+    },
+    {
+      "time": "2026-10-23T00:47:44.142295145Z",
+      "test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+      "phase": "final",
+      "node": 5,
+      "rows": 6,
+      "temporary_retries": 0
+    }
+  ],
+  "temporary_retry_sum": 0,
+  "no_raw_identity_payload_copied": true
+}

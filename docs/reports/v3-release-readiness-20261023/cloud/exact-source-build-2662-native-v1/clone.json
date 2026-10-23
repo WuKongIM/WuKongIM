@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "/usr/bin/git",
+    "-c",
+    "core.hooksPath=/dev/null",
+    "clone",
+    "--no-hardlinks",
+    "--no-checkout",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+  "started_at": "2026-10-23T00:37:35.850042+00:00",
+  "finished_at": "2026-10-23T00:37:41.654901+00:00",
+  "elapsed_seconds": 5.804639165988192,
+  "exit_code": 0,
+  "timeout_seconds": 60,
+  "combined_output_cap": 1048576,
+  "stdout_bytes": 0,
+  "stderr_bytes": 117
+}

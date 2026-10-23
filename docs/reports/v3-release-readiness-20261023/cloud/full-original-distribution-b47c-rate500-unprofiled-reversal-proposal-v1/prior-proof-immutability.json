@@ -1,0 +1,9 @@
+{
+  "prior_manifests": {
+    "full-original-distribution-b47c-rate500-unprofiled-control-v1/PUBLIC_SHA256SUMS": "691f3d25b5ca362e8b4ef1f9c645ebe0fa04cc7ba9d686001d2275ce59424241",
+    "full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-proposal-v1/PUBLIC_SHA256SUMS": "4ad09018149fe7caae96171d2270a4597bac7acfd669fd40570e04aea48fe005",
+    "full-original-distribution-b47c-rate500-unprofiled-control-v1/expired-two-offline-addendum-v1/PUBLIC_SHA256SUMS": "ed2ad7f8937d860a518924f9cb5d83ed3220829b2c1ed6da639bd217a6e5b84e",
+    "full-original-distribution-4cb4-rate500-unprofiled-width16-v1/PUBLIC_SHA256SUMS": "fde133327c17ad01984edb86d5014dcd858f3cd0b71827ab447e99f22991441f"
+  },
+  "prior_files_modified": false
+}

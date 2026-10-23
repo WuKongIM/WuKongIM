@@ -1,0 +1,109 @@
+{
+  "scope": "runtime-queue-snapshot-implementation-v1",
+  "head": "b47c03d461a6d8918e537e027bf56539ce78c585",
+  "tree": "7ce68e726fea61bd6d176fbc7053dede920d5b00",
+  "pr": "https://github.com/WuKongIM/WuKongIM/pull/1032",
+  "payloads": [
+    {
+      "file": "delivery.md",
+      "bytes": 2703,
+      "sha256": "c0eb781b76fff39df5e05204de812e1ed11c1f0eeaad72248ff8408d053584d4"
+    },
+    {
+      "file": "frozen-source.json",
+      "bytes": 2193,
+      "sha256": "895f0f9a1ec8fbcf30b33fda47d3736650abd328ac8531c8f2f4bc5fa1d6a37c"
+    },
+    {
+      "file": "failure-matrix.md",
+      "bytes": 1977,
+      "sha256": "6b58f4b968867f431cf4fcf658b0b4dc958533b4d6f4ae22b325c7d014bc9cd4"
+    },
+    {
+      "file": "all-test-pins.json",
+      "bytes": 1237,
+      "sha256": "e02a12029e2f4c570be7c11feac38b06abb8a7c000a351f063edf4635fc07362"
+    },
+    {
+      "file": "source-pins.json",
+      "bytes": 1043,
+      "sha256": "f230586e74a21ff77a050ee0509f4602c0430691cf04500412fe2c21ec17705b"
+    },
+    {
+      "file": "preserved-boundaries.json",
+      "bytes": 921,
+      "sha256": "16122f7a2b5e7d5ed8f157bd276c15e5df405a32297972f7ef7ca96aa7732999"
+    },
+    {
+      "file": "test-results.json",
+      "bytes": 2447,
+      "sha256": "2024c3a63d56cbebcc1c4f98e119ac26d11c43d9e870b9be9bc5668d9900f333"
+    },
+    {
+      "file": "commit-binding.json",
+      "bytes": 610,
+      "sha256": "af264d647ec5017147f8888e0101f21dadcb764618ae66274728f8893b794e3f"
+    },
+    {
+      "file": "pr-body.md",
+      "bytes": 2836,
+      "sha256": "89db8d9935d98cb2807a1101ccc248511dfbbef5be15e879fd5b569ae9fa3e23"
+    },
+    {
+      "file": "run_phase.py",
+      "bytes": 2922,
+      "sha256": "29bdff02675e5c38368363ed400395cc33cdcca31fa64e8028449edadde5a914"
+    },
+    {
+      "file": "excluded-assets-metadata.json",
+      "bytes": 3454,
+      "sha256": "fa6a938eba364b65a61e951e26fbd945e98c20799b554b5c4089db3b725eebb9"
+    },
+    {
+      "file": "snapshot-red.json",
+      "bytes": 922,
+      "sha256": "a5d9a66320ce55b5a27f8c9fcbdd05e5db1ecca7ec3f5db8488279f2dde224f9"
+    },
+    {
+      "file": "snapshot-green.json",
+      "bytes": 1030,
+      "sha256": "76ca28cb63b7827018d5070d6a72ea313512648df66cdb889c961d3803bb1d55"
+    },
+    {
+      "file": "metrics-target-normal.json",
+      "bytes": 1018,
+      "sha256": "93b8005888ee8af85f32d9904ba9d02e4cdb1d39593c7479cc773bae0871412c"
+    },
+    {
+      "file": "app-observability-normal.json",
+      "bytes": 1218,
+      "sha256": "c0709321bec010a6b707559a2438bf90085ae16866b499df6d256e09eee08395"
+    },
+    {
+      "file": "metrics-target-race.json",
+      "bytes": 1138,
+      "sha256": "bb051888166eb6b6ddb42895e3f6e1c27ce001cbd1211fb62b4dba62a23ec360"
+    },
+    {
+      "file": "app-observability-race.json",
+      "bytes": 1012,
+      "sha256": "6de8652697c0c4cad9490c0eb061232cc0ea28317be60e892c52e5dab720dfc1"
+    },
+    {
+      "file": "go-format.json",
+      "bytes": 461,
+      "sha256": "101112556e5c2d81493c0c21733c3df46a4909e61a21f4bb1a185d0be88a8c15"
+    },
+    {
+      "file": "go-vet.json",
+      "bytes": 533,
+      "sha256": "6687c56f4edc1230fb8e8a29aa0533e4b9010031529e063c65e126e2ab44084d"
+    },
+    {
+      "file": "go-mod-tidy.json",
+      "bytes": 465,
+      "sha256": "612542230cb935e46a4440b76aafa24e8057b1342ba90dd58e5ded31238f24f8"
+    }
+  ],
+  "exclusions": "Raw logs/claims/unlisted files; no runtime qualification claim."
+}

@@ -1,0 +1,17 @@
+{
+  "id": 120216894970,
+  "run_id": 39893010410,
+  "name": "Emit credential-free wake-up",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 2098,
+  "sha256": "3a857873e09bfb44aadd245a3452d2d0e637c6961f7ee3362384e0346b5d3c0b",
+  "actual_checkout_candidates": [],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Record trusted event kind",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

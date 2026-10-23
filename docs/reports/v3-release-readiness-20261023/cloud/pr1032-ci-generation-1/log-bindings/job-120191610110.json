@@ -1,0 +1,26 @@
+{
+  "id": 120191610110,
+  "run_id": 39884710282,
+  "name": "Exercise Rocky Linux 9 package lifecycle",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 83493,
+  "sha256": "36c390c1995057bbb567efdb9f80a76ac008e08c9938dcbd80d54a21fae88f22",
+  "actual_checkout_candidates": [
+    "b6007c97971b5b3645b8917fc5a14c9499d0cfed"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Check out exact source",
+    "Set up repository Go toolchain",
+    "Download the exact preview packages",
+    "Verify the downloaded package set",
+    "Exercise the operator-owned lifecycle",
+    "Reject tracked-tree mutation",
+    "Post Set up repository Go toolchain",
+    "Post Check out exact source",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

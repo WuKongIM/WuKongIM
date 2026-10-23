@@ -1,0 +1,20 @@
+{
+  "number": 1031,
+  "state": "open",
+  "draft": true,
+  "mergeable": true,
+  "mergeable_state": "clean",
+  "merged": false,
+  "merged_at": null,
+  "merge_commit_sha": "5b3fef1c7a3418c13c4a4392533f112915d97ffe",
+  "updated_at": "2026-10-23T00:35:46Z",
+  "html_url": "https://github.com/WuKongIM/WuKongIM/pull/1031",
+  "head": {
+    "sha": "2662fe93b754d614422f2936185cf781a33b831a",
+    "ref": "codex/v3-metrics-parse-leaf-diagnostics"
+  },
+  "base": {
+    "sha": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+    "ref": "main"
+  }
+}

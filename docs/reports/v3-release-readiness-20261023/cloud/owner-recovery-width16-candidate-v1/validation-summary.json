@@ -1,0 +1,499 @@
+{
+  "recorded_utc": "2026-10-23T02:23:17.542067+00:00",
+  "same_frozen_tests_as_RED": true,
+  "results": [
+    {
+      "phase": "adapter-width-green",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/infra/cluster",
+        "-run",
+        "^TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=30s",
+        "-json"
+      ],
+      "started_utc": "2026-10-23T02:17:21.773603+00:00",
+      "elapsed_seconds": 3.234,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 98311,
+      "output_bytes": {
+        "stdout": 1666,
+        "stderr": 0
+      },
+      "event_count": 2,
+      "bounded_diagnostics": [],
+      "frozen_test_and_candidate_source_hashes_pre_post_verified": true,
+      "terminal_event_counts": {
+        "pass": 2,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 1,
+      "package_pass_events": 1,
+      "full_result_sha256": "a1c5d7db88eb1ba8067c743332d54c07f9a1b8d7a4e6379079fcab1716a48e91"
+    },
+    {
+      "phase": "budget-control",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "./internal/usecase/presence",
+        "-run",
+        "^TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth$",
+        "-count=1",
+        "-p=1",
+        "-timeout=30s",
+        "-json"
+      ],
+      "started_utc": "2026-10-23T02:17:20.220216+00:00",
+      "elapsed_seconds": 0.849,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 98284,
+      "output_bytes": {
+        "stdout": 1577,
+        "stderr": 0
+      },
+      "event_count": 2,
+      "bounded_diagnostics": [],
+      "frozen_test_and_candidate_source_hashes_pre_post_verified": true,
+      "terminal_event_counts": {
+        "pass": 2,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 1,
+      "package_pass_events": 1,
+      "full_result_sha256": "e42160a4e0be71cc729f46f08336dccb4b0300bdce238168c5c3427a00bc5c93"
+    },
+    {
+      "phase": "byte-boundary-green",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/usecase/presence",
+        "-run",
+        "^TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=90s",
+        "-json"
+      ],
+      "started_utc": "2026-10-23T02:17:25.008284+00:00",
+      "elapsed_seconds": 0.483,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 98340,
+      "output_bytes": {
+        "stdout": 1634,
+        "stderr": 0
+      },
+      "event_count": 2,
+      "bounded_diagnostics": [],
+      "frozen_test_and_candidate_source_hashes_pre_post_verified": true,
+      "terminal_event_counts": {
+        "pass": 2,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 1,
+      "package_pass_events": 1,
+      "full_result_sha256": "335c0bed4e62789ca6f8918e5dcb8936cee21485359dea3618c114134404a905"
+    },
+    {
+      "phase": "existing-presence-integration",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/usecase/presence",
+        "./internal/infra/cluster",
+        "-run",
+        "^(TestAuthorityRecovery(ColdUIDIsolation_.*|ProvenLookupDoesNotWaitForColdOwner|UIDFlight(PartialOverlapPublishesBeforeJoin|LeaderCancellationKeepsFollowerRetryable|DistributedIdentity|LocalMetadataCoalesces|OwnsUIDBacking|PackingBounds|PageBytesAndLegalStoredUIDs|LateWaiterMustRereadEvictedProof|MixedGroupsDuplicatesAndTombstone))|TestRecoveryColdFanoutFitsDeliveryDeadlineWithUnavailableOwner)$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=90s",
+        "-json"
+      ],
+      "started_utc": "2026-10-23T02:18:22.091286+00:00",
+      "elapsed_seconds": 1.995,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 98609,
+      "output_bytes": {
+        "stdout": 34856,
+        "stderr": 0
+      },
+      "event_count": 34,
+      "bounded_diagnostics": [
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true"
+      ],
+      "frozen_test_and_candidate_source_hashes_pre_post_verified": true,
+      "terminal_event_counts": {
+        "pass": 34,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 32,
+      "package_pass_events": 2,
+      "full_result_sha256": "e235c38470200cf1330f58dadc2bf4677f90fbbd68ab0b145527bb2cfb86e540"
+    },
+    {
+      "phase": "flow-doc-contracts-after-index",
+      "argv": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "started_utc": "2026-10-23T02:21:40.216987+00:00",
+      "elapsed_seconds": 0.085,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 98770,
+      "output_bytes": {
+        "stdout": 63,
+        "stderr": 1313
+      },
+      "outer_seconds": 60,
+      "max_output_bytes": 1048576,
+      "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "source_and_tests_unchanged_except_authorized_index": true,
+      "terminal_event_counts": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 0,
+      "package_pass_events": 0,
+      "full_result_sha256": "408bab1a5264639eeee549840e476181468e3bc46c856c111c7b25b03decca6b"
+    },
+    {
+      "phase": "flow-doc-contracts",
+      "argv": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "policy_arguments": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "started_utc": "2026-10-23T02:19:58.468129+00:00",
+      "elapsed_seconds": 0.534,
+      "exit_code": 1,
+      "outer_or_output_kill": null,
+      "pgid": 98719,
+      "output_bytes": {
+        "stdout": 63,
+        "stderr": 1395
+      },
+      "outer_seconds": 60,
+      "max_output_bytes": 1048576,
+      "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "frozen_test_and_candidate_source_hashes_pre_post_verified": true,
+      "helper_binary_sha256": "41667e65f6c306d6c734a65116856eb6a59da3cf6f6955210e8f201e2510817e",
+      "terminal_event_counts": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 0,
+      "package_pass_events": 0,
+      "full_result_sha256": "cffb7d9f33996e999b82201dff7b332626b08e3a9581ca31a6878241aca1723f"
+    },
+    {
+      "phase": "flow-index-render",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "render",
+        "--write-index"
+      ],
+      "started_utc": "2026-10-23T02:21:39.995231+00:00",
+      "elapsed_seconds": 0.222,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 98765,
+      "output_bytes": {
+        "stdout": 48,
+        "stderr": 0
+      },
+      "outer_seconds": 60,
+      "max_output_bytes": 1048576,
+      "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "source_and_tests_unchanged_except_authorized_index": true,
+      "terminal_event_counts": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 0,
+      "package_pass_events": 0,
+      "full_result_sha256": "9df8afdcd545c2c5a603d6e5aa3d17e6685fc2bbe5458004fc6704febc8c37a4"
+    },
+    {
+      "phase": "go-format",
+      "argv": [
+        "/tmp/wukongim-v3-readiness-20261023/cloud/owner-recovery-width16-candidate-v1/review-agent-check",
+        "go-format"
+      ],
+      "policy_arguments": [
+        "review-agent-check",
+        "go-format"
+      ],
+      "started_utc": "2026-10-23T02:19:56.786986+00:00",
+      "elapsed_seconds": 1.679,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 98714,
+      "output_bytes": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "outer_seconds": 300,
+      "max_output_bytes": 1048576,
+      "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "frozen_test_and_candidate_source_hashes_pre_post_verified": true,
+      "helper_binary_sha256": "41667e65f6c306d6c734a65116856eb6a59da3cf6f6955210e8f201e2510817e",
+      "terminal_event_counts": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 0,
+      "package_pass_events": 0,
+      "full_result_sha256": "aa6575d729bd319e4005e9c3bdbe98f9064d4d346f66a8613b72b0a1b8da9401"
+    },
+    {
+      "phase": "helper-build",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "build",
+        "-o",
+        "/tmp/wukongim-v3-readiness-20261023/cloud/owner-recovery-width16-candidate-v1/review-agent-check",
+        "./cmd/wkreviewcheck"
+      ],
+      "policy_arguments": null,
+      "started_utc": "2026-10-23T02:19:56.498598+00:00",
+      "elapsed_seconds": 0.287,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 98706,
+      "output_bytes": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "outer_seconds": 60,
+      "max_output_bytes": 1048576,
+      "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "frozen_test_and_candidate_source_hashes_pre_post_verified": true,
+      "helper_binary_sha256": "41667e65f6c306d6c734a65116856eb6a59da3cf6f6955210e8f201e2510817e",
+      "terminal_event_counts": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 0,
+      "package_pass_events": 0,
+      "full_result_sha256": "33eae277a133743af6c916da9be1ecdccd3f2e738ecc99a6759fc495ff3e0aa7"
+    },
+    {
+      "phase": "presence-integration-race",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-race",
+        "-tags=integration",
+        "./internal/usecase/presence",
+        "./internal/infra/cluster",
+        "-run",
+        "(^(TestAuthorityRecovery(ColdUIDIsolation_.*|ProvenLookupDoesNotWaitForColdOwner|UIDFlight(PartialOverlapPublishesBeforeJoin|LeaderCancellationKeepsFollowerRetryable|DistributedIdentity|LocalMetadataCoalesces|OwnsUIDBacking|PackingBounds|PageBytesAndLegalStoredUIDs|LateWaiterMustRereadEvictedProof|MixedGroupsDuplicatesAndTombstone))|TestRecoveryColdFanoutFitsDeliveryDeadlineWithUnavailableOwner)$)|(^(TestAuthorityRecovery(Width16AdmitsCohortsAndFullKeyBudget|UIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys)|TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth)$)",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=180s",
+        "-json"
+      ],
+      "started_utc": "2026-10-23T02:18:24.086792+00:00",
+      "elapsed_seconds": 6.339,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 98634,
+      "output_bytes": {
+        "stdout": 40316,
+        "stderr": 0
+      },
+      "event_count": 39,
+      "bounded_diagnostics": [
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true",
+        "cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true"
+      ],
+      "frozen_test_and_candidate_source_hashes_pre_post_verified": true,
+      "terminal_event_counts": {
+        "pass": 39,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 37,
+      "package_pass_events": 2,
+      "full_result_sha256": "68e6900e6936bc76af2a2ff225fa4f800eeec37d1512535801aeadd9b884a57e"
+    },
+    {
+      "phase": "public-width-green",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-tags=integration",
+        "./internal/usecase/presence",
+        "-run",
+        "^(TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget|TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys)$",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=40s",
+        "-json"
+      ],
+      "started_utc": "2026-10-23T02:17:21.069818+00:00",
+      "elapsed_seconds": 0.704,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 98295,
+      "output_bytes": {
+        "stdout": 4629,
+        "stderr": 0
+      },
+      "event_count": 5,
+      "bounded_diagnostics": [],
+      "frozen_test_and_candidate_source_hashes_pre_post_verified": true,
+      "terminal_event_counts": {
+        "pass": 5,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 4,
+      "package_pass_events": 1,
+      "full_result_sha256": "736ab1b68e85e7231db6ef00b4e095d88faf5d842175925406a851921b94a8d8"
+    },
+    {
+      "phase": "two-package-normal",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "./internal/usecase/presence",
+        "./internal/infra/cluster",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=90s",
+        "-json"
+      ],
+      "started_utc": "2026-10-23T02:17:51.276690+00:00",
+      "elapsed_seconds": 4.561,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 98357,
+      "output_bytes": {
+        "stdout": 422971,
+        "stderr": 0
+      },
+      "event_count": 399,
+      "bounded_diagnostics": [],
+      "frozen_test_and_candidate_source_hashes_pre_post_verified": true,
+      "terminal_event_counts": {
+        "pass": 399,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 397,
+      "package_pass_events": 2,
+      "full_result_sha256": "54db65c586bb7cdf077af63cce4a28d22ab7fc66a25440356b6405d74b9932c5"
+    },
+    {
+      "phase": "two-package-race",
+      "argv": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-race",
+        "./internal/usecase/presence",
+        "./internal/infra/cluster",
+        "-count=1",
+        "-p=1",
+        "-parallel=1",
+        "-timeout=120s",
+        "-json"
+      ],
+      "started_utc": "2026-10-23T02:17:55.838393+00:00",
+      "elapsed_seconds": 26.252,
+      "exit_code": 0,
+      "outer_or_output_kill": null,
+      "pgid": 98381,
+      "output_bytes": {
+        "stdout": 423378,
+        "stderr": 0
+      },
+      "event_count": 399,
+      "bounded_diagnostics": [],
+      "frozen_test_and_candidate_source_hashes_pre_post_verified": true,
+      "terminal_event_counts": {
+        "pass": 399,
+        "fail": 0,
+        "skip": 0
+      },
+      "test_pass_events": 397,
+      "package_pass_events": 2,
+      "full_result_sha256": "80ba2a2973ff2d2ab4b7c27a6ffae881be336e34b3f8756ab53bc273d23d3e36"
+    }
+  ],
+  "all_recorded_pgids_absent": [
+    "98311",
+    "98284",
+    "98340",
+    "98609",
+    "98770",
+    "98719",
+    "98765",
+    "98714",
+    "98706",
+    "98634",
+    "98295",
+    "98357",
+    "98381"
+  ],
+  "first_flow_failure_preserved": true,
+  "flow_repair": "Authorized render canonical index only; one linecluster133\u2192134. Original policy check new result passed; no prior Go or format rerun.",
+  "no_auto_retry": true,
+  "heavy_byte_fixture_GREEN_once_only_no_race": true
+}

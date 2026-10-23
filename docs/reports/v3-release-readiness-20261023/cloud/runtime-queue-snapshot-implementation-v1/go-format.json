@@ -1,0 +1,16 @@
+{
+  "name": "go-format",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "arguments": [
+    "review-agent-check",
+    "go-format"
+  ],
+  "timeout_seconds": 300,
+  "max_output_bytes": 1048576,
+  "exit_code": 0,
+  "wall_seconds": 1.1624009578954428,
+  "stdout_bytes": 0,
+  "stderr_bytes": 0,
+  "helper_binary_sha256": "26951f4877e8b42e2eb96020aef5b0e9a2d9f89a171a2a5085ea24cfac397237",
+  "helper_source_unchanged": true
+}

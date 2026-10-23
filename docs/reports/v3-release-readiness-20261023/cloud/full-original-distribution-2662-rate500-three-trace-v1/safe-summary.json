@@ -1,0 +1,124 @@
+{
+  "schema": "local2662-three-trace-diagnostic-summary/v1",
+  "source_revision": "2662fe93b754d614422f2936185cf781a33b831a",
+  "source_tree": "1182b14d5b659eb60f2e7b694ff91b6641189106",
+  "supervisor_started_at_utc": "2026-10-23T01:02:24.741548+00:00",
+  "first_grant_at": "2026-10-23T09:06:42.178747+08:00",
+  "terminal_cut_at": "2026-10-23T09:07:17.811432+08:00",
+  "launcher_exit_status": 8,
+  "final_report_present": false,
+  "original_final_verdict": null,
+  "first_cut": {
+    "at": "2026-10-23T09:06:47.201616125+08:00",
+    "cut": "periodic",
+    "elapsed_since_firstgrant_seconds": 5.022869,
+    "messages": {
+      "sent": 2501,
+      "send_attempts": 2554,
+      "first_attempts": 2501,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 2080,
+      "send_rejected": 0,
+      "received": 2595,
+      "receive_acknowledged": 2595,
+      "receive_ack_failures": 0,
+      "retry_attempts": 53,
+      "terminal": 0,
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "offered_first_attempts_per_elapsed_second": 497.92260160478,
+    "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+  },
+  "first_loss_cut": {
+    "at": "2026-10-23T09:07:12.201700625+08:00",
+    "cut": "periodic",
+    "elapsed_since_firstgrant_seconds": 30.022953,
+    "messages": {
+      "sent": 14982,
+      "send_attempts": 15205,
+      "first_attempts": 14982,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 14710,
+      "send_rejected": 0,
+      "received": 16274,
+      "receive_acknowledged": 16274,
+      "receive_ack_failures": 0,
+      "retry_attempts": 223,
+      "terminal": 0,
+      "losses": 1,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "offered_first_attempts_per_elapsed_second": 499.01820117428156,
+    "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+  },
+  "terminal_cut": {
+    "at": "2026-10-23T09:07:17.811432+08:00",
+    "cut": "terminal",
+    "elapsed_since_firstgrant_seconds": 35.632685,
+    "messages": {
+      "sent": 15502,
+      "send_attempts": 15725,
+      "first_attempts": 15502,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 15502,
+      "send_rejected": 0,
+      "received": 18456,
+      "receive_acknowledged": 18456,
+      "receive_ack_failures": 0,
+      "retry_attempts": 223,
+      "terminal": 0,
+      "losses": 4,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "offered_first_attempts_per_elapsed_second": 435.0500109660554,
+    "rate_semantics": "snapshot aggregate divided by elapsed firstgrant clock; terminal may include drain and is not active SEND QPS"
+  },
+  "finalization": {
+    "stage": "meta_checkpoint",
+    "reason": "metrics_fetch",
+    "observed_outcome": "product_failure",
+    "observed_cause": "message_loss",
+    "observed_terminal": true,
+    "metrics_fetch": {
+      "source_mask": 4,
+      "kinds": [
+        "",
+        "",
+        "parse"
+      ],
+      "parse_reasons": [
+        "",
+        "",
+        "invalid_queue_utilization"
+      ]
+    }
+  },
+  "trace_transfer_complete_nodes": 3,
+  "trace_total_bytes": 24146616,
+  "trace_format_valid": null,
+  "trace_decoded": false,
+  "cleanup_complete": true,
+  "runtime_seconds": 295.3076819999842,
+  "config_sha256": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+  "configured_SEND_per_second": 500,
+  "target_measured_seconds": 120,
+  "limits_unchanged": true,
+  "no_rerun": true,
+  "no_DB_or_new_service_or_HTTP_after_stop": true,
+  "safe_projection_preparation_limitation": "Initial extractor expected a hexadecimal string but retained JSON encodes fingerprint as16byte integer array. First script preserved separately; corrected only this safe projection and omitted an unnecessary per-worker classification field (a string, initially assumed numeric), original inputs/run unchanged. Existing two safe outputs reused only after exact-byte equality.",
+  "limitations": [
+    "native shared Macarm64 diagnostic, not Linux/formal acceptance",
+    "simultaneous execution trace adds scheduling/CPU/I/O overhead",
+    "first failure stopped original 120-second target early",
+    "frozen product_failure/message_loss observation precedes failed finalization; missing final report preserved",
+    "trace transfer completion does not establish decodable records or full server interval",
+    "runtime trace cannot by itself establish exact cross-node per-RPC identity or root cause"
+  ]
+}

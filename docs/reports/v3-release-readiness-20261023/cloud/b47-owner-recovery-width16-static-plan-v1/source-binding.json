@@ -1,0 +1,111 @@
+{
+  "source_head": "b47c03d461a6d8918e537e027bf56539ce78c585",
+  "source_tree": "7ce68e726fea61bd6d176fbc7053dede920d5b00",
+  "clean_before_after": true,
+  "recorded_utc": "2026-10-23T01:44:43.393452+00:00",
+  "source_files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "bytes": 3192,
+      "sha256": "438ba6664b276dc9b055c14e234b1bcefad55d8f56f649a3779c6df66d780d4e"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "bytes": 8612,
+      "sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e"
+    },
+    {
+      "path": "internal/runtime/presence/FLOW.md",
+      "bytes": 2490,
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee"
+    },
+    {
+      "path": "internal/runtime/delivery/FLOW.md",
+      "bytes": 3273,
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_flights.go",
+      "bytes": 8482,
+      "sha256": "53bb1b4f03152f76bef2e833dc658103f58f334dd38f948f2e2f0de1471cce95"
+    },
+    {
+      "path": "internal/usecase/presence/recovery.go",
+      "bytes": 3764,
+      "sha256": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b"
+    },
+    {
+      "path": "internal/usecase/presence/owner_recovery.go",
+      "bytes": 4604,
+      "sha256": "d2c49e662a578ab380bccc2b594e9f4b100558137c007078ab4694e5d32e6717"
+    },
+    {
+      "path": "internal/usecase/presence/uid_flight_integration_test.go",
+      "bytes": 20110,
+      "sha256": "e00ead21e618278bf16f9195e87298d8a991092f4f78d28ce0cd37f380dc457b"
+    },
+    {
+      "path": "internal/infra/cluster/presence_recovery.go",
+      "bytes": 8454,
+      "sha256": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55"
+    },
+    {
+      "path": "internal/infra/cluster/presence_recovery_integration_test.go",
+      "bytes": 3903,
+      "sha256": "826a80954b5c8a29090abe1e9d796d8572dc807cb650af9ba98e9f086f1aaca0"
+    },
+    {
+      "path": "internal/infra/cluster/presence.go",
+      "bytes": 31462,
+      "sha256": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a"
+    },
+    {
+      "path": "internal/runtime/delivery/runtime.go",
+      "bytes": 41825,
+      "sha256": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561"
+    },
+    {
+      "path": "pkg/cluster/net/transport.go",
+      "bytes": 16654,
+      "sha256": "d0a3d07ecf1220069b9c374af65eaa4ee0b400312da6cfb730391c91be8b9be9"
+    }
+  ],
+  "existing_config_hash_only": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-2662-rate500-three-trace-v1/original-distribution-local.yaml",
+    "bytes": 4361,
+    "sha256": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694"
+  },
+  "parent_trace_observations": "motivation only; not independently parsed in this task",
+  "status": "proposed; root decision pending; no runtime claims",
+  "candidate_limits": {
+    "cohorts": 16,
+    "keys": 8192,
+    "owned_UID_string_bytes": 134217728,
+    "page_UID_string_bytes": 33554432,
+    "page_UIDs": 512,
+    "page_targets": 256,
+    "owner_rounds": 16
+  },
+  "scope": "read-only static source and arithmetic; finite /tmp report only",
+  "not_executed": [
+    "Go",
+    "tests",
+    "builds",
+    "services",
+    "workload",
+    "profiles",
+    "network",
+    "cloud",
+    "repository mutations"
+  ]
+}

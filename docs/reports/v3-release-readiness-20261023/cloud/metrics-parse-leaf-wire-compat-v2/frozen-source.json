@@ -1,0 +1,34 @@
+{
+  "base": "11debae7337dc0f0497ff732600d5ebf03949544",
+  "base_tree": "5ac5aa9cbbedcc75696ef45811245a205ad8c471",
+  "original_release_base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "review_spec_manifest_sha256": "4dbf06010de5a2d788f12a50f3811a139280e53ac327df968537a985e163ddc9",
+  "prior_implementation_manifest_sha256": "10a5e91d817484770f2f9534ad65a5bd04226fc564f4f1372a6a6fbbdfd8dc46",
+  "files": {
+    "AGENTS.md": {
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    "CONTEXT.md": {
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "bytes": 12160
+    },
+    "internal/bench/FLOW.md": {
+      "sha256": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73",
+      "bytes": 6925
+    },
+    "internal/bench/chatlifecycle/FLOW.md": {
+      "sha256": "ff2b4ae3474dcd49cb81e2365b4c425335bb28e57e1df224a967bf57abf47106",
+      "bytes": 6932
+    },
+    ".github/workflows/README.md": {
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "bytes": 85960
+    },
+    ".github/review-agent/policy.json": {
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "bytes": 14492
+    }
+  },
+  "constraint": "Independent supplement2 old-DTO differential tests first, original7+null supplemental unchanged; then only old-field seed compatibility fix. No runtime/cloud/DB or old CI rerun."
+}

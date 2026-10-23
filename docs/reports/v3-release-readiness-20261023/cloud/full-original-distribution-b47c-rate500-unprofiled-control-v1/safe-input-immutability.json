@@ -1,0 +1,16 @@
+{
+  "schema": "localb47c-runtime-input-immutability/v1",
+  "approval_manifest_sha256": "61057a20740a8bfa11503e5b8cfb21a9654fcad74851dcbbb02a8592b5c7c694",
+  "static_input_sha256": {
+    "launcher.sh": "f60d7db1942b57909d66bb3157eade6bfc8f1d220b75e8cef8dfbb75426dac84",
+    "supervise.py": "e3a45c39d8f90114de88653f8ddf05ca7048d5f1f2a7b04bd980af5e2947c320",
+    "exact_build_guard.py": "c011c6430e113bd94f5d91e9a453504478dc39fdd11581c519e81d5f44b35fe5",
+    "original-distribution-local.yaml": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe"
+  },
+  "all_equal_approved_pins": true,
+  "proposal_manifest_sha256": "b3c94c4d6143a544218488b4b0419a5b9bb2a8296772d728d0425307c67d8a06",
+  "source_revision": "b47c03d461a6d8918e537e027bf56539ce78c585",
+  "source_tree": "7ce68e726fea61bd6d176fbc7053dede920d5b00"
+}

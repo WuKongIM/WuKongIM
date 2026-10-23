@@ -1,0 +1,37 @@
+{
+  "base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "unchanged_files": [
+    {
+      "path": "internal/bench/target/metrics_failure.go",
+      "sha256": "7a075f5707876778c2264f053be43c3ac93a6337eb006e5891673fab93d0d98a",
+      "bytes": 3461,
+      "byte_identical_to_base": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "sha256": "0c7a41292bc61a0b68ddea2e6a2cff4d78bbd4293f0395d77674c128ef8f9b09",
+      "bytes": 34215,
+      "byte_identical_to_base": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_observation.go",
+      "sha256": "85c147271c695a2af5f40fd35d16b13301dde3e3da9588f3bb78843b937bf8b7",
+      "bytes": 38176,
+      "byte_identical_to_base": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/report.go",
+      "sha256": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+      "bytes": 37534,
+      "byte_identical_to_base": true
+    }
+  ],
+  "production_meta": {
+    "path": "internal/bench/chatlifecycle/production_meta.go",
+    "base_sha256": "8179c7163669a032c92eb9c780e3941bb2bcda81a61d2ebd8b2242e2bf5f55b7",
+    "candidate_sha256": "0b67229f24ec2a7e8320a5c6ca9f7a7f959944bc2b81eb000fa553c1b9e289fd",
+    "normalization": "Remove only fixed local parseReasons array and four-line parse-kind projection; complete file then byte-identical to base.",
+    "normalized_whole_file_byte_identical": true
+  },
+  "scope": "Target acquisition/fallback/HTTP/limits are included in parser-equivalence whole-client binding; production-meta joining, parent-context, retry/settle/accounting unchanged under this binding. No runtime, plan, verdict, report-validity or CLI production files changed."
+}

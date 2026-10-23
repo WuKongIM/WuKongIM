@@ -1,0 +1,13 @@
+{
+  "A_public_manifest_sha256": "691f3d25b5ca362e8b4ef1f9c645ebe0fa04cc7ba9d686001d2275ce59424241",
+  "A_offline_manifest_sha256": "ed2ad7f8937d860a518924f9cb5d83ed3220829b2c1ed6da639bd217a6e5b84e",
+  "A_six_input_pins": {
+    "launcher.sh": "f60d7db1942b57909d66bb3157eade6bfc8f1d220b75e8cef8dfbb75426dac84",
+    "supervise.py": "e3a45c39d8f90114de88653f8ddf05ca7048d5f1f2a7b04bd980af5e2947c320",
+    "exact_build_guard.py": "c011c6430e113bd94f5d91e9a453504478dc39fdd11581c519e81d5f44b35fe5",
+    "original-distribution-local.yaml": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe"
+  },
+  "A_unchanged": true
+}

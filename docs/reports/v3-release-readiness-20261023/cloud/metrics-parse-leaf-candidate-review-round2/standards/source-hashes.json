@@ -1,0 +1,296 @@
+{
+  "review_axis": "Standards",
+  "review_mode": "static_read_only_round2",
+  "base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "delta_base": "11debae7337dc0f0497ff732600d5ebf03949544",
+  "head": "2662fe93b754d614422f2936185cf781a33b831a",
+  "head_tree": "1182b14d5b659eb60f2e7b694ff91b6641189106",
+  "commits": [
+    "2662fe93b754d614422f2936185cf781a33b831a",
+    "11debae7337dc0f0497ff732600d5ebf03949544"
+  ],
+  "diff_command": "git diff 8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf...2662fe93b754d614422f2936185cf781a33b831a --",
+  "delta_command": "git diff 11debae7337dc0f0497ff732600d5ebf03949544..2662fe93b754d614422f2936185cf781a33b831a --",
+  "recorded_at_utc": "2026-10-23T00:38:22.385290+00:00",
+  "worktree_clean": true,
+  "documented_standard_findings": 0,
+  "heuristic_findings": 0,
+  "rules_sources": [
+    "AGENTS.md",
+    "CONTEXT.md",
+    "internal/bench/FLOW.md",
+    "internal/bench/chatlifecycle/FLOW.md",
+    "docs/agents/issue-tracker.md",
+    ".github/workflows/README.md",
+    ".github/review-agent/policy.json"
+  ],
+  "fowler_baseline_considered": [
+    "Mysterious Name",
+    "Duplicated Code",
+    "Feature Envy",
+    "Data Clumps",
+    "Primitive Obsession",
+    "Repeated Switches",
+    "Shotgun Surgery",
+    "Divergent Change",
+    "Speculative Generality",
+    "Message Chains",
+    "Middle Man",
+    "Refused Bequest"
+  ],
+  "prior_review_manifest_sha256": "a0c94f10b1faadae026b9bcc225f8b5f7d1deffb305ee68c304fb459a03f59b2",
+  "exact_delta_paths": [
+    "internal/bench/chatlifecycle/metrics_fetch_failure.go",
+    "internal/bench/chatlifecycle/metrics_parse_reuse_diagnostics_test.go"
+  ],
+  "all_other_tracked_paths_unchanged_from_prior": true,
+  "implementation_evidence": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-parse-leaf-wire-compat-v2",
+    "manifest_sha256": "c2f3ddd8589d706f9a1c5e6a4386976f4a1c1cc28c5c86695ec3927ceec77de1",
+    "payload_entries": 19
+  },
+  "frozen_test_file_hashes_verified": 9,
+  "checks_not_rerun": [
+    "tests",
+    "race",
+    "builds",
+    "go-format",
+    "flow-doc-contracts"
+  ],
+  "sources": [
+    {
+      "path": ".github/review-agent/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "git_blob": "9fb5ac274b91e73b364794536f31896ecbf51c01",
+      "base_git_blob": "9fb5ac274b91e73b364794536f31896ecbf51c01",
+      "prior_review_git_blob": "9fb5ac274b91e73b364794536f31896ecbf51c01",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "git_blob": "c6492152b32db43fd10a4a2975c123de933fa517",
+      "base_git_blob": "c6492152b32db43fd10a4a2975c123de933fa517",
+      "prior_review_git_blob": "c6492152b32db43fd10a4a2975c123de933fa517",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "git_blob": "b89d41eebadc701ada7157b387c2f45e8ff76354",
+      "base_git_blob": "b89d41eebadc701ada7157b387c2f45e8ff76354",
+      "prior_review_git_blob": "b89d41eebadc701ada7157b387c2f45e8ff76354",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 193296,
+      "sha256": "e7c47e14637293f1ca50e286856cf2ec0733e46b659ad044a81ac18d1c2a96c0",
+      "git_blob": "a47f47235f1f45b0ee163166bdcf1c2adcd89743",
+      "base_git_blob": "92697bf77b7e0e5bebf7044db1b104dc7f72c89d",
+      "prior_review_git_blob": "a47f47235f1f45b0ee163166bdcf1c2adcd89743",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "git_blob": "d1a1495b25153d5299b1ba22658c188c4c53283b",
+      "base_git_blob": "d1a1495b25153d5299b1ba22658c188c4c53283b",
+      "prior_review_git_blob": "d1a1495b25153d5299b1ba22658c188c4c53283b",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "bytes": 13193,
+      "sha256": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee",
+      "git_blob": "ff994dda5ba9802928eb508582b21075673ce8b3",
+      "base_git_blob": "ff994dda5ba9802928eb508582b21075673ce8b3",
+      "prior_review_git_blob": "ff994dda5ba9802928eb508582b21075673ce8b3",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go",
+      "bytes": 1388,
+      "sha256": "3ec85fc977ef3065d2b53695471961795616cf381b5a64be28a1e8bb8b64f4ff",
+      "git_blob": "468397a48fff4d06cff36721b8f881a34af60044",
+      "base_git_blob": "468397a48fff4d06cff36721b8f881a34af60044",
+      "prior_review_git_blob": "468397a48fff4d06cff36721b8f881a34af60044",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/metrics_parse_diagnostics_test.go",
+      "bytes": 1725,
+      "sha256": "e7baa1e353a200bbb552701fadbc08220225af9faf288f4adad4b37a9cfd6410",
+      "git_blob": "e20f88baaa4c71e7648e355897d17b59f11f6e4e",
+      "base_git_blob": null,
+      "prior_review_git_blob": "e20f88baaa4c71e7648e355897d17b59f11f6e4e",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "bytes": 1615,
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+      "git_blob": "5a6f59558cb9a0fd32605b9c2a42bbce7ce591d8",
+      "base_git_blob": "5a6f59558cb9a0fd32605b9c2a42bbce7ce591d8",
+      "prior_review_git_blob": "5a6f59558cb9a0fd32605b9c2a42bbce7ce591d8",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "bytes": 19368,
+      "sha256": "14c48918e3a965f1ea8ebfe2e18c1b9ade134f44f1bcbd2e09be33bdaf213102",
+      "git_blob": "f95f79b13a58494ff00dc4ab73a7e05c65770a1c",
+      "base_git_blob": "7d0f3df9fc6408691f9d62c88f321e7140c86a8c",
+      "prior_review_git_blob": "f95f79b13a58494ff00dc4ab73a7e05c65770a1c",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 149395,
+      "sha256": "adf15d7693d5794813c82aa5e6168407341d1be1b94db56ab70ed103295fdf7a",
+      "git_blob": "4f5d8e7e537fa994919f64e65bd41e94d77252c9",
+      "base_git_blob": "3840a41ff8ca638507a324949d099e09e3cb7c7e",
+      "prior_review_git_blob": "4f5d8e7e537fa994919f64e65bd41e94d77252c9",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6925,
+      "sha256": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73",
+      "git_blob": "97e31e8c0827b2021f5469230024f62bfa1be27b",
+      "base_git_blob": "6eb6493b1b5231e651841ab56a01b5aa1c9e35cf",
+      "prior_review_git_blob": "97e31e8c0827b2021f5469230024f62bfa1be27b",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6932,
+      "sha256": "ff2b4ae3474dcd49cb81e2365b4c425335bb28e57e1df224a967bf57abf47106",
+      "git_blob": "fc23044dd9bc206a49756dcd09f2123a854bb0c1",
+      "base_git_blob": "213eee4b6635e65e7afb536b63282c3f0476de9d",
+      "prior_review_git_blob": "fc23044dd9bc206a49756dcd09f2123a854bb0c1",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "bytes": 123128,
+      "sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "git_blob": "f35f8608e6080c4d40725031e94791bcad71120c",
+      "base_git_blob": "f35f8608e6080c4d40725031e94791bcad71120c",
+      "prior_review_git_blob": "f35f8608e6080c4d40725031e94791bcad71120c",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go",
+      "bytes": 18792,
+      "sha256": "dc22fec67d315ab81dbdfa56b8157af017cf9b920162f6b49d5623d9aebf1eb2",
+      "git_blob": "ef73cd7d044ecda85973392356f88d93230f45ed",
+      "base_git_blob": "c719a33d5086c1ad9262c0d8905db1c3585531ed",
+      "prior_review_git_blob": "ef73cd7d044ecda85973392356f88d93230f45ed",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/metrics_fetch_failure.go",
+      "bytes": 4045,
+      "sha256": "9ae64f4a129bf2d8735ccfe62cbc6d0eda69cbf31b1346cc8a79e4e3808961f6",
+      "git_blob": "eaa95664d9ff9d6a5775b199101afc2ee4b16aa8",
+      "base_git_blob": "8dde0e2f80ec5b55624fb699af1eac9e415fe952",
+      "prior_review_git_blob": "dcd71dcdeff45d3ceba7b73ecf41c89ce7be693d",
+      "unchanged_since_round1": false
+    },
+    {
+      "path": "internal/bench/chatlifecycle/metrics_parse_diagnostics_test.go",
+      "bytes": 9577,
+      "sha256": "9d80ca2103480d3a6442daf3f40465454346e06dd8fa10a3f12e491beb49a40a",
+      "git_blob": "5f0d820a215b25aa3a48f346a66ba0e82ded8f05",
+      "base_git_blob": null,
+      "prior_review_git_blob": "5f0d820a215b25aa3a48f346a66ba0e82ded8f05",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/metrics_parse_null_diagnostics_test.go",
+      "bytes": 848,
+      "sha256": "24923bffeb8c086af01e93e2ea5767dc5bbe563ca8c269e0ace23905b4a24fae",
+      "git_blob": "668f7b12fe12ff80a16ae9a7e1b177794d0723ef",
+      "base_git_blob": null,
+      "prior_review_git_blob": "668f7b12fe12ff80a16ae9a7e1b177794d0723ef",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/metrics_parse_reuse_diagnostics_test.go",
+      "bytes": 5579,
+      "sha256": "45d923f9c8be3a7bd83f4337d35dd920071b041281205d65dece105f7982435d",
+      "git_blob": "75776a95ff2c35e68574a10e130815041b31bcad",
+      "base_git_blob": null,
+      "prior_review_git_blob": null,
+      "unchanged_since_round1": false
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "bytes": 34215,
+      "sha256": "0c7a41292bc61a0b68ddea2e6a2cff4d78bbd4293f0395d77674c128ef8f9b09",
+      "git_blob": "c4fce239f9b856d86cb6545ad46f6f7fa846ff17",
+      "base_git_blob": "c4fce239f9b856d86cb6545ad46f6f7fa846ff17",
+      "prior_review_git_blob": "c4fce239f9b856d86cb6545ad46f6f7fa846ff17",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_meta.go",
+      "bytes": 12679,
+      "sha256": "0b67229f24ec2a7e8320a5c6ca9f7a7f959944bc2b81eb000fa553c1b9e289fd",
+      "git_blob": "4f251a13ea6af274de4be1729383d57e0dd2ddc2",
+      "base_git_blob": "95075394c05269e75e5904f5f948a43d0649e88a",
+      "prior_review_git_blob": "4f251a13ea6af274de4be1729383d57e0dd2ddc2",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/target/client.go",
+      "bytes": 52758,
+      "sha256": "d392bf84cf7175830838e758a4d3df1ecc953b153af1da5e8cfc35c7daf11d5e",
+      "git_blob": "34c5bab850769c95b38b1651669ebdfc149b3397",
+      "base_git_blob": "0f05a2fa22238b534021c5ce66bcfe539e2cb8ee",
+      "prior_review_git_blob": "34c5bab850769c95b38b1651669ebdfc149b3397",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/target/client_test.go",
+      "bytes": 60790,
+      "sha256": "e48732178091c95ceb654dbcc68be1eb9b04b3338a7f1c758bdd15a8373c930f",
+      "git_blob": "cfeda1d044aadbbde9717467bc22485f6c08aece",
+      "base_git_blob": "cfeda1d044aadbbde9717467bc22485f6c08aece",
+      "prior_review_git_blob": "cfeda1d044aadbbde9717467bc22485f6c08aece",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/target/metrics_failure_diagnostics_test.go",
+      "bytes": 15365,
+      "sha256": "aa1bf6986fbd9771eae13031dd1446bf0e2ab52689c4dee620d58b4801ee3ae5",
+      "git_blob": "b2c8375d0775d1835d848dbf9fd90509fd224687",
+      "base_git_blob": "b2c8375d0775d1835d848dbf9fd90509fd224687",
+      "prior_review_git_blob": "b2c8375d0775d1835d848dbf9fd90509fd224687",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/target/metrics_parse_diagnostics_test.go",
+      "bytes": 11204,
+      "sha256": "73e78969236377346fb62938d74eed09afbf198ef8dd354723f94e8054093b4c",
+      "git_blob": "583ed4bf0836945261ef825e0c09a0656d68fdc7",
+      "base_git_blob": null,
+      "prior_review_git_blob": "583ed4bf0836945261ef825e0c09a0656d68fdc7",
+      "unchanged_since_round1": true
+    },
+    {
+      "path": "internal/bench/target/metrics_parse_failure.go",
+      "bytes": 3416,
+      "sha256": "b928bc664dba8c1355cab6f5f67926e3cb9cd23ce92730e66deaa69430eb4314",
+      "git_blob": "fe0adafcbb03eaec038e463edd48c4c41c6bbd1d",
+      "base_git_blob": null,
+      "prior_review_git_blob": "fe0adafcbb03eaec038e463edd48c4c41c6bbd1d",
+      "unchanged_since_round1": true
+    }
+  ]
+}

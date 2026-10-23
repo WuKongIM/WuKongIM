@@ -1,0 +1,22 @@
+{
+  "source_revision": "b47c03d461a6d8918e537e027bf56539ce78c585",
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-b47c-queue-snapshot",
+  "applicable": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "sha256": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "ff2b4ae3474dcd49cb81e2365b4c425335bb28e57e1df224a967bf57abf47106"
+    },
+    {
+      "path": "internal/access/api/FLOW.md",
+      "sha256": "2af34512e6fb8cd0559ddad21c8e4d4a317b699c088ed28c0673847a2940ade9"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "merge": "966ec67df1435ad07bbb82724cd940f550755179",
+  "parents": [
+    "9e5d8eeadb7b4c1998857640d2160c3af3232996",
+    "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac"
+  ],
+  "origin_main": "966ec67df1435ad07bbb82724cd940f550755179",
+  "head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "head_tree_equal": true,
+  "head_is_ancestor_of_origin_main": true,
+  "primary_head_after_fetch": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "primary_status_after_fetch": ""
+}

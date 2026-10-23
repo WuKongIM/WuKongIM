@@ -1,0 +1,46 @@
+{
+  "schema": "localb47c-existing-metrics-receipts/v1",
+  "receipts": {
+    "first-measured": [
+      {
+        "node": 1,
+        "complete": true,
+        "bytes": 1014068,
+        "sha256": "2a82dfbc5a5aa9412da8170084345607561077d04d7f1f66c0f0e37c5d5cb374"
+      },
+      {
+        "node": 2,
+        "complete": true,
+        "bytes": 997037,
+        "sha256": "ebff67c48b4773f0def00d1a11556bdd4f67e07360a8a0e2fe2f5e549bd4af2b"
+      },
+      {
+        "node": 3,
+        "complete": true,
+        "bytes": 979633,
+        "sha256": "a9cb7c7e654abf63eeee69e9b794dffae87ea53df3067bf2e86e331e2e5cb2b8"
+      }
+    ],
+    "terminal": [
+      {
+        "node": 1,
+        "complete": true,
+        "bytes": 1056932,
+        "sha256": "87e556d8af9d12a2a89aa2ba6c62ee9d114539a19cffa6f9f3144c7aaf3856d0"
+      },
+      {
+        "node": 2,
+        "complete": true,
+        "bytes": 1045408,
+        "sha256": "9d6c234321a9fe435f01891e29eba585401af7c49312cdaa212101ba599d5772"
+      },
+      {
+        "node": 3,
+        "complete": true,
+        "bytes": 1028740,
+        "sha256": "3a97593343d53cea819563532942fd4e42d1d98be82b66688b94ca0e85c93f4d"
+      }
+    ]
+  },
+  "no_new_metrics_requests": true
+}

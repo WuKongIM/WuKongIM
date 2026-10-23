@@ -1,0 +1,67 @@
+{
+  "at_utc": "2026-10-23T02:19:10.575311+00:00",
+  "actual_guard_before_mkdir_passed": true,
+  "no_output_created": true,
+  "frozen_current_inventory_equal": true,
+  "fixed13_model_inputs_equal": true,
+  "fixed3_warning_files_equal_no_decode": true,
+  "all_AST_passed": true,
+  "original_run12_manifest_members_unchanged": true,
+  "unchanged56_functions": [
+    {
+      "name": "load_expected_inventory",
+      "byte_equal56": true,
+      "sha256": "68e8cb44b821b5012b8351a018b2475d58771c9008b80c0b713bd714171ce6db"
+    },
+    {
+      "name": "assert_original_inventory",
+      "byte_equal56": true,
+      "sha256": "2f2c0ed5d3896b7ca13a2752490d8d159b313523248c9caccd9a63a85ab7f192"
+    },
+    {
+      "name": "assert_copy_inventory",
+      "byte_equal56": true,
+      "sha256": "328751ceb20c8e93d403adda33094eadf7fc5681b037fa3d28c5ed8b194e7a5c"
+    },
+    {
+      "name": "group_alive",
+      "byte_equal56": true,
+      "sha256": "8ece409bbbb8c8b1058b974b5f5092300ff1ddb0251bcc1ece40117f01245577"
+    },
+    {
+      "name": "signal_group",
+      "byte_equal56": true,
+      "sha256": "9881c2f91c6fff4eb1371dc55b34f8ba8e273fc1b2e57d7be710385d841752eb"
+    },
+    {
+      "name": "run_owned",
+      "byte_equal56": true,
+      "sha256": "45554521c7baafdf6c03428cfec46ae0e24f51ba511c22b86c08ccda92cc9f93"
+    },
+    {
+      "name": "remaining",
+      "byte_equal56": true,
+      "sha256": "e404111429e9e4a4fb48cc1e4463b4c9e3ea0c21342afc942f971a32ba72e1c2"
+    },
+    {
+      "name": "facts",
+      "byte_equal56": true,
+      "sha256": "99cab48bf54ad76d6cd3bcd616f7113549ba93f8a5bef9868d004472362542f3"
+    },
+    {
+      "name": "original_inventory",
+      "byte_equal56": true,
+      "sha256": "048c02023fbb06bec0646132b11abfaca94d4359e8bf9716a92f2c2b9f457b9c"
+    },
+    {
+      "name": "copied_inventory",
+      "byte_equal56": true,
+      "sha256": "9288ff9a244dce0d91bf548636db1d9477b4451aca448ae3455f98a222df1dfb"
+    }
+  ],
+  "actual_DB_copies": 0,
+  "actual_DB_queries": 0,
+  "actual_warn_decodes": 0,
+  "new_Go_or_product_or_CLI_runs": 0,
+  "fake_CLI_only": true
+}

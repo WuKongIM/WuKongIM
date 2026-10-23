@@ -1,0 +1,25 @@
+{
+  "id": 120216895108,
+  "run_id": 39893010250,
+  "name": "PR messaging unit and race",
+  "status": "completed",
+  "conclusion": "success",
+  "bytes": 81770,
+  "sha256": "579ec5ff7adcc4770d9f71e18a34ddf20e8e64b32fb7919ca61eba0d10485b5b",
+  "actual_checkout_candidates": [
+    "9e8332ed8ea69540e5f248c7e483716e987a2546"
+  ],
+  "raw_logs": "private sibling excluded",
+  "successful_steps": [
+    "Set up job",
+    "Checkout candidate",
+    "Set up Go",
+    "Run focused unit and race gates",
+    "Exercise bounded arrival saturation under race detection",
+    "Reject tracked-tree mutation",
+    "Post Set up Go",
+    "Post Checkout candidate",
+    "Complete job"
+  ],
+  "skipped_steps": []
+}

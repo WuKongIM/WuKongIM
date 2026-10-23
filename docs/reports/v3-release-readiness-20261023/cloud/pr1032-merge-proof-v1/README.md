@@ -1,0 +1,13 @@
+# PR #1032 postmerge proof
+
+The independently re-read PR is MERGED at 2026-10-23T01:51:30Z. The merge commit is `9e5d8eeadb7b4c1998857640d2160c3af3232996`, with exact parents `364253b3be532acb023757791a54b85d4c76cbd2` and approved head `b47c03d461a6d8918e537e027bf56539ce78c585`. Its tree `7ce68e726fea61bd6d176fbc7053dede920d5b00` equals the accepted PR head tree.
+
+A bounded fetch updated only `origin/main`; `merge-base --is-ancestor` proved the approved head is contained there. The primary working copy remained clean on `main` at `a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83` before and after fetch and cleanup.
+
+All 13 exact precondition checksum members were verified against manifest `8705d6391633a82f98489af2a99dfc7cfb6bd963feb670e23a2da3812d28506e`. Fresh GETs confirm branch protection and rulesets are structurally identical to those preconditions. All four Review Agent workflow API records retain identical IDs, names, paths, states and timestamps and remain `disabled_manually`. The historical user-namespace diagnostic exists in the API but its source path is absent at both base and merge; this is recorded as unchanged absence, not an API/source inconsistency. AGENTS, workflow README, policy and the three present Review Agent workflow files retain identical bytes.
+
+After proving ancestry and the original task worktree clean including ignored paths, ordinary `git worktree remove` and `git branch -d` removed only `.worktrees/v3-queue-pressure-snapshot` and `codex/v3-queue-pressure-snapshot`. Neither command used force. All 13 other linked worktree records and every unrelated local branch tip are unchanged. The independent real.git clone `.worktrees/v3-rc-exact-source-b47c-queue-snapshot` retains its exact head, tree and Git directory. This proof does not inspect or modify that clone's runtime artifacts.
+
+The parent performed the authorized normal merge; this observer made only GitHub GETs, the bounded remote-tracking fetch and the specifically authorized local cleanup. It did not merge again, change primary main, execute checked-out code, build or start a product, dispatch/enable/retry a workflow, access cloud resources or modify permissions. No local observation errors occurred in the proof collector or cleanup. All owned subprocesses are terminal.
+
+`PUBLIC_ALLOWLIST.txt` is the finite payload list. `SHA256SUMS` hashes that list and its payload; `archive-sha256.json` additionally records the checksum file. Raw command/API bytes remain in the private sibling and are excluded. No actual AGENTS/FLOW document, private profile, credential, signed URL or archive binary is included. This proof does not add postmerge CI or new workload evidence; exact-head first-attempt CI remains separately sealed in `pr1032-ci-generation-1`.

@@ -1,0 +1,145 @@
+{
+  "scope": "metrics-parse-leaf-implementation-v1",
+  "kind": "finite local implementation and unit/race proof; not runtime qualification",
+  "head": "11debae7337dc0f0497ff732600d5ebf03949544",
+  "tree": "5ac5aa9cbbedcc75696ef45811245a205ad8c471",
+  "approved_design_manifest_sha256": "ec21d0847eb5459a1101478181d7a80f06e56c741451495779a6c94bfb3a1446",
+  "payloads": [
+    {
+      "file": "delivery.md",
+      "bytes": 3570,
+      "sha256": "f5a5bde2bd2cb239786474aeb400b40c9d25092096d64e1e07cea25458a4a6c3"
+    },
+    {
+      "file": "frozen-source.json",
+      "bytes": 1543,
+      "sha256": "7c7afe93e4ed6cedea86084dfbbd7307cb64a427a12979ca38f778d9a7e1fc9d"
+    },
+    {
+      "file": "tests-first-pins.json",
+      "bytes": 2995,
+      "sha256": "8c0d7d4e066f82318778cb801693812edb14add539351d97d37d837205902910"
+    },
+    {
+      "file": "supplemental-tests-first-pins.json",
+      "bytes": 430,
+      "sha256": "e687376c70b6d4f598f8b11c71cda6dcf179f95d28f657b4f8235d987c19121b"
+    },
+    {
+      "file": "test-results.json",
+      "bytes": 19165,
+      "sha256": "1c6e414565094cfe5fc91b4eaf0d1a191fc5544a8eea88310d5f21a3f9270312"
+    },
+    {
+      "file": "parser-equivalence.json",
+      "bytes": 1380,
+      "sha256": "f6a84524b61f51cc81a29318de9eb873eb44d96a8b55d177f8b0f658a6323b29"
+    },
+    {
+      "file": "unchanged-boundaries.json",
+      "bytes": 1712,
+      "sha256": "145cdad026e0b65514cb66dee1bdd287dd568e5af0f90660f53a9950d92995b3"
+    },
+    {
+      "file": "unchanged-source-inventory.json",
+      "bytes": 14419,
+      "sha256": "4bfc9910cb765efe9b2446c8d76186a9f34e9b54473c26c1c76fb736cab49cd6"
+    },
+    {
+      "file": "source-pins.json",
+      "bytes": 2839,
+      "sha256": "d583af9a1e39d835ab4be43238059797a8143ed3f947d5dfa72546910648147b"
+    },
+    {
+      "file": "commit-binding.json",
+      "bytes": 784,
+      "sha256": "e7b9239f1872e8c3c6c7546a202c399a1a4bd3ab85e884848cf4bd3f4d810a9b"
+    },
+    {
+      "file": "pr-body.md",
+      "bytes": 2564,
+      "sha256": "ce45aabb822bae89be01f2dd3812fbff53cc2694a3c2a7ecea1fdc73ab44876d"
+    },
+    {
+      "file": "pr-created-snapshot.json",
+      "bytes": 3414,
+      "sha256": "c2c212d6aca1e562f4e658967d83382cdd034a44f71cdd599226d32c7aadfb14"
+    },
+    {
+      "file": "run_phase.py",
+      "bytes": 2951,
+      "sha256": "a71a640ec6419120de5ebf0e454a1f99df9360e8ee313bb65f9f3fed1888e5c9"
+    },
+    {
+      "file": "excluded-assets-metadata.json",
+      "bytes": 5307,
+      "sha256": "3b779d9fc0b51bdf4fe2a74707f2e8c1e92099781848b7f974752f6e31da7a33"
+    },
+    {
+      "file": "compile-red.json",
+      "bytes": 1080,
+      "sha256": "e3f23b9d37fca632e563cbbd98b3b3766c9dece7a9bd532da4d417a6d657ba38"
+    },
+    {
+      "file": "behavior-red.json",
+      "bytes": 1147,
+      "sha256": "8e5400ad725c835473a5f4b373070810a4083f9b7718d43225212925b49bb973"
+    },
+    {
+      "file": "behavior-red-complete.json",
+      "bytes": 1157,
+      "sha256": "7dd230368bbdc91cd5116451ece4f18b22710ac06b94c5d00ca7dea1b413a409"
+    },
+    {
+      "file": "focused-green.json",
+      "bytes": 1290,
+      "sha256": "b49ddd8282e6a2ab520ce1cf2b28eb8501dbea7cca279a10295cafebd5c771b7"
+    },
+    {
+      "file": "related-normal.json",
+      "bytes": 1500,
+      "sha256": "944bdda08382b582571a22fe8028845c0f5f46a8d6a6338ab9c1d3231cf7ea7e"
+    },
+    {
+      "file": "null-elements-red.json",
+      "bytes": 1555,
+      "sha256": "51da374eb987a7999de9b45f6451afe13daae8c279a19d6b3206a26acf10b620"
+    },
+    {
+      "file": "null-elements-green.json",
+      "bytes": 1661,
+      "sha256": "ef3778e1ab11e93d2a12d89427f5d38fe5c0cec3deec05b73d060ff786b564ab"
+    },
+    {
+      "file": "final-related-normal.json",
+      "bytes": 1011,
+      "sha256": "172fdb32e47673f4c7f8057051e0ad3b9ae14d5b711ba6c38c219110a72030f7"
+    },
+    {
+      "file": "final-related-race.json",
+      "bytes": 1039,
+      "sha256": "daa8e09823f87bd91f7e80be43e3acbb4ded4bdc3220e7e343ac0259939ef823"
+    },
+    {
+      "file": "flow-index-render.json",
+      "bytes": 1467,
+      "sha256": "7f037148b772af09179d9bdb3a8b3734241b9e7ffa0ad50a4e25abdfe685aadb"
+    },
+    {
+      "file": "named-helper-build.json",
+      "bytes": 996,
+      "sha256": "16352409e6294c351c491285ce37717b446ed77a0618b9d85d885592d5bbaa2a"
+    },
+    {
+      "file": "go-format.json",
+      "bytes": 529,
+      "sha256": "c9aae125dc9356bb6e4bb755ab5ec20d55cb6ef1929f141c56b88b7b8fb65da2"
+    },
+    {
+      "file": "flow-doc-contracts.json",
+      "bytes": 574,
+      "sha256": "b6c1119cfe52183df632f305f44d0b6edd0221ad293b1b86768f16b931a99be6"
+    }
+  ],
+  "exclusions": "All *.log contents, executable, claims and every unlisted file; original raw production inputs, private causes and identities were not read or copied by this implementation."
+}

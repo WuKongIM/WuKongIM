@@ -1,0 +1,27 @@
+{
+  "aggregate_record_count": 3,
+  "coverage": "prefix_or_unknown",
+  "flat_disjoint_known_symbol_or_other": [
+    {
+      "count": 6914,
+      "delay_ns": 375237089979,
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop"
+    },
+    {
+      "count": 14,
+      "delay_ns": 6804384576,
+      "function": "other"
+    }
+  ],
+  "node_id": 1,
+  "overlapping_known_symbol_counts_and_delay_explicitly_not_additive": [
+    {
+      "count": 6914,
+      "delay_ns": 375237089979,
+      "function": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop"
+    }
+  ],
+  "profile_type": "net",
+  "total_contentions_count": 6928,
+  "total_delay_ns": 382041474555
+}

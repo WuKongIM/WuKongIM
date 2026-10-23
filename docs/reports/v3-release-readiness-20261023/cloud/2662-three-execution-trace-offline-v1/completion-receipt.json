@@ -1,0 +1,20 @@
+{
+  "status": "partial",
+  "error_class": null,
+  "started_at_utc": "2026-10-23T01:23:12.587462+00:00",
+  "completed_at_utc": "2026-10-23T01:23:19.427609+00:00",
+  "elapsed_seconds": 6.840126249939203,
+  "command_count": 36,
+  "aggregate_count": 9,
+  "coverage_by_node": {
+    "1": "prefix_or_unknown",
+    "2": "prefix_or_unknown",
+    "3": "prefix_or_unknown"
+  },
+  "all_direct_roots_joined": true,
+  "original_inputs_and_metadata_unchanged": true,
+  "controlled_signal_stop": false,
+  "no_retry": true,
+  "no_optional_state_extractor": true,
+  "no_RPC_or_percentile_claim": true
+}

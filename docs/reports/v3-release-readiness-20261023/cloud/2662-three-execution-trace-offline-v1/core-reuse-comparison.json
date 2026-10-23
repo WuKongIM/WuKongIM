@@ -1,0 +1,18 @@
+{
+  "old_adapter_sha256": "b9e113316a15fc22a293bd5ae790b2dcae980deb2fdf291d3058fddc678ad2d9",
+  "new_module_sha256": "6d9bb3069aed807e1f032345d58684e2f25c6b14547ce99f7a9c399cc0375e79",
+  "byte_comparison": {
+    "fields": {
+      "byte_identical": true,
+      "sha256": "5627c299330e3db07b74a11ad013cbb7a82b99681c747a9f5fa7187ac855e798"
+    },
+    "packed": {
+      "byte_identical": true,
+      "sha256": "a3b87633d9dd72ec825a38020b82a1bafba95844eeffc02d898a9d92c67ca96a"
+    }
+  },
+  "symbol_parsing_core_byte_identical": true,
+  "symbol_parsing_core_sha256": "87b67c6844a3b126db837dea78c26b33f6c9d334c321b04dccc6a4e7aa322e86",
+  "changes": "metadata envelope/types/value bounds, fixed safe aggregate projection, immutable pins, private capped process drain; no CPU/GOR classifier or state extractor",
+  "actual_trace_inputs_read": 0
+}

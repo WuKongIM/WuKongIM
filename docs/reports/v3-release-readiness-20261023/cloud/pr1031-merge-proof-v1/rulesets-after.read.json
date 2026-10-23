@@ -1,0 +1,11 @@
+{
+  "method": "GET",
+  "endpoint": "rulesets?per_page=100",
+  "started_at": "2026-10-23T01:01:47.884952+00:00",
+  "finished_at": "2026-10-23T01:01:48.761947+00:00",
+  "exit_code": 0,
+  "stdout_bytes": 2,
+  "stdout_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "stderr_bytes": 0,
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

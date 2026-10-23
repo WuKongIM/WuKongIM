@@ -1,0 +1,22 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12472650496,
+      "name": "wukongim-native-package-preview-39884710282",
+      "size_in_bytes": 77908100,
+      "digest": "sha256:ac74ce0bf3697ced8e6b8a785193eaba2d5f3400ba494d5e9bb1c33ee018288b",
+      "expired": false,
+      "created_at": "2026-10-23T01:38:55Z",
+      "updated_at": "2026-10-23T01:38:55Z",
+      "expires_at": "2026-11-06T01:38:52Z",
+      "workflow_run": {
+        "id": 39884710282,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-queue-pressure-snapshot",
+        "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585"
+      }
+    }
+  ]
+}

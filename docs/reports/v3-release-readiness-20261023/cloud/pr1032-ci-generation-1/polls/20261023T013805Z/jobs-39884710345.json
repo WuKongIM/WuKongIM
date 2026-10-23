@@ -1,0 +1,515 @@
+{
+  "total_count": 8,
+  "jobs": [
+    {
+      "id": 120190062823,
+      "run_id": 39884710345,
+      "run_attempt": 1,
+      "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585",
+      "name": "PR messaging unit and race",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T01:33:57Z",
+      "completed_at": "2026-10-23T01:36:56Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39884710345/job/120190062823",
+      "runner_id": 1000024795,
+      "runner_name": "GitHub Actions 1000024795",
+      "runner_group_name": "GitHub Actions",
+      "steps": [
+        {
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:33:58Z",
+          "completed_at": "2026-10-23T01:33:59Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "number": 2,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:33:59Z",
+          "completed_at": "2026-10-23T01:34:11Z"
+        },
+        {
+          "name": "Set up Go",
+          "number": 3,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:11Z",
+          "completed_at": "2026-10-23T01:34:28Z"
+        },
+        {
+          "name": "Run focused unit and race gates",
+          "number": 4,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:28Z",
+          "completed_at": "2026-10-23T01:36:40Z"
+        },
+        {
+          "name": "Exercise bounded arrival saturation under race detection",
+          "number": 5,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:36:40Z",
+          "completed_at": "2026-10-23T01:36:51Z"
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "number": 6,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:36:51Z",
+          "completed_at": "2026-10-23T01:36:52Z"
+        },
+        {
+          "name": "Post Set up Go",
+          "number": 11,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:36:52Z",
+          "completed_at": "2026-10-23T01:36:52Z"
+        },
+        {
+          "name": "Post Checkout candidate",
+          "number": 12,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:36:52Z",
+          "completed_at": "2026-10-23T01:36:52Z"
+        },
+        {
+          "name": "Complete job",
+          "number": 13,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:36:52Z",
+          "completed_at": "2026-10-23T01:36:52Z"
+        }
+      ]
+    },
+    {
+      "id": 120190063219,
+      "run_id": 39884710345,
+      "run_attempt": 1,
+      "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585",
+      "name": "PR three-node correctness",
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-10-23T01:33:57Z",
+      "completed_at": null,
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39884710345/job/120190063219",
+      "runner_id": 1000024796,
+      "runner_name": "GitHub Actions 1000024796",
+      "runner_group_name": "GitHub Actions",
+      "steps": [
+        {
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:33:57Z",
+          "completed_at": "2026-10-23T01:33:58Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "number": 2,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:33:58Z",
+          "completed_at": "2026-10-23T01:34:09Z"
+        },
+        {
+          "name": "Set up Go",
+          "number": 3,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:09Z",
+          "completed_at": "2026-10-23T01:34:27Z"
+        },
+        {
+          "name": "Prepare isolated PR evidence root",
+          "number": 4,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:27Z",
+          "completed_at": "2026-10-23T01:34:27Z"
+        },
+        {
+          "name": "Run bounded three-node 500 QPS correctness smoke",
+          "number": 5,
+          "status": "in_progress",
+          "conclusion": null,
+          "started_at": "2026-10-23T01:34:27Z",
+          "completed_at": null
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "number": 6,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload PR regression evidence",
+          "number": 7,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Go",
+          "number": 13,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Checkout candidate",
+          "number": 14,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        }
+      ]
+    },
+    {
+      "id": 120190063369,
+      "run_id": 39884710345,
+      "run_attempt": 1,
+      "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585",
+      "name": "PR performance baseline evidence",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-23T01:33:57Z",
+      "completed_at": "2026-10-23T01:34:13Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39884710345/job/120190063369",
+      "runner_id": 1000024799,
+      "runner_name": "GitHub Actions 1000024799",
+      "runner_group_name": "GitHub Actions",
+      "steps": [
+        {
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:33:58Z",
+          "completed_at": "2026-10-23T01:33:58Z"
+        },
+        {
+          "name": "Checkout exact candidate without credentials",
+          "number": 2,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:33:58Z",
+          "completed_at": "2026-10-23T01:34:09Z"
+        },
+        {
+          "name": "Check identical-input successful main baseline",
+          "number": 3,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:09Z",
+          "completed_at": "2026-10-23T01:34:10Z"
+        },
+        {
+          "name": "Post Checkout exact candidate without credentials",
+          "number": 6,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:10Z",
+          "completed_at": "2026-10-23T01:34:11Z"
+        },
+        {
+          "name": "Complete job",
+          "number": 7,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:11Z",
+          "completed_at": "2026-10-23T01:34:11Z"
+        }
+      ]
+    },
+    {
+      "id": 120190064069,
+      "run_id": 39884710345,
+      "run_attempt": 1,
+      "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585",
+      "name": "Nightly direct 500 QPS qualification",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-23T01:33:55Z",
+      "completed_at": "2026-10-23T01:33:54Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39884710345/job/120190064069",
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_name": null,
+      "steps": []
+    },
+    {
+      "id": 120190064473,
+      "run_id": 39884710345,
+      "run_attempt": 1,
+      "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585",
+      "name": "Fixed Linux SEND diagnosis",
+      "status": "completed",
+      "conclusion": "skipped",
+      "started_at": "2026-10-23T01:33:55Z",
+      "completed_at": "2026-10-23T01:33:54Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39884710345/job/120190064473",
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_name": null,
+      "steps": []
+    },
+    {
+      "id": 120190156417,
+      "run_id": 39884710345,
+      "run_attempt": 1,
+      "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585",
+      "name": "PR 500 QPS / channel-append",
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-10-23T01:34:15Z",
+      "completed_at": null,
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39884710345/job/120190156417",
+      "runner_id": 1000024800,
+      "runner_name": "GitHub Actions 1000024800",
+      "runner_group_name": "GitHub Actions",
+      "steps": [
+        {
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:15Z",
+          "completed_at": "2026-10-23T01:34:16Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "number": 2,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:16Z",
+          "completed_at": "2026-10-23T01:34:27Z"
+        },
+        {
+          "name": "Set up Go",
+          "number": 3,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:27Z",
+          "completed_at": "2026-10-23T01:34:41Z"
+        },
+        {
+          "name": "Run fixed sustained 500 QPS profile",
+          "number": 4,
+          "status": "in_progress",
+          "conclusion": null,
+          "started_at": "2026-10-23T01:34:41Z",
+          "completed_at": null
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "number": 5,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload every performance result",
+          "number": 6,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Go",
+          "number": 11,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Checkout candidate",
+          "number": 12,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        }
+      ]
+    },
+    {
+      "id": 120190156491,
+      "run_id": 39884710345,
+      "run_attempt": 1,
+      "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585",
+      "name": "PR 500 QPS / mixed-send",
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-10-23T01:34:14Z",
+      "completed_at": null,
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39884710345/job/120190156491",
+      "runner_id": 1000024801,
+      "runner_name": "GitHub Actions 1000024801",
+      "runner_group_name": "GitHub Actions",
+      "steps": [
+        {
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:15Z",
+          "completed_at": "2026-10-23T01:34:16Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "number": 2,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:16Z",
+          "completed_at": "2026-10-23T01:34:26Z"
+        },
+        {
+          "name": "Set up Go",
+          "number": 3,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:26Z",
+          "completed_at": "2026-10-23T01:34:39Z"
+        },
+        {
+          "name": "Run fixed sustained 500 QPS profile",
+          "number": 4,
+          "status": "in_progress",
+          "conclusion": null,
+          "started_at": "2026-10-23T01:34:39Z",
+          "completed_at": null
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "number": 5,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload every performance result",
+          "number": 6,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Go",
+          "number": 11,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Checkout candidate",
+          "number": 12,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        }
+      ]
+    },
+    {
+      "id": 120190156511,
+      "run_id": 39884710345,
+      "run_attempt": 1,
+      "head_sha": "b47c03d461a6d8918e537e027bf56539ce78c585",
+      "name": "PR 500 QPS / tcp-sendack",
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-10-23T01:34:15Z",
+      "completed_at": null,
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39884710345/job/120190156511",
+      "runner_id": 1000024802,
+      "runner_name": "GitHub Actions 1000024802",
+      "runner_group_name": "GitHub Actions",
+      "steps": [
+        {
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:16Z",
+          "completed_at": "2026-10-23T01:34:16Z"
+        },
+        {
+          "name": "Checkout candidate",
+          "number": 2,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:16Z",
+          "completed_at": "2026-10-23T01:34:27Z"
+        },
+        {
+          "name": "Set up Go",
+          "number": 3,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T01:34:27Z",
+          "completed_at": "2026-10-23T01:34:40Z"
+        },
+        {
+          "name": "Run fixed sustained 500 QPS profile",
+          "number": 4,
+          "status": "in_progress",
+          "conclusion": null,
+          "started_at": "2026-10-23T01:34:40Z",
+          "completed_at": null
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "number": 5,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload every performance result",
+          "number": 6,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Go",
+          "number": 11,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Checkout candidate",
+          "number": 12,
+          "status": "pending",
+          "conclusion": null,
+          "started_at": null,
+          "completed_at": null
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "assets": [
+    {
+      "file": "app-observability-normal.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "app-observability-normal.stdout.log",
+      "bytes": 14716,
+      "sha256": "16d697ebb608e7482be3560cb78179e75703c9fd5ee506a328033b0c925cb2fc",
+      "public_payload": false
+    },
+    {
+      "file": "app-observability-race.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "app-observability-race.stdout.log",
+      "bytes": 15131,
+      "sha256": "25b808f6005d99624eb00ac4f4570b6620bf1bfe95322c6e390e83115ef37fa0",
+      "public_payload": false
+    },
+    {
+      "file": "go-format.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "go-format.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "go-mod-tidy.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "go-mod-tidy.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "go-vet.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "go-vet.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "metrics-target-normal.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "metrics-target-normal.stdout.log",
+      "bytes": 270567,
+      "sha256": "ff0f50dd91130fca53c585598d0bc4334b6a2cedee5ad30a0ffa6c68903e1b85",
+      "public_payload": false
+    },
+    {
+      "file": "metrics-target-race.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "metrics-target-race.stdout.log",
+      "bytes": 270765,
+      "sha256": "b6e89eb731b8b3b01f386187c7d4e62f84a41c397134179690833e8d593990b0",
+      "public_payload": false
+    },
+    {
+      "file": "snapshot-green.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "snapshot-green.stdout.log",
+      "bytes": 7903,
+      "sha256": "09f361e3d6a0062833ab903f4d6e1ef52beddc18da6762685b34c70f319b9252",
+      "public_payload": false
+    },
+    {
+      "file": "snapshot-red.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "public_payload": false
+    },
+    {
+      "file": "snapshot-red.stdout.log",
+      "bytes": 10043,
+      "sha256": "68037abdecd74548c6d8b826cdb9e6bb4bdaebcfd89a619ddd37c0b5f9bbbbb9",
+      "public_payload": false
+    }
+  ]
+}

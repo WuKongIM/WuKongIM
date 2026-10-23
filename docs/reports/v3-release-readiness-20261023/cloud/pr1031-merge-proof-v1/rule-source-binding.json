@@ -1,0 +1,122 @@
+{
+  "base": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "merge": "364253b3be532acb023757791a54b85d4c76cbd2",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "base": {
+        "revision": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+        "present": true,
+        "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+        "bytes": 13284
+      },
+      "merge": {
+        "revision": "364253b3be532acb023757791a54b85d4c76cbd2",
+        "present": true,
+        "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+        "bytes": 13284
+      },
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "base": {
+        "revision": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+        "present": true,
+        "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+        "bytes": 85960
+      },
+      "merge": {
+        "revision": "364253b3be532acb023757791a54b85d4c76cbd2",
+        "present": true,
+        "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+        "bytes": 85960
+      },
+      "unchanged": true
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "base": {
+        "revision": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+        "present": true,
+        "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "bytes": 14492
+      },
+      "merge": {
+        "revision": "364253b3be532acb023757791a54b85d4c76cbd2",
+        "present": true,
+        "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "bytes": 14492
+      },
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/review-agent-pr-signal.yml",
+      "base": {
+        "revision": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+        "present": true,
+        "sha256": "bd8abe4b94ec0f31d704b06fd065defd88f1ccf6edae6c3fe4724e6c4441354e",
+        "bytes": 2394
+      },
+      "merge": {
+        "revision": "364253b3be532acb023757791a54b85d4c76cbd2",
+        "present": true,
+        "sha256": "bd8abe4b94ec0f31d704b06fd065defd88f1ccf6edae6c3fe4724e6c4441354e",
+        "bytes": 2394
+      },
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/review-agent-run.yml",
+      "base": {
+        "revision": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+        "present": true,
+        "sha256": "89b94f399296e2140352265c5feedc0487587fdc36faa67789245221064a0eba",
+        "bytes": 54616
+      },
+      "merge": {
+        "revision": "364253b3be532acb023757791a54b85d4c76cbd2",
+        "present": true,
+        "sha256": "89b94f399296e2140352265c5feedc0487587fdc36faa67789245221064a0eba",
+        "bytes": 54616
+      },
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/review-agent.yml",
+      "base": {
+        "revision": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+        "present": true,
+        "sha256": "c1b3baa1a61e98f29c04303a140e025df4f253e46f0256c2a5a541db13fe90dd",
+        "bytes": 28310
+      },
+      "merge": {
+        "revision": "364253b3be532acb023757791a54b85d4c76cbd2",
+        "present": true,
+        "sha256": "c1b3baa1a61e98f29c04303a140e025df4f253e46f0256c2a5a541db13fe90dd",
+        "bytes": 28310
+      },
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/review-agent-userns-diagnostic.yaml",
+      "base": {
+        "revision": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+        "present": false,
+        "sha256": null,
+        "bytes": null
+      },
+      "merge": {
+        "revision": "364253b3be532acb023757791a54b85d4c76cbd2",
+        "present": false,
+        "sha256": null,
+        "bytes": null
+      },
+      "unchanged": true
+    }
+  ],
+  "read_contract": "AGENTS.md worktree cleanup; workflow README manual administrator merge paragraph around line810",
+  "applicable_FLOW": [],
+  "scope": "Git delivery, rules/metadata only; no product package deep analysis",
+  "actual_rule_files_copied": false
+}

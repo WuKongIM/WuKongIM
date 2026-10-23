@@ -1,0 +1,217 @@
+{
+  "review_axis": "Standards",
+  "review_mode": "static_read_only",
+  "base": "364253b3be532acb023757791a54b85d4c76cbd2",
+  "head": "b47c03d461a6d8918e537e027bf56539ce78c585",
+  "head_tree": "7ce68e726fea61bd6d176fbc7053dede920d5b00",
+  "commits": [
+    "b47c03d461a6d8918e537e027bf56539ce78c585"
+  ],
+  "diff_command": "git diff 364253b3be532acb023757791a54b85d4c76cbd2...b47c03d461a6d8918e537e027bf56539ce78c585 --",
+  "recorded_at_utc": "2026-10-23T01:36:59.182979+00:00",
+  "worktree_clean": true,
+  "documented_standard_findings": 0,
+  "heuristic_findings": 0,
+  "rules_sources": [
+    "AGENTS.md",
+    "CONTEXT.md",
+    "internal/app/FLOW.md",
+    "internal/bench/FLOW.md",
+    "docs/agents/issue-tracker.md",
+    ".github/workflows/README.md",
+    ".github/review-agent/policy.json"
+  ],
+  "applicable_FLOW_for_changed_pkg_metrics": [],
+  "no_pkg_AGENTS_or_FLOW_or_metrics_AGENTS_or_FLOW": true,
+  "fowler_baseline_considered": [
+    "Mysterious Name",
+    "Duplicated Code",
+    "Feature Envy",
+    "Data Clumps",
+    "Primitive Obsession",
+    "Repeated Switches",
+    "Shotgun Surgery",
+    "Divergent Change",
+    "Speculative Generality",
+    "Message Chains",
+    "Middle Man",
+    "Refused Bequest"
+  ],
+  "skill_source": {
+    "path": "/Users/tt/.agents/skills/code-review/SKILL.md",
+    "sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143"
+  },
+  "implementation_evidence": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/runtime-queue-snapshot-implementation-v1",
+    "manifest_sha256": "eb911231dd8e4df942cdd0de8f30f192b27ad3a41151847efaaf51108e8e89b4",
+    "payload_entries": 21
+  },
+  "tests_first_pins_verified": 7,
+  "checks_not_rerun": [
+    "tests",
+    "race",
+    "builds",
+    "go-format",
+    "go-vet",
+    "go-mod-tidy"
+  ],
+  "sources": [
+    {
+      "path": ".github/review-agent/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "git_blob": "9fb5ac274b91e73b364794536f31896ecbf51c01",
+      "base_git_blob": "9fb5ac274b91e73b364794536f31896ecbf51c01"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "git_blob": "c6492152b32db43fd10a4a2975c123de933fa517",
+      "base_git_blob": "c6492152b32db43fd10a4a2975c123de933fa517"
+    },
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "git_blob": "b89d41eebadc701ada7157b387c2f45e8ff76354",
+      "base_git_blob": "b89d41eebadc701ada7157b387c2f45e8ff76354"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 193543,
+      "sha256": "9361990552f6fdb3fdfbff434018e19fbe34c5eb137c4bfd0a0e739f7b803bb7",
+      "git_blob": "cbb7c5139dd07e63f5ed6a5ad36792980d0525d6",
+      "base_git_blob": "a47f47235f1f45b0ee163166bdcf1c2adcd89743"
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "git_blob": "d1a1495b25153d5299b1ba22658c188c4c53283b",
+      "base_git_blob": "d1a1495b25153d5299b1ba22658c188c4c53283b"
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "bytes": 1615,
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+      "git_blob": "5a6f59558cb9a0fd32605b9c2a42bbce7ce591d8",
+      "base_git_blob": "5a6f59558cb9a0fd32605b9c2a42bbce7ce591d8"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 149944,
+      "sha256": "a77fcb1cbd3b9379b76b48ce84f5b452a6432d142a28679022e297754f1fbd71",
+      "git_blob": "016b33b7438f93b193cb306bc15328166898dfd8",
+      "base_git_blob": "4f5d8e7e537fa994919f64e65bd41e94d77252c9"
+    },
+    {
+      "path": "go.mod",
+      "bytes": 6662,
+      "sha256": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d",
+      "git_blob": "840bd60ba9789d0e28aef6db867da2e472c65f41",
+      "base_git_blob": "840bd60ba9789d0e28aef6db867da2e472c65f41"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "bytes": 12335,
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "git_blob": "6d61fcc875cec30f4ba477d3c268bb304bf60149",
+      "base_git_blob": "6d61fcc875cec30f4ba477d3c268bb304bf60149"
+    },
+    {
+      "path": "internal/app/observability_test.go",
+      "bytes": 113163,
+      "sha256": "d51dbfdffd3ba6e90dbbab2a44e83d60d31d52a1a5897c966801f8a4f7784008",
+      "git_blob": "da692653d8aba3a4093b12c2d5b68e177120799c",
+      "base_git_blob": "da692653d8aba3a4093b12c2d5b68e177120799c"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6925,
+      "sha256": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73",
+      "git_blob": "97e31e8c0827b2021f5469230024f62bfa1be27b",
+      "base_git_blob": "97e31e8c0827b2021f5469230024f62bfa1be27b"
+    },
+    {
+      "path": "internal/bench/target/client_test.go",
+      "bytes": 60790,
+      "sha256": "e48732178091c95ceb654dbcc68be1eb9b04b3338a7f1c758bdd15a8373c930f",
+      "git_blob": "cfeda1d044aadbbde9717467bc22485f6c08aece",
+      "base_git_blob": "cfeda1d044aadbbde9717467bc22485f6c08aece"
+    },
+    {
+      "path": "internal/bench/target/metrics_failure_diagnostics_test.go",
+      "bytes": 15365,
+      "sha256": "aa1bf6986fbd9771eae13031dd1446bf0e2ab52689c4dee620d58b4801ee3ae5",
+      "git_blob": "b2c8375d0775d1835d848dbf9fd90509fd224687",
+      "base_git_blob": "b2c8375d0775d1835d848dbf9fd90509fd224687"
+    },
+    {
+      "path": "internal/bench/target/metrics_parse_diagnostics_test.go",
+      "bytes": 11204,
+      "sha256": "73e78969236377346fb62938d74eed09afbf198ef8dd354723f94e8054093b4c",
+      "git_blob": "583ed4bf0836945261ef825e0c09a0656d68fdc7",
+      "base_git_blob": "583ed4bf0836945261ef825e0c09a0656d68fdc7"
+    },
+    {
+      "path": "pkg/metrics/registry.go",
+      "bytes": 5670,
+      "sha256": "de1dfc8aa53b4271c83dc511250462cf1de70ec8e9636613ac7bd650b5981e02",
+      "git_blob": "cddccbef477e91fc865d2383a40b6272d1fecb34",
+      "base_git_blob": "cddccbef477e91fc865d2383a40b6272d1fecb34"
+    },
+    {
+      "path": "pkg/metrics/registry_test.go",
+      "bytes": 116028,
+      "sha256": "aa0b70afdeb291e70b9aece952d9a97b048e4eb43cac9611828db507fa78f54d",
+      "git_blob": "20496198bce6d40b198bc741a277e13c08aecdff",
+      "base_git_blob": "20496198bce6d40b198bc741a277e13c08aecdff"
+    },
+    {
+      "path": "pkg/metrics/runtime_pressure.go",
+      "bytes": 17268,
+      "sha256": "b5cdd014aff8a54b81d9a02239c8f88d16db370b7aea2ebff152ccdb1ac9feca",
+      "git_blob": "eb6d1c4fdba6a3c7d36fdc71904651e7d7734ef3",
+      "base_git_blob": "8a2aea61352a3a1095b0555d18030be9c39d16f3"
+    },
+    {
+      "path": "pkg/metrics/runtime_pressure_queue_collector.go",
+      "bytes": 2374,
+      "sha256": "0e5c8566928c985b2d65fba79b5cc4179e266671368cb85d1a1cbf7eed9c8e80",
+      "git_blob": "ee8aa3ce74eec2fcd1f170a9577336877687de40",
+      "base_git_blob": null
+    },
+    {
+      "path": "pkg/metrics/runtime_pressure_snapshot_test.go",
+      "bytes": 9451,
+      "sha256": "0790f9951c8671b348296ed1cdebd507300905edcd159605feb737b7a21af18c",
+      "git_blob": "ac859639fd0cd32af049d5374369b527393fb292",
+      "base_git_blob": null
+    },
+    {
+      "path": "pkg/metrics/runtime_pressure_test.go",
+      "bytes": 4186,
+      "sha256": "baf4af682e44bf2f28cd0319cd2f025292ed1dec2834cd357f2a940cef2d6d1e",
+      "git_blob": "7e380a4a6f76a2accdaa92840551a71daeef25f3",
+      "base_git_blob": "7e380a4a6f76a2accdaa92840551a71daeef25f3"
+    }
+  ],
+  "installed_dependency_sources": [
+    {
+      "path": "/Users/tt/go/pkg/mod/github.com/prometheus/client_golang@v1.16.0/prometheus/value.go",
+      "bytes": 7318,
+      "sha256": "e5bb85421c943c3e9e424b175ce3e9148d63dacc7f9ad2ba5a11c2ba79c082d2"
+    },
+    {
+      "path": "/Users/tt/go/pkg/mod/github.com/prometheus/client_golang@v1.16.0/prometheus/gauge.go",
+      "bytes": 10780,
+      "sha256": "b82321b280e4be9521cd053afca0a16fa4ee2efc2347477781a9e25a794758f1"
+    },
+    {
+      "path": "/Users/tt/go/pkg/mod/github.com/prometheus/client_golang@v1.16.0/prometheus/desc.go",
+      "bytes": 7610,
+      "sha256": "6900aef7ae7e0f0ee2102bc6bf8710f6e8161cbc05f92a547bb797189c7b16a3"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "purpose": "Root WIP review identified null element accepted by Decode(&string). Three supplemental tests frozen after original52 GREEN, before the corrective decoder change. Original7 test files remain byte-identical.",
+  "files": {
+    "internal/bench/chatlifecycle/metrics_parse_null_diagnostics_test.go": {
+      "sha256": "24923bffeb8c086af01e93e2ea5767dc5bbe563ca8c269e0ace23905b4a24fae",
+      "bytes": 848
+    }
+  }
+}

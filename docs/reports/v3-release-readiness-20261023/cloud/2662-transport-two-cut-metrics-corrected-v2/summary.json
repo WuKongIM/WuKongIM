@@ -1,0 +1,1259 @@
+{
+  "schema": "wukongim.transport-fixed-two-cut-summary/v2",
+  "source_head": "2662fe93b754d614422f2936185cf781a33b831a",
+  "source_tree": "1182b14d5b659eb60f2e7b694ff91b6641189106",
+  "input_count": 6,
+  "input_bytes": 6152290,
+  "all_six_unchanged": true,
+  "selected_output_series": 720,
+  "nodes": [
+    {
+      "node_id": 1,
+      "process_identity": "unknown_or_changed_process_start",
+      "client": [
+        {
+          "service_id": 13,
+          "service_alias": "presence authority",
+          "ok_matched_numeric_increase": 8894,
+          "terminal_observed_timeout_counter_sum": 165,
+          "interval_timeout_count": null,
+          "interval_timeout_fraction": null,
+          "interval_unknown_reason": "timeout series absent at first cut; process-start identity absent",
+          "outcome_series": [
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "2",
+              "service": "presence authority",
+              "result": "ok",
+              "first": 2963,
+              "terminal": 7593,
+              "delta": 4630,
+              "state": "matched_monotone"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "2",
+              "service": "presence authority",
+              "result": "timeout",
+              "first": null,
+              "terminal": 82,
+              "delta": null,
+              "state": "new_series_unknown"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "3",
+              "service": "presence authority",
+              "result": "ok",
+              "first": 2890,
+              "terminal": 7154,
+              "delta": 4264,
+              "state": "matched_monotone"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "3",
+              "service": "presence authority",
+              "result": "timeout",
+              "first": null,
+              "terminal": 83,
+              "delta": null,
+              "state": "new_series_unknown"
+            }
+          ],
+          "duration_histogram": {
+            "scope": {
+              "service": "presence authority"
+            },
+            "state": "arithmetic_delta_identity_unproven",
+            "sample_count_delta": 284,
+            "sample_sum_seconds_delta": 127.11094938400004,
+            "cumulative_bucket_deltas": {
+              "0.0005": 70,
+              "0.001": 83,
+              "0.005": 94,
+              "0.01": 98,
+              "0.025": 117,
+              "0.05": 178,
+              "0.1": 211,
+              "0.15": 219,
+              "0.2": 223,
+              "0.25": 227,
+              "0.5": 232,
+              "1": 244,
+              "2.5": 266,
+              "5": 278,
+              "10": 284,
+              "30": 284,
+              "+Inf": 284
+            },
+            "sample_gt_0_25s": 57,
+            "sample_gt_1s": 40
+          },
+          "service_queue_wait_histogram": {
+            "scope": {
+              "pool": "service",
+              "queue": "presence authority",
+              "priority": "none",
+              "result": "ok"
+            },
+            "state": "arithmetic_delta_identity_unproven",
+            "sample_count_delta": 273,
+            "sample_sum_seconds_delta": 0.5007430400000006,
+            "cumulative_bucket_deltas": {
+              "0.0005": 186,
+              "0.001": 229,
+              "0.005": 251,
+              "0.01": 254,
+              "0.025": 267,
+              "0.05": 273,
+              "0.1": 273,
+              "0.25": 273,
+              "0.5": 273,
+              "1": 273,
+              "2.5": 273,
+              "5": 273,
+              "10": 273,
+              "30": 273,
+              "+Inf": 273
+            },
+            "sample_gt_0_25s": 0,
+            "sample_gt_1s": 0
+          }
+        },
+        {
+          "service_id": 14,
+          "service_alias": "presence owner action",
+          "ok_matched_numeric_increase": 3403,
+          "terminal_observed_timeout_counter_sum": 2,
+          "interval_timeout_count": null,
+          "interval_timeout_fraction": null,
+          "interval_unknown_reason": "timeout series absent at first cut; process-start identity absent",
+          "outcome_series": [
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "2",
+              "service": "presence owner action",
+              "result": "ok",
+              "first": 3615,
+              "terminal": 5317,
+              "delta": 1702,
+              "state": "matched_monotone"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "2",
+              "service": "presence owner action",
+              "result": "timeout",
+              "first": null,
+              "terminal": 1,
+              "delta": null,
+              "state": "new_series_unknown"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "3",
+              "service": "presence owner action",
+              "result": "ok",
+              "first": 3615,
+              "terminal": 5316,
+              "delta": 1701,
+              "state": "matched_monotone"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "3",
+              "service": "presence owner action",
+              "result": "timeout",
+              "first": null,
+              "terminal": 1,
+              "delta": null,
+              "state": "new_series_unknown"
+            }
+          ],
+          "duration_histogram": {
+            "scope": {
+              "service": "presence owner action"
+            },
+            "state": "arithmetic_delta_identity_unproven",
+            "sample_count_delta": 110,
+            "sample_sum_seconds_delta": 3.8026223849999985,
+            "cumulative_bucket_deltas": {
+              "0.0005": 13,
+              "0.001": 20,
+              "0.005": 34,
+              "0.01": 37,
+              "0.025": 49,
+              "0.05": 85,
+              "0.1": 107,
+              "0.15": 108,
+              "0.2": 108,
+              "0.25": 108,
+              "0.5": 110,
+              "1": 110,
+              "2.5": 110,
+              "5": 110,
+              "10": 110,
+              "30": 110,
+              "+Inf": 110
+            },
+            "sample_gt_0_25s": 2,
+            "sample_gt_1s": 0
+          },
+          "service_queue_wait_histogram": {
+            "scope": {
+              "pool": "service",
+              "queue": "presence owner action",
+              "priority": "none",
+              "result": "ok"
+            },
+            "state": "arithmetic_delta_identity_unproven",
+            "sample_count_delta": 112,
+            "sample_sum_seconds_delta": 0.14881670800000005,
+            "cumulative_bucket_deltas": {
+              "0.0005": 78,
+              "0.001": 97,
+              "0.005": 105,
+              "0.01": 107,
+              "0.025": 111,
+              "0.05": 112,
+              "0.1": 112,
+              "0.25": 112,
+              "0.5": 112,
+              "1": 112,
+              "2.5": 112,
+              "5": 112,
+              "10": 112,
+              "30": 112,
+              "+Inf": 112
+            },
+            "sample_gt_0_25s": 0,
+            "sample_gt_1s": 0
+          }
+        }
+      ],
+      "scheduler_admissions": [
+        {
+          "metric": "wukongim_runtime_pool_admission_total",
+          "result": "ok",
+          "component": "transport",
+          "pool": "scheduler",
+          "queue": "scheduler",
+          "priority": "control",
+          "first": 17348,
+          "terminal": 20133,
+          "delta": 2785,
+          "state": "matched_monotone"
+        },
+        {
+          "metric": "wukongim_runtime_pool_admission_total",
+          "result": "ok",
+          "component": "transport",
+          "pool": "scheduler",
+          "queue": "scheduler",
+          "priority": "raft",
+          "first": 79157,
+          "terminal": 95758,
+          "delta": 16601,
+          "state": "matched_monotone"
+        },
+        {
+          "metric": "wukongim_runtime_pool_admission_total",
+          "result": "ok",
+          "component": "transport",
+          "pool": "scheduler",
+          "queue": "scheduler",
+          "priority": "rpc",
+          "first": 45186,
+          "terminal": 109861,
+          "delta": 64675,
+          "state": "matched_monotone"
+        }
+      ],
+      "scheduler_wait_histograms": [
+        {
+          "scope": {
+            "pool": "scheduler",
+            "queue": "scheduler",
+            "priority": "raft",
+            "result": "ok"
+          },
+          "state": "arithmetic_delta_identity_unproven",
+          "sample_count_delta": 519,
+          "sample_sum_seconds_delta": 0.8655939480000003,
+          "cumulative_bucket_deltas": {
+            "0.0005": 416,
+            "0.001": 441,
+            "0.005": 476,
+            "0.01": 487,
+            "0.025": 513,
+            "0.05": 519,
+            "0.1": 519,
+            "0.25": 519,
+            "0.5": 519,
+            "1": 519,
+            "2.5": 519,
+            "5": 519,
+            "10": 519,
+            "30": 519,
+            "+Inf": 519
+          },
+          "sample_gt_0_25s": 0,
+          "sample_gt_1s": 0
+        },
+        {
+          "scope": {
+            "pool": "scheduler",
+            "queue": "scheduler",
+            "priority": "control",
+            "result": "ok"
+          },
+          "state": "arithmetic_delta_identity_unproven",
+          "sample_count_delta": 87,
+          "sample_sum_seconds_delta": 0.07192137200000003,
+          "cumulative_bucket_deltas": {
+            "0.0005": 80,
+            "0.001": 80,
+            "0.005": 82,
+            "0.01": 84,
+            "0.025": 87,
+            "0.05": 87,
+            "0.1": 87,
+            "0.25": 87,
+            "0.5": 87,
+            "1": 87,
+            "2.5": 87,
+            "5": 87,
+            "10": 87,
+            "30": 87,
+            "+Inf": 87
+          },
+          "sample_gt_0_25s": 0,
+          "sample_gt_1s": 0
+        },
+        {
+          "scope": {
+            "pool": "scheduler",
+            "queue": "scheduler",
+            "priority": "rpc",
+            "result": "ok"
+          },
+          "state": "arithmetic_delta_identity_unproven",
+          "sample_count_delta": 2021,
+          "sample_sum_seconds_delta": 1.2388756149999993,
+          "cumulative_bucket_deltas": {
+            "0.0005": 1845,
+            "0.001": 1910,
+            "0.005": 1962,
+            "0.01": 1972,
+            "0.025": 2012,
+            "0.05": 2020,
+            "0.1": 2021,
+            "0.25": 2021,
+            "0.5": 2021,
+            "1": 2021,
+            "2.5": 2021,
+            "5": 2021,
+            "10": 2021,
+            "30": 2021,
+            "+Inf": 2021
+          },
+          "sample_gt_0_25s": 0,
+          "sample_gt_1s": 0
+        },
+        {
+          "scope": {
+            "pool": "scheduler",
+            "queue": "scheduler",
+            "priority": "bulk",
+            "result": "ok"
+          },
+          "state": "absent_unknown",
+          "sample_count_delta": null,
+          "sample_sum_seconds_delta": null,
+          "cumulative_bucket_deltas": {}
+        }
+      ],
+      "dropped": [
+        {
+          "metric": "wukongim_transport_observer_dropped_total",
+          "first": 0,
+          "terminal": 0,
+          "delta": 0,
+          "state": "matched_monotone"
+        }
+      ],
+      "resource_points": [
+        {
+          "metric": "go_goroutines",
+          "first": 2645,
+          "terminal": 2520,
+          "delta": null,
+          "state": "gauge_two_points"
+        },
+        {
+          "metric": "go_sched_gomaxprocs_threads",
+          "first": 2,
+          "terminal": 2,
+          "delta": null,
+          "state": "gauge_two_points"
+        },
+        {
+          "metric": "go_threads",
+          "first": 45,
+          "terminal": 52,
+          "delta": null,
+          "state": "gauge_two_points"
+        },
+        {
+          "metric": "wukongim_node_cpu_percent",
+          "first": 24.50857882093981,
+          "terminal": 50.294755180213556,
+          "delta": null,
+          "state": "gauge_two_points"
+        },
+        {
+          "metric": "wukongim_node_memory_rss_bytes",
+          "first": 630767616,
+          "terminal": 784744448,
+          "delta": null,
+          "state": "gauge_two_points"
+        }
+      ]
+    },
+    {
+      "node_id": 2,
+      "process_identity": "unknown_or_changed_process_start",
+      "client": [
+        {
+          "service_id": 13,
+          "service_alias": "presence authority",
+          "ok_matched_numeric_increase": 8598,
+          "terminal_observed_timeout_counter_sum": 92,
+          "interval_timeout_count": null,
+          "interval_timeout_fraction": null,
+          "interval_unknown_reason": "timeout series absent at first cut; process-start identity absent",
+          "outcome_series": [
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "1",
+              "service": "presence authority",
+              "result": "ok",
+              "first": 2656,
+              "terminal": 6818,
+              "delta": 4162,
+              "state": "matched_monotone"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "1",
+              "service": "presence authority",
+              "result": "timeout",
+              "first": null,
+              "terminal": 37,
+              "delta": null,
+              "state": "new_series_unknown"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "3",
+              "service": "presence authority",
+              "result": "ok",
+              "first": 2877,
+              "terminal": 7313,
+              "delta": 4436,
+              "state": "matched_monotone"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "3",
+              "service": "presence authority",
+              "result": "timeout",
+              "first": null,
+              "terminal": 55,
+              "delta": null,
+              "state": "new_series_unknown"
+            }
+          ],
+          "duration_histogram": {
+            "scope": {
+              "service": "presence authority"
+            },
+            "state": "arithmetic_delta_identity_unproven",
+            "sample_count_delta": 274,
+            "sample_sum_seconds_delta": 67.420605034,
+            "cumulative_bucket_deltas": {
+              "0.0005": 62,
+              "0.001": 79,
+              "0.005": 90,
+              "0.01": 92,
+              "0.025": 114,
+              "0.05": 171,
+              "0.1": 217,
+              "0.15": 226,
+              "0.2": 237,
+              "0.25": 240,
+              "0.5": 248,
+              "1": 252,
+              "2.5": 265,
+              "5": 270,
+              "10": 274,
+              "30": 274,
+              "+Inf": 274
+            },
+            "sample_gt_0_25s": 34,
+            "sample_gt_1s": 22
+          },
+          "service_queue_wait_histogram": {
+            "scope": {
+              "pool": "service",
+              "queue": "presence authority",
+              "priority": "none",
+              "result": "ok"
+            },
+            "state": "arithmetic_delta_identity_unproven",
+            "sample_count_delta": 296,
+            "sample_sum_seconds_delta": 100.25595529599995,
+            "cumulative_bucket_deltas": {
+              "0.0005": 167,
+              "0.001": 204,
+              "0.005": 228,
+              "0.01": 229,
+              "0.025": 239,
+              "0.05": 243,
+              "0.1": 243,
+              "0.25": 246,
+              "0.5": 250,
+              "1": 264,
+              "2.5": 279,
+              "5": 296,
+              "10": 296,
+              "30": 296,
+              "+Inf": 296
+            },
+            "sample_gt_0_25s": 50,
+            "sample_gt_1s": 32
+          }
+        },
+        {
+          "service_id": 14,
+          "service_alias": "presence owner action",
+          "ok_matched_numeric_increase": 3687,
+          "terminal_observed_timeout_counter_sum": 8,
+          "interval_timeout_count": null,
+          "interval_timeout_fraction": null,
+          "interval_unknown_reason": "timeout series absent at first cut; process-start identity absent",
+          "outcome_series": [
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "1",
+              "service": "presence owner action",
+              "result": "ok",
+              "first": 3667,
+              "terminal": 5512,
+              "delta": 1845,
+              "state": "matched_monotone"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "1",
+              "service": "presence owner action",
+              "result": "timeout",
+              "first": null,
+              "terminal": 4,
+              "delta": null,
+              "state": "new_series_unknown"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "3",
+              "service": "presence owner action",
+              "result": "ok",
+              "first": 3666,
+              "terminal": 5508,
+              "delta": 1842,
+              "state": "matched_monotone"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "3",
+              "service": "presence owner action",
+              "result": "timeout",
+              "first": null,
+              "terminal": 4,
+              "delta": null,
+              "state": "new_series_unknown"
+            }
+          ],
+          "duration_histogram": {
+            "scope": {
+              "service": "presence owner action"
+            },
+            "state": "arithmetic_delta_identity_unproven",
+            "sample_count_delta": 118,
+            "sample_sum_seconds_delta": 3.9517155020000003,
+            "cumulative_bucket_deltas": {
+              "0.0005": 17,
+              "0.001": 26,
+              "0.005": 40,
+              "0.01": 42,
+              "0.025": 55,
+              "0.05": 89,
+              "0.1": 114,
+              "0.15": 116,
+              "0.2": 116,
+              "0.25": 116,
+              "0.5": 118,
+              "1": 118,
+              "2.5": 118,
+              "5": 118,
+              "10": 118,
+              "30": 118,
+              "+Inf": 118
+            },
+            "sample_gt_0_25s": 2,
+            "sample_gt_1s": 0
+          },
+          "service_queue_wait_histogram": {
+            "scope": {
+              "pool": "service",
+              "queue": "presence owner action",
+              "priority": "none",
+              "result": "ok"
+            },
+            "state": "arithmetic_delta_identity_unproven",
+            "sample_count_delta": 107,
+            "sample_sum_seconds_delta": 0.174570833,
+            "cumulative_bucket_deltas": {
+              "0.0005": 76,
+              "0.001": 88,
+              "0.005": 96,
+              "0.01": 100,
+              "0.025": 107,
+              "0.05": 107,
+              "0.1": 107,
+              "0.25": 107,
+              "0.5": 107,
+              "1": 107,
+              "2.5": 107,
+              "5": 107,
+              "10": 107,
+              "30": 107,
+              "+Inf": 107
+            },
+            "sample_gt_0_25s": 0,
+            "sample_gt_1s": 0
+          }
+        }
+      ],
+      "scheduler_admissions": [
+        {
+          "metric": "wukongim_runtime_pool_admission_total",
+          "result": "ok",
+          "component": "transport",
+          "pool": "scheduler",
+          "queue": "scheduler",
+          "priority": "control",
+          "first": 9137,
+          "terminal": 11809,
+          "delta": 2672,
+          "state": "matched_monotone"
+        },
+        {
+          "metric": "wukongim_runtime_pool_admission_total",
+          "result": "ok",
+          "component": "transport",
+          "pool": "scheduler",
+          "queue": "scheduler",
+          "priority": "raft",
+          "first": 77836,
+          "terminal": 94205,
+          "delta": 16369,
+          "state": "matched_monotone"
+        },
+        {
+          "metric": "wukongim_runtime_pool_admission_total",
+          "result": "ok",
+          "component": "transport",
+          "pool": "scheduler",
+          "queue": "scheduler",
+          "priority": "rpc",
+          "first": 41759,
+          "terminal": 106671,
+          "delta": 64912,
+          "state": "matched_monotone"
+        }
+      ],
+      "scheduler_wait_histograms": [
+        {
+          "scope": {
+            "pool": "scheduler",
+            "queue": "scheduler",
+            "priority": "raft",
+            "result": "ok"
+          },
+          "state": "arithmetic_delta_identity_unproven",
+          "sample_count_delta": 511,
+          "sample_sum_seconds_delta": 0.6809879069999994,
+          "cumulative_bucket_deltas": {
+            "0.0005": 427,
+            "0.001": 455,
+            "0.005": 481,
+            "0.01": 483,
+            "0.025": 507,
+            "0.05": 511,
+            "0.1": 511,
+            "0.25": 511,
+            "0.5": 511,
+            "1": 511,
+            "2.5": 511,
+            "5": 511,
+            "10": 511,
+            "30": 511,
+            "+Inf": 511
+          },
+          "sample_gt_0_25s": 0,
+          "sample_gt_1s": 0
+        },
+        {
+          "scope": {
+            "pool": "scheduler",
+            "queue": "scheduler",
+            "priority": "control",
+            "result": "ok"
+          },
+          "state": "arithmetic_delta_identity_unproven",
+          "sample_count_delta": 83,
+          "sample_sum_seconds_delta": 0.11947628800000003,
+          "cumulative_bucket_deltas": {
+            "0.0005": 74,
+            "0.001": 76,
+            "0.005": 78,
+            "0.01": 79,
+            "0.025": 82,
+            "0.05": 83,
+            "0.1": 83,
+            "0.25": 83,
+            "0.5": 83,
+            "1": 83,
+            "2.5": 83,
+            "5": 83,
+            "10": 83,
+            "30": 83,
+            "+Inf": 83
+          },
+          "sample_gt_0_25s": 0,
+          "sample_gt_1s": 0
+        },
+        {
+          "scope": {
+            "pool": "scheduler",
+            "queue": "scheduler",
+            "priority": "rpc",
+            "result": "ok"
+          },
+          "state": "arithmetic_delta_identity_unproven",
+          "sample_count_delta": 2029,
+          "sample_sum_seconds_delta": 1.0760359969999962,
+          "cumulative_bucket_deltas": {
+            "0.0005": 1842,
+            "0.001": 1905,
+            "0.005": 1977,
+            "0.01": 1985,
+            "0.025": 2024,
+            "0.05": 2029,
+            "0.1": 2029,
+            "0.25": 2029,
+            "0.5": 2029,
+            "1": 2029,
+            "2.5": 2029,
+            "5": 2029,
+            "10": 2029,
+            "30": 2029,
+            "+Inf": 2029
+          },
+          "sample_gt_0_25s": 0,
+          "sample_gt_1s": 0
+        },
+        {
+          "scope": {
+            "pool": "scheduler",
+            "queue": "scheduler",
+            "priority": "bulk",
+            "result": "ok"
+          },
+          "state": "absent_unknown",
+          "sample_count_delta": null,
+          "sample_sum_seconds_delta": null,
+          "cumulative_bucket_deltas": {}
+        }
+      ],
+      "dropped": [
+        {
+          "metric": "wukongim_transport_observer_dropped_total",
+          "first": 0,
+          "terminal": 0,
+          "delta": 0,
+          "state": "matched_monotone"
+        }
+      ],
+      "resource_points": [
+        {
+          "metric": "go_goroutines",
+          "first": 2560,
+          "terminal": 2489,
+          "delta": null,
+          "state": "gauge_two_points"
+        },
+        {
+          "metric": "go_sched_gomaxprocs_threads",
+          "first": 2,
+          "terminal": 2,
+          "delta": null,
+          "state": "gauge_two_points"
+        },
+        {
+          "metric": "go_threads",
+          "first": 43,
+          "terminal": 50,
+          "delta": null,
+          "state": "gauge_two_points"
+        },
+        {
+          "metric": "wukongim_node_cpu_percent",
+          "first": 30.46346887478056,
+          "terminal": 16.007246997079765,
+          "delta": null,
+          "state": "gauge_two_points"
+        },
+        {
+          "metric": "wukongim_node_memory_rss_bytes",
+          "first": 597655552,
+          "terminal": 834928640,
+          "delta": null,
+          "state": "gauge_two_points"
+        }
+      ]
+    },
+    {
+      "node_id": 3,
+      "process_identity": "unknown_or_changed_process_start",
+      "client": [
+        {
+          "service_id": 13,
+          "service_alias": "presence authority",
+          "ok_matched_numeric_increase": 9202,
+          "terminal_observed_timeout_counter_sum": 118,
+          "interval_timeout_count": null,
+          "interval_timeout_fraction": null,
+          "interval_unknown_reason": "timeout series absent at first cut; process-start identity absent",
+          "outcome_series": [
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "1",
+              "service": "presence authority",
+              "result": "ok",
+              "first": 3073,
+              "terminal": 7576,
+              "delta": 4503,
+              "state": "matched_monotone"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "1",
+              "service": "presence authority",
+              "result": "timeout",
+              "first": null,
+              "terminal": 40,
+              "delta": null,
+              "state": "new_series_unknown"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "2",
+              "service": "presence authority",
+              "result": "ok",
+              "first": 2988,
+              "terminal": 7687,
+              "delta": 4699,
+              "state": "matched_monotone"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "2",
+              "service": "presence authority",
+              "result": "timeout",
+              "first": null,
+              "terminal": 78,
+              "delta": null,
+              "state": "new_series_unknown"
+            }
+          ],
+          "duration_histogram": {
+            "scope": {
+              "service": "presence authority"
+            },
+            "state": "arithmetic_delta_identity_unproven",
+            "sample_count_delta": 292,
+            "sample_sum_seconds_delta": 92.348000033,
+            "cumulative_bucket_deltas": {
+              "0.0005": 92,
+              "0.001": 97,
+              "0.005": 114,
+              "0.01": 116,
+              "0.025": 135,
+              "0.05": 190,
+              "0.1": 235,
+              "0.15": 245,
+              "0.2": 253,
+              "0.25": 257,
+              "0.5": 263,
+              "1": 270,
+              "2.5": 277,
+              "5": 288,
+              "10": 292,
+              "30": 292,
+              "+Inf": 292
+            },
+            "sample_gt_0_25s": 35,
+            "sample_gt_1s": 22
+          },
+          "service_queue_wait_histogram": {
+            "scope": {
+              "pool": "service",
+              "queue": "presence authority",
+              "priority": "none",
+              "result": "ok"
+            },
+            "state": "arithmetic_delta_identity_unproven",
+            "sample_count_delta": 276,
+            "sample_sum_seconds_delta": 36.606013284,
+            "cumulative_bucket_deltas": {
+              "0.0005": 159,
+              "0.001": 182,
+              "0.005": 212,
+              "0.01": 216,
+              "0.025": 234,
+              "0.05": 237,
+              "0.1": 239,
+              "0.25": 243,
+              "0.5": 247,
+              "1": 254,
+              "2.5": 276,
+              "5": 276,
+              "10": 276,
+              "30": 276,
+              "+Inf": 276
+            },
+            "sample_gt_0_25s": 33,
+            "sample_gt_1s": 22
+          }
+        },
+        {
+          "service_id": 14,
+          "service_alias": "presence owner action",
+          "ok_matched_numeric_increase": 3470,
+          "terminal_observed_timeout_counter_sum": 6,
+          "interval_timeout_count": null,
+          "interval_timeout_fraction": null,
+          "interval_unknown_reason": "timeout series absent at first cut; process-start identity absent",
+          "outcome_series": [
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "1",
+              "service": "presence owner action",
+              "result": "ok",
+              "first": 3615,
+              "terminal": 5352,
+              "delta": 1737,
+              "state": "matched_monotone"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "1",
+              "service": "presence owner action",
+              "result": "timeout",
+              "first": null,
+              "terminal": 2,
+              "delta": null,
+              "state": "new_series_unknown"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "2",
+              "service": "presence owner action",
+              "result": "ok",
+              "first": 3615,
+              "terminal": 5348,
+              "delta": 1733,
+              "state": "matched_monotone"
+            },
+            {
+              "metric": "wukongim_transport_rpc_client_total",
+              "target_node": "2",
+              "service": "presence owner action",
+              "result": "timeout",
+              "first": null,
+              "terminal": 4,
+              "delta": null,
+              "state": "new_series_unknown"
+            }
+          ],
+          "duration_histogram": {
+            "scope": {
+              "service": "presence owner action"
+            },
+            "state": "arithmetic_delta_identity_unproven",
+            "sample_count_delta": 112,
+            "sample_sum_seconds_delta": 3.7289952909999973,
+            "cumulative_bucket_deltas": {
+              "0.0005": 19,
+              "0.001": 26,
+              "0.005": 37,
+              "0.01": 41,
+              "0.025": 52,
+              "0.05": 81,
+              "0.1": 109,
+              "0.15": 110,
+              "0.2": 110,
+              "0.25": 110,
+              "0.5": 112,
+              "1": 112,
+              "2.5": 112,
+              "5": 112,
+              "10": 112,
+              "30": 112,
+              "+Inf": 112
+            },
+            "sample_gt_0_25s": 2,
+            "sample_gt_1s": 0
+          },
+          "service_queue_wait_histogram": {
+            "scope": {
+              "pool": "service",
+              "queue": "presence owner action",
+              "priority": "none",
+              "result": "ok"
+            },
+            "state": "arithmetic_delta_identity_unproven",
+            "sample_count_delta": 111,
+            "sample_sum_seconds_delta": 0.1896640400000001,
+            "cumulative_bucket_deltas": {
+              "0.0005": 77,
+              "0.001": 94,
+              "0.005": 103,
+              "0.01": 103,
+              "0.025": 111,
+              "0.05": 111,
+              "0.1": 111,
+              "0.25": 111,
+              "0.5": 111,
+              "1": 111,
+              "2.5": 111,
+              "5": 111,
+              "10": 111,
+              "30": 111,
+              "+Inf": 111
+            },
+            "sample_gt_0_25s": 0,
+            "sample_gt_1s": 0
+          }
+        }
+      ],
+      "scheduler_admissions": [
+        {
+          "metric": "wukongim_runtime_pool_admission_total",
+          "result": "ok",
+          "component": "transport",
+          "pool": "scheduler",
+          "queue": "scheduler",
+          "priority": "control",
+          "first": 9020,
+          "terminal": 11706,
+          "delta": 2686,
+          "state": "matched_monotone"
+        },
+        {
+          "metric": "wukongim_runtime_pool_admission_total",
+          "result": "ok",
+          "component": "transport",
+          "pool": "scheduler",
+          "queue": "scheduler",
+          "priority": "raft",
+          "first": 76871,
+          "terminal": 92498,
+          "delta": 15627,
+          "state": "matched_monotone"
+        },
+        {
+          "metric": "wukongim_runtime_pool_admission_total",
+          "result": "ok",
+          "component": "transport",
+          "pool": "scheduler",
+          "queue": "scheduler",
+          "priority": "rpc",
+          "first": 42373,
+          "terminal": 106654,
+          "delta": 64281,
+          "state": "matched_monotone"
+        }
+      ],
+      "scheduler_wait_histograms": [
+        {
+          "scope": {
+            "pool": "scheduler",
+            "queue": "scheduler",
+            "priority": "raft",
+            "result": "ok"
+          },
+          "state": "arithmetic_delta_identity_unproven",
+          "sample_count_delta": 488,
+          "sample_sum_seconds_delta": 0.8536783710000008,
+          "cumulative_bucket_deltas": {
+            "0.0005": 385,
+            "0.001": 417,
+            "0.005": 449,
+            "0.01": 455,
+            "0.025": 481,
+            "0.05": 487,
+            "0.1": 488,
+            "0.25": 488,
+            "0.5": 488,
+            "1": 488,
+            "2.5": 488,
+            "5": 488,
+            "10": 488,
+            "30": 488,
+            "+Inf": 488
+          },
+          "sample_gt_0_25s": 0,
+          "sample_gt_1s": 0
+        },
+        {
+          "scope": {
+            "pool": "scheduler",
+            "queue": "scheduler",
+            "priority": "control",
+            "result": "ok"
+          },
+          "state": "arithmetic_delta_identity_unproven",
+          "sample_count_delta": 84,
+          "sample_sum_seconds_delta": 0.0904844619999999,
+          "cumulative_bucket_deltas": {
+            "0.0005": 73,
+            "0.001": 75,
+            "0.005": 78,
+            "0.01": 78,
+            "0.025": 84,
+            "0.05": 84,
+            "0.1": 84,
+            "0.25": 84,
+            "0.5": 84,
+            "1": 84,
+            "2.5": 84,
+            "5": 84,
+            "10": 84,
+            "30": 84,
+            "+Inf": 84
+          },
+          "sample_gt_0_25s": 0,
+          "sample_gt_1s": 0
+        },
+        {
+          "scope": {
+            "pool": "scheduler",
+            "queue": "scheduler",
+            "priority": "rpc",
+            "result": "ok"
+          },
+          "state": "arithmetic_delta_identity_unproven",
+          "sample_count_delta": 2008,
+          "sample_sum_seconds_delta": 1.2268714289999996,
+          "cumulative_bucket_deltas": {
+            "0.0005": 1830,
+            "0.001": 1869,
+            "0.005": 1956,
+            "0.01": 1963,
+            "0.025": 1997,
+            "0.05": 2008,
+            "0.1": 2008,
+            "0.25": 2008,
+            "0.5": 2008,
+            "1": 2008,
+            "2.5": 2008,
+            "5": 2008,
+            "10": 2008,
+            "30": 2008,
+            "+Inf": 2008
+          },
+          "sample_gt_0_25s": 0,
+          "sample_gt_1s": 0
+        },
+        {
+          "scope": {
+            "pool": "scheduler",
+            "queue": "scheduler",
+            "priority": "bulk",
+            "result": "ok"
+          },
+          "state": "absent_unknown",
+          "sample_count_delta": null,
+          "sample_sum_seconds_delta": null,
+          "cumulative_bucket_deltas": {}
+        }
+      ],
+      "dropped": [
+        {
+          "metric": "wukongim_transport_observer_dropped_total",
+          "first": 0,
+          "terminal": 0,
+          "delta": 0,
+          "state": "matched_monotone"
+        }
+      ],
+      "resource_points": [
+        {
+          "metric": "go_goroutines",
+          "first": 2566,
+          "terminal": 2494,
+          "delta": null,
+          "state": "gauge_two_points"
+        },
+        {
+          "metric": "go_sched_gomaxprocs_threads",
+          "first": 2,
+          "terminal": 2,
+          "delta": null,
+          "state": "gauge_two_points"
+        },
+        {
+          "metric": "go_threads",
+          "first": 43,
+          "terminal": 52,
+          "delta": null,
+          "state": "gauge_two_points"
+        },
+        {
+          "metric": "wukongim_node_cpu_percent",
+          "first": 30.580792349653372,
+          "terminal": 17.243293759957655,
+          "delta": null,
+          "state": "gauge_two_points"
+        },
+        {
+          "metric": "wukongim_node_memory_rss_bytes",
+          "first": 581042176,
+          "terminal": 833028096,
+          "delta": null,
+          "state": "gauge_two_points"
+        }
+      ]
+    }
+  ],
+  "warnings": [
+    "All deltas are numeric differences of matched published series, not identity-proven interval event totals. Process-start series was absent in both cuts on every node.",
+    "Ignore matched_timeout_fraction=0 in retained facts client_timeout_fractions: it describes only the matched subset and exact_observed_counter_ratio is false; complete interval ratio is null here.",
+    "No materialized err/canceled outcome or bulk scheduler series is not evidence of zero.",
+    "Histograms intentionally sample one in32 per internal event key; no scaling, percentile interpolation, same-RPC association or exclusive time partition."
+  ]
+}

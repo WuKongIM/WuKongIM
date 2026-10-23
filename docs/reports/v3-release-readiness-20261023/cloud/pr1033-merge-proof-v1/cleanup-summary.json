@@ -1,0 +1,99 @@
+{
+  "merge": "966ec67df1435ad07bbb82724cd940f550755179",
+  "head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "head_ancestor_of_origin_main_proved_before_cleanup": true,
+  "target_clean_including_ignored_proved_before_cleanup": true,
+  "only_original_worktree_removed": true,
+  "only_original_local_branch_deleted": true,
+  "force_delete_used": false,
+  "primary_branch_and_working_copy_unchanged": true,
+  "unrelated_linked_worktrees_and_local_branches_exactly_unchanged": true,
+  "independent_exact_source_clones_preserved": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-2662-parse-leaf",
+      "head": "2662fe93b754d614422f2936185cf781a33b831a",
+      "tree": "1182b14d5b659eb60f2e7b694ff91b6641189106",
+      "git_directory_is_real": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-3e668-candidate",
+      "head": "3e668ac4733ae403e57242ddec559e6d937b0d3c",
+      "tree": "f70fc869cf65bb03ac42fd43d19e85c32a0fe114",
+      "git_directory_is_real": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics",
+      "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+      "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+      "git_directory_is_real": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-79a",
+      "head": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+      "tree": "a13367b2dc4658e6c27a1992f240544636e5178d",
+      "git_directory_is_real": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-b47c-queue-snapshot",
+      "head": "b47c03d461a6d8918e537e027bf56539ce78c585",
+      "tree": "7ce68e726fea61bd6d176fbc7053dede920d5b00",
+      "git_directory_is_real": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-c495-candidate",
+      "head": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "tree": "98fead03ba0c727dd733f742790e7737327f3942",
+      "git_directory_is_real": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-d349-diagnostics",
+      "head": "d349a7bdd2ca8f6bd4683fbccbf83010d3f9cd3e",
+      "tree": "763f8432135e6b94df28451a43a4a635c7aba2a0",
+      "git_directory_is_real": true
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate",
+      "head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+      "git_directory_is_real": true
+    }
+  ],
+  "steps": [
+    {
+      "operation": "remove-original-worktree",
+      "argv": [
+        "git",
+        "worktree",
+        "remove",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-owner-recovery-width16"
+      ],
+      "started_at": "2026-10-23T03:33:43.909254+00:00",
+      "finished_at": "2026-10-23T03:33:44.380984+00:00",
+      "exit_code": 0,
+      "stdout_bytes": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_bytes": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "force": false
+    },
+    {
+      "operation": "delete-original-local-branch",
+      "argv": [
+        "git",
+        "branch",
+        "-d",
+        "codex/v3-owner-recovery-width16"
+      ],
+      "started_at": "2026-10-23T03:33:44.381126+00:00",
+      "finished_at": "2026-10-23T03:33:44.407133+00:00",
+      "exit_code": 0,
+      "stdout_bytes": 64,
+      "stdout_sha256": "031ff0965fd8ae38d5ccbe2f4fbf64b9033199c9adf6a990bfd24ced87712e45",
+      "stderr_bytes": 175,
+      "stderr_sha256": "c6d35239312407f3d0cffd77defd88374fa05bb3585b04616e72499713d6bf33",
+      "force": false
+    }
+  ],
+  "all_owned_local_processes_terminal": true,
+  "no_GitHub_workflow_cloud_product_actions": true
+}

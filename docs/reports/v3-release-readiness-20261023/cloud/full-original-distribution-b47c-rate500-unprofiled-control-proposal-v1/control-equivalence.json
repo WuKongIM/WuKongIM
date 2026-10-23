@@ -1,0 +1,18 @@
+{
+  "supervisor_unchanged_functions": {
+    "now": true,
+    "write": true,
+    "event": true,
+    "capture": true,
+    "group_members": true,
+    "coordinator_pid": true,
+    "samples": true,
+    "check_ports": true,
+    "bounded_metrics": true
+  },
+  "stop_equal_after_sampler_marker_deletion": true,
+  "watchdog_byte_equal": true,
+  "slotchecker_byte_equal": true,
+  "sampling_related_removals_only": "watcher invocation/PID/wait, old PPROF cleanup branches, sampler pins and manifest walk, sampler profile-stop marker, unused launcher-hash env transfer",
+  "no_business_config_or_gate_change": true
+}
