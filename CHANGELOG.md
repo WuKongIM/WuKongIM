@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Retain bounded cumulative Save/Send coverage for sampled Slot read phases
+  and expose the Raft engine's real WAL fsync, write-stall and slow-disk metrics.
+  / Slot 读取采样补充有界的 Save/Send 分阶段累计覆盖，并接入 Raft 存储实际的
+  WAL fsync、写停顿和慢磁盘指标，避免把缺失观测当作零等待。
+
 - Retry a complete acceptance snapshot inventory when a published or reclaimed
   snapshot disappears during measurement, within the original collection budget.
   Missing or invalid evidence still fails validation.

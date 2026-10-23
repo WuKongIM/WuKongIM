@@ -2076,6 +2076,12 @@ specification, runbook, report, or module documentation; link to them when neede
   Ready persistence before acceptance, and durable-apply wait. Bounded Save/Send
   overlays overlap these phases and must not be added to them. Raw ReadStates
   observation never bypasses the existing persist-before-accept ordering.
+  Fixed per-phase Save/Send coverage accumulates all observed intersections
+  independently of the two-per-kind detailed-overlay cap. Coverage belongs to
+  the same retained longest group, includes only the caller's observed window,
+  and distinguishes unreached phases from measured zero. Save includes storage
+  admission and persistence preparation, not only fsync; neither coverage nor
+  raw-quorum duration alone identifies network or disk latency.
   Commit observations follow each logical request from queue-credit admission
   through physical-batch entry, collection, build, durable commit and publication;
   shared physical phases overlap across requests and publication excludes Finalize.

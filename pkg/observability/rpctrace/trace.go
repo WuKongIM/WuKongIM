@@ -21,6 +21,9 @@ const MaxSpans = 32
 // Send overlays for one Slot barrier. Publication still obeys MaxSpans.
 const MaxBarrierSpans = 9
 
+// BarrierPhaseCount fixes coverage storage to the five sequential read phases.
+const BarrierPhaseCount = 5
+
 // Side identifies the endpoint that measured a sample with its own clock.
 type Side string
 
@@ -107,6 +110,32 @@ type SpanSample struct {
 	Incomplete bool          `json:"incomplete,omitempty"`
 }
 
+// BarrierOverlayCoverage totals disjoint intersections with one observed phase.
+// Count counts positive-duration intersections; a cross-phase operation may count
+// in each phase. Unfinished means an intersecting operation was caller-clipped.
+// These totals are not continuous spans and must not be added to phase duration.
+type BarrierOverlayCoverage struct {
+	Duration   time.Duration `json:"duration"`
+	Count      uint64        `json:"count"`
+	Unfinished bool          `json:"unfinished,omitempty"`
+}
+
+// BarrierPhaseCoverage uses the same phase boundaries as the retained group.
+// Observed means the phase began, including a caller-clipped incomplete phase;
+// false means unknown, with zero-valued totals rather than measured zero work.
+type BarrierPhaseCoverage struct {
+	Stage    Stage                  `json:"stage"`
+	Observed bool                   `json:"observed"`
+	Save     BarrierOverlayCoverage `json:"save"`
+	Send     BarrierOverlayCoverage `json:"send"`
+}
+
+// BarrierCoverage is a fixed-size companion to one longest barrier group.
+// The order is control, eligibility, raw quorum, Ready acceptance, durable apply.
+type BarrierCoverage struct {
+	Phases [BarrierPhaseCount]BarrierPhaseCoverage `json:"phases"`
+}
+
 // Sample is an immutable endpoint observation. Matching TraceIDs join the two
 // endpoints; their wall clocks cannot determine one-way network latency.
 type Sample struct {
@@ -131,11 +160,17 @@ type Sample struct {
 	// DroppedBarrierGroups counts fixed observer-registry overflow separately
 	// from known spans lost to the per-trace span limit.
 	DroppedBarrierGroups uint64 `json:"dropped_barrier_groups,omitempty"`
+	// BarrierCoverage is absent when unavailable or when the whole group is dropped.
+	BarrierCoverage *BarrierCoverage `json:"barrier_coverage,omitempty"`
 }
 
-// Clone detaches the only mutable backing slice before crossing a store/query boundary.
+// Clone detaches mutable data before crossing a store/query boundary.
 func (s Sample) Clone() Sample {
 	s.Spans = append([]SpanSample(nil), s.Spans...)
+	if s.BarrierCoverage != nil {
+		coverage := *s.BarrierCoverage
+		s.BarrierCoverage = &coverage
+	}
 	return s
 }
 
@@ -219,6 +254,8 @@ type Trace struct {
 	barrierSpans         [MaxBarrierSpans]SpanSample
 	barrierCount         int
 	barrierDuration      time.Duration
+	barrierCoverage      BarrierCoverage
+	hasBarrierCoverage   bool
 	barrierGroups        uint64
 	droppedBarrierGroups uint64
 }
@@ -250,6 +287,17 @@ type HistoricalSpan struct {
 // hold a Slot mutex here. Only the longest complete group is retained, and
 // Finish either publishes that entire group within MaxSpans or reports drops.
 func (t *Trace) RetainLongestBarrier(start, end time.Time, spans [MaxBarrierSpans]HistoricalSpan, count int, dropped uint64) {
+	t.retainLongestBarrier(start, end, spans, count, dropped, nil)
+}
+
+// RetainLongestBarrierWithCoverage copies coverage with its source phases.
+// Invalid phase provenance rejects the candidate; a later legacy replacement
+// clears coverage. The caller must release Slot locks before publication.
+func (t *Trace) RetainLongestBarrierWithCoverage(start, end time.Time, spans [MaxBarrierSpans]HistoricalSpan, count int, dropped uint64, coverage BarrierCoverage) {
+	t.retainLongestBarrier(start, end, spans, count, dropped, &coverage)
+}
+
+func (t *Trace) retainLongestBarrier(start, end time.Time, spans [MaxBarrierSpans]HistoricalSpan, count int, dropped uint64, coverage *BarrierCoverage) {
 	if t == nil {
 		return
 	}
@@ -272,12 +320,81 @@ func (t *Trace) RetainLongestBarrier(start, end time.Time, spans [MaxBarrierSpan
 		}
 		group[i] = SpanSample{Stage: s.Stage, Offset: s.Start.Sub(t.at), Duration: s.End.Sub(s.Start), Result: normalizeResult(s.Result), Incomplete: s.Incomplete}
 	}
+	if coverage != nil && !validBarrierCoverage(start, end, spans, count, *coverage) {
+		t.dropped += uint64(count)
+		return
+	}
 	t.barrierGroups++
 	if t.barrierCount == 0 || end.Sub(start) > t.barrierDuration {
 		t.barrierSpans = group
 		t.barrierCount = count
 		t.barrierDuration = end.Sub(start)
+		t.hasBarrierCoverage = coverage != nil
+		t.barrierCoverage = BarrierCoverage{}
+		if coverage != nil {
+			t.barrierCoverage = *coverage
+		}
 	}
+}
+
+// validBarrierCoverage checks the fixed phase prefix, not arbitrary overlay
+// order. A final successful apply phase may finish before the caller returns.
+func validBarrierCoverage(start, end time.Time, spans [MaxBarrierSpans]HistoricalSpan, count int, c BarrierCoverage) bool {
+	stages := [BarrierPhaseCount]Stage{StageSlotControlWait, StageSlotReadEligibility, StageSlotRawQuorum, StageSlotReadyToAccept, StageSlotApplyWait}
+	phaseCount := 0
+	previous := start
+	for i, stage := range stages {
+		p := c.Phases[i]
+		if p.Stage != stage {
+			return false
+		}
+		observed := i < count && spans[i].Stage == stage
+		if p.Observed != observed {
+			return false
+		}
+		if !observed {
+			if p.Save != (BarrierOverlayCoverage{}) || p.Send != (BarrierOverlayCoverage{}) {
+				return false
+			}
+			continue
+		}
+		// A missing phase can never be followed by an observed one.
+		if phaseCount != i {
+			return false
+		}
+		span := spans[i]
+		if !span.Start.Equal(previous) || (span.Incomplete && !span.End.Equal(end)) {
+			return false
+		}
+		if i > 0 && spans[i-1].Incomplete {
+			return false
+		}
+		duration := span.End.Sub(span.Start)
+		if !validOverlayCoverage(p.Save, duration) || !validOverlayCoverage(p.Send, duration-p.Save.Duration) {
+			return false
+		}
+		previous = span.End
+		phaseCount++
+	}
+	if phaseCount == 0 || (phaseCount < BarrierPhaseCount && !spans[phaseCount-1].Incomplete) {
+		return false
+	}
+	// Remaining historical records must be overlays, never hidden extra phases.
+	for i := phaseCount; i < count; i++ {
+		switch spans[i].Stage {
+		case StageSlotSaveEntries, StageSlotSaveHardState, StageSlotSaveSnapshot, StageSlotSaveMixed, StageSlotRaftSend:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func validOverlayCoverage(c BarrierOverlayCoverage, limit time.Duration) bool {
+	if c.Duration < 0 || c.Duration > limit || (c.Duration == 0) != (c.Count == 0) {
+		return false
+	}
+	return (!c.Unfinished || c.Count > 0) && c.Count <= uint64(c.Duration)
 }
 
 // Bind assigns the negotiated wire identity before dispatching traced work.
@@ -367,12 +484,17 @@ func (t *Trace) Finish(result Result) *Sample {
 			spans[i].Duration = elapsed - spans[i].Offset
 		}
 	}
+	var coverage *BarrierCoverage
 	if t.count+t.barrierCount <= MaxSpans {
 		spans = append(spans, t.barrierSpans[:t.barrierCount]...)
+		if t.hasBarrierCoverage {
+			copy := t.barrierCoverage
+			coverage = &copy
+		}
 	} else {
 		t.dropped += uint64(t.barrierCount)
 	}
-	s := &Sample{TraceID: t.id, ParentTraceID: t.parentID, Unbound: t.unbound, Side: t.side, ServiceID: t.serviceID, At: t.at, Duration: elapsed, Result: normalizeResult(result), Spans: spans, DroppedSpans: t.dropped, RecorderDropped: t.owner.dropped.Load(), BarrierGroups: t.barrierGroups, DroppedBarrierGroups: t.droppedBarrierGroups}
+	s := &Sample{TraceID: t.id, ParentTraceID: t.parentID, Unbound: t.unbound, Side: t.side, ServiceID: t.serviceID, At: t.at, Duration: elapsed, Result: normalizeResult(result), Spans: spans, DroppedSpans: t.dropped, RecorderDropped: t.owner.dropped.Load(), BarrierGroups: t.barrierGroups, DroppedBarrierGroups: t.droppedBarrierGroups, BarrierCoverage: coverage}
 	t.owner.active.Add(-1)
 	return s
 }

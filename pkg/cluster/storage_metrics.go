@@ -141,10 +141,12 @@ func (n *Node) StorageMetricsSnapshot() StorageMetricsSnapshot {
 		})
 	}
 	if n.defaultSlotRaftDB != nil {
-		stores = append(stores, StorageStoreMetricsSnapshot{
-			Store:  "raft",
-			Engine: storageMetricsFromRaftLog(n.defaultSlotRaftDB.MetricsSnapshot()),
-		})
+		if snapshot := n.defaultSlotRaftDB.MetricsSnapshot(); snapshot.Available {
+			stores = append(stores, StorageStoreMetricsSnapshot{
+				Store:  "raft",
+				Engine: storageMetricsFromRaftLog(snapshot),
+			})
+		}
 	}
 	return StorageMetricsSnapshot{Stores: stores}
 }
@@ -254,6 +256,11 @@ func storageMetricsFromRaftLog(snapshot raftlog.MetricsSnapshot) StorageEngineMe
 		WALPhysicalSizeBytes:         snapshot.WALPhysicalSizeBytes,
 		WALBytesIn:                   snapshot.WALBytesIn,
 		WALBytesWritten:              snapshot.WALBytesWritten,
+		WALFsyncCount:                snapshot.WALFsyncCount,
+		WALFsyncSumNanos:             snapshot.WALFsyncSumNanos,
+		WALFsyncOver100ms:            snapshot.WALFsyncOver100ms,
+		WALFsyncOver1s:               snapshot.WALFsyncOver1s,
+		WALFsyncOver5s:               snapshot.WALFsyncOver5s,
 		SSTableSizeBytes:             snapshot.SSTableSizeBytes,
 		FlushBytesWritten:            snapshot.FlushBytesWritten,
 		CompactionBytesRead:          snapshot.CompactionBytesRead,
@@ -264,5 +271,15 @@ func storageMetricsFromRaftLog(snapshot raftlog.MetricsSnapshot) StorageEngineMe
 		CompactionEstimatedDebtBytes: snapshot.CompactionEstimatedDebtBytes,
 		CompactionInProgressBytes:    snapshot.CompactionInProgressBytes,
 		CompactionsInProgress:        snapshot.CompactionsInProgress,
+		WriteStallMemTableCount:      snapshot.WriteStallMemTableCount,
+		WriteStallL0Count:            snapshot.WriteStallL0Count,
+		WriteStallOtherCount:         snapshot.WriteStallOtherCount,
+		WriteStallTotalNanos:         snapshot.WriteStallTotalNanos,
+		WriteStallMaxNanos:           snapshot.WriteStallMaxNanos,
+		WriteStallActive:             snapshot.WriteStallActive,
+		DiskSlowWALEvents:            snapshot.DiskSlowWALEvents,
+		DiskSlowWALMaxNanos:          snapshot.DiskSlowWALMaxNanos,
+		DiskSlowOtherEvents:          snapshot.DiskSlowOtherEvents,
+		DiskSlowOtherMaxNanos:        snapshot.DiskSlowOtherMaxNanos,
 	}
 }

@@ -62,6 +62,12 @@ func TestReadBarrierPhaseTraceFreshPublicRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	sample := trace.Finish(rpctrace.ResultOK)
+	coverage := requireCoverageWire(t, sample)
+	for _, phase := range coverage.Phases {
+		if !phase.Observed || phase.Save != (coverageWireOverlay{}) {
+			t.Fatalf("fresh public read coverage invalid: %+v", phase)
+		}
+	}
 	for _, stage := range []string{"slot_control_wait", "slot_read_eligibility", "slot_raw_quorum", "slot_ready_to_accept", "slot_apply_wait"} {
 		span := requireBarrierPhase(t, sample, stage)
 		if span.Incomplete || span.Result != rpctrace.ResultOK {
@@ -119,6 +125,10 @@ func TestReadBarrierPhaseTraceCanceledDuringPriorSaveIsImmutable(t *testing.T) {
 		t.Fatal("canceled caller did not return")
 	}
 	sample := trace.Finish(rpctrace.ResultCanceled)
+	coverage := requireCoverageWire(t, sample)
+	if !coverage.Phases[0].Observed || !coverage.Phases[0].Save.Unfinished || coverage.Phases[0].Save.Count != 1 {
+		t.Fatalf("public canceled Save coverage missing: %+v", coverage)
+	}
 	before := sample.Clone()
 	control := requireBarrierPhase(t, sample, "slot_control_wait")
 	if !control.Incomplete {

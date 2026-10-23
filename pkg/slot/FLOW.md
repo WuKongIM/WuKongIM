@@ -118,6 +118,11 @@ plugin, migration, message projections, and MQTT session state.
   A fixed 32-observer Slot registry retains at most two Save and two Send
   overlays per read; Save includes PersistentState preparation and has a closed
   entries/HardState/snapshot/mixed kind. Message-only Ready has no Save overlay.
+  A separate fixed five-phase coverage record accumulates every observed
+  Save/Send intersection, including work beyond the detailed-overlay cap. It
+  follows the same longest group, clips work to caller termination, and marks
+  unreached phases unknown. These disjoint-interval totals are not spans or
+  fsync measurements and must not be added to their enclosing phase durations.
   The existing RPC trace retains only its longest barrier group, publishing it
   whole within 32 spans or reporting drops. Canceling a caller closes observation
   without releasing its still-unconfirmed Raft read budget or changing late results.

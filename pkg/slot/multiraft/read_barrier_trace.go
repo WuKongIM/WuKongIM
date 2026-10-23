@@ -25,6 +25,10 @@ type readBarrierTiming struct {
 	overlayErrors [4]error
 	saves, sends  int
 	dropped       uint64
+	// Active operations and per-phase totals are independent of detail retention.
+	open            [2]time.Time
+	coverage        [rpctrace.BarrierPhaseCount][2]rpctrace.BarrierOverlayCoverage
+	coverageInvalid bool
 }
 
 func (o *readBarrierTiming) mark(phase int, at time.Time) {
@@ -52,6 +56,9 @@ func (o *readBarrierTiming) finish(err error) {
 	if err == nil && o.points[5].IsZero() {
 		o.points[5] = o.terminal
 	}
+	for kind := range o.open {
+		o.accumulateOverlay(kind, o.terminal, true)
+	}
 }
 
 // openOverlay clips prior Ready work to the sampled caller's own window.
@@ -61,6 +68,17 @@ func (o *readBarrierTiming) openOverlay(stage rpctrace.Stage, at time.Time, send
 	if !o.terminal.IsZero() {
 		return
 	}
+	kind := 0
+	if send {
+		kind = 1
+	}
+	if at.Before(o.points[0]) {
+		at = o.points[0]
+	}
+	if !o.open[kind].IsZero() {
+		o.coverageInvalid = true
+	}
+	o.open[kind] = at
 	i := o.saves
 	if send {
 		i = o.sends + 2
@@ -68,9 +86,6 @@ func (o *readBarrierTiming) openOverlay(stage rpctrace.Stage, at time.Time, send
 	if (!send && o.saves == 2) || (send && o.sends == 2) {
 		o.dropped++
 		return
-	}
-	if at.Before(o.points[0]) {
-		at = o.points[0]
 	}
 	o.overlays[i] = rpctrace.HistoricalSpan{Stage: stage, Start: at, Result: rpctrace.ResultUnfinished, Incomplete: true}
 	if send {
@@ -86,6 +101,11 @@ func (o *readBarrierTiming) closeOverlay(at time.Time, err error, send bool) {
 	if !o.terminal.IsZero() {
 		return
 	}
+	kind := 0
+	if send {
+		kind = 1
+	}
+	o.accumulateOverlay(kind, at, false)
 	start, end := 0, o.saves
 	if send {
 		start, end = 2, 2+o.sends
@@ -99,11 +119,50 @@ func (o *readBarrierTiming) closeOverlay(at time.Time, err error, send bool) {
 	}
 }
 
+// accumulateOverlay runs under the existing timing lock. Save/Send are serial
+// on a Slot, so each operation contributes once to each positive intersection.
+// Boundaries already observed at close split the operation exactly; an unreached
+// phase receives no measurement. Finish clips any open operation once.
+func (o *readBarrierTiming) accumulateOverlay(kind int, end time.Time, unfinished bool) {
+	start := o.open[kind]
+	if start.IsZero() {
+		return
+	}
+	o.open[kind] = time.Time{}
+	if end.Before(start) {
+		o.coverageInvalid = true
+		return
+	}
+	for i := 0; i < rpctrace.BarrierPhaseCount; i++ {
+		if o.points[i].IsZero() {
+			break
+		}
+		phaseEnd := o.points[i+1]
+		if phaseEnd.IsZero() || phaseEnd.After(end) {
+			phaseEnd = end
+		}
+		intersectionStart := start
+		if o.points[i].After(intersectionStart) {
+			intersectionStart = o.points[i]
+		}
+		if phaseEnd.After(intersectionStart) {
+			total := &o.coverage[i][kind]
+			total.Duration += phaseEnd.Sub(intersectionStart)
+			total.Count++
+			total.Unfinished = total.Unfinished || unfinished
+		}
+		if o.points[i+1].IsZero() {
+			break
+		}
+	}
+}
+
 // publish runs after removal from the Slot's fixed observer registry. An
 // incomplete phase ends at caller termination even if RawNode completes later.
 func (o *readBarrierTiming) publish(trace *rpctrace.Trace) {
 	o.mu.Lock()
 	points, terminal, terminalErr, overlays, overlayErrors, dropped := o.points, o.terminal, o.terminalErr, o.overlays, o.overlayErrors, o.dropped
+	totals, coverageInvalid := o.coverage, o.coverageInvalid
 	o.mu.Unlock()
 	// Error classification may call a custom error method, so even this work
 	// happens after every Slot/observation mutex has been released.
@@ -113,6 +172,10 @@ func (o *readBarrierTiming) publish(trace *rpctrace.Trace) {
 	}
 	var spans [rpctrace.MaxBarrierSpans]rpctrace.HistoricalSpan
 	stages := [5]rpctrace.Stage{rpctrace.StageSlotControlWait, rpctrace.StageSlotReadEligibility, rpctrace.StageSlotRawQuorum, rpctrace.StageSlotReadyToAccept, rpctrace.StageSlotApplyWait}
+	var coverage rpctrace.BarrierCoverage
+	for i, stage := range stages {
+		coverage.Phases[i].Stage = stage
+	}
 	n := 0
 	for i, stage := range stages {
 		if points[i].IsZero() {
@@ -125,6 +188,9 @@ func (o *readBarrierTiming) publish(trace *rpctrace.Trace) {
 			end = terminal
 			result = terminalResult
 		}
+		coverage.Phases[i].Observed = true
+		coverage.Phases[i].Save = totals[i][0]
+		coverage.Phases[i].Send = totals[i][1]
 		spans[n] = rpctrace.HistoricalSpan{Stage: stage, Start: points[i], End: end, Result: result, Incomplete: incomplete}
 		n++
 		if incomplete {
@@ -144,7 +210,11 @@ func (o *readBarrierTiming) publish(trace *rpctrace.Trace) {
 		spans[n] = overlay
 		n++
 	}
-	trace.RetainLongestBarrier(points[0], terminal, spans, n, dropped)
+	if coverageInvalid {
+		trace.RetainLongestBarrier(points[0], terminal, spans, n, dropped)
+	} else {
+		trace.RetainLongestBarrierWithCoverage(points[0], terminal, spans, n, dropped, coverage)
+	}
 }
 
 // registerReadTiming also captures a Save/Send that began before enqueue. The
