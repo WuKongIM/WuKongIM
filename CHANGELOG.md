@@ -32,9 +32,10 @@ move those entries into a version section named for that exact tag.
   并及时取消已超时的只读 presence RPC。
 
 - Add opt-in bounded RPC phase samples to the existing diagnostics interface,
-  correlating caller and receiver queue, handler and response-write intervals.
+  correlating caller and receiver queue, handler, Slot read barrier, storage
+  commit and response-write intervals, with bounded presence recovery capacity metrics.
   / 现有诊断接口新增默认关闭的有界 RPC 分段观测，可关联调用端与接收端的
-  排队、处理和响应写回阶段。
+  排队、处理、Slot 读屏障、存储提交和响应写回阶段，并提供有界的在线路由恢复容量指标。
 
 - Identify storage-overlap scan failures with fixed diagnostic reasons while
   preserving scan limits and missing-evidence decisions.

@@ -82,6 +82,8 @@ type recoveryExecution struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	works  []*recoveryWork
+	// usage is a mu-protected observation, never an admission reservation.
+	usage RecoveryResultUsage
 }
 
 // Close rejects new recovery, cancels accepted work, and joins actual provider
@@ -501,6 +503,11 @@ func (r *AuthorityRecovery) dispatchLocked() {
 		}
 		r.active[e] = struct{}{}
 		r.resultCalls += len(works)
+		r.census.BatchesTotal++
+		r.census.BatchCallsTotal += uint64(len(works))
+		r.census.BatchUIDsTotal += uint64(uids)
+		r.census.BatchCallsHighWater = max(r.census.BatchCallsHighWater, len(works))
+		r.census.BatchUIDsHighWater = max(r.census.BatchUIDsHighWater, uids)
 		goroutine.SafeGo(nil, goroutine.TaskPresenceRecoveryScheduler, func() { r.execute(e) })
 	}
 }
@@ -536,7 +543,9 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 	}
 	var recovered [][]EndpointLookupResult
 	if len(activeCalls) > 0 {
-		if batch, ok := r.owners.(RecoveryCallBatchOwners); ok {
+		if observed, ok := r.owners.(RecoveryCallBatchOwnersObserved); ok && r.resultCensus {
+			recovered = observed.RecoverRouteCallsObserved(e.ctx, activeCalls, func(usage RecoveryResultUsage) { r.observeResultUsage(e, usage) })
+		} else if batch, ok := r.owners.(RecoveryCallBatchOwners); ok {
 			recovered = batch.RecoverRouteCalls(e.ctx, activeCalls)
 		} else {
 			recovered = make([][]EndpointLookupResult, len(activeCalls))
@@ -551,6 +560,9 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 				}
 			}
 		}
+	}
+	if r.resultCensus {
+		r.observeResultUsage(e, MeasureRecoveryResults(recovered))
 	}
 	for j, c := range activeCalls {
 		i := indexes[j]
@@ -621,6 +633,9 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 	calls = nil
 	e.cancel()
 	r.mu.Lock()
+	if r.resultCensus {
+		r.observeResultUsageLocked(e, RecoveryResultUsage{})
+	}
 	count := len(e.works)
 	for i, w := range e.works {
 		r.finishWorkLocked(w, outcomes[i])

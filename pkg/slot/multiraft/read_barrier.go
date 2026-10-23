@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	raft "go.etcd.io/raft/v3"
 )
 
@@ -24,10 +25,14 @@ type readBarrierRequest struct {
 	// batchKeys names earlier callers admitted in the same control batch before
 	// this fresh ReadIndex was issued. mu guards confirmation and release.
 	batchKeys []string
+	// timing is observation-only; the returning caller detaches it so late Raft
+	// confirmation cannot retain or mutate a finished historical group.
+	timing atomic.Pointer[readBarrierTiming]
 }
 
 func (r *readBarrierRequest) finish(err error) {
 	if r.done.CompareAndSwap(false, true) {
+		r.timing.Load().finish(err)
 		r.resp <- err
 	}
 }
@@ -71,7 +76,7 @@ func (r *Runtime) ReadBarrier(ctx context.Context, slotID SlotID) (err error) {
 	return r.readBarrier(ctx, slotID)
 }
 
-func (r *Runtime) readBarrier(ctx context.Context, slotID SlotID) error {
+func (r *Runtime) readBarrier(ctx context.Context, slotID SlotID) (err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -89,6 +94,23 @@ func (r *Runtime) readBarrier(ctx context.Context, slotID SlotID) error {
 		return ErrSlotNotFound
 	}
 	request := &readBarrierRequest{ctx: ctx, resp: make(chan error, 1)}
+	if g.readBarrierTracing {
+		if trace := rpctrace.From(ctx); trace != nil {
+			timing := &readBarrierTiming{}
+			timing.points[0] = time.Now()
+			if g.registerReadTiming(timing) {
+				request.timing.Store(timing)
+				defer func() {
+					request.timing.Store(nil)
+					timing.finish(err)
+					g.unregisterReadTiming(timing)
+					timing.publish(trace)
+				}()
+			} else {
+				trace.DropBarrierGroup()
+			}
+		}
+	}
 	if err := g.enqueueControl(controlAction{kind: controlReadBarrier, readBarrier: request}); err != nil {
 		return err
 	}
@@ -105,6 +127,11 @@ func (r *Runtime) readBarrier(ctx context.Context, slotID SlotID) error {
 // issueReadBarrier runs exclusively on the owning Raft worker.
 func (g *slot) issueReadBarrier(request *readBarrierRequest) {
 	if key := g.admitReadBarrier(request); key != "" {
+		if g.readBarrierTracing {
+			if timing := request.timing.Load(); timing != nil {
+				timing.mark(2, time.Now())
+			}
+		}
 		g.rawNode.ReadIndex([]byte(key))
 	}
 }
@@ -130,6 +157,14 @@ func (g *slot) issueReadBarrierBatch(controls []controlAction) {
 	}
 	g.mu.Lock()
 	last.batchKeys = keys[:len(keys)-1]
+	if g.readBarrierTracing {
+		at := time.Now()
+		for _, key := range keys {
+			if request := g.pendingReads[key]; request != nil {
+				request.timing.Load().mark(2, at)
+			}
+		}
+	}
 	g.mu.Unlock()
 	g.rawNode.ReadIndex([]byte(keys[len(keys)-1]))
 }
@@ -137,6 +172,11 @@ func (g *slot) issueReadBarrierBatch(controls []controlAction) {
 // admitReadBarrier retains one caller under the existing leadership, durable
 // current-term and pending-count fences before the worker issues a quorum round.
 func (g *slot) admitReadBarrier(request *readBarrierRequest) string {
+	if g.readBarrierTracing && request != nil {
+		if timing := request.timing.Load(); timing != nil {
+			timing.mark(1, time.Now())
+		}
+	}
 	if request == nil || request.done.Load() {
 		return ""
 	}
@@ -188,11 +228,27 @@ func (g *slot) admitReadBarrier(request *readBarrierRequest) string {
 func (g *slot) acceptReadStates(states []raft.ReadState) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	var at time.Time
+	if g.readBarrierTracing && len(states) > 0 {
+		at = time.Now()
+	}
 	for _, state := range states {
 		if request := g.pendingReads[string(state.RequestCtx)]; request != nil {
+			if g.readBarrierTracing {
+				request.timing.Load().mark(4, at)
+				if g.durableAppliedIndex >= state.Index {
+					request.timing.Load().mark(5, at)
+				}
+			}
 			request.index = state.Index
 			for _, key := range request.batchKeys {
 				if sibling := g.pendingReads[key]; sibling != nil {
+					if g.readBarrierTracing {
+						sibling.timing.Load().mark(4, at)
+						if g.durableAppliedIndex >= state.Index {
+							sibling.timing.Load().mark(5, at)
+						}
+					}
 					sibling.index = state.Index
 				}
 			}

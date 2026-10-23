@@ -409,9 +409,18 @@ func (a *App) wirePresence() {
 		})
 		if canRecover {
 			a.reopenPresenceRecovery = func() {
-				recovery := presence.NewAuthorityRecovery(directory, clusterinfra.NewPresenceRecoveryOwners(recoveryNode, ownerReader))
+				recovery := presence.NewAuthorityRecoveryWithOptions(directory, clusterinfra.NewPresenceRecoveryOwners(recoveryNode, ownerReader), presence.RecoveryOptions{
+					ResultCensus: a.cfg.Observability.Diagnostics.Enabled && a.cfg.Observability.Diagnostics.RPCSampleEvery != 0,
+				})
 				a.presenceRecovery = recovery
 				authority.SetRecovery(recovery)
+				if a.metrics != nil {
+					// Bind the exact generation; a reopened cohort replaces the
+					// previous source without racing lifecycle interface writes.
+					a.metrics.Presence.SetRecoverySnapshot(func() obsmetrics.PresenceRecoverySnapshot {
+						return obsmetrics.PresenceRecoverySnapshot(recovery.Stats())
+					})
+				}
 			}
 			a.reopenPresenceRecovery()
 		}

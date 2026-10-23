@@ -67,6 +67,7 @@ func (r *Runtime) OpenSlot(ctx context.Context, opts SlotOptions) error {
 	if err != nil {
 		return err
 	}
+	g.readBarrierTracing = r.opts.ReadBarrierTracing
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -97,6 +98,7 @@ func (r *Runtime) BootstrapSlot(ctx context.Context, req BootstrapSlotRequest) e
 	if err != nil {
 		return err
 	}
+	g.readBarrierTracing = r.opts.ReadBarrierTracing
 
 	r.mu.Lock()
 	if r.closed {
@@ -228,6 +230,7 @@ func (r *Runtime) ReloadSlot(ctx context.Context, slotID SlotID) error {
 	if err != nil {
 		return err
 	}
+	replacement.readBarrierTracing = r.opts.ReadBarrierTracing
 	r.mu.Lock()
 	if r.closed {
 		r.mu.Unlock()

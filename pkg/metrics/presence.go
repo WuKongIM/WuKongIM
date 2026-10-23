@@ -10,6 +10,7 @@ import (
 
 // PresenceMetrics exposes bounded authority expiry and owner touch-flush metrics.
 type PresenceMetrics struct {
+	recovery               *presenceRecoveryCollector
 	expiryTotal            *prometheus.CounterVec
 	expiryDuration         *prometheus.HistogramVec
 	expiryDueBuckets       prometheus.Gauge
@@ -39,6 +40,7 @@ type presenceEndpointLookupSeries struct {
 
 func newPresenceMetrics(registry prometheus.Registerer, labels prometheus.Labels) *PresenceMetrics {
 	m := &PresenceMetrics{
+		recovery: newPresenceRecoveryCollector(labels),
 		expiryTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_presence_expiry_total",
 			Help:        "Total indexed presence expiry passes by result.",
@@ -125,6 +127,7 @@ func newPresenceMetrics(registry prometheus.Registerer, labels prometheus.Labels
 	}
 
 	registry.MustRegister(
+		m.recovery,
 		m.expiryTotal,
 		m.expiryDuration,
 		m.expiryDueBuckets,

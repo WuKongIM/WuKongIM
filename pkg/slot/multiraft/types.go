@@ -23,6 +23,10 @@ type Options struct {
 	// Observer receives low-cardinality scheduler pressure observations.
 	// The same observer can implement ApplyPipelineObserver for async apply queue observations.
 	Observer SchedulerObserver
+	// ReadBarrierTracing enables fixed local phase bookkeeping for sampled RPC
+	// contexts. It is immutable for the Runtime lifetime; false keeps Ready
+	// processing free of optional timing clocks, locks and registry scans.
+	ReadBarrierTracing bool
 	// Goroutines is the optional goroutine registry for lifecycle tracking.
 	Goroutines *goroutine.Registry
 }

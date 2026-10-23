@@ -133,7 +133,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   Trusted mixed-service opcode policies preserve read cancellation through Node registration; started mutations execute
   independently. Ready frames batch without an idle coalescing delay.
 - Default-off RPC phase tracing negotiates a connection-generation token before setting a sampled RequestID bit.
-  Both endpoints retain bounded local intervals through the existing observer drain.
+  Both endpoints retain bounded local intervals through the existing observer drain. The same runtime enablement controls optional Slot barrier subphases; no separate operator setting or global switch changes the unsampled Ready path.
   Explicit unsupported peers keep original business frames; other negotiation failures stop dispatch.
   Observation values never transfer caller cancellation to started mutations.
 - Routed committed and persisted history and conversation heads hydrate latest payload replacements through Slot authority. Explicit original committed reads omit edits but retain Leader/HW/retention fences for retry proof. Cross-channel chunks preserve batching above 200 recents; replacement growth respects page budgets and continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The request-scoped Slot ReadIndex/apply barrier is separate from readiness proof reuse; serving edit proposals check the restore content epoch, including forwarded commands. Local log/backup reads remain immutable.

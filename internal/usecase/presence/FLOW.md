@@ -76,6 +76,14 @@ It does not own gateway frames, concrete cluster routing, or session storage.
   unfinished shared-flight waits and proof installation. Idle dispatch turns and
   Directory reads are not labeled quota waits. Shared multi-call execution
   invents no first-caller trace parent or cancellation root.
+- A fixed aggregate census separates FIFO, physical batches, original-call
+  result credits and UID admission bytes. When existing RPC diagnostics are
+  enabled, partial owner accumulators and transient decoded pages remain
+  observed until real ownership returns; an explicit enabled gauge distinguishes
+  unobserved zeros when this additional accounting is disabled.
+  Structural decoded bytes count visible slice capacity and live route strings,
+  charging aliases per reference; they exclude wire buffers, maps, errors,
+  hidden backing prefixes, allocator overhead and RSS and cannot set a heap limit.
 - Import-boundary tests reject concrete entry, protocol, cluster, and app imports.
 
 ## Read First

@@ -26,13 +26,38 @@ type recoveryCallProof struct {
 // original call's route budget and all-owner proof. Pages are consumed one at a
 // time; the caller owns admission for retained original-call result credits.
 func (r *PresenceRecoveryOwners) RecoverRouteCalls(ctx context.Context, calls []presence.RecoveryCall) [][]presence.EndpointLookupResult {
+	return r.RecoverRouteCallsObserved(ctx, calls, nil)
+}
+
+// RecoverRouteCallsObserved reports aggregate and transient decoded ownership
+// at page boundaries, including partial proof held while another owner waits.
+// The callback borrows only scalar counts; it does not alter proof or admission.
+func (r *PresenceRecoveryOwners) RecoverRouteCallsObserved(ctx context.Context, calls []presence.RecoveryCall, observe func(presence.RecoveryResultUsage)) [][]presence.EndpointLookupResult {
 	results := make([][]presence.EndpointLookupResult, len(calls))
 	for i, call := range calls {
 		results[i] = make([]presence.EndpointLookupResult, len(call.Groups))
 	}
+	var observePage func(*presence.OwnerRouteCallPage)
+	if observe != nil {
+		observePage = func(page *presence.OwnerRouteCallPage) {
+			usage := presence.MeasureRecoveryResults(results)
+			if page != nil {
+				pageUsage := presence.MeasureRecoveryPage(*page)
+				usage.PageRows, usage.PageDecodedBytes = pageUsage.PageRows, pageUsage.PageDecodedBytes
+			}
+			observe(usage)
+		}
+		observePage(nil)
+		// Return transfers the final result slice; malformed/fence failures have
+		// already removed their routes, and no owner page remains retained.
+		defer func() { observePage(nil) }()
+	}
 	fail := func(err error) [][]presence.EndpointLookupResult {
 		for _, call := range results {
 			failRecoveryCall(call, err)
+		}
+		if observePage != nil {
+			observePage(nil)
 		}
 		return results
 	}
@@ -73,7 +98,7 @@ func (r *PresenceRecoveryOwners) RecoverRouteCalls(ctx context.Context, calls []
 					mergeRecoveryCall(results[proof.index], proof, reads)
 				}
 			}
-		})
+		}, observePage)
 		span.End(rpctrace.ResultFor(readErr))
 		cancel()
 		if err := ctx.Err(); err != nil {
@@ -95,6 +120,9 @@ func (r *PresenceRecoveryOwners) RecoverRouteCalls(ctx context.Context, calls []
 		for i := next; i < len(proofs); i++ {
 			proofs[i].failed = true
 			failRecoveryCall(results[proofs[i].index], authority.ErrRouteNotReady)
+		}
+		if observePage != nil {
+			observePage(nil)
 		}
 	}
 	after, err := r.node.LocalControllerSnapshot(ctx)
@@ -151,7 +179,10 @@ func (r *PresenceRecoveryOwners) activeRecoveryCalls(calls []presence.RecoveryCa
 
 // readRecoveryCallPages owns one owner's fixed deadline and boot identity. Only
 // a first-page unsupported remote operation permits the legacy per-call path.
-func (r *PresenceRecoveryOwners) readRecoveryCallPages(ctx context.Context, owner uint64, calls []presence.RecoveryCall, proofs []recoveryCallProof, consume func(presence.OwnerRouteCallPage)) (int, error) {
+func (r *PresenceRecoveryOwners) readRecoveryCallPages(ctx context.Context, owner uint64, calls []presence.RecoveryCall, proofs []recoveryCallProof, consume func(presence.OwnerRouteCallPage), observePage func(*presence.OwnerRouteCallPage)) (int, error) {
+	if observePage != nil {
+		defer func() { observePage(nil) }()
+	}
 	local, hasLocalPages := r.local.(presence.OwnerRouteCallPageReader)
 	legacy := owner == r.node.NodeID() && !hasLocalPages
 	start := 0
@@ -176,6 +207,9 @@ func (r *PresenceRecoveryOwners) readRecoveryCallPages(ctx context.Context, owne
 				continue
 			}
 		}
+		if observePage != nil {
+			observePage(&page)
+		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return start, ctxErr
 		}
@@ -187,6 +221,13 @@ func (r *PresenceRecoveryOwners) readRecoveryCallPages(ctx context.Context, owne
 		}
 		consume(page)
 		start = page.Next
+		if observePage != nil {
+			observePage(&page)
+		}
+		page = presence.OwnerRouteCallPage{}
+		if observePage != nil {
+			observePage(nil)
+		}
 	}
 	return start, nil
 }

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
@@ -53,21 +54,28 @@ type slot struct {
 	submittedConfigs   []*future
 	pendingProposals   map[uint64]trackedFuture
 	// pendingReads and readSequence are guarded by mu; only the Raft worker issues requests.
-	pendingReads                map[string]*readBarrierRequest
-	readSequence                uint64
-	pendingConfigs              map[uint64]trackedFuture
-	pendingProposalCap          int
-	pendingConfigCap            int
-	maxQueuedRequests           int
-	maxQueuedControls           int
-	maxQueuedBackgroundControls int
-	queuedBackgroundControls    int
-	maxApplyingTasks            int
-	resolutionBuf               []futureResolution
-	transportBuf                []Envelope
-	tickPending                 bool
-	tickCount                   int
-	lastKnownLeaderID           NodeID
+	pendingReads map[string]*readBarrierRequest
+	readSequence uint64
+	// readBarrierTracing is fixed before publication; false bypasses Ready timing work.
+	readBarrierTracing bool
+	// readTimings is a fixed observation-only registry, guarded by mu. Active
+	// Ready windows let a newly queued caller observe a preceding blocked Save.
+	readTimings                      [maxObservedReadBarriers]*readBarrierTiming
+	readSaveStarted, readSendStarted time.Time
+	readSaveStage                    rpctrace.Stage
+	pendingConfigs                   map[uint64]trackedFuture
+	pendingProposalCap               int
+	pendingConfigCap                 int
+	maxQueuedRequests                int
+	maxQueuedControls                int
+	maxQueuedBackgroundControls      int
+	queuedBackgroundControls         int
+	maxApplyingTasks                 int
+	resolutionBuf                    []futureResolution
+	transportBuf                     []Envelope
+	tickPending                      bool
+	tickCount                        int
+	lastKnownLeaderID                NodeID
 	// pendingLeaderTransferTarget records an expected transfer target until the next non-zero leader change is observed.
 	pendingLeaderTransferTarget NodeID
 	// durableAppliedIndex is the highest index that completed FSM apply and Storage.MarkApplied.
@@ -882,7 +890,16 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 	}
 
 	ready := g.rawNode.Ready()
+	var saveStage rpctrace.Stage
+	if g.readBarrierTracing {
+		g.observeReadStatesProduced(ready.ReadStates)
+		saveStage = readySaveStage(ready)
+		g.beginReadReadyOverlay(saveStage, false)
+	}
 	persist, err := g.storageView.persistReadyDurable(ctx, ready)
+	if g.readBarrierTracing {
+		g.endReadReadyOverlay(saveStage, err, false)
+	}
 	if err != nil {
 		g.failPending(err)
 		return true, false
@@ -920,7 +937,13 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 
 	if len(ready.Messages) > 0 {
 		g.transportBuf = wrapMessagesIntoForTransport(g.transportBuf[:0], g.id, ready.Messages, transport)
-		_ = transport.Send(ctx, g.transportBuf)
+		if g.readBarrierTracing {
+			g.beginReadReadyOverlay(rpctrace.StageSlotRaftSend, true)
+		}
+		sendErr := transport.Send(ctx, g.transportBuf)
+		if g.readBarrierTracing {
+			g.endReadReadyOverlay(rpctrace.StageSlotRaftSend, sendErr, true)
+		}
 		clear(g.transportBuf)
 		g.transportBuf = g.transportBuf[:0]
 	}

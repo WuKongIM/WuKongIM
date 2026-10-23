@@ -51,7 +51,7 @@ func newAsyncTestCluster(t testing.TB, nodeIDs []NodeID, cfg asyncNetworkConfig)
 	return newAsyncTestClusterWithObserver(t, nodeIDs, cfg, nil)
 }
 
-func newAsyncTestClusterWithObserver(t testing.TB, nodeIDs []NodeID, cfg asyncNetworkConfig, observer SchedulerObserver) *testCluster {
+func newAsyncTestClusterWithObserver(t testing.TB, nodeIDs []NodeID, cfg asyncNetworkConfig, observer SchedulerObserver, readBarrierTracing ...bool) *testCluster {
 	t.Helper()
 	if cfg.TickInterval == 0 {
 		cfg.TickInterval = 10 * time.Millisecond
@@ -76,11 +76,12 @@ func newAsyncTestClusterWithObserver(t testing.TB, nodeIDs []NodeID, cfg asyncNe
 	for _, nodeID := range nodeIDs {
 		transport := &clusterTransport{network: network, from: nodeID}
 		rt, err := New(Options{
-			NodeID:       nodeID,
-			TickInterval: cfg.TickInterval,
-			Workers:      1,
-			Transport:    transport,
-			Observer:     observer,
+			NodeID:             nodeID,
+			TickInterval:       cfg.TickInterval,
+			Workers:            1,
+			Transport:          transport,
+			Observer:           observer,
+			ReadBarrierTracing: len(readBarrierTracing) > 0 && readBarrierTracing[0],
 			Raft: RaftOptions{
 				ElectionTick:  cfg.ElectionTick,
 				HeartbeatTick: cfg.HeartbeatTick,

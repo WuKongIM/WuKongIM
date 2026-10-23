@@ -2041,6 +2041,18 @@ specification, runbook, report, or module documentation; link to them when neede
   Trace capability failures fail the current call without replay; a later caller
   may retry negotiation with the same connection token, including when an earlier
   reply arrived too late. Only success or explicit unsupported is cached.
+  A sampled Slot read retains only its longest caller-visible barrier group,
+  separating control wait, ReadIndex eligibility, raw quorum confirmation,
+  Ready persistence before acceptance, and durable-apply wait. Bounded Save/Send
+  overlays overlap these phases and must not be added to them. Raw ReadStates
+  observation never bypasses the existing persist-before-accept ordering.
+  Commit observations follow each logical request from queue-credit admission
+  through physical-batch entry, collection, build, durable commit and publication;
+  shared physical phases overlap across requests and publication excludes Finalize.
+  Presence census distinguishes actual execution batches and original-call
+  result responsibility. Decoded result/page bytes are diagnostic structural
+  estimates (visible slice capacity plus live strings), not heap or RSS bounds;
+  their enabled signal distinguishes unmeasured values from measured zero.
 
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone

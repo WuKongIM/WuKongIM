@@ -1443,15 +1443,16 @@ func newStartedRuntimeWithTickAndObserver(t *testing.T, tickInterval time.Durati
 	return newStartedRuntimeWithOptions(t, tickInterval, observer)
 }
 
-func newStartedRuntimeWithOptions(t *testing.T, tickInterval time.Duration, observer SchedulerObserver) *Runtime {
+func newStartedRuntimeWithOptions(t *testing.T, tickInterval time.Duration, observer SchedulerObserver, readBarrierTracing ...bool) *Runtime {
 	t.Helper()
 
 	rt, err := New(Options{
-		NodeID:       1,
-		TickInterval: tickInterval,
-		Workers:      1,
-		Transport:    &internalFakeTransport{},
-		Observer:     observer,
+		NodeID:             1,
+		TickInterval:       tickInterval,
+		Workers:            1,
+		Transport:          &internalFakeTransport{},
+		Observer:           observer,
+		ReadBarrierTracing: len(readBarrierTracing) > 0 && readBarrierTracing[0],
 		Raft: RaftOptions{
 			ElectionTick:  10,
 			HeartbeatTick: 1,

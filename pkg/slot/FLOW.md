@@ -109,6 +109,17 @@ plugin, migration, message projections, and MQTT session state.
 - Optional receiver RPC phases separate envelope admission, authority execution,
   fresh barrier and snapshot. They use only the existing execution context;
   shared origin cohorts do not inherit one caller's trace or cancellation.
+  Sampled fresh barriers distinguish control wait, read eligibility, raw quorum,
+  Ready-to-accept and durable-apply wait on the same local clock. Raw ReadStates
+  observation precedes Save but acceptance still follows persistence and Send.
+  The immutable Runtime observation flag follows the existing node RPC diagnostic
+  enablement; when disabled, Ready performs no optional clocks, locks or scans.
+  A fixed 32-observer Slot registry retains at most two Save and two Send
+  overlays per read; Save includes PersistentState preparation and has a closed
+  entries/HardState/snapshot/mixed kind. Message-only Ready has no Save overlay.
+  The existing RPC trace retains only its longest barrier group, publishing it
+  whole within 32 spans or reporting drops. Canceling a caller closes observation
+  without releasing its still-unconfirmed Raft read budget or changing late results.
 
 Command 79 adjusts the exact node MQTT storage escrow using revision/bytes CAS, complete Controller roster and cluster limit. Grants remain at zero to prevent ABA. Mismatched limits, stale roster revisions, incomplete startup debt and growth over the cluster sum fail closed. This allocation does not certify Channel content.
 
