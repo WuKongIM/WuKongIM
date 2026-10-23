@@ -105,7 +105,7 @@ plugin, migration, message projections, and MQTT session state.
   work and unconsumed completions remain charged. These are queue ownership limits,
   not RawNode-input or RSS limits. A full Slot count pauses before Ready, returns the worker, and resumes after one complete lease retires; same-Slot message-only Ready and queued inputs also wait.
   Node/byte limits, large legal entries, snapshots and configuration retain one borrowed synchronous Ready joining prior append/apply work. No accepted Ready is parked.
-  Async Save, fallback and compaction share the worker-sized Save allowance.
+  Async Save, fallback and compaction share the worker-sized Save allowance. Each turn may merge at most four already queued, compatible same-generation/term writes; original replies, apply fences and leases remain separate.
   Close/reload retain old identity until physical work and completion ownership join. Terminal queued and borrowed-control Futures retain the exact cause across submission, with callbacks outside locks.
   Network Step rejects local-storage types/endpoints; only private completions deliver those responses.
 - Recovery starts at a verified snapshot/certified FSM boundary and replays its

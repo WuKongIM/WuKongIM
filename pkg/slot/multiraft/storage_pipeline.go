@@ -20,6 +20,9 @@ type storageWork struct {
 	lease               *storageLease
 	transport           Transport
 	commitBefore        uint64
+	// acceptedTerm is the actual owner term at Ready acceptance. An append
+	// without a HardState has Term zero and cannot identify a safe batch.
+	acceptedTerm uint64
 }
 
 type storageCompletion struct {
@@ -70,18 +73,28 @@ func (p *storagePipeline) enqueue(w *storageWork) error {
 	return nil
 }
 
-// run executes one append per generation at a time, then rotates to other Slots.
-// It fences failures and drops queue references before publishing completion.
+// run freezes a bounded compatible append prefix, then rotates to other Slots.
+// It fences failures and drops queue references before publishing each original
+// completion. Arrivals during Save always wait for a later turn.
 func (p *storagePipeline) run() {
 	for {
 		select {
 		case <-p.stop:
 			return
 		case g := <-p.ready:
+			var selected [storageSlotOwners]*storageWork
 			p.mu.Lock()
-			w := p.queues[g][0]
+			frozen := copy(selected[:], p.queues[g])
 			p.mu.Unlock()
-			persist, err := g.runStorageAppend(context.Background(), w, nil)
+			count := storageAppendBatchSize(selected[:frozen])
+			clear(selected[count:])
+			var persist PersistentState
+			var err error
+			if count == 1 {
+				persist, err = g.runStorageAppend(context.Background(), selected[0], nil)
+			} else {
+				err = g.runStorageAppendBatch(context.Background(), selected[:count])
+			}
 			// Stop this generation before the FIFO can begin any successor Save.
 			// Waiting for the owner to consume the error could persist a later
 			// HardState.Commit over an undurable predecessor.
@@ -89,16 +102,24 @@ func (p *storagePipeline) run() {
 				g.fail(err)
 			}
 			// Drop the queue's payload reference before completion can refund it.
-			// Keep a nil running-head sentinel until publication, preserving FIFO
+			// Keep nil running-prefix sentinels until publication, preserving FIFO
 			// against a concurrent enqueue for this same generation.
 			p.mu.Lock()
-			p.queues[g][0] = nil
+			clear(p.queues[g][:count])
 			p.mu.Unlock()
-			g.publishStorageCompletion(storageCompletion{work: w, part: storageAppendPart, persist: persist, err: err})
+			for i := 0; i < count; i++ {
+				w := selected[i]
+				selected[i] = nil
+				member := persist
+				persist = PersistentState{}
+				if count > 1 && err == nil {
+					member = storageAppendMemberState(w)
+				}
+				g.publishStorageCompletion(storageCompletion{work: w, part: storageAppendPart, persist: member, err: err})
+			}
 			p.mu.Lock()
 			q := p.queues[g]
-			q[0] = nil
-			q = q[1:]
+			q = q[count:]
 			if len(q) == 0 {
 				delete(p.queues, g)
 			} else {
@@ -175,20 +196,26 @@ func (g *slot) runStorageAppend(ctx context.Context, w *storageWork, owner *owne
 	if err != nil {
 		return PersistentState{}, err
 	}
+	g.observePersistedStorageWork(w)
+	return persist, nil
+}
+
+// observePersistedStorageWork keeps the fault boundary per original Ready even
+// when several members shared one physical Save.
+func (g *slot) observePersistedStorageWork(w *storageWork) {
 	// This fault marker observes persisted but not yet quorum-committed bytes.
 	// The owner captures the commit boundary before handing work to this lane.
 	persistMatch := ""
 	// gofail: var wkSlotPersistedCommandMatch string
 	// persistMatch = wkSlotPersistedCommandMatch
 	if persistMatch != "" {
-		for _, entry := range rd.Entries {
+		for _, entry := range w.append.Entries {
 			if matchesSlotFaultCommand(entry.Data, persistMatch) && entry.Index > w.commitBefore {
 				// gofail: var wkSlotPersistedUncommitted bool
 				// _ = wkSlotPersistedUncommitted
 			}
 		}
 	}
-	return persist, nil
 }
 
 // publishStorageCompletion never enters the bounded, lossy network queue.

@@ -2122,6 +2122,13 @@ specification, runbook, report, or module documentation; link to them when neede
   address reserved storage threads. Apply remains behind its append prefix,
   including HardState.Commit. Futures bind at Ready acceptance, so a delayed
   older-term Save cannot consume a new term's submitted FIFO.
+  An append turn freezes at most four already queued records and merges only
+  a compatible same-generation/actual-term prefix. Ordinary entries stay
+  contiguous without replacement across members; whole HardState values retain
+  the last compatible Term/Vote and monotonic Commit. Configuration, snapshots,
+  apply-only and response-only work remain boundaries. One physical Save keeps
+  every original response, apply fence and lease; later arrivals wait for another
+  turn, and a failed group seals the generation before any successor Save.
   A Ready owns at most two completion records, charged until consumed or joined
   and retired. Limits are `min(4, normalized MaxApplyingTasks)` Ready owners / 8 MiB
   per Slot and `4 * Workers` Ready owners / `8 MiB * Workers` per Runtime. They bound
@@ -2150,9 +2157,15 @@ specification, runbook, report, or module documentation; link to them when neede
   retains the failed 2,000-SEND/s gates and public held-Save regressions. R19
   identifies per-Slot count fallback in sampled owner occupancy. R20 removes
   that measured fallback but still fails the original gate; its main sampled
-  wait remains raw quorum. Paused time is not owner occupancy, and reduced
-  occupancy alone is not a workload pass. The 20-worker/12-Slot R20 topology
-  also limits extrapolation from the controlled single-worker progress test.
+  wait remains raw quorum. R21 independently measures same-Slot count pause:
+  its 112 successful permission samples from active cuts spend a mean 81.6%
+  of their longest read barrier paused, with measured owner occupancy zero.
+  The original 2,000-SEND/s gate still fails. This supports improving the
+  existing storage FIFO, but does not trace the 47 failed SENDs or distinguish
+  append, apply and completion consumption within a pause. Paused time is not
+  owner occupancy and cannot be added to overlapping Save time. The
+  20-worker/12-Slot R20 topology also limits extrapolation from the controlled
+  single-worker progress test.
 
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone

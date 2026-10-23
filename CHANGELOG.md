@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Coalesce compatible queued Slot Raft writes into one durable Save while
+  preserving each task's replication acknowledgment, apply order and resource
+  limits. / 合并 Slot Raft 队列中兼容的写入，减少串行落盘轮次，同时保留每份任务的
+  复制确认、应用顺序和资源上限。
+
 - Report sampled same-Slot storage-count pauses separately from Raft worker
   occupancy and asynchronous Save overlap, preserving cancellation boundaries.
   / Slot 读取采样单独记录存储额度暂停，与 Raft worker 占用、异步 Save 重叠区分，

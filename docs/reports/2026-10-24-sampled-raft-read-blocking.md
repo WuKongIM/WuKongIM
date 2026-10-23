@@ -1,12 +1,14 @@
 # Sampled Slot read blocking at 2,000 SEND/s
 
-The unchanged local workload still fails on candidate `097410e5`. Earlier
+The unchanged local workload still fails on candidate `c5d12fc6`. Earlier
 same-request observations identified per-Slot storage-count fallback occupying
-the Raft owner. Yielding before Ready removes that measured fallback, but the
-read barrier still waits and the original first-attempt gate still fails.
-Same-Slot scheduling pause must now be distinguished from owner occupancy.
-Earlier observations, controlled regressions and failed runs remain below;
-none establishes a capacity pass or qualifies v3 for release.
+the Raft owner. Yielding before Ready removes that measured fallback. The new
+independent observation now measures same-Slot scheduling pause across 81.6%
+of the read barrier on average in the active successful permission samples.
+This supports improving the existing per-Slot storage FIFO; it neither traces
+every failed SEND nor separates append, apply and completion consumption within
+the pause. Earlier observations, controlled regressions and failed runs remain
+below; none establishes a capacity pass or qualifies v3 for release.
 
 ## Fixed workload and result
 
@@ -349,6 +351,108 @@ The first Linux CI audit is
 `975083e449b1c4c1b7d47329a142f59fd22b636e655de8cbf47ae4131c945a8e`.
 Pre-failure metric context is retained in
 `199038ccb28ef4d02843910f5de3c3e05e51059137baf02094f2d093b9eec383`.
+
+## Same-Slot pause at the original workload
+
+R21 uses exact candidate `c5d12fc602bf9ff040ed7a271b5d28d96632cb40` and
+tracked tree `4b669d7c3fd153e42a2ca1ffe8c0bfe6d4680949`. Its change adds
+optional pause observation only; execution policy, workload, deadlines, queue
+bounds and original gates remain unchanged. The true first grant is
+`2026-10-24T07:08:01.604395+08:00`. The first saved failing cut at
++35.047859958 seconds reports 70,011 sends, 63,713 ACKs and 47 first-attempt
+failures; terminal, loss, duplicate, corruption and sequence regression counts
+are zero. The preceding cut at +30.047812541 seconds has no first-attempt
+failures. The last five seconds sustain 1,997.581 primary SEND/s but only
+1,436.586 ACK/s; logical outstanding work grows from 3,493 to 6,298 messages.
+The final 6,367 terminal results comprise three exhausted attempt timeouts and
+6,364 stop-induced session closures. Independent cleanup confirms zero product,
+Go or test processes and zero listeners across all 64 reserved ports.
+
+Strict joining retains 2,779 same-RPC pairs, including 162 successful permission
+requests with complete five-phase observation. The active acquisition cuts
+contain 112; the final acquisition retains another 50 whose endpoints both
+finish strictly before the first saved failure. The two populations stay
+separate. In the active 112, per-request scheduling-pause coverage of the
+same longest read barrier averages **81.616%**, with sample median **86.822%**
+and mean pause duration **200.732 ms**. Its mean coverage of the control and
+raw-quorum phases is **90.868%** and **77.326%** respectively; for the 93
+nonzero durable-apply phases it is **80.019%**. Budget and other owner occupancy
+are measured zero in these active samples. Mean service-queue time is
+6.783 ms, compared with 252.375 ms in the handler and 323.176 ms at the client.
+
+The final pre-failure population has mean pause coverage 41.793% of its read
+barrier and 42.668% of raw-quorum time. Its mean service-queue and handler
+times are 38.312 and 417.857 ms; other owner occupancy can also be present.
+These distributions do not represent all requests or the 47 failed SENDs.
+They establish measured local scheduling deferral, not a complete causal
+chain for the first failure. Pause extends until the owner resumes after a
+whole lease retires; append, apply and pending completion consumption are not
+separately attributed. The active mean Save overlap of raw-quorum time is
+96.392%; Save, pause and owner intervals must not be added together.
+
+The follow-up execution change targets a known FIFO constraint: the existing
+writer can group writes across Slots, but the Slot storage pipeline admits
+only one physical Save per Slot at a time. Compatible work already queued for
+that same Slot cannot join the write. A bounded existing-prefix merge must
+preserve each member's original response, apply fence, failure and lease
+ownership, without a collection timer or increased resource limits. A public
+Runtime regression must first demonstrate the separate queued Ready records
+and redundant physical rounds before implementing that change.
+
+R21's strict analysis, first-failure timeline and independent cleanup receipts
+are respectively
+`89cabb95a36f56503f61956c1e785cc317c4d735a26b856036f9cee9f747e6a9`,
+`7dc3763108735f239779d21d00e36b6d260c65ed9b0fb10df943a54fdfc31801`
+and `18931f41c53d46505af32598f643f5adc1aa089ae72ba579a2ec12097ca61b19`.
+The independently checked first-failure timeline is bound by
+`feae4f7feffc95b90f96eeb896c049c1fb8b7c516d73ecd21c784b72fc5b82d4`.
+The strict aggregate independent review is
+`c3d0008dcf812c0d71139d5867321c33f78dfd26f50f5b5066925ee05f37db1d`.
+All four automatic Linux workflows again pass on their first attempts, with
+16 successful jobs and two planned skips. Nine 500-SEND/s windows pass their
+original gates; the actual merge checkout's tracked tree equals the candidate.
+That CI audit is
+`a7ac3f9010839ad21a5a5fc301239400af8dbd75ccc141b17b225f626f2edd49`.
+It does not supersede R21's original-scale failure.
+
+## Bounded same-Slot append coalescing
+
+The follow-up implementation merges only a compatible prefix already queued
+for one Slot generation and accepted term, bounded by the existing four owned
+Ready records. It adds no collection delay, queue capacity, worker count or
+resource credits. Snapshot, configuration, apply-only and response-only work,
+noncontiguous entries, term changes and incompatible whole HardStates stop the
+prefix. One physical Save persists the selected prefix; original member
+responses, memory publication, apply fences, errors and leases remain separate
+and ordered. A failed Save fences the Slot before any successor Save. Another
+ready Slot keeps its turn before late arrivals to the just-served Slot.
+
+A public Runtime regression written before implementation held the first Save,
+queued three separate Ready records and observed only one entry in the second
+Save instead of the expected three. Its actual behavioral RED receipt is
+`ffbe01cae205b69b5386fe8b44ed0b0527192cec03feae24168c71732a0b2997`.
+Tests cover prefix barriers, frozen membership, original follower ACK ordering,
+whole HardState and apply ownership, late-arrival fairness, error and shutdown
+retirement, and production Raft-log persistence/reopen. A retaining-input
+regression also demonstrated that clearing the aggregate entry array after
+Save violates the storage contract. The implementation now drops its own view
+without mutating storage-retained input.
+
+The first focused execution exposed disk-fixture preparation defects; those
+failures remain recorded. The fixture now proves the first Save has entered
+with exactly one entry before queuing the tail, and establishes current-term
+committed, durable and applied state before both initial capture and reopen
+validation. Original index, term, digest, HardState, Future and resource
+assertions, the 12-second bound and the single ReadBarrier call remain intact.
+The corrected real-disk case passes. The first complete integration and race
+executions for `pkg/slot/multiraft` and `pkg/raftlog` both pass, with stdout
+SHA-256 values
+`68d8fb8644143af01b74aebcca87287ef6ee88d0f9fd5771d0bdbd47c8c6e700`
+and `4c7f454972cef1f17c90f0a51d2d37d0bf2f7a609a2d9bfa17a0ce332a5eba31`.
+The named `flow-doc-contracts` check passes. Independent protocol and performance
+reviews retain the original durability, memory ownership, fairness and queue
+bounds. These controlled regressions establish the mechanism and correctness;
+the exact candidate's original-scale 2,000-SEND/s rerun is still required.
 
 ## Retained evidence
 

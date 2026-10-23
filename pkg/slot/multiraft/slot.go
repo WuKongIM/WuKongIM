@@ -988,7 +988,8 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 		g.refreshStatus()
 		g.acceptReadStates(ready.ReadStates)
 	}
-	work := &storageWork{slot: g, transport: transport, commitBefore: g.rawNode.BasicStatus().Commit}
+	accepted := g.rawNode.BasicStatus()
+	work := &storageWork{slot: g, transport: transport, commitBefore: accepted.Commit, acceptedTerm: accepted.Term}
 	charge := storageReadyCharge(ready)
 	network := ready.Messages[:0]
 	for _, m := range ready.Messages {
