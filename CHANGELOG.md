@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Allow up to 16 independent cold presence recovery rounds while retaining the
+  128 MiB owned UID byte budget and existing owner-read deadlines.
+  / 在线路由冷恢复允许最多 16 个独立恢复组并行，保持 128 MiB 自有 UID 字节预算及原有 owner 读取时限。
+
 - Keep runtime queue depth, capacity and byte gauges coherent within each
   metrics scrape when queue observations change concurrently.
   / 队列状态并发变化时，同次指标采集保持运行时队列深度、容量和字节数一致。

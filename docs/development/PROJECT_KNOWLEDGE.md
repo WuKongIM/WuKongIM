@@ -1072,9 +1072,10 @@ specification, runbook, report, or module documentation; link to them when neede
   owner-local. Authority changes require bounded reconstruction before an empty
   route can be treated as offline, never a scan of every session.
 - Cold presence recovery coalesces UID proofs by the five-field distributed
-  identity, excluding local revision/AuthorityEpoch counters. Four caller-owned
-  cohorts bound retained keys to 2,048 and owned UID clones to 128 MiB (32 MiB
-  per new subset); these byte budgets do not describe all presence/RPC heap.
+  identity, excluding local revision/AuthorityEpoch counters. Sixteen caller-owned
+  cohorts bound retained keys to 8,192 and owned UID clones to an independent
+  128 MiB (32 MiB per new subset), matching the node-wide 16-round owner-read
+  gate; these byte budgets do not describe all presence/RPC heap.
   The original 512-UID/256-target page fits maximum 65,535-byte stored identities.
   Larger arbitrary lookup strings can now remain explicitly not ready. Quota
   waits hold no partial keys; owned proofs publish/release before joining old

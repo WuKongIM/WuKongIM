@@ -42,7 +42,8 @@ management, plugins, diagnostics, and bounded operations observations.
 2. Presence reconstruction coalesces target groups into one bounded read per
    active owner instead of repeating unavailable-owner timeouts per Hash Slot. It validates each
    owner boot identity, and rechecks current membership and Slot authority before
-   publishing a complete result. Unknown or unavailable proof remains explicit.
+   publishing a complete result. One node-wide gate admits at most 16 recovery
+   owner-read rounds. Unknown or unavailable proof remains explicit.
 3. Presence and recipient adapters resolve exact fenced targets, group work by
    owner, and choose the local authority or one typed RPC envelope per owner.
    UID-list endpoint lookup resolves at most 256 inputs per page, groups by the

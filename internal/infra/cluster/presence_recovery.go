@@ -30,7 +30,7 @@ type PresenceRecoveryOwners struct {
 
 // NewPresenceRecoveryOwners shares bounded owner-read admission across UID authorities.
 func NewPresenceRecoveryOwners(node PresenceRecoveryNode, local presence.OwnerRouteReader) *PresenceRecoveryOwners {
-	return &PresenceRecoveryOwners{node: node, local: local, remote: accessnode.NewClient(node), admission: make(chan struct{}, 4)}
+	return &PresenceRecoveryOwners{node: node, local: local, remote: accessnode.NewClient(node), admission: make(chan struct{}, 16)}
 }
 
 // ValidatePresenceTarget checks the distributed identity; local diagnostic
