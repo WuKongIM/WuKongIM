@@ -16,8 +16,9 @@ move those entries into a version section named for that exact tag.
 
 - Collect concurrent SEND permission facts for up to 5 ms so paced callers share
   fresh barriers within the existing cohort, call and byte limits; idle reads
-  remain immediate. / 并发发送权限事实最多收集 5 毫秒，使分批到达的调用在原有
-  批次、调用和字节上限内共享新鲜读取屏障；空闲读取仍立即执行。
+  of one fact or two distinct facts remain immediate. / 并发发送权限事实最多收集
+  5 毫秒，使分批到达的调用在原有批次、调用和字节上限内共享新鲜读取屏障；
+  空闲时单事实或两个不同事实的读取仍立即执行。
 
 - Identify the queue family and missing-capacity or over-capacity guard when
   acceptance metrics are rejected, retaining the same strict validation.
