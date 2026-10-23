@@ -1,0 +1,54 @@
+{
+  "at_utc": "2026-10-23T04:08:58.254671+00:00",
+  "source_revision": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "source_tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "source_real_git_clean": true,
+  "existing_B_A_A2_query_PGIDs_and_other_WK": [],
+  "all64_LISTEN_ports_zero": true,
+  "port_check": "lsof LISTEN only; no TCP/HTTP request",
+  "runtime_directories": {
+    "data": false,
+    "pids": false,
+    "report": false,
+    "config": false,
+    "workers": false,
+    "profiles-three-node": false,
+    "traces-three-node": false
+  },
+  "fd_limit": [
+    1048575,
+    9223372036854775807
+  ],
+  "checks": [
+    {
+      "check": "AST",
+      "name": "supervise.py",
+      "pass": true
+    },
+    {
+      "check": "AST",
+      "name": "exact_build_guard.py",
+      "pass": true
+    },
+    {
+      "check": "AST",
+      "name": "watchdog.py",
+      "pass": true
+    },
+    {
+      "check": "AST",
+      "name": "verify-slots.py",
+      "pass": true
+    },
+    {
+      "check": "bash_n",
+      "pass": true
+    }
+  ],
+  "product_or_new_build_or_HTTP_DB_operations": 0,
+  "offline_existing_helper_invocations": 1,
+  "pending": [
+    "root independent review",
+    "root single invocation decision"
+  ]
+}

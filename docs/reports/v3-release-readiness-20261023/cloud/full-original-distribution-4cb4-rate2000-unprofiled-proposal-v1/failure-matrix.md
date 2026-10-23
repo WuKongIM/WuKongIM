@@ -1,0 +1,6 @@
+- Source/build/binary/asset or static pin mismatch: stop before start.
+- Any typed config delta beyond rate500→2000+derivedburst1000→4000: reject.
+- Existing owned WK/selected LISTEN ports or stale runtime directories: no start.
+- Preserve first product/harness/infra/operator-stop precedence; missing final is not pass.
+- Do not alter startup/expiry/retry/gates/deadlines; no automatic repeated attempt.
+- Same Mac contention remains a limitation, never cloud capacity qualification.

@@ -1,0 +1,29 @@
+{
+  "supervisor_function_AST_equal_B500": {
+    "now": true,
+    "write": true,
+    "event": true,
+    "capture": true,
+    "group_members": true,
+    "coordinator_pid": true,
+    "stop": true,
+    "samples": true,
+    "check_ports": true,
+    "bounded_metrics": true,
+    "verify_launch_inputs": true
+  },
+  "unchanged_runtime_files": {
+    "exact_build_guard.py": "3ac915f13ec8dbd296a3abc512fff7a19bf7d2c02710a60ea9c3925d8d4cf32e",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe"
+  },
+  "launcher_only_run_root_binding_changed": true,
+  "supervisor_changes": [
+    "launcher/config pin",
+    "controlled_rate500to2000",
+    "derived_burst1000to4000",
+    "product_source_changed false vs same4cb baseline"
+  ],
+  "profile_trace_or_new_probe": false,
+  "service_worker_or_deadline_gate_change": false
+}

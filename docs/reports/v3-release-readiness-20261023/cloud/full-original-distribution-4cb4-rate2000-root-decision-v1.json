@@ -1,0 +1,44 @@
+{
+  "schema": "wukongim/local2000-single-invocation-decision/v1",
+  "at_utc": "2026-10-23T04:10:46.703082+00:00",
+  "human_authorization": "本地提升到2,000 条/秒 测试下",
+  "root_approved": true,
+  "single_invocation": true,
+  "automatic_retry": false,
+  "runtime_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-4cb4-rate2000-unprofiled-v1",
+  "proposal_manifest_sha256": "5e1ce82be015a022d330298f08bd27d4dc3140281c19729b3e79a5d6a4cd89d5",
+  "runtime_static_pins": {
+    "exact_build_guard.py": "3ac915f13ec8dbd296a3abc512fff7a19bf7d2c02710a60ea9c3925d8d4cf32e",
+    "launcher.sh": "53deba190959e7edf9bb093c94830339052c9969e1ba98fa9b9a63303e1497be",
+    "original-distribution-local.yaml": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+    "supervise.py": "bf22544d21aea66b352b09629dfa4170ab94473b8975f64af7df044ba9cd1bac",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415"
+  },
+  "source_revision": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "source_tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "planner_identity": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:f9814da7618b2c867b9e8b7e82745b2a5dd3de6cd0b04cf696f96bcc80bfcd8c",
+    "assignment_count": 3,
+    "generation": 1
+  },
+  "limits_unchanged": {
+    "total": 600,
+    "TERM": 570,
+    "KILL_after": 5,
+    "startup": 360,
+    "traffic_target": 120,
+    "lateststop": 480,
+    "exit7hold": 90,
+    "first_failure_stop": true
+  },
+  "independent_read_only_review": "ci_audit complete, 0 blockers; binary/assets/source/6pins/config2fields/actual planner output verified",
+  "requirements": [
+    "Repeat exact guard and resource admission immediately before start",
+    "Fresh dataset, preserve first failure and final verdict or missing report",
+    "No gate/deadline/retry relaxation, profiles, traces, new probes, automatic repeat, cloud, release or source change",
+    "Supervise until owned groups and all64ports zero, then safe closed projection and independent cleanup verification"
+  ],
+  "interpretation": "Local shared Mac ARM64 diagnostic only; neither Linux formal RC nor two-hour or 72-hour acceptance"
+}

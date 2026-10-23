@@ -1,0 +1,55 @@
+{
+  "schema": "wukongim/local2000-width16-prepared/v1",
+  "prepared_only": true,
+  "R": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-4cb4-rate2000-unprofiled-v1",
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate",
+  "source_revision": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "source_tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "binaries": {
+    "wukongim": "0c258855fdd4439abab5cc3ab87b7608dca5f4b936ec5033cd5eb5899e708618",
+    "wkcli": "4a250e92881403a1657fd8bfcaa28b34975424c6ee6cf808bd3b0078ffe9ec98"
+  },
+  "build_manifest_sha256": "76418e4686412d60e94552f377d16f1c998842eb9e616bb2c39aa1fa28b2b680",
+  "typed_config_differences": [
+    [
+      "/workload/send_rate_per_second",
+      500,
+      2000
+    ],
+    [
+      "/workload/max_global_burst",
+      1000,
+      4000
+    ]
+  ],
+  "planner_identity": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:f9814da7618b2c867b9e8b7e82745b2a5dd3de6cd0b04cf696f96bcc80bfcd8c",
+    "assignment_count": 3,
+    "generation": 1
+  },
+  "runtime_static_pins": {
+    "exact_build_guard.py": "3ac915f13ec8dbd296a3abc512fff7a19bf7d2c02710a60ea9c3925d8d4cf32e",
+    "launcher.sh": "53deba190959e7edf9bb093c94830339052c9969e1ba98fa9b9a63303e1497be",
+    "original-distribution-local.yaml": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+    "supervise.py": "bf22544d21aea66b352b09629dfa4170ab94473b8975f64af7df044ba9cd1bac",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415"
+  },
+  "limits_unchanged": {
+    "total": 600,
+    "TERM": 570,
+    "KILL_after": 5,
+    "startup": 360,
+    "traffic_target": 120,
+    "lateststop": 480,
+    "exit7hold": 90,
+    "first_failure_stop": true
+  },
+  "single_invocation": [
+    "python3",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-4cb4-rate2000-unprofiled-v1/supervise.py"
+  ],
+  "no_automatic_repeat": true,
+  "formal_or_Linux_cloud_capacity_acceptance": false
+}

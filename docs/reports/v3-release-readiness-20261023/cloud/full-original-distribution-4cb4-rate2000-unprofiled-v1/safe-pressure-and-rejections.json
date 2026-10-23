@@ -1,0 +1,701 @@
+{
+  "schema": "wukongim/local2000-existing-pressure-projection/v1",
+  "original_report_queues": {
+    "work_current": 0,
+    "deferred_group_routes": 0,
+    "work_peak": 219232,
+    "work_capacity": 458000,
+    "retry_current": 0,
+    "retry_peak": 128,
+    "retry_capacity": 27072,
+    "inflight_current": 0,
+    "inflight_peak": 2556,
+    "inflight_capacity": 27072,
+    "transport_current": 0,
+    "transport_capacity": 0,
+    "transport_rejected": 0
+  },
+  "original_report_harness": {
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 197874,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "existing_metric_cuts": [
+    {
+      "cut": "first-measured",
+      "node": 1,
+      "source_sha256": "6f65699d5215cf31402f52fcc382e8e2eb72ddca0ae514e34daa9e5332e252c4",
+      "rows": [
+        {
+          "metric": "wukongim_message_permission_inflight",
+          "labels": {},
+          "value": 97.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 488.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "node send permissions"
+          },
+          "value": 65.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions"
+          },
+          "value": 4096.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions retained"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 488.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions retained"
+          },
+          "value": 66.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 8.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "node send permissions"
+          },
+          "value": 128.0
+        }
+      ]
+    },
+    {
+      "cut": "first-measured",
+      "node": 2,
+      "source_sha256": "8dc169881617b20de604d1a37afac58b40679ed9b15a8e7834e0e2f731ba164e",
+      "rows": [
+        {
+          "metric": "wukongim_message_permission_inflight",
+          "labels": {},
+          "value": 112.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "node send permissions"
+          },
+          "value": 54.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions"
+          },
+          "value": 4096.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions retained"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions retained"
+          },
+          "value": 66.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 8.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "node send permissions"
+          },
+          "value": 128.0
+        }
+      ]
+    },
+    {
+      "cut": "first-measured",
+      "node": 3,
+      "source_sha256": "106e936706ba3af636f2c4da241bd3419979dbc1e9ed55c7f72902e9f8bffe4c",
+      "rows": [
+        {
+          "metric": "wukongim_message_permission_inflight",
+          "labels": {},
+          "value": 109.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 409.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "node send permissions"
+          },
+          "value": 83.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions"
+          },
+          "value": 4096.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions retained"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 409.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions retained"
+          },
+          "value": 83.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 8.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "node send permissions"
+          },
+          "value": 128.0
+        }
+      ]
+    },
+    {
+      "cut": "terminal",
+      "node": 1,
+      "source_sha256": "aa32c64295640e05f29c9945666e5089f98fb144b6674fc75d0eecdf9aad48d7",
+      "rows": [
+        {
+          "metric": "wukongim_message_permission_inflight",
+          "labels": {},
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "node send permissions"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions"
+          },
+          "value": 4096.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions retained"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions retained"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 8.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "node send permissions"
+          },
+          "value": 128.0
+        }
+      ]
+    },
+    {
+      "cut": "terminal",
+      "node": 2,
+      "source_sha256": "dfdd4a887aa6eebc3da6b1883bf0c3eaf15221a16a3a5c1cf659b8fb04015e1b",
+      "rows": [
+        {
+          "metric": "wukongim_message_permission_inflight",
+          "labels": {},
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "node send permissions"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions"
+          },
+          "value": 4096.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions retained"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions retained"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 8.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "node send permissions"
+          },
+          "value": 128.0
+        }
+      ]
+    },
+    {
+      "cut": "terminal",
+      "node": 3,
+      "source_sha256": "9b936f16742df0c9a99d8ef83151913510f087625ed3e5ff75b7b375ca75e45d",
+      "rows": [
+        {
+          "metric": "wukongim_message_permission_inflight",
+          "labels": {},
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "node send permissions"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions"
+          },
+          "value": 4096.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions retained"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "node send permissions retained"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 8.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "node send permissions"
+          },
+          "value": 128.0
+        }
+      ]
+    }
+  ],
+  "service_warning_aggregates": [
+    {
+      "node": 1,
+      "private_log_sha256": "583a0d436282d5f1ed9b68adffdc037f8d33650a4fb7d95a22ea4764a24ef48d",
+      "WARN_lines": 103,
+      "permission_read_admission_busy": 99,
+      "other_private_warning": 4,
+      "unparsed_warning": 0
+    },
+    {
+      "node": 2,
+      "private_log_sha256": "c24886c7127dd074eb23070f8c22b5172862e25bad512d9c9f656bdb2cdd3689",
+      "WARN_lines": 38,
+      "permission_read_admission_busy": 35,
+      "other_private_warning": 3,
+      "unparsed_warning": 0
+    },
+    {
+      "node": 3,
+      "private_log_sha256": "4e0603dcc45c2a40205fda9f09e84c39a056fe98ed4646818a814ccc2a3dbae5",
+      "WARN_lines": 74,
+      "permission_read_admission_busy": 74,
+      "other_private_warning": 0,
+      "unparsed_warning": 0
+    }
+  ],
+  "fixed_busy_tuple": {
+    "event": "internal.access.gateway.send_failed",
+    "errorClass": "route_not_ready",
+    "source": "batch_result_error",
+    "sourceModule": "message.send",
+    "private_error_closed_category": "permission_read_admission_busy"
+  },
+  "same_run_busy_warning_total": 208,
+  "warns_not_joined_one_to_one_to_first_attempts_or_SENDACK_rejections": true,
+  "inner_permission_or_cloud_root_cause_proven": false,
+  "no_new_metrics_or_service_requests": true,
+  "metric_samples_are_points_not_continuous_peaks": true
+}

@@ -1,0 +1,38 @@
+{
+  "schema": "wukongim/local2000-existing-real-planner/v1",
+  "baseline": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc",
+    "assignment_count": 3,
+    "generation": 1
+  },
+  "candidate": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:f9814da7618b2c867b9e8b7e82745b2a5dd3de6cd0b04cf696f96bcc80bfcd8c",
+    "assignment_count": 3,
+    "generation": 1
+  },
+  "typed_config_differences": [
+    [
+      "/workload/send_rate_per_second",
+      500,
+      2000
+    ],
+    [
+      "/workload/max_global_burst",
+      1000,
+      4000
+    ]
+  ],
+  "helper_binary_sha256": "cd62c142b446c41488542f8ed8c4929ac470be3ea6fb1b874c934d6105d2af94",
+  "helper_main_sha256": "f678bce1032b41ad4ad2e4ea334fdcf596da25a8470703d617c260481e336bcc",
+  "raw_output_sha256": "64f3f7b5c4dd47caad32f8f60e110cded1cf3d074dd318d7ff91096d0068b2b5",
+  "actual_invocations": 1,
+  "elapsed_seconds": 0.019102334044873714,
+  "started_at_utc": "2026-10-23T04:08:58.055606+00:00",
+  "exit_status": 0,
+  "stdout_bytes": 9753,
+  "stderr_bytes": 0,
+  "Go_or_build_invocations": 0,
+  "product_started": false
+}

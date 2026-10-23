@@ -1,0 +1,8 @@
+--- B500/config
++++ local2000/config
+@@ -11 +11 @@
+-  send_rate_per_second: 500
++  send_rate_per_second: 2000
+@@ -18 +18 @@
+-  max_global_burst: 1000
++  max_global_burst: 4000

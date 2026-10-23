@@ -1,0 +1,11 @@
+--- B500/launcher.sh
++++ local2000/launcher.sh
+@@ -2,7 +2,7 @@
+ set -euo pipefail
+ umask 077
+ ROOT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate
+-RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-4cb4-rate500-unprofiled-width16-v1'
++RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-4cb4-rate2000-unprofiled-v1'
+ BASE_PORT=25000
+ READY_TIMEOUT=60
+ CLEANUP_TIMEOUT=15

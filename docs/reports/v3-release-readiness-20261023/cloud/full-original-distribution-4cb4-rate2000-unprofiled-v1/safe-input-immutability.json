@@ -1,0 +1,25 @@
+{
+  "schema": "wukongim/local2000-input-immutability/v1",
+  "root_decision_sha256": "277d9576a1993f9267f68fdcfd9352439aeee84022ed78c108a4f724fa99d317",
+  "proposal_manifest_sha256": "5e1ce82be015a022d330298f08bd27d4dc3140281c19729b3e79a5d6a4cd89d5",
+  "runtime_static_pins": {
+    "exact_build_guard.py": "3ac915f13ec8dbd296a3abc512fff7a19bf7d2c02710a60ea9c3925d8d4cf32e",
+    "launcher.sh": "53deba190959e7edf9bb093c94830339052c9969e1ba98fa9b9a63303e1497be",
+    "original-distribution-local.yaml": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+    "supervise.py": "bf22544d21aea66b352b09629dfa4170ab94473b8975f64af7df044ba9cd1bac",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415"
+  },
+  "all_equal_approved": true,
+  "source_revision": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "source_tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "planner_identity": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:f9814da7618b2c867b9e8b7e82745b2a5dd3de6cd0b04cf696f96bcc80bfcd8c",
+    "assignment_count": 3,
+    "generation": 1
+  },
+  "no_repeat_no_build_no_source_change": true,
+  "no_profile_trace_or_extra_probe": true,
+  "observer_read_KeyError_messages_did_not_change_run": true
+}

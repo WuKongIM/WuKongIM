@@ -1,0 +1,98 @@
+{
+  "schema": "wukongim/local2000-retained-worker-cuts/v1",
+  "cuts": [
+    {
+      "at": "2026-10-23T12:15:19.73225075+08:00",
+      "cut": "periodic",
+      "elapsed_since_first_grant_seconds": 5.046341,
+      "messages": {
+        "sent": 9998,
+        "send_attempts": 10507,
+        "first_attempts": 9998,
+        "first_attempt_failures": 125,
+        "send_acknowledged": 7896,
+        "send_rejected": 128,
+        "received": 9245,
+        "receive_acknowledged": 9245,
+        "receive_ack_failures": 0,
+        "retry_attempts": 509,
+        "terminal": 0,
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      }
+    },
+    {
+      "at": "2026-10-23T12:15:22.813063+08:00",
+      "cut": "terminal",
+      "elapsed_since_first_grant_seconds": 8.127154,
+      "messages": {
+        "sent": 12001,
+        "send_attempts": 12848,
+        "first_attempts": 12001,
+        "first_attempt_failures": 196,
+        "send_acknowledged": 12001,
+        "send_rejected": 205,
+        "received": 15155,
+        "receive_acknowledged": 15155,
+        "receive_ack_failures": 0,
+        "retry_attempts": 847,
+        "terminal": 0,
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 197874,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      }
+    }
+  ],
+  "active_rate": {
+    "basis": "first complete periodic cut delta against firstgrant zero; terminal/drain cut excluded",
+    "from_first_grant_seconds": 0,
+    "to_periodic_cut_seconds": 5.046341,
+    "first_attempts_delta": 9998,
+    "offered_SEND_per_second": 1981.2374946520658,
+    "target_SEND_per_second": 2000,
+    "only_one_periodic_cut": true,
+    "full_120_second_window_achieved": false
+  },
+  "terminal_average_is_not_active_QPS": true
+}

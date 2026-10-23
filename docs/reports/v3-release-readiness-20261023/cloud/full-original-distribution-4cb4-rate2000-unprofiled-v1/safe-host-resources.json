@@ -1,0 +1,11 @@
+{
+  "schema": "wukongim/local2000-existing-host-resources/v1",
+  "sample_count": 69,
+  "first_at": "2026-10-23T04:10:59.892931+00:00",
+  "last_at": "2026-10-23T04:16:49.628644+00:00",
+  "maximum_owned_RSS_sum_bytes": 4365451264,
+  "maximum_owned_process_CPU_percent_sum": 193.4,
+  "maximum_all_process_CPU_percent_sum": 261.90000000000003,
+  "other_WK_seen": false,
+  "limitation": "ps percent may reflect process lifetime averages; summed RSS is not unique physical memory; no exclusive CPU or instantaneous headroom claim"
+}

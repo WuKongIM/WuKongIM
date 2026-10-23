@@ -1,0 +1,101 @@
+{
+  "helper_binary_sha256": "cd62c142b446c41488542f8ed8c4929ac470be3ea6fb1b874c934d6105d2af94",
+  "helper_main_sha256": "f678bce1032b41ad4ad2e4ea334fdcf596da25a8470703d617c260481e336bcc",
+  "helper_old_source_revision": "79a7177032a6ae1ec7015cefe0e6f94eb0f19f06",
+  "candidate_source_revision": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "files": [
+    {
+      "path": "internal/bench/chatlifecycle/config.go",
+      "candidate_sha256": "ca7a92060eb984f3ab4fa55a58353e802f41999c8cc53b1ba0f1c0dd596b7289",
+      "helper_source_sha256": "ca7a92060eb984f3ab4fa55a58353e802f41999c8cc53b1ba0f1c0dd596b7289",
+      "whole_file_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "candidate_sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "helper_source_sha256": "83e035c6120fff170d6ef798675792b8036a146b9586c2c1930c03117bf3a4d2",
+      "whole_file_equal": false
+    },
+    {
+      "path": "internal/bench/chatlifecycle/identity.go",
+      "candidate_sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "helper_source_sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "whole_file_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/io.go",
+      "candidate_sha256": "1c24ae291bbad7e71238af96dcfb87d6e64f9727c9c7d9d491f8dca3f387b343",
+      "helper_source_sha256": "1c24ae291bbad7e71238af96dcfb87d6e64f9727c9c7d9d491f8dca3f387b343",
+      "whole_file_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/report.go",
+      "candidate_sha256": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+      "helper_source_sha256": "da46c259c153aa736b5b7df60c9ae9cc94f8617915c37776b8a4f93aa68c9bff",
+      "whole_file_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/types.go",
+      "candidate_sha256": "bb21602adf6597e6e839044a2691e28d0c7cc6bee76fc7cd6acb5f80e8085eac",
+      "helper_source_sha256": "bb21602adf6597e6e839044a2691e28d0c7cc6bee76fc7cd6acb5f80e8085eac",
+      "whole_file_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/validation_capacity.go",
+      "candidate_sha256": "192b61f767ee1f365734824808df97abdccfbe463db4488935be56aef5cdc676",
+      "helper_source_sha256": "192b61f767ee1f365734824808df97abdccfbe463db4488935be56aef5cdc676",
+      "whole_file_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/validation_formal.go",
+      "candidate_sha256": "348199dfbad04a8b633346a2c0d0b3f2be8edd21db585935fada33b5402b5ef2",
+      "helper_source_sha256": "348199dfbad04a8b633346a2c0d0b3f2be8edd21db585935fada33b5402b5ef2",
+      "whole_file_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/validation_observation.go",
+      "candidate_sha256": "123c376d357f48a331b1a001ec05e064de18dc6e6ed0f663d40d0232adc2e364",
+      "helper_source_sha256": "123c376d357f48a331b1a001ec05e064de18dc6e6ed0f663d40d0232adc2e364",
+      "whole_file_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/validation_thresholds.go",
+      "candidate_sha256": "b271e2244420013a1a4095779f8c8717271b1726745c272485ac929918fc46fc",
+      "helper_source_sha256": "b271e2244420013a1a4095779f8c8717271b1726745c272485ac929918fc46fc",
+      "whole_file_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/validation_workload.go",
+      "candidate_sha256": "2f00dbc46081f052791076d28f40a135f9d10a746419f4ad5d05323151636aab",
+      "helper_source_sha256": "2f00dbc46081f052791076d28f40a135f9d10a746419f4ad5d05323151636aab",
+      "whole_file_equal": true
+    },
+    {
+      "path": "internal/bench/chatlifecycle/engine.go",
+      "candidate_sha256": "9b64ff416e105e869acb8921d7928da5517f800fb6c4159873bf8397bc4076ef",
+      "helper_source_sha256": "9b64ff416e105e869acb8921d7928da5517f800fb6c4159873bf8397bc4076ef",
+      "whole_file_equal": true
+    }
+  ],
+  "coordinator_plan_functions": [
+    {
+      "name": "BuildCoordinatorAssignments",
+      "equal": true,
+      "sha256": "b8560a755f8779566bc7e353426f0542e62e722b738a22936a30b5db44ce5849"
+    },
+    {
+      "name": "coordinatorAssignmentID",
+      "equal": true,
+      "sha256": "1d576239837358982dd14f3cb5783225bc68068bb963b04f87100b7f36d3dc2b"
+    },
+    {
+      "name": "cloneCoordinatorConfig",
+      "equal": true,
+      "sha256": "1d0997bd885d00e6f336ae8d5b77023b84d0984c9da8d4b31a7cc7d3c552446f"
+    }
+  ],
+  "coordinator_whole_file_equal": false,
+  "coordinator_difference": "runtime-only finalization diagnostic fields/error paths; all three planning functions byte-identical",
+  "helper_behavior": "LoadConfig+BuildCoordinatorAssignments(cfg,1)+redacted hashReportValue only; no network/server/coordinator Run/worker",
+  "source_clean_before": true
+}

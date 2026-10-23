@@ -1,0 +1,9 @@
+# Prepared local 2,000 SEND/s diagnostic
+
+Prepared only; no service or load started. Exact clean4cb/tree1f282 source and existing native binaries are reused. The same 10,000 online users, 2,000 groups, seed1, 3nodes/3workers, GOMAX2+1, batch1, compaction1000/5s, 10s expiry, original retry/gates, 256HashSlots/12physicalSlotRaft identities remain. Only send_rate_per_second500→2000 and its required2s-credit max_global_burst1000→4000 change in the whole typed configuration.
+
+The existing offline helper ran once against both configs and strictly validated them through real LoadConfig+BuildCoordinatorAssignments. Run hash remains identical by design; assignment hash is newly observed. Helper old79a coordinator whole file is NOT identical due runtime-only finalization diagnostics; three exact planner functions and the whole loader/config/types/report/identity+validation inputs are bound in helper-source-binding.json. No Go build or CLI/product run was required.
+
+The launch script changes only its fresh output path. Supervisor functions are AST identical; top-level pins and truthful rate/burst/source-change metadata differ. Fixed guard, watchdog, Slot check are byte-identical. No profile, trace, extra probe, deadline/gate relaxation, fresh build, cloud/container/paid action or automatic retry. Original600s outer/TERM570+KILL5/startup360/traffic120/lateststop480/firstfailurestop/exit7hold90/ownedPGID64port cleanup remain.
+
+One shared Mac uses the original closed diagnostics; this is not Linux/full2h/72h/capacity/recovery acceptance. Actual product/harness failure, achieved rate, startup failure, metrics parse failure or missing final are preserved, not reclassified as pass. Post-run bounded safe projection will retain the original verdict and absent fields explicitly. Root review/start remains required; preflight must repeat immediately on start.

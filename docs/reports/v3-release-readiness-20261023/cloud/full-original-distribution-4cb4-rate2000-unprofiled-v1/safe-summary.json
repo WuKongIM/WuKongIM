@@ -1,0 +1,112 @@
+{
+  "schema": "wukongim/local2000-width16-result/v1",
+  "source_revision": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "source_tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "configured_SEND_per_second": 2000,
+  "derived_max_global_burst": 4000,
+  "same_online_users": 10000,
+  "same_groups": 2000,
+  "same_nodes_workers": 3,
+  "same_batch_records": 1,
+  "supervisor_started_at_utc": "2026-10-23T04:10:59.696480+00:00",
+  "first_grant_at": "2026-10-23T12:15:14.685909+08:00",
+  "final_at": "2026-10-23T12:15:22.813063+08:00",
+  "original_window_elapsed_nanos": 8127061834,
+  "target_measured_seconds": 120,
+  "full_target_window_completed": false,
+  "launcher_exit_status": 7,
+  "final_report_present": true,
+  "original_final_verdict": {
+    "outcome": "product_failure",
+    "cause": "overall_first_attempt_rate",
+    "terminal": true,
+    "cleanup_error_count": 0
+  },
+  "final_messages": {
+    "sent": 12001,
+    "send_attempts": 12848,
+    "first_attempts": 12001,
+    "first_attempt_failures": 196,
+    "send_acknowledged": 12001,
+    "send_rejected": 205,
+    "received": 15155,
+    "receive_acknowledged": 15155,
+    "receive_ack_failures": 0,
+    "retry_attempts": 847,
+    "terminal": 0,
+    "losses": 0,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 102,
+    "delivered": 102,
+    "expired": 0,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "active_rate": {
+    "basis": "first complete periodic cut delta against firstgrant zero; terminal/drain cut excluded",
+    "from_first_grant_seconds": 0,
+    "to_periodic_cut_seconds": 5.046341,
+    "first_attempts_delta": 9998,
+    "offered_SEND_per_second": 1981.2374946520658,
+    "target_SEND_per_second": 2000,
+    "only_one_periodic_cut": true,
+    "full_120_second_window_achieved": false
+  },
+  "overall_first_attempt_failure_fraction": 0.016331972335638698,
+  "unchanged_overall_first_attempt_gate": {
+    "max_failures": 1,
+    "per_attempts": 10000,
+    "operator": "<"
+  },
+  "hot_cold_histogram_p99_bounds_nanos": {
+    "hot_sendack": {
+      "lower_exclusive_nanos": 1000000000,
+      "upper_inclusive_nanos": 2000000000,
+      "rank": 5687,
+      "bucket_bound_only": true
+    },
+    "cold_first_create_sendack": {
+      "lower_exclusive_nanos": 1000000000,
+      "upper_inclusive_nanos": 2000000000,
+      "rank": 6195,
+      "bucket_bound_only": true
+    }
+  },
+  "same_run_permission_busy_warning_count": 208,
+  "original_harness_failures": 0,
+  "original_harness_command_saturation": 0,
+  "original_harness_offered_underdelivery": 0,
+  "drain_timed_out": false,
+  "host_resources": {
+    "sample_count": 69,
+    "first_at": "2026-10-23T04:10:59.892931+00:00",
+    "last_at": "2026-10-23T04:16:49.628644+00:00",
+    "maximum_owned_RSS_sum_bytes": 4365451264,
+    "maximum_owned_process_CPU_percent_sum": 193.4,
+    "maximum_all_process_CPU_percent_sum": 261.90000000000003,
+    "other_WK_seen": false,
+    "limitation": "ps percent may reflect process lifetime averages; summed RSS is not unique physical memory; no exclusive CPU or instantaneous headroom claim"
+  },
+  "cleanup_complete": true,
+  "owned_pgid": 20918,
+  "runtime_seconds": 355.1341559169814,
+  "original_final_sha256": "5a0c6a049ed10a44b4b322aa4ecbcf8b20a79a723f21e2655f64ec802beefbf8",
+  "limits_unchanged": true,
+  "automatic_retry": false,
+  "formal_Linux_cloud_capacity_acceptance": false,
+  "limitations": [
+    "Shared Mac ARM64 diagnostic; not isolated Linux or two-hour/72-hour qualification",
+    "SENDACK12001 is server acceptance; sample102delivered is sampled end-to-end proof, not all12001recipient completion",
+    "Only one periodic rate point before original first-attempt gate failed; final elapsed includes drain and is not active QPS",
+    "208same-run permission busy warnings are not a per-message join to205rejections or196first-attempt failures",
+    "Zero loss in an8.127s terminated window does not prove long-run loss-free behavior",
+    "Queue/resource retained point samples do not establish sustained saturation or full physical CPU/memory headroom"
+  ]
+}

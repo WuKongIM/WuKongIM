@@ -1,0 +1,108 @@
+{
+  "schema": "wukongim/local2000-private-inventory/v1",
+  "raw_inputs_not_public": true,
+  "artifacts": [
+    {
+      "relative_private_path": "logs/coordinator.log",
+      "bytes": 2840,
+      "mtime_ns": 1792728922968869763,
+      "sha256": "55dd3818f1781e367e49db38b011530762dc98a10907ac68874a7934c9f73f6d"
+    },
+    {
+      "relative_private_path": "logs/service-1.log",
+      "bytes": 65750,
+      "mtime_ns": 1792728923446819003,
+      "sha256": "583a0d436282d5f1ed9b68adffdc037f8d33650a4fb7d95a22ea4764a24ef48d"
+    },
+    {
+      "relative_private_path": "logs/service-2.log",
+      "bytes": 33264,
+      "mtime_ns": 1792728923509481837,
+      "sha256": "c24886c7127dd074eb23070f8c22b5172862e25bad512d9c9f656bdb2cdd3689"
+    },
+    {
+      "relative_private_path": "logs/service-3.log",
+      "bytes": 51959,
+      "mtime_ns": 1792728919621932780,
+      "sha256": "4e0603dcc45c2a40205fda9f09e84c39a056fe98ed4646818a814ccc2a3dbae5"
+    },
+    {
+      "relative_private_path": "report/final.json",
+      "bytes": 23552,
+      "mtime_ns": 1792728922920995597,
+      "sha256": "5a0c6a049ed10a44b4b322aa4ecbcf8b20a79a723f21e2655f64ec802beefbf8"
+    },
+    {
+      "relative_private_path": "report/run-start.json",
+      "bytes": 391,
+      "mtime_ns": 1792728914723680749,
+      "sha256": "10244b64a6db8b4b900cee10d151ac6d8d0541335aaf8afd289d3cdfaec6f6ad"
+    },
+    {
+      "relative_private_path": "report/worker-evidence.json",
+      "bytes": 596,
+      "mtime_ns": 1792728922829870983,
+      "sha256": "12ca63fb51a4c6c925cdb141f3281c91a8bb67f7aedf93ed0244294d68e5dec4"
+    },
+    {
+      "relative_private_path": "report/diagnostic-status.json",
+      "bytes": 8883,
+      "mtime_ns": 1792728922816846669,
+      "sha256": "ee7dfd0dd3648cd58af63c24b30695c8ca195b596cbfb903eba9e1d05ee4cadf"
+    },
+    {
+      "relative_private_path": "diagnostic-result.json",
+      "bytes": 3463,
+      "mtime_ns": 1792729014835256685,
+      "sha256": "642b2563603df7ff09ecb0d158ef86824d9a9cc9807f1c53604d6831d651d736"
+    },
+    {
+      "relative_private_path": "supervisor-events.json",
+      "bytes": 571,
+      "mtime_ns": 1792728923181294333,
+      "sha256": "c4d039349c2d763ca92eae1c8e7ee1c0d0f3a27005d4a1295cc832490b6af860"
+    },
+    {
+      "relative_private_path": "host-process-samples.jsonl",
+      "bytes": 90188,
+      "mtime_ns": 1792729009631008360,
+      "sha256": "44fb467dab18a4b4a4e3051d72e418e9bc6be633701a39b89199f08a3f136a55"
+    },
+    {
+      "relative_private_path": "evidence/metrics-first-measured-node1.prom",
+      "bytes": 1038214,
+      "mtime_ns": 1792728919890086396,
+      "sha256": "6f65699d5215cf31402f52fcc382e8e2eb72ddca0ae514e34daa9e5332e252c4"
+    },
+    {
+      "relative_private_path": "evidence/metrics-first-measured-node2.prom",
+      "bytes": 1013950,
+      "mtime_ns": 1792728920025325010,
+      "sha256": "8dc169881617b20de604d1a37afac58b40679ed9b15a8e7834e0e2f731ba164e"
+    },
+    {
+      "relative_private_path": "evidence/metrics-first-measured-node3.prom",
+      "bytes": 998147,
+      "mtime_ns": 1792728920091402799,
+      "sha256": "106e936706ba3af636f2c4da241bd3419979dbc1e9ed55c7f72902e9f8bffe4c"
+    },
+    {
+      "relative_private_path": "evidence/metrics-terminal-node1.prom",
+      "bytes": 1048383,
+      "mtime_ns": 1792728923195748038,
+      "sha256": "aa32c64295640e05f29c9945666e5089f98fb144b6674fc75d0eecdf9aad48d7"
+    },
+    {
+      "relative_private_path": "evidence/metrics-terminal-node2.prom",
+      "bytes": 1032925,
+      "mtime_ns": 1792728923208904478,
+      "sha256": "dfdd4a887aa6eebc3da6b1883bf0c3eaf15221a16a3a5c1cf659b8fb04015e1b"
+    },
+    {
+      "relative_private_path": "evidence/metrics-terminal-node3.prom",
+      "bytes": 1020211,
+      "mtime_ns": 1792728923227201394,
+      "sha256": "9b936f16742df0c9a99d8ef83151913510f087625ed3e5ff75b7b375ca75e45d"
+    }
+  ]
+}
