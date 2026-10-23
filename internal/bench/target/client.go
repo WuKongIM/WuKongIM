@@ -1448,8 +1448,8 @@ func maximumQueueUtilization(family queueUtilizationFamily, depths, capacities m
 		if capacity > 0 && depth > capacity {
 			return 0, newMetricsParseError(overCapacityReason)
 		}
-		// A zero item capacity marks either an inactive queue or a queue bounded
-		// only by bytes, so its item utilization has no valid denominator.
+		// A zero capacity has no fixed item denominator, including inactive,
+		// bytes-only, or per-connection-deduplicated ready queues.
 		if capacity == 0 {
 			continue
 		}

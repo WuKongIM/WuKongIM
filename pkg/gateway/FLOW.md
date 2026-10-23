@@ -67,9 +67,11 @@ Message, presence, Channel, and Controller business policy stays outside gateway
 - `OnSessionOpen` happens at most once and before `OnFrame` or `OnPacket`; `OnSessionClose`
   and relevant errors happen only after an in-progress open callback returns.
 - Inbound bytes, outbound bytes, auth queue, SEND backlog, per-shard mailboxes,
-  batch records/bytes/wait, idle work, actor work, and shutdown waits are
-  bounded. Each SEND shard admits at least one record batch, unless the global
-  queue is smaller. Increasing workers cannot reduce that burst capacity.
+  batch records/bytes/wait, idle work, and shutdown waits are bounded.
+  Actor ready lists retain at most one pending entry per connection; their
+  initial slice allocation is not a fixed item-admission limit. They publish
+  item capacity zero, preserving depth without inventing a utilization bound.
+  Each SEND shard admits at least one record batch, unless the global queue is smaller. Increasing workers cannot reduce that burst capacity.
   Saturation closes only the affected session with a typed reason.
 - `DrainSends` is a one-shot SEND-admission fence that waits for accepted
   mailbox work without canceling or resetting it when a caller times out.

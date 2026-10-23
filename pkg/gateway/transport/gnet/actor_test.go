@@ -52,8 +52,8 @@ func TestActorShardReportsReadyPressure(t *testing.T) {
 	if got := events[0].Depth; got != 1 {
 		t.Fatalf("first pressure depth = %d, want 1", got)
 	}
-	if got := events[0].Capacity; got != actorReadyQueueSize {
-		t.Fatalf("first pressure capacity = %d, want %d", got, actorReadyQueueSize)
+	if got := events[0].Capacity; got != 0 {
+		t.Fatalf("first pressure capacity = %d, want no fixed item bound", got)
 	}
 	if got := events[1].Result; got != "closed" {
 		t.Fatalf("second pressure result = %q, want closed", got)
@@ -150,5 +150,58 @@ func TestActorPoolStopsWithEngineGroup(t *testing.T) {
 	}
 	if actors.shards[0].schedule(&connState{}) {
 		t.Fatal("actor shard accepted schedule after engine stop")
+	}
+}
+
+// TestActorReadyPressureHasNoFixedItemCapacity exercises actual admission and
+// draining without starting an actor worker or depending on elapsed time.
+func TestActorReadyPressureHasNoFixedItemCapacity(t *testing.T) {
+	for _, scenario := range []string{"above_preallocation", "duplicate", "two_shards", "drained", "late_revision"} {
+		t.Run(scenario, func(t *testing.T) {
+			observer := &recordingTransportPressureObserver{}
+			runtime := &listenerRuntime{opts: transport.ListenerOptions{Observer: observer}}
+			pool := newActorPool(2)
+			first := &connState{runtime: runtime}
+			if !pool.shards[0].schedule(first) {
+				t.Fatal("first schedule rejected")
+			}
+			wantDepth := 1
+			switch scenario {
+			case "above_preallocation":
+				for i := 1; i < 1025; i++ {
+					if !pool.shards[0].schedule(&connState{runtime: runtime}) {
+						t.Fatal("distinct schedule rejected")
+					}
+				}
+				wantDepth = 1025
+			case "duplicate":
+				before := len(observer.snapshot())
+				if pool.shards[0].schedule(first) {
+					t.Fatal("duplicate schedule accepted")
+				}
+				if got := len(observer.snapshot()); got != before {
+					t.Fatalf("duplicate emitted %d observations, want %d", got, before)
+				}
+			case "two_shards":
+				if !pool.shards[1].schedule(&connState{runtime: runtime}) {
+					t.Fatal("second shard rejected")
+				}
+				wantDepth = 2
+			case "drained", "late_revision":
+				pool.shards[0].drainReady()
+				wantDepth = 0
+				if scenario == "late_revision" {
+					first.observeTransportSnapshotForSource(actorPressureSource(0), transportPressureSnapshot{name: "actor_ready", queue: "ready", depth: 1, revision: 1})
+				}
+			}
+			events := observer.snapshot()
+			last := events[len(events)-1]
+			if last.Depth != wantDepth {
+				t.Fatalf("depth = %d, want %d", last.Depth, wantDepth)
+			}
+			if last.Capacity != 0 {
+				t.Fatalf("capacity = %d, want no fixed item bound", last.Capacity)
+			}
+		})
 	}
 }

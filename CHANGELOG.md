@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Report gateway actor-ready queues without a fixed item capacity instead of
+  treating their initial slice allocation as a hard limit. Queue depth and
+  admission behavior remain unchanged, avoiding false metrics-parse failures.
+
 - Collect concurrent SEND permission facts for up to 5 ms so paced callers share
   fresh barriers within the existing cohort, call and byte limits; idle reads
   of one fact or two distinct facts remain immediate. / 并发发送权限事实最多收集

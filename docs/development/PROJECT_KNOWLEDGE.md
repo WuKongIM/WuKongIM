@@ -1,5 +1,11 @@
 # Project Knowledge
 
+Gateway actor-ready queues deduplicate pending connections but have no fixed
+item-admission limit. Their initial slice capacity is allocation only; publish
+capacity zero and the real depth. Do not clamp depth or relax benchmark parser
+guards to conceal a mismatched metric denominator. This does not prove message
+loss or performance is repaired.
+
 Person-directory projection must emit one membership for a self-channel and two
 for distinct participants. Duplicate UID/channel identities reject the complete
 physical-Slot membership command, leaving MQTT inbox preparation pending and

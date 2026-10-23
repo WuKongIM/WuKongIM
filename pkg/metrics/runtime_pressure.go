@@ -13,7 +13,8 @@ var runtimePressureDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025
 type RuntimePressureQueueObservation struct {
 	// Depth is the current number of queued items.
 	Depth int
-	// Capacity is the configured maximum number of queued items.
+	// Capacity is the enforced maximum number of queued items, or zero when
+	// no item limit is defined. Zero provides no item-utilization denominator.
 	Capacity int
 	// Bytes is the current number of queued payload bytes.
 	Bytes int64
