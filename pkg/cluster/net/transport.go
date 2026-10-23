@@ -77,12 +77,18 @@ func (s *TransportServer) Register(serviceID uint8, handler Handler) {
 	if s == nil || s.server == nil {
 		panic("cluster/net: nil transport server")
 	}
+	opts := s.serviceOptions(serviceID)
+	if policy, ok := handler.(interface{ CancelRunningFor([]byte) bool }); ok {
+		// The trusted entry adapter classifies mixed read/mutation services;
+		// this does not create another service or increase its worker budget.
+		opts.CancelRunningFor = policy.CancelRunningFor
+	}
 	err := s.server.Handle(uint16(serviceID), func(ctx context.Context, payload []byte) ([]byte, error) {
 		if s.cfg.MaxPayload > 0 && len(payload) > s.cfg.MaxPayload {
 			return nil, fmt.Errorf("%w: payload too large", ErrInvalidFrame)
 		}
 		return handler.HandleRPC(ctx, payload)
-	}, s.serviceOptions(serviceID))
+	}, opts)
 	if err != nil {
 		panic(fmt.Sprintf("cluster/net: register service %d: %v", serviceID, err))
 	}

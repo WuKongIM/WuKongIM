@@ -334,21 +334,27 @@ func (s *Service) handle(req Request) error {
 		deliver(req, Response{Err: err})
 		return err
 	}
+	// Classification borrows the still-owned request only after queue checks.
+	// Keep cancellation detached for every request not explicitly declared read-only.
+	cancelRunning := s.opts.CancelRunning
+	if s.opts.CancelRunningFor != nil {
+		cancelRunning = s.opts.CancelRunningFor(req.Payload.Bytes())
+	}
 	ctx := s.ctx
-	if s.opts.CancelRunning {
+	if cancelRunning {
 		ctx = req.Context
 	}
 	ctx = rpctrace.Copy(ctx, req.Context)
 	cancel := func() {}
 	if s.opts.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, s.opts.Timeout)
-	} else if s.opts.CancelRunning && req.Context != s.ctx {
+	} else if cancelRunning && req.Context != s.ctx {
 		ctx, cancel = context.WithCancel(ctx)
 	}
 	defer cancel()
 	// The execution context already has a cancel function. Reuse it to link
 	// service shutdown instead of adding a second cancellation context.
-	if s.opts.CancelRunning && req.Context != s.ctx {
+	if cancelRunning && req.Context != s.ctx {
 		stopService := context.AfterFunc(s.ctx, cancel)
 		defer stopService()
 	}

@@ -39,11 +39,14 @@ management, plugins, diagnostics, and bounded operations observations.
    reread from the Slot leader per routed batch; only person metadata is cached.
    First person SENDs commit coalesced Channel directory tasks/runtime metadata;
    the asynchronous projector later ensures UID memberships and publishes ready.
-2. Presence reconstruction coalesces target groups into one bounded read per
-   active owner instead of repeating unavailable-owner timeouts per Hash Slot. It validates each
-   owner boot identity, and rechecks current membership and Slot authority before
-   publishing a complete result. One node-wide gate admits at most 16 recovery
-   owner-read rounds. Unknown or unavailable proof remains explicit.
+2. Presence reconstruction packs up to 16 original calls into complete-call pages
+   under one 250 ms budget per owner and the existing 16 owner-round gate.
+   Each page and each original call across owners retain separate 4096-row bounds.
+   Boot consistency, final membership and target fences precede publication;
+   a later timeout rejects unfinished calls without discarding completed proofs.
+   Only first-page typed unsupported evidence permits legacy per-call fallback.
+   Domain-owned original-call result credits bound retained results independently
+   of physical rounds; UID-byte admission is not a response-memory guarantee.
 3. Presence and recipient adapters resolve exact fenced targets, group work by
    owner, and choose the local authority or one typed RPC envelope per owner.
    UID-list endpoint lookup resolves at most 256 inputs per page, groups by the

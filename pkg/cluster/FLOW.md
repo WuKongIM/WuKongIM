@@ -130,7 +130,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Node RPC negotiates budget/cancel via a reserved wire-v1 service; explicit unsupported peers retain v1.
   Queued work expires under caller budgets or five seconds. Execution defaults to 30 seconds
   (one minute for Operations MCP, five minutes for repository probes, 48 hours for backup/restore).
-  Read-only handlers may follow caller cancellation; started mutations execute
+  Trusted mixed-service opcode policies preserve read cancellation through Node registration; started mutations execute
   independently. Ready frames batch without an idle coalescing delay.
 - Default-off RPC phase tracing negotiates a connection-generation token before setting a sampled RequestID bit.
   Both endpoints retain bounded local intervals through the existing observer drain.

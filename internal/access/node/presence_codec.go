@@ -23,6 +23,7 @@ const (
 	presenceOpEndpointsByTargetsID
 	presenceOpReadOwnerRoutesID
 	presenceOpReadOwnerRoutesByTargetsID
+	presenceOpReadOwnerRouteCallsID
 )
 
 const maxPresenceRPCCollectionLen = 4096
@@ -49,6 +50,10 @@ type presenceRPCRequest struct {
 	OwnerSeq uint64
 	// EndpointGroups carries exact-target UID batches for grouped endpoint lookups.
 	EndpointGroups []presence.EndpointLookupGroup
+	// RecoveryCalls preserves each original caller's complete target groups.
+	RecoveryCalls []presence.RecoveryCall
+	// RecoveryStart selects the first complete caller in this owner response page.
+	RecoveryStart int
 }
 
 // presenceRPCEndpointLookupResult is one group-aligned endpoint lookup wire result.
@@ -77,6 +82,9 @@ func encodePresenceRPCRequestBinary(req presenceRPCRequest) ([]byte, error) {
 	dst := make([]byte, 0, 128)
 	dst = append(dst, presenceRPCRequestMagic[:]...)
 	dst = append(dst, opID)
+	if req.Op == presenceOpReadOwnerRouteCalls {
+		return appendOwnerRouteCallsRequest(dst, req.RecoveryCalls, req.RecoveryStart)
+	}
 	if req.Op == presenceOpEndpointsByTargets || req.Op == presenceOpReadOwnerRoutes || req.Op == presenceOpReadOwnerRoutesByTargets {
 		return appendPresenceEndpointLookupGroups(dst, req.EndpointGroups)
 	}
@@ -108,6 +116,16 @@ func decodePresenceRPCRequest(body []byte) (presenceRPCRequest, error) {
 
 	var req presenceRPCRequest
 	req.Op = op
+	if req.Op == presenceOpReadOwnerRouteCalls {
+		req.RecoveryCalls, req.RecoveryStart, offset, err = readOwnerRouteCallsRequest(body, offset)
+		if err != nil {
+			return presenceRPCRequest{}, err
+		}
+		if offset != len(body) {
+			return presenceRPCRequest{}, fmt.Errorf("internal/access/node: trailing presence request bytes")
+		}
+		return req, nil
+	}
 	if req.Op == presenceOpEndpointsByTargets || req.Op == presenceOpReadOwnerRoutes || req.Op == presenceOpReadOwnerRoutesByTargets {
 		if req.EndpointGroups, offset, err = readPresenceEndpointLookupGroups(body, offset); err != nil {
 			return presenceRPCRequest{}, err
@@ -266,6 +284,8 @@ func presenceOpID(op string) (byte, error) {
 		return presenceOpApplyRouteActionID, nil
 	case presenceOpReadOwnerRoutesByTargets:
 		return presenceOpReadOwnerRoutesByTargetsID, nil
+	case presenceOpReadOwnerRouteCalls:
+		return presenceOpReadOwnerRouteCallsID, nil
 	case presenceOpReadOwnerRoutes:
 		return presenceOpReadOwnerRoutesID, nil
 	case presenceOpEndpointsByTargets:
@@ -293,6 +313,8 @@ func presenceOpFromID(op byte) (string, error) {
 		return presenceOpApplyRouteAction, nil
 	case presenceOpReadOwnerRoutesByTargetsID:
 		return presenceOpReadOwnerRoutesByTargets, nil
+	case presenceOpReadOwnerRouteCallsID:
+		return presenceOpReadOwnerRouteCalls, nil
 	case presenceOpReadOwnerRoutesID:
 		return presenceOpReadOwnerRoutes, nil
 	case presenceOpEndpointsByTargetsID:

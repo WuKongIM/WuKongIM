@@ -48,6 +48,7 @@ closure, dependency order, and restart policy.
   authority, and capability values remain ordinary data.
 - Permission and runtime-metadata batch fanout use distinct fixed Slot task
   identities and bounded worker cohorts.
+- Presence recovery uses one dynamic re-panic identity for bounded on-demand workers; the usecase closes admission and joins owners before cluster shutdown.
 - Cold conversation reads activate runtime metadata through one bounded Cluster
   burst identity instead of untracked request-scoped workers.
 - MQTT shared-copy confirmation uses a Cluster burst identity, at most four joined

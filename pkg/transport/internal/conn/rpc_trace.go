@@ -39,9 +39,19 @@ func (c *Conn) NegotiateRPCTrace(ctx context.Context) error {
 		}
 		ready := make(chan struct{})
 		c.traceReady = ready
+		token := c.traceToken
 		c.traceMu.Unlock()
-		var token [16]byte
-		_, err := rand.Read(token[:])
+		var err error
+		if token == [16]byte{} {
+			_, err = rand.Read(token[:])
+			if err == nil {
+				// The receiver may bind this token before its reply reaches us.
+				// Later callers retry the same identity after a failed probe.
+				c.traceMu.Lock()
+				c.traceToken = token
+				c.traceMu.Unlock()
+			}
+		}
 		var response []byte
 		payload := append([]byte(wire.CapabilityRPCTrace), token[:]...)
 		if err == nil {
@@ -49,7 +59,9 @@ func (c *Conn) NegotiateRPCTrace(ctx context.Context) error {
 			response, err = c.Call(probeCtx, Outbound{ServiceID: wire.TraceCapabilityServiceID, Priority: core.PriorityControl, Payload: core.NewOwnedBuffer(payload, nil)})
 			cancel()
 		}
-		state := uint8(3)
+		// Cache only a successful binding or explicit absence. A caller-local
+		// failure must not permanently poison this otherwise healthy connection.
+		state := uint8(0)
 		if err == nil {
 			if bytes.Equal(response, payload) {
 				state = 2

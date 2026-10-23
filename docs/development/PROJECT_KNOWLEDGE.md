@@ -2028,8 +2028,11 @@ specification, runbook, report, or module documentation; link to them when neede
   32 intervals per RPC. Local durations may overlap; independent endpoint clocks
   cannot establish one-way network delay. Missing/unfinished intervals, bounded
   query retention and observer drops remain incomplete evidence. Shared permission
-  cohorts do not claim one caller as their parent, and tracing does not grant
+  and presence cohorts do not claim one caller as their parent, and tracing does not grant
   cancellation authority over started mutations.
+  Trace capability failures fail the current call without replay; a later caller
+  may retry negotiation with the same connection token, including when an earlier
+  reply arrived too late. Only success or explicit unsupported is cached.
 
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
@@ -2038,3 +2041,11 @@ specification, runbook, report, or module documentation; link to them when neede
   embedded assets and binary hashes. Rebuilding candidate `79a71770` this way
   reproduced both original cloud Linux server/CLI ELF files byte for byte; native
   Mac measurements still do not constitute Linux performance acceptance.
+
+- Mixed presence RPC services retain their original service/executor budgets.
+  Trusted entry opcode classifiers choose request cancellation only for reads;
+  started mutations retain independent execution and unknown caller outcomes.
+  Recovery batches preserve original call boundaries: each call may return up
+  to 4096 routes, while each versioned response page also caps total routes at
+  4096. A continuation shares one original owner deadline, validates membership
+  and owner boot across pages, and never converts incomplete proof into offline.

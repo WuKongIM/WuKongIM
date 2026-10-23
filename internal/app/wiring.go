@@ -408,7 +408,12 @@ func (a *App) wirePresence() {
 			return clusterinfra.ValidatePresenceTarget(presenceNode, target)
 		})
 		if canRecover {
-			authority.SetRecovery(presence.NewAuthorityRecovery(directory, clusterinfra.NewPresenceRecoveryOwners(recoveryNode, ownerReader)))
+			a.reopenPresenceRecovery = func() {
+				recovery := presence.NewAuthorityRecovery(directory, clusterinfra.NewPresenceRecoveryOwners(recoveryNode, ownerReader))
+				a.presenceRecovery = recovery
+				authority.SetRecovery(recovery)
+			}
+			a.reopenPresenceRecovery()
 		}
 		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
 		client.SetLocalOwner(ownerActions)
@@ -417,8 +422,8 @@ func (a *App) wirePresence() {
 		}
 		a.presenceAuthorityClient = client
 		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, OwnerRoutes: ownerReader, Logger: a.logger.Named("node")})
-		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceAuthorityRPC))
-		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceOwnerRPC))
+		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, classifiedNodeRPCHandler{handle: adapter.HandlePresenceAuthorityRPC, readOnly: accessnode.PresenceAuthorityReadOnly})
+		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, classifiedNodeRPCHandler{handle: adapter.HandlePresenceOwnerRPC, readOnly: accessnode.PresenceOwnerReadOnly})
 		if a.presence == nil {
 			a.presence = presence.New(presence.Options{
 				Local:                a.online,

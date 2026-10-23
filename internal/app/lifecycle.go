@@ -62,6 +62,9 @@ func (a *App) Start(ctx context.Context) error {
 	if a.started {
 		return ErrAlreadyStarted
 	}
+	if a.presenceRecovery == nil && a.reopenPresenceRecovery != nil {
+		a.reopenPresenceRecovery()
+	}
 	startedAt := time.Now()
 	startingSnapshot := a.startupSnapshot()
 	a.startupConsole.starting(startingSnapshot)
@@ -81,6 +84,10 @@ func (a *App) Start(ctx context.Context) error {
 	if a.seedJoinLoop != nil {
 		if err := a.seedJoinLoop.Start(ctx); err != nil {
 			a.logLifecycleError("seed_join", "start", err)
+			if closeErr := a.closePresenceRecovery(ctx); closeErr != nil {
+				a.logLifecycleWarn("presence_recovery", "rollback_stop", closeErr)
+				return errors.Join(err, closeErr)
+			}
 			stopErr := a.cluster.Stop(ctx)
 			if stopErr != nil {
 				a.logLifecycleWarn("cluster", "rollback_stop", stopErr)
@@ -386,6 +393,9 @@ func (a *App) Stop(ctx context.Context) error {
 			return err
 		}
 		var err error
+		if stopErr := a.closePresenceRecovery(ctx); stopErr != nil {
+			return stopErr
+		}
 		if stopErr := a.closeChannelSubmissions(ctx); stopErr != nil {
 			return stopErr
 		}
@@ -558,6 +568,9 @@ func (a *App) Stop(ctx context.Context) error {
 		} else {
 			a.seedJoinStarted = false
 		}
+	}
+	if stopErr := a.closePresenceRecovery(ctx); stopErr != nil {
+		return errors.Join(err, stopErr)
 	}
 	if a.clusterStarted && a.cluster != nil {
 		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
@@ -766,6 +779,9 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			a.seedJoinStarted = false
 		}
 	}
+	if stopErr := a.closePresenceRecovery(ctx); stopErr != nil {
+		return errors.Join(err, stopErr)
+	}
 	if a.clusterStarted && a.cluster != nil {
 		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("cluster", "rollback_stop", stopErr)
@@ -782,6 +798,19 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 		a.started = false
 	}
 	return err
+}
+
+// closePresenceRecovery retains the cohort and its cluster dependency until
+// every executing owner has joined. A later lifecycle call may retry the drain.
+func (a *App) closePresenceRecovery(ctx context.Context) error {
+	if a.presenceRecovery == nil {
+		return nil
+	}
+	if err := a.presenceRecovery.Close(ctx); err != nil {
+		return err
+	}
+	a.presenceRecovery = nil
+	return nil
 }
 
 func (a *App) logLifecycleError(component, phase string, err error) {

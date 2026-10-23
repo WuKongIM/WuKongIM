@@ -73,6 +73,15 @@ scheduled backup or restore
   routes. Operation 10 adds `WKVO` version-2 aligned multi-target snapshots,
   bounded to 256 targets, 512 total UIDs, and 4,096 routes per owner page.
   Existing singleton presence byte layouts remain unchanged.
+- Presence owner operation 11 retains original caller boundaries in a `WKVO`
+  version-3 page. Requests cap at 16 calls, 256 total target groups and 512 UIDs;
+  each reply contains complete calls in the echoed `Start`/`Next` range and at
+  most 4,096 routes. Clients read one page without hidden continuation or retry.
+  Only the exact typed remote unknown-operation-11 response proves unsupported;
+  timeout, busy, malformed replies and local same-text errors never permit replay.
+- Presence read-only classifiers verify the `WKVP` version-2 header, selecting
+  authority operations 5/8 and owner operations 9/10/11 only. Full body validation
+  remains in handlers; malformed reads never dispatch an owner mutation.
 - Presence batch lookups preserve input alignment and isolate group-scoped
   stale/rejected results. Compatibility fallback is limited to an explicit
   unsupported-operation response, never arbitrary transport failure.

@@ -115,7 +115,7 @@ Stop or startup rollback
 - Startup failure rolls back completed components in reverse order. Constructor
   failure releases constructor-owned pools, sinks, and audit resources.
 - Presence wiring shares one owner boot identity between session activation and
-  recovery replies, and installs bounded UID reconstruction before lookups.
+  recovery replies and owns bounded UID recovery; Stop/rollback joins it before cluster close, and retry rebuilds a drained cohort.
 - Gateway admission opens only after cluster write routing and required runtime
   readiness. Joining nodes remain fenced until observed membership permits it.
 - Backup RPC binds one target-local Controller repository resolver to all four

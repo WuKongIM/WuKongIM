@@ -6,24 +6,24 @@ import (
 	"strings"
 
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 const (
-	// Sixteen leaders match the production node-wide owner-read admission. Keys
-	// and bytes bound only registry-owned UID clones, not caller/Directory/RPC heap.
-	recoveryMaxCohorts = 16
-	recoveryMaxKeys    = recoveryMaxCohorts * authority.RecoveryBatchSize
-	// A full page of 512 maximum-length stored UIDs (65535 bytes each) fits.
-	// This is a new internal admission budget, not an RPC string-size contract.
+	recoveryMaxCohorts   = 16
+	recoveryMaxKeys      = 8192
+	recoveryMaxMembers   = 512
 	recoveryPageUIDBytes = 32 << 20
-	// The byte budget is independent of cohort width.
+	// This ledger covers owned UID clones and conservative scheduler metadata,
+	// not Directory, transport response heap, allocator overhead or process RSS.
 	recoveryMaxUIDBytes = 128 << 20
+	// One result responsibility retains at most one original call's 4096 routes.
+	recoveryMaxResultCalls = 16
 )
 
-// recoveryUIDKey uses the distributed authority identity. Local routing revision
-// and AuthorityEpoch must not split one proof; original targets still flow to
-// Directory and owners unchanged for their independent validation.
+// recoveryUIDKey includes the distributed authority fence, excluding node-local
+// revisions so matching proofs coalesce while every original target is rechecked.
 type recoveryUIDKey struct {
 	hashSlot                              uint16
 	slotID                                uint32
@@ -31,22 +31,93 @@ type recoveryUIDKey struct {
 	uid                                   string
 }
 
-func recoveryKey(target RouteTarget, uid string) recoveryUIDKey {
-	return recoveryUIDKey{target.HashSlot, target.SlotID, target.LeaderNodeID, target.LeaderTerm, target.ConfigEpoch, uid}
+func recoveryKey(t RouteTarget, uid string) recoveryUIDKey {
+	return recoveryUIDKey{t.HashSlot, t.SlotID, t.LeaderNodeID, t.LeaderTerm, t.ConfigEpoch, uid}
 }
 
-// recoveryUIDFlight publishes status before done closes. It never caches routes
-// or an offline proof; every successful follower rereads the current Directory.
+// Flights share status only. Every successful caller rereads fenced Directory.
 type recoveryUIDFlight struct {
-	done <-chan struct{}
+	done chan struct{}
 	err  error
+	key  recoveryUIDKey
+	work *recoveryWork
+	// users is mu-protected live proof ownership; its historical peak is shrunk
+	// as members leave and all references are dropped before key bytes return.
+	users    map[*recoveryMember]struct{}
+	userPeak int
 }
 
-type recoveryCohort struct {
-	done     chan struct{}
-	keys     []recoveryUIDKey
-	groups   []EndpointLookupGroup
-	uidBytes int
+// recoveryMember owns one accepted caller's index budget. Its context controls
+// only that caller; flights keep explicit live references for shared execution.
+type recoveryMember struct {
+	ctx      context.Context
+	stop     chan struct{}
+	flights  []*recoveryUIDFlight
+	work     *recoveryWork
+	bytes    int
+	returned bool
+}
+
+// recoveryWork owns the newly missing subset of one original call. Workers
+// publish it before callers join old flights, so overlapping calls cannot cycle.
+type recoveryWork struct {
+	creator *recoveryMember
+	groups  []EndpointLookupGroup
+	flights []*recoveryUIDFlight
+	bytes   int
+	// started closes at dispatch or queued termination, not provider return.
+	started chan struct{}
+	// queuedWait records FIFO/capacity waiting, excluding an idle dispatch turn.
+	queuedWait bool
+	// execution is mu-protected real ownership, independent of creator lifetime.
+	execution *recoveryExecution
+	// finished transfers minimal status to caller references after active release.
+	finished bool
+}
+
+// recoveryExecution owns a whole batch's result credits until the provider,
+// installation and response references finish. Only all-member cancellation or
+// Close cancels its root; no member supplies a shared execution deadline.
+type recoveryExecution struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	works  []*recoveryWork
+}
+
+// Close rejects new recovery, cancels accepted work, and joins actual provider
+// completion. A timed-out Close retains ownership and can be joined again.
+func (r *AuthorityRecovery) Close(ctx context.Context) error {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	if !r.closed {
+		r.closed = true
+		for m := range r.members {
+			close(m.stop)
+		}
+		for len(r.queue) > 0 {
+			r.finishWorkLocked(r.queue[0], nil)
+		}
+		r.queue = nil
+		for e := range r.active {
+			e.cancel()
+		}
+		r.maybeDrainedLocked()
+	}
+	done := r.drained
+	r.mu.Unlock()
+	select {
+	case <-done:
+		return nil
+	default:
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLookupGroup) []EndpointLookupResult {
@@ -57,37 +128,68 @@ func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLo
 		}
 		return results
 	}
-	results, cohort, waits := r.admitRecoveryPage(ctx, groups)
-	if cohort != nil {
-		// Publish/release owned work before joining older flights. In particular,
-		// A={u1}, B={u1,u2} must make u2 available before B waits for A's u1.
-		r.executeRecoveryCohort(ctx, cohort)
+	results, m, waits := r.admitRecoveryPage(ctx, groups)
+	if m == nil {
+		return results
 	}
-	trace := rpctrace.From(ctx)
-	for i, group := range groups {
+	defer r.returnMember(m)
+	if m.work != nil {
+		var span rpctrace.Span
+		observing := false
+		select {
+		case <-m.work.started:
+		default:
+			if m.work.queuedWait {
+				span = rpctrace.Begin(ctx, rpctrace.StageRecoveryAdmission)
+				observing = true
+			}
+		}
+		var err error
+		select {
+		case <-m.work.started:
+		case <-ctx.Done():
+			err = ctx.Err()
+		case <-m.stop:
+			err = authority.ErrRouteNotReady
+		}
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
+		if observing {
+			span.End(rpctrace.ResultFor(err))
+		}
+		if err != nil {
+			for i := range results {
+				if errors.Is(results[i].Err, authority.ErrRouteNotReady) {
+					results[i] = EndpointLookupResult{Err: err}
+				}
+			}
+			return results
+		}
+	}
+	for i, g := range groups {
 		if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
 			continue
 		}
 		var err error
-		var waitSpan rpctrace.Span
-		observingWait := false
-		for _, flight := range waits[i] {
-			if trace != nil && !observingWait {
-				// A completed local flight must not look like a follower wait.
-				// This probe controls observation only; the original select below
-				// still decides the result, including cancellation races.
+		var span rpctrace.Span
+		observing := false
+		for _, f := range waits[i] {
+			if f.work != m.work && !observing {
 				select {
-				case <-flight.done:
+				case <-f.done:
 				default:
-					waitSpan = trace.Begin(rpctrace.StageRecoveryFlight)
-					observingWait = true
+					span = rpctrace.Begin(ctx, rpctrace.StageRecoveryFlight)
+					observing = true
 				}
 			}
 			select {
 			case <-ctx.Done():
 				err = ctx.Err()
-			case <-flight.done:
-				err = flight.err
+			case <-m.stop:
+				err = authority.ErrRouteNotReady
+			case <-f.done:
+				err = f.err
 			}
 			if err != nil {
 				break
@@ -96,202 +198,490 @@ func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLo
 		if ctx.Err() != nil {
 			err = ctx.Err()
 		}
-		if observingWait {
-			waitSpan.End(rpctrace.ResultFor(err))
+		if observing {
+			span.End(rpctrace.ResultFor(err))
 		}
 		if err != nil {
 			results[i] = EndpointLookupResult{Err: err}
 			continue
 		}
-		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(group.Target, group.UIDs)
+		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(g.Target, g.UIDs)
 	}
 	return results
 }
 
-// admitRecoveryPage reserves a whole new subset or none. Quota waiting retains
-// no partial keys, UID copies or cohort slot, and rechecks proofs after waking.
-func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []EndpointLookupGroup) ([]EndpointLookupResult, *recoveryCohort, [][]*recoveryUIDFlight) {
-	for {
-		results := make([]EndpointLookupResult, len(groups))
-		missing := make([]EndpointLookupGroup, 0, len(groups))
-		indexes := make([]int, 0, len(groups))
-		waits := make([][]*recoveryUIDFlight, len(groups))
-		for i, group := range groups {
-			if err := ctx.Err(); err != nil {
-				results[i].Err = err
-				continue
-			}
-			results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(group.Target, group.UIDs)
-			if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
-				continue
-			}
-			uids, err := r.directory.RecoveryUIDs(group.Target, group.UIDs)
-			if err != nil {
-				results[i].Err = err
-				continue
-			}
-			if len(uids) == 0 {
-				continue
-			}
-			missing = append(missing, EndpointLookupGroup{Target: group.Target, UIDs: uids})
+// Admission owns a bounded caller and its indices even when it only follows an
+// existing flight. All dimensions are checked before cloning or publishing.
+func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []EndpointLookupGroup) ([]EndpointLookupResult, *recoveryMember, [][]*recoveryUIDFlight) {
+	results := make([]EndpointLookupResult, len(groups))
+	waits := make([][]*recoveryUIDFlight, len(groups))
+	missing := make([]EndpointLookupGroup, 0, len(groups))
+	indexes := make([]int, 0, len(groups))
+	refs := 0
+	for i, g := range groups {
+		if err := ctx.Err(); err != nil {
+			results[i].Err = err
+			continue
+		}
+		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(g.Target, g.UIDs)
+		if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
+			continue
+		}
+		uids, err := r.directory.RecoveryUIDs(g.Target, g.UIDs)
+		if err != nil {
+			results[i].Err = err
+			continue
+		}
+		if len(uids) > 0 {
+			missing = append(missing, EndpointLookupGroup{Target: g.Target, UIDs: uids})
 			indexes = append(indexes, i)
+			refs += len(uids)
 		}
-		if len(missing) == 0 {
-			return results, nil, waits
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		for i := range results {
+			results[i] = EndpointLookupResult{Err: authority.ErrRouteNotReady}
 		}
-
-		r.mu.Lock()
-		newKeys := make(map[recoveryUIDKey]recoveryUIDKey)
-		uidBytes := 0
-		oversized := false
-		for _, group := range missing {
-			for _, uid := range group.UIDs {
-				key := recoveryKey(group.Target, uid)
-				if _, exists := r.inFlight[key]; exists {
-					continue
-				}
-				if _, exists := newKeys[key]; exists {
-					continue
-				}
-				// Subtraction makes accounting overflow-safe before any UID copy.
-				if len(uid) > recoveryPageUIDBytes-uidBytes {
-					oversized = true
-					break
-				}
-				uidBytes += len(uid)
-				newKeys[key] = key
+		return results, nil, waits
+	}
+	if len(missing) == 0 {
+		return results, nil, waits
+	}
+	newKeys := make(map[recoveryUIDKey]recoveryUIDKey)
+	cloneBytes := 0
+	for _, g := range missing {
+		for _, uid := range g.UIDs {
+			k := recoveryKey(g.Target, uid)
+			if r.inFlight[k] != nil {
+				continue
 			}
-			if oversized {
+			if _, ok := newKeys[k]; ok {
+				continue
+			}
+			if len(uid) > recoveryPageUIDBytes-cloneBytes {
+				return results, nil, waits
+			}
+			cloneBytes += len(uid)
+			newKeys[k] = k
+		}
+	}
+	// A reference can retain a distinct retired flight/done channel AND its
+	// finished work/started channel from another creator. Charge all four plus
+	// caller indices conservatively; none depend on that creator remaining live.
+	// This logical ledger excludes allocator overhead and process RSS.
+	memberBytes := 512 + len(groups)*128 + refs*512
+	workBytes := 0
+	if len(newKeys) > 0 {
+		workBytes = 256 + len(missing)*128 + len(newKeys)*256 + cloneBytes
+	}
+	if len(r.members) >= recoveryMaxMembers || len(newKeys) > recoveryMaxKeys-len(r.inFlight) || memberBytes+workBytes > recoveryMaxUIDBytes-r.ownedUIDBytes {
+		return results, nil, waits
+	}
+	m := &recoveryMember{ctx: ctx, stop: make(chan struct{}), bytes: memberBytes}
+	r.members[m] = struct{}{}
+	r.ownedUIDBytes += memberBytes
+	if len(newKeys) > 0 {
+		w := &recoveryWork{creator: m, bytes: workBytes, started: make(chan struct{})}
+		m.work = w
+		r.ownedUIDBytes += workBytes
+		for k := range newKeys {
+			owned := k
+			owned.uid = strings.Clone(k.uid)
+			newKeys[k] = owned
+			f := &recoveryUIDFlight{done: make(chan struct{}), key: owned, work: w, users: make(map[*recoveryMember]struct{})}
+			r.inFlight[owned] = f
+			w.flights = append(w.flights, f)
+		}
+	}
+	unique := make(map[*recoveryUIDFlight]struct{})
+	for j, g := range missing {
+		own := EndpointLookupGroup{Target: g.Target}
+		for _, uid := range g.UIDs {
+			k := recoveryKey(g.Target, uid)
+			f := r.inFlight[k]
+			waits[indexes[j]] = append(waits[indexes[j]], f)
+			if _, ok := unique[f]; !ok {
+				unique[f] = struct{}{}
+				m.flights = append(m.flights, f)
+				if f.users == nil {
+					// The last member may have left while its canceled provider
+					// still owns the flight. A late subscriber joins only status;
+					// it cannot resurrect that execution or create a retry.
+					f.users = make(map[*recoveryMember]struct{})
+				}
+				f.users[m] = struct{}{}
+				if len(f.users) > f.userPeak {
+					f.userPeak = len(f.users)
+				}
+			}
+			if owned, ok := newKeys[k]; ok {
+				own.UIDs = append(own.UIDs, owned.uid)
+				delete(newKeys, k)
+			}
+		}
+		if len(own.UIDs) > 0 {
+			m.work.groups = append(m.work.groups, own)
+		}
+	}
+	if m.work != nil {
+		m.work.queuedWait = len(r.queue) > 0 || r.resultCalls == recoveryMaxResultCalls
+		r.queue = append(r.queue, m.work)
+	}
+	r.kickLocked()
+	return results, m, waits
+}
+
+// returnMember detaches one caller once, then checks each affected execution
+// once. Cancellation cannot amplify shared-UID scans or release active credits.
+func (r *AuthorityRecovery) returnMember(m *recoveryMember) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	m.returned = true
+	works := make(map[*recoveryWork]struct{})
+	for _, f := range m.flights {
+		delete(f.users, m)
+		// Historical follower peaks must not retain an uncharged large map after
+		// their caller metadata leaves the ledger. Keep capacity within 2x live use.
+		if len(f.users) == 0 {
+			f.users = nil
+			f.userPeak = 0
+		} else if len(f.users)*2 < f.userPeak {
+			users := make(map[*recoveryMember]struct{}, len(f.users))
+			for user := range f.users {
+				users[user] = struct{}{}
+			}
+			f.users = users
+			f.userPeak = len(users)
+		}
+		works[f.work] = struct{}{}
+	}
+	states := make(map[*recoveryMember]bool)
+	executions := make(map[*recoveryExecution]struct{})
+	for w := range works {
+		if w.finished {
+			continue
+		}
+		if w.execution == nil {
+			if !r.workHasUsersLocked(w, states) {
+				r.finishWorkLocked(w, nil)
+			}
+		} else {
+			executions[w.execution] = struct{}{}
+		}
+	}
+	for e := range executions {
+		live := false
+		for _, w := range e.works {
+			if r.workHasUsersLocked(w, states) {
+				live = true
 				break
 			}
 		}
-		if oversized {
-			r.mu.Unlock()
-			return results, nil, waits
+		if !live {
+			e.cancel()
 		}
-		if len(newKeys) != 0 && (r.cohorts >= recoveryMaxCohorts || len(newKeys) > recoveryMaxKeys-len(r.inFlight) || uidBytes > recoveryMaxUIDBytes-r.ownedUIDBytes) {
-			changed := r.changed
-			r.mu.Unlock()
-			// Only measure quota waiting, not Directory reads or admission locks.
-			span := rpctrace.Begin(ctx, rpctrace.StageRecoveryAdmission)
-			select {
-			case <-ctx.Done():
-				span.End(rpctrace.ResultFor(ctx.Err()))
-				for _, i := range indexes {
-					results[i] = EndpointLookupResult{Err: ctx.Err()}
-				}
-				return results, nil, waits
-			case <-changed:
-				span.End(rpctrace.ResultOK)
-				continue
-			}
+	}
+	r.releaseMemberLocked(m)
+	r.kickLocked()
+	r.maybeDrainedLocked()
+}
+func (r *AuthorityRecovery) releaseMemberLocked(m *recoveryMember) {
+	if m.returned && (m.work == nil || m.work.finished) {
+		if _, ok := r.members[m]; ok {
+			delete(r.members, m)
+			r.ownedUIDBytes -= m.bytes
+			m.ctx = nil
+			m.flights = nil
+			m.work = nil
 		}
-		var cohort *recoveryCohort
-		if len(newKeys) != 0 {
-			cohort = &recoveryCohort{done: make(chan struct{}), uidBytes: uidBytes, keys: make([]recoveryUIDKey, 0, len(newKeys))}
-			for key := range newKeys {
-				owned := key
-				owned.uid = strings.Clone(key.uid)
-				newKeys[key] = owned
-				cohort.keys = append(cohort.keys, owned)
-				r.inFlight[owned] = &recoveryUIDFlight{done: cohort.done}
-			}
-			r.cohorts++
-			r.ownedUIDBytes += uidBytes
-		}
-		for j, group := range missing {
-			ownedGroup := EndpointLookupGroup{Target: group.Target}
-			for _, uid := range group.UIDs {
-				key := recoveryKey(group.Target, uid)
-				waits[indexes[j]] = append(waits[indexes[j]], r.inFlight[key])
-				if owned, ok := newKeys[key]; ok {
-					ownedGroup.UIDs = append(ownedGroup.UIDs, owned.uid)
-					delete(newKeys, key)
-				}
-			}
-			if len(ownedGroup.UIDs) != 0 {
-				cohort.groups = append(cohort.groups, ownedGroup)
-			}
-		}
-		r.mu.Unlock()
-		return results, cohort, waits
 	}
 }
-
-// executeRecoveryCohort runs in the caller, with its original deadline. A
-// canceled leader cannot publish incomplete proof or strand live followers.
-func (r *AuthorityRecovery) executeRecoveryCohort(ctx context.Context, cohort *recoveryCohort) {
-	outcomes := make(map[recoveryUIDKey]error, len(cohort.keys))
-	for _, key := range cohort.keys {
-		outcomes[key] = authority.ErrRouteNotReady
+func recoveryMemberLive(m *recoveryMember, states map[*recoveryMember]bool) bool {
+	if live, ok := states[m]; ok {
+		return live
 	}
-	defer r.completeRecoveryCohort(cohort, outcomes)
-	set := func(group EndpointLookupGroup, err error) {
-		for _, uid := range group.UIDs {
-			outcomes[recoveryKey(group.Target, uid)] = err
-		}
-	}
-	active := make([]EndpointLookupGroup, 0, len(cohort.groups))
-	for _, group := range cohort.groups {
-		uids, err := r.directory.RecoveryUIDs(group.Target, group.UIDs)
-		if err != nil {
-			set(group, err)
-			continue
-		}
-		set(group, nil)
-		if len(uids) != 0 {
-			active = append(active, EndpointLookupGroup{Target: group.Target, UIDs: uids})
+	live := !m.returned && m.ctx.Err() == nil
+	states[m] = live
+	return live
+}
+func (r *AuthorityRecovery) workHasUsersLocked(w *recoveryWork, states map[*recoveryMember]bool) bool {
+	for _, f := range w.flights {
+		for m := range f.users {
+			if recoveryMemberLive(m, states) {
+				return true
+			}
 		}
 	}
-	if len(active) == 0 {
-		return
-	}
-	recovered := make([]EndpointLookupResult, len(active))
-	if batch, ok := r.owners.(RecoveryBatchOwners); ok {
-		recovered = batch.RecoverRoutesByTargets(ctx, active)
-	} else {
-		// Limited compatibility ports keep their existing single-target path.
-		for i, group := range active {
-			recovered[i].Routes, recovered[i].Err = r.owners.RecoverRoutes(ctx, group.Target, group.UIDs)
-		}
-	}
-	for i, group := range active {
-		if err := ctx.Err(); err != nil {
-			set(group, err)
-			continue
-		}
-		if len(recovered) != len(active) {
-			set(group, authority.ErrRouteNotReady)
-			continue
-		}
-		if recovered[i].Err != nil {
-			set(group, recovered[i].Err)
-			continue
-		}
-		span := rpctrace.Begin(ctx, rpctrace.StageRecoveryInstall)
-		err := r.directory.InstallRecoveredRoutes(group.Target, group.UIDs, recovered[i].Routes)
-		span.End(rpctrace.ResultFor(err))
-		set(group, err)
-	}
+	return false
 }
 
-// completeRecoveryCohort releases owned resources and signals followers before
-// its leader can wait on older flights. A live follower never inherits someone
-// else's context cancellation as its own; existing outer retries stay unchanged.
-func (r *AuthorityRecovery) completeRecoveryCohort(cohort *recoveryCohort, outcomes map[recoveryUIDKey]error) {
+// liveRecoveryUIDs snapshots only still-owned proof requests. Shared owner I/O
+// may finish after one member cancels, but cannot publish that member's unused
+// proof. A live UID follower retains the right to install its current fence.
+func (r *AuthorityRecovery) liveRecoveryUIDs(w *recoveryWork, g EndpointLookupGroup) []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for _, key := range cohort.keys {
-		err := outcomes[key]
+	if r.closed {
+		return nil
+	}
+	states := make(map[*recoveryMember]bool)
+	uids := make([]string, 0, len(g.UIDs))
+	for _, uid := range g.UIDs {
+		f := r.inFlight[recoveryKey(g.Target, uid)]
+		if f == nil || f.work != w {
+			continue
+		}
+		for m := range f.users {
+			if recoveryMemberLive(m, states) {
+				uids = append(uids, uid)
+				break
+			}
+		}
+	}
+	return uids
+}
+
+// kickLocked gives already-ready admissions and completions one dispatch
+// owner. It adds no collection timer and exits after taking currently ready work.
+func (r *AuthorityRecovery) kickLocked() {
+	if r.closed || r.dispatchPending {
+		return
+	}
+	r.dispatchPending = true
+	goroutine.Default().Go(goroutine.TaskPresenceRecoveryScheduler, func() {
+		r.mu.Lock()
+		r.dispatchPending = false
+		r.dispatchLocked()
+		r.maybeDrainedLocked()
+		r.mu.Unlock()
+	})
+}
+
+// FIFO dispatch never holds partial result credits. Available credits cover
+// every original call in a batch before its provider starts.
+func (r *AuthorityRecovery) dispatchLocked() {
+	for !r.closed && len(r.queue) > 0 && len(r.active) < recoveryMaxCohorts && r.resultCalls < recoveryMaxResultCalls {
+		works := make([]*recoveryWork, 0, 16)
+		groups, uids := 0, 0
+		for len(r.queue) > 0 && len(works) < 16 && len(works) < recoveryMaxResultCalls-r.resultCalls {
+			w := r.queue[0]
+			if w.finished {
+				r.queue[0] = nil
+				r.queue = r.queue[1:]
+				continue
+			}
+			wc := 0
+			for _, g := range w.groups {
+				wc += len(g.UIDs)
+			}
+			if groups+len(w.groups) > 256 || uids+wc > authority.RecoveryBatchSize {
+				break
+			}
+			r.queue[0] = nil
+			r.queue = r.queue[1:]
+			works = append(works, w)
+			groups += len(w.groups)
+			uids += wc
+		}
+		if len(works) == 0 {
+			break
+		}
+		executionCtx, cancel := context.WithCancel(context.Background())
+		// A one-call execution may retain that call's observation. A shared batch
+		// deliberately has no invented first-caller trace parent or cancellation.
+		if len(works) == 1 {
+			executionCtx = rpctrace.Copy(executionCtx, works[0].creator.ctx)
+		}
+		e := &recoveryExecution{ctx: executionCtx, cancel: cancel, works: works}
+		for _, w := range works {
+			w.execution = e
+			close(w.started)
+		}
+		r.active[e] = struct{}{}
+		r.resultCalls += len(works)
+		goroutine.Default().Go(goroutine.TaskPresenceRecoveryScheduler, func() { r.execute(e) })
+	}
+}
+
+// execute owns complete original-call responses through fenced installation,
+// then drops provider references before returning the batch result credits.
+func (r *AuthorityRecovery) execute(e *recoveryExecution) {
+	outcomes := make([]map[recoveryUIDKey]error, len(e.works))
+	calls := make([]RecoveryCall, len(e.works))
+	for i, w := range e.works {
+		outcomes[i] = make(map[recoveryUIDKey]error, len(w.flights))
+		for _, f := range w.flights {
+			outcomes[i][f.key] = authority.ErrRouteNotReady
+		}
+		for _, g := range w.groups {
+			uids, err := r.directory.RecoveryUIDs(g.Target, g.UIDs)
+			for _, uid := range g.UIDs {
+				outcomes[i][recoveryKey(g.Target, uid)] = err
+			}
+			if err == nil && len(uids) > 0 {
+				calls[i].Groups = append(calls[i].Groups, EndpointLookupGroup{Target: g.Target, UIDs: uids})
+			}
+		}
+	}
+	// Empty proofs are not sent to ports whose contract requires nonempty calls.
+	activeCalls := make([]RecoveryCall, 0, len(calls))
+	indexes := make([]int, 0, len(calls))
+	for i, c := range calls {
+		if len(c.Groups) > 0 {
+			activeCalls = append(activeCalls, c)
+			indexes = append(indexes, i)
+		}
+	}
+	var recovered [][]EndpointLookupResult
+	if len(activeCalls) > 0 {
+		if batch, ok := r.owners.(RecoveryCallBatchOwners); ok {
+			recovered = batch.RecoverRouteCalls(e.ctx, activeCalls)
+		} else {
+			recovered = make([][]EndpointLookupResult, len(activeCalls))
+			for i, c := range activeCalls {
+				if batch, ok := r.owners.(RecoveryBatchOwners); ok {
+					recovered[i] = batch.RecoverRoutesByTargets(e.ctx, c.Groups)
+				} else {
+					recovered[i] = make([]EndpointLookupResult, len(c.Groups))
+					for j, g := range c.Groups {
+						recovered[i][j].Routes, recovered[i][j].Err = r.owners.RecoverRoutes(e.ctx, g.Target, g.UIDs)
+					}
+				}
+			}
+		}
+	}
+	for j, c := range activeCalls {
+		i := indexes[j]
+		routeCount := 0
+		if len(recovered) == len(activeCalls) {
+			for _, result := range recovered[j] {
+				routeCount += len(result.Routes)
+			}
+		}
+		for k, g := range c.Groups {
+			err := e.ctx.Err()
+			if err == nil && (len(recovered) != len(activeCalls) || len(recovered[j]) != len(c.Groups) || routeCount > 4096) {
+				err = authority.ErrRouteNotReady
+			}
+			if err == nil {
+				err = recovered[j][k].Err
+			}
+			if err == nil {
+				// Validate the original provider boundary before removing any
+				// canceled UID. Filtering must not hide a malformed owner row
+				// that the Directory would have rejected before this scheduler.
+				allowed := make(map[string]struct{}, len(g.UIDs))
+				for _, uid := range g.UIDs {
+					allowed[uid] = struct{}{}
+				}
+				for _, route := range recovered[j][k].Routes {
+					if _, ok := allowed[route.UID]; !ok || route.OwnerNodeID == 0 || route.OwnerBootID == 0 || route.SessionID == 0 {
+						err = authority.ErrStaleRoute
+						break
+					}
+				}
+			}
+			live := r.liveRecoveryUIDs(e.works[i], g)
+			wanted := make(map[string]struct{}, len(live))
+			for _, uid := range live {
+				wanted[uid] = struct{}{}
+			}
+			if err == nil && len(live) == 0 {
+				err = authority.ErrRouteNotReady
+			}
+			if err == nil {
+				routes := recovered[j][k].Routes
+				if len(live) != len(g.UIDs) {
+					filtered := make([]Route, 0, len(routes))
+					for _, route := range routes {
+						if _, ok := wanted[route.UID]; ok {
+							filtered = append(filtered, route)
+						}
+					}
+					routes = filtered
+				}
+				span := rpctrace.Begin(e.ctx, rpctrace.StageRecoveryInstall)
+				err = r.directory.InstallRecoveredRoutes(g.Target, live, routes)
+				span.End(rpctrace.ResultFor(err))
+			}
+			for _, uid := range g.UIDs {
+				outcome := err
+				if _, ok := wanted[uid]; !ok {
+					outcome = authority.ErrRouteNotReady
+				}
+				outcomes[i][recoveryKey(g.Target, uid)] = outcome
+			}
+		}
+	}
+	// Release response references before returning result responsibility credits.
+	recovered = nil
+	activeCalls = nil
+	calls = nil
+	e.cancel()
+	r.mu.Lock()
+	count := len(e.works)
+	for i, w := range e.works {
+		r.finishWorkLocked(w, outcomes[i])
+		e.works[i] = nil
+	}
+	e.works = nil
+	delete(r.active, e)
+	r.resultCalls -= count
+	r.kickLocked()
+	r.maybeDrainedLocked()
+	r.mu.Unlock()
+}
+
+// finishWorkLocked publishes status, removes all active ownership references,
+// and transfers only the small retired flight/channel to charged caller indices.
+func (r *AuthorityRecovery) finishWorkLocked(w *recoveryWork, outcomes map[recoveryUIDKey]error) {
+	if w.finished {
+		return
+	}
+	w.finished = true
+	if w.execution == nil {
+		// Canceled queued work must leave the physical queue before its ledger
+		// credits return, even while every execution/result credit is occupied.
+		for i, queued := range r.queue {
+			if queued == w {
+				copy(r.queue[i:], r.queue[i+1:])
+				r.queue[len(r.queue)-1] = nil
+				r.queue = r.queue[:len(r.queue)-1]
+				break
+			}
+		}
+		close(w.started)
+	}
+	for _, f := range w.flights {
+		key := f.key
+		err := authority.ErrRouteNotReady
+		if outcomes != nil {
+			err = outcomes[key]
+		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			err = authority.ErrRouteNotReady
 		}
-		r.inFlight[key].err = err
+		f.err = err
 		delete(r.inFlight, key)
+		delete(outcomes, key)
+		f.key = recoveryUIDKey{}
+		f.users = nil
+		f.userPeak = 0
+		close(f.done)
 	}
-	r.ownedUIDBytes -= cohort.uidBytes
-	r.cohorts--
-	close(cohort.done)
-	close(r.changed)
-	r.changed = make(chan struct{})
+	w.groups = nil
+	w.flights = nil
+	creator := w.creator
+	w.creator = nil
+	w.execution = nil
+	r.ownedUIDBytes -= w.bytes
+	r.releaseMemberLocked(creator)
+}
+func (r *AuthorityRecovery) maybeDrainedLocked() {
+	if r.closed && !r.drainClosed && len(r.active) == 0 && len(r.members) == 0 && !r.dispatchPending {
+		close(r.drained)
+		r.drainClosed = true
+	}
 }

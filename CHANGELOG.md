@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Batch concurrent cold presence recovery through bounded fair admission, retain
+  independent caller route limits, and cancel timed-out read-only presence RPCs.
+  / 在线路由冷恢复通过有界公平调度合并并发读取，保留各请求独立路由上限，
+  并及时取消已超时的只读 presence RPC。
+
 - Add opt-in bounded RPC phase samples to the existing diagnostics interface,
   correlating caller and receiver queue, handler and response-write intervals.
   / 现有诊断接口新增默认关闭的有界 RPC 分段观测，可关联调用端与接收端的

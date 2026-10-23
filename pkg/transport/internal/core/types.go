@@ -215,12 +215,22 @@ type ServiceOptions struct {
 	// CancelRunning permits a caller deadline, cancellation or disconnect to stop
 	// an executing handler. Keep false for mutations that must finish once started.
 	CancelRunning bool
+	// CancelRunningFor classifies one request immediately before handler execution.
+	// Only trusted registration code may supply this bounded, non-blocking callback.
+	// It must support concurrent calls up to the configured service concurrency.
+	// It borrows payload read-only and must not retain it. True follows the original
+	// request context; false (including unknown payloads) preserves independent work.
+	// Nil preserves CancelRunning. Both policies must not be configured together.
+	CancelRunningFor func([]byte) bool
 	// MaxPayload bounds accepted payload bytes for this service; zero means use the transport frame limit.
 	MaxPayload int
 }
 
 // Validate rejects service settings that would create unbounded or unusable work queues.
 func (o ServiceOptions) Validate() error {
+	if o.CancelRunning && o.CancelRunningFor != nil {
+		return fmt.Errorf("%w: service cancellation policies are mutually exclusive", ErrInvalidConfig)
+	}
 	if o.Concurrency <= 0 {
 		return fmt.Errorf("%w: service concurrency must be positive", ErrInvalidConfig)
 	}

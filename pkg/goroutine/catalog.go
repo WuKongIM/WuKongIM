@@ -142,6 +142,7 @@ const (
 	TaskDatabaseBackupStream             TaskID = "database/backup_stream"
 	TaskDatabaseCommitCoordinator        TaskID = "database/commit_coordinator"
 	TaskPresenceBatchResolve             TaskID = "presence/batch_resolve"
+	TaskPresenceRecoveryScheduler        TaskID = "presence/recovery_scheduler"
 	TaskMQTTWillScheduler                TaskID = "mqtt/will_scheduler"
 	TaskMQTTConsumerScheduler            TaskID = "mqtt/consumer_scheduler"
 	TaskMQTTConsumerWorker               TaskID = "mqtt/consumer_worker"
@@ -257,6 +258,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskDatabaseBackupStream, Module: ModuleDatabase, Name: "backup_stream", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskDatabaseCommitCoordinator, Module: ModuleDatabase, Name: "commit_coordinator", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskPresenceBatchResolve, Module: ModulePresence, Name: "batch_resolve", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
+	{ID: TaskPresenceRecoveryScheduler, Module: ModulePresence, Name: "recovery_scheduler", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMQTTWillScheduler, Module: ModuleMQTT, Name: "will_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMQTTConsumerScheduler, Module: ModuleMQTT, Name: "consumer_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMQTTConsumerWorker, Module: ModuleMQTT, Name: "consumer_worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},

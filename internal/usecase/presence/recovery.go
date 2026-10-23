@@ -26,22 +26,35 @@ type RecoveryOwners interface {
 type AuthorityRecovery struct {
 	directory RecoveryDirectory
 	owners    RecoveryOwners
-	// mu protects admission accounting only; it never spans owner I/O or waits.
+	// mu protects the joint FIFO, identity and ownership budgets; never owner I/O.
 	mu sync.Mutex
-	// inFlight retains only admitted UID identities and completion status.
+	// inFlight owns fenced UID clones until their provider and installation join.
 	inFlight map[recoveryUIDKey]*recoveryUIDFlight
-	// ownedUIDBytes counts exact UID clones retained by admitted leaders only.
+	// ownedUIDBytes covers UID clones and conservative caller/index metadata.
 	ownedUIDBytes int
-	// cohorts bounds caller-executed owner rounds, including downstream admission.
-	cohorts int
-	// changed wakes quota waiters without retaining a per-waiter queue.
-	changed chan struct{}
+	// members charges waiting and active callers together, including canceled
+	// creators whose actual provider still owns their work.
+	members map[*recoveryMember]struct{}
+	// queue is FIFO and contains only accepted, unfinished work.
+	queue []*recoveryWork
+	// active bounds actual batches independently of original-call result credits.
+	active map[*recoveryExecution]struct{}
+	// resultCalls caps retained response responsibility at 16 original calls,
+	// each retaining its independent 4096-route availability.
+	resultCalls int
+	// dispatchPending gives ready admissions/completions one temporary dispatcher.
+	dispatchPending bool
+	// closed fences admission; drained closes only after callers and real work join.
+	closed      bool
+	drained     chan struct{}
+	drainClosed bool
 }
 
 // NewAuthorityRecovery creates bounded UID proof admission for owner reconstruction.
 func NewAuthorityRecovery(directory RecoveryDirectory, owners RecoveryOwners) *AuthorityRecovery {
 	return &AuthorityRecovery{directory: directory, owners: owners,
-		inFlight: make(map[recoveryUIDKey]*recoveryUIDFlight), changed: make(chan struct{})}
+		inFlight: make(map[recoveryUIDKey]*recoveryUIDFlight), members: make(map[*recoveryMember]struct{}),
+		active: make(map[*recoveryExecution]struct{}), drained: make(chan struct{})}
 }
 
 // RecoveryBatchOwners returns aligned proofs while sharing each owner read
