@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,6 +23,16 @@ type Client struct {
 	cfg           ClientConfig
 	peers         *peer.Manager
 	observer      *core.ObserverDrain
+	// ownershipMu fences admission before Stop begins waiting on owned calls.
+	ownershipMu sync.Mutex
+	stopped     bool
+	// active and retainedBytes include acquire/dial and pending-call responsibility.
+	active        int
+	retainedBytes int64
+	operations    sync.WaitGroup
+	stopOnce      sync.Once
+	// stopDone includes late dial cleanup and terminal observer delivery.
+	stopDone chan struct{}
 }
 
 // NewClient validates config and builds a minimal client shell.
@@ -43,6 +54,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	}
 	return &Client{
 		cfg:           normalized,
+		stopDone:      make(chan struct{}),
 		traceRecorder: recorder,
 		observer:      observer,
 		peers: peer.NewManager(peer.Config{
@@ -62,6 +74,13 @@ func (c *Client) Send(ctx context.Context, nodeID NodeID, shardKey uint64, pri P
 
 // SendOwned sends payload as a data frame and transfers ownership on success.
 func (c *Client) SendOwned(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload OwnedBuffer) error {
+	retained := int64(payload.RetainedBytes())
+	if !c.admitOperation(retained) {
+		payload.Release()
+		return ErrStopped
+	}
+	defer c.finishOperation(retained)
+
 	peerConn, err := c.peers.Acquire(ctx, nodeID, shardKey)
 	if err != nil {
 		payload.Release()
@@ -82,6 +101,13 @@ func (c *Client) Notify(ctx context.Context, nodeID NodeID, shardKey uint64, pri
 
 // NotifyOwned sends payload as a notify frame and transfers ownership on success.
 func (c *Client) NotifyOwned(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload OwnedBuffer) error {
+	retained := int64(payload.RetainedBytes())
+	if !c.admitOperation(retained) {
+		payload.Release()
+		return ErrStopped
+	}
+	defer c.finishOperation(retained)
+
 	peerConn, err := c.peers.Acquire(ctx, nodeID, shardKey)
 	if err != nil {
 		payload.Release()
@@ -103,6 +129,14 @@ func (c *Client) Call(ctx context.Context, nodeID NodeID, shardKey uint64, pri P
 // CallOwned sends payload as an RPC request, transfers ownership on successful
 // admission, and waits for the response.
 func (c *Client) CallOwned(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload OwnedBuffer) (_ []byte, err error) {
+	retained := int64(payload.RetainedBytes())
+	if !c.admitOperation(retained) {
+		payload.Release()
+		return nil, ErrStopped
+	}
+	// Registered first so request observers finish before ownership is returned.
+	defer c.finishOperation(retained)
+
 	if c.cfg.Observer != nil {
 		started := time.Now()
 		defer func() {
@@ -157,13 +191,79 @@ func (c *Client) CallOwned(ctx context.Context, nodeID NodeID, shardKey uint64, 
 
 // ClosePeer closes all outbound connection slots for nodeID.
 func (c *Client) ClosePeer(nodeID NodeID) {
+	if !c.admitOperation(0) {
+		return
+	}
+	defer c.finishOperation(0)
 	c.peers.ClosePeer(nodeID)
 }
 
-// Stop releases client resources.
+// Stop begins shutdown with a bounded compatibility grace. Dependency owners
+// must use StopContext to distinguish complete cleanup from retained work.
 func (c *Client) Stop() {
-	c.peers.Stop()
-	c.observer.Stop()
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	_ = c.StopContext(ctx)
+}
+
+// StopContext joins connection shutdown, actual request/dial completion, and
+// observations. A canceled waiter cannot abandon or duplicate that ownership.
+func (c *Client) StopContext(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	c.stopOnce.Do(func() {
+		c.ownershipMu.Lock()
+		c.stopped = true
+		c.ownershipMu.Unlock()
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportClientShutdown, func() {
+			c.peers.Stop()
+			c.operations.Wait()
+			c.observer.Stop()
+			close(c.stopDone)
+		})
+	})
+	select {
+	case <-c.stopDone:
+		return nil
+	default:
+	}
+	select {
+	case <-c.stopDone:
+		return nil
+	case <-ctx.Done():
+		select {
+		case <-c.stopDone:
+			return nil
+		default:
+		}
+		c.ownershipMu.Lock()
+		incomplete := &StopIncompleteError{cause: ctx.Err(), requests: c.active, retainedBytes: c.retainedBytes}
+		c.ownershipMu.Unlock()
+		return incomplete
+	}
+}
+
+// admitOperation joins ownership before a concurrent Stop may wait. The caller
+// retains its payload through acquire/dial and transfers it under existing rules.
+func (c *Client) admitOperation(bytes int64) bool {
+	c.ownershipMu.Lock()
+	defer c.ownershipMu.Unlock()
+	if c.stopped {
+		return false
+	}
+	c.active++
+	c.retainedBytes += bytes
+	c.operations.Add(1)
+	return true
+}
+
+func (c *Client) finishOperation(bytes int64) {
+	c.ownershipMu.Lock()
+	c.active--
+	c.retainedBytes -= bytes
+	c.ownershipMu.Unlock()
+	c.operations.Done()
 }
 
 // Stats returns a point-in-time client stats snapshot.

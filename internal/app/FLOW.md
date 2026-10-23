@@ -47,7 +47,7 @@ Stop or startup rollback
   -> close entry admission
   -> drain Gateway deferred publications, then close ordered submissions
   -> drain Channel append and accepted post-commit work
-  -> stop side-effect, presence, and cluster dependencies in reverse order
+  -> stop side-effect, presence, and cluster dependencies in reverse order; incomplete cluster Stop/startup rollback retains audit dependencies and remains reachable for retry
 ```
 
 ## Invariants and Failure Semantics

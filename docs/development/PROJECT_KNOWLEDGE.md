@@ -2049,6 +2049,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Commit observations follow each logical request from queue-credit admission
   through physical-batch entry, collection, build, durable commit and publication;
   shared physical phases overlap across requests and publication excludes Finalize.
+  Commit intervals require a propagated trace: the Channel leader's asynchronous
+  reactor/durability contexts do not yet carry it. Follower exchange RPC commit
+  samples describe that exchange, not the original SEND's full storage path.
+  Absent commit intervals cannot establish absent storage waiting.
   Presence census distinguishes actual execution batches and original-call
   result responsibility. Decoded result/page bytes are diagnostic structural
   estimates (visible slice capacity plus live strings), not heap or RSS bounds;
@@ -2069,5 +2073,15 @@ specification, runbook, report, or module documentation; link to them when neede
   to 4096 routes, while each versioned response page also caps total routes at
   4096. A continuation shares one original owner deadline, validates membership
   and owner boot across pages, and never converts incomplete proof into offline.
+
+- Transport `StopContext` fences new admission and joins actual request, late
+  dial, connection reader/writer and observer completion. `ErrStopIncomplete`
+  retains that generation for a later join; compatibility `Stop()` has only a
+  bounded grace. A connection's `Done` means shutdown began, not that transferred
+  payloads were released; reconnect cannot forget a retiring writer. Cluster
+  lifecycle joins inbound handlers before outbound calls and their dependencies.
+  Startup rollback retains unfinished owners, while ordinary cleanup errors
+  still allow unrelated cleanup. This does not promise bounded termination of
+  arbitrary noncooperative background adapters or certify throughput.
 
 - Flutter EasySDK versions are selected in `docs-site/lib/easy-sdk-releases.json`; `/sdk/easy/flutter/streaming` documents independent peers and backend recovery. Keep historical 1.1.0 matrix identities separate from 1.2.1 pub.dev/native evidence.

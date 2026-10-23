@@ -217,6 +217,38 @@ func (s *Service) Enqueue(req Request) error {
 	return nil
 }
 
+// CloseAdmission fences enqueue and pump ownership without waiting for handlers
+// or terminal callbacks. The server calls it before exposing an incomplete Stop.
+func (s *Service) CloseAdmission() {
+	s.mu.Lock()
+	s.stopped = true
+	s.cancel()
+	s.armQueueTimerLocked()
+	s.mu.Unlock()
+}
+
+// Wait joins all admitted owners. Expiry never means their resources are free.
+func (s *Service) Wait(ctx context.Context) error {
+	select {
+	case <-s.done:
+		return nil
+	default:
+	}
+	select {
+	case <-s.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Ownership reports payload responsibility through terminal callback completion.
+func (s *Service) Ownership() (int, int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.retainedItems, s.retainedBytes
+}
+
 // Stop rejects admission and releases queued owners before joining active work.
 func (s *Service) Stop() {
 	s.stopOnce.Do(func() {

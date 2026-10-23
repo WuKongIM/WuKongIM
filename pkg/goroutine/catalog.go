@@ -103,6 +103,8 @@ const (
 	TaskTransportRPCExecutorRelease      TaskID = "transport/rpc_executor_release"
 	TaskTransportClientObserver          TaskID = "transport/client_observer"
 	TaskTransportServerObserver          TaskID = "transport/server_observer"
+	TaskTransportServerShutdown          TaskID = "transport/server_shutdown"
+	TaskTransportClientShutdown          TaskID = "transport/client_shutdown"
 	TaskTransportAccept                  TaskID = "transport/accept"
 	TaskTransportConnectionCleanup       TaskID = "transport/connection_cleanup"
 	TaskClusterNodeControlWatch          TaskID = "cluster/node_control_watch"
@@ -219,6 +221,8 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskTransportRPCExecutorRelease, Module: ModuleTransport, Name: "rpc_executor_release", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskTransportClientObserver, Module: ModuleTransport, Name: "client_observer", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskTransportServerObserver, Module: ModuleTransport, Name: "server_observer", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskTransportClientShutdown, Module: ModuleTransport, Name: "client_shutdown", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskTransportServerShutdown, Module: ModuleTransport, Name: "server_shutdown", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskTransportAccept, Module: ModuleTransport, Name: "accept", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1, Required: true},
 	{ID: TaskTransportConnectionCleanup, Module: ModuleTransport, Name: "connection_cleanup", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskClusterNodeControlWatch, Module: ModuleCluster, Name: "node_control_watch", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1, Required: true},

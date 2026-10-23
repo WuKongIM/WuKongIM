@@ -73,6 +73,11 @@ func (a *App) Start(ctx context.Context) error {
 		wklog.Event("internal.app.starting"),
 	)...)
 	if err := a.cluster.Start(ctx); err != nil {
+		if stopRetainsDependencies(err) {
+			// Startup can accept RPC work before a later component fails.
+			// Keep its partial generation reachable from the unstarted Stop path.
+			a.clusterStarted = true
+		}
 		a.logLifecycleError("cluster", "start", err)
 		return err
 	}
@@ -411,6 +416,17 @@ func (a *App) Stop(ctx context.Context) error {
 				err = errors.Join(err, stopErr)
 			}
 		}
+		if a.clusterStarted && a.cluster != nil {
+			if stopErr := a.cluster.Stop(ctx); stopErr != nil {
+				a.logLifecycleWarn("cluster", "stop_before_start", stopErr)
+				err = errors.Join(err, stopErr)
+				if stopRetainsDependencies(stopErr) {
+					return err
+				}
+			} else {
+				a.clusterStarted = false
+			}
+		}
 		if stopErr := a.closeControllerTaskAudit(); stopErr != nil {
 			a.logLifecycleWarn("controller_task_audit", "stop", stopErr)
 			err = errors.Join(err, stopErr)
@@ -576,6 +592,9 @@ func (a *App) Stop(ctx context.Context) error {
 		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("cluster", "stop", stopErr)
 			err = errors.Join(err, stopErr)
+			if stopRetainsDependencies(stopErr) {
+				return err
+			}
 		} else {
 			a.clusterStarted = false
 		}
@@ -786,6 +805,9 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("cluster", "rollback_stop", stopErr)
 			err = errors.Join(err, stopErr)
+			if stopRetainsDependencies(stopErr) {
+				return err
+			}
 		} else {
 			a.clusterStarted = false
 		}
@@ -798,6 +820,13 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 		a.started = false
 	}
 	return err
+}
+
+// stopRetainsDependencies distinguishes active shutdown ownership from an
+// ordinary cleanup diagnostic, which must not block unrelated cleanup.
+func stopRetainsDependencies(err error) bool {
+	var incomplete interface{ StopIncomplete() bool }
+	return errors.As(err, &incomplete) && incomplete.StopIncomplete()
 }
 
 // closePresenceRecovery retains the cohort and its cluster dependency until

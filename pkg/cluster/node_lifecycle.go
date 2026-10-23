@@ -9,9 +9,16 @@ import (
 )
 
 // Start starts the node runtime and hosted background loops.
-func (n *Node) Start(ctx context.Context) error {
+func (n *Node) Start(ctx context.Context) (err error) {
 	if n == nil {
 		return ErrNotStarted
+	}
+	// A failed startup or interrupted Stop may still own accepted RPCs. Join
+	// that generation before creating replacement transport or storage owners.
+	if n.group.HasStarted() && (!n.started.Load() || n.stopping.Load()) {
+		if err := n.Stop(ctx); err != nil {
+			return err
+		}
 	}
 	if err := ctxErr(ctx); err != nil {
 		return err
@@ -22,6 +29,10 @@ func (n *Node) Start(ctx context.Context) error {
 	started := false
 	createdDefaultChannels := false
 	defer func() {
+		if lifecycle.IsStopIncomplete(err) {
+			n.stopping.Store(true)
+			return
+		}
 		if !started && createdDefaultChannels {
 			n.discardDefaultChannels()
 			n.markChannelsReady(false)
@@ -36,7 +47,6 @@ func (n *Node) Start(ctx context.Context) error {
 			n.discardDefaultTransport()
 		}
 	}()
-	var err error
 	createdDefaultChannels, err = n.ensureDefaultRuntime()
 	if err != nil {
 		return err
@@ -50,19 +60,14 @@ func (n *Node) Start(ctx context.Context) error {
 	}
 	if n.control != nil {
 		if err := n.control.Start(ctx); err != nil {
-			_ = n.group.Stop(ctx)
-			return err
+			return errors.Join(err, n.rollbackStartupResources(ctx, false))
 		}
 		snapshot, err := n.initialControlSnapshot(ctx)
 		if err != nil {
-			_ = n.control.Stop(ctx)
-			_ = n.group.Stop(ctx)
-			return err
+			return errors.Join(err, n.rollbackStartupResources(ctx, true))
 		}
 		if err := n.applySnapshot(ctx, snapshot); err != nil {
-			_ = n.control.Stop(ctx)
-			_ = n.group.Stop(ctx)
-			return err
+			return errors.Join(err, n.rollbackStartupResources(ctx, true))
 		}
 	}
 	n.started.Store(true)
@@ -77,6 +82,29 @@ func (n *Node) Start(ctx context.Context) error {
 	n.startChannelMigrationLoop()
 	started = true
 	return nil
+}
+
+// rollbackStartupResources joins transport users while Controller and runtime
+// dependencies remain available. The normal retryable Stop owns later cleanup.
+func (n *Node) rollbackStartupResources(ctx context.Context, controlStarted bool) error {
+	err := n.group.Quiesce(ctx)
+	if lifecycle.IsStopIncomplete(err) {
+		return err
+	}
+	if controlStarted && n.control != nil {
+		if stopErr := ctxErr(ctx); stopErr != nil {
+			return errors.Join(err, &nodeStopIncompleteError{cause: stopErr})
+		}
+		stopErr := n.control.Stop(ctx)
+		if stopErr != nil && ctx.Err() != nil && errors.Is(stopErr, ctx.Err()) {
+			return errors.Join(err, &nodeStopIncompleteError{cause: stopErr})
+		}
+		err = errors.Join(err, stopErr)
+		if lifecycle.IsStopIncomplete(err) {
+			return err
+		}
+	}
+	return errors.Join(err, n.group.Stop(ctx))
 }
 
 func (n *Node) startResources() []lifecycle.NamedResource {
@@ -97,8 +125,8 @@ func (n *Node) Stop(ctx context.Context) error {
 	if n == nil {
 		return nil
 	}
-	if err := ctxErr(ctx); err != nil {
-		return err
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	n.mu.Lock()
 	n.stopping.Store(true)
@@ -121,6 +149,20 @@ func (n *Node) Stop(ctx context.Context) error {
 	n.stopChannelRetentionGCLoop()
 	n.stopChannelMigrationLoop()
 	var errs []error
+	// Incoming handlers may still call Slots, Controller, Channels or nested
+	// outbound RPCs. Join server then client ownership before closing any of
+	// those dependencies, even when the stopping caller is already canceled.
+	if err := n.group.Quiesce(ctx); err != nil {
+		errs = append(errs, err)
+		if lifecycle.IsStopIncomplete(err) {
+			return errors.Join(errs...)
+		}
+	}
+	// Controller.Stop rejects an expired context before releasing its backend.
+	// A completed transport join does not authorize disposing that live runtime.
+	if err := ctxErr(ctx); err != nil && (n.started.Load() || n.group.HasStarted()) {
+		return errors.Join(errors.Join(errs...), &nodeStopIncompleteError{cause: err})
+	}
 	if n.defaultSlotProxy != nil {
 		n.defaultSlotProxy.CloseSendPermissionReads()
 	}
@@ -154,10 +196,16 @@ func (n *Node) Stop(ctx context.Context) error {
 	if n.control != nil {
 		if err := n.control.Stop(ctx); err != nil {
 			errs = append(errs, err)
+			if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+				return errors.Join(errors.Join(errs...), &nodeStopIncompleteError{cause: err})
+			}
 		}
 	}
 	if err := n.group.Stop(ctx); err != nil {
 		errs = append(errs, err)
+		if lifecycle.IsStopIncomplete(err) {
+			return errors.Join(errs...)
+		}
 	}
 	if n.defaultSlots {
 		if n.defaultSlotRuntime != nil {
@@ -202,6 +250,17 @@ func (n *Node) Stop(ctx context.Context) error {
 	n.started.Store(false)
 	return errors.Join(errs...)
 }
+
+// nodeStopIncompleteError retains runtime ownership when the caller budget
+// expires after transport joins but before Controller cleanup can complete.
+type nodeStopIncompleteError struct{ cause error }
+
+func (e *nodeStopIncompleteError) Error() string {
+	return "cluster: runtime cleanup incomplete: " + e.cause.Error()
+}
+
+func (e *nodeStopIncompleteError) Unwrap() error        { return e.cause }
+func (e *nodeStopIncompleteError) StopIncomplete() bool { return true }
 
 func (n *Node) closeDefaultChannelStore() error {
 	if n == nil || n.defaultChannelStore == nil {

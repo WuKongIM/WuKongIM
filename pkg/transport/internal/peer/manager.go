@@ -98,7 +98,20 @@ func (m *Manager) Acquire(ctx context.Context, nodeID core.NodeID, shardKey uint
 		peer, slot := m.slotLocked(nodeID, slotIndex)
 		if slot.conn != nil {
 			if connDone(slot.conn) {
-				slot.conn = nil
+				// Keep the retiring generation discoverable by Stop until its
+				// writer releases all transferred payloads. Reconnect cannot
+				// accumulate hidden generations behind a blocked cleanup.
+				retiring := slot.conn
+				m.mu.Unlock()
+				if err := retiring.WaitContext(ctx); err != nil {
+					return nil, err
+				}
+				m.mu.Lock()
+				if slot.conn == retiring {
+					slot.conn = nil
+				}
+				m.mu.Unlock()
+				continue
 			} else {
 				c := slot.conn
 				m.mu.Unlock()

@@ -45,8 +45,14 @@ type Server struct {
 	// stopped rejects new listeners, handlers, and tracked connections.
 	stopped bool
 
-	// stopOnce makes Stop idempotent.
+	// stopOnce starts one physical shutdown, independent of caller budgets.
 	stopOnce sync.Once
+	// stopDone closes only after connections, requests, workers and observations join.
+	stopDone chan struct{}
+	// acceptDone joins the listener owner; nil before ListenAndServe.
+	acceptDone chan struct{}
+	// connWG joins connection cleanup after its read and write loops exit.
+	connWG sync.WaitGroup
 }
 
 // NewServer validates config and builds a minimal server shell.
@@ -75,6 +81,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		cancel:        cancel,
 		services:      make(map[uint16]*rpc.Service),
 		conns:         make(map[*conn.Conn]struct{}),
+		stopDone:      make(chan struct{}),
 	}, nil
 }
 
@@ -146,6 +153,7 @@ func (s *Server) ListenAndServe(addr string) error {
 		return fmt.Errorf("%w: server already listening", ErrInvalidConfig)
 	}
 	s.listener = listener
+	s.acceptDone = make(chan struct{})
 	s.mu.Unlock()
 
 	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportAccept, func() { s.acceptLoop(listener) })
@@ -162,40 +170,97 @@ func (s *Server) Addr() string {
 	return s.listener.Addr().String()
 }
 
-// Stop releases server resources.
+// Stop begins shutdown and preserves its bounded compatibility grace. Callers
+// that own dependencies must use StopContext and check its result before closing them.
 func (s *Server) Stop() {
-	s.stopOnce.Do(func() {
-		s.cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	_ = s.StopContext(ctx)
+}
 
+// StopContext fences new requests and joins the same shutdown across all calls.
+// An expired caller budget returns an incomplete-ownership error; it never
+// cancels cleanup or releases dependencies of a handler that is still running.
+func (s *Server) StopContext(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	s.stopOnce.Do(func() {
 		s.mu.Lock()
 		s.stopped = true
-		listener := s.listener
-		services := make([]*rpc.Service, 0, len(s.services))
+		s.cancel()
 		for _, service := range s.services {
-			services = append(services, service)
+			service.CloseAdmission()
 		}
-		executor := s.executor
-		conns := make([]*conn.Conn, 0, len(s.conns))
-		for c := range s.conns {
-			conns = append(conns, c)
-		}
-		s.conns = make(map[*conn.Conn]struct{})
 		s.mu.Unlock()
-
-		if listener != nil {
-			_ = listener.Close()
-		}
-		for _, c := range conns {
-			c.Close(core.ErrStopped)
-		}
-		for _, service := range services {
-			service.Stop()
-		}
-		if executor != nil {
-			_ = executor.Stop()
-		}
-		s.observer.Stop()
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportServerShutdown, s.shutdown)
 	})
+	select {
+	case <-s.stopDone:
+		return nil
+	default:
+	}
+	select {
+	case <-s.stopDone:
+		return nil
+	case <-ctx.Done():
+		select {
+		case <-s.stopDone:
+			return nil
+		default:
+		}
+		return s.incompleteStop(ctx.Err())
+	}
+}
+
+// shutdown retains every owner until its actual completion, including handlers
+// that intentionally ignore request cancellation. No caller can start a second drain.
+func (s *Server) shutdown() {
+	s.mu.RLock()
+	listener, acceptDone, executor := s.listener, s.acceptDone, s.executor
+	services := make([]*rpc.Service, 0, len(s.services))
+	for _, service := range s.services {
+		services = append(services, service)
+	}
+	conns := make([]*conn.Conn, 0, len(s.conns))
+	for c := range s.conns {
+		conns = append(conns, c)
+	}
+	s.mu.RUnlock()
+	if listener != nil {
+		_ = listener.Close()
+	}
+	if acceptDone != nil {
+		<-acceptDone
+	}
+	for _, c := range conns {
+		c.Close(core.ErrStopped)
+	}
+	s.connWG.Wait()
+	for _, service := range services {
+		service.Stop()
+	}
+	for _, service := range services {
+		_ = service.Wait(context.Background())
+	}
+	if executor != nil {
+		_ = executor.Stop()
+		_ = executor.Wait(context.Background())
+	}
+	s.observer.Stop()
+	close(s.stopDone)
+}
+
+func (s *Server) incompleteStop(cause error) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	incomplete := &StopIncompleteError{cause: cause, connections: len(s.conns)}
+	for _, service := range s.services {
+		requests, retainedBytes := service.Ownership()
+		incomplete.requests += requests
+		incomplete.retainedBytes += retainedBytes
+	}
+	return incomplete
 }
 
 // Stats returns a point-in-time server stats snapshot.
@@ -206,6 +271,7 @@ func (s *Server) Stats() Stats {
 }
 
 func (s *Server) acceptLoop(listener net.Listener) {
+	defer close(s.acceptDone)
 	for {
 		raw, err := listener.Accept()
 		if err != nil {
@@ -219,7 +285,6 @@ func (s *Server) acceptLoop(listener net.Listener) {
 		if !s.trackConn(c) {
 			continue
 		}
-		c.Start()
 		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskTransportConnectionCleanup, func() { s.untrackConnWhenDone(c) })
 	}
 }
@@ -231,12 +296,16 @@ func (s *Server) trackConn(c *conn.Conn) bool {
 		c.Close(core.ErrStopped)
 		return false
 	}
+	c.Start()
+	s.connWG.Add(1)
 	s.conns[c] = struct{}{}
 	return true
 }
 
 func (s *Server) untrackConnWhenDone(c *conn.Conn) {
+	defer s.connWG.Done()
 	<-c.Done()
+	c.Close(core.ErrStopped)
 	s.mu.Lock()
 	delete(s.conns, c)
 	s.mu.Unlock()
@@ -403,5 +472,8 @@ func (s *Server) sendRPCErrorStatus(ctx context.Context, inbound conn.Inbound, s
 func (s *Server) service(serviceID uint16) *rpc.Service {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.stopped {
+		return nil
+	}
 	return s.services[serviceID]
 }

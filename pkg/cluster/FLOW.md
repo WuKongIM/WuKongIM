@@ -23,8 +23,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    Slots/Channels and exposes readiness. Default metadata enables its sequence seal
    before Slot construction. Only initial Node.Start permits certified FSM reuse or
    bounded installation with admission closed; live placement and maintenance reloads
-   retain atomic restore. Stop and failed-start rollback release owned proposal/task/status
-   references; Start rebuilds them while preserving injected adapters. Quorum gateways register anew per transport server.
+   retain atomic restore. Stop and failed-start rollback join incoming RPCs, then outbound owners before dependency cleanup; incomplete joins retain the same resources for retry.
+   Start joins retained generations before rebuilding owned references, preserving injected adapters. Quorum gateways register anew per transport server.
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    expose bounded exact-key UID membership reads and group Channel- or UID-owned
    work by physical Slot, execute locally or forward, and recheck leadership.
@@ -140,7 +140,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 
 Aggregate MQTT capacity uses one hash-Slot escrow row and immutable Controller storage rosters, including joining/leaving data nodes. Startup debt must be registered on every required node before growth. The existing periodic health owner reports health first, then maintains/refunds capacity with a separate bounded context and nonwaiting restore/apply ownership; no per-Channel task is added.
 
-- Send-permission routing seals bounded concurrent caller batches before one immutable authority publication and node-batched Slot queries. Every group holds admission through a fresh Slot barrier, pinned snapshot and final authority check. Stop/rollback closes and joins ingress batches before transport/storage; business evaluation stays in the usecase.
+- Send-permission routing seals bounded concurrent caller batches before one immutable authority publication and node-batched Slot queries. Every group holds admission through a fresh Slot barrier, pinned snapshot and final authority check. Stop/rollback joins transport owners before ingress batches and metadata/storage; business evaluation stays in the usecase.
 
 ## Read First
 - [Public API](api.go), [Node ownership](node.go), [Lifecycle](node_lifecycle.go), [Routing](routing/router.go), [Channels](channels/service.go)

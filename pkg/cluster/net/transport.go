@@ -100,6 +100,15 @@ func (s *TransportServer) Start(addr string) error { return s.server.ListenAndSe
 // Stop stops the underlying transport server.
 func (s *TransportServer) Stop() { s.server.Stop() }
 
+// StopContext joins accepted RPC owners before callers dispose dependencies.
+// An incomplete stop retains the same generation for a later join attempt.
+func (s *TransportServer) StopContext(ctx context.Context) error {
+	if s == nil || s.server == nil {
+		return nil
+	}
+	return s.server.StopContext(ctx)
+}
+
 // Addr returns the bound listener address.
 func (s *TransportServer) Addr() string {
 	if s == nil || s.server == nil {
@@ -250,6 +259,14 @@ func (c *TransportClient) Stop() {
 	if c != nil && c.client != nil {
 		c.client.Stop()
 	}
+}
+
+// StopContext joins outbound calls, late dials and observations before disposal.
+func (c *TransportClient) StopContext(ctx context.Context) error {
+	if c == nil || c.client == nil {
+		return nil
+	}
+	return c.client.StopContext(ctx)
 }
 
 func translateTransportCallError(nodeID uint64, serviceID uint8, err error) error {

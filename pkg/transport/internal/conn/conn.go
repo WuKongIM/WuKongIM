@@ -290,6 +290,27 @@ func (c *Conn) Close(err error) {
 	}
 }
 
+// WaitContext joins actual reader/writer completion without restarting shutdown.
+// Done only signals shutdown admission; a retiring writer can still own buffers.
+func (c *Conn) WaitContext(ctx context.Context) error {
+	if !c.started.Load() {
+		return nil
+	}
+	for _, done := range []<-chan struct{}{c.readDone, c.writeDone} {
+		select {
+		case <-done:
+			continue
+		default:
+		}
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+
 func (c *Conn) readLoop() {
 	defer close(c.readDone)
 	for {
