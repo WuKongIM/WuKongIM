@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Distinguish sampled Slot owner storage fallback, drain and Save-admission time
+  from ordinary asynchronous Save overlap, with fixed-size per-read observations.
+  / Slot 读取采样区分 owner 存储回退、排空和写盘准入时间，与普通异步 Save 重叠分开记录。
+
 - Avoid transient Slot read-busy errors when a majority has committed newer logs
   while local asynchronous storage catches up; fresh reads still wait for durable
   application of their required index. / 多数副本已提交新日志而本节点异步写盘尚未完成时，

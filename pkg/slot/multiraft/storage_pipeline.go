@@ -81,7 +81,7 @@ func (p *storagePipeline) run() {
 			p.mu.Lock()
 			w := p.queues[g][0]
 			p.mu.Unlock()
-			persist, err := g.runStorageAppend(context.Background(), w)
+			persist, err := g.runStorageAppend(context.Background(), w, nil)
 			// Stop this generation before the FIFO can begin any successor Save.
 			// Waiting for the owner to consume the error could persist a later
 			// HardState.Commit over an undurable predecessor.
@@ -125,10 +125,12 @@ func storageAppendReady(m raftpb.Message) raft.Ready {
 	return rd
 }
 
-func (g *slot) acquireSave(ctx context.Context) (func(), error) {
+func (g *slot) acquireSave(ctx context.Context, owner *ownerStorageToken) (func(), error) {
 	if g.storagePipeline == nil {
 		return func() {}, nil
 	}
+	prior := owner.setStage(ownerStagePermit)
+	defer owner.setStage(prior)
 	select {
 	case g.storagePipeline.budget.saves <- struct{}{}:
 		return func() { <-g.storagePipeline.budget.saves }, nil
@@ -139,7 +141,7 @@ func (g *slot) acquireSave(ctx context.Context) (func(), error) {
 
 // runStorageAppend executes only physical persistence. Memory and RawNode
 // mutation remain with the Raft owner after the completion is consumed.
-func (g *slot) runStorageAppend(ctx context.Context, w *storageWork) (PersistentState, error) {
+func (g *slot) runStorageAppend(ctx context.Context, w *storageWork, owner *ownerStorageToken) (PersistentState, error) {
 	if err := g.currentErr(); err != nil {
 		return PersistentState{}, err
 	}
@@ -150,7 +152,7 @@ func (g *slot) runStorageAppend(ctx context.Context, w *storageWork) (Persistent
 	var release func()
 	var err error
 	if len(rd.Entries) > 0 || !raft.IsEmptyHardState(rd.HardState) || !raft.IsEmptySnap(rd.Snapshot) {
-		release, err = g.acquireSave(ctx)
+		release, err = g.acquireSave(ctx, owner)
 		if err != nil {
 			return PersistentState{}, err
 		}
@@ -308,7 +310,7 @@ func (g *slot) sendReadyMessages(ctx context.Context, messages []raftpb.Message,
 
 // waitStorageIdle is owner-only and drains private completions while joining
 // both lanes. It never waits under either pipeline lock or for its own callback.
-func (g *slot) waitStorageIdle(ctx context.Context) error {
+func (g *slot) waitStorageIdle(ctx context.Context, owner *ownerStorageToken) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -321,12 +323,17 @@ func (g *slot) waitStorageIdle(ctx context.Context) error {
 		if idle {
 			return ctx.Err()
 		}
+		prior := owner.setStage(ownerStageDrain)
 		if wake == nil {
-			return g.waitApplyIdle(ctx)
+			err := g.waitApplyIdle(ctx)
+			owner.setStage(prior)
+			return err
 		}
 		select {
 		case <-wake:
+			owner.setStage(prior)
 		case <-ctx.Done():
+			owner.setStage(prior)
 			return ctx.Err()
 		}
 	}

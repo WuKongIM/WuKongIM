@@ -71,6 +71,7 @@ type slot struct {
 	readTimings                      [maxObservedReadBarriers]*readBarrierTiming
 	readSaveStarted, readSendStarted time.Time
 	readSaveStage                    rpctrace.Stage
+	readOwnerStorage                 *ownerStorageToken // guarded by mu; ordinary async Save never owns this scope.
 	pendingConfigs                   map[uint64]trackedFuture
 	pendingProposalCap               int
 	pendingConfigCap                 int
@@ -649,104 +650,112 @@ func (g *slot) processControls(ctx context.Context) bool {
 				g.rawNode.TransferLeader(uint64(target))
 			}
 		case controlCompactLog:
-			if action.compact == nil {
-				continue
-			}
-			if err := action.compact.ctx.Err(); err != nil {
-				action.compact.resp <- logCompactionResponse{err: err}
-				continue
-			}
-			if err := g.waitStorageIdle(action.compact.ctx); err != nil {
-				action.compact.resp <- logCompactionResponse{err: err}
-				continue
-			}
-			if err := g.currentErr(); err != nil {
-				action.compact.resp <- logCompactionResponse{err: err}
-				continue
-			}
-			applied := g.appliedIndex()
-			var result LogCompactionResult
-			var err error
-			if action.compact.external {
-				result = LogCompactionResult{
-					NodeID:       g.nodeID(),
-					SlotID:       g.id,
-					AppliedIndex: applied,
+			func() {
+				if action.compact == nil {
+					return
 				}
-				if applied == 0 {
-					err = ErrHashSlotSnapshotUnavailable
-				} else {
-					err = g.compactLogAt(action.compact.ctx, applied, true)
-					if err == nil {
-						result.Compacted = true
-						result.AfterSnapshotIndex = applied
-						g.compactor.recordSnapshot(applied)
+				if err := action.compact.ctx.Err(); err != nil {
+					action.compact.resp <- logCompactionResponse{err: err}
+					return
+				}
+				owner := g.beginOwnerStorage(0, ownerOtherCompaction)
+				defer owner.end()
+				if err := g.waitStorageIdle(action.compact.ctx, owner); err != nil {
+					action.compact.resp <- logCompactionResponse{err: err}
+					return
+				}
+				if err := g.currentErr(); err != nil {
+					action.compact.resp <- logCompactionResponse{err: err}
+					return
+				}
+				applied := g.appliedIndex()
+				var result LogCompactionResult
+				var err error
+				if action.compact.external {
+					result = LogCompactionResult{
+						NodeID:       g.nodeID(),
+						SlotID:       g.id,
+						AppliedIndex: applied,
 					}
+					if applied == 0 {
+						err = ErrHashSlotSnapshotUnavailable
+					} else {
+						err = g.compactLogAt(action.compact.ctx, applied, true)
+						if err == nil {
+							result.Compacted = true
+							result.AfterSnapshotIndex = applied
+							g.compactor.recordSnapshot(applied)
+						}
+					}
+				} else {
+					result, err = g.compactLogManually(action.compact.ctx, applied)
 				}
-			} else {
-				result, err = g.compactLogManually(action.compact.ctx, applied)
-			}
-			action.compact.resp <- logCompactionResponse{result: result, err: err}
+				action.compact.resp <- logCompactionResponse{result: result, err: err}
+			}()
 		case controlCaptureHashSlotSnapshot:
-			request := action.backupSnapshot
-			if request == nil || request.done.Load() {
-				continue
-			}
-			if err := request.ctx.Err(); err != nil {
-				request.finish(hashSlotSnapshotResponse{err: err})
-				continue
-			}
-			if err := g.waitStorageIdle(request.ctx); err != nil {
-				request.finish(hashSlotSnapshotResponse{err: err})
-				continue
-			}
-			if err := g.currentErr(); err != nil {
-				request.finish(hashSlotSnapshotResponse{err: err})
-				continue
-			}
-			status := g.rawNode.Status()
-			if status.ID != uint64(g.nodeID()) ||
-				status.Lead != uint64(g.nodeID()) ||
-				status.Term != request.expectedLeaderTerm ||
-				status.RaftState != raft.StateLeader {
-				request.finish(hashSlotSnapshotResponse{err: ErrNotLeader})
-				continue
-			}
-			snapshotter, ok := g.stateMachine.(HashSlotSnapshotter)
-			if !ok {
-				request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnsupported})
-				continue
-			}
-			applied := g.appliedIndex()
-			if applied == 0 {
-				request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnavailable})
-				continue
-			}
-			commit := g.rawNode.Status().Commit
-			if commit == 0 || commit != applied {
-				request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnavailable})
-				continue
-			}
-			appliedTerm, err := g.storageView.memory.Term(applied)
-			if err != nil {
-				request.finish(hashSlotSnapshotResponse{err: err})
-				continue
-			}
-			reader, err := snapshotter.OpenHashSlotSnapshot(request.ctx, request.hashSlot)
-			if err != nil {
-				request.finish(hashSlotSnapshotResponse{err: err})
-				continue
-			}
-			request.finish(hashSlotSnapshotResponse{result: CapturedHashSlotSnapshot{
-				SlotID:               g.id,
-				HashSlot:             request.hashSlot,
-				AppliedIndex:         applied,
-				CommitIndex:          commit,
-				AppliedTerm:          appliedTerm,
-				LeaderTerm:           status.Term,
-				CapturedAtUnixMillis: time.Now().UTC().UnixMilli(),
-				Reader:               reader,
-			}})
+			func() {
+				request := action.backupSnapshot
+				if request == nil || request.done.Load() {
+					return
+				}
+				if err := request.ctx.Err(); err != nil {
+					request.finish(hashSlotSnapshotResponse{err: err})
+					return
+				}
+				owner := g.beginOwnerStorage(0, ownerOtherCapture)
+				defer owner.end()
+				if err := g.waitStorageIdle(request.ctx, owner); err != nil {
+					request.finish(hashSlotSnapshotResponse{err: err})
+					return
+				}
+				if err := g.currentErr(); err != nil {
+					request.finish(hashSlotSnapshotResponse{err: err})
+					return
+				}
+				status := g.rawNode.Status()
+				if status.ID != uint64(g.nodeID()) ||
+					status.Lead != uint64(g.nodeID()) ||
+					status.Term != request.expectedLeaderTerm ||
+					status.RaftState != raft.StateLeader {
+					request.finish(hashSlotSnapshotResponse{err: ErrNotLeader})
+					return
+				}
+				snapshotter, ok := g.stateMachine.(HashSlotSnapshotter)
+				if !ok {
+					request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnsupported})
+					return
+				}
+				applied := g.appliedIndex()
+				if applied == 0 {
+					request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnavailable})
+					return
+				}
+				commit := g.rawNode.Status().Commit
+				if commit == 0 || commit != applied {
+					request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnavailable})
+					return
+				}
+				appliedTerm, err := g.storageView.memory.Term(applied)
+				if err != nil {
+					request.finish(hashSlotSnapshotResponse{err: err})
+					return
+				}
+				reader, err := snapshotter.OpenHashSlotSnapshot(request.ctx, request.hashSlot)
+				if err != nil {
+					request.finish(hashSlotSnapshotResponse{err: err})
+					return
+				}
+				request.finish(hashSlotSnapshotResponse{result: CapturedHashSlotSnapshot{
+					SlotID:               g.id,
+					HashSlot:             request.hashSlot,
+					AppliedIndex:         applied,
+					CommitIndex:          commit,
+					AppliedTerm:          appliedTerm,
+					LeaderTerm:           status.Term,
+					CapturedAtUnixMillis: time.Now().UTC().UnixMilli(),
+					Reader:               reader,
+				}})
+			}()
 		case controlFreshStatus:
 			request := action.freshStatus
 			if request == nil || request.done.Load() {
@@ -953,9 +962,30 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 		return true, g.rawNode.HasReady()
 	}
 	synchronous := readyRequiresSynchronousApply(ready)
+	var rejectMask, otherMask uint8
+	var rejectOut *uint8
+	if g.readBarrierTracing {
+		rejectOut = &rejectMask
+		if charge > storageSlotBytes {
+			otherMask |= ownerOtherOversize
+		}
+		if !raft.IsEmptySnap(ready.Snapshot) {
+			otherMask |= ownerOtherSnapshot
+			otherMask &^= ownerOtherOversize
+		}
+		if synchronous && raft.IsEmptySnap(ready.Snapshot) {
+			otherMask |= ownerOtherConfig
+		}
+		if g.storagePipeline == nil || g.apply == nil {
+			otherMask |= ownerOtherEmbedding
+		}
+	}
 	for _, entry := range ready.Entries {
 		if entry.Type != raftpb.EntryNormal {
 			synchronous = true
+			if g.readBarrierTracing {
+				otherMask |= ownerOtherConfig
+			}
 			break
 		}
 	}
@@ -964,7 +994,7 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 		if work.hasApply {
 			parts |= storageApplyPart
 		}
-		if lease, ok := g.storagePipeline.budget.reserve(g, charge, parts); ok {
+		if lease, ok := g.storagePipeline.budget.reserveWithReason(g, charge, parts, rejectOut); ok {
 			work.lease = lease
 			if work.hasAppend {
 				work.append = cloneStorageMessage(work.append)
@@ -980,16 +1010,19 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 			return true, g.rawNode.HasReady()
 		}
 	}
+	owner := g.beginOwnerStorage(rejectMask, otherMask)
+	defer owner.end()
 	// Ready has already been accepted upstream. Borrow exactly this Ready while
 	// joining prior work; neither clone an oversized payload nor accept another.
-	if err := g.waitStorageIdle(ctx); err != nil {
+	if err := g.waitStorageIdle(ctx, owner); err != nil {
 		g.fail(err)
 		return true, false
 	}
 	if !g.shouldProcess() {
 		return true, false
 	}
-	persist, err := g.runStorageAppend(ctx, work)
+	owner.setStage(ownerStageWork)
+	persist, err := g.runStorageAppend(ctx, work, owner)
 	if err != nil {
 		g.fail(err)
 		return true, false
@@ -1006,17 +1039,19 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 		applied.CommittedEntries = work.apply.Entries
 	}
 	if !raft.IsEmptySnap(applied.Snapshot) || len(applied.CommittedEntries) > 0 {
-		g.processReadySynchronously(ctx, applied)
+		g.processReadySynchronously(ctx, applied, owner)
 	}
 	if !g.shouldProcess() {
 		return true, false
 	}
+	owner.setStage(ownerStageNone)
 	if work.hasAppend {
 		g.deliverStorageResponses(ctx, work.append.Responses, transport)
 	}
 	if work.hasApply {
 		g.deliverStorageResponses(ctx, work.apply.Responses, transport)
 	}
+	owner.end()
 	g.compactAfterStorage()
 	if !g.rawNode.HasReady() && g.takeCampaignAfterReady() {
 		_ = g.rawNode.Campaign()
@@ -1024,8 +1059,11 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 	return true, g.rawNode.HasReady()
 }
 
-func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) (bool, bool) {
-	if err := g.waitApplyIdle(ctx); err != nil {
+func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready, owner *ownerStorageToken) (bool, bool) {
+	prior := owner.setStage(ownerStageDrain)
+	err := g.waitApplyIdle(ctx)
+	owner.setStage(prior)
+	if err != nil {
 		return true, false
 	}
 	if !g.shouldProcess() {

@@ -26,9 +26,14 @@ type readBarrierTiming struct {
 	saves, sends  int
 	dropped       uint64
 	// Active operations and per-phase totals are independent of detail retention.
-	open            [2]time.Time
-	coverage        [rpctrace.BarrierPhaseCount][2]rpctrace.BarrierOverlayCoverage
-	coverageInvalid bool
+	open                    [2]time.Time
+	coverage                [rpctrace.BarrierPhaseCount][2]rpctrace.BarrierOverlayCoverage
+	coverageInvalid         bool
+	ownerCoverage           rpctrace.BarrierOwnerCoverage
+	ownerOpen, ownerStageAt time.Time
+	ownerBudget             bool
+	ownerMask               uint8
+	ownerStage              ownerStorageStage
 }
 
 func (o *readBarrierTiming) mark(phase int, at time.Time) {
@@ -56,6 +61,7 @@ func (o *readBarrierTiming) finish(err error) {
 	if err == nil && o.points[5].IsZero() {
 		o.points[5] = o.terminal
 	}
+	o.closeOwnerLocked(o.terminal, true)
 	for kind := range o.open {
 		o.accumulateOverlay(kind, o.terminal, true)
 	}
@@ -164,6 +170,7 @@ func (o *readBarrierTiming) publish(trace *rpctrace.Trace) {
 	o.mu.Lock()
 	points, terminal, terminalErr, overlays, overlayErrors, dropped := o.points, o.terminal, o.terminalErr, o.overlays, o.overlayErrors, o.dropped
 	totals, coverageInvalid := o.coverage, o.coverageInvalid
+	ownerCoverage := o.ownerCoverage
 	o.mu.Unlock()
 	// Error classification may call a custom error method, so even this work
 	// happens after every Slot/observation mutex has been released.
@@ -174,6 +181,7 @@ func (o *readBarrierTiming) publish(trace *rpctrace.Trace) {
 	var spans [rpctrace.MaxBarrierSpans]rpctrace.HistoricalSpan
 	stages := [5]rpctrace.Stage{rpctrace.StageSlotControlWait, rpctrace.StageSlotReadEligibility, rpctrace.StageSlotRawQuorum, rpctrace.StageSlotReadyToAccept, rpctrace.StageSlotApplyWait}
 	var coverage rpctrace.BarrierCoverage
+	coverage.OwnerStorage = &ownerCoverage
 	for i, stage := range stages {
 		coverage.Phases[i].Stage = stage
 	}
@@ -229,6 +237,9 @@ func (g *slot) registerReadTiming(o *readBarrierTiming) bool {
 			continue
 		}
 		g.readTimings[i] = o
+		if owner := g.readOwnerStorage; owner != nil {
+			o.openOwner(owner.budget, owner.mask, owner.started, owner.stage, owner.stageAt)
+		}
 		if !g.readSaveStarted.IsZero() {
 			o.openOverlay(g.readSaveStage, g.readSaveStarted, false)
 		}

@@ -132,10 +132,62 @@ type BarrierPhaseCoverage struct {
 	Send     BarrierOverlayCoverage `json:"send"`
 }
 
+// BarrierBudgetOwnerCoverage measures an owner-blocking storage fallback caused
+// by a rejected bounded asynchronous reservation. DrainWait, SavePermit and
+// SyncWork are disjoint subsets of Duration, not additional elapsed time.
+// RejectMask is the union of closed reasons: slot count=1, node count=2,
+// slot bytes=4, node bytes=8. Ordinary asynchronous Save is never this scope.
+type BarrierBudgetOwnerCoverage struct {
+	Duration   time.Duration `json:"duration"`
+	Count      uint64        `json:"count"`
+	Unfinished bool          `json:"unfinished,omitempty"`
+	DrainWait  time.Duration `json:"drain_wait"`
+	SavePermit time.Duration `json:"save_permit"`
+	SyncWork   time.Duration `json:"sync_work"`
+	RejectMask uint8         `json:"reject_mask"`
+}
+
+// BarrierOtherOwnerCoverage measures a disjoint non-budget synchronous storage
+// fence on the same owner. CauseMask is closed: oversized Ready=1, snapshot=2,
+// configuration=4, compaction=8, snapshot capture=16, embedding=32. The producer
+// must measure the owner operation itself; asynchronous Save overlap is not proof.
+type BarrierOtherOwnerCoverage struct {
+	Duration   time.Duration `json:"duration"`
+	Count      uint64        `json:"count"`
+	Unfinished bool          `json:"unfinished,omitempty"`
+	CauseMask  uint8         `json:"cause_mask"`
+}
+
+// BarrierOwnerPhase counts positive intersections of mutually exclusive owner
+// scopes with the corresponding BarrierCoverage phase. A cross-phase scope may
+// count in each phase. Unfinished means caller clipping, even when that earlier
+// phase completed; it does not imply that the phase is incomplete.
+type BarrierOwnerPhase struct {
+	Budget BarrierBudgetOwnerCoverage `json:"budget"`
+	Other  BarrierOtherOwnerCoverage  `json:"other"`
+}
+
+// BarrierOwnerCoverage inherits the exact five phase boundaries and Observed
+// flags from its containing coverage. Unobserved entries must be zero and mean
+// unknown. Presence is optional so legacy producers never imply measured zero.
+type BarrierOwnerCoverage struct {
+	Phases [BarrierPhaseCount]BarrierOwnerPhase `json:"phases"`
+}
+
 // BarrierCoverage is a fixed-size companion to one longest barrier group.
 // The order is control, eligibility, raw quorum, Ready acceptance, durable apply.
 type BarrierCoverage struct {
-	Phases [BarrierPhaseCount]BarrierPhaseCoverage `json:"phases"`
+	Phases       [BarrierPhaseCount]BarrierPhaseCoverage `json:"phases"`
+	OwnerStorage *BarrierOwnerCoverage                   `json:"owner_storage,omitempty"`
+}
+
+// clone detaches the optional fixed owner array at every publication boundary.
+func (c BarrierCoverage) clone() BarrierCoverage {
+	if c.OwnerStorage != nil {
+		owner := *c.OwnerStorage
+		c.OwnerStorage = &owner
+	}
+	return c
 }
 
 // Sample is an immutable endpoint observation. Matching TraceIDs join the two
@@ -170,7 +222,7 @@ type Sample struct {
 func (s Sample) Clone() Sample {
 	s.Spans = append([]SpanSample(nil), s.Spans...)
 	if s.BarrierCoverage != nil {
-		coverage := *s.BarrierCoverage
+		coverage := s.BarrierCoverage.clone()
 		s.BarrierCoverage = &coverage
 	}
 	return s
@@ -334,7 +386,7 @@ func (t *Trace) retainLongestBarrier(start, end time.Time, spans [MaxBarrierSpan
 		t.hasBarrierCoverage = coverage != nil
 		t.barrierCoverage = BarrierCoverage{}
 		if coverage != nil {
-			t.barrierCoverage = *coverage
+			t.barrierCoverage = coverage.clone()
 		}
 	}
 }
@@ -358,6 +410,9 @@ func validBarrierCoverage(start, end time.Time, spans [MaxBarrierSpans]Historica
 			if p.Save != (BarrierOverlayCoverage{}) || p.Send != (BarrierOverlayCoverage{}) {
 				return false
 			}
+			if c.OwnerStorage != nil && c.OwnerStorage.Phases[i] != (BarrierOwnerPhase{}) {
+				return false
+			}
 			continue
 		}
 		// A missing phase can never be followed by an observed one.
@@ -373,6 +428,9 @@ func validBarrierCoverage(start, end time.Time, spans [MaxBarrierSpans]Historica
 		}
 		duration := span.End.Sub(span.Start)
 		if !validOverlayCoverage(p.Save, duration) || !validOverlayCoverage(p.Send, duration) {
+			return false
+		}
+		if c.OwnerStorage != nil && !validOwnerPhase(c.OwnerStorage.Phases[i], duration) {
 			return false
 		}
 		previous = span.End
@@ -397,6 +455,32 @@ func validOverlayCoverage(c BarrierOverlayCoverage, limit time.Duration) bool {
 		return false
 	}
 	return (!c.Unfinished || c.Count > 0) && c.Count <= uint64(c.Duration)
+}
+
+// validOwnerPhase validates disjoint scopes and their subsets without summing
+// durations, which could overflow before a bounds check. Provenance that a
+// scope really blocked the owner belongs to the producer, not this validator.
+func validOwnerPhase(p BarrierOwnerPhase, limit time.Duration) bool {
+	b, o := p.Budget, p.Other
+	if !validOverlayCoverage(BarrierOverlayCoverage{Duration: b.Duration, Count: b.Count, Unfinished: b.Unfinished}, limit) ||
+		!validOverlayCoverage(BarrierOverlayCoverage{Duration: o.Duration, Count: o.Count, Unfinished: o.Unfinished}, limit) ||
+		o.Duration > limit-b.Duration {
+		return false
+	}
+	if (b.Duration > 0 && (b.RejectMask == 0 || b.RejectMask & ^uint8(15) != 0)) ||
+		(b.Duration == 0 && b.RejectMask != 0) ||
+		(o.Duration > 0 && (o.CauseMask == 0 || o.CauseMask & ^uint8(63) != 0)) ||
+		(o.Duration == 0 && o.CauseMask != 0) {
+		return false
+	}
+	remaining := b.Duration
+	for _, child := range [3]time.Duration{b.DrainWait, b.SavePermit, b.SyncWork} {
+		if child < 0 || child > remaining {
+			return false
+		}
+		remaining -= child
+	}
+	return true
 }
 
 // Bind assigns the negotiated wire identity before dispatching traced work.
@@ -490,7 +574,7 @@ func (t *Trace) Finish(result Result) *Sample {
 	if t.count+t.barrierCount <= MaxSpans {
 		spans = append(spans, t.barrierSpans[:t.barrierCount]...)
 		if t.hasBarrierCoverage {
-			copy := t.barrierCoverage
+			copy := t.barrierCoverage.clone()
 			coverage = &copy
 		}
 	} else {

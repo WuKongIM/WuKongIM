@@ -135,9 +135,9 @@ plugin, migration, message projections, and MQTT session state.
   clips work to caller termination, and marks unreached phases unknown. These
   per-kind totals are not spans or fsync measurements and cannot be added to phase
   durations or to each other: asynchronous Save and Send can overlap. Overlap can
-  mean parallel progress and does not itself establish owner blocking.
-  The RPC trace retains only its longest barrier group, publishing it whole within
-  32 spans or reporting drops. Cancellation closes observation without releasing
+  mean parallel progress and does not itself establish owner blocking. Owner storage
+  coverage separately records budget fallback scopes and drain/Save-admission/synchronous-work subsets; non-budget fences use a disjoint scope with closed cause bits. Explicit owner tokens exclude ordinary async Save; missing fields remain unknown, and subsets must not be added to parent time.
+  The RPC trace retains only its longest barrier group, publishing it whole within 32 spans or reporting drops. Cancellation closes observation without releasing
   its still-unconfirmed Raft read budget or changing late results.
 
 Command 79 adjusts the exact node MQTT storage escrow using revision/bytes CAS, complete Controller roster and cluster limit. Grants remain at zero to prevent ABA. Mismatched limits, stale roster revisions, incomplete startup debt and growth over the cluster sum fail closed. This allocation does not certify Channel content.

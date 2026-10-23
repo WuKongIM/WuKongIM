@@ -54,6 +54,12 @@ func newStorageBudget(workers, maxApplying int) (*storageBudget, error) {
 }
 
 func (b *storageBudget) reserve(g *slot, bytes int64, parts uint8) (*storageLease, bool) {
+	return b.reserveWithReason(g, bytes, parts, nil)
+}
+
+// reserveWithReason snapshots diagnostic rejection bits under the existing
+// admission lock. A nil output performs no extra classification.
+func (b *storageBudget) reserveWithReason(g *slot, bytes int64, parts uint8, reject *uint8) (*storageLease, bool) {
 	if b == nil || g == nil || bytes <= 0 || bytes > storageSlotBytes || parts == 0 || parts & ^uint8(storageAppendPart|storageApplyPart) != 0 {
 		return nil, false
 	}
@@ -61,6 +67,20 @@ func (b *storageBudget) reserve(g *slot, bytes int64, parts uint8) (*storageLeas
 	defer b.mu.Unlock()
 	u := b.slots[g]
 	if u.count >= b.slotCount || b.used.count >= b.nodeCount || bytes > storageSlotBytes-u.bytes || bytes > b.nodeBytes-b.used.bytes {
+		if reject != nil {
+			if u.count >= b.slotCount {
+				*reject |= 1
+			}
+			if b.used.count >= b.nodeCount {
+				*reject |= 2
+			}
+			if bytes > storageSlotBytes-u.bytes {
+				*reject |= 4
+			}
+			if bytes > b.nodeBytes-b.used.bytes {
+				*reject |= 8
+			}
+		}
 		return nil, false
 	}
 	u.count++

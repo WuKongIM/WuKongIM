@@ -132,7 +132,7 @@ func (g *slot) compactLogAt(
 			ConfState: confState,
 		},
 	}
-	release, err := g.acquireSave(ctx)
+	release, err := g.acquireSave(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -213,7 +213,9 @@ func (g *slot) compactAfterStorage() {
 	if !g.compactor.shouldCompact(applied) && !(refresh && g.compactor.shouldRefreshAfterConfigChange(applied)) {
 		return
 	}
-	if err := g.waitStorageIdle(context.Background()); err != nil {
+	owner := g.beginOwnerStorage(0, ownerOtherCompaction)
+	defer owner.end()
+	if err := g.waitStorageIdle(context.Background(), owner); err != nil {
 		return
 	}
 	if !g.shouldProcess() {

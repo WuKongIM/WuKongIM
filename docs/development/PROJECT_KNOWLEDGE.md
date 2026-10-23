@@ -2101,6 +2101,14 @@ specification, runbook, report, or module documentation; link to them when neede
   estimates (visible slice capacity plus live strings), not heap or RSS bounds;
   their enabled signal distinguishes unmeasured values from measured zero.
 
+  Optional owner-storage coverage uses the same five phase boundaries: budget
+  fallback scope with disjoint drain, Save-admission and synchronous-work subsets,
+  plus a separate non-budget fence scope. Explicit owner tokens exclude ordinary
+  async Save. Admission masks are captured under the original budget lock; disabled
+  tracing adds no timing locks/clocks/scans. Scope/subset totals are not additive,
+  waits measure the original synchronization/select interval rather than kernel
+  parking, and absent fields/unreached phases remain unknown. Caller termination
+  clips all open scope/subset intervals together; late work cannot mutate samples.
 - Slot Raft uses upstream asynchronous storage messages with one RawNode owner.
   Append completion publishes durable memory and dependent replies through a
   private completion path; external Step cannot inject storage messages or

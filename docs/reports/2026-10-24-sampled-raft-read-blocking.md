@@ -168,6 +168,76 @@ The first Linux CI audit for `411272ab` is
 `3821721299d894504a1009aa5f671d07aec3d41c1744842ba25988756c9e5bf5`.
 Those failures remain retained independently of subsequent validation.
 
+## Read-admission repair at the original workload
+
+Candidate `5cb27a45` passes all four first automatic Linux CI workflows,
+including the two previously failed tests. The mixed-send benchmark completes
+three 60-second windows at 500 primary SEND/s, each with 30,000 planned,
+started and completed messages, zero errors/drops and scheduled-total p99
+between 16.96 and 19.73 ms. This does not qualify the larger local workload.
+
+The unchanged R18 local run still fails. At the first saved failing active cut
+(35.049 seconds), 70,012 messages have been sent, 21 first attempts have failed
+and no message has reached a terminal outcome. Across the preceding five
+seconds, actual primary rate is 1,999.369/s while acknowledgment rate falls to
+1,251.781/s. Sent minus acknowledged minus terminal grows from 2,916 to 6,654;
+this is outstanding message work, not a measurement of an RPC queue. The final
+6,043 terminal outcomes include three exhausted attempt timeouts and 6,040
+session closures during stopping, which must not be treated as the original
+failure population.
+
+The fixed collectors retain 2,845 unambiguous same-RPC pairs before the first
+saved failing cut. All 152 matched permission requests succeed. In the 97
+permission samples from the active cuts, mean control/raw-quorum/durable-apply
+waits are 117.18/134.10/20.31 ms; same-phase Send coverage averages only 0.0534%
+of control wait. The final scrape retains another 55 completed pre-failure
+permission samples whose mean raw-quorum wait is 227.05 ms. These selected
+populations do not establish whole-traffic latency percentiles or a direct
+cross-run speedup. Two service-21 pairs show caller timeout despite receiver
+success. No busy/unavailable series is exported in the twelve snapshots;
+missing series remain an observation limit rather than a claimed full-run zero.
+
+The remaining evidence gap is actual Raft-owner occupancy. Async Save coverage
+cannot distinguish useful concurrent I/O from the synchronous fallback used
+when storage ownership is full, nor from snapshot/configuration/compaction
+fences. Same-request owner-scope observation must distinguish these before
+another execution-path change. Queue limits, deadlines and workload gates
+remain unchanged.
+
+R18's independent cleanup and first-failure timeline receipts are
+`8aff67b2f55a6b9cfec84f400b465c44acf25c04828ed9b35681698bbe55894f`
+and `22a39fa04e9bf674cc6e3b0369fcdd43639eb36e31acdc2024efbfad2adae875`.
+Its strict analysis receipt is
+`4b31768e0239951dbc29b9cbe9c1ac0b0dec537e5466df90ea30e687f50ad02f`.
+The successful first Linux CI audit for `5cb27a45` is
+`ed3f3c01d9ab6e3460e24c21b96c908da60048a49d45aa41fe14dd1c2632ca64`.
+
+## Distinguishing owner storage occupancy
+
+The next observation adds two fixed records to each of the same five selected
+barrier phases. One records synchronous fallback after an actual storage-budget
+rejection, including the rejection bits captured under the admission lock. Its
+drain-wait, Save-permit and synchronous-work intervals are disjoint subsets of
+that owner scope. The other records oversized work, snapshot/configuration,
+compaction, snapshot capture or embedding fallback. Those two owner scopes do
+not overlap. Ordinary asynchronous Save receives no owner token.
+
+This measures time inside the existing owner call path and its synchronization
+calls, not physical fsync latency or proof that a goroutine parked. Save coverage
+may overlap owner coverage and must not be added to it. A missing owner record
+remains unknown; a present zero is an observed zero. Cancellation clips all
+records at one caller cutoff, and later completion cannot rewrite that sample.
+The fixed records follow the whole longest barrier group rather than combining
+different requests or Slot groups.
+
+Public Runtime regressions first fail because those observations are absent,
+then pass for ordinary asynchronous Save exclusion, budget-drain cancellation,
+Save-permit waiting and oversized fallback. The bounded JSON response fits the
+existing 4 MiB collector budget. This change leaves scheduling, ownership
+limits, deadlines and workload gates unchanged. The next original-scale run
+must establish the dominant owner path before a further execution-path change;
+the observation tests alone do not establish the workload's root cause.
+
 ## Retained evidence
 
 Private local receipts retain raw samples without committing identities or
