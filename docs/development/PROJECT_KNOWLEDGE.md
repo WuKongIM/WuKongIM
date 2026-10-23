@@ -15,6 +15,11 @@ unknown durable outcome and must not be described as rollback or a durable join.
 The projector's 512-task pressure gauge includes queued and executing tasks;
 it is not the complete durable backlog or the number of executing workers.
 
+Slot Ready persistence may expose another Ready on Advance. A scheduler pass
+must still give queued proposal/read controls a turn before requeueing; waiting
+for replication to become idle can delay controls through an entire Ready chain.
+This does not relax persistence, snapshot/configuration or fresh-read apply fences.
+
 
 Keep only stable, cross-module facts that prevent incorrect designs or unsafe
 operations. Repository rules belong in [AGENTS.md](../../AGENTS.md), domain terms

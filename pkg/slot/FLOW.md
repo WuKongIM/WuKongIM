@@ -44,6 +44,8 @@ plugin, migration, message projections, and MQTT session state.
 2. A Multi-Raft worker groups contiguous queued read barriers into one fresh
    quorum round, retaining each caller's cancellation, pending bound and durable
    apply fence. Later arrivals and intervening controls require another round.
+   Each scheduler pass gives queued controls a turn even when Advance exposes
+   more Ready work; persistence, snapshot/configuration and durable-apply fences remain.
    It persists Ready state, sends messages, batches normal
    entries, flushes before configuration changes, and atomically applies an
    ownership-validated FSM batch before persisting apply and completing futures.

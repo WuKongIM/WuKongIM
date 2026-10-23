@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Give queued Slot proposals and permission-read controls a turn while Raft
+  continues producing Ready work, retaining persistence and fresh-read fences.
+  / Raft 持续产生 Ready 时仍调度已排队的 Slot 提案与权限读取控制，保留持久化及新鲜读取屏障。
+
 - Complete independent person-directory source Slots concurrently within the
   existing ten-proposal bound, so a slow Slot does not serialize a projection page.
   / 私聊目录的独立源 Slot 在现有十路提案上限内并行完成，避免慢 Slot 串行阻塞整页投影。

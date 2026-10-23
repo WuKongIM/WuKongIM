@@ -141,10 +141,10 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 	if !g.shouldProcess() {
 		return false
 	}
-	readyWorked, requeue := g.processReady(context.Background(), r.opts.Transport)
-	if requeue {
-		return true
-	}
+	// Advance can expose another Ready while replication remains busy. Give
+	// queued controls a turn in this bounded pass instead of waiting for Ready
+	// work to become idle; each Ready still persists and advances before control.
+	readyWorked, _ := g.processReady(context.Background(), r.opts.Transport)
 	worked = readyWorked || worked
 
 	if !g.shouldProcess() {
@@ -154,10 +154,7 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 	if !g.shouldProcess() {
 		return false
 	}
-	readyProcessed, requeue := g.processReady(context.Background(), r.opts.Transport)
-	if requeue {
-		return true
-	}
+	readyProcessed, _ := g.processReady(context.Background(), r.opts.Transport)
 	readyWorked = readyWorked || readyProcessed
 	worked = readyProcessed || worked
 
@@ -168,7 +165,7 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 	if !g.shouldProcess() {
 		return false
 	}
-	readyProcessed, requeue = g.processReady(context.Background(), r.opts.Transport)
+	readyProcessed, requeue := g.processReady(context.Background(), r.opts.Transport)
 	if requeue {
 		return true
 	}
