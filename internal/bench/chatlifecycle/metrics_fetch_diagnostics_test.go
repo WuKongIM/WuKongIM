@@ -97,7 +97,24 @@ func metricsFetchAssertVector(t *testing.T, record map[string]any, mask int, kin
 	if !reflect.DeepEqual(nested["kinds"], want) {
 		t.Errorf("closed kinds=%v want=%v", nested["kinds"], want)
 	}
-	if len(nested) != 2 {
+	wantFields := 2
+	if reasons, exists := nested["parse_reasons"]; exists {
+		wantFields++
+		vector, ok := reasons.([]any)
+		if !ok || len(vector) != 3 {
+			t.Fatal("parser reason vector is not fixed")
+		}
+		for i, kind := range kinds {
+			want := ""
+			if kind == "parse" {
+				want = "invalid_value"
+			}
+			if vector[i] != want {
+				t.Errorf("parser reason[%d]=%v want=%q", i, vector[i], want)
+			}
+		}
+	}
+	if len(nested) != wantFields {
 		t.Error("metrics fetch projection has unbounded fields")
 	}
 }

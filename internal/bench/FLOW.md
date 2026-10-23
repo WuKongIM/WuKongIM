@@ -105,9 +105,10 @@ native local baseline
 - Target and response parsing is bounded and redacted. Reports keep fixed
   counters, histograms, reason codes, and bounded samples without raw UIDs,
   Channel IDs, credentials, response bodies, or arbitrary error text.
-- Metrics acquisition exposes only closed failure kinds. Finalization aligns
-  failures to three declared source positions without exposing endpoint errors or changing
-  the existing harness-only aggregate error chain.
+- Metrics acquisition exposes only closed failure kinds and private typed parser
+  guard reasons. Finalization aligns failures and optional parser reasons to
+  three declared source positions without exposing metric contents or endpoint
+  errors, or changing the existing harness-only aggregate error chain.
 - Static/config, target, worker, hard-limit, cancellation, and internal failures retain distinct outcomes.
 
 ## Read First

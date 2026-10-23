@@ -89,8 +89,11 @@ passing 72-hour formal generation -> same aged dataset and process proof
   The running diagnostic file contains only three-worker connection gauges,
   teardown reasons, message aggregates, and at most 64 recent changes. Worker-cut logs also retain configured hot SENDACK P99 threshold/sample/above-threshold counts for interval diagnosis without altering verdicts.
 - Metrics-fetch finalization failures retain a closed three-source mask/kind
-  vector in declared service order. All sources are joined; parent context wins,
-  and private child causes never change the aggregate harness classification.
+  vector in declared service order, with optional fixed parser reasons only at
+  parse positions. Older reports keep that vector absent; malformed optional
+  reasons are discarded independently from existing fields. All sources are
+  joined; parent context wins, and private child causes never change the
+  aggregate harness classification.
 - The native local staircase is a non-formal typed-evidence classifier; an early
   proven product failure is not downgraded before warmup qualification.
 - Formal-to-capacity continuation cannot restart workers, reset the dataset,

@@ -307,10 +307,15 @@ func collectProductionMetaMetrics(
 		return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
 	}
 	failure := productionMetaMetricsFailure{causes: causes}
+	var parseReasons [coordinatorWorkerCount]target.MetricsParseReason
 	for index, cause := range causes {
 		if cause != nil {
 			failure.diagnostic.SourceMask |= 1 << index
 			failure.diagnostic.Kinds[index] = target.MetricsFailure(cause)
+			if failure.diagnostic.Kinds[index] == "parse" {
+				parseReasons[index] = target.MetricsParseFailure(cause)
+				failure.diagnostic.ParseReasons = &parseReasons
+			}
 		}
 	}
 	if failure.diagnostic.SourceMask != 0 {

@@ -1161,7 +1161,7 @@ func parseObservationMetrics(encoded []byte) (MetricsSnapshot, error) {
 	for scanner.Scan() {
 		lines++
 		if lines > maxObservationMetricLines {
-			return MetricsSnapshot{}, errors.New("observation metrics line limit exceeded")
+			return MetricsSnapshot{}, newMetricsParseError("line_limit")
 		}
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -1169,7 +1169,7 @@ func parseObservationMetrics(encoded []byte) (MetricsSnapshot, error) {
 		}
 		series++
 		if series > maxObservationMetricSeries {
-			return MetricsSnapshot{}, errors.New("observation metrics series cardinality limit exceeded")
+			return MetricsSnapshot{}, newMetricsParseError("series_limit")
 		}
 		name := observationMetricName(line)
 		kind := observationMetricKind(name)
@@ -1186,17 +1186,17 @@ func parseObservationMetrics(encoded []byte) (MetricsSnapshot, error) {
 		}
 		value, err := strconv.ParseFloat(valueText, 64)
 		if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
-			return MetricsSnapshot{}, errors.New("observation metrics contains invalid value")
+			return MetricsSnapshot{}, newMetricsParseError("invalid_value")
 		}
 		if err := snapshot.addMetric(kind, labels, value, valueText); err != nil {
 			return MetricsSnapshot{}, err
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return MetricsSnapshot{}, errors.New("observation metrics line limit exceeded")
+		return MetricsSnapshot{}, newMetricsParseError("line_limit")
 	}
 	if snapshot.present&metricMetaCreated != 0 && len(snapshot.MetaCreatedTotal) != 3 {
-		return MetricsSnapshot{}, errors.New("observation metrics contains incomplete metadata-create results")
+		return MetricsSnapshot{}, newMetricsParseError("incomplete_metadata_results")
 	}
 	if err := snapshot.finalizeQueueUtilization(); err != nil {
 		return MetricsSnapshot{}, err
@@ -1218,7 +1218,7 @@ func splitObservationMetricSample(line string) (token, value string, err error) 
 	if open < 0 {
 		fields := strings.Fields(line)
 		if len(fields) != 2 {
-			return "", "", errors.New("observation metrics contains invalid sample")
+			return "", "", newMetricsParseError("invalid_sample")
 		}
 		return fields[0], fields[1], nil
 	}
@@ -1238,11 +1238,11 @@ func splitObservationMetricSample(line string) (token, value string, err error) 
 		}
 	}
 	if closeIndex < 0 || quoted {
-		return "", "", errors.New("observation metrics contains invalid labels")
+		return "", "", newMetricsParseError("invalid_labels")
 	}
 	fields := strings.Fields(line[closeIndex+1:])
 	if len(fields) != 1 {
-		return "", "", errors.New("observation metrics contains invalid sample")
+		return "", "", newMetricsParseError("invalid_sample")
 	}
 	return line[:closeIndex+1], fields[0], nil
 }
@@ -1322,20 +1322,20 @@ func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value
 		destination = &s.ActivationRejectedTotal
 	case metricMetaCreated:
 		if len(labels) != 2 {
-			return errors.New("observation metrics contains invalid metadata-create labels")
+			return newMetricsParseError("invalid_metadata_labels")
 		}
 		slotText, hasSlot := labels["slot_id"]
 		result := labels["result"]
 		if !hasSlot || result == "" {
-			return errors.New("observation metrics contains invalid metadata-create labels")
+			return newMetricsParseError("invalid_metadata_labels")
 		}
 		slotID, err := strconv.ParseUint(slotText, 10, 8)
 		if err != nil || slotID == 0 || slotID > MetaCreateLogicalSlots || slotText != strconv.FormatUint(slotID, 10) {
-			return errors.New("observation metrics contains invalid metadata-create Slot")
+			return newMetricsParseError("invalid_metadata_slot")
 		}
 		counter, ok := exactObservationMetricCounter(valueText)
 		if !ok {
-			return errors.New("observation metrics contains invalid metadata-create counter")
+			return newMetricsParseError("invalid_metadata_counter")
 		}
 		index := slotID - 1
 		var bit uint8
@@ -1348,10 +1348,10 @@ func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value
 		case "error":
 			bit, slotDestination = 0b100, &s.MetaCreatedBySlot[index].Errors
 		default:
-			return errors.New("observation metrics contains invalid metadata-create result")
+			return newMetricsParseError("invalid_metadata_result")
 		}
 		if s.metaCreatedPresent[index]&bit != 0 {
-			return errors.New("observation metrics contains duplicate metadata-create Slot result")
+			return newMetricsParseError("duplicate_metadata_slot_result")
 		}
 		s.metaCreatedPresent[index] |= bit
 		*slotDestination = counter
@@ -1360,15 +1360,15 @@ func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value
 		}
 		current := s.MetaCreatedTotal[result]
 		if current > float64(uint64(1)<<53)-float64(counter) {
-			return errors.New("observation metrics aggregate overflow")
+			return newMetricsParseError("aggregate_overflow")
 		}
 		s.MetaCreatedTotal[result] = current + float64(counter)
 		return nil
 	default:
-		return errors.New("observation metrics contains unsupported family")
+		return newMetricsParseError("unsupported_family")
 	}
 	if *destination > math.MaxFloat64-value {
-		return errors.New("observation metrics aggregate overflow")
+		return newMetricsParseError("aggregate_overflow")
 	}
 	*destination += value
 	return nil
@@ -1377,7 +1377,7 @@ func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value
 func (s *MetricsSnapshot) addQueueSeries(kind uint16, labels map[string]string, value float64) error {
 	encoded, err := json.Marshal(labels)
 	if err != nil || len(encoded) == 0 {
-		return errors.New("observation metrics contains invalid queue labels")
+		return newMetricsParseError("invalid_queue_labels")
 	}
 	key := string(encoded)
 	var values *map[string]float64
@@ -1391,13 +1391,13 @@ func (s *MetricsSnapshot) addQueueSeries(kind uint16, labels map[string]string, 
 	case metricChannelWorkerQueueCapacity:
 		values = &s.channelQueueCapacityBySeries
 	default:
-		return errors.New("observation metrics contains invalid queue family")
+		return newMetricsParseError("invalid_queue_family")
 	}
 	if *values == nil {
 		*values = make(map[string]float64)
 	}
 	if _, exists := (*values)[key]; exists || len(*values) >= maxObservationQueueSeries {
-		return errors.New("observation metrics contains duplicate or excessive queue series")
+		return newMetricsParseError("duplicate_or_excess_queue_series")
 	}
 	(*values)[key] = value
 	return nil
@@ -1424,13 +1424,13 @@ func (s *MetricsSnapshot) finalizeQueueUtilization() error {
 
 func maximumQueueUtilization(depths, capacities map[string]float64) (float64, error) {
 	if len(depths) == 0 || len(depths) != len(capacities) {
-		return 0, errors.New("observation metrics contains unpaired queue series")
+		return 0, newMetricsParseError("unpaired_queue_series")
 	}
 	maximum := float64(0)
 	for key, depth := range depths {
 		capacity, ok := capacities[key]
 		if !ok || (capacity > 0 && depth > capacity) {
-			return 0, errors.New("observation metrics contains invalid queue utilization")
+			return 0, newMetricsParseError("invalid_queue_utilization")
 		}
 		// A zero item capacity marks either an inactive queue or a queue bounded
 		// only by bytes, so its item utilization has no valid denominator.
@@ -1459,12 +1459,12 @@ func parseObservationMetricToken(token string) (string, map[string]string, error
 	open := strings.IndexByte(token, '{')
 	if open < 0 {
 		if strings.ContainsRune(token, '}') || token == "" {
-			return "", nil, errors.New("observation metrics contains invalid sample name")
+			return "", nil, newMetricsParseError("invalid_sample_name")
 		}
 		return token, nil, nil
 	}
 	if !strings.HasSuffix(token, "}") || open == 0 {
-		return "", nil, errors.New("observation metrics contains invalid labels")
+		return "", nil, newMetricsParseError("invalid_labels")
 	}
 	labels, err := parseObservationLabels(token[open+1 : len(token)-1])
 	if err != nil {
@@ -1479,12 +1479,12 @@ func parseObservationLabels(raw string) (map[string]string, error) {
 		raw = strings.TrimLeft(raw, " \t")
 		equals := strings.IndexByte(raw, '=')
 		if equals <= 0 || equals > 64 {
-			return nil, errors.New("observation metrics contains invalid labels")
+			return nil, newMetricsParseError("invalid_labels")
 		}
 		name := strings.TrimSpace(raw[:equals])
 		raw = raw[equals+1:]
 		if name == "" || len(raw) == 0 || raw[0] != '"' {
-			return nil, errors.New("observation metrics contains invalid labels")
+			return nil, newMetricsParseError("invalid_labels")
 		}
 		end := 1
 		escaped := false
@@ -1502,14 +1502,14 @@ func parseObservationLabels(raw string) (map[string]string, error) {
 			}
 		}
 		if end >= len(raw) {
-			return nil, errors.New("observation metrics contains invalid labels")
+			return nil, newMetricsParseError("invalid_labels")
 		}
 		value, err := strconv.Unquote(raw[:end+1])
 		if err != nil || len(value) > 1024 {
-			return nil, errors.New("observation metrics contains invalid labels")
+			return nil, newMetricsParseError("invalid_labels")
 		}
 		if _, exists := labels[name]; exists || len(labels) >= 32 {
-			return nil, errors.New("observation metrics label cardinality limit exceeded")
+			return nil, newMetricsParseError("label_cardinality_limit")
 		}
 		labels[name] = value
 		raw = strings.TrimLeft(raw[end+1:], " \t")
@@ -1517,7 +1517,7 @@ func parseObservationLabels(raw string) (map[string]string, error) {
 			break
 		}
 		if raw[0] != ',' {
-			return nil, errors.New("observation metrics contains invalid labels")
+			return nil, newMetricsParseError("invalid_labels")
 		}
 		raw = raw[1:]
 	}

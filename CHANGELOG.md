@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Identify bounded parser rejection reasons for failed chat-lifecycle metrics
+  sources while preserving report validity and existing failure outcomes.
+  / 聊天生命周期指标采集失败时补充有界的解析拒绝原因，保持报告有效性与原有失败判定不变。
+
 - Identify failed service-source positions and bounded metrics-fetch categories
   when chat-lifecycle finalization cannot complete, preserving report validity.
   / 聊天生命周期验收结束时补充指标采集失败的服务来源位置与有界类别，保持报告有效性判定不变。
