@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
@@ -77,8 +78,11 @@ type topCollector struct {
 
 	counters map[string]uint64
 	gauges   map[string]int64
-	histos   map[string][]float64
-	alerts   map[string]*topAlertState
+	// deliveryAckBindings publishes the serialized runtime ACK count without
+	// taking the ingestion mutex while the runtime holds its ACK mutation lock.
+	deliveryAckBindings atomic.Int64
+	histos              map[string][]float64
+	alerts              map[string]*topAlertState
 	// alertOrder stores alert fingerprints in creation order for bounded retention.
 	alertOrder []string
 	alertSeq   uint64
@@ -411,7 +415,7 @@ func (c *topCollector) SetDeliveryAckBindings(count int64) {
 	if c == nil {
 		return
 	}
-	c.setGauge(topGaugeDeliveryAckBindings, count)
+	c.deliveryAckBindings.Store(count)
 }
 
 func (c *topCollector) SetDeliveryRecipientQueue(depth, capacity int64) {
@@ -489,6 +493,7 @@ func (c *topCollector) recordSampleAt(at time.Time) {
 	c.mu.Lock()
 	counters := cloneUint64Map(c.counters)
 	gauges := cloneInt64Map(c.gauges)
+	gauges[topGaugeDeliveryAckBindings] = c.deliveryAckBindings.Load()
 	histos := cloneHistos(c.histos)
 	c.histos = make(map[string][]float64)
 	c.mu.Unlock()
@@ -545,6 +550,9 @@ func (c *topCollector) clone() *topCollector {
 	out := newTopCollector(c.options)
 	out.counters = cloneUint64Map(c.counters)
 	out.gauges = cloneInt64Map(c.gauges)
+	ackBindings := c.deliveryAckBindings.Load()
+	out.deliveryAckBindings.Store(ackBindings)
+	out.gauges[topGaugeDeliveryAckBindings] = ackBindings
 	out.histos = cloneHistos(c.histos)
 	out.alerts = cloneTopAlertStates(c.alerts)
 	out.alertOrder = append([]string(nil), c.alertOrder...)

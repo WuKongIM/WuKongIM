@@ -14,6 +14,9 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Keep Top ACK-count publication independent of the shared metrics ingestion
+  lock so storage observations cannot hold up delivery ACK bookkeeping.
+
 - Report gateway actor-ready queues without a fixed item capacity instead of
   treating their initial slice allocation as a hard limit. Queue depth and
   admission behavior remain unchanged, avoiding false metrics-parse failures.

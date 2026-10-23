@@ -1,5 +1,12 @@
 # Project Knowledge
 
+Delivery publishes pending ACK counts while holding its ACK mutation lock. The
+Top ACK-count observer must use independent atomic publication instead of the
+shared Top ingestion/control mutex; snapshots and clones must retain the real
+current count, including reset-to-zero, without rewriting historical samples.
+This observability constraint does not change ACK identity/order or prove that
+message-loss and throughput acceptance gates are satisfied.
+
 Gateway actor-ready queues deduplicate pending connections but have no fixed
 item-admission limit. Their initial slice capacity is allocation only; publish
 capacity zero and the real depth. Do not clamp depth or relax benchmark parser
