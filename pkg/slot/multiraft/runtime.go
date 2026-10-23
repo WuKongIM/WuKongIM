@@ -20,6 +20,7 @@ type Runtime struct {
 	openWG    sync.WaitGroup
 	scheduler *scheduler
 	apply     *applyPipeline
+	storage   *storagePipeline
 	stopCh    chan struct{}
 	wg        sync.WaitGroup
 	inflight  atomic.Int64
@@ -44,6 +45,11 @@ func New(opts Options) (*Runtime, error) {
 		return nil, err
 	}
 
+	budget, err := newStorageBudget(opts.Workers, opts.Raft.MaxApplyingTasks)
+	if err != nil {
+		return nil, err
+	}
+
 	rt := &Runtime{
 		opts:      opts,
 		slots:     make(map[SlotID]*slot),
@@ -52,6 +58,7 @@ func New(opts Options) (*Runtime, error) {
 		apply:     newApplyPipeline(opts.Workers, opts.Goroutines, opts.Observer),
 		stopCh:    make(chan struct{}),
 	}
+	rt.storage = newStoragePipeline(opts.Workers, budget, opts.Goroutines)
 	if opts.Observer != nil {
 		opts.Observer.SetSchedulerWorkers(opts.Workers)
 	}
@@ -136,14 +143,14 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 		return false
 	}
 	defer g.finishProcessing()
+	g.statusRefreshedInPass = false
 
 	worked := g.processRequests()
 	if !g.shouldProcess() {
 		return false
 	}
-	// Advance can expose another Ready while replication remains busy. Give
-	// queued controls a turn in this bounded pass instead of waiting for Ready
-	// work to become idle; each Ready still persists and advances before control.
+	// Storage responses can expose more Ready work. Give queued controls a
+	// turn in this bounded owner pass while physical persistence runs separately.
 	readyWorked, _ := g.processReady(context.Background(), r.opts.Transport)
 	worked = readyWorked || worked
 
@@ -155,7 +162,6 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 		return false
 	}
 	readyProcessed, _ := g.processReady(context.Background(), r.opts.Transport)
-	readyWorked = readyWorked || readyProcessed
 	worked = readyProcessed || worked
 
 	if !g.shouldProcess() {
@@ -166,15 +172,12 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 		return false
 	}
 	readyProcessed, requeue := g.processReady(context.Background(), r.opts.Transport)
-	if requeue {
-		return true
-	}
-	readyWorked = readyWorked || readyProcessed
+	g.compactAfterStorage()
 	worked = readyProcessed || worked
-	if worked && !readyWorked {
-		g.refreshStatus()
+	if worked {
+		g.refreshStatusAfterPass()
 	}
-	return false
+	return requeue
 }
 
 func (r *Runtime) observeSchedulerInflight() {

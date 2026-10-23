@@ -44,9 +44,12 @@ plugin, migration, message projections, and MQTT session state.
 2. A Multi-Raft worker groups contiguous queued read barriers into one fresh
    quorum round, retaining each caller's cancellation, pending bound and durable
    apply fence. Later arrivals and intervening controls require another round.
-   Each scheduler pass gives queued controls a turn even when Advance exposes
-   more Ready work; persistence, snapshot/configuration and durable-apply fences remain.
-   It persists Ready state, sends messages, batches normal
+   Each scheduler pass gives queued controls a turn while more Ready work is
+   available. One owner handles RawNode and its asynchronous local-storage messages;
+   a bounded append FIFO persists work and returns reliable private completions.
+   Only the owner publishes durable memory and dependent Raft replies. Application
+   waits for its append prefix, including committed HardState, then uses the existing
+   per-Slot apply FIFO. Ordinary network messages progress during Save. The runtime batches normal
    entries, flushes before configuration changes, and atomically applies an
    ownership-validated FSM batch before persisting apply and completing futures.
    Durable Slot storage owns snapshot payload bytes; the Raft memory view keeps
@@ -96,6 +99,15 @@ plugin, migration, message projections, and MQTT session state.
 - Losing leadership fails pending proposal/configuration futures. Transport
   payload ownership, queues, apply batches, subscriber commands, scans,
   snapshots, and result payloads remain bounded.
+  Futures bind to accepted entry index/term before asynchronous Save. New
+  storage ownership caps each Slot at `min(4, MaxApplyingTasks)` Ready records and
+  8 MiB, and each Runtime at `4 * Workers` records and `8 MiB * Workers`; running
+  work and unconsumed completions remain charged. These are queue ownership limits,
+  not RawNode-input or RSS limits. Large legal entries, saturation, snapshots and
+  configuration use one borrowed synchronous Ready after joining prior append/apply
+  work. Async Save, fallback and compaction share the worker-sized Save allowance.
+  Close/reload retain old identity until physical work and completion ownership join.
+  Network Step rejects local-storage types/endpoints; only private completions deliver those responses.
 - Recovery starts at a verified snapshot/certified FSM boundary and replays its
   committed suffix; a watermark alone cannot skip replay. Unknown or migration writes invalidate
   all proofs; disjoint FSM writes invalidate only their own. Compaction reanchors
@@ -112,20 +124,21 @@ plugin, migration, message projections, and MQTT session state.
   shared origin cohorts do not inherit one caller's trace or cancellation.
   Sampled fresh barriers distinguish control wait, read eligibility, raw quorum,
   Ready-to-accept and durable-apply wait on the same local clock. Raw ReadStates
-  observation precedes Save but acceptance still follows persistence and Send.
-  The immutable Runtime observation flag follows the existing node RPC diagnostic
-  enablement; when disabled, Ready performs no optional clocks, locks or scans.
+  observation records when quorum proof becomes available. A fresh proof for an already
+  durable-applied index may pass newer Save after checking actual leader/term; other reads still wait.
+  The immutable Runtime flag follows RPC diagnostics; disabled Ready has no optional clocks, locks or scans.
   A fixed 32-observer Slot registry retains at most two Save and two Send
   overlays per read; Save includes PersistentState preparation and has a closed
   entries/HardState/snapshot/mixed kind. Message-only Ready has no Save overlay.
-  A separate fixed five-phase coverage record accumulates every observed
-  Save/Send intersection, including work beyond the detailed-overlay cap. It
-  follows the same longest group, clips work to caller termination, and marks
-  unreached phases unknown. These disjoint-interval totals are not spans or
-  fsync measurements and must not be added to their enclosing phase durations.
-  The existing RPC trace retains only its longest barrier group, publishing it
-  whole within 32 spans or reporting drops. Canceling a caller closes observation
-  without releasing its still-unconfirmed Raft read budget or changing late results.
+  A fixed five-phase coverage record accumulates every Save/Send intersection,
+  including work beyond the detailed-overlay cap. It follows the same longest group,
+  clips work to caller termination, and marks unreached phases unknown. These
+  per-kind totals are not spans or fsync measurements and cannot be added to phase
+  durations or to each other: asynchronous Save and Send can overlap. Overlap can
+  mean parallel progress and does not itself establish owner blocking.
+  The RPC trace retains only its longest barrier group, publishing it whole within
+  32 spans or reporting drops. Cancellation closes observation without releasing
+  its still-unconfirmed Raft read budget or changing late results.
 
 Command 79 adjusts the exact node MQTT storage escrow using revision/bytes CAS, complete Controller roster and cluster limit. Grants remain at zero to prevent ABA. Mismatched limits, stale roster revisions, incomplete startup debt and growth over the cluster sum fail closed. This allocation does not certify Channel content.
 

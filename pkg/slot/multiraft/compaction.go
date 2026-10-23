@@ -132,12 +132,17 @@ func (g *slot) compactLogAt(
 			ConfState: confState,
 		},
 	}
+	release, err := g.acquireSave(ctx)
+	if err != nil {
+		return err
+	}
 	var persistErr error
 	if replacer, ok := g.storage.(ExternalSnapshotStorage); replaceExternal && ok {
 		persistErr = replacer.ReplaceSnapshot(ctx, snap)
 	} else {
 		persistErr = g.storage.Save(ctx, PersistentState{Snapshot: &snap})
 	}
+	release()
 	if persistErr != nil {
 		return persistErr
 	}
@@ -190,4 +195,35 @@ func (g *slot) compactLogManually(ctx context.Context, applied uint64) (LogCompa
 	result.Compacted = true
 	g.compactor.recordSnapshot(applied)
 	return result, nil
+}
+
+// compactAfterStorage is a bounded owner scheduling point. A due compaction
+// establishes a double-lane barrier instead of waiting for accidental idleness
+// under sustained traffic; ordinary applies do not each cause a barrier.
+func (g *slot) compactAfterStorage() {
+	g.mu.Lock()
+	pending, refresh := g.compactionPending, g.compactionRefresh
+	g.compactionPending = false
+	g.compactionRefresh = false
+	g.mu.Unlock()
+	if !pending {
+		return
+	}
+	applied := g.appliedIndex()
+	if !g.compactor.shouldCompact(applied) && !(refresh && g.compactor.shouldRefreshAfterConfigChange(applied)) {
+		return
+	}
+	if err := g.waitStorageIdle(context.Background()); err != nil {
+		return
+	}
+	if !g.shouldProcess() {
+		return
+	}
+	applied = g.appliedIndex()
+	compacted, err := g.compactLog(context.Background(), applied)
+	if err != nil {
+		g.logCompactionWarning(err, applied)
+	} else if compacted {
+		g.compactor.recordSnapshot(applied)
+	}
 }

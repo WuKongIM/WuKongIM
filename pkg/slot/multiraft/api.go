@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	raft "go.etcd.io/raft/v3"
+	"go.etcd.io/raft/v3/raftpb"
 )
 
 func (r *Runtime) Close() error {
@@ -40,12 +41,16 @@ func (r *Runtime) Close() error {
 		g.mu.Lock()
 		g.waitIdleLocked()
 		g.mu.Unlock()
+		g.retireStorageCompletions()
 		if r.apply != nil {
 			r.apply.waitQueueRetired(g.id, applyQueue)
 		}
 	}
 	if r.apply != nil {
 		r.apply.close()
+	}
+	if r.storage != nil {
+		r.storage.close()
 	}
 
 	r.mu.Lock()
@@ -68,6 +73,7 @@ func (r *Runtime) OpenSlot(ctx context.Context, opts SlotOptions) error {
 		return err
 	}
 	g.readBarrierTracing = r.opts.ReadBarrierTracing
+	r.attachStorage(g)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -99,6 +105,7 @@ func (r *Runtime) BootstrapSlot(ctx context.Context, req BootstrapSlotRequest) e
 		return err
 	}
 	g.readBarrierTracing = r.opts.ReadBarrierTracing
+	r.attachStorage(g)
 
 	r.mu.Lock()
 	if r.closed {
@@ -154,6 +161,9 @@ func (r *Runtime) CloseSlot(ctx context.Context, slotID SlotID) error {
 	g.closed = true
 	completions := g.failPendingLocked(ErrSlotClosed)
 	delete(r.slots, slotID)
+	r.opening[slotID] = struct{}{}
+	r.openWG.Add(1)
+	defer r.finishOpen(slotID)
 	r.mu.Unlock()
 	g.mu.Unlock()
 	dispatchFutureCompletions(completions)
@@ -164,6 +174,7 @@ func (r *Runtime) CloseSlot(ctx context.Context, slotID SlotID) error {
 	g.mu.Lock()
 	g.waitIdleLocked()
 	g.mu.Unlock()
+	g.retireStorageCompletions()
 	if r.apply != nil {
 		r.apply.waitQueueRetired(slotID, applyQueue)
 	}
@@ -209,6 +220,7 @@ func (r *Runtime) ReloadSlot(ctx context.Context, slotID SlotID) error {
 	current.mu.Lock()
 	current.waitIdleLocked()
 	current.mu.Unlock()
+	current.retireStorageCompletions()
 	if r.apply != nil {
 		r.apply.waitQueueRetired(slotID, applyQueue)
 	}
@@ -231,6 +243,7 @@ func (r *Runtime) ReloadSlot(ctx context.Context, slotID SlotID) error {
 		return err
 	}
 	replacement.readBarrierTracing = r.opts.ReadBarrierTracing
+	r.attachStorage(replacement)
 	r.mu.Lock()
 	if r.closed {
 		r.mu.Unlock()
@@ -247,6 +260,13 @@ func (r *Runtime) ReloadSlot(ctx context.Context, slotID SlotID) error {
 }
 
 func (r *Runtime) Step(ctx context.Context, msg Envelope) error {
+	if raft.IsLocalMsgTarget(msg.Message.From) || raft.IsLocalMsgTarget(msg.Message.To) {
+		return ErrInvalidOptions
+	}
+	switch msg.Message.Type {
+	case raftpb.MsgStorageAppend, raftpb.MsgStorageAppendResp, raftpb.MsgStorageApply, raftpb.MsgStorageApplyResp:
+		return ErrInvalidOptions
+	}
 	r.mu.RLock()
 	if r.closed {
 		r.mu.RUnlock()
@@ -687,4 +707,9 @@ func (r *Runtime) finishOpen(id SlotID) {
 	delete(r.opening, id)
 	r.mu.Unlock()
 	r.openWG.Done()
+}
+
+func (r *Runtime) attachStorage(g *slot) {
+	g.storagePipeline = r.storage
+	g.storageNotify = func() { r.scheduler.enqueue(g.id) }
 }

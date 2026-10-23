@@ -78,7 +78,7 @@ func TestReadBarrierRefusesLeaderBeforeCurrentTermCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	memory.SetHardState(raftpb.HardState{Term: 1, Commit: 1})
-	raw, err := raft.NewRawNode(&raft.Config{ID: 1, ElectionTick: 10, HeartbeatTick: 1, Storage: memory, Applied: 1, MaxInflightMsgs: 256, ReadOnlyOption: raft.ReadOnlySafe})
+	raw, err := raft.NewRawNode(&raft.Config{ID: 1, ElectionTick: 10, HeartbeatTick: 1, Storage: memory, Applied: 1, MaxSizePerMsg: ^uint64(0), MaxInflightMsgs: 256, ReadOnlyOption: raft.ReadOnlySafe, AsyncStorageWrites: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,15 +86,9 @@ func TestReadBarrierRefusesLeaderBeforeCurrentTermCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Persist this node's vote before delivering the second vote; RawNode
-	// releases its own vote response only after the Ready is advanced.
+	// releases its own vote response only after its local append is persisted.
 	ready := raw.Ready()
-	if err := memory.Append(ready.Entries); err != nil {
-		t.Fatal(err)
-	}
-	if !raft.IsEmptyHardState(ready.HardState) {
-		memory.SetHardState(ready.HardState)
-	}
-	raw.Advance(ready)
+	finishReadBarrierFixtureReady(t, raw, memory, ready)
 	term := raw.BasicStatus().Term
 	if err = raw.Step(raftpb.Message{Type: raftpb.MsgVoteResp, From: 2, To: 1, Term: term}); err != nil {
 		t.Fatal(err)

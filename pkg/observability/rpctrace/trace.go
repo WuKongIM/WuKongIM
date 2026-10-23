@@ -110,7 +110,9 @@ type SpanSample struct {
 	Incomplete bool          `json:"incomplete,omitempty"`
 }
 
-// BarrierOverlayCoverage totals disjoint intersections with one observed phase.
+// BarrierOverlayCoverage totals disjoint intersections for one operation kind
+// with one observed phase. Save and Send may overlap each other; their totals
+// must not be added to infer a union or time blocked on the Raft owner.
 // Count counts positive-duration intersections; a cross-phase operation may count
 // in each phase. Unfinished means an intersecting operation was caller-clipped.
 // These totals are not continuous spans and must not be added to phase duration.
@@ -370,7 +372,7 @@ func validBarrierCoverage(start, end time.Time, spans [MaxBarrierSpans]Historica
 			return false
 		}
 		duration := span.End.Sub(span.Start)
-		if !validOverlayCoverage(p.Save, duration) || !validOverlayCoverage(p.Send, duration-p.Save.Duration) {
+		if !validOverlayCoverage(p.Save, duration) || !validOverlayCoverage(p.Send, duration) {
 			return false
 		}
 		previous = span.End

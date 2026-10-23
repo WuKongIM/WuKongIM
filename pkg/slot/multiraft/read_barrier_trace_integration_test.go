@@ -85,7 +85,7 @@ func TestReadBarrierPhaseTraceFreshPublicRuntime(t *testing.T) {
 	}
 }
 
-func TestReadBarrierPhaseTraceCanceledDuringPriorSaveIsImmutable(t *testing.T) {
+func TestReadBarrierPhaseTraceCanceledDuringSynchronousSaveFallbackIsImmutable(t *testing.T) {
 	rt := newStartedRuntimeWithOptions(t, time.Hour, nil, true)
 	store := newBlockingSaveStorage()
 	t.Cleanup(store.release)
@@ -98,7 +98,10 @@ func TestReadBarrierPhaseTraceCanceledDuringPriorSaveIsImmutable(t *testing.T) {
 		return e == nil && s.Role == RoleLeader && s.CommitIndex > 0 && s.AppliedIndex == s.CommitIndex
 	})
 	store.armEntrySave()
-	f, err := rt.Propose(context.Background(), id, proposalString("hold-save"))
+	// A legal payload above the new 8 MiB per-Slot async ownership budget
+	// deliberately exercises the single-Ready synchronous fallback. Ordinary
+	// append Save no longer blocks unrelated fresh reads or queued controls.
+	f, err := rt.Propose(context.Background(), id, proposalString(strings.Repeat("f", 9<<20)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,6 +163,8 @@ func TestReadBarrierPhaseTraceCanceledDuringPriorSaveIsImmutable(t *testing.T) {
 	}
 }
 
+// A quorum proof for an index beyond the durable FSM watermark must still wait,
+// independently of whether other Ready writes use asynchronous storage.
 func TestReadBarrierPhaseTraceWaitsForDurableApply(t *testing.T) {
 	rt := newStartedRuntimeWithOptions(t, time.Hour, nil, true)
 	fsm := newBlockingStateMachine()
@@ -232,11 +237,13 @@ func requireBarrierPhase(t *testing.T, s *rpctrace.Sample, stage string) rpctrac
 	return found[0]
 }
 
-// This controlled worker fixture uses the public Runtime read entry and a real
-// elected RawNode. Only follower delivery and Storage.Save are controlled; the
-// test never manufactures ReadStates or changes a pending request's index.
-func TestReadBarrierPhaseTraceProducedProofBeforeSameReadySave(t *testing.T) {
-	for _, outcome := range []string{"success", "cancel", "save_error"} {
+// The read is a new quorum proof for an already durable current-term index.
+// An unrelated, newly proposed uncommitted entry in the same Ready must not
+// delay that proof; late success or failure of its Save cannot mutate the read.
+// TestReadBarrierPhaseTraceWaitsForDurableApply separately retains the opposite
+// case: the requested read index itself has not reached durable application.
+func TestReadBarrierPhaseTraceFreshDurableReadDoesNotWaitForUnrelatedSave(t *testing.T) {
+	for _, outcome := range []string{"success", "save_error"} {
 		t.Run(outcome, func(t *testing.T) {
 			g := newReadBarrierBatchLeader(t)
 			g.readBarrierTracing = true
@@ -263,16 +270,22 @@ func TestReadBarrierPhaseTraceProducedProofBeforeSameReadySave(t *testing.T) {
 			if len(transport.key) == 0 {
 				t.Fatal("no fresh heartbeat context")
 			}
+			readIndex := g.rawNode.BasicStatus().Commit
+			if g.durableAppliedIndex < readIndex {
+				t.Fatal("fixture read index is not durably applied")
+			}
 			if err := g.rawNode.Step(raftpb.Message{Type: raftpb.MsgHeartbeatResp, From: 2, To: 1, Term: g.status.Term, Context: transport.key}); err != nil {
 				t.Fatal(err)
 			}
-			if err := g.rawNode.Propose(proposalString("same-ready-entry")); err != nil {
+			if err := g.rawNode.Propose(proposalString("unrelated-uncommitted-entry")); err != nil {
 				t.Fatal(err)
 			}
+			if g.rawNode.BasicStatus().Commit != readIndex {
+				t.Fatal("new proposal unexpectedly changed the read's committed boundary")
+			}
 			store.armEntrySave()
-			failure := errors.New("controlled Save failure")
 			if outcome == "save_error" {
-				store.result = failure
+				store.result = errors.New("unrelated controlled Save failure")
 			}
 			workerDone := make(chan struct{})
 			go func() { g.processReady(context.Background(), transport); close(workerDone) }()
@@ -287,53 +300,29 @@ func TestReadBarrierPhaseTraceProducedProofBeforeSameReadySave(t *testing.T) {
 			select {
 			case <-store.started:
 			case <-ctx.Done():
-				t.Fatal("combined Ready did not reach Save")
+				t.Fatal("unrelated append did not reach Save")
 			}
-			held := time.Now()
-			g.mu.Lock()
-			for _, p := range g.pendingReads {
-				if p.index != 0 {
-					g.mu.Unlock()
-					t.Fatal("read index accepted before Save")
-				}
-			}
-			g.mu.Unlock()
 			select {
 			case err := <-done:
-				t.Fatalf("read returned before Save: %v", err)
-			default:
+				if err != nil {
+					t.Fatalf("fresh durable read failed behind unrelated Save: %v", err)
+				}
+			case <-ctx.Done():
+				t.Fatal("fresh durable read waited for unrelated uncommitted Save")
 			}
-			var err error
-			if outcome == "cancel" {
-				cancel()
-				err = <-done
-			} else {
-				store.release()
-				err = <-done
-			}
-			want := error(nil)
-			if outcome == "cancel" {
-				want = context.Canceled
-			}
-			if outcome == "save_error" {
-				want = failure
-			}
-			if !errors.Is(err, want) {
-				t.Fatalf("read result %v, want %v", err, want)
-			}
-			sample := trace.Finish(rpctrace.ResultFor(err))
+			sample := trace.Finish(rpctrace.ResultOK)
 			before := sample.Clone()
-			raw := requireBarrierPhase(t, sample, "slot_raw_quorum")
-			accept := requireBarrierPhase(t, sample, "slot_ready_to_accept")
-			save := requireBarrierPhase(t, sample, "slot_ready_save_entries")
-			if raw.Incomplete || sample.At.Add(raw.Offset+raw.Duration).After(held) {
-				t.Fatalf("raw quorum includes Save block: %+v", raw)
+			for _, stage := range []string{"slot_raw_quorum", "slot_ready_to_accept", "slot_apply_wait"} {
+				span := requireBarrierPhase(t, sample, stage)
+				if span.Incomplete || span.Result != rpctrace.ResultOK {
+					t.Fatalf("finished durable proof retained an unfinished phase: %+v", span)
+				}
 			}
-			if sample.At.Add(accept.Offset).After(held) || sample.At.Add(accept.Offset+accept.Duration).Before(held) {
-				t.Fatalf("ready-to-accept misses Save: %+v", accept)
-			}
-			if accept.Incomplete != (outcome != "success") || save.Incomplete != (outcome == "cancel") {
-				t.Fatalf("completion labels: accept=%+v save=%+v", accept, save)
+			coverage := requireCoverageWire(t, sample)
+			for _, phase := range coverage.Phases {
+				if !phase.Observed {
+					t.Fatalf("finished durable proof omitted phase coverage: %+v", phase)
+				}
 			}
 			store.release()
 			select {
@@ -342,7 +331,7 @@ func TestReadBarrierPhaseTraceProducedProofBeforeSameReadySave(t *testing.T) {
 				t.Fatal("worker failed to join")
 			}
 			if !reflect.DeepEqual(sample, &before) || r.Active() != 0 {
-				t.Fatal("late Save changed published sample")
+				t.Fatal("late unrelated Save changed the successful read or retained its observation")
 			}
 		})
 	}

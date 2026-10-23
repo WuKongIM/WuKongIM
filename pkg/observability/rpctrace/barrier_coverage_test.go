@@ -24,6 +24,50 @@ func coverageCandidate(base time.Time, width time.Duration) ([rpctrace.MaxBarrie
 	return spans, c
 }
 
+// Async storage allows Save and Send to overlap, while each kind remains
+// serialized. Failure matrix: legal overlap drops the whole sampled barrier;
+// cancellation loses either clipped kind; a published clone aliases coverage.
+// Each kind must still fit its phase independently (invalid cases below).
+func TestBarrierCoverageRetainsConcurrentSaveAndSend(t *testing.T) {
+	for _, canceled := range []bool{false, true} {
+		name := "complete"
+		if canceled {
+			name = "canceled"
+		}
+		t.Run(name, func(t *testing.T) {
+			r, _ := rpctrace.NewRecorder(1)
+			tr := r.Start(context.Background(), rpctrace.SideServer, 91)
+			base := time.Now()
+			spans, c := coverageCandidate(base, 10)
+			index, count, end, result := 2, 5, base.Add(50), rpctrace.ResultOK
+			if canceled {
+				index, count, end, result = 0, 1, base.Add(10), rpctrace.ResultCanceled
+				spans[0].Incomplete = true
+				spans[0].Result = result
+				for i := 1; i < rpctrace.BarrierPhaseCount; i++ {
+					c.Phases[i].Observed = false
+					c.Phases[i].Save = rpctrace.BarrierOverlayCoverage{}
+				}
+			}
+			c.Phases[index].Save = rpctrace.BarrierOverlayCoverage{Duration: 10, Count: 1, Unfinished: canceled}
+			c.Phases[index].Send = rpctrace.BarrierOverlayCoverage{Duration: 10, Count: 1, Unfinished: canceled}
+			tr.RetainLongestBarrierWithCoverage(base, end, spans, count, 0, c)
+			s := tr.Finish(result)
+			if s.BarrierCoverage == nil || s.BarrierGroups != 1 || s.DroppedSpans != 0 {
+				t.Fatal("legal concurrent Save/Send discarded the barrier coverage")
+			}
+			if got := s.BarrierCoverage.Phases[index]; got.Save != c.Phases[index].Save || got.Send != c.Phases[index].Send {
+				t.Fatalf("concurrent kinds changed: %+v", got)
+			}
+			clone := s.Clone()
+			clone.BarrierCoverage.Phases[index].Send.Duration = 1
+			if s.BarrierCoverage.Phases[index].Send.Duration != 10 {
+				t.Fatal("published concurrent coverage aliases its clone")
+			}
+		})
+	}
+}
+
 func TestBarrierCoverageLongestAtomicAndClone(t *testing.T) {
 	r, _ := rpctrace.NewRecorder(1)
 	tr := r.Start(context.Background(), rpctrace.SideServer, 91)
@@ -100,8 +144,11 @@ func TestBarrierCoverageRejectsInvalidPhaseProvenance(t *testing.T) {
 		"negative": func(_ *[rpctrace.MaxBarrierSpans]rpctrace.HistoricalSpan, c *rpctrace.BarrierCoverage) {
 			c.Phases[2].Save.Duration = -1
 		},
-		"sum_exceeds_phase": func(_ *[rpctrace.MaxBarrierSpans]rpctrace.HistoricalSpan, c *rpctrace.BarrierCoverage) {
-			c.Phases[2].Send = rpctrace.BarrierOverlayCoverage{Duration: 1, Count: 1}
+		"send_exceeds_phase": func(_ *[rpctrace.MaxBarrierSpans]rpctrace.HistoricalSpan, c *rpctrace.BarrierCoverage) {
+			c.Phases[2].Send = rpctrace.BarrierOverlayCoverage{Duration: 11, Count: 1}
+		},
+		"save_exceeds_phase": func(_ *[rpctrace.MaxBarrierSpans]rpctrace.HistoricalSpan, c *rpctrace.BarrierCoverage) {
+			c.Phases[2].Save.Duration = 11
 		},
 		"duration_without_count": func(_ *[rpctrace.MaxBarrierSpans]rpctrace.HistoricalSpan, c *rpctrace.BarrierCoverage) {
 			c.Phases[2].Save.Count = 0

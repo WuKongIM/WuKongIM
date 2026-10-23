@@ -26,6 +26,12 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Process Slot Raft storage through bounded asynchronous lanes to allow safe
+  heartbeat and fresh-read progress during asynchronous writes, while retaining
+  durable acknowledgments, application ordering and shutdown/recovery fences.
+  / Slot Raft 使用有界异步存储队列，让安全的心跳和新鲜读取在异步写盘时继续推进，
+  保留落盘确认、应用顺序及关闭和恢复屏障。
+
 - Retain bounded cumulative Save/Send coverage for sampled Slot read phases
   and expose the Raft engine's real WAL fsync, write-stall and slow-disk metrics.
   / Slot 读取采样补充有界的 Save/Send 分阶段累计覆盖，并接入 Raft 存储实际的

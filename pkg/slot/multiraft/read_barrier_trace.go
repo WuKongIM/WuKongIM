@@ -119,8 +119,9 @@ func (o *readBarrierTiming) closeOverlay(at time.Time, err error, send bool) {
 	}
 }
 
-// accumulateOverlay runs under the existing timing lock. Save/Send are serial
-// on a Slot, so each operation contributes once to each positive intersection.
+// accumulateOverlay runs under the existing timing lock. Each kind is serial
+// on a Slot, but Save and Send can overlap. Each operation contributes once to
+// each positive intersection within its own kind.
 // Boundaries already observed at close split the operation exactly; an unreached
 // phase receives no measurement. Finish clips any open operation once.
 func (o *readBarrierTiming) accumulateOverlay(kind int, end time.Time, unfinished bool) {

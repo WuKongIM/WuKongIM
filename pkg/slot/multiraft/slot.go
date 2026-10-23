@@ -38,10 +38,18 @@ type slot struct {
 	status                       Status
 	storageView                  *storageAdapter
 	apply                        *applyPipeline
-	closed                       bool
-	fatalErr                     error
-	cond                         *sync.Cond
-	processing                   bool
+	// storagePipeline owns bounded append work; only the Raft owner consumes completions.
+	storagePipeline    *storagePipeline
+	storageTasks       int
+	storageCompletions []storageCompletion
+	storageWake        chan struct{}
+	storageNotify      func()
+	compactionPending  bool
+	compactionRefresh  bool
+	closed             bool
+	fatalErr           error
+	cond               *sync.Cond
+	processing         bool
 	// applying counts async apply tasks that have been accepted for this Slot.
 	applying           int
 	rawNode            *raft.RawNode
@@ -94,6 +102,10 @@ type slot struct {
 	basicStatusRefreshCount int
 	// fullStatusRefreshCount counts full RawNode.Status refreshes for regression tests.
 	fullStatusRefreshCount int
+	// These owner-only fields avoid repeating an unchanged status publication
+	// after a configuration Future required an earlier refresh in the same pass.
+	statusRefreshedInPass bool
+	lastRefreshedBasic    raft.BasicStatus
 }
 
 type trackedFuture struct {
@@ -380,17 +392,18 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		configAppliedIndex = checkpoint.ConfigAppliedIndex
 	}
 	rawNode, err := raft.NewRawNode(&raft.Config{
-		ID:              uint64(nodeID),
-		ElectionTick:    raftOpts.ElectionTick,
-		HeartbeatTick:   raftOpts.HeartbeatTick,
-		Storage:         memory,
-		Applied:         appliedIndex,
-		MaxSizePerMsg:   maxSizePerMsg(raftOpts.MaxSizePerMsg),
-		MaxInflightMsgs: maxInflight(raftOpts.MaxInflight),
-		CheckQuorum:     raftOpts.CheckQuorum,
-		ReadOnlyOption:  raft.ReadOnlySafe,
-		PreVote:         raftOpts.PreVote,
-		Logger:          newEtcdRaftLogger(logger, nodeID, opts.ID),
+		ID:                 uint64(nodeID),
+		AsyncStorageWrites: true,
+		ElectionTick:       raftOpts.ElectionTick,
+		HeartbeatTick:      raftOpts.HeartbeatTick,
+		Storage:            memory,
+		Applied:            appliedIndex,
+		MaxSizePerMsg:      maxSizePerMsg(raftOpts.MaxSizePerMsg),
+		MaxInflightMsgs:    maxInflight(raftOpts.MaxInflight),
+		CheckQuorum:        raftOpts.CheckQuorum,
+		ReadOnlyOption:     raft.ReadOnlySafe,
+		PreVote:            raftOpts.PreVote,
+		Logger:             newEtcdRaftLogger(logger, nodeID, opts.ID),
 	})
 	if err != nil {
 		return nil, err
@@ -415,6 +428,7 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		logger:                      logger,
 		storageView:                 newStorageAdapter(opts.Storage),
 		apply:                       apply,
+		storageWake:                 make(chan struct{}, 1),
 		rawNode:                     rawNode,
 		durableAppliedIndex:         appliedIndex,
 		durableConfigAppliedIndex:   configAppliedIndex,
@@ -483,8 +497,18 @@ func (g *slot) processRequests() bool {
 	requests := g.takeRequestBatch()
 	defer g.releaseRequestBatch(requests)
 
+	before := g.rawNode.BasicStatus()
 	for _, msg := range requests {
 		_ = g.rawNode.Step(msg)
+	}
+	after := g.rawNode.BasicStatus()
+	// Queue admission updates the cached status before the owner sees a higher
+	// term. Compare actual owner states so that hint cannot hide leadership loss.
+	if before.RaftState == raft.StateLeader && (after.RaftState != raft.StateLeader || after.Term != before.Term) {
+		g.mu.Lock()
+		completions := g.failLeadershipDependentLocked(ErrNotLeader)
+		g.mu.Unlock()
+		dispatchFutureCompletions(completions)
 	}
 	return len(requests) > 0
 }
@@ -632,7 +656,7 @@ func (g *slot) processControls(ctx context.Context) bool {
 				action.compact.resp <- logCompactionResponse{err: err}
 				continue
 			}
-			if err := g.waitApplyIdle(action.compact.ctx); err != nil {
+			if err := g.waitStorageIdle(action.compact.ctx); err != nil {
 				action.compact.resp <- logCompactionResponse{err: err}
 				continue
 			}
@@ -672,7 +696,7 @@ func (g *slot) processControls(ctx context.Context) bool {
 				request.finish(hashSlotSnapshotResponse{err: err})
 				continue
 			}
-			if err := g.waitApplyIdle(request.ctx); err != nil {
+			if err := g.waitStorageIdle(request.ctx); err != nil {
 				request.finish(hashSlotSnapshotResponse{err: err})
 				continue
 			}
@@ -885,74 +909,119 @@ func (g *slot) processTick() bool {
 }
 
 func (g *slot) processReady(ctx context.Context, transport Transport) (bool, bool) {
-	if !g.rawNode.HasReady() {
-		return false, false
+	completed := g.drainStorageCompletions()
+	if !g.shouldProcess() {
+		return completed, false
 	}
-
+	if !g.rawNode.HasReady() {
+		g.compactAfterStorage()
+		return completed, false
+	}
 	ready := g.rawNode.Ready()
-	var saveStage rpctrace.Stage
+	// Bind the submitted FIFO now: a later term change may admit different
+	// Futures before this Ready's physical write completes.
+	proposals, configs := countTrackedReadyEntries(ready.Entries)
+	g.ensurePendingProposalCapacity(proposals)
+	g.ensurePendingConfigCapacity(configs)
+	g.trackReadyEntries(ready.Entries)
 	if g.readBarrierTracing {
 		g.observeReadStatesProduced(ready.ReadStates)
-		saveStage = readySaveStage(ready)
-		g.beginReadReadyOverlay(saveStage, false)
 	}
-	persist, err := g.storageView.persistReadyDurable(ctx, ready)
-	if g.readBarrierTracing {
-		g.endReadReadyOverlay(saveStage, err, false)
+	// A fresh proof for already durable-applied history need not wait for an
+	// unrelated newer append. Refresh actual owner state before accepting it.
+	if len(ready.ReadStates) > 0 {
+		g.refreshStatus()
+		g.acceptReadStates(ready.ReadStates)
 	}
-	if err != nil {
-		g.failPending(err)
-		return true, false
+	work := &storageWork{slot: g, transport: transport, commitBefore: g.rawNode.BasicStatus().Commit}
+	charge := storageReadyCharge(ready)
+	network := ready.Messages[:0]
+	for _, m := range ready.Messages {
+		switch m.Type {
+		case raftpb.MsgStorageAppend:
+			work.append = m
+			work.hasAppend = true
+		case raftpb.MsgStorageApply:
+			work.apply = m
+			work.hasApply = true
+		default:
+			network = append(network, m)
+		}
 	}
-	// A reached temporary marker proves persistence before quorum commit; it
-	// deliberately does not fire for already-committed single-node entries.
-	persistMatch := ""
-	// gofail: var wkSlotPersistedCommandMatch string
-	// persistMatch = wkSlotPersistedCommandMatch
-	if persistMatch != "" {
-		for _, entry := range ready.Entries {
-			if matchesSlotFaultCommand(entry.Data, persistMatch) && entry.Index > g.rawNode.BasicStatus().Commit {
-				// gofail: var wkSlotPersistedUncommitted bool
-				// _ = wkSlotPersistedUncommitted
+	g.sendReadyMessages(ctx, network, transport)
+	if !work.hasAppend && !work.hasApply {
+		return true, g.rawNode.HasReady()
+	}
+	synchronous := readyRequiresSynchronousApply(ready)
+	for _, entry := range ready.Entries {
+		if entry.Type != raftpb.EntryNormal {
+			synchronous = true
+			break
+		}
+	}
+	if !synchronous && g.storagePipeline != nil && g.apply != nil {
+		parts := storageAppendPart
+		if work.hasApply {
+			parts |= storageApplyPart
+		}
+		if lease, ok := g.storagePipeline.budget.reserve(g, charge, parts); ok {
+			work.lease = lease
+			if work.hasAppend {
+				work.append = cloneStorageMessage(work.append)
 			}
+			if work.hasApply {
+				work.apply = cloneStorageMessage(work.apply)
+			}
+			if err := g.storagePipeline.enqueue(work); err != nil {
+				lease.retire()
+				g.fail(err)
+				return true, false
+			}
+			return true, g.rawNode.HasReady()
 		}
 	}
-	requiresSyncApply := readyRequiresSynchronousApply(ready)
-	if requiresSyncApply {
-		if err := g.waitApplyIdle(ctx); err != nil {
-			return true, false
-		}
-		if err := g.currentErr(); err != nil {
-			return true, false
-		}
-	}
-	if err := g.storageView.applyReadyToMemory(persist); err != nil {
-		g.failPending(err)
+	// Ready has already been accepted upstream. Borrow exactly this Ready while
+	// joining prior work; neither clone an oversized payload nor accept another.
+	if err := g.waitStorageIdle(ctx); err != nil {
+		g.fail(err)
 		return true, false
 	}
-	proposalCount, configCount := countTrackedReadyEntries(ready.Entries)
-	g.ensurePendingProposalCapacity(proposalCount)
-	g.ensurePendingConfigCapacity(configCount)
-	g.trackReadyEntries(ready.Entries)
-
-	if len(ready.Messages) > 0 {
-		g.transportBuf = wrapMessagesIntoForTransport(g.transportBuf[:0], g.id, ready.Messages, transport)
-		if g.readBarrierTracing {
-			g.beginReadReadyOverlay(rpctrace.StageSlotRaftSend, true)
-		}
-		sendErr := transport.Send(ctx, g.transportBuf)
-		if g.readBarrierTracing {
-			g.endReadReadyOverlay(rpctrace.StageSlotRaftSend, sendErr, true)
-		}
-		clear(g.transportBuf)
-		g.transportBuf = g.transportBuf[:0]
+	if !g.shouldProcess() {
+		return true, false
 	}
-
-	g.acceptReadStates(ready.ReadStates)
-	if requiresSyncApply {
-		return g.processReadySynchronously(ctx, ready)
+	persist, err := g.runStorageAppend(ctx, work)
+	if err != nil {
+		g.fail(err)
+		return true, false
 	}
-	return g.processReadyAsyncNormal(ctx, ready)
+	if err = g.storageView.applyReadyToMemory(persist); err != nil {
+		g.fail(err)
+		return true, false
+	}
+	applied := raft.Ready{}
+	if work.hasAppend && work.append.Snapshot != nil {
+		applied.Snapshot = *work.append.Snapshot
+	}
+	if work.hasApply {
+		applied.CommittedEntries = work.apply.Entries
+	}
+	if !raft.IsEmptySnap(applied.Snapshot) || len(applied.CommittedEntries) > 0 {
+		g.processReadySynchronously(ctx, applied)
+	}
+	if !g.shouldProcess() {
+		return true, false
+	}
+	if work.hasAppend {
+		g.deliverStorageResponses(ctx, work.append.Responses, transport)
+	}
+	if work.hasApply {
+		g.deliverStorageResponses(ctx, work.apply.Responses, transport)
+	}
+	g.compactAfterStorage()
+	if !g.rawNode.HasReady() && g.takeCampaignAfterReady() {
+		_ = g.rawNode.Campaign()
+	}
+	return true, g.rawNode.HasReady()
 }
 
 func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) (bool, bool) {
@@ -1013,25 +1082,19 @@ func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) 
 		g.setDurableAppliedIndex(lastApplied)
 	}
 
-	g.rawNode.Advance(ready)
-	g.refreshStatus()
+	if configChanged {
+		// A successful configuration Future publishes the new membership too.
+		// Ordinary Ready work still shares the owner pass's basic refresh.
+		g.refreshFullStatus()
+	}
 	g.completeResolutions(resolutions)
 	requeue := g.rawNode.HasReady()
-	if g.takeCampaignAfterReady() {
-		_ = g.rawNode.Campaign()
-		requeue = true
-	}
-	// Refresh snapshots after membership changes so future learners can restore
-	// a snapshot whose ConfState includes the latest peer set.
-	if g.compactor.shouldCompact(lastApplied) ||
-		(configChanged && g.compactor.shouldRefreshAfterConfigChange(lastApplied)) {
-		compacted, err := g.compactLog(ctx, lastApplied)
-		if err != nil {
-			g.logCompactionWarning(err, lastApplied)
-		} else if compacted {
-			g.compactor.recordSnapshot(lastApplied)
-		}
-	}
+	// Snapshot compaction belongs to the owner only after local storage
+	// responses are consumed; applying entries alone is not the whole fence.
+	g.mu.Lock()
+	g.compactionPending = true
+	g.compactionRefresh = g.compactionRefresh || configChanged
+	g.mu.Unlock()
 	return true, requeue || g.rawNode.HasReady()
 }
 
@@ -1049,33 +1112,6 @@ func (g *slot) markApplied(ctx context.Context, index uint64) error {
 		}
 	}
 	return g.storage.MarkApplied(ctx, index)
-}
-
-func (g *slot) processReadyAsyncNormal(ctx context.Context, ready raft.Ready) (bool, bool) {
-	if len(ready.CommittedEntries) == 0 {
-		g.rawNode.Advance(ready)
-		g.refreshStatus()
-		return true, g.rawNode.HasReady()
-	}
-	if g.apply == nil {
-		return g.processReadySynchronously(ctx, ready)
-	}
-
-	task := applyTask{
-		slot:          g,
-		entries:       cloneEntries(ready.CommittedEntries),
-		appliedBefore: g.appliedIndex(),
-	}
-	if err := g.apply.enqueue(task); err != nil {
-		if errors.Is(err, ErrSlotBusy) {
-			return g.processReadySynchronously(ctx, ready)
-		}
-		g.fail(err)
-		return true, false
-	}
-	g.rawNode.Advance(ready)
-	g.refreshStatus()
-	return true, g.rawNode.HasReady()
 }
 
 func (g *slot) logCompactionWarning(err error, applied uint64) {
@@ -1410,6 +1446,19 @@ func (g *slot) refreshStatus() {
 	g.refreshBasicStatus()
 }
 
+// refreshStatusAfterPass preserves a refresh for tick-only work, but does not
+// repeat an earlier publication when its projected fields are still current.
+// It is owner-only; upstream Applied is excluded because public applied status
+// is published separately from the durable FSM watermark.
+func (g *slot) refreshStatusAfterPass() {
+	st := g.rawNode.BasicStatus()
+	last := g.lastRefreshedBasic
+	if !g.statusRefreshedInPass || g.needsFullStatusRefresh() ||
+		st.Term != last.Term || st.Commit != last.Commit || st.Lead != last.Lead || st.RaftState != last.RaftState {
+		g.refreshStatus()
+	}
+}
+
 func (g *slot) needsFullStatusRefresh() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -1419,6 +1468,7 @@ func (g *slot) needsFullStatusRefresh() bool {
 // refreshBasicStatus updates volatile Raft status without cloning tracker progress.
 func (g *slot) refreshBasicStatus() {
 	st := g.rawNode.BasicStatus()
+	g.lastRefreshedBasic, g.statusRefreshedInPass = st, true
 	g.mu.Lock()
 	g.basicStatusRefreshCount++
 	leaderEvent, applyEvent, completions := g.applyBasicStatusLocked(st)
@@ -1431,6 +1481,7 @@ func (g *slot) refreshBasicStatus() {
 // refreshFullStatus updates voter membership and basic status from RawNode.Status.
 func (g *slot) refreshFullStatus() {
 	st := g.rawNode.Status()
+	g.lastRefreshedBasic, g.statusRefreshedInPass = st.BasicStatus, true
 	g.mu.Lock()
 	g.fullStatusRefreshCount++
 	g.votersInitialized = true
@@ -1993,7 +2044,7 @@ func (g *slot) finishApply() {
 }
 
 func (g *slot) waitIdleLocked() {
-	for g.processing || g.applying > 0 {
+	for g.processing || g.applying > 0 || g.storageTasks > 0 {
 		g.cond.Wait()
 	}
 }
@@ -2068,6 +2119,7 @@ func (g *slot) fail(err error) {
 		return
 	}
 	g.fatalErr = err
+	g.retireStorageCompletionsLocked()
 	completions := g.failPendingLocked(err)
 	g.mu.Unlock()
 	dispatchFutureCompletions(completions)

@@ -2073,15 +2073,18 @@ specification, runbook, report, or module documentation; link to them when neede
   reply arrived too late. Only success or explicit unsupported is cached.
   A sampled Slot read retains only its longest caller-visible barrier group,
   separating control wait, ReadIndex eligibility, raw quorum confirmation,
-  Ready persistence before acceptance, and durable-apply wait. Bounded Save/Send
+  Ready-to-accept processing, and durable-apply wait. Bounded Save/Send
   overlays overlap these phases and must not be added to them. Raw ReadStates
-  observation never bypasses the existing persist-before-accept ordering.
+  observation records proof production, not read completion. Fresh proof for
+  an already durable-applied index may pass an unrelated newer append only
+  after the owner validates its actual current leader and term.
   Fixed per-phase Save/Send coverage accumulates all observed intersections
   independently of the two-per-kind detailed-overlay cap. Coverage belongs to
   the same retained longest group, includes only the caller's observed window,
-  and distinguishes unreached phases from measured zero. Save includes storage
-  admission and persistence preparation, not only fsync; neither coverage nor
-  raw-quorum duration alone identifies network or disk latency.
+  and distinguishes unreached phases from measured zero. Save includes backend
+  writer admission and persistence preparation, not only fsync; neither coverage nor
+  raw-quorum duration alone identifies network or disk latency. Asynchronous
+  Save overlap can represent concurrent progress rather than owner blocking.
   Commit observations follow each logical request from queue-credit admission
   through physical-batch entry, collection, build, durable commit and publication;
   shared physical phases overlap across requests and publication excludes Finalize.
@@ -2093,6 +2096,30 @@ specification, runbook, report, or module documentation; link to them when neede
   result responsibility. Decoded result/page bytes are diagnostic structural
   estimates (visible slice capacity plus live strings), not heap or RSS bounds;
   their enabled signal distinguishes unmeasured values from measured zero.
+
+- Slot Raft uses upstream asynchronous storage messages with one RawNode owner.
+  Append completion publishes durable memory and dependent replies through a
+  private completion path; external Step cannot inject storage messages or
+  address reserved storage threads. Apply remains behind its append prefix,
+  including HardState.Commit. Futures bind at Ready acceptance, so a delayed
+  older-term Save cannot consume a new term's submitted FIFO.
+  A Ready owns at most two completion records, charged until consumed or joined
+  and retired. Limits are `min(4, normalized MaxApplyingTasks)` Ready owners / 8 MiB
+  per Slot and `4 * Workers` Ready owners / `8 MiB * Workers` per Runtime. They bound
+  new queue ownership, not upstream inputs, allocator overhead or total RSS.
+  Saturation and oversized legal entries use one borrowed synchronous Ready;
+  snapshots, configuration and compaction also join both lanes. Async and
+  synchronous Save share `Workers` physical I/O permits. Close/reload join the
+  retiring generation before its identity or storage can be reused. Close skips
+  queued append work that has not entered Save; entered calls must return before
+  reuse, while already accepted apply work drains. A Save failure seals its
+  generation before any successor Save starts,
+  even when the Raft owner has not yet consumed the failure completion. Fatal
+  retirement clears completed mailbox records; unfinished Save/apply work stays
+  charged until its physical completion.
+  The [same-request diagnosis](../reports/2026-10-24-sampled-raft-read-blocking.md)
+  retains R16's failed 2,000-SEND/s gate and public held-Save heartbeat regression;
+  passing that mechanism regression alone is not performance qualification.
 
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
