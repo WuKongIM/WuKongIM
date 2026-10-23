@@ -8,6 +8,10 @@ move those entries into a version section named for that exact tag.
 
 ### 📚 Documentation / 文档
 
+- Update Android EasySDK tutorials to 1.1.0 and add bilingual stream-message
+  examples for live events, parent messages and reconnect recovery.
+  / Android EasySDK 教程升级到 1.1.0，补充实时流事件、基础消息和重连恢复的中英文示例。
+
 - Add a prominent online Demo home entry to both project READMEs, alongside
   the local launcher instructions. / 中英文项目 README 明确提供在线 Demo 首页入口，
   同时保留本地启动指南。

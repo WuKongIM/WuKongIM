@@ -415,8 +415,15 @@ function publishedEasySDKGroup(): NavigationGroup {
         'android/getting-started',
         'Android 快速接入',
         'Android quickstart',
-        `精确安装 v${easySdkReleases.android.version}，处理单例、单聊收发、清理和 Alice/Bob 双向消息。`,
-        `Install exactly v${easySdkReleases.android.version} for singleton ownership, person messaging, cleanup, and Alice/Bob messaging.`,
+        `精确安装 v${easySdkReleases.android.version}，选择连接实例，完成单聊收发、清理和 Alice/Bob 双向消息。`,
+        `Install exactly v${easySdkReleases.android.version} for connection ownership, person messaging, cleanup, and Alice/Bob messaging.`,
+      ),
+      publishedPage(
+        'android/streaming',
+        'Android 流消息',
+        'Android Streaming Messages',
+        `使用 v${easySdkReleases.android.version} 接收实时流事件、发送基础消息并恢复历史快照。`,
+        `Use v${easySdkReleases.android.version} for live stream events, parent messages, and history recovery.`,
       ),
       publishedPage(
         'flutter/getting-started',

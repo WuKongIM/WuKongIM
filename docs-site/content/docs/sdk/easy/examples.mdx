@@ -77,7 +77,9 @@ git checkout WK_EASYSDK_ANDROID_SOURCE_REF
 ./gradlew :example:installDebug
 ```
 
-在 API 21+ 设备或模拟器中启动 `example`。Android Emulator 连接宿主机时使用 `ws://10.0.2.2:5200`，不是 `localhost`。需要两个原生身份时使用两台设备或两个独立模拟器；也可以让浏览器 example 作为另一端。
+在 API 21+ 设备或模拟器中启动 `example`。Android Emulator 连接宿主机时使用 `ws://10.0.2.2:5200`，不是 `localhost`。普通收发可使用两台设备、两个模拟器或浏览器 example 作为另一端。
+
+在右上角选择 **流式聊天 Demo**，填写设备可达的 HTTP API 地址，点击“创建会话并连接”，即可在同一进程中用两个独立实例观察模拟／真实模型回复、取消、失败与重连恢复。它仅用于可写演示数据的开发环境；详情见 [Android 流消息](/zh/sdk/easy/android/streaming)。
 
 [Android 快速接入](/zh/sdk/easy/android/getting-started)
 

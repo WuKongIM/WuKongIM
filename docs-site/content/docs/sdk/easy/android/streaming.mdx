@@ -1,0 +1,193 @@
+---
+title: Android 流消息
+description: 使用原生 Android SDK 接收实时流事件，创建流消息，并通过业务后端完成追加、终态和重连恢复。
+---
+
+使用 **WK_EASYSDK_ANDROID_VERSION** 的 `SendOptions`、`MessageSetting` 和 `CUSTOM_EVENT`，让一条回复在同一个气泡内逐段更新。先完成 [Android 快速接入](/zh/sdk/easy/android/getting-started)，并确认集群包含在线 EVENT 投递实现。
+
+## 1. 安装与职责
+
+```kotlin
+dependencies {
+    implementation("com.githubim:easysdk-android:WK_EASYSDK_ANDROID_VERSION")
+}
+```
+
+| 位置 | 职责 |
+| --- | --- |
+| Android 客户端 | 用当前用户的连接材料登录；接收基础消息与实时事件；维护气泡投影 |
+| 可信业务后端 | 校验用户、作者和频道权限；追加事件；提供历史与取消接口 |
+| Agent 后端 | 持有模型 Key，读取模型 SSE，顺序写入增量与终态 |
+
+以下示例使用业务后端已授权的群频道（`channel_type = 2`）。服务端和 SDK 不替应用创建 UI 投影。普通终端不获得机器人 Token、模型 Key 或 WuKongIM HTTP API 管理凭据。
+
+## 2. 接收基础消息与实时事件
+
+将下面的辅助类放到应用中。`config` 使用快速接入中的 `WuKongConfig.Builder()` 创建，身份、Token 和设备可达的 WebSocket 地址来自业务后端。由 Application 连接管理器或 ViewModel 持有 `StreamReader`；连接时在协程中调用 `connect()`，不再使用时调用 `close()`。
+
+```kotlin
+import android.content.Context
+import com.githubim.easysdk.WuKongConfig
+import com.githubim.easysdk.WuKongEasySDK
+import com.githubim.easysdk.enums.WuKongEvent
+import com.githubim.easysdk.listener.WuKongEventListener
+import com.githubim.easysdk.model.ConnectResult
+import com.githubim.easysdk.model.EventNotification
+import com.githubim.easysdk.model.Message
+import kotlinx.coroutines.withTimeout
+
+class StreamReader(
+    context: Context,
+    config: WuKongConfig,
+    private val channelId: String,
+    private val onConnected: () -> Unit,
+    private val onBase: (Message) -> Unit,
+    private val onStreamEvent: (EventNotification) -> Unit,
+) {
+    private val sdk = WuKongEasySDK.createInstance()
+
+    // Keep strong listener references for this reader's entire lifetime.
+    private val connectListener = object : WuKongEventListener<ConnectResult> {
+        override fun onEvent(result: ConnectResult) { onConnected() }
+    }
+    private val messageListener = object : WuKongEventListener<Message> {
+        override fun onEvent(message: Message) {
+            if (message.channelId == channelId && message.channelType == 2 &&
+                message.setting?.stream == true && !message.clientMsgNo.isNullOrBlank()
+            ) onBase(message)
+        }
+    }
+    private val eventListener = object : WuKongEventListener<EventNotification> {
+        override fun onEvent(event: EventNotification) {
+            val data = event.data as? Map<*, *> ?: return
+            if (data["channel_id"] != channelId ||
+                (data["channel_type"] as? Number)?.toInt() != 2
+            ) return
+            if ((data["client_msg_no"] as? String).isNullOrBlank()) return
+            if (!event.type.startsWith("stream.")) return
+            if (data["event_key"] != "main" && event.type != "stream.finish") return
+            onStreamEvent(event)
+        }
+    }
+
+    init {
+        sdk.init(context.applicationContext, config)
+        sdk.addEventListener(WuKongEvent.CONNECT, connectListener)
+        sdk.addEventListener(WuKongEvent.MESSAGE, messageListener)
+        sdk.addEventListener(WuKongEvent.CUSTOM_EVENT, eventListener)
+    }
+
+    suspend fun connect() {
+        try {
+            withTimeout(20_000) { sdk.connect() }
+        } catch (error: Exception) {
+            sdk.disconnect()
+            throw error
+        }
+    }
+
+    fun close() {
+        sdk.destroy()
+    }
+}
+```
+
+`onConnected` 在初次连接和自动重连认证成功时触发，由应用开始第 5 节的历史恢复流程。`onBase` 与 `onStreamEvent` 是由应用提供的 UI 回调：前者按 `message.clientMsgNo` 创建或找到气泡，后者按 `event.data.client_msg_no` 合并内容。SDK 在主线程分发监听器，回调应保持轻量。`event.data` 中的数字通过 `Number` 读取；JSON 字符串形式的 `data` 已由 SDK 解码，无需再次 Base64 解码。
+
+`createInstance()` 创建独立连接，不改变 `getInstance()` 返回的共享实例。每个实例只 `init` 一次；`destroy()` 移除监听器并断开，但不重置该实例的配置。账号或配置变化时释放旧实例，再创建并初始化新实例。
+
+## 3. 创建流消息基础消息
+
+生产者必须先完成认证连接。下面方法只发送**当前生产者自己署名**的基础消息；Agent 场景通常由可信后端持有作者连接，普通 Android 用户不登录机器人身份。`clientMsgNo` 由业务层为一条回复生成并保存一次，重试沿用同一个值。
+
+```kotlin
+import com.githubim.easysdk.WuKongEasySDK
+import com.githubim.easysdk.enums.WuKongChannelType
+import com.githubim.easysdk.model.MessageSetting
+import com.githubim.easysdk.model.SendOptions
+import com.githubim.easysdk.model.SendResult
+
+suspend fun sendStreamParent(
+    producer: WuKongEasySDK,
+    channelId: String,
+    clientMsgNo: String,
+): SendResult {
+    require(clientMsgNo.isNotBlank())
+    val ack = producer.send(
+        channelId = channelId,
+        channelType = WuKongChannelType.GROUP,
+        payload = mapOf("type" to 1, "content" to ""),
+        options = SendOptions(
+            clientMsgNo = clientMsgNo,
+            setting = MessageSetting(stream = true),
+        ),
+    )
+    check(ack.reasonCode == 1) { "Stream parent was not accepted" }
+    return ack
+}
+```
+
+收到 `reasonCode == 1` 才能继续追加事件；SENDACK 成功表示基础消息被接受，不代表接收端已收到。`stream: true` 必须搭配持久化基础消息，不使用 `Header(noPersist = true)` 或 `syncOnce = true`。`Message.setting?.stream` 是接收侧对应标记。
+
+## 4. 业务后端追加事件
+
+基础消息作者为 `author-42`，群频道为 `room-42`，消息编号为 `reply-42` 时，由**可信后端**顺序调用 [POST /message/event](/zh/api/product-http/messages/appendMessageEvent)，依次提交下列三个 JSON 请求体：
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:1",
+  "event_type": "stream.open", "event_key": "main", "visibility": "public",
+  "payload": { "kind": "text" }
+}
+```
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:2",
+  "event_type": "stream.delta", "event_key": "main", "visibility": "public",
+  "payload": { "kind": "text", "delta": "你好🙂" }
+}
+```
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:3",
+  "event_type": "stream.finish", "visibility": "public",
+  "payload": { "snapshot": { "kind": "text", "text": "你好🙂" } }
+}
+```
+
+检查每次 HTTP 和应用层结果后再继续。写入前持久化事件 ID 与 Payload，重试复用原 ID；写入结果未知时先对账，不改用新 ID 盲目追加。服务端会在在线事件中补充 UTF-8 字节 `text_offset`，生产者不用自己填写它。`stream.finish` 使用保留的 `__finish__` lane；接收端不能只按 `event_key == "main"` 过滤。
+
+模型请求和事件追加放在后端，模型 Key 不进入 APK、消息、日志或历史。模型接入、取消接口与 SSE 处理见 [Agent 流式回复](/zh/sdk/easy/agent-streaming)。
+
+## 5. 投影、终态与恢复
+
+`onStreamEvent` 交给应用的投影层处理，最小约定如下：
+
+| 事件 / 场景 | 应用行为 |
+| --- | --- |
+| 基础消息或 `stream.open` | 按 `client_msg_no` 找到同一个气泡；事件先到时也能创建它，不清空已存在文本 |
+| `stream.delta` | 按 Event ID 去重，再用 UTF-8 **字节** `text_offset` 合并 `payload.delta`；`你好🙂` 占 10 字节，不是 Kotlin 的字符串长度 |
+| 重叠增量 / 缺口 | 跳过快照已覆盖的字节；遇到缺口等待完整快照，不直接拼到末尾 |
+| `stream.snapshot` / `stream.finish` | 以 `payload.snapshot` 的完整 `kind: "text"`、`text` 替换文本；finish 标记完成 |
+| 取消 / 模型失败 | 后端中止模型，写 `stream.cancel` / `stream.error` 携带部分文本快照，再写 `stream.finish`；保留取消 / 失败状态 |
+| 终态后的迟到事件 | 不重新打开回复；finish 不覆盖已取消或失败的状态 |
+
+限制投影和缓冲大小，例如最多 40 条消息、每条 16,384 字符、每条 2,048 个去重 ID、恢复期间 2,048 个事件。完整原生示例的 [StreamTimeline](https://github.com/WuKongIM/WuKongEasySDK-Android/blob/WK_EASYSDK_ANDROID_TAG/example/src/main/java/com/githubim/easysdk/example/stream/StreamTimeline.kt) 展示字节合并、终态和有界投影。
+
+**在线事件为尽力投递，没有 RECVACK 或离线事件队列。** 每次连接或重连成功后，由业务后端鉴权并读取一次 [/channel/messagesync](/zh/api/product-http/messages/syncQuickstartChannelMessages)，传入 `event_summary_mode: "full"`。恢复期间暂存实时事件，先应用历史中的 `event_meta.events` 快照与状态，再按字节偏移回放缓冲增量。使用消息序号排序，保持问答顺序。在线期间不轮询历史，也不以 `/message/eventsync` 代替实时传输。
+
+## 6. 运行原生演示
+
+按[官方示例的 Android 步骤](/zh/sdk/easy/examples#android)构建并安装 `example`，在右上角选择 **流式聊天 Demo**。
+
+- HTTP API 地址：模拟器访问宿主机使用 `http://10.0.2.2:5001`；真机使用开发机局域网地址。
+- `/route` 的 WebSocket 地址也必须在设备可达，例如模拟器使用 `ws://10.0.2.2:5200`。明文只用于开发，生产使用 HTTPS / WSS。
+- 点击“创建会话并连接”，发送问题；在“演示设置”中调整模拟内容，或配置兼容模型的 URL、模型名称与 API Key。
+- 依次尝试取消、模拟失败、断开接收端后单独生成，再重连，确认同一气泡和历史快照内容一致。
+
+原生 Demo 为开发方便直接写入演示账号、频道和事件，模型 Key 仅留在当前屏幕内存中；这种直连方式不作为生产业务后端示例。完整代码与运行说明见 [Android 流式聊天指南](https://github.com/WuKongIM/WuKongEasySDK-Android/blob/WK_EASYSDK_ANDROID_TAG/example/STREAMING.md)。[1.1.0 发布验收记录](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.1.0)覆盖 Maven 正式包的签名、依赖构建与 API 34 设备验收，不代表全部设备或实际模型服务都已通过验证。

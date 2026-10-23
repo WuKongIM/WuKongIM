@@ -14,7 +14,9 @@ Keep the existing `/sdk/easy` routes and Chinese/English parity. The overview
 helps choose a platform. `examples` prepares a development single-node cluster,
 credentials with matching device categories, and eight runnable entry points.
 Each platform quickstart follows prepare, install, connect/listen, exchange,
-cleanup, and troubleshooting, in that order.
+cleanup, and troubleshooting, in that order. Android streaming follows its
+quickstart at `/sdk/easy/android/streaming`, keeping advanced projection and
+backend event responsibilities out of the first-message path.
 
 Use one default installation path. Put alternative installations after these
 tasks. Preserve each platform's real singleton, callback, timeout, and cleanup
@@ -42,7 +44,10 @@ PR; other platforms remain manual. See the README for the maintenance workflow.
 Check examples against their released package or pinned source. Source examples
 are not package-consumer verification. Web 2.0.5 includes the handshake-failure
 reconnect repair; keep its independent package validation separate from
-historical Web 2.0.4 four-platform results.
+historical Web 2.0.4 four-platform results. Android 1.1.0 adds independent peers,
+stream SEND options and custom EVENT callbacks; its Maven artifact and native
+API 34 streaming acceptance are distinct from the historical Android 1.0.5
+four-platform matrix.
 
 ## Validation reference
 

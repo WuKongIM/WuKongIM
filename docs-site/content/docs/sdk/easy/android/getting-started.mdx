@@ -68,7 +68,7 @@ data class IMBootstrap(
 
 业务后端负责认证当前产品用户并选择 WebSocket 地址。Android 客户端只得到自己的连接材料，不获得 WuKongIM HTTP API 管理凭据。
 
-Android EasySDK 是进程内单例，而且 `WK_EASYSDK_ANDROID_TAG` 初始化后不能用另一份配置再次 `init`。下面示例适合一个进程只登录一个 UID 的最小验证；生产应用若支持账号切换，必须先针对该限制设计并实测完整退出策略。
+`getInstance()` 返回进程内共享实例，每个实例初始化后不能用另一份配置再次 `init`。下面沿用共享实例，适合只登录一个 UID 的最小验证。需要独立连接或账号切换时，可使用 `createInstance()`，释放旧实例后创建新实例；参见 [Android 流消息](/zh/sdk/easy/android/streaming)。
 
 ```kotlin
 import android.os.Bundle
@@ -145,7 +145,7 @@ class ChatActivity : AppCompatActivity() {
                     current.debugLogging == config.debugLogging
             ) {
                 "WuKongEasySDK WK_EASYSDK_ANDROID_TAG cannot apply changed identity or configuration; " +
-                    "stop and restart the process or upgrade the SDK"
+                    "discard the old owner and initialize a new createInstance() peer"
             }
         }
         registerListeners()
@@ -218,7 +218,7 @@ fun sendText(targetUid: String, text: String) {
 
 `send` 返回只代表 Alice 得到了发送请求的结果。Bob 必须在自己的 `MESSAGE` 监听器中独立观察消息；不要在 Alice 的发送回调里把对端状态直接标为“已收到”。
 
-由于 SDK 是进程内单例，请使用两台设备、两个模拟器或两个独立应用进程：
+本节使用 `getInstance()` 共享连接，请使用两台设备、两个模拟器或两个独立应用进程完成验证；`createInstance()` 也允许在同一进程中持有独立身份连接：
 
 1. Alice 与 Bob 分别从业务后端取得自己的连接材料；
 2. 两端都观察 `CONNECT`，失败时只记录稳定错误码与阶段，不记录原始错误文本；
@@ -229,12 +229,12 @@ fun sendText(targetUid: String, text: String) {
 
 ## 5. 清理连接
 
-`onDestroy()` 移除本页面的监听器；页面结束时断开连接。应用级连接应由 Application 持有。`WK_EASYSDK_ANDROID_VERSION` 不能重新 `init` 另一份身份或配置，退出后也不能静默复用旧 Token。
+`onDestroy()` 移除本页面的监听器；页面结束时断开连接。应用级连接应由 Application 持有。每个实例不能重新 `init` 另一份身份或配置；独立实例不再使用时调用 `destroy()`，切换身份时用 `createInstance()` 创建新实例，不能静默复用旧 Token。
 
 ## 6. 常见问题
 
 - **`SDK is not initialized`**：严格执行 `init → addEventListener → connect` 顺序。
-- **同一 UID 刷新 Token 或路由后提示配置变化**：`WK_EASYSDK_ANDROID_TAG` 没有公开重置配置 API；显式停止流程并重启进程，不能继续使用旧 Token 或旧地址。
+- **同一 UID 刷新 Token 或路由后提示配置变化**：同一实例不能重置配置。若应用沿用共享实例，先显式停止旧流程；需要切换时释放旧实例，改用 `createInstance()` 创建并初始化新连接，不能继续使用旧 Token 或旧地址。
 - **连接地址在模拟器可用、真机不可用**：检查地址是否只在宿主机或容器内部可达；让业务后端返回设备可达的 WSS 入口。
 - **CONNECT、SEND 或 RECVACK 解析失败**：确认服务端包含 EasySDK JSON-RPC 兼容实现；当前服务端接受 snake_case 字段与 Android README 对齐的 JSON 文本字符串 Payload，也兼容 JSON 对象和 Base64 Payload，并为 Android 返回 snake_case 结果。设备值使用 APP `0`、WEB `1`、PC `2`，不要沿用旧整数。
 - **关闭 `debugLogging` 后仍在 Logcat 看到原始 JSON 或 `Params`**：先确认 Gradle 依赖解析到 `WK_EASYSDK_ANDROID_VERSION`，清理旧构建，再用非生产 canary 区分 SDK 输出、应用自身日志和第三方网络日志。若 Release 产物仍泄露 canary，应停止上线并提交最小复现。
@@ -242,4 +242,8 @@ fun sendText(targetUid: String, text: String) {
 
 ## 下一步
 
+需要逐段回复时，继续阅读 [Android 流消息](/zh/sdk/easy/android/streaming)和原生 Demo。
+
 继续阅读[消息收发](/zh/guide/integration/messaging)与[上线检查](/zh/guide/integration/acceptance)。需要离线恢复、会话、未读或推送时，先查看 [SDK 选择](/zh/sdk)。[版本与验证记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#android)保留各次验证的完整环境和范围。
+
+Android `1.1.0` 的 Maven 签名、编译与原生流消息验证另见[独立验收记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-10-23-android-easysdk-1.1.0.md)。
