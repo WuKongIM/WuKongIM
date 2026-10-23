@@ -91,4 +91,7 @@ func TestCompletePersonDirectoryTasksBoundsAndJoinsCanceledWave(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("canceled completion wave did not join")
 	}
+	if got := proposer.maxActiveCount(); got != 10 {
+		t.Fatalf("maximum concurrent completions = %d, want ten", got)
+	}
 }
