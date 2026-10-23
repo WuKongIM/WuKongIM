@@ -1977,6 +1977,13 @@ specification, runbook, report, or module documentation; link to them when neede
   vectors are dropped without changing mask/kinds, while invalid JSON and old
   field errors remain rejected. No metric lines, labels or arbitrary errors are
   retained, and parser guards and report validity remain unchanged.
+  RuntimePressure queue gauges share one collector: it copies fully bound series
+  before taking each publication lock, then freezes all four gauge values as
+  ConstMetrics under that lock. GaugeVec collection alone is insufficient:
+  Prometheus reads live Gauge values later during Metric.Write. Unversioned,
+  revisioned and individual setters use the same publication lock; metric names,
+  labels, parser bounds and release gates stay unchanged. This coherence repair
+  does not establish the cause of an unretained scrape or a presence timeout.
 
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone

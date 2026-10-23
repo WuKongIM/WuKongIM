@@ -87,6 +87,7 @@ type runtimePressureQueueSeries struct {
 }
 
 type runtimePressureQueuePublication struct {
+	// mu joins every setter with construction of immutable scrape metrics.
 	mu       sync.Mutex
 	revision uint64
 }
@@ -145,10 +146,7 @@ func newRuntimePressureMetrics(registry prometheus.Registerer, labels prometheus
 	registry.MustRegister(
 		m.poolWorkers,
 		m.poolInflight,
-		m.queueDepth,
-		m.queueCapacity,
-		m.queueBytes,
-		m.queueBytesCapacity,
+		runtimePressureQueueCollector{metrics: m},
 		m.admissionTotal,
 		m.waitDuration,
 		m.taskDuration,
@@ -202,6 +200,8 @@ func (m *RuntimePressureMetrics) SetQueue(component, pool, queue, priority strin
 		return
 	}
 	series := m.boundQueueSeries(component, pool, queue, priority)
+	series.publication.mu.Lock()
+	defer series.publication.mu.Unlock()
 	if series.depth != nil {
 		series.depth.Set(float64(clampRuntimePressureInt(obs.Depth)))
 	}
@@ -256,6 +256,8 @@ func (m *RuntimePressureMetrics) SetQueueDepth(component, pool, queue, priority 
 		return
 	}
 	series := m.boundQueueSeries(component, pool, queue, priority)
+	series.publication.mu.Lock()
+	defer series.publication.mu.Unlock()
 	series.depth.Set(float64(clampRuntimePressureInt(depth)))
 }
 
@@ -264,6 +266,8 @@ func (m *RuntimePressureMetrics) SetQueueCapacity(component, pool, queue, priori
 		return
 	}
 	series := m.boundQueueSeries(component, pool, queue, priority)
+	series.publication.mu.Lock()
+	defer series.publication.mu.Unlock()
 	series.capacity.Set(float64(clampRuntimePressureInt(capacity)))
 }
 
@@ -272,6 +276,8 @@ func (m *RuntimePressureMetrics) SetQueueBytes(component, pool, queue, priority 
 		return
 	}
 	series := m.boundQueueSeries(component, pool, queue, priority)
+	series.publication.mu.Lock()
+	defer series.publication.mu.Unlock()
 	series.bytes.Set(float64(clampRuntimePressureInt64(bytes)))
 }
 
@@ -280,6 +286,8 @@ func (m *RuntimePressureMetrics) SetQueueBytesCapacity(component, pool, queue, p
 		return
 	}
 	series := m.boundQueueSeries(component, pool, queue, priority)
+	series.publication.mu.Lock()
+	defer series.publication.mu.Unlock()
 	series.bytesCapacity.Set(float64(clampRuntimePressureInt64(capacity)))
 }
 

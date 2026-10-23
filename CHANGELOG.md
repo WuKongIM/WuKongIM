@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Keep runtime queue depth, capacity and byte gauges coherent within each
+  metrics scrape when queue observations change concurrently.
+  / 队列状态并发变化时，同次指标采集保持运行时队列深度、容量和字节数一致。
+
 - Identify bounded parser rejection reasons for failed chat-lifecycle metrics
   sources while preserving report validity and existing failure outcomes.
   / 聊天生命周期指标采集失败时补充有界的解析拒绝原因，保持报告有效性与原有失败判定不变。
