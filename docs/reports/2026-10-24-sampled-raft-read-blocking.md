@@ -1,11 +1,12 @@
 # Sampled Slot read blocking at 2,000 SEND/s
 
-The unchanged local workload still fails on candidate `77c7a88b`. Same-request
-observations now identify full per-Slot storage ownership and its synchronous
-fallback as a material blocker of the shared Raft worker. Earlier observations,
-controlled regressions and failed runs remain below. These findings support
-the next scheduling repair; they do not establish a capacity pass or qualify
-v3 for release.
+The unchanged local workload still fails on candidate `097410e5`. Earlier
+same-request observations identified per-Slot storage-count fallback occupying
+the Raft owner. Yielding before Ready removes that measured fallback, but the
+read barrier still waits and the original first-attempt gate still fails.
+Same-Slot scheduling pause must now be distinguished from owner occupancy.
+Earlier observations, controlled regressions and failed runs remain below;
+none establishes a capacity pass or qualifies v3 for release.
 
 ## Fixed workload and result
 
@@ -291,6 +292,63 @@ are respectively
 and `ea3b9831cc9a960d11bb372da3d33857b61796a37120d2889fb30fa5cdbe1a24`.
 The first Linux CI audit is
 `a74ca0a8f4ab9e18920e70ad11b0a139bc35c2799a8b253646629d7c85c31c14`.
+
+## Count backpressure at the original workload
+
+Candidate `097410e5` passes all four first automatic Linux workflows, with 16
+successful jobs and two planned skips. The actual merge checkout's tracked
+tree matches the candidate. All nine 60-second measurement windows across the
+three 500-SEND/s scenarios complete 30,000 messages with zero errors/drops and
+scheduled-total p99 below the original 400 ms gate. These are smaller workload
+checks, not acceptance of the original 2,000-SEND/s workload.
+
+R20 retains the original workload, gate thresholds and observation bounds.
+At the first saved failing active cut, +35.055556292 seconds after the true
+first-grant timestamp, it reports 70,010 primary sends, 63,005 ACKs and 98
+first-attempt failures. Terminal, loss, duplicate, corruption and sequence
+regression counters are zero at that cut. The previous +30.055524458-second
+cut has no first-attempt failures. In the final five-second interval, primary
+rate is 1,998.1873/s but ACK rate is 1,344.3914/s; outstanding message work
+grows from 3,736 to 7,005. Those are logical message counters, not an RPC queue
+census. After stopping, final terminal results include three exhausted attempt
+timeouts and 7,080 session closures; those closures are not the initial failure.
+
+Strict endpoint joining retains 2,842 same-RPC pairs, including 139 successful
+permission requests with complete phase and owner coverage. All 139 have zero
+budget-owner coverage: the sampled fallback has not moved to node-count or
+byte rejection. One final-acquisition request contains 882.128 ms of compaction
+occupancy. This does not account for all 98 failed first attempts, and the
+successful samples cannot be linked back to those failed SEND operations.
+
+The 95 permission samples from active acquisition cuts have mean control,
+raw-quorum and durable-apply waits of 47.809, 128.522 and 55.688 ms. Their mean
+service-queue time is 8.244 ms. Another 44 requests retained by the final
+acquisition still finish before the first saved failing cut; their mean
+raw-quorum wait is 230.226 ms. Per-request Save coverage of raw-quorum time
+averages 95.46% in the active cuts and 84.29% in the final population. Save
+remains asynchronous and includes more than physical fsync; overlap does not
+prove owner blocking or distinguish required persistence from avoidable
+scheduling delay. These populations must not become traffic percentiles or a
+cross-run speedup claim.
+
+At the three active metric cuts, every node reports 20 Slot scheduler workers
+for 12 physical Slots and a zero sampled scheduler queue. Thus the controlled
+single-worker cross-Slot progress regression does not quantify contention in
+this workload. Same-Slot count pause is a separate path: it defers Step,
+Tick and read controls until a whole storage lease retires, potentially after
+both append and apply completions. It consumes no worker while paused and is
+absent from owner coverage. Per-request pause coverage is needed before
+attributing the remaining raw-quorum delay to that path.
+
+R20's strict analysis, first-failure timeline and independent cleanup receipts
+are respectively
+`2466208d834c235466697139da1991efb13ee221c11dddbe8ae9e65735428b17`,
+`4c34c62baae1b4176649192752bbd2175ee0e81d882acd0d1098df047fc20fe1`
+and `b11ba184af7cf8800ecb35b2b30af2e15424916e21052a7982897493b8e59cd3`.
+The first Linux CI audit is
+`975083e449b1c4c1b7d47329a142f59fd22b636e655de8cbf47ae4131c945a8e`.
+Pre-failure metric context is retained in
+`199038ccb28ef4d02843910f5de3c3e05e51059137baf02094f2d093b9eec383`.
 
 ## Retained evidence
 

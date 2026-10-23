@@ -76,21 +76,24 @@ type slot struct {
 	// Ready windows let a newly queued caller observe a preceding blocked Save.
 	readTimings                      [maxObservedReadBarriers]*readBarrierTiming
 	readSaveStarted, readSendStarted time.Time
-	readSaveStage                    rpctrace.Stage
-	readOwnerStorage                 *ownerStorageToken // guarded by mu; ordinary async Save never owns this scope.
-	pendingConfigs                   map[uint64]trackedFuture
-	pendingProposalCap               int
-	pendingConfigCap                 int
-	maxQueuedRequests                int
-	maxQueuedControls                int
-	maxQueuedBackgroundControls      int
-	queuedBackgroundControls         int
-	maxApplyingTasks                 int
-	resolutionBuf                    []futureResolution
-	transportBuf                     []Envelope
-	tickPending                      bool
-	tickCount                        int
-	lastKnownLeaderID                NodeID
+	// readCountPausedStarted mirrors only the observed scheduling transition;
+	// mu protects registration against pause/resume, independent of IO ownership.
+	readCountPausedStarted      time.Time
+	readSaveStage               rpctrace.Stage
+	readOwnerStorage            *ownerStorageToken // guarded by mu; ordinary async Save never owns this scope.
+	pendingConfigs              map[uint64]trackedFuture
+	pendingProposalCap          int
+	pendingConfigCap            int
+	maxQueuedRequests           int
+	maxQueuedControls           int
+	maxQueuedBackgroundControls int
+	queuedBackgroundControls    int
+	maxApplyingTasks            int
+	resolutionBuf               []futureResolution
+	transportBuf                []Envelope
+	tickPending                 bool
+	tickCount                   int
+	lastKnownLeaderID           NodeID
 	// pendingLeaderTransferTarget records an expected transfer target until the next non-zero leader change is observed.
 	pendingLeaderTransferTarget NodeID
 	// durableAppliedIndex is the highest index that completed FSM apply and Storage.MarkApplied.
@@ -966,7 +969,7 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 	// A full per-Slot count can be checked without accepting or retaining Ready.
 	// Node/byte limits and legal oversized work keep their existing fallback.
 	if g.storagePipeline != nil && g.storagePipeline.budget.slotCountFull(g) {
-		g.storageCountPaused = true
+		g.setStorageCountPaused(true)
 		return completed, false
 	}
 	ready := g.rawNode.Ready()

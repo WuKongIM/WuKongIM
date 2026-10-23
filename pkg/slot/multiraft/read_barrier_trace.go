@@ -26,8 +26,9 @@ type readBarrierTiming struct {
 	saves, sends  int
 	dropped       uint64
 	// Active operations and per-phase totals are independent of detail retention.
-	open                    [2]time.Time
-	coverage                [rpctrace.BarrierPhaseCount][2]rpctrace.BarrierOverlayCoverage
+	// Kinds are Save, Send and independent count-paused scheduling overlap.
+	open                    [3]time.Time
+	coverage                [rpctrace.BarrierPhaseCount][3]rpctrace.BarrierOverlayCoverage
 	coverageInvalid         bool
 	ownerCoverage           rpctrace.BarrierOwnerCoverage
 	ownerOpen, ownerStageAt time.Time
@@ -182,6 +183,8 @@ func (o *readBarrierTiming) publish(trace *rpctrace.Trace) {
 	stages := [5]rpctrace.Stage{rpctrace.StageSlotControlWait, rpctrace.StageSlotReadEligibility, rpctrace.StageSlotRawQuorum, rpctrace.StageSlotReadyToAccept, rpctrace.StageSlotApplyWait}
 	var coverage rpctrace.BarrierCoverage
 	coverage.OwnerStorage = &ownerCoverage
+	var paused rpctrace.BarrierCountPausedCoverage
+	coverage.StorageCountPaused = &paused
 	for i, stage := range stages {
 		coverage.Phases[i].Stage = stage
 	}
@@ -200,6 +203,7 @@ func (o *readBarrierTiming) publish(trace *rpctrace.Trace) {
 		coverage.Phases[i].Observed = true
 		coverage.Phases[i].Save = totals[i][0]
 		coverage.Phases[i].Send = totals[i][1]
+		paused.Phases[i] = totals[i][2]
 		spans[n] = rpctrace.HistoricalSpan{Stage: stage, Start: points[i], End: end, Result: result, Incomplete: incomplete}
 		n++
 		if incomplete {
@@ -237,6 +241,9 @@ func (g *slot) registerReadTiming(o *readBarrierTiming) bool {
 			continue
 		}
 		g.readTimings[i] = o
+		if !g.readCountPausedStarted.IsZero() {
+			o.openCountPaused(g.readCountPausedStarted)
+		}
 		if owner := g.readOwnerStorage; owner != nil {
 			o.openOwner(owner.budget, owner.mask, owner.started, owner.stage, owner.stageAt)
 		}

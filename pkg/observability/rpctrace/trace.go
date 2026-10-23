@@ -174,11 +174,21 @@ type BarrierOwnerCoverage struct {
 	Phases [BarrierPhaseCount]BarrierOwnerPhase `json:"phases"`
 }
 
+// BarrierCountPausedCoverage intersects the same Slot's scheduling pause with
+// the selected five phases. It is independent of owner, Save and Send coverage:
+// a paused Slot yields its worker while physical work may still be running.
+// Unobserved phases remain unknown; Count counts positive pause intersections,
+// not reservation rejections. Unfinished means caller clipping before resume.
+type BarrierCountPausedCoverage struct {
+	Phases [BarrierPhaseCount]BarrierOverlayCoverage `json:"phases"`
+}
+
 // BarrierCoverage is a fixed-size companion to one longest barrier group.
 // The order is control, eligibility, raw quorum, Ready acceptance, durable apply.
 type BarrierCoverage struct {
-	Phases       [BarrierPhaseCount]BarrierPhaseCoverage `json:"phases"`
-	OwnerStorage *BarrierOwnerCoverage                   `json:"owner_storage,omitempty"`
+	Phases             [BarrierPhaseCount]BarrierPhaseCoverage `json:"phases"`
+	OwnerStorage       *BarrierOwnerCoverage                   `json:"owner_storage,omitempty"`
+	StorageCountPaused *BarrierCountPausedCoverage             `json:"storage_count_paused,omitempty"`
 }
 
 // clone detaches the optional fixed owner array at every publication boundary.
@@ -186,6 +196,10 @@ func (c BarrierCoverage) clone() BarrierCoverage {
 	if c.OwnerStorage != nil {
 		owner := *c.OwnerStorage
 		c.OwnerStorage = &owner
+	}
+	if c.StorageCountPaused != nil {
+		paused := *c.StorageCountPaused
+		c.StorageCountPaused = &paused
 	}
 	return c
 }
@@ -413,6 +427,9 @@ func validBarrierCoverage(start, end time.Time, spans [MaxBarrierSpans]Historica
 			if c.OwnerStorage != nil && c.OwnerStorage.Phases[i] != (BarrierOwnerPhase{}) {
 				return false
 			}
+			if c.StorageCountPaused != nil && c.StorageCountPaused.Phases[i] != (BarrierOverlayCoverage{}) {
+				return false
+			}
 			continue
 		}
 		// A missing phase can never be followed by an observed one.
@@ -431,6 +448,9 @@ func validBarrierCoverage(start, end time.Time, spans [MaxBarrierSpans]Historica
 			return false
 		}
 		if c.OwnerStorage != nil && !validOwnerPhase(c.OwnerStorage.Phases[i], duration) {
+			return false
+		}
+		if c.StorageCountPaused != nil && !validOverlayCoverage(c.StorageCountPaused.Phases[i], duration) {
 			return false
 		}
 		previous = span.End

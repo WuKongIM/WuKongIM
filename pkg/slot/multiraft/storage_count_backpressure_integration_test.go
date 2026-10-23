@@ -23,6 +23,14 @@ import (
 // network response may bypass the count cap, and none of the five Futures may
 // succeed before durable commit/apply. Public ports drive both three-voter Slots.
 func TestRuntimeStorageCountBackpressureYieldsWorkerAndResumesFirstCredit(t *testing.T) {
+	testRuntimeStorageCountObservation(t, true)
+}
+
+func TestRuntimeStorageCountPausedReadSucceedsAfterFirstWholeLease(t *testing.T) {
+	testRuntimeStorageCountObservation(t, false)
+}
+
+func testRuntimeStorageCountObservation(t *testing.T, fifthWrite bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	a := &storageCountGate{internalFakeStorage: &internalFakeStorage{}}
 	for i := range a.entered {
@@ -163,13 +171,27 @@ func TestRuntimeStorageCountBackpressureYieldsWorkerAndResumesFirstCredit(t *tes
 		t.Fatal(err)
 	}
 	observer.Arm()
-	fifth, err := rt.Propose(ctx, slotA, proposalString("count-5"))
-	if err != nil {
-		t.Fatal(err)
+	var survivingRead <-chan pausedReadResult
+	if fifthWrite {
+		fifth, err := rt.Propose(ctx, slotA, proposalString("count-5"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		futures = append(futures, fifth)
+	} else {
+		var stopRead context.CancelFunc
+		var waiting <-chan struct{}
+		survivingRead, stopRead, waiting = pausedObservationStart(rt, ctx, slotA)
+		defer stopRead()
+		storageFenceEntered(t, ctx, waiting)
 	}
-	futures = append(futures, fifth)
 	storageFenceEntered(t, ctx, observer.blocked)
-	t.Log("setup reached: two durable current-term baselines, four outbound Ready entries, first physical Save held, fifth proposal in bounded public control queue")
+	t.Log("setup reached: two durable current-term baselines, four outbound Ready entries, first physical Save held, next write or fresh read in bounded public control queue")
+	// Register A before its owner enters count pause. Waiting is witnessed at
+	// the public context boundary after ReadBarrier enqueues its control.
+	earlyRead, cancelEarly, earlyWaiting := pausedObservationStart(rt, ctx, slotA)
+	defer cancelEarly()
+	storageFenceEntered(t, ctx, earlyWaiting)
 	type readResult struct {
 		sample *rpctrace.Sample
 		err    error
@@ -192,11 +214,19 @@ func TestRuntimeStorageCountBackpressureYieldsWorkerAndResumesFirstCredit(t *tes
 	if !bFresh {
 		t.Fatal("unrelated read did not obtain a new network quorum")
 	}
+	requirePausedObservation(t, result.sample, false)
 	for _, phase := range ownerObservationWire(t, result.sample).Phases {
 		if phase.Budget.Duration != 0 || phase.Other.Duration != 0 {
 			t.Fatal("parked Slot charged as B owner storage work")
 		}
 	}
+	cancelEarly()
+	early := <-earlyRead
+	if !errors.Is(early.err, context.Canceled) {
+		t.Fatalf("pre-registered paused read: %v", early.err)
+	}
+	requirePausedObservation(t, early.sample, true)
+	earlyFrozen, _ := json.Marshal(early.sample)
 	canceled, canceledErr := ownerObservationRead(rt, ctx, slotA, 30*time.Millisecond)
 	if !errors.Is(canceledErr, context.DeadlineExceeded) {
 		t.Fatalf("saturated Slot read escaped cancellation: %v", canceledErr)
@@ -206,6 +236,7 @@ func TestRuntimeStorageCountBackpressureYieldsWorkerAndResumesFirstCredit(t *tes
 			t.Fatal("park wait mislabeled as synchronous owner storage occupancy")
 		}
 	}
+	requirePausedObservation(t, canceled, true)
 	frozen, _ := json.Marshal(canceled)
 
 	if aSeen >= baseline[slotA].CommitIndex+5 {
@@ -225,11 +256,40 @@ func TestRuntimeStorageCountBackpressureYieldsWorkerAndResumesFirstCredit(t *tes
 	}
 	a.unblock(0)
 	storageFenceEntered(t, ctx, a.entered[1])
-	until("first returned credit resumes fifth Ready", func() bool { return aSeen >= baseline[slotA].CommitIndex+5 })
+	if fifthWrite {
+		until("first returned credit resumes fifth Ready", func() bool { return aSeen >= baseline[slotA].CommitIndex+5 })
+	} else {
+		var survived pausedReadResult
+		until("fresh read resumes on first whole credit with second Save held", func() bool {
+			select {
+			case survived = <-survivingRead:
+				return true
+			default:
+				return false
+			}
+		})
+		if survived.err != nil {
+			t.Fatalf("fresh read after first credit: %v", survived.err)
+		}
+		var positive bool
+		for _, phase := range pausedObservationWire(t, survived.sample) {
+			positive = positive || phase.Duration > 0
+			if phase.Unfinished {
+				t.Fatal("successfully resumed read kept open pause")
+			}
+		}
+		if !positive {
+			t.Fatal("successfully resumed read lost prior pause")
+		}
+		proof, e := a.InitialState(ctx)
+		if e != nil || proof.AppliedIndex != baseline[slotA].AppliedIndex {
+			t.Fatal("fresh read skipped baseline durable apply")
+		}
+	}
 	if a.calls.Load() != 2 {
 		t.Fatalf("FIFO ran beyond held second Save: calls=%d", a.calls.Load())
 	}
-	t.Log("first-credit witness: fifth network entry observed with second Save still held")
+	t.Log("first-credit witness: next write or fresh read completed its network progress with second Save still held")
 	a.unblock(1)
 	holdA = false
 	for _, m := range held {
@@ -244,13 +304,35 @@ func TestRuntimeStorageCountBackpressureYieldsWorkerAndResumesFirstCredit(t *tes
 		}
 	}
 	final, e := a.InitialState(ctx)
-	if e != nil || final.AppliedIndex != baseline[slotA].CommitIndex+5 {
+	if e != nil || final.AppliedIndex != baseline[slotA].CommitIndex+uint64(len(futures)) {
 		t.Fatalf("final durable apply: index=%d err=%v", final.AppliedIndex, e)
 	}
 	after, _ := json.Marshal(canceled)
 	if !bytes.Equal(frozen, after) {
 		t.Fatal("resumed owner mutated canceled read sample")
 	}
+	earlyAfter, _ := json.Marshal(early.sample)
+	if !bytes.Equal(earlyFrozen, earlyAfter) {
+		t.Fatal("resume changed pre-registered canceled observation")
+	}
+	settledDone := make(chan readResult, 1)
+	go func() {
+		s, e := ownerObservationRead(rt, ctx, slotA, 200*time.Millisecond)
+		settledDone <- readResult{s, e}
+	}()
+	var settled readResult
+	until("resumed Slot fresh quorum has no pause", func() bool {
+		select {
+		case settled = <-settledDone:
+			return true
+		default:
+			return false
+		}
+	})
+	if settled.err != nil {
+		t.Fatal(settled.err)
+	}
+	requirePausedObservation(t, settled.sample, false)
 
 	if transport.overflow.Load() {
 		t.Fatal("bounded transport overflow")

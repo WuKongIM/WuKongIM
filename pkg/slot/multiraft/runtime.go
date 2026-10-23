@@ -158,7 +158,7 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 		if !g.shouldProcess() || g.storagePipeline.budget.slotCountFull(g) {
 			return false
 		}
-		g.storageCountPaused = false
+		g.setStorageCountPaused(false)
 	}
 	worked = g.processRequests() || worked
 	if !g.shouldProcess() {

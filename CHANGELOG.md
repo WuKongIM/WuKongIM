@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Report sampled same-Slot storage-count pauses separately from Raft worker
+  occupancy and asynchronous Save overlap, preserving cancellation boundaries.
+  / Slot 读取采样单独记录存储额度暂停，与 Raft worker 占用、异步 Save 重叠区分，
+  并按调用取消边界裁剪。
+
 - Return shared Raft workers when a Slot's storage task limit is full, resuming
   its FIFO when capacity is returned; finish queued proposals when their
   Slot closes or fails. / Slot 存储任务达到上限时让出共享 Raft worker，额度归还后

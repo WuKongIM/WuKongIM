@@ -2109,6 +2109,13 @@ specification, runbook, report, or module documentation; link to them when neede
   waits measure the original synchronization/select interval rather than kernel
   parking, and absent fields/unreached phases remain unknown. Caller termination
   clips all open scope/subset intervals together; late work cannot mutate samples.
+  A separate optional storage-count pause record follows those same five phases
+  and longest-group ownership. It measures the interval from owner pause before
+  Ready until a later owner pass consumes sufficient completions to resume;
+  newly registered reads inherit an already open pause. Cancellation clips it
+  without changing scheduling. It is neither occupied-worker time nor a split
+  of append/apply/completion causes; overlapping Save and owner records must not
+  be added. Missing fields are unknown, while present zero is measured zero.
 - Slot Raft uses upstream asynchronous storage messages with one RawNode owner.
   Append completion publishes durable memory and dependent replies through a
   private completion path; external Step cannot inject storage messages or
@@ -2141,8 +2148,11 @@ specification, runbook, report, or module documentation; link to them when neede
   Ordinary leadership loss keeps its separate submitted/pending semantics.
   The [same-request diagnosis](../reports/2026-10-24-sampled-raft-read-blocking.md)
   retains the failed 2,000-SEND/s gates and public held-Save regressions. R19
-  identifies per-Slot count fallback in sampled owner occupancy; paused time
-  is not owner occupancy, and reduced occupancy alone is not a workload pass.
+  identifies per-Slot count fallback in sampled owner occupancy. R20 removes
+  that measured fallback but still fails the original gate; its main sampled
+  wait remains raw quorum. Paused time is not owner occupancy, and reduced
+  occupancy alone is not a workload pass. The 20-worker/12-Slot R20 topology
+  also limits extrapolation from the controlled single-worker progress test.
 
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
