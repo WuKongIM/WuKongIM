@@ -1,0 +1,34 @@
+{
+  "base": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+  "tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "internal/bench/FLOW.md": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+    "internal/bench/chatlifecycle/FLOW.md": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+    ".github/review-agent/policy.json": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+  },
+  "named_checks": {
+    "go-format": {
+      "arguments": [
+        "review-agent-check",
+        "go-format"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 300,
+      "max_output_bytes": 1048576
+    },
+    "flow-doc-contracts": {
+      "arguments": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 60,
+      "max_output_bytes": 1048576
+    }
+  },
+  "approved_design_manifest_sha256": "92edcd4b2ecc08e3daddafebcb942511bc88fed550742094740264e2379d3901"
+}

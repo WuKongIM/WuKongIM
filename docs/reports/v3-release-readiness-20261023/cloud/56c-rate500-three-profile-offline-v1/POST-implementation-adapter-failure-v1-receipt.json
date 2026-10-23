@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "/opt/homebrew/opt/python@3.13/bin/python3.13",
+    "-m",
+    "unittest",
+    "adapter_test",
+    "-v"
+  ],
+  "started_at_utc": "2026-10-22T23:44:22.832732+00:00",
+  "exit_status": 1,
+  "output_bytes": 6991,
+  "output_sha256": "95e16ac56c4041acaab222f4be5fae2579a8c101e051e8388aca48f8fe574751",
+  "test_sha256": "b362427295095a914b617ce1d2deaead41bf27bd176fed3147885ca8532ba688",
+  "same_tests_as_RED": true
+}

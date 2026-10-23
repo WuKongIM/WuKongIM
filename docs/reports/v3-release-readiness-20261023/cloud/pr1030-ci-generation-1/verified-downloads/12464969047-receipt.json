@@ -1,0 +1,131 @@
+{
+  "id": 12464969047,
+  "name": "500qps-channel-append-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+  "declared_bytes": 26510,
+  "declared_digest": "sha256:f003f7c5e5267808f82a421c5c1fbc442c13fb751f3231aced93c3f80c02024a",
+  "state": "verified",
+  "zip_bytes": 26510,
+  "zip_sha256": "f003f7c5e5267808f82a421c5c1fbc442c13fb751f3231aced93c3f80c02024a",
+  "full_size_sha_crc_valid": true,
+  "members": [
+    {
+      "path": "arrival.json",
+      "bytes": 57932,
+      "compressed_bytes": 3632,
+      "crc32": "3f9ff4fb",
+      "sha256": "b85f171c9146e2f536448671237502bd9531d79e7bcfad6d44a150d3f1a614a3"
+    },
+    {
+      "path": "arrival.warmup.json",
+      "bytes": 19371,
+      "compressed_bytes": 1373,
+      "crc32": "cd705b0d",
+      "sha256": "fa4fb93164ee3dcebdba01660091fb3f95699cc2a382e985e02c0bc18f193f59"
+    },
+    {
+      "path": "benchmark.txt",
+      "bytes": 2381,
+      "compressed_bytes": 848,
+      "crc32": "5bae7cd0",
+      "sha256": "1fb35bae4e9c59bacff4a3e3930d134f9583d58e46a3ec08cdca2d201da7a2cd"
+    },
+    {
+      "path": "binary.sha256",
+      "bytes": 127,
+      "compressed_bytes": 108,
+      "crc32": "0409cb78",
+      "sha256": "e540a1d804d8a31808d0664dcd0c25901925ace03f3f8f7ac264c6e073781593"
+    },
+    {
+      "path": "counters/after.json",
+      "bytes": 50681,
+      "compressed_bytes": 4463,
+      "crc32": "92741db6",
+      "sha256": "a0d1a7beafa78c73ab0e669d55534a20e49e655fc5a5d14c3be5998ff1df55e2"
+    },
+    {
+      "path": "counters/before.json",
+      "bytes": 50458,
+      "compressed_bytes": 4300,
+      "crc32": "0a396ade",
+      "sha256": "0cb8c0bce58198697746d2c73a9c34176e6fa6c765bca9cbc1deed096f95ca4e"
+    },
+    {
+      "path": "counters/window.json",
+      "bytes": 576,
+      "compressed_bytes": 350,
+      "crc32": "2aebbbe4",
+      "sha256": "6e44e50063185f2ad00375200d6188699f94e3719097a5f40b6f9a5adc376329"
+    },
+    {
+      "path": "counters.warmup/after.json",
+      "bytes": 50457,
+      "compressed_bytes": 4289,
+      "crc32": "3ee2fd4c",
+      "sha256": "eda441e788251c467a28aa02fac70dcb69efa0fd0ee3898d3b7244715a2670ad"
+    },
+    {
+      "path": "counters.warmup/before.json",
+      "bytes": 21584,
+      "compressed_bytes": 2945,
+      "crc32": "617a950d",
+      "sha256": "055d97d6e614a611633963e08f7c7fde9f74882ecb7596ff107c79a7a66db490"
+    },
+    {
+      "path": "counters.warmup/window.json",
+      "bytes": 504,
+      "compressed_bytes": 314,
+      "crc32": "388f6247",
+      "sha256": "b42713b5f95bcc62224d0341d85c5e20ad900cd2687069051be54fad5940a6db"
+    },
+    {
+      "path": "data-filesystem.json",
+      "bytes": 249,
+      "compressed_bytes": 163,
+      "crc32": "a22f9e15",
+      "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6"
+    },
+    {
+      "path": "filesystem-preflight.txt",
+      "bytes": 123,
+      "compressed_bytes": 109,
+      "crc32": "18dc278c",
+      "sha256": "a03ef678c0ecbcda8bdeb913152f4acd7cc6afa15ac6b7f353ea0c27f654c260"
+    },
+    {
+      "path": "go-version.txt",
+      "bytes": 33,
+      "compressed_bytes": 35,
+      "crc32": "dd48af92",
+      "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+    },
+    {
+      "path": "host.json",
+      "bytes": 4633,
+      "compressed_bytes": 1245,
+      "crc32": "8008e2b9",
+      "sha256": "688d220dbb2a22abc0ee7562fbe06e65e1e3096092d9b117d9d04b06ab00c9db"
+    },
+    {
+      "path": "kernel.txt",
+      "bytes": 113,
+      "compressed_bytes": 100,
+      "crc32": "5f528912",
+      "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+    },
+    {
+      "path": "result.json",
+      "bytes": 18,
+      "compressed_bytes": 20,
+      "crc32": "81529131",
+      "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+    },
+    {
+      "path": "source.sha",
+      "bytes": 41,
+      "compressed_bytes": 42,
+      "crc32": "cfb4cb01",
+      "sha256": "ad9354c164f1579f4b5236ee67ef272ce329a77153c09b299ce467b3e7a679b1"
+    }
+  ]
+}

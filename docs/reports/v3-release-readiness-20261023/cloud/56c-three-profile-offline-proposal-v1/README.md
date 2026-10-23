@@ -1,0 +1,7 @@
+# Proposed offline analysis after the unique 56c local run
+
+Preparation only. No live profile files, current run metadata or new samples were read. No parser, cached pprof, test, product or workload was executed. This proposal neither assumes six successful inputs nor authorizes analysis while the workload is active. It creates a separate future scope and does not modify any old scope.
+
+After full cleanup and the root's separate approval of actual input hashes/windows/active-drain evidence, analyze only the six exact paths in `inputs-and-bindings.json`. Verify the pinned cached tool SHA and reviewed source/build binding. Use one fixed top and one fixed traces command per usable input, sequentially, without automatic retry. Reuse c495's bounded decoder and classification algorithm with fresh counts, never its run-specific numeric assertions. `offline-command-plan.json` states finite subprocess/output/decompression bounds and the future minimal adapter seam; `classification-and-limits.md` defines disjoint versus overlapping cohorts and disclosure limits.
+
+Raw profile/traces, labels, decoded stacks and stderr remain in a separate 0700 private scope. Public artifacts contain only finite status/receipts, aggregate counts/classes, Go symbols, necessary approved source-line mapping and elapsed/profile-window metadata. Missing, partial and unsupported data remain explicit. Actual data availability/SHA/time windows, cleanup evidence and any execution remain pending root approval.

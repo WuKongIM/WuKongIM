@@ -1,0 +1,58 @@
+{
+  "schema": "wukongim/three-node-first-grant-profile-proposal/v1",
+  "at_utc": "2026-10-22T23:19:16.459554+00:00",
+  "helper_sha256": "d371c1712b2de2d72e0d03a322870cf2a9626956c02beaa53f473d35c9a45bed",
+  "watcher_sha256": "8ae11ee4771fff341c6086c623a3e7026da8a15bd5adadd44e806abdfead07cd",
+  "helper_diff_sha256": "d21382c57319cf65d14fa66adcde7959a469ad08614256002e35f8155aff7e9e",
+  "watcher_diff_sha256": "bb789f1bc8f4ffabf309a0813516c2886a94c3fc2d0319b2e14d848285e07334",
+  "future_source_revision": null,
+  "future_binary_SHA": null,
+  "profile_nodes": [
+    1,
+    2,
+    3
+  ],
+  "per_node_profile_HTTP_requests": 2,
+  "maximum_profile_HTTP_requests": 6,
+  "maximum_accepted_profile_body_bytes_total": 37748736,
+  "per_node_bounds": {
+    "CPU_seconds": 10,
+    "CPU_max_time_seconds": 15,
+    "CPU_max_bytes": 8388608,
+    "GOR_nominal_offset_seconds": 5,
+    "GOR_max_time_seconds": 5,
+    "GOR_max_bytes": 4194304,
+    "connect_timeout_seconds": 2,
+    "watcher_capture_monitor_seconds": 15
+  },
+  "trigger": "one exactrun-start first-grantreceipt, originalschema7keys/span259200/gen/runhash/assignment andlag0<\u22642s",
+  "node_identity_binding": "explicithelper--node-id; plannedTOMLnode.id +existingpre-runSlotnode_log.node_id +sealedlauncherSHA/callerreviewedWK_NODE_ID/WK_API_LISTEN_ADDR(base+node) mapping; noURLguess/noextraAPIprobe",
+  "binding_port": {
+    "base_port": 25000,
+    "node1_API": 25001,
+    "node2_API": 25002,
+    "node3_API": 25003
+  },
+  "outputs": "oneprivateprofiles root withisolatednode-1/node-2/node-3 directories; explicitproducerIDs ineachmetadata/requestJSON/profilefilename; separatehelperlogs; oneglobalclaim",
+  "cancellation": "TERM allownedhelpers before shared2s grace; oneboundedowned-descendant snapshot+KILL/join withshared1s; no3serialgraces; pernodepartial/join flags; original570TERM+5 finalPGIDcleanup",
+  "launch_clock_semantics": "locallyobservedPopenparenttimestamps; nodesnotexactlysynchronous; watcher15smonitorstartsafterfirsthelperregistration; curlcapsand5stimerunchanged; startskewmayyieldnodepartial,neverretry/extend",
+  "limits": "additionaldiagnosticdisturbance; not causalperformancecomparison orLinuxformalacceptance; activeSENDend/realGORoffsetunknown maymixdrain",
+  "runtime_budgets_to_retain": {
+    "total": 600,
+    "TERM": 570,
+    "KILL_after": 5,
+    "startup": 360,
+    "traffic_target": 120,
+    "lateststop": 480,
+    "exit7hold": 90,
+    "first_failure_stop": true
+  },
+  "required_before_use": [
+    "rootindependentsamplerreview",
+    "exactnewhead/reviews",
+    "exactsourceclean nativeproductCLIbuild",
+    "futurelauncherfullSHA andslot/configsourcebindings",
+    "separateactualrunapproval"
+  ],
+  "no_real_build_or_run": true
+}

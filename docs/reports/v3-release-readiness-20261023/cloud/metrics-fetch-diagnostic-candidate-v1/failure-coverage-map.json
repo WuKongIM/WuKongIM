@@ -1,0 +1,425 @@
+{
+  "approved_matrix_sha256": "966b26e9693927eb1027cbd2e5788b6426f23df86c145908b6bf8161c39bedf4",
+  "test_authorship_before_production_edits": true,
+  "cases": [
+    {
+      "id": "M01",
+      "case": "Canceled context before acquisition",
+      "tests": [
+        "TestMetricsFailureBoundary/pre_canceled"
+      ]
+    },
+    {
+      "id": "M02",
+      "case": "Expired context before acquisition",
+      "tests": [
+        "TestMetricsFailureBoundary/pre_deadline"
+      ]
+    },
+    {
+      "id": "M03",
+      "case": "No nonblank configured API addresses",
+      "tests": [
+        "TestMetricsFailureBoundary/no_addresses"
+      ]
+    },
+    {
+      "id": "M04",
+      "case": "http.NewRequestWithContext rejects an address",
+      "tests": [
+        "TestMetricsFailureBoundary/request_construction"
+      ]
+    },
+    {
+      "id": "M05",
+      "case": "HTTP Do fails with live caller context",
+      "tests": [
+        "TestMetricsFailureBoundary/transport"
+      ]
+    },
+    {
+      "id": "M06",
+      "case": "HTTP client-like timeout while caller remains live",
+      "tests": [
+        "TestMetricsFailureBoundary/client_timeout_live_parent"
+      ]
+    },
+    {
+      "id": "M07",
+      "case": "Causal caller cancellation on first HTTP Do",
+      "tests": [
+        "TestMetricsFailureBoundary/causal_do_cancel"
+      ]
+    },
+    {
+      "id": "M08",
+      "case": "Causal caller deadline on first HTTP Do",
+      "tests": [
+        "TestMetricsFailureBoundary/causal_do_deadline"
+      ]
+    },
+    {
+      "id": "M09",
+      "case": "Noncausal transport error while caller becomes canceled on only address",
+      "tests": [
+        "TestMetricsFailureBoundary/independent_do_at_cancel"
+      ]
+    },
+    {
+      "id": "M10",
+      "case": "Caller context stops at next-address check after earlier failure",
+      "tests": [
+        "TestMetricsFailureBoundary/context_at_next_address"
+      ]
+    },
+    {
+      "id": "M11",
+      "case": "HTTP 401 or 403",
+      "tests": [
+        "TestMetricsFailureBoundary/unauthorized",
+        "TestMetricsFailureBoundary/forbidden"
+      ]
+    },
+    {
+      "id": "M12",
+      "case": "Other non-2xx response",
+      "tests": [
+        "TestMetricsFailureBoundary/informational_status",
+        "TestMetricsFailureBoundary/non_auth_client_status",
+        "TestMetricsFailureBoundary/status",
+        "TestMetricsFailureBoundary/redirect_without_location"
+      ]
+    },
+    {
+      "id": "M13",
+      "case": "Different address failures all exhausted",
+      "tests": [
+        "TestMetricsFailureBoundary/mixed_addresses"
+      ]
+    },
+    {
+      "id": "M14",
+      "case": "Repeated same address failure class exhausted",
+      "tests": [
+        "TestMetricsFailureBoundary/same_statuses",
+        "TestMetricsFailureBoundary/same_transport"
+      ]
+    },
+    {
+      "id": "M15",
+      "case": "Earlier address fails, later body parses successfully",
+      "tests": [
+        "TestMetricsFailureBoundary/fallback_success",
+        "TestMetricsFailureBoundary/fallback_status_success"
+      ]
+    },
+    {
+      "id": "M16",
+      "case": "Earlier failures then terminal auth or body limit",
+      "tests": [
+        "TestMetricsFailureBoundary/earlier_failure_then_auth",
+        "TestMetricsFailureBoundary/earlier_failure_then_length"
+      ]
+    },
+    {
+      "id": "M17",
+      "case": "ContentLength exceeds current 8 MiB bound",
+      "tests": [
+        "TestMetricsFailureBoundary/content_length"
+      ]
+    },
+    {
+      "id": "M18",
+      "case": "Unknown ContentLength, actual read reaches limit+1",
+      "tests": [
+        "TestMetricsFailureBoundary/stream_length"
+      ]
+    },
+    {
+      "id": "M19",
+      "case": "Successful status with independent body-read failure",
+      "tests": [
+        "TestMetricsFailureBoundary/body_read"
+      ]
+    },
+    {
+      "id": "M20",
+      "case": "Causal caller stop during first body read",
+      "tests": [
+        "TestMetricsFailureBoundary/body_cancel",
+        "TestMetricsFailureBoundary/body_deadline"
+      ]
+    },
+    {
+      "id": "M21",
+      "case": "Caller stop/read error after prior address failure",
+      "tests": [
+        "TestMetricsFailureBoundary/earlier_failure_then_body_cancel",
+        "TestMetricsFailureBoundary/earlier_failure_then_do_cancel"
+      ]
+    },
+    {
+      "id": "M22",
+      "case": "Ignored status-drain/body-close error",
+      "tests": [
+        "TestMetricsFailureBoundary/ignored_close_error",
+        "TestMetricsFailureBoundary/ignored_status_drain_error"
+      ]
+    },
+    {
+      "id": "M23",
+      "case": "Invalid sample/label/token syntax or invalid numeric value",
+      "tests": [
+        "TestMetricsFailureParserBoundary/sample",
+        "TestMetricsFailureParserBoundary/labels",
+        "TestMetricsFailureParserBoundary/negative",
+        "TestMetricsFailureParserBoundary/infinite"
+      ]
+    },
+    {
+      "id": "M24",
+      "case": "Metadata-create labels/Slot/result/counter/duplicate/overflow invalid",
+      "tests": [
+        "TestMetricsFailureParserBoundary/metadata_*",
+        "TestObservationMetricsRejectsInvalidMetadataCreateSlotSeries"
+      ]
+    },
+    {
+      "id": "M25",
+      "case": "Queue duplicate/excessive/unpaired/inconsistent series or overflow",
+      "tests": [
+        "TestMetricsFailureParserBoundary/queue_*",
+        "TestMetricsFailureParserBoundary/aggregate_overflow"
+      ]
+    },
+    {
+      "id": "M26",
+      "case": "Line count, scanner line bytes, or total series cap exceeded",
+      "tests": [
+        "TestMetricsFailureParserBoundary/line_count",
+        "TestMetricsFailureParserBoundary/line_bytes",
+        "TestMetricsFailureParserBoundary/series_count"
+      ]
+    },
+    {
+      "id": "M27",
+      "case": "Valid unknown metric families with otherwise valid snapshot",
+      "tests": [
+        "TestMetricsFailureParserBoundary/unknown_family_ignored"
+      ]
+    },
+    {
+      "id": "M28",
+      "case": "Empty body/204 or partial families accepted by current parser",
+      "tests": [
+        "TestMetricsFailureBoundary/empty_body",
+        "TestMetricsFailureBoundary/empty_204",
+        "TestMetricsFailureParserBoundary/missing_required_stays_fetch_success",
+        "TestMetaCheckpointFailureLeaves/preview_missing_result"
+      ]
+    },
+    {
+      "id": "M29",
+      "case": "Earlier transport failure then selected-body parse failure",
+      "tests": [
+        "TestMetricsFailureBoundary/selected_body_parse_failure"
+      ]
+    },
+    {
+      "id": "M30",
+      "case": "All three sources succeed in each completion order",
+      "tests": [
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_*"
+      ]
+    },
+    {
+      "id": "M31",
+      "case": "Only source 0 fails",
+      "tests": [
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_1_*"
+      ]
+    },
+    {
+      "id": "M32",
+      "case": "Only source 1 fails",
+      "tests": [
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_2_*"
+      ]
+    },
+    {
+      "id": "M33",
+      "case": "Only source 2 fails",
+      "tests": [
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_4_*"
+      ]
+    },
+    {
+      "id": "M34",
+      "case": "Failed-source set mask 3, same/different classes",
+      "tests": [
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_3_*",
+        "TestMetricsFetchSameKindSourceMasks/3"
+      ]
+    },
+    {
+      "id": "M35",
+      "case": "Failed-source set mask 5, same/different classes",
+      "tests": [
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_5_*",
+        "TestMetricsFetchSameKindSourceMasks/5"
+      ]
+    },
+    {
+      "id": "M36",
+      "case": "Failed-source set mask 6, same/different classes",
+      "tests": [
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_6_*",
+        "TestMetricsFetchSameKindSourceMasks/6"
+      ]
+    },
+    {
+      "id": "M37",
+      "case": "Failed-source set mask 7, same/different classes",
+      "tests": [
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_7_*",
+        "TestMetricsFetchSameKindSourceMasks/7"
+      ]
+    },
+    {
+      "id": "M38",
+      "case": "Untyped non-context private source error",
+      "tests": [
+        "TestMetricsFetchPrivateCauseIsolation/private"
+      ]
+    },
+    {
+      "id": "M39",
+      "case": "Untyped source Canceled/DeadlineExceeded with live parent",
+      "tests": [
+        "TestMetricsFetchPrivateCauseIsolation/canceled",
+        "TestMetricsFetchPrivateCauseIsolation/deadline"
+      ]
+    },
+    {
+      "id": "M40",
+      "case": "Custom source returns ErrLifecycleProductFailure",
+      "tests": [
+        "TestMetricsFetchPrivateCauseIsolation/product",
+        "TestMetricsFetchFinalizePreservesFailureAndNoReport"
+      ]
+    },
+    {
+      "id": "M41",
+      "case": "Parent context already failed before fanout",
+      "tests": [
+        "TestMetricsFetchParentContextStopsBeforeSources",
+        "TestMetricsFetchParentDeadlineBeforeAndAfterJoin/true"
+      ]
+    },
+    {
+      "id": "M42",
+      "case": "Parent context fails while three calls run",
+      "tests": [
+        "TestMetricsFetchParentContextStillWinsAfterJoin",
+        "TestMetricsFetchParentDeadlineBeforeAndAfterJoin/false"
+      ]
+    },
+    {
+      "id": "M43",
+      "case": "One error completes while two sources remain pending",
+      "tests": [
+        "TestMetricsFetchThreeSourceJoinAndOrder",
+        "TestMetricsFetchParentContextStillWinsAfterJoin"
+      ]
+    },
+    {
+      "id": "M44",
+      "case": "Fetch failure during settle loop",
+      "tests": [
+        "TestMetricsFetchPrivateCauseIsolation"
+      ]
+    },
+    {
+      "id": "M45",
+      "case": "Fetch succeeds but preview/accounting/settle later fails",
+      "tests": [
+        "TestMetaCheckpointFailureLeaves/preview_*",
+        "TestMetaCheckpointFailureLeaves/settle_*",
+        "TestMetaCheckpointFailureLeaves/accounting_*"
+      ]
+    },
+    {
+      "id": "M46",
+      "case": "Valid mixed-source vector",
+      "tests": [
+        "TestMetricsFetchBoundedProjection/valid",
+        "TestMetricsFetchFinalizePreservesFailureAndNoReport",
+        "TestMetricsFetchDiagnosticCannotChangeCLIOutcome"
+      ]
+    },
+    {
+      "id": "M47",
+      "case": "Unknown kind includes secret/address/body text",
+      "tests": [
+        "TestMetricsFetchBoundedProjection/malicious_kind"
+      ]
+    },
+    {
+      "id": "M48",
+      "case": "Zero/out-of-range source mask or mask/kind inconsistency",
+      "tests": [
+        "TestMetricsFetchBoundedProjection/mask_*",
+        "TestMetricsFetchBoundedProjection/success_has_kind",
+        "TestMetricsFetchBoundedProjection/missing_failure_kind"
+      ]
+    },
+    {
+      "id": "M49",
+      "case": "metrics_fetch object supplied for another stage/reason",
+      "tests": [
+        "TestMetricsFetchBoundedProjection/other_stage",
+        "TestMetricsFetchBoundedProjection/other_reason",
+        "TestMetricsFetchBoundedProjection/unknown_stage"
+      ]
+    },
+    {
+      "id": "M50",
+      "case": "Unknown error type / nil typed pointer / nil error",
+      "tests": [
+        "TestMetricsFetchUnknownSourceErrorShapes",
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_*"
+      ]
+    },
+    {
+      "id": "M51",
+      "case": "Raw source causes contain URL/token/UID/body or long Error strings",
+      "tests": [
+        "TestMetricsFetchPrivateCauseIsolation",
+        "TestMetricsFailureBoundary"
+      ]
+    },
+    {
+      "id": "M52",
+      "case": "Untyped source chain matches both Canceled and DeadlineExceeded",
+      "tests": [
+        "TestMetricsFetchPrivateCauseIsolation/both_contexts"
+      ]
+    },
+    {
+      "id": "M53",
+      "case": "Other debug/profile observation endpoints use shared helper",
+      "tests": [
+        "TestMetricsSharedObservationHelpers",
+        "TestObservationBodyReadPreservesCausalCancellation"
+      ]
+    },
+    {
+      "id": "M54",
+      "case": "Absent/invalid source in constructor; nil context unsupported",
+      "tests": [
+        "TestMetricsFetchConstructorStillRejectsMissingSource",
+        "TestMetaCheckpointFailureLeaves/nil_context"
+      ]
+    }
+  ]
+}

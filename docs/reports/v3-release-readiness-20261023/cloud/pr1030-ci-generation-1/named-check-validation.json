@@ -1,0 +1,99 @@
+{
+  "go-unit": {
+    "artifact_id": 12466535264,
+    "identity": {
+      "source_sha": "a514c73b4c950b9ead150c28ff08ef89123f5238",
+      "policy_sha": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+      "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "event": "pull_request",
+      "run_id": "39869765472",
+      "run_attempt": "1"
+    },
+    "command": {
+      "arguments": [
+        "go",
+        "test",
+        "./cmd/...",
+        "./internal/...",
+        "./pkg/...",
+        "./scripts/...",
+        "./docker/...",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608,
+      "named_check": "go-unit",
+      "environment": {
+        "GOWORK": "off",
+        "GOFLAGS": "-p=2"
+      }
+    },
+    "result": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 2505,
+      "output_bytes": 22029,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 2505,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 405.682
+    }
+  },
+  "scripts-integration": {
+    "artifact_id": 12465943029,
+    "identity": {
+      "source_sha": "a514c73b4c950b9ead150c28ff08ef89123f5238",
+      "policy_sha": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+      "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "event": "pull_request",
+      "run_id": "39869765472",
+      "run_attempt": "1"
+    },
+    "command": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./scripts/...",
+        "-count=1",
+        "-timeout=9m",
+        "-parallel=2"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 600,
+      "max_output_bytes": 8388608,
+      "named_check": "scripts-integration",
+      "environment": {
+        "GOWORK": "off",
+        "GOFLAGS": "-p=2 -json"
+      }
+    },
+    "result": {
+      "status": "passed",
+      "exit_code": 0,
+      "session_id": 2507,
+      "output_bytes": 1507298,
+      "output_truncated": false,
+      "passed": true,
+      "cleanup": {
+        "session_id": 2507,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      },
+      "command_status": "passed",
+      "wrapper_exit_code": 0,
+      "elapsed_seconds": 569.093
+    }
+  }
+}

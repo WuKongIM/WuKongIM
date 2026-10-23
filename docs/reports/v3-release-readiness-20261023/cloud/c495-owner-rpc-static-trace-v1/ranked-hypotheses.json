@@ -1,0 +1,42 @@
+{
+  "all_unconfirmed": true,
+  "no_tests_run": true,
+  "hypotheses": [
+    {
+      "rank": 1,
+      "hypothesis": "Transport/service-admission or response-path delay exceeds the250ms owner child budget.",
+      "status": "unconfirmed",
+      "support": "Four sampled callers wait in Conn.Call, and17 cumulative owner-service client timeouts appear in terminal cuts. Neither gives receiver phase or request identity.",
+      "prediction": "A timeout with completed fast handler and late/missing reply enqueue/receive points beyond handler work; a timeout before handler start points to admission/transport.",
+      "controlled_seam": "Real transport with one gated handler or bounded outbound reply scheduler; prove response demux needs no executor token.",
+      "falsifier": "Exact timed-out request shows timely enqueue, timely handler and timely decoded response before caller deadline; then inspect caller scheduling/correlation rather than these stages."
+    },
+    {
+      "rank": 2,
+      "hypothesis": "Owner Registry lock/scheduling or index traversal stalls a cold read after its client abandons it.",
+      "status": "unconfirmed",
+      "support": "Every target visits32 session-ID shards with context-free RLock/scan. Started mixed-service handlers do not follow the250ms caller context. Registry writers contain no I/O. Sparse handler samples are fast and cannot prove this stall.",
+      "prediction": "Holding a shard writer with a latch will stall an unrelated UID read that scans that shard; canceling its caller will not interrupt the current scan.",
+      "controlled_seam": "Real Registry plus real service14 operation9/10 through transport; explicitly gate one writer and release it during finite cleanup.",
+      "falsifier": "Exact failed request has small measured lock waits and scan duration; reject Registry contention for that request."
+    },
+    {
+      "rank": 3,
+      "hypothesis": "Serial per-target or per-owner page work spends the shared page budget and retains the four recovery cohorts.",
+      "status": "unconfirmed",
+      "support": "Owner10 iterates targets synchronously; origin iterates eligible owners in sorted order; no per-UID physical-Slot metadata work exists. Four cohorts are sampled executing; quota waits do not identify which key/byte/cohort dimension bound.",
+      "prediction": "Gate the first independent target/owner and the later one cannot complete through that envelope until the gate releases, although an independently admitted envelope can progress.",
+      "controlled_seam": "Two fenced target groups and real owner batch adapter; bounded controlled local workload rather than broad performance retuning.",
+      "falsifier": "Exact failed page is small and all target/owner work completes within budget; serialization is then not its cause."
+    },
+    {
+      "rank": 4,
+      "hypothesis": "Membership/route/boot changes or application-level rejection repeatedly prevent complete proof despite transport handler ok.",
+      "status": "unconfirmed",
+      "support": "Before/after membership, target and boot validation can reject a complete transport reply; current metrics combine all owner operations and map encoded application errors to transport ok. No retained evidence establishes such a change.",
+      "prediction": "A controlled exact fence/boot change must reject only affected proof and consume only existing retry policy; a current stable page must install.",
+      "controlled_seam": "Existing generation/fence cases plus a bounded receiver-stage correlation record; no additional retry or timeout.",
+      "falsifier": "Exact request has stable full fences/boot/membership and successful Directory installation before deadline; reject this route for that sample."
+    }
+  ]
+}

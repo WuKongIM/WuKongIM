@@ -1,0 +1,18 @@
+{
+  "prepared_at": "2026-10-22T23:52:20.961189+00:00",
+  "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-56c-retained-metrics-offline-replay",
+  "tracked_tree_initially_clean": true,
+  "only_untracked_file": "internal/bench/target/retained_56c_metrics_offline_oneoff_test.go",
+  "fixture_sha256": "2488a9e4d8343fa932ae969c4c7864d7fcaedf940142d35dd7629fc550bb86b9",
+  "proposal_manifest_sha256": "c0945b77c014ca405fe74d083500d77744adbcf8d37979aa68d501750711f575",
+  "go_executable": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+  "go_executable_sha256": "b65655bf3d496007755bd132e9611f9e5e64c46e33d89fcafdef916e299587fd",
+  "go_VERSION": "go1.25.11\ntime 2026-05-29T15:26:39Z\n",
+  "inputs": 6,
+  "input_bytes": 6135981,
+  "private_backups_verified": true,
+  "Go_test_invocations": 0,
+  "network_service_DB_cloud_operations": 0
+}

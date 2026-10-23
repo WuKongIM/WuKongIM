@@ -1,0 +1,21 @@
+{
+  "schema": "wukongim/three-node-offline-profile-completion/v1",
+  "completed_at_utc": "2026-10-22T23:51:44.955067+00:00",
+  "proposal_manifest_sha256": "03bc914ab2f2ae7690ec58cbdcecc74f782bb7e14e554708a6b2de51ec93f5d7",
+  "root_approval_manifest_sha256": "36f673c8d34dfe762371bc0153f19e888f377b69f17dd6f0664918aadc8545f5",
+  "source_head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "source_tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "all_six_first_decodes_completed": true,
+  "fixed_pprof_commands_completed_first_attempt": 12,
+  "profile_retry_or_limit_increase": false,
+  "original_files_immutable_before_after": 51,
+  "source_clean_after": true,
+  "raw_outputs_private_root": "/tmp/wukongim-v3-readiness-20261023/private/56c-rate500-three-profile-offline-v1",
+  "private_directory_mode": "0700",
+  "private_file_mode": "0600",
+  "same_synthetic_test_source_RED_and_GREEN": true,
+  "synthetic_test_methods_GREEN": 18,
+  "environment_allowlist_deviation_first_three_GOR_workers": true,
+  "explicit_no_failed_message_or_linux_or_root_cause_claim": true,
+  "pending_work": null
+}

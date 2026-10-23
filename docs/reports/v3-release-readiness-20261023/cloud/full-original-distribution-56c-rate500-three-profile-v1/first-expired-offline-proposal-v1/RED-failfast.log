@@ -1,0 +1,138 @@
+test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) ... 
+  test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='invalid_json') ... FAIL
+  test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='missing_stats') ... FAIL
+  test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='has_more') ... FAIL
+  test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='no_rows') ... FAIL
+  test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='two_rows') ... FAIL
+  test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='wrong_clientno') ... FAIL
+  test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='message_id_string') ... FAIL
+  test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='nonzero_exit') ... FAIL
+test_three_valid_same_rows_use_exactly_three_queries (__main__.FailFast.test_three_valid_same_rows_use_exactly_three_queries) ... ok
+test_valid_first_then_bad_second_stops_third (__main__.FailFast.test_valid_first_then_bad_second_stops_third) ... 
+  test_valid_first_then_bad_second_stops_third (__main__.FailFast.test_valid_first_then_bad_second_stops_third) (kind='invalid_json') ... FAIL
+  test_valid_first_then_bad_second_stops_third (__main__.FailFast.test_valid_first_then_bad_second_stops_third) (kind='divergent_ID') ... FAIL
+
+======================================================================
+FAIL: test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='invalid_json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 21, in test_bad_first_frame_prevents_all_later_queries
+    with self.subTest(kind=kind):self.case({'1':kind},[1])
+                                 ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 15, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: AssertionError not raised
+
+======================================================================
+FAIL: test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='missing_stats')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 21, in test_bad_first_frame_prevents_all_later_queries
+    with self.subTest(kind=kind):self.case({'1':kind},[1])
+                                 ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 15, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: AssertionError not raised
+
+======================================================================
+FAIL: test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='has_more')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 21, in test_bad_first_frame_prevents_all_later_queries
+    with self.subTest(kind=kind):self.case({'1':kind},[1])
+                                 ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 15, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: AssertionError not raised
+
+======================================================================
+FAIL: test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='no_rows')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 21, in test_bad_first_frame_prevents_all_later_queries
+    with self.subTest(kind=kind):self.case({'1':kind},[1])
+                                 ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 15, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: AssertionError not raised
+
+======================================================================
+FAIL: test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='two_rows')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 21, in test_bad_first_frame_prevents_all_later_queries
+    with self.subTest(kind=kind):self.case({'1':kind},[1])
+                                 ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 15, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: AssertionError not raised
+
+======================================================================
+FAIL: test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='wrong_clientno')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 21, in test_bad_first_frame_prevents_all_later_queries
+    with self.subTest(kind=kind):self.case({'1':kind},[1])
+                                 ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 15, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: AssertionError not raised
+
+======================================================================
+FAIL: test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='message_id_string')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 21, in test_bad_first_frame_prevents_all_later_queries
+    with self.subTest(kind=kind):self.case({'1':kind},[1])
+                                 ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 15, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: AssertionError not raised
+
+======================================================================
+FAIL: test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) (kind='nonzero_exit')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 21, in test_bad_first_frame_prevents_all_later_queries
+    with self.subTest(kind=kind):self.case({'1':kind},[1])
+                                 ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 15, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: AssertionError not raised
+
+======================================================================
+FAIL: test_valid_first_then_bad_second_stops_third (__main__.FailFast.test_valid_first_then_bad_second_stops_third) (kind='invalid_json')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 24, in test_valid_first_then_bad_second_stops_third
+    with self.subTest(kind=kind):self.case({'2':kind},[1,2])
+                                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 15, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: AssertionError not raised
+
+======================================================================
+FAIL: test_valid_first_then_bad_second_stops_third (__main__.FailFast.test_valid_first_then_bad_second_stops_third) (kind='divergent_ID')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 24, in test_valid_first_then_bad_second_stops_third
+    with self.subTest(kind=kind):self.case({'2':kind},[1,2])
+                                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/driver_failfast_test.py", line 15, in case
+    with self.assertRaises(AssertionError):ns['worker']()
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: AssertionError not raised
+
+----------------------------------------------------------------------
+Ran 3 tests in 2.172s
+
+FAILED (failures=10)

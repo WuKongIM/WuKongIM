@@ -1,0 +1,85 @@
+{
+  "before_implementation": true,
+  "synthetic_only": true,
+  "cases": [
+    {
+      "node1": "invalid_json",
+      "expected_query_nodes": [
+        1
+      ]
+    },
+    {
+      "node1": "missing_stats",
+      "expected_query_nodes": [
+        1
+      ]
+    },
+    {
+      "node1": "has_more",
+      "expected_query_nodes": [
+        1
+      ]
+    },
+    {
+      "node1": "no_rows",
+      "expected_query_nodes": [
+        1
+      ]
+    },
+    {
+      "node1": "two_rows",
+      "expected_query_nodes": [
+        1
+      ]
+    },
+    {
+      "node1": "wrong_clientno",
+      "expected_query_nodes": [
+        1
+      ]
+    },
+    {
+      "node1": "message_id_string",
+      "expected_query_nodes": [
+        1
+      ]
+    },
+    {
+      "node1": "nonzero_exit",
+      "expected_query_nodes": [
+        1
+      ]
+    },
+    {
+      "node1": "valid",
+      "node2": "invalid_json",
+      "expected_query_nodes": [
+        1,
+        2
+      ]
+    },
+    {
+      "node1": "valid",
+      "node2": "divergent_ID",
+      "expected_query_nodes": [
+        1,
+        2
+      ]
+    },
+    {
+      "all_nodes": "valid_same_message",
+      "expected_query_nodes": [
+        1,
+        2,
+        3
+      ]
+    }
+  ],
+  "unchanged_real_query_budget": {
+    "nodes": 3,
+    "queries_max": 3,
+    "timeout_each": 10,
+    "limit": 100,
+    "total": 90
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "schema": "wukongim/56c-canonical-warning-input-inventory/v1",
+  "files": {
+    "logs/node1/warn.log": {
+      "bytes": 3611,
+      "sha256": "b3a241104e9d674c37e5f5e49d4c297b4031199c1a46e26f17422df9eb871fa3",
+      "mtime_ns": 1792712385605663446
+    },
+    "logs/node2/warn.log": {
+      "bytes": 7218,
+      "sha256": "b0d90b2fb4427cb225154b34442e05363ff432b23e1d4648450910ad631f402f",
+      "mtime_ns": 1792712386680830428
+    },
+    "logs/node3/warn.log": {
+      "bytes": 72763,
+      "sha256": "cc29192e3706f3ad1beaba2382d8b64e1dd385c48f1944ace5d5c49262ef1c09",
+      "mtime_ns": 1792712391105378720
+    }
+  },
+  "pinned_plan_inventory_sha256": "7818867832d2f1445b0079569d3263930b3a1919e90499d3524043c739df1b0a"
+}

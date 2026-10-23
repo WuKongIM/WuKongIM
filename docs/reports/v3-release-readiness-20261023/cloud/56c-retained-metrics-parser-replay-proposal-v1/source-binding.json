@@ -1,0 +1,40 @@
+{
+  "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "source_files": {
+    "AGENTS.md": {
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    "internal/bench/FLOW.md": {
+      "bytes": 6836,
+      "sha256": "52cf2d48010eac69056be43ed5679bae9e50d0aa04b0ddd12e4199e6a99e76e4"
+    },
+    "internal/bench/chatlifecycle/FLOW.md": {
+      "bytes": 6750,
+      "sha256": "f938521d9c3129762f11ac914f5172ae1ea8df53c615f13e3d9615424ed91673"
+    },
+    "internal/bench/target/client.go": {
+      "bytes": 53374,
+      "sha256": "797ac967cb5f771d2cd3c146d42eff579cb51570aefe91ac8b566372dcb9e2e7"
+    },
+    "internal/bench/target/metrics_failure.go": {
+      "bytes": 3461,
+      "sha256": "7a075f5707876778c2264f053be43c3ac93a6337eb006e5891673fab93d0d98a"
+    },
+    "internal/bench/target/metrics_failure_diagnostics_test.go": {
+      "bytes": 15365,
+      "sha256": "aa1bf6986fbd9771eae13031dd1446bf0e2ab52689c4dee620d58b4801ee3ae5"
+    }
+  },
+  "valid_FLOW_scopes": {
+    "internal/bench/FLOW.md": "subtree",
+    "internal/bench/chatlifecycle/FLOW.md": "package"
+  },
+  "old_fixture_sha256": "347bc95b601d929388eed99fd8d45e812e0eac73ab956f7387ef4897e701b118",
+  "planned_worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-56c-retained-metrics-offline-replay",
+  "detached_ref": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "worktree_created": false,
+  "Go_executed": false,
+  "original_assets_modified": false
+}

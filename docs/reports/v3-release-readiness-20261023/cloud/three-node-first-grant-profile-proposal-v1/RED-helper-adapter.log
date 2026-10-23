@@ -1,0 +1,66 @@
+.FFF.FF
+======================================================================
+FAIL: test_explicit_three_node_identities (__main__.HelperIdentity.test_explicit_three_node_identities) (node='1')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py", line 33, in test_explicit_three_node_identities
+    with self.subTest(node=n):self.check_case(n)
+                              ~~~~~~~~~~~~~~~^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py", line 24, in check_case
+    root,phase,out,env,log=self.setup_case(d,case);r=subprocess.run(self.command(phase,out,node),env=env,capture_output=True,timeout=3);self.assertEqual(r.returncode,0,r.stderr.decode());self.assertNotIn(TOKEN.encode(),r.stdout+r.stderr)
+                                                                                                                                        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 64 != 0 : [local-threshold-pprof] ERROR: unknown argument: --node-id
+
+
+======================================================================
+FAIL: test_explicit_three_node_identities (__main__.HelperIdentity.test_explicit_three_node_identities) (node='2')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py", line 33, in test_explicit_three_node_identities
+    with self.subTest(node=n):self.check_case(n)
+                              ~~~~~~~~~~~~~~~^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py", line 24, in check_case
+    root,phase,out,env,log=self.setup_case(d,case);r=subprocess.run(self.command(phase,out,node),env=env,capture_output=True,timeout=3);self.assertEqual(r.returncode,0,r.stderr.decode());self.assertNotIn(TOKEN.encode(),r.stdout+r.stderr)
+                                                                                                                                        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 64 != 0 : [local-threshold-pprof] ERROR: unknown argument: --node-id
+
+
+======================================================================
+FAIL: test_explicit_three_node_identities (__main__.HelperIdentity.test_explicit_three_node_identities) (node='3')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py", line 33, in test_explicit_three_node_identities
+    with self.subTest(node=n):self.check_case(n)
+                              ~~~~~~~~~~~~~~~^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py", line 24, in check_case
+    root,phase,out,env,log=self.setup_case(d,case);r=subprocess.run(self.command(phase,out,node),env=env,capture_output=True,timeout=3);self.assertEqual(r.returncode,0,r.stderr.decode());self.assertNotIn(TOKEN.encode(),r.stdout+r.stderr)
+                                                                                                                                        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 64 != 0 : [local-threshold-pprof] ERROR: unknown argument: --node-id
+
+
+======================================================================
+FAIL: test_node3_partial_retains_producer_identity (__main__.HelperIdentity.test_node3_partial_retains_producer_identity)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py", line 39, in test_node3_partial_retains_producer_identity
+    def test_node3_partial_retains_producer_identity(self):self.check_case('3','http_error')
+                                                           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py", line 24, in check_case
+    root,phase,out,env,log=self.setup_case(d,case);r=subprocess.run(self.command(phase,out,node),env=env,capture_output=True,timeout=3);self.assertEqual(r.returncode,0,r.stderr.decode());self.assertNotIn(TOKEN.encode(),r.stdout+r.stderr)
+                                                                                                                                        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 64 != 0 : [local-threshold-pprof] ERROR: unknown argument: --node-id
+
+
+======================================================================
+FAIL: test_signal_cancel_joins_fakecurl_and_preserves_node3 (__main__.HelperIdentity.test_signal_cancel_joins_fakecurl_and_preserves_node3)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py", line 47, in test_signal_cancel_joins_fakecurl_and_preserves_node3
+    self.assertTrue(log.exists());p.send_signal(signal.SIGTERM);stdout,stderr=p.communicate(timeout=2);self.assertEqual(p.returncode,0);self.assertNotIn(TOKEN.encode(),stdout+stderr)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.677s
+
+FAILED (failures=5)

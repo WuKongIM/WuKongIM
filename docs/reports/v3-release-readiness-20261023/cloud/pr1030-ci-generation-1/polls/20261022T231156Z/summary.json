@@ -1,0 +1,114 @@
+[
+  {
+    "id": 39869765431,
+    "name": "Safety Automation - Validate Native Package Preview",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120140957058,
+        "name": "Build and install deb/rpm preview",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39869765472,
+    "name": "V3 Candidate Regression pull_request 1030 attempt 1",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120140957700,
+        "name": "Candidate scripts integration",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120140958124,
+        "name": "Candidate default suite (go-unit)",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39869765510,
+    "name": "Safety Automation - Issue Agent PR Signal",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120140957158,
+        "name": "Emit credential-free wake-up",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39869765462,
+    "name": "Three-Node Chat Lifecycle Regression pull_request 1030 attempt 1",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120140958182,
+        "name": "PR performance baseline evidence",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120140958430,
+        "name": "PR messaging unit and race",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120140958579,
+        "name": "PR three-node correctness",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120140959786,
+        "name": "Fixed Linux SEND diagnosis",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120140960213,
+        "name": "Nightly direct 500 QPS qualification",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120141065040,
+        "name": "PR 500 QPS / mixed-send",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120141065079,
+        "name": "PR 500 QPS / tcp-sendack",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120141065201,
+        "name": "PR 500 QPS / channel-append",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": []
+  }
+]

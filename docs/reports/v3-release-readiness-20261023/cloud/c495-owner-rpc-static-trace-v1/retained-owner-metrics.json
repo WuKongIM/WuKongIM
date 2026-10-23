@@ -1,0 +1,4201 @@
+{
+  "source": "six already retained Prometheus text files only",
+  "receipts": [
+    {
+      "cut": "first-measured",
+      "node": 1,
+      "bytes": 1024098,
+      "sha256": "e1abfaf05440f145807d27529ec3bbc22963475d0c8e15c7367949d32712dc55",
+      "mtime_ns": 1792708152568321045,
+      "unchanged_after_read": true
+    },
+    {
+      "cut": "first-measured",
+      "node": 2,
+      "bytes": 992279,
+      "sha256": "c9d562ba05f060e6de601f937bbe1e94c3d9dae693a4f1b592c84f1c9651f984",
+      "mtime_ns": 1792708152685422316,
+      "unchanged_after_read": true
+    },
+    {
+      "cut": "first-measured",
+      "node": 3,
+      "bytes": 979383,
+      "sha256": "2289b07d12bb2b76bc659252d04db103f9872b0013f971cb7720f21888d79342",
+      "mtime_ns": 1792708152729040221,
+      "unchanged_after_read": true
+    },
+    {
+      "cut": "terminal",
+      "node": 1,
+      "bytes": 1075478,
+      "sha256": "038d4a5cb3c809be385656ab2feff26941b50f172be8edccfc1da3c77e3c6a64",
+      "mtime_ns": 1792708170305087678,
+      "unchanged_after_read": true
+    },
+    {
+      "cut": "terminal",
+      "node": 2,
+      "bytes": 1032893,
+      "sha256": "f4d7bfce73d71da22c87bf1a562b3654c8b2a4a6c89fd0e126e78cfeda762298",
+      "mtime_ns": 1792708170310826030,
+      "unchanged_after_read": true
+    },
+    {
+      "cut": "terminal",
+      "node": 3,
+      "bytes": 1028245,
+      "sha256": "a97302dbb26046c2e8ddece8225cd5e2f47434db1fcd413340c0353e8addd348",
+      "mtime_ns": 1792708170316457256,
+      "unchanged_after_read": true
+    }
+  ],
+  "selected_series": [
+    {
+      "cut": "first-measured",
+      "node": 1,
+      "series": [
+        {
+          "family": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "7285"
+        },
+        {
+          "family": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "6.7108864e+07"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "4096"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.0005"
+          },
+          "value": "227"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.001"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.005"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.025"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.05"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.1"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.25"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.5"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "1"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "+Inf"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "value": "0.003402001000000001"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.0005"
+          },
+          "value": "209"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.001"
+          },
+          "value": "217"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.005"
+          },
+          "value": "223"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.025"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.05"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.1"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.25"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.5"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "1"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "0.08961829799999997"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_observer_dropped_total",
+          "labels": {},
+          "value": "0"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.0005"
+          },
+          "value": "30"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.001"
+          },
+          "value": "43"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.005"
+          },
+          "value": "53"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.025"
+          },
+          "value": "95"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.05"
+          },
+          "value": "111"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.1"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.25"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.5"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "1"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "+Inf"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "1.355897414"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.0005"
+          },
+          "value": "41"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.001"
+          },
+          "value": "48"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.005"
+          },
+          "value": "60"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.025"
+          },
+          "value": "94"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.05"
+          },
+          "value": "109"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.1"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.25"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.5"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "1"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "+Inf"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "1.2894831259999995"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "3612"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "3612"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.0005"
+          },
+          "value": "227"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.001"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.005"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.025"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.05"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.1"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.25"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.5"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "1"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "+Inf"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action"
+          },
+          "value": "0.003402001000000001"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_transport_rpc_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action"
+          },
+          "value": "7285"
+        }
+      ]
+    },
+    {
+      "cut": "first-measured",
+      "node": 2,
+      "series": [
+        {
+          "family": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "7221"
+        },
+        {
+          "family": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "6.7108864e+07"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "4096"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.0005"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.001"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.005"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.025"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.05"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.1"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.25"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.5"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "1"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "+Inf"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "value": "0.0038303380000000004"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.0005"
+          },
+          "value": "210"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.001"
+          },
+          "value": "219"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.005"
+          },
+          "value": "224"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.025"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.05"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.1"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.25"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.5"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "1"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "0.06506508899999996"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_observer_dropped_total",
+          "labels": {},
+          "value": "0"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.0005"
+          },
+          "value": "43"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.001"
+          },
+          "value": "57"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.005"
+          },
+          "value": "61"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.025"
+          },
+          "value": "91"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.05"
+          },
+          "value": "110"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.1"
+          },
+          "value": "116"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.25"
+          },
+          "value": "116"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.5"
+          },
+          "value": "116"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "1"
+          },
+          "value": "116"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "+Inf"
+          },
+          "value": "116"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "1.3956759179999998"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "116"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.0005"
+          },
+          "value": "45"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.001"
+          },
+          "value": "57"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.005"
+          },
+          "value": "72"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.025"
+          },
+          "value": "103"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.05"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.1"
+          },
+          "value": "115"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.25"
+          },
+          "value": "115"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.5"
+          },
+          "value": "115"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "1"
+          },
+          "value": "115"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "+Inf"
+          },
+          "value": "115"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "1.0171267100000005"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "115"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "3680"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "3680"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.0005"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.001"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.005"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.025"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.05"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.1"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.25"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.5"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "1"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "+Inf"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action"
+          },
+          "value": "0.0038303380000000004"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action"
+          },
+          "value": "7221"
+        }
+      ]
+    },
+    {
+      "cut": "first-measured",
+      "node": 3,
+      "series": [
+        {
+          "family": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "7305"
+        },
+        {
+          "family": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "6.7108864e+07"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "4096"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.0005"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.001"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.005"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.025"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.05"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.1"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.25"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.5"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "1"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "+Inf"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "value": "0.027871223000000004"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.0005"
+          },
+          "value": "215"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.001"
+          },
+          "value": "220"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.005"
+          },
+          "value": "224"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.025"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.05"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.1"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.25"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.5"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "1"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "0.083309163"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_observer_dropped_total",
+          "labels": {},
+          "value": "0"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.0005"
+          },
+          "value": "25"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.001"
+          },
+          "value": "32"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.005"
+          },
+          "value": "47"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.025"
+          },
+          "value": "87"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.05"
+          },
+          "value": "111"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.1"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.25"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.5"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "1"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "+Inf"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "1.5743340789999996"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.0005"
+          },
+          "value": "29"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.001"
+          },
+          "value": "39"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.005"
+          },
+          "value": "53"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.025"
+          },
+          "value": "92"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.05"
+          },
+          "value": "110"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.1"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.25"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.5"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "1"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "+Inf"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "1.418429835"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "3609"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "3609"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.0005"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.001"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.005"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.025"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.05"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.1"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.25"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.5"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "1"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "+Inf"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action"
+          },
+          "value": "0.027871223000000004"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action"
+          },
+          "value": "229"
+        },
+        {
+          "family": "wukongim_transport_rpc_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action"
+          },
+          "value": "7305"
+        }
+      ]
+    },
+    {
+      "cut": "terminal",
+      "node": 1,
+      "series": [
+        {
+          "family": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "9048"
+        },
+        {
+          "family": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "6.7108864e+07"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "4096"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.0005"
+          },
+          "value": "282"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.001"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.005"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.025"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.05"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.1"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.25"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.5"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "1"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "+Inf"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "value": "0.0074461230000000015"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.0005"
+          },
+          "value": "249"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.001"
+          },
+          "value": "263"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.005"
+          },
+          "value": "272"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.025"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.05"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.1"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.25"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.5"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "1"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "0.197063217"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_observer_dropped_total",
+          "labels": {},
+          "value": "0"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.0005"
+          },
+          "value": "30"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.001"
+          },
+          "value": "46"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.005"
+          },
+          "value": "58"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.025"
+          },
+          "value": "105"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.05"
+          },
+          "value": "129"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.1"
+          },
+          "value": "139"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.25"
+          },
+          "value": "140"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.5"
+          },
+          "value": "140"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "1"
+          },
+          "value": "140"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "+Inf"
+          },
+          "value": "140"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "2.4025427890000004"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "140"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.0005"
+          },
+          "value": "42"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.001"
+          },
+          "value": "49"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.005"
+          },
+          "value": "66"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.025"
+          },
+          "value": "103"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.05"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.1"
+          },
+          "value": "140"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.25"
+          },
+          "value": "140"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.5"
+          },
+          "value": "141"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "1"
+          },
+          "value": "141"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "+Inf"
+          },
+          "value": "141"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "2.495447456999999"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "141"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "4458"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "4453"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "timeout",
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "4"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.0005"
+          },
+          "value": "282"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.001"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.005"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.025"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.05"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.1"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.25"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.5"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "1"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "+Inf"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action"
+          },
+          "value": "0.0074461230000000015"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action"
+          },
+          "value": "9048"
+        }
+      ]
+    },
+    {
+      "cut": "terminal",
+      "node": 2,
+      "series": [
+        {
+          "family": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "8965"
+        },
+        {
+          "family": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "6.7108864e+07"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "4096"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.0005"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.001"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.005"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.025"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.05"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.1"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.25"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.5"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "1"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "+Inf"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "value": "0.006277337000000001"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.0005"
+          },
+          "value": "239"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.001"
+          },
+          "value": "259"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.005"
+          },
+          "value": "273"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.025"
+          },
+          "value": "278"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.05"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.1"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.25"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.5"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "1"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "0.20375700999999988"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_observer_dropped_total",
+          "labels": {},
+          "value": "0"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.0005"
+          },
+          "value": "44"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.001"
+          },
+          "value": "60"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.005"
+          },
+          "value": "66"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.025"
+          },
+          "value": "101"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.05"
+          },
+          "value": "131"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.1"
+          },
+          "value": "144"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.25"
+          },
+          "value": "144"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.5"
+          },
+          "value": "144"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "1"
+          },
+          "value": "144"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "+Inf"
+          },
+          "value": "144"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "2.4114545050000005"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "144"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.0005"
+          },
+          "value": "47"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.001"
+          },
+          "value": "60"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.005"
+          },
+          "value": "77"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.025"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.05"
+          },
+          "value": "133"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.1"
+          },
+          "value": "143"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.25"
+          },
+          "value": "143"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "0.5"
+          },
+          "value": "144"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "1"
+          },
+          "value": "144"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3",
+            "le": "+Inf"
+          },
+          "value": "144"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "2.21824709"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "144"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "4572"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "4568"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "timeout",
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "1"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "timeout",
+            "service": "presence owner action",
+            "target_node": "3"
+          },
+          "value": "4"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.0005"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.001"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.005"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.025"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.05"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.1"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.25"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.5"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "1"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "+Inf"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action"
+          },
+          "value": "0.006196129000000001"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_transport_rpc_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action"
+          },
+          "value": "8965"
+        }
+      ]
+    },
+    {
+      "cut": "terminal",
+      "node": 3,
+      "series": [
+        {
+          "family": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "9053"
+        },
+        {
+          "family": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "6.7108864e+07"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "4096"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.0005"
+          },
+          "value": "279"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.001"
+          },
+          "value": "279"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.005"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.025"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.05"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.1"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.25"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "0.5"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "1"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action",
+            "le": "+Inf"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "value": "0.05100947"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence owner action"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.0005"
+          },
+          "value": "247"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.001"
+          },
+          "value": "265"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.005"
+          },
+          "value": "273"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.025"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.05"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.1"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.25"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "0.5"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "1"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "0.209104453"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence owner action",
+            "result": "ok"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence owner action"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_observer_dropped_total",
+          "labels": {},
+          "value": "0"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.0005"
+          },
+          "value": "26"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.001"
+          },
+          "value": "35"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.005"
+          },
+          "value": "54"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.025"
+          },
+          "value": "97"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.05"
+          },
+          "value": "134"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.1"
+          },
+          "value": "141"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.25"
+          },
+          "value": "141"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "0.5"
+          },
+          "value": "142"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "1"
+          },
+          "value": "142"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1",
+            "le": "+Inf"
+          },
+          "value": "142"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "2.7112698289999995"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "142"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.0005"
+          },
+          "value": "32"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.001"
+          },
+          "value": "45"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.005"
+          },
+          "value": "59"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.025"
+          },
+          "value": "104"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.05"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.1"
+          },
+          "value": "141"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.25"
+          },
+          "value": "141"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "0.5"
+          },
+          "value": "142"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "1"
+          },
+          "value": "142"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2",
+            "le": "+Inf"
+          },
+          "value": "142"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "2.5696162549999997"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "142"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "4492"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "4488"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "timeout",
+            "service": "presence owner action",
+            "target_node": "1"
+          },
+          "value": "5"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "timeout",
+            "service": "presence owner action",
+            "target_node": "2"
+          },
+          "value": "3"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.0005"
+          },
+          "value": "279"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.001"
+          },
+          "value": "279"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.005"
+          },
+          "value": "281"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.025"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.05"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.1"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.25"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "0.5"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "1"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence owner action",
+            "le": "+Inf"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_sum",
+          "labels": {
+            "service": "presence owner action"
+          },
+          "value": "0.05100947"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_count",
+          "labels": {
+            "service": "presence owner action"
+          },
+          "value": "283"
+        },
+        {
+          "family": "wukongim_transport_rpc_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence owner action"
+          },
+          "value": "9053"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "Cumulative cuts are not a per-request timeline; file mtimes are retention metadata, not instant sampling timestamps.",
+    "Owner service mixes operation9/10 reads with route actions; totals do not distinguish those operations.",
+    "Handler and client latencies are sampled one in32; absence of slow sampled handler does not bound all handler durations.",
+    "The first/terminal gauges do not measure peak/intermediate occupancy.",
+    "Service task result ok is transport-handler success; typed application rejection encoded in a successful reply remains ok.",
+    "Response callback ignores Send enqueue error; no dedicated response-Send-result metric or retained request correlation exists.",
+    "No other labels, raw metrics, UIDs, payloads or runtime error text are copied."
+  ]
+}

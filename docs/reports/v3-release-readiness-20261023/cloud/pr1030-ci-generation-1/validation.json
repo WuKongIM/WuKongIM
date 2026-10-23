@@ -1,0 +1,1455 @@
+{
+  "source_binding": {
+    "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+    "base": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+    "actual_ci_checkout": "a514c73b4c950b9ead150c28ff08ef89123f5238",
+    "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+    "exact_tree_equal": true,
+    "merge_parents": [
+      "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+      "56c287493a5e9fc3df65ea0631b99612672cd678"
+    ],
+    "frozen_rules_workflows_policy_equal": true,
+    "applicable_FLOWs_separately_frozen": [
+      {
+        "path": "internal/bench/FLOW.md",
+        "scope": "subtree"
+      },
+      {
+        "path": "internal/bench/chatlifecycle/FLOW.md",
+        "scope": "package"
+      }
+    ]
+  },
+  "runs": [
+    {
+      "id": 39869765431,
+      "name": "Safety Automation - Validate Native Package Preview",
+      "path": ".github/workflows/native-package-preview.yml",
+      "head_sha": "56c287493a5e9fc3df65ea0631b99612672cd678",
+      "run_attempt": 1,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T23:08:05Z",
+      "updated_at": "2026-10-22T23:15:02Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39869765431"
+    },
+    {
+      "id": 39869765462,
+      "name": "Three-Node Chat Lifecycle Regression pull_request 1030 attempt 1",
+      "path": ".github/workflows/three-node-chat-lifecycle-regression.yml",
+      "head_sha": "56c287493a5e9fc3df65ea0631b99612672cd678",
+      "run_attempt": 1,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T23:08:05Z",
+      "updated_at": "2026-10-22T23:13:56Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39869765462"
+    },
+    {
+      "id": 39869765472,
+      "name": "V3 Candidate Regression pull_request 1030 attempt 1",
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "head_sha": "56c287493a5e9fc3df65ea0631b99612672cd678",
+      "run_attempt": 1,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T23:08:05Z",
+      "updated_at": "2026-10-22T23:20:03Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39869765472"
+    },
+    {
+      "id": 39869765510,
+      "name": "Safety Automation - Issue Agent PR Signal",
+      "path": ".github/workflows/issue-agent-pr-signal.yml",
+      "head_sha": "56c287493a5e9fc3df65ea0631b99612672cd678",
+      "run_attempt": 1,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T23:08:05Z",
+      "updated_at": "2026-10-22T23:08:13Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39869765510"
+    }
+  ],
+  "first_generation_checks": {
+    "success": 16,
+    "event_skipped": 2
+  },
+  "all_first_attempt": true,
+  "checkout_jobs": 14,
+  "no_checkout_jobs": [
+    "credential-free signal",
+    "three-node aggregate"
+  ],
+  "draft_unchanged_by_auditor": true,
+  "named_checks": {
+    "go-unit": {
+      "artifact_id": 12466535264,
+      "identity": {
+        "source_sha": "a514c73b4c950b9ead150c28ff08ef89123f5238",
+        "policy_sha": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+        "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "event": "pull_request",
+        "run_id": "39869765472",
+        "run_attempt": "1"
+      },
+      "command": {
+        "arguments": [
+          "go",
+          "test",
+          "./cmd/...",
+          "./internal/...",
+          "./pkg/...",
+          "./scripts/...",
+          "./docker/...",
+          "-count=1"
+        ],
+        "working_dir": ".",
+        "timeout_seconds": 1800,
+        "max_output_bytes": 8388608,
+        "named_check": "go-unit",
+        "environment": {
+          "GOWORK": "off",
+          "GOFLAGS": "-p=2"
+        }
+      },
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 2505,
+        "output_bytes": 22029,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 2505,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 405.682
+      }
+    },
+    "scripts-integration": {
+      "artifact_id": 12465943029,
+      "identity": {
+        "source_sha": "a514c73b4c950b9ead150c28ff08ef89123f5238",
+        "policy_sha": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+        "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "event": "pull_request",
+        "run_id": "39869765472",
+        "run_attempt": "1"
+      },
+      "command": {
+        "arguments": [
+          "go",
+          "test",
+          "-tags=integration",
+          "./scripts/...",
+          "-count=1",
+          "-timeout=9m",
+          "-parallel=2"
+        ],
+        "working_dir": ".",
+        "timeout_seconds": 600,
+        "max_output_bytes": 8388608,
+        "named_check": "scripts-integration",
+        "environment": {
+          "GOWORK": "off",
+          "GOFLAGS": "-p=2 -json"
+        }
+      },
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "session_id": 2507,
+        "output_bytes": 1507298,
+        "output_truncated": false,
+        "passed": true,
+        "cleanup": {
+          "session_id": 2507,
+          "verified": true,
+          "complete": true,
+          "initial_processes": [],
+          "remaining_processes": []
+        },
+        "command_status": "passed",
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 569.093
+      }
+    }
+  },
+  "default_suite": {
+    "passed": true,
+    "elapsed_seconds": 405.682,
+    "output_bytes": 22029,
+    "package_pass_count": 219,
+    "no_test_file_summaries": 15,
+    "changed_package_summaries": [
+      "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark\t7.245s",
+      "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle\t36.159s",
+      "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/target\t0.370s"
+    ],
+    "individual_test_case_counts_unavailable_nonverbose": true
+  },
+  "scripts_integration": {
+    "test_event_counts": {
+      "run": 1323,
+      "output": 3150,
+      "pass": 1317,
+      "pause": 249,
+      "cont": 249,
+      "skip": 6
+    },
+    "package_event_counts": {
+      "start": 7,
+      "output": 14,
+      "pass": 7
+    },
+    "failed_tests": [],
+    "skips": [
+      {
+        "Time": "2026-10-22T23:11:18.940560195Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestDockerImageRuntimeContract",
+        "Elapsed": 0
+      },
+      {
+        "Time": "2026-10-22T23:11:18.982451556Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestDockerImageEmbeddedPrometheus",
+        "Elapsed": 0
+      },
+      {
+        "Time": "2026-10-22T23:11:19.909850059Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestEasySDKReadinessSerialDelayFixture",
+        "Elapsed": 0
+      },
+      {
+        "Time": "2026-10-22T23:11:48.483732349Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageLifecycle",
+        "Elapsed": 0
+      },
+      {
+        "Time": "2026-10-22T23:11:48.483766851Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageSignedRepository",
+        "Elapsed": 0
+      },
+      {
+        "Time": "2026-10-22T23:11:48.855452194Z",
+        "Action": "skip",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageRepositoryDeadlineFixture",
+        "Elapsed": 0
+      }
+    ],
+    "skip_reasons": [
+      {
+        "Time": "2026-10-22T23:11:18.940506454Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestDockerImageRuntimeContract",
+        "Output": "=== RUN   TestDockerImageRuntimeContract\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:18.940544271Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestDockerImageRuntimeContract",
+        "Output": "    docker_image_integration_test.go:22: set WK_DOCKER_IMAGE_INTEGRATION=1 to build and validate the Docker image runtime contract\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:18.940554827Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestDockerImageRuntimeContract",
+        "Output": "--- SKIP: TestDockerImageRuntimeContract (0.00s)\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:18.982431656Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestDockerImageEmbeddedPrometheus",
+        "Output": "=== RUN   TestDockerImageEmbeddedPrometheus\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:18.982438797Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestDockerImageEmbeddedPrometheus",
+        "Output": "    docker_prometheus_integration_test.go:18: set WK_DOCKER_PROMETHEUS_IMAGE to the exact image to validate\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:18.982447339Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestDockerImageEmbeddedPrometheus",
+        "Output": "--- SKIP: TestDockerImageEmbeddedPrometheus (0.00s)\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:19.909829488Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestEasySDKReadinessSerialDelayFixture",
+        "Output": "=== RUN   TestEasySDKReadinessSerialDelayFixture\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:19.909831952Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestEasySDKReadinessSerialDelayFixture",
+        "Output": "    easysdk_readiness_schedule_integration_test.go:35: subprocess scheduling fixture only\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:19.90984418Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestEasySDKReadinessSerialDelayFixture",
+        "Output": "--- SKIP: TestEasySDKReadinessSerialDelayFixture (0.00s)\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:48.483701012Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageLifecycle",
+        "Output": "=== RUN   TestNativePackageLifecycle\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:48.483706169Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageLifecycle",
+        "Output": "    native_package_lifecycle_integration_test.go:17: set WK_NATIVE_PACKAGE_LIFECYCLE_INTEGRATION=1 to run the native package lifecycle validation\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:48.483726871Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageLifecycle",
+        "Output": "--- SKIP: TestNativePackageLifecycle (0.00s)\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:48.483741553Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageSignedRepository",
+        "Output": "=== RUN   TestNativePackageSignedRepository\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:48.483751217Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageSignedRepository",
+        "Output": "    native_package_repository_integration_test.go:15: set WK_NATIVE_PACKAGE_REPOSITORY_INTEGRATION=1 to run the signed repository container validation\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:48.483761643Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageSignedRepository",
+        "Output": "--- SKIP: TestNativePackageSignedRepository (0.00s)\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:48.855438103Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageRepositoryDeadlineFixture",
+        "Output": "=== RUN   TestNativePackageRepositoryDeadlineFixture\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:48.855445644Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageRepositoryDeadlineFixture",
+        "Output": "    native_package_repository_output_integration_test.go:92: subprocess fixture only\n"
+      },
+      {
+        "Time": "2026-10-22T23:11:48.85544956Z",
+        "Action": "output",
+        "Package": "github.com/WuKongIM/WuKongIM/scripts",
+        "Test": "TestNativePackageRepositoryDeadlineFixture",
+        "Output": "--- SKIP: TestNativePackageRepositoryDeadlineFixture (0.00s)\n"
+      }
+    ],
+    "output_truncated": false,
+    "elapsed_seconds": 569.093,
+    "output_bytes": 1507298,
+    "cleanup": {
+      "session_id": 2507,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    }
+  },
+  "performance": {
+    "tcp-sendack": {
+      "artifact_id": 12465937403,
+      "schema": "scheduled-arrival/v1",
+      "phase": "measurement",
+      "qualification": true,
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.215399,
+          "scheduled_to_start_p99_ms": 1.07485,
+          "service_p99_ms": 177.534353
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.201627,
+          "scheduled_to_start_p99_ms": 1.073855,
+          "service_p99_ms": 177.532318
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.205619,
+          "scheduled_to_start_p99_ms": 1.076812,
+          "service_p99_ms": 177.522892
+        }
+      ],
+      "one_second_cohorts": 180,
+      "warmup_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.215294,
+          "scheduled_to_start_p99_ms": 1.07333,
+          "service_p99_ms": 177.549476
+        }
+      ],
+      "source_sha": "a514c73b4c950b9ead150c28ff08ef89123f5238",
+      "binary_sha256_file": "b3f9efb9f81bf4496a3592001af98cd72d296b2de69489927bf2ca662f3ccc03  /home/runner/work/_temp/500qps-tcp-sendack/benchmark.test\n",
+      "go_version": "go version go1.25.11 linux/amd64",
+      "visible_CPUs": "4",
+      "CPU_model": "AMD EPYC 9V74 80-Core Processor",
+      "data_filesystem": {
+        "filesystems": [
+          {
+            "target": "/",
+            "source": "/dev/sda1",
+            "fstype": "ext4",
+            "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+          }
+        ]
+      }
+    },
+    "mixed-send": {
+      "artifact_id": 12465847720,
+      "schema": "scheduled-arrival/v1",
+      "phase": "measurement",
+      "qualification": true,
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 13.919224,
+          "scheduled_to_start_p99_ms": 1.27564,
+          "service_p99_ms": 12.431841
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 16.907432,
+          "scheduled_to_start_p99_ms": 1.56251,
+          "service_p99_ms": 15.349902
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 18.856614,
+          "scheduled_to_start_p99_ms": 1.87547,
+          "service_p99_ms": 18.371656
+        }
+      ],
+      "one_second_cohorts": 180,
+      "warmup_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 15.934153,
+          "scheduled_to_start_p99_ms": 1.259752,
+          "service_p99_ms": 14.404654
+        }
+      ],
+      "source_sha": "a514c73b4c950b9ead150c28ff08ef89123f5238",
+      "binary_sha256_file": "ee5dc6a8e456b51f5abea18949f3135b4b4074ac05653561f748c0f14858439e  /home/runner/work/_temp/500qps-mixed-send/benchmark.test\n",
+      "go_version": "go version go1.25.11 linux/amd64",
+      "visible_CPUs": "4",
+      "CPU_model": "AMD EPYC 7763 64-Core Processor",
+      "data_filesystem": {
+        "filesystems": [
+          {
+            "target": "/",
+            "source": "/dev/sda1",
+            "fstype": "ext4",
+            "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+          }
+        ]
+      },
+      "counter_window": {
+        "counter_scope": "post-warmup through completed handlers; rolling trace and one-second sampler enabled; see flight receipt for actual instrumentation interval",
+        "counter_window_seconds": 180.034378977,
+        "ended_at": "2026-10-22T23:13:44.687669688Z",
+        "go_version": "go1.25.11",
+        "goarch": "amd64",
+        "gomaxprocs": 4,
+        "goos": "linux",
+        "handlers_completed": true,
+        "offered_qps": 500,
+        "operations": 90000,
+        "profile_enabled": true,
+        "schema": "mixed-send-counters/v1",
+        "started_at": "2026-10-22T23:10:44.653290711Z"
+      }
+    },
+    "channel-append": {
+      "artifact_id": 12464969047,
+      "schema": "scheduled-arrival/v1",
+      "phase": "measurement",
+      "qualification": true,
+      "windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 177.114895,
+          "scheduled_to_start_p99_ms": 1.076197,
+          "service_p99_ms": 176.933123
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 213.579886,
+          "scheduled_to_start_p99_ms": 1.08706,
+          "service_p99_ms": 212.099553
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 202.95365,
+          "scheduled_to_start_p99_ms": 1.116473,
+          "service_p99_ms": 202.727138
+        }
+      ],
+      "one_second_cohorts": 180,
+      "warmup_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 223.39188,
+          "scheduled_to_start_p99_ms": 1.071716,
+          "service_p99_ms": 222.975908
+        }
+      ],
+      "source_sha": "a514c73b4c950b9ead150c28ff08ef89123f5238",
+      "binary_sha256_file": "020d665df688785b40561c17d6e5467322d5e4da8a9508e2a232d3de8cae44b4  /home/runner/work/_temp/500qps-channel-append/benchmark.test\n",
+      "go_version": "go version go1.25.11 linux/amd64",
+      "visible_CPUs": "4",
+      "CPU_model": "AMD EPYC 9V74 80-Core Processor",
+      "data_filesystem": {
+        "filesystems": [
+          {
+            "target": "/",
+            "source": "/dev/nvme0n1p1",
+            "fstype": "ext4",
+            "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+          }
+        ]
+      },
+      "counter_window": {
+        "counter_scope": "post-setup through completed handlers; includes boundary snapshot and benchmark timer overhead; three-node aggregate; replication stages sampled 1/32; physical batches unsampled",
+        "counter_window_seconds": 180.003009635,
+        "ended_at": "2026-10-22T23:13:13.923001791Z",
+        "go_version": "go1.25.11",
+        "goarch": "amd64",
+        "gomaxprocs": 4,
+        "goos": "linux",
+        "handlers_completed": true,
+        "offered_qps": 500,
+        "operations": 90000,
+        "profile_enabled": false,
+        "schema": "channel-append-counters/v1",
+        "started_at": "2026-10-22T23:10:13.919992156Z"
+      }
+    }
+  },
+  "e2e": {
+    "binary_sha256": "5e0d01ee2ebbdc919f27666fd38bfefe402c01cf781bb98a53364bb220b7bda5",
+    "embedded_compiler": "go1.25.11",
+    "embedded_vcs_revision": "a514c73b4c950b9ead150c28ff08ef89123f5238",
+    "embedded_vcs_modified": false,
+    "commands_passed": 4,
+    "cleanup_receipts_verified_complete_zero_remaining": 4,
+    "test_pass_event_counts": {
+      "build": 0,
+      "ordinary_history": 6,
+      "cross_node_delivery": 4,
+      "self_chat": 3
+    },
+    "optional_2000QPS_comparison_skipped": true,
+    "raw_report_and_containing_zip_private": true
+  },
+  "native_preview_jobs": [
+    {
+      "id": 120140957058,
+      "name": "Build and install deb/rpm preview",
+      "conclusion": "success",
+      "successful_steps": [
+        "Set up job",
+        "Check out exact source",
+        "Set up repository Go toolchain",
+        "Run package and CLI contracts",
+        "Run single-node cluster SEND integration",
+        "Build deb and rpm preview",
+        "Validate signed repository metadata closure",
+        "Inspect package metadata",
+        "Install on Ubuntu 24.04",
+        "Install on Debian 12",
+        "Install on Rocky Linux 9",
+        "Install on AlmaLinux 9",
+        "Upload preview packages",
+        "Reject tracked-tree mutation",
+        "Post Set up repository Go toolchain",
+        "Post Check out exact source",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "id": 120142826074,
+      "name": "Exercise Rocky Linux 9 package lifecycle",
+      "conclusion": "success",
+      "successful_steps": [
+        "Set up job",
+        "Check out exact source",
+        "Set up repository Go toolchain",
+        "Download the exact preview packages",
+        "Verify the downloaded package set",
+        "Exercise the operator-owned lifecycle",
+        "Reject tracked-tree mutation",
+        "Post Set up repository Go toolchain",
+        "Post Check out exact source",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "id": 120142826076,
+      "name": "Exercise AlmaLinux 9 package lifecycle",
+      "conclusion": "success",
+      "successful_steps": [
+        "Set up job",
+        "Check out exact source",
+        "Set up repository Go toolchain",
+        "Download the exact preview packages",
+        "Verify the downloaded package set",
+        "Exercise the operator-owned lifecycle",
+        "Reject tracked-tree mutation",
+        "Post Set up repository Go toolchain",
+        "Post Check out exact source",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "id": 120142826160,
+      "name": "Exercise Debian 12 package lifecycle",
+      "conclusion": "success",
+      "successful_steps": [
+        "Set up job",
+        "Check out exact source",
+        "Set up repository Go toolchain",
+        "Download the exact preview packages",
+        "Verify the downloaded package set",
+        "Exercise the operator-owned lifecycle",
+        "Reject tracked-tree mutation",
+        "Post Set up repository Go toolchain",
+        "Post Check out exact source",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "id": 120142826300,
+      "name": "Exercise Ubuntu 24.04 package lifecycle",
+      "conclusion": "success",
+      "successful_steps": [
+        "Set up job",
+        "Check out exact source",
+        "Set up repository Go toolchain",
+        "Download the exact preview packages",
+        "Verify the downloaded package set",
+        "Exercise the operator-owned lifecycle",
+        "Reject tracked-tree mutation",
+        "Post Set up repository Go toolchain",
+        "Post Check out exact source",
+        "Complete job"
+      ],
+      "skipped_steps": []
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 12466245987,
+      "name": "wukongim-native-package-preview-39869765431",
+      "declared_bytes": 77886009,
+      "declared_digest": "sha256:b6a20935999fd7551bb8bfa6d623a2236c0c0e3f3477a9b4d8e72fcdab86cde9",
+      "state": "not_downloaded",
+      "reason": "outside explicit proof allowlist; native package binaries and unrelated artifact contents not fetched"
+    },
+    {
+      "id": 12466535264,
+      "name": "v3-candidate-default-39869765472-1",
+      "declared_bytes": 8256,
+      "declared_digest": "sha256:a9fe508f21d71b8224c3d465018ea6ff7a35ac2d76b0a7eab5c44f231f12a5dd",
+      "state": "verified",
+      "zip_bytes": 8256,
+      "zip_sha256": "a9fe508f21d71b8224c3d465018ea6ff7a35ac2d76b0a7eab5c44f231f12a5dd",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "command.json",
+          "bytes": 334,
+          "compressed_bytes": 213,
+          "crc32": "c797ebb8",
+          "sha256": "0cb6625e3ac51b84b8154054b2295ed766dcd7cb0cb0967da00310244dffa3d9"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "identity.json",
+          "bytes": 286,
+          "compressed_bytes": 190,
+          "crc32": "5cd7d96b",
+          "sha256": "d0e8700ef8a0f42838f8de6255ab36c09e7af32f479b5e6f5a0ae779024986d5"
+        },
+        {
+          "path": "policy.json",
+          "bytes": 14492,
+          "compressed_bytes": 2758,
+          "crc32": "4b2851e1",
+          "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+        },
+        {
+          "path": "result.json",
+          "bytes": 370,
+          "compressed_bytes": 195,
+          "crc32": "7e0273d3",
+          "sha256": "f04048330862222a43e41e6f7ce3525fbe1c13ad5e85cbed4c5407c62d7ffa33"
+        },
+        {
+          "path": "stdout-stderr.log",
+          "bytes": 22029,
+          "compressed_bytes": 4135,
+          "crc32": "bff229ab",
+          "sha256": "3621bacf6db6f9fd8c33fd5fd03f2b4b9dd71561b5286fa9a3356e8207ddf3e9"
+        }
+      ]
+    },
+    {
+      "id": 12466390936,
+      "name": "v3-candidate-e2e-39869765472-1",
+      "declared_bytes": 16534,
+      "declared_digest": "sha256:89c167f0f162fefa2e1b858f6719acd2663c5036a0529d8419482ba9dcac79fd",
+      "state": "verified_private_original",
+      "zip_bytes": 16534,
+      "zip_sha256": "89c167f0f162fefa2e1b858f6719acd2663c5036a0529d8419482ba9dcac79fd",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "binary-build-info.txt",
+          "bytes": 8955,
+          "compressed_bytes": 5039,
+          "crc32": "c66dbc26",
+          "sha256": "c1d777c9a0a5b267b6d19cfc6ae5a0419b96646e5980d2294aa71f9b0ca44ed0"
+        },
+        {
+          "path": "binary.sha256",
+          "bytes": 134,
+          "compressed_bytes": 111,
+          "crc32": "eb6c9f37",
+          "sha256": "1d188fe59abd66ee13b494d0eed649d7540d2dfdb2b7f37e91e477d7977e1e07"
+        },
+        {
+          "path": "build/command.json",
+          "bytes": 285,
+          "compressed_bytes": 193,
+          "crc32": "2addcda4",
+          "sha256": "a32a952a40690d0d6a5f91b0be68c481edfe300116f03f450ca68652baa1b504"
+        },
+        {
+          "path": "build/result.json",
+          "bytes": 368,
+          "compressed_bytes": 192,
+          "crc32": "d56c069e",
+          "sha256": "f827a571bdc833c0a3d21af65dec270fc73c6686a71a29fc4bb62f417095a077"
+        },
+        {
+          "path": "build/stderr.log",
+          "bytes": 5051,
+          "compressed_bytes": 1480,
+          "crc32": "fe5be54e",
+          "sha256": "590929576017aa9a9fba78316bb4b7e52e817f011ed47795f2e8b3ce884ebddd"
+        },
+        {
+          "path": "build/stdout.jsonl",
+          "bytes": 0,
+          "compressed_bytes": 2,
+          "crc32": "00000000",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "cross_node_delivery/command.json",
+          "bytes": 283,
+          "compressed_bytes": 188,
+          "crc32": "6042e90b",
+          "sha256": "cd7d2b139b98210a11ee5ef3fe41ca69914269a99bccaeffb8426f9995811eab"
+        },
+        {
+          "path": "cross_node_delivery/result.json",
+          "bytes": 370,
+          "compressed_bytes": 195,
+          "crc32": "5b692326",
+          "sha256": "6812d9cc13e6a5838ba97fdbb6dc1ddd0ad76b0027addf80af86b22e345eff73"
+        },
+        {
+          "path": "cross_node_delivery/stderr.log",
+          "bytes": 0,
+          "compressed_bytes": 2,
+          "crc32": "00000000",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "cross_node_delivery/stdout.jsonl",
+          "bytes": 8446,
+          "compressed_bytes": 1200,
+          "crc32": "06358685",
+          "sha256": "648ffb801c027df9c475305a83c490f71845375a87443a0b1d98a1ae977add84"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "identity.json",
+          "bytes": 172,
+          "compressed_bytes": 130,
+          "crc32": "dad3c812",
+          "sha256": "424334901db49b2fa1f5e2836cc5049c43967123aa7806155ef8f70279f33868"
+        },
+        {
+          "path": "ordinary_history/command.json",
+          "bytes": 302,
+          "compressed_bytes": 195,
+          "crc32": "11e8a94e",
+          "sha256": "ed22c31c4d2a4b3de5ca70e3da7cd45e85c15a06c5b0ad825af6b256e6fbd1c9"
+        },
+        {
+          "path": "ordinary_history/result.json",
+          "bytes": 369,
+          "compressed_bytes": 195,
+          "crc32": "a231a64f",
+          "sha256": "dc400d955e5d49d5426960001f2cb4268e5a90f1702589495133e9360b9abdb8"
+        },
+        {
+          "path": "ordinary_history/stderr.log",
+          "bytes": 262,
+          "compressed_bytes": 131,
+          "crc32": "6115e3f1",
+          "sha256": "f7dd913964261c3ba2ef4af097ec9bc69ed4030b3f4518d76e2bf4780580196b"
+        },
+        {
+          "path": "ordinary_history/stdout.jsonl",
+          "bytes": 27302,
+          "compressed_bytes": 1660,
+          "crc32": "349ebe57",
+          "sha256": "8329615818ab9cf473d9f8ca262154d1048f03da6a387444a68206bf0fb3377c"
+        },
+        {
+          "path": "self_chat/command.json",
+          "bytes": 273,
+          "compressed_bytes": 181,
+          "crc32": "fffc10bb",
+          "sha256": "2c43b9ab69c4a6aa8798aea284f8c701219f8faef97fd15a61bb75324835a0e6"
+        },
+        {
+          "path": "self_chat/report.json",
+          "bytes": 47382,
+          "compressed_bytes": 1775,
+          "crc32": "1ea3d8d6",
+          "sha256": "30691f4971a7b29137618fc6972c8ca5ddeafe3381c8b6a4ea94ac958ff1e509"
+        },
+        {
+          "path": "self_chat/result.json",
+          "bytes": 370,
+          "compressed_bytes": 193,
+          "crc32": "8b6a93db",
+          "sha256": "ef0c557e53e91e96c066c0c5283f4f60ee69758ef569619df6da9e2f0cdef6da"
+        },
+        {
+          "path": "self_chat/stderr.log",
+          "bytes": 0,
+          "compressed_bytes": 2,
+          "crc32": "00000000",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "self_chat/stdout.jsonl",
+          "bytes": 3701,
+          "compressed_bytes": 533,
+          "crc32": "c09c261f",
+          "sha256": "e3d21dc89f499b7502d3a660abeb84911eb5772a1b16844e891668f8695d8028"
+        }
+      ]
+    },
+    {
+      "id": 12465943029,
+      "name": "v3-candidate-scripts-39869765472-1",
+      "declared_bytes": 118658,
+      "declared_digest": "sha256:748aa6df4270fa69a13a97609e250d27d2095eee0670cd68e4d0897767e8fe9d",
+      "state": "verified",
+      "zip_bytes": 118658,
+      "zip_sha256": "748aa6df4270fa69a13a97609e250d27d2095eee0670cd68e4d0897767e8fe9d",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "command.json",
+          "bytes": 338,
+          "compressed_bytes": 224,
+          "crc32": "a3648e4d",
+          "sha256": "d75afa8dcac0e56685c0d3dd8613d8f5690b8cd27e383b8beead00a883303e27"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "identity.json",
+          "bytes": 286,
+          "compressed_bytes": 190,
+          "crc32": "5cd7d96b",
+          "sha256": "d0e8700ef8a0f42838f8de6255ab36c09e7af32f479b5e6f5a0ae779024986d5"
+        },
+        {
+          "path": "policy.json",
+          "bytes": 14492,
+          "compressed_bytes": 2758,
+          "crc32": "4b2851e1",
+          "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+        },
+        {
+          "path": "result.json",
+          "bytes": 372,
+          "compressed_bytes": 198,
+          "crc32": "6e083ea8",
+          "sha256": "0a29e5492527e03008adbe5cb2d43a85ec2dc34bfe6f419aae36f72d1f812627"
+        },
+        {
+          "path": "stdout-stderr.log",
+          "bytes": 1507298,
+          "compressed_bytes": 114523,
+          "crc32": "043b5d3f",
+          "sha256": "c785dba96ed8e5cece0ccdf4a666f51af77672953326135d185a77cfa8563512"
+        }
+      ]
+    },
+    {
+      "id": 12465937403,
+      "name": "500qps-tcp-sendack-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+      "declared_bytes": 8110,
+      "declared_digest": "sha256:cecd30b06363f61077eee5733d01aca8860b709f6f624d0f4c6f2b673c21229a",
+      "state": "verified",
+      "zip_bytes": 8110,
+      "zip_sha256": "cecd30b06363f61077eee5733d01aca8860b709f6f624d0f4c6f2b673c21229a",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "arrival.json",
+          "bytes": 58099,
+          "compressed_bytes": 2995,
+          "crc32": "86e62bf7",
+          "sha256": "6135aee31e7c9b4bd5617ba2fd8abad21f52087eeb85e3f1de0ed6e541acab2f"
+        },
+        {
+          "path": "arrival.warmup.json",
+          "bytes": 19447,
+          "compressed_bytes": 1180,
+          "crc32": "b55a697d",
+          "sha256": "d8403fe79c8e0db6988f7401009a68d56007d8e5fa004eab98427e55bd4d924e"
+        },
+        {
+          "path": "benchmark.txt",
+          "bytes": 2953,
+          "compressed_bytes": 840,
+          "crc32": "1f4470b7",
+          "sha256": "6ed9f9554d90c960fd748e6921d570cb0691886c8d15e9c9cd7dec885a385d4f"
+        },
+        {
+          "path": "binary.sha256",
+          "bytes": 124,
+          "compressed_bytes": 106,
+          "crc32": "89205405",
+          "sha256": "9b6119e653126ae7fd380874d62523fbece02a8d7e8e7adfea03a00b61d78c4a"
+        },
+        {
+          "path": "data-filesystem.json",
+          "bytes": 244,
+          "compressed_bytes": 159,
+          "crc32": "77ec143c",
+          "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+        },
+        {
+          "path": "filesystem-preflight.txt",
+          "bytes": 123,
+          "compressed_bytes": 109,
+          "crc32": "d946f0d1",
+          "sha256": "fe23534cd8f17651d5a0baa5b80579009f0baa562911b3cfc2cca1f2e34c4929"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "host.json",
+          "bytes": 4484,
+          "compressed_bytes": 1180,
+          "crc32": "1b77ff76",
+          "sha256": "372bc9835676a2d36a431151ae3a65cba3b74707813a1897bcc9ceaa3b094902"
+        },
+        {
+          "path": "kernel.txt",
+          "bytes": 113,
+          "compressed_bytes": 100,
+          "crc32": "5f528912",
+          "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+        },
+        {
+          "path": "result.json",
+          "bytes": 18,
+          "compressed_bytes": 20,
+          "crc32": "81529131",
+          "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+        },
+        {
+          "path": "source.sha",
+          "bytes": 41,
+          "compressed_bytes": 42,
+          "crc32": "cfb4cb01",
+          "sha256": "ad9354c164f1579f4b5236ee67ef272ce329a77153c09b299ce467b3e7a679b1"
+        }
+      ]
+    },
+    {
+      "id": 12465847720,
+      "name": "500qps-mixed-send-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+      "declared_bytes": 231670,
+      "declared_digest": "sha256:df653da4649ce9446c0e8431c255b88e600f01cc1cbd2c0c8a10a9ab8a88ee12",
+      "state": "verified",
+      "zip_bytes": 231670,
+      "zip_sha256": "df653da4649ce9446c0e8431c255b88e600f01cc1cbd2c0c8a10a9ab8a88ee12",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "arrival.json",
+          "bytes": 57698,
+          "compressed_bytes": 3455,
+          "crc32": "6bfe0cab",
+          "sha256": "ed245e3b0aeaf1e911c3d730f973f9ba8ed1102aee32847c61fc76b812fd1ade"
+        },
+        {
+          "path": "arrival.warmup.json",
+          "bytes": 19303,
+          "compressed_bytes": 1323,
+          "crc32": "a69b22bb",
+          "sha256": "cc72a9328c2cfa4fbf4e7eb1df1e06c30cc68f6d7be977bb9c9634bb157c700e"
+        },
+        {
+          "path": "benchmark.txt",
+          "bytes": 4012,
+          "compressed_bytes": 1029,
+          "crc32": "7ba5ff6c",
+          "sha256": "a9d6b1d891174f376ac4d7a75b1fa72777bd394f550b94ee53d0296a81663e80"
+        },
+        {
+          "path": "binary.sha256",
+          "bytes": 123,
+          "compressed_bytes": 106,
+          "crc32": "56ab10bb",
+          "sha256": "4644f12eb6d815b785bcaeeab51826b62235969a6c365d7bed6a26dd2e95d063"
+        },
+        {
+          "path": "counters/after.json",
+          "bytes": 314078,
+          "compressed_bytes": 13622,
+          "crc32": "45498bb4",
+          "sha256": "4cb558b01b6a051029fee50d65bdb18027b1d01b7fa4227ba9c1988f26085e37"
+        },
+        {
+          "path": "counters/before.json",
+          "bytes": 313330,
+          "compressed_bytes": 13185,
+          "crc32": "683802b7",
+          "sha256": "f50af128d83919fae9b87ad09c6f40172ba64b4ae1c93c26b35d178ba9c2ef71"
+        },
+        {
+          "path": "counters/window.json",
+          "bytes": 534,
+          "compressed_bytes": 320,
+          "crc32": "d3f47b92",
+          "sha256": "c74348a7aa773193cc9c37aeb16eb5779daf09c767d724c6fc32c089c569befd"
+        },
+        {
+          "path": "counters.warmup/after.json",
+          "bytes": 313330,
+          "compressed_bytes": 13177,
+          "crc32": "993702c1",
+          "sha256": "5c3d3521c872da4a8490995cd63d23effa4be86be7e793aec9a54ce02ed21353"
+        },
+        {
+          "path": "counters.warmup/before.json",
+          "bytes": 310784,
+          "compressed_bytes": 12042,
+          "crc32": "bcecab4b",
+          "sha256": "a6d7010e04e52bb06fff64361c298426f7a9feb24d48e6c076cf92fcbc1a7820"
+        },
+        {
+          "path": "counters.warmup/window.json",
+          "bytes": 478,
+          "compressed_bytes": 297,
+          "crc32": "63eade7f",
+          "sha256": "6af4f7e2d3fa00256128a5c5772b5dc90f782ebe163651b168bea746d6f6dae3"
+        },
+        {
+          "path": "data-filesystem.json",
+          "bytes": 244,
+          "compressed_bytes": 159,
+          "crc32": "77ec143c",
+          "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+        },
+        {
+          "path": "filesystem-preflight.txt",
+          "bytes": 123,
+          "compressed_bytes": 109,
+          "crc32": "a05c3b07",
+          "sha256": "4b4c013abd386d16a0cc0b4c6f8f5313e046a5a9035ecbe5d0acd4a8deffeff6"
+        },
+        {
+          "path": "flight/retention-status.txt",
+          "bytes": 28,
+          "compressed_bytes": 30,
+          "crc32": "1785ba98",
+          "sha256": "fe914d9861d4c6f558854c355a1422208df73e3235e7e7061ec8948c58874fed"
+        },
+        {
+          "path": "flight/window.json",
+          "bytes": 2088481,
+          "compressed_bytes": 168994,
+          "crc32": "12f2e030",
+          "sha256": "77d9a87a1b844a207257096fce67db57e625d8a12f22998d54dc42283dae1ab0"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "host.json",
+          "bytes": 4483,
+          "compressed_bytes": 1177,
+          "crc32": "86213588",
+          "sha256": "eda047d6a2a8a735ae06c3c4b5fe8cf2f09af8a2646057a1a5bcab415d0b6401"
+        },
+        {
+          "path": "kernel.txt",
+          "bytes": 113,
+          "compressed_bytes": 100,
+          "crc32": "5f528912",
+          "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+        },
+        {
+          "path": "result.json",
+          "bytes": 18,
+          "compressed_bytes": 20,
+          "crc32": "81529131",
+          "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+        },
+        {
+          "path": "source.sha",
+          "bytes": 41,
+          "compressed_bytes": 42,
+          "crc32": "cfb4cb01",
+          "sha256": "ad9354c164f1579f4b5236ee67ef272ce329a77153c09b299ce467b3e7a679b1"
+        }
+      ]
+    },
+    {
+      "id": 12465573753,
+      "name": "three-node-pr-1030-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+      "declared_bytes": 228677232,
+      "declared_digest": "sha256:b780571adc870f5b158d6e74d782383dfb94c3cff996637fdba818802526f6f9",
+      "state": "not_downloaded",
+      "reason": "outside explicit proof allowlist; native package binaries and unrelated artifact contents not fetched"
+    },
+    {
+      "id": 12464969047,
+      "name": "500qps-channel-append-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+      "declared_bytes": 26510,
+      "declared_digest": "sha256:f003f7c5e5267808f82a421c5c1fbc442c13fb751f3231aced93c3f80c02024a",
+      "state": "verified",
+      "zip_bytes": 26510,
+      "zip_sha256": "f003f7c5e5267808f82a421c5c1fbc442c13fb751f3231aced93c3f80c02024a",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "arrival.json",
+          "bytes": 57932,
+          "compressed_bytes": 3632,
+          "crc32": "3f9ff4fb",
+          "sha256": "b85f171c9146e2f536448671237502bd9531d79e7bcfad6d44a150d3f1a614a3"
+        },
+        {
+          "path": "arrival.warmup.json",
+          "bytes": 19371,
+          "compressed_bytes": 1373,
+          "crc32": "cd705b0d",
+          "sha256": "fa4fb93164ee3dcebdba01660091fb3f95699cc2a382e985e02c0bc18f193f59"
+        },
+        {
+          "path": "benchmark.txt",
+          "bytes": 2381,
+          "compressed_bytes": 848,
+          "crc32": "5bae7cd0",
+          "sha256": "1fb35bae4e9c59bacff4a3e3930d134f9583d58e46a3ec08cdca2d201da7a2cd"
+        },
+        {
+          "path": "binary.sha256",
+          "bytes": 127,
+          "compressed_bytes": 108,
+          "crc32": "0409cb78",
+          "sha256": "e540a1d804d8a31808d0664dcd0c25901925ace03f3f8f7ac264c6e073781593"
+        },
+        {
+          "path": "counters/after.json",
+          "bytes": 50681,
+          "compressed_bytes": 4463,
+          "crc32": "92741db6",
+          "sha256": "a0d1a7beafa78c73ab0e669d55534a20e49e655fc5a5d14c3be5998ff1df55e2"
+        },
+        {
+          "path": "counters/before.json",
+          "bytes": 50458,
+          "compressed_bytes": 4300,
+          "crc32": "0a396ade",
+          "sha256": "0cb8c0bce58198697746d2c73a9c34176e6fa6c765bca9cbc1deed096f95ca4e"
+        },
+        {
+          "path": "counters/window.json",
+          "bytes": 576,
+          "compressed_bytes": 350,
+          "crc32": "2aebbbe4",
+          "sha256": "6e44e50063185f2ad00375200d6188699f94e3719097a5f40b6f9a5adc376329"
+        },
+        {
+          "path": "counters.warmup/after.json",
+          "bytes": 50457,
+          "compressed_bytes": 4289,
+          "crc32": "3ee2fd4c",
+          "sha256": "eda441e788251c467a28aa02fac70dcb69efa0fd0ee3898d3b7244715a2670ad"
+        },
+        {
+          "path": "counters.warmup/before.json",
+          "bytes": 21584,
+          "compressed_bytes": 2945,
+          "crc32": "617a950d",
+          "sha256": "055d97d6e614a611633963e08f7c7fde9f74882ecb7596ff107c79a7a66db490"
+        },
+        {
+          "path": "counters.warmup/window.json",
+          "bytes": 504,
+          "compressed_bytes": 314,
+          "crc32": "388f6247",
+          "sha256": "b42713b5f95bcc62224d0341d85c5e20ad900cd2687069051be54fad5940a6db"
+        },
+        {
+          "path": "data-filesystem.json",
+          "bytes": 249,
+          "compressed_bytes": 163,
+          "crc32": "a22f9e15",
+          "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6"
+        },
+        {
+          "path": "filesystem-preflight.txt",
+          "bytes": 123,
+          "compressed_bytes": 109,
+          "crc32": "18dc278c",
+          "sha256": "a03ef678c0ecbcda8bdeb913152f4acd7cc6afa15ac6b7f353ea0c27f654c260"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "host.json",
+          "bytes": 4633,
+          "compressed_bytes": 1245,
+          "crc32": "8008e2b9",
+          "sha256": "688d220dbb2a22abc0ee7562fbe06e65e1e3096092d9b117d9d04b06ab00c9db"
+        },
+        {
+          "path": "kernel.txt",
+          "bytes": 113,
+          "compressed_bytes": 100,
+          "crc32": "5f528912",
+          "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+        },
+        {
+          "path": "result.json",
+          "bytes": 18,
+          "compressed_bytes": 20,
+          "crc32": "81529131",
+          "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+        },
+        {
+          "path": "source.sha",
+          "bytes": 41,
+          "compressed_bytes": 42,
+          "crc32": "cfb4cb01",
+          "sha256": "ad9354c164f1579f4b5236ee67ef272ce329a77153c09b299ce467b3e7a679b1"
+        }
+      ]
+    }
+  ],
+  "review_agent_workflows": {
+    "review-agent.yml": {
+      "id": 324187004,
+      "node_id": "W_kwDOJgfwyc4TUrN8",
+      "name": "Safety Automation - Review Agent Controller",
+      "path": ".github/workflows/review-agent.yml",
+      "state": "disabled_manually",
+      "created_at": "2026-07-31T11:36:34.000+08:00",
+      "updated_at": "2026-09-07T15:54:32.000+08:00",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/workflows/324187004",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/review-agent.yml",
+      "badge_url": "https://github.com/WuKongIM/WuKongIM/workflows/Safety%20Automation%20-%20Review%20Agent%20Controller/badge.svg"
+    },
+    "review-agent-run.yml": {
+      "id": 324187001,
+      "node_id": "W_kwDOJgfwyc4TUrN5",
+      "name": "Agent Tool - Review Pull Request",
+      "path": ".github/workflows/review-agent-run.yml",
+      "state": "disabled_manually",
+      "created_at": "2026-07-31T11:36:34.000+08:00",
+      "updated_at": "2026-09-07T15:54:34.000+08:00",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/workflows/324187001",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/review-agent-run.yml",
+      "badge_url": "https://github.com/WuKongIM/WuKongIM/workflows/Agent%20Tool%20-%20Review%20Pull%20Request/badge.svg"
+    }
+  },
+  "manager_browser_workflow_triggered": false,
+  "limits": [
+    "Default suite is nonverbose: package pass summaries do not provide individual test case receipts.",
+    "The228677232-byte correctness ZIP and77886009-byte native package ZIP were not downloaded; only API metadata, full completed job logs and their reported checks retained.",
+    "The temporary signing-repository test used TEST ONLY keys; no production signing or APT/RPM publication occurred.",
+    "GoReleaser download checksum passed; optional cosign verification skipped because cosign was unavailable.",
+    "Missing signal beyond successful CI cleanup contracts does not become an independent host inventory receipt.",
+    "New diagnostics do not repair the previously frozen full-distribution exact-c495 expiry. This CI does not prove full-distribution loss repair, root cause,72-hour stability,2000QPS capacity or GA readiness."
+  ],
+  "no_dispatch_rerun_cancel_merge_cloud_local_build_or_test": true,
+  "conclusion": "All original first-attempt PR CI checks passed on the exact reviewed tree. Diagnostic-only candidate; old product failure remains. Auditor did not mark ready or merge."
+}

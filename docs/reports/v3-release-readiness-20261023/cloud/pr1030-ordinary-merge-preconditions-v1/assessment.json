@@ -1,0 +1,69 @@
+{
+  "snapshot_interval": {
+    "started_at": "2026-10-22T23:24:09.816957+00:00",
+    "completed_at": "2026-10-22T23:24:12.486967+00:00"
+  },
+  "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "base": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+  "main_equals_base": true,
+  "state": "OPEN",
+  "isDraft": true,
+  "mergeStateStatus": "CLEAN",
+  "mergeable": "MERGEABLE",
+  "reviewDecision": "",
+  "formal_GitHub_reviews": 0,
+  "actor": {
+    "login": "tangtaoit",
+    "admin": true,
+    "maintain": true,
+    "push": true
+  },
+  "main_protection": {
+    "protected": true,
+    "strict_up_to_date_status": true,
+    "required_contexts": [],
+    "required_checks": [],
+    "required_approvals": 0,
+    "enforce_admins": false,
+    "force_pushes_allowed": false,
+    "deletions_allowed": false,
+    "linear_history_required": false,
+    "conversation_resolution_required": false
+  },
+  "rulesets": [],
+  "review_agent_states": {
+    "review-agent": "disabled_manually",
+    "review-agent-run": "disabled_manually"
+  },
+  "review_agent_states_equal_to_sealed_CI_read": true,
+  "checks": {
+    "SUCCESS": 16,
+    "SKIPPED": 2
+  },
+  "authority": {
+    "human_standing_merge_instruction": "以后你自己合并 不需要再让我确认",
+    "README_sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+    "README_manual_merge_lines": "810-811",
+    "README_default_handling_lines": "733-734",
+    "path": "Human-delegated ordinary GitHub merge by the current repository admin, exact-head fenced; no Review Agent invocation or bypass requested"
+  },
+  "precise_gaps": [
+    "PR is Draft; root must mark ready before its ordinary merge. This auditor made no ready/merge call.",
+    "This read-only GitHub snapshot does not certify root local Standards/Spec review outcomes; root retains that content decision."
+  ],
+  "not_gaps_under_observed_policy": [
+    "No Review Agent Verdict is configured as a required check. Both Review Agent workflows remain disabled; no enable was performed.",
+    "No GitHub approving review is required by the observed protection/ruleset configuration; there are no formal Reviews or REQUEST_CHANGES.",
+    "Strict up-to-date protection is observed and base equals current main at this cut."
+  ],
+  "limits": [
+    "Facts are a point-in-time read; root must retain its exact-head/base gate when mutating.",
+    "Ordinary diagnostic merge authorization does not qualify product loss repair, paid cloud start or release."
+  ],
+  "referenced_CI_proof": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/pr1030-ci-generation-1",
+    "SHA256SUMS_sha256": "5da29824982d03277750bb280a622e48d5be86599c66e375232c891d75cf07ae",
+    "validation_sha256": "3cf71e7e300128053155f1854274089b38304896305403b5b4bf4f2493be3d79"
+  },
+  "mutations_performed": []
+}

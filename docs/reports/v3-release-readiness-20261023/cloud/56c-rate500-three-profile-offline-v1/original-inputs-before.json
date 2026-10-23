@@ -1,0 +1,308 @@
+[
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/56c-three-profile-offline-root-approval-v1/approval.json",
+    "bytes": 5096,
+    "mtime_ns": 1792712464746270861,
+    "sha256": "82bce78990233096349c391e62962259176c091fbfa7497a4a9376199e1e4483"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/56c-three-profile-offline-root-approval-v1/PUBLIC_SHA256SUMS",
+    "bytes": 80,
+    "mtime_ns": 1792712464746395446,
+    "sha256": "36f673c8d34dfe762371bc0153f19e888f377b69f17dd6f0664918aadc8545f5"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/56c-three-profile-offline-proposal-v1/classification-and-limits.md",
+    "bytes": 4286,
+    "mtime_ns": 1792712260803329876,
+    "sha256": "5a0fc77607ffd11508e78499758a44c72bc6d73b907bd99b52166de2fd9d55c8"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/56c-three-profile-offline-proposal-v1/README.md",
+    "bytes": 1496,
+    "mtime_ns": 1792712260852238747,
+    "sha256": "bf370807349219a16d095b40fa97520df82a3e331e828a1d3b394a25c2ab3dfe"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/56c-three-profile-offline-proposal-v1/inputs-and-bindings.json",
+    "bytes": 6014,
+    "mtime_ns": 1792712260687041806,
+    "sha256": "55e9660a05f1fd68a54320c636f9deb2c11deee1f9d1459adb8f2c9083d05141"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/56c-three-profile-offline-proposal-v1/PUBLIC_SHA256SUMS",
+    "bytes": 354,
+    "mtime_ns": 1792712260934566152,
+    "sha256": "03bc914ab2f2ae7690ec58cbdcecc74f782bb7e14e554708a6b2de51ec93f5d7"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/56c-three-profile-offline-proposal-v1/PUBLIC_ALLOWLIST",
+    "bytes": 90,
+    "mtime_ns": 1792712260888419228,
+    "sha256": "44e402d1bf5388abd4513b309174d47bb808bfb7d35109a7ff57d31916c31ebc"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/56c-three-profile-offline-proposal-v1/offline-command-plan.json",
+    "bytes": 14625,
+    "mtime_ns": 1792712260736314681,
+    "sha256": "0c9ed3b194726a5a7759c787baa3258cc65fb13cd2d0b2bbb01c56c600a95b26"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/PUBLIC_ALLOWLIST.txt",
+    "bytes": 246,
+    "mtime_ns": 1792708501777276363,
+    "sha256": "2a70722b228f4c064380f6d1516ec44699ed667cbdb6dbf016fed0e03304c907"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/aggregate-counts.json",
+    "bytes": 7822,
+    "mtime_ns": 1792708399893125207,
+    "sha256": "e23ebfc6915f84353a4be0014d01671d205c297c2bf421581a8c0c9b08958857"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/classify_profiles.py",
+    "bytes": 6371,
+    "mtime_ns": 1792708399856657481,
+    "sha256": "5f6bf0f7292bb7fd317791009ce9c19f8bf52a5b53b6f538c9d7c2c2b074187b"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/commands.json",
+    "bytes": 1562,
+    "mtime_ns": 1792708313095450617,
+    "sha256": "42281ca8c899fb235b3e8622744a42008c54c67704f12596fd224b5dfd37051e"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/comparison.json",
+    "bytes": 2099,
+    "mtime_ns": 1792708501777023030,
+    "sha256": "83363df197d602677c2a182688212b4e4173f95b87f8caeba766880b5f332034"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/cpu-stderr.txt",
+    "bytes": 0,
+    "mtime_ns": 1792708313042851957,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/cpu-top.txt",
+    "bytes": 6904,
+    "mtime_ns": 1792708432136304993,
+    "sha256": "02ee261b1094f9faa38becfbe054b1eee4b5f8e957ef1c23d36bbfc66a346d19"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/decode-receipt.json",
+    "bytes": 1173,
+    "mtime_ns": 1792708432166649285,
+    "sha256": "c22aa5f807d6fd9ec784c91864cff3d3bec7b6e2eb304665c5435b6d8e200f72"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/decode_profiles.py",
+    "bytes": 2947,
+    "mtime_ns": 1792708368833033656,
+    "sha256": "d946a4a217d7126c85e6df8eb253982f05128435eef5e08877c277292e120389"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/decoder.stderr.txt",
+    "bytes": 0,
+    "mtime_ns": 1792708432166317828,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/decoder.stdout.txt",
+    "bytes": 65,
+    "mtime_ns": 1792708432166258912,
+    "sha256": "e7437fef00050faa8ebbf7eae95cb7e05a73cb86a8296e74ad9cb1cc8006e327"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/goroutine-stderr.txt",
+    "bytes": 0,
+    "mtime_ns": 1792708313058046353,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/goroutine-top.txt",
+    "bytes": 7877,
+    "mtime_ns": 1792708432136425784,
+    "sha256": "60878f609bc874273482ccf206594ea0d48180b8eb57e472c74e310a0bfa08e2"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/report.md",
+    "bytes": 3212,
+    "mtime_ns": 1792708522910777168,
+    "sha256": "99b0d356958495ab0472951d3f6f3ffa65ac96129f063cf173c3da4cf8086dde"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/c495-rate500-offline-profiles-v1/source-binding.json",
+    "bytes": 2321,
+    "mtime_ns": 1792708432136145369,
+    "sha256": "30efe5ce441ac8e8f1d6864147d7c534171044f1df190beb9e6259a8f5ef0d25"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics/AGENTS.md",
+    "bytes": 13284,
+    "mtime_ns": 1792710925577421470,
+    "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics/.github/review-agent/policy.json",
+    "bytes": 14492,
+    "mtime_ns": 1792710925573531725,
+    "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics/internal/usecase/presence/FLOW.md",
+    "bytes": 3192,
+    "mtime_ns": 1792710925987975748,
+    "sha256": "438ba6664b276dc9b055c14e234b1bcefad55d8f56f649a3779c6df66d780d4e"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics/internal/runtime/presence/FLOW.md",
+    "bytes": 2490,
+    "mtime_ns": 1792710925928456057,
+    "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics/internal/infra/cluster/FLOW.md",
+    "bytes": 8612,
+    "mtime_ns": 1792710925893938770,
+    "sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics/internal/runtime/delivery/FLOW.md",
+    "bytes": 3273,
+    "mtime_ns": 1792710925921596408,
+    "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics/internal/usecase/presence/recovery.go",
+    "bytes": 3764,
+    "mtime_ns": 1792710925988725421,
+    "sha256": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics/internal/usecase/presence/recovery_flights.go",
+    "bytes": 8482,
+    "mtime_ns": 1792710925988880173,
+    "sha256": "53bb1b4f03152f76bef2e833dc658103f58f334dd38f948f2e2f0de1471cce95"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics/internal/infra/cluster/presence_recovery.go",
+    "bytes": 8454,
+    "mtime_ns": 1792710925900192538,
+    "sha256": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics/internal/infra/cluster/presence.go",
+    "bytes": 31462,
+    "mtime_ns": 1792710925899897244,
+    "sha256": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics/internal/runtime/delivery/runtime.go",
+    "bytes": 41825,
+    "mtime_ns": 1792710925922178955,
+    "sha256": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561"
+  },
+  {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics/internal/runtime/delivery/plan_queue.go",
+    "bytes": 5371,
+    "mtime_ns": 1792710925921962037,
+    "sha256": "47cb7c5ab5492e5755b1aa9e21c7722f55ec6a3a63ff9d7225ecd76360d5d5b1"
+  },
+  {
+    "path": "/Users/tt/Library/Caches/go-build/3b/3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5-d/pprof",
+    "bytes": 12673442,
+    "mtime_ns": 1792606561435847000,
+    "sha256": "3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-1/profiles/node-1-cpu.pb.gz",
+    "bytes": 24457,
+    "mtime_ns": 1792712372873076807,
+    "sha256": "ef6889507e36c29ee9e13fbaf9ebfa17c32c699e9254664a338069daa678773a"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-1/metadata.json",
+    "bytes": 569,
+    "mtime_ns": 1792712373031163461,
+    "sha256": "107ed4dab8382d4b6b6a387477cb0957e6bb50001be9ab2f57b01fc0cd445f8d"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-1/requests/node-1-cpu.json",
+    "bytes": 190,
+    "mtime_ns": 1792712372899073968,
+    "sha256": "ddeb25e977caf41be26cf4071f4b557ff23b784fa32a4957050d9cd80b2d2621"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-1/profiles/node-1-goroutine.pb.gz",
+    "bytes": 23598,
+    "mtime_ns": 1792712367732905067,
+    "sha256": "92e75aa622234d6e4619219d4a7e72000886b70acee8fdf4efcc4cea6e8b4119"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-1/requests/node-1-goroutine.json",
+    "bytes": 196,
+    "mtime_ns": 1792712372945129182,
+    "sha256": "7533fae45d2ca188de3bfaee094470a1c35430078dd821ce3f75d2544bc792fd"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-2/profiles/node-2-cpu.pb.gz",
+    "bytes": 25001,
+    "mtime_ns": 1792712372845051458,
+    "sha256": "51937b42ed889fb971bf3267cd7edb29bb385fecb3a7784c80a16456eb4556b8"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-2/metadata.json",
+    "bytes": 569,
+    "mtime_ns": 1792712372974879843,
+    "sha256": "72d1ac95425c222575499ea3180938c488c159fc01488a8d0d06c044f4b09e78"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-2/requests/node-2-cpu.json",
+    "bytes": 190,
+    "mtime_ns": 1792712372873063057,
+    "sha256": "b4ba969d8029a519ddec300a760fce58e742fd0f9ef95859a1763498228221ee"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-2/profiles/node-2-goroutine.pb.gz",
+    "bytes": 22212,
+    "mtime_ns": 1792712367760988458,
+    "sha256": "8118dd3b5a80d2e123bd436ac8943c640026c3dfff308c1c6c104bdba96b7f0f"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-2/requests/node-2-goroutine.json",
+    "bytes": 196,
+    "mtime_ns": 1792712372899072385,
+    "sha256": "aa5e8b41c19907fb0abb2f365cb811b9600a5afffbac5170c8de293b346f059e"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-3/profiles/node-3-cpu.pb.gz",
+    "bytes": 28019,
+    "mtime_ns": 1792712372876954516,
+    "sha256": "95958b1777f44f83bd3815b9a8800385291528d7041adc5b7f17b5226eca2513"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-3/metadata.json",
+    "bytes": 569,
+    "mtime_ns": 1792712373031091460,
+    "sha256": "53ff0a211caa40fc162e85e521bb3598bbaa0e847515f6ddca7fb01b1916a188"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-3/requests/node-3-cpu.json",
+    "bytes": 190,
+    "mtime_ns": 1792712372918994603,
+    "sha256": "e67750cbee86da78d76d70480bfcad9fd6a5117a7a7786c85e80bff2651947d3"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-3/profiles/node-3-goroutine.pb.gz",
+    "bytes": 22937,
+    "mtime_ns": 1792712367765078212,
+    "sha256": "286b86b2bb05b5e836a1247cf48aecb543ce7f5a314d9325d4094ab4432c458a"
+  },
+  {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/profiles-three-node/node-3/requests/node-3-goroutine.json",
+    "bytes": 196,
+    "mtime_ns": 1792712372953286855,
+    "sha256": "417efcf2bbfe134799f104750ee16e269e01acca8dc8bd55cc0c252ed1ab33bc"
+  }
+]

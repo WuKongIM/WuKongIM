@@ -24,3 +24,5 @@
 云 RC、实际生产来源/签名/审计、OSS/CDN 激活和公网客户端验收分别需要自己的实际收据。TEST ONLY、局域 TLS 或 SDK adapter 的成功不能代替这些结果。
 
 - [第十四批收据](COPY_BATCH14_RECEIPT.json)：冻结的 UID-flight 最终合同、tests-first 实现及回归/race、metadata leaf 诊断实现、组合候选、两轮独立复核与 P3 文档关闭、两代 clean native 构建/有限提案、c495 仍有 1 个过期及 metrics_fetch/缺最终报告的进程实验、离线 profile、附近 scrape 真实 parser 重放、#1029 首轮 Linux CI，以及静态 created-scrape 反驳。仅按清单复制公开 source/测试/收据和有限 proof ZIP；补入普通合并与四任务清理、两代离线关联提案/guards 修正、一次三副本精确 MessageID/seq 关联及 54 项 pre-code 诊断设计。保留准备期限制与全部失败；实际 metrics-fetch 实现和 owner 静态跟踪仍排除。见[清单](COPY_BATCH14_ALLOWLIST)和[校验表](COPY_BATCH14_SHA256SUMS)。
+
+- [第十五批收据](COPY_BATCH15_RECEIPT.json)：metrics-fetch 诊断的 tests-first 实现、双轴零问题复核、clean native 构建、#1030 首次 CI/普通合并；三节点 sampler V1–V3 与原 P2/修正/复核；56c 本地 500 SEND/s 仍一例过期、mask4/来源位置3 parse、缺最终报告及清零收据；三节点离线 profile 汇总（保留前三 GOR 环境继承、事后 hash 与完成后 cap 限制）、六份近邻 scrape 全通过、一次三副本独立 exact MessageID/seq→node3 presence timeout 关联；52-case typed parse leaf 与 cancellation 的设计，以及 c495 owner/canary 静态反驳。按有限公开清单归档，实际新 candidate/未封存验证均排除，不宣称根因/GA通过。见[清单](COPY_BATCH15_ALLOWLIST)和[校验表](COPY_BATCH15_SHA256SUMS)。

@@ -1,0 +1,22 @@
+{
+  "node_id": 1,
+  "kind": "cpu",
+  "started_at_utc": "2026-10-22T23:47:42.902780+00:00",
+  "input_before": {
+    "sha256": "ef6889507e36c29ee9e13fbaf9ebfa17c32c699e9254664a338069daa678773a",
+    "bytes": 24457,
+    "mtime_ns": 1792712372873076807
+  },
+  "classification_status": "complete",
+  "aggregate_sha256": "c9d89d77bb51a8299444b641ad18c6f805a2f20b3f4ba9139a8c798866a1fac9",
+  "aggregate_bytes": 2674,
+  "private_decoded_bytes": 294916,
+  "input_after": {
+    "sha256": "ef6889507e36c29ee9e13fbaf9ebfa17c32c699e9254664a338069daa678773a",
+    "bytes": 24457,
+    "mtime_ns": 1792712372873076807
+  },
+  "status": "complete",
+  "completed_at_utc": "2026-10-22T23:47:42.907965+00:00",
+  "elapsed_seconds": 0.005103584029711783
+}

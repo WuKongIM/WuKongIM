@@ -1,0 +1,111 @@
+{
+  "cpu_profile": {
+    "file_sha256": "ef6889507e36c29ee9e13fbaf9ebfa17c32c699e9254664a338069daa678773a",
+    "bytes": 24457,
+    "time_utc": "2026-10-22T23:39:22.684236000Z",
+    "time_unix_nanos": "1792712362684236000",
+    "duration_nanos": "10186860167",
+    "end_utc": "2026-10-22T23:39:32.871096167Z",
+    "period": 10000000,
+    "types": [
+      {
+        "type": "samples",
+        "unit": "count"
+      },
+      {
+        "type": "cpu",
+        "unit": "nanoseconds"
+      }
+    ]
+  },
+  "cpu_sample_count": 208,
+  "cpu_total_sample_nanoseconds": 2080000000,
+  "cpu_flat_top_20": [
+    {
+      "function": "syscall.syscallX",
+      "nanoseconds": 1060000000
+    },
+    {
+      "function": "syscall.syscall",
+      "nanoseconds": 350000000
+    },
+    {
+      "function": "syscall.syscall6",
+      "nanoseconds": 150000000
+    },
+    {
+      "function": "runtime.madvise",
+      "nanoseconds": 100000000
+    },
+    {
+      "function": "runtime.fcntl",
+      "nanoseconds": 60000000
+    },
+    {
+      "function": "runtime.scanobject",
+      "nanoseconds": 30000000
+    },
+    {
+      "function": "runtime.kevent",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "cmpbody",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.usleep",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.memmove",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.walltime",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "internal/sync.(*Mutex).Lock",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.gcDrainN",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "internal/runtime/atomic.(*Int64).Add",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*Service).ReadCommittedBatch",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "crypto/md5.block",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "github.com/prometheus/client_golang/prometheus.(*counter).Add",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.mapaccess2",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "internal/bytealg.IndexByteString",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.pcvalue",
+      "nanoseconds": 10000000
+    }
+  ],
+  "node_id": 1,
+  "capture_metadata_binding": "107ed4dab8382d4b6b6a387477cb0957e6bb50001be9ab2f57b01fc0cd445f8d",
+  "request_status": "HTTP200/curl0/complete",
+  "first_grant": "2026-10-23T07:39:22.590978+08:00",
+  "terminal_supervisor_at": "2026-10-22T23:39:45.812617+00:00",
+  "active_SEND_end_unknown": true
+}

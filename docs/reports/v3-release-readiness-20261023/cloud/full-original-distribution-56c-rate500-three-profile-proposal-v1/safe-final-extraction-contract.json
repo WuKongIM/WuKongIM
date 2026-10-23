@@ -1,0 +1,46 @@
+{
+  "schema": "wukongim/56c-postcleanup-safe-final-projection-contract/v1",
+  "not_a_runtime_collector": true,
+  "only_leaf": {
+    "stage": "meta_checkpoint",
+    "reason": "metrics_fetch"
+  },
+  "optional_field": "metrics_fetch",
+  "shape": {
+    "source_mask": "integer type exactly; 1..7; only bits0..2",
+    "kinds": "array length exactly3; strings from closed set; position i nonempty iff source_mask bit i set"
+  },
+  "closed_nonempty_kinds": [
+    "configuration",
+    "context_canceled",
+    "context_deadline",
+    "transport",
+    "auth",
+    "http_status",
+    "response_limit",
+    "body_read",
+    "parse",
+    "mixed",
+    "unknown"
+  ],
+  "successful_position_kind": "",
+  "source_positions": "observation.service_nodes declared order; source positions are not node identity until bound to unchanged config declaration",
+  "other_leaf": "omit metrics_fetch entirely",
+  "invalid_shape_or_foreign_text": "do not publish values; retain immutable raw diagnostic privately and report fixed projection-invalid marker",
+  "missing_optional_field": "explicit missing; no inferred failure kind",
+  "source_files": [
+    {
+      "path": "internal/bench/chatlifecycle/metrics_fetch_failure.go",
+      "sha256": "bd47805a57d94ffc9e34f63532bf86e49e3269586554917fad4fa96afa258bac"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "sha256": "0c7a41292bc61a0b68ddea2e6a2cff4d78bbd4293f0395d77674c128ef8f9b09"
+    },
+    {
+      "path": "internal/bench/target/metrics_failure.go",
+      "sha256": "7a075f5707876778c2264f053be43c3ac93a6337eb006e5891673fab93d0d98a"
+    }
+  ],
+  "future_implementation": "bounded offline extraction after terminal cleanup; no new run probe, service request or runtime behavior change"
+}

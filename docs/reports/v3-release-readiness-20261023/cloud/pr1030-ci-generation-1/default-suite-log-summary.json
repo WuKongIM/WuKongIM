@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "elapsed_seconds": 405.682,
+  "output_bytes": 22029,
+  "package_pass_count": 219,
+  "no_test_file_summaries": 15,
+  "changed_package_summaries": [
+    "ok  \tgithub.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark\t7.245s",
+    "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle\t36.159s",
+    "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/target\t0.370s"
+  ],
+  "individual_test_case_counts_unavailable_nonverbose": true
+}

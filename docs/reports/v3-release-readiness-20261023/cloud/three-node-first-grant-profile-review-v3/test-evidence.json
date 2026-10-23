@@ -1,0 +1,247 @@
+{
+  "schema": "wukongim/three-node-sampler-independent-static-test-evidence/v3",
+  "reviewer_executed_tests": false,
+  "evidence_type": "Frozen producer logs and source; independently read, hashed and compared, never rerun or imported.",
+  "invocations": {
+    "cwd": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3",
+    "initial_RED_argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child",
+      "-v"
+    ],
+    "GREEN_argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "once_status_test.OnceStatus",
+      "cancel_descendants_test.CancelDescendants",
+      "-v"
+    ],
+    "finite_bounds_argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child",
+      "cancel_descendants_test.CancelDescendants.test_preexited_root_reports_unconfirmed_not_full_cleanup",
+      "cancel_descendants_test.CancelDescendants.test_three_ignoreterm_roots_and_children_share_kill_budget",
+      "-v"
+    ],
+    "fake_process_source": "fake-orphan-helper.py -> fake-ignoreterm-child.py",
+    "argv_construction_source": "watcher_coordination_test.py + cancel_descendants_test.py",
+    "fixture_token": "synthetic only; tests assert no token in watcher stdout/stderr",
+    "actual_product_requests": 0
+  },
+  "expanded_green_invocations": [
+    {
+      "invocation": "OnceStatus.test_concurrent_start_has_one_claim_owner_and_three_helpers",
+      "method_body_owner": "OnceStatus",
+      "file": "once_status_test.py",
+      "line": 22
+    },
+    {
+      "invocation": "OnceStatus.test_existing_claim_status_survives_all_guard_failures",
+      "method_body_owner": "OnceStatus",
+      "file": "once_status_test.py",
+      "line": 5
+    },
+    {
+      "invocation": "OnceStatus.test_one_receipt_launches_three_correct_nodes",
+      "method_body_owner": "ThreeNode",
+      "file": "watcher_coordination_test.py",
+      "line": 28
+    },
+    {
+      "invocation": "OnceStatus.test_stale_receipt_and_wrong_source_launch_none",
+      "method_body_owner": "ThreeNode",
+      "file": "watcher_coordination_test.py",
+      "line": 30
+    },
+    {
+      "invocation": "OnceStatus.test_terminal_stop_cancels_and_joins_three_helpers",
+      "method_body_owner": "ThreeNode",
+      "file": "watcher_coordination_test.py",
+      "line": 35
+    },
+    {
+      "invocation": "OnceStatus.test_wrong_observed_slot_node_launches_none",
+      "method_body_owner": "ThreeNode",
+      "file": "watcher_coordination_test.py",
+      "line": 33
+    },
+    {
+      "invocation": "CancelDescendants.test_one_receipt_launches_three_correct_nodes",
+      "method_body_owner": "ThreeNode",
+      "file": "watcher_coordination_test.py",
+      "line": 28
+    },
+    {
+      "invocation": "CancelDescendants.test_preexited_root_reports_unconfirmed_not_full_cleanup",
+      "method_body_owner": "CancelDescendants",
+      "file": "cancel_descendants_test.py",
+      "line": 31
+    },
+    {
+      "invocation": "CancelDescendants.test_stale_receipt_and_wrong_source_launch_none",
+      "method_body_owner": "ThreeNode",
+      "file": "watcher_coordination_test.py",
+      "line": 30
+    },
+    {
+      "invocation": "CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child",
+      "method_body_owner": "CancelDescendants",
+      "file": "cancel_descendants_test.py",
+      "line": 30
+    },
+    {
+      "invocation": "CancelDescendants.test_terminal_stop_cancels_and_joins_three_helpers",
+      "method_body_owner": "ThreeNode",
+      "file": "watcher_coordination_test.py",
+      "line": 35
+    },
+    {
+      "invocation": "CancelDescendants.test_three_ignoreterm_roots_and_children_share_kill_budget",
+      "method_body_owner": "CancelDescendants",
+      "file": "cancel_descendants_test.py",
+      "line": 32
+    },
+    {
+      "invocation": "CancelDescendants.test_wrong_observed_slot_node_launches_none",
+      "method_body_owner": "ThreeNode",
+      "file": "watcher_coordination_test.py",
+      "line": 33
+    }
+  ],
+  "green_invocations": 13,
+  "distinct_method_bodies": 9,
+  "frozen_sources": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/watcher_coordination_test.py",
+      "bytes": 5578,
+      "sha256": "6a36ce21d97de458526ad0bb7729ecf67c4a9a8a0af459a6d984659d8a5c062e",
+      "full_source": "import datetime,hashlib,json,os,pathlib,signal,subprocess,sys,tempfile,time,unittest\nWATCHER=pathlib.Path(__file__).with_name('watch-three-node-first-grant.proposed.py')\nh=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()\nREV='1'*40\nclass ThreeNode(unittest.TestCase):\n def prepare(self,d,mode='normal',lag=.01,bad_slot=False,bad_source=False):\n  root=pathlib.Path(d);run=root/'run';run.mkdir();(run/'config').mkdir();(run/'evidence').mkdir();(run/'report').mkdir();source=root/'source';source.mkdir();binary=root/'binary';binary.write_bytes(b'synthetic-not-a-product');launcher=run/'launcher.sh';launcher.write_text('#!/bin/sh\\n# synthetic fixture mapping only; never executed\\n');fakebin=root/'fakebin';fakebin.mkdir();git=fakebin/'git';git.write_text('#!/bin/sh\\nprintf \"%s\\\\n\" '+REV+'\\n');git.chmod(0o700)\n  for n in [1,2,3]:(run/f'config/node{n}.toml').write_text(f'[node]\\nid = {n}\\n')\n  slots={'schema':'wukongim/local-original-slot-convergence/v1','hash_slots':256,'logical_slots':12,'voters':[1,2,3],'stable_seconds':2.1,'inventories':[{'node':n,'voter':{'items':[{'node_log':{'node_id':(1 if bad_slot and n==3 else n)}} for i in range(12)]}} for n in [1,2,3]]};(run/'evidence/slot-convergence.json').write_text(json.dumps(slots))\n  now=datetime.datetime.now(datetime.timezone.utc);start=now-datetime.timedelta(seconds=lag);receipt={'schema':'wukongim.chat_lifecycle.run_start/v1','stage':'shakeout','started_at':start.isoformat(),'expected_end_at':(start+datetime.timedelta(seconds=259200)).isoformat(),'run_hash':'sha256:'+'a'*64,'assignment_hash':'sha256:'+'b'*64,'generation':1};(run/'report/run-start.json').write_text(json.dumps(receipt))\n  helper=root/'fake-helper.sh';helper.write_text('#!/bin/bash\\nexec python3 \"$FAKE_HELPER_SCRIPT\" \"$@\"\\n');helper.chmod(0o700);script=root/'fake-helper.py';script.write_text(r\"\"\"import json,os,pathlib,sys,time\nargs=dict(zip(sys.argv[1::2],sys.argv[2::2]));node=int(args.get('--node-id','2'));root=pathlib.Path(os.environ['FAKE_ROOT']);out=pathlib.Path(args['--out-dir']);out.mkdir(parents=True,exist_ok=True)\n(root/f'node-{node}.pid').write_text(str(os.getpid()));(root/f'node-{node}-args.json').write_text(json.dumps(args))\nif os.environ['FAKE_MODE']=='block':time.sleep(30)\n(out/'metadata.json').write_text(json.dumps({'capture':{'valid':True,'reason':'ok'},'nodes':[{'node':f'node-{node}'}]}));(out/'requests').mkdir()\nfor kind in ['cpu','goroutine']:(out/f'requests/node-{node}-{kind}.json').write_text(json.dumps({'node_id':node,'kind':kind,'curl_exit_code':0,'http_status':'200'}))\n\"\"\")\n  env=dict(os.environ);env.update(PATH=str(fakebin)+os.pathsep+env['PATH'],FAKE_HELPER_SCRIPT=str(script),FAKE_ROOT=str(root),FAKE_MODE=mode,WK_BENCH_API_TOKEN='synthetic-fixture-token')\n  args=[str(WATCHER),'--run-dir',str(run),'--out-dir',str(run/'profiles-three-node'),'--source-root',str(source),'--source-revision',('2'*40 if bad_source else REV),'--binary',str(binary),'--binary-sha256',h(binary),'--helper',str(helper),'--helper-sha256',h(helper),'--launcher-sha256',h(launcher),'--base-port','25000','--run-hash',receipt['run_hash'],'--assignment-hash',receipt['assignment_hash'],'--generation','1','--deadline-mono',str(time.monotonic()+30)]\n  command=[sys.executable,'-c','import os,sys;os.execv(sys.executable,[sys.executable]+sys.argv[1:]+[\"--owner-pgid\",str(os.getpgrp())])',*args]\n  return root,run,env,command\n def run_case(self,**kwargs):\n  with tempfile.TemporaryDirectory() as d:\n   root,run,env,cmd=self.prepare(d,**kwargs);p=subprocess.Popen(cmd,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)\n   try:stdout,stderr=p.communicate(timeout=4);self.assertEqual(p.returncode,0,stderr.decode());row=json.loads((run/'profile-driver-status.json').read_text());return row,len(list(root.glob('node-?.pid')))\n   finally:\n    if p.poll() is None:os.killpg(p.pid,signal.SIGKILL);p.wait(timeout=1)\n def test_one_receipt_launches_three_correct_nodes(self):\n  row,count=self.run_case();self.assertEqual(count,3);self.assertEqual(row['status'],'complete');self.assertEqual([n['node_id'] for n in row['nodes']],[1,2,3]);self.assertTrue(all(n['capture_joined'] and n['helper_exit_status']==0 for n in row['nodes']))\n def test_stale_receipt_and_wrong_source_launch_none(self):\n  for opts in [{'lag':3},{'bad_source':True}]:\n   with self.subTest(opts=opts):row,count=self.run_case(**opts);self.assertEqual(count,0);self.assertEqual(row['status'],'skipped')\n def test_wrong_observed_slot_node_launches_none(self):\n  row,count=self.run_case(bad_slot=True);self.assertEqual(count,0);self.assertEqual(row['status'],'skipped')\n def test_terminal_stop_cancels_and_joins_three_helpers(self):\n  with tempfile.TemporaryDirectory() as d:\n   root,run,env,cmd=self.prepare(d,mode='block');p=subprocess.Popen(cmd,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)\n   try:\n    deadline=time.monotonic()+2\n    while len(list(root.glob('node-?.pid')))<3 and p.poll() is None and time.monotonic()<deadline:time.sleep(.01)\n    self.assertEqual(len(list(root.glob('node-?.pid'))),3);(run/'evidence/profile-stop').write_text('fixture-stop\\n');stdout,stderr=p.communicate(timeout=4);row=json.loads((run/'profile-driver-status.json').read_text());self.assertEqual(row['status'],'partial');self.assertTrue(all(n['capture_joined'] for n in row['nodes']))\n    for f in root.glob('node-?.pid'):\n     with self.assertRaises(ProcessLookupError):os.kill(int(f.read_text()),0)\n   finally:\n    if p.poll() is None:os.killpg(p.pid,signal.SIGKILL);p.wait(timeout=1)\nif __name__=='__main__':unittest.main()\n"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/once_status_test.py",
+      "bytes": 3766,
+      "sha256": "111af5d06344d200cd1e1035da5d2ca30d17a268316eedf0a6e1d3db19ca1da0",
+      "full_source": "import json,os,pathlib,signal,subprocess,time,unittest\nfrom watcher_coordination_test import ThreeNode\n\nclass OnceStatus(ThreeNode):\n def test_existing_claim_status_survives_all_guard_failures(self):\n  cases=['wrong_source','wrong_launcher','wrong_slot','unsafe_owner','unsafe_output']\n  for case in cases:\n   with self.subTest(case=case),self._temporary() as d:\n    root,run,env,cmd=self.prepare(d,bad_source=case=='wrong_source',bad_slot=case=='wrong_slot')\n    (run/'profile-driver.claim').mkdir(); status=run/'profile-driver-status.json';status.write_bytes(b'{\"original_first_status\":true}\\n');before=(status.read_bytes(),status.stat().st_mtime_ns)\n    if case=='wrong_launcher':cmd[cmd.index('--launcher-sha256')+1]='0'*64\n    if case=='unsafe_output':cmd[cmd.index('--out-dir')+1]=str(root/'unsafe-profiles')\n    if case=='unsafe_owner':cmd[2]=cmd[2].replace('str(os.getpgrp())','str(os.getpgrp()+99999)')\n    p=subprocess.Popen(cmd,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)\n    try:\n     stdout,stderr=p.communicate(timeout=3);self.assertEqual(p.returncode,0,stderr.decode());self.assertEqual((status.read_bytes(),status.stat().st_mtime_ns),before);self.assertEqual(len(list(root.glob('node-?.pid'))),0);self.assertNotIn(b'synthetic-fixture-token',stdout+stderr)\n    finally:\n     if p.poll() is None:os.killpg(p.pid,signal.SIGKILL);p.wait(timeout=1)\n def _temporary(self):\n  import tempfile\n  return tempfile.TemporaryDirectory()\n def test_concurrent_start_has_one_claim_owner_and_three_helpers(self):\n  with self._temporary() as d:\n   root,run,env,cmd=self.prepare(d,mode='block');script=root/'fake-helper.py';script.write_text(script.read_text().replace(\"(root/f'node-{node}.pid').write_text(str(os.getpid()));\", \"with (root/'helper-launches.jsonl').open('a') as events:events.write(json.dumps({'node':node,'pid':os.getpid()})+'\\\\n')\\n(root/f'node-{node}.pid').write_text(str(os.getpid()));\"))\n   # Both watcher processes share the same owned group as in the real launcher.\n   args=cmd[3:];runner=root/'race-runner.py';runner.write_text(\"import json,os,pathlib,signal,subprocess,sys,time\\nargs=json.loads(sys.argv[1]);env=os.environ;command=[sys.executable]+args+['--owner-pgid',str(os.getpgrp())]\\nps=[subprocess.Popen(command,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE) for _ in range(2)]\\nroot=pathlib.Path(os.environ['FAKE_ROOT']);end=time.monotonic()+2\\nwhile len(list(root.glob('node-?.pid')))<3 and time.monotonic()<end:time.sleep(.01)\\n(root/'run/evidence/profile-stop').write_text('fixture-stop\\\\n')\\nrows=[]\\nfor p in ps:\\n out,err=p.communicate(timeout=4);rows.append({'exit':p.returncode,'stdout':out.decode(),'stderr':err.decode()})\\n(root/'race-results.json').write_text(json.dumps(rows))\\n\")\n   p=subprocess.Popen([os.sys.executable,str(runner),json.dumps(args)],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)\n   try:\n    stdout,stderr=p.communicate(timeout=7);self.assertEqual(p.returncode,0,stderr.decode());rows=json.loads((root/'race-results.json').read_text());self.assertTrue(all(r['exit']==0 for r in rows));self.assertEqual(sum('already_claimed' in r['stdout'] for r in rows),1);launches=(root/'helper-launches.jsonl').read_text().splitlines();self.assertEqual(len(launches),3);status=json.loads((run/'profile-driver-status.json').read_text());self.assertEqual(len(status['nodes']),3);self.assertTrue(all(n['capture_joined'] for n in status['nodes']));self.assertNotIn('synthetic-fixture-token',json.dumps(rows))\n    for f in root.glob('node-?.pid'):\n     with self.assertRaises(ProcessLookupError):os.kill(int(f.read_text()),0)\n   finally:\n    if p.poll() is None:os.killpg(p.pid,signal.SIGKILL);p.wait(timeout=1)\nif __name__=='__main__':unittest.main()\n"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py",
+      "bytes": 2740,
+      "sha256": "c2ed05edc86e60af319b765cb70dde2196106cc78e676ce96997ff6d00b63d59",
+      "full_source": "import json,os,pathlib,signal,subprocess,time,unittest\nfrom watcher_coordination_test import ThreeNode\n\nclass CancelDescendants(ThreeNode):\n def _case(self,mode):\n  import tempfile\n  with tempfile.TemporaryDirectory() as d:\n   root,run,env,cmd=self.prepare(d,mode='block');program=pathlib.Path(__file__).with_name('fake-orphan-helper.py');env.update(FAKE_HELPER_SCRIPT=str(program),ORPHAN_MODE=mode)\n   p=subprocess.Popen(cmd,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True);children=[]\n   try:\n    end=time.monotonic()+2\n    while len(list(root.glob('child-?.ready')))<3 and time.monotonic()<end:time.sleep(.01)\n    self.assertEqual(len(list(root.glob('child-?.ready'))),3);children=[int(f.read_text()) for f in root.glob('child-?.pid')]\n    if mode!='exit-before-cancel':(run/'evidence/profile-stop').write_text('synthetic-stop\\n')\n    started=time.monotonic();out,err=p.communicate(timeout=5);elapsed=time.monotonic()-started;self.assertEqual(p.returncode,0,err.decode());row=json.loads((run/'profile-driver-status.json').read_text());self.assertEqual(row['status'],'partial');self.assertTrue(all(n['capture_joined'] for n in row['nodes']));self.assertNotIn(b'synthetic-fixture-token',out+err)\n    print(json.dumps({'fixture_mode':mode,'cancel_to_watcher_join_seconds':elapsed,'retained_descendants':len(row['cancel_retained_descendant_pids']),'remaining_observed_descendants':len(row['cancel_remaining_descendant_pids']),'descendant_cleanup_confirmed':row['cancel_descendant_cleanup_confirmed'],'direct_helpers_joined':all(n['capture_joined'] for n in row['nodes'])}),flush=True)\n    if mode=='exit-before-cancel':self.assertFalse(row['cancel_descendant_cleanup_confirmed']);self.assertIn('direct helper',row['capture_joined_semantics'])\n    else:\n     self.assertLess(elapsed,3.4)\n     live=subprocess.check_output(['ps','-axo','pid=,stat='],text=True)\n     rows={int(x.split()[0]):x.split()[1] for x in live.splitlines() if len(x.split())==2}\n     self.assertTrue(all(pid not in rows or rows[pid].startswith('Z') for pid in children),'observed child remained running after cancellation');self.assertTrue(row['cancel_descendant_cleanup_confirmed'])\n   finally:\n    for pid in children:\n     try:os.kill(pid,signal.SIGKILL)\n     except ProcessLookupError:pass\n    try:os.killpg(p.pid,signal.SIGKILL)\n    except ProcessLookupError:pass\n    if p.poll() is None:p.wait(timeout=1)\n def test_term_exit_root_still_kills_observed_ignoreterm_child(self):self._case('term-exit')\n def test_preexited_root_reports_unconfirmed_not_full_cleanup(self):self._case('exit-before-cancel')\n def test_three_ignoreterm_roots_and_children_share_kill_budget(self):self._case('ignore-term')\nif __name__=='__main__':unittest.main()\n"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/fake-orphan-helper.py",
+      "bytes": 795,
+      "sha256": "9adc38df59e22690829bb4c09d268451dd8527524935cd541f02504ad1c8f07e",
+      "full_source": "import json,os,pathlib,signal,subprocess,sys,time\nargs=dict(zip(sys.argv[1::2],sys.argv[2::2]));node=int(args['--node-id']);root=pathlib.Path(os.environ['FAKE_ROOT']);mode=os.environ['ORPHAN_MODE'];(root/f'node-{node}.pid').write_text(str(os.getpid()))\nchild_program=pathlib.Path(__file__).with_name('fake-ignoreterm-child.py')\nchild=subprocess.Popen([sys.executable,str(child_program),str(root),str(node)],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\n(root/f'child-{node}.pid').write_text(str(child.pid));end=time.monotonic()+1\nwhile not (root/f'child-{node}.ready').exists() and time.monotonic()<end:time.sleep(.005)\nif mode=='exit-before-cancel':raise SystemExit(3)\nif mode=='ignore-term':signal.signal(signal.SIGTERM,signal.SIG_IGN)\nwhile True:time.sleep(1)\n"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/fake-ignoreterm-child.py",
+      "bytes": 205,
+      "sha256": "032f368ef65b182b203ef86c212410080e9dee098319b1a7b98c93f24d37a16c",
+      "full_source": "import pathlib,signal,sys,time\nsignal.signal(signal.SIGTERM,signal.SIG_IGN);root=pathlib.Path(sys.argv[1]);node=int(sys.argv[2]);(root/f'child-{node}.ready').write_text('ready\\n')\nwhile True:time.sleep(1)\n"
+    }
+  ],
+  "frozen_logs": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v2/RED-once-status.log",
+      "bytes": 7771,
+      "sha256": "f7ecd08af199f4f3c05406f1a09e4c7b072c7e08d3d7e6a6fda2aac46540f1e3",
+      "full_text": "test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) ... \n  test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='wrong_source') ... FAIL\n  test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='wrong_launcher') ... FAIL\n  test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='wrong_slot') ... FAIL\n  test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='unsafe_owner') ... FAIL\n  test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='unsafe_output') ... FAIL\n\n======================================================================\nFAIL: test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='wrong_source')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v2/once_status_test.py\", line 16, in test_existing_claim_status_survives_all_guard_failures\n    stdout,stderr=p.communicate(timeout=3);self.assertEqual(p.returncode,0,stderr.decode());self.assertEqual((status.read_bytes(),status.stat().st_mtime_ns),before);self.assertEqual(len(list(root.glob('node-?.pid'))),0);self.assertNotIn(b'synthetic-fixture-token',stdout+stderr)\n                                                                                            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Tuples differ: (b'{\\n  \"schema\": \"wukongim/temporary-three-n[2082 chars]6172) != (b'{\"original_first_status\":true}\\n', 1792711457692491509)\n\nFirst differing element 0:\nb'{\\n  \"schema\": \"wukongim/temporary-three-n[2060 chars]n}\\n'\nb'{\"original_first_status\":true}\\n'\n\nDiff is 2395 characters long. Set self.maxDiff to None to see it.\n\n======================================================================\nFAIL: test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='wrong_launcher')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v2/once_status_test.py\", line 16, in test_existing_claim_status_survives_all_guard_failures\n    stdout,stderr=p.communicate(timeout=3);self.assertEqual(p.returncode,0,stderr.decode());self.assertEqual((status.read_bytes(),status.stat().st_mtime_ns),before);self.assertEqual(len(list(root.glob('node-?.pid'))),0);self.assertNotIn(b'synthetic-fixture-token',stdout+stderr)\n                                                                                            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Tuples differ: (b'{\\n  \"schema\": \"wukongim/temporary-three-n[2084 chars]4649) != (b'{\"original_first_status\":true}\\n', 1792711458225228270)\n\nFirst differing element 0:\nb'{\\n  \"schema\": \"wukongim/temporary-three-n[2062 chars]n}\\n'\nb'{\"original_first_status\":true}\\n'\n\nDiff is 2397 characters long. Set self.maxDiff to None to see it.\n\n======================================================================\nFAIL: test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='wrong_slot')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v2/once_status_test.py\", line 16, in test_existing_claim_status_survives_all_guard_failures\n    stdout,stderr=p.communicate(timeout=3);self.assertEqual(p.returncode,0,stderr.decode());self.assertEqual((status.read_bytes(),status.stat().st_mtime_ns),before);self.assertEqual(len(list(root.glob('node-?.pid'))),0);self.assertNotIn(b'synthetic-fixture-token',stdout+stderr)\n                                                                                            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Tuples differ: (b'{\\n  \"schema\": \"wukongim/temporary-three-n[3576 chars]6268) != (b'{\"original_first_status\":true}\\n', 1792711458452601854)\n\nFirst differing element 0:\nb'{\\n  \"schema\": \"wukongim/temporary-three-n[3554 chars]n}\\n'\nb'{\"original_first_status\":true}\\n'\n\nDiff is 4029 characters long. Set self.maxDiff to None to see it.\n\n======================================================================\nFAIL: test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='unsafe_owner')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v2/once_status_test.py\", line 16, in test_existing_claim_status_survives_all_guard_failures\n    stdout,stderr=p.communicate(timeout=3);self.assertEqual(p.returncode,0,stderr.decode());self.assertEqual((status.read_bytes(),status.stat().st_mtime_ns),before);self.assertEqual(len(list(root.glob('node-?.pid'))),0);self.assertNotIn(b'synthetic-fixture-token',stdout+stderr)\n                                                                                            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Tuples differ: (b'{\\n  \"schema\": \"wukongim/temporary-three-n[2090 chars]2184) != (b'{\"original_first_status\":true}\\n', 1792711458583549458)\n\nFirst differing element 0:\nb'{\\n  \"schema\": \"wukongim/temporary-three-n[2068 chars]n}\\n'\nb'{\"original_first_status\":true}\\n'\n\nDiff is 2403 characters long. Set self.maxDiff to None to see it.\n\n======================================================================\nFAIL: test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='unsafe_output')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v2/once_status_test.py\", line 16, in test_existing_claim_status_survives_all_guard_failures\n    stdout,stderr=p.communicate(timeout=3);self.assertEqual(p.returncode,0,stderr.decode());self.assertEqual((status.read_bytes(),status.stat().st_mtime_ns),before);self.assertEqual(len(list(root.glob('node-?.pid'))),0);self.assertNotIn(b'synthetic-fixture-token',stdout+stderr)\n                                                                                            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Tuples differ: (b'{\\n  \"schema\": \"wukongim/temporary-three-n[2080 chars]6959) != (b'{\"original_first_status\":true}\\n', 1792711458634391951)\n\nFirst differing element 0:\nb'{\\n  \"schema\": \"wukongim/temporary-three-n[2058 chars]n}\\n'\nb'{\"original_first_status\":true}\\n'\n\nDiff is 2393 characters long. Set self.maxDiff to None to see it.\n\n----------------------------------------------------------------------\nRan 1 test in 0.987s\n\nFAILED (failures=5)\n"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v2/GREEN-once-status.log",
+      "bytes": 1487,
+      "sha256": "fbedddd61d0ad8d6919828cc184621403b60a0f70a3fc34aba8ae117aff404ef",
+      "full_text": "test_concurrent_start_has_one_claim_owner_and_three_helpers (once_status_test.OnceStatus.test_concurrent_start_has_one_claim_owner_and_three_helpers) ... ok\ntest_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) ... ok\ntest_one_receipt_launches_three_correct_nodes (once_status_test.OnceStatus.test_one_receipt_launches_three_correct_nodes) ... ok\ntest_stale_receipt_and_wrong_source_launch_none (once_status_test.OnceStatus.test_stale_receipt_and_wrong_source_launch_none) ... ok\ntest_terminal_stop_cancels_and_joins_three_helpers (once_status_test.OnceStatus.test_terminal_stop_cancels_and_joins_three_helpers) ... ok\ntest_wrong_observed_slot_node_launches_none (once_status_test.OnceStatus.test_wrong_observed_slot_node_launches_none) ... ok\ntest_one_receipt_launches_three_correct_nodes (watcher_coordination_test.ThreeNode.test_one_receipt_launches_three_correct_nodes) ... ok\ntest_stale_receipt_and_wrong_source_launch_none (watcher_coordination_test.ThreeNode.test_stale_receipt_and_wrong_source_launch_none) ... ok\ntest_terminal_stop_cancels_and_joins_three_helpers (watcher_coordination_test.ThreeNode.test_terminal_stop_cancels_and_joins_three_helpers) ... ok\ntest_wrong_observed_slot_node_launches_none (watcher_coordination_test.ThreeNode.test_wrong_observed_slot_node_launches_none) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 2.173s\n\nOK\n"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/RED-command-import-limitation.log",
+      "bytes": 1465,
+      "sha256": "10879ff4e53c248c73dea47fa387f840fbed02ad59090d1f3cfae73bd43328bd",
+      "full_text": "cancel_descendants_test (unittest.loader._FailedTest.cancel_descendants_test) ... ERROR\ncancel_descendants_test (unittest.loader._FailedTest.cancel_descendants_test) ... ERROR\n\n======================================================================\nERROR: cancel_descendants_test (unittest.loader._FailedTest.cancel_descendants_test)\n----------------------------------------------------------------------\nImportError: Failed to import test module: cancel_descendants_test\nTraceback (most recent call last):\n  File \"/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/loader.py\", line 137, in loadTestsFromName\n    module = __import__(module_name)\nModuleNotFoundError: No module named 'cancel_descendants_test'\n\n\n======================================================================\nERROR: cancel_descendants_test (unittest.loader._FailedTest.cancel_descendants_test)\n----------------------------------------------------------------------\nImportError: Failed to import test module: cancel_descendants_test\nTraceback (most recent call last):\n  File \"/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/loader.py\", line 137, in loadTestsFromName\n    module = __import__(module_name)\nModuleNotFoundError: No module named 'cancel_descendants_test'\n\n\n----------------------------------------------------------------------\nRan 2 tests in 0.000s\n\nFAILED (errors=2)\n"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/RED-cancel-metadata-schema.log",
+      "bytes": 2738,
+      "sha256": "c70708e32ecfbfcdc0c127444e22c9c2ac8eeebde78935f41fcb9922248fa46d",
+      "full_text": "test_term_exit_root_still_kills_observed_ignoreterm_child (cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child) ... ERROR\ntest_preexited_root_reports_unconfirmed_not_full_cleanup (cancel_descendants_test.CancelDescendants.test_preexited_root_reports_unconfirmed_not_full_cleanup) ... ERROR\n\n======================================================================\nERROR: test_term_exit_root_still_kills_observed_ignoreterm_child (cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py\", line 29, in test_term_exit_root_still_kills_observed_ignoreterm_child\n    def test_term_exit_root_still_kills_observed_ignoreterm_child(self):self._case('term-exit')\n                                                                        ~~~~~~~~~~^^^^^^^^^^^^^\n  File \"/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py\", line 18, in _case\n    self.assertTrue(row['cancel_descendant_cleanup_confirmed']);self.assertLess(elapsed,3.4)\n                    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'cancel_descendant_cleanup_confirmed'\n\n======================================================================\nERROR: test_preexited_root_reports_unconfirmed_not_full_cleanup (cancel_descendants_test.CancelDescendants.test_preexited_root_reports_unconfirmed_not_full_cleanup)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py\", line 30, in test_preexited_root_reports_unconfirmed_not_full_cleanup\n    def test_preexited_root_reports_unconfirmed_not_full_cleanup(self):self._case('exit-before-cancel')\n                                                                       ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py\", line 16, in _case\n    if mode=='exit-before-cancel':self.assertFalse(row['cancel_descendant_cleanup_confirmed']);self.assertIn('direct helper',row['capture_joined_semantics'])\n                                                   ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'cancel_descendant_cleanup_confirmed'\n\n----------------------------------------------------------------------\nRan 2 tests in 0.650s\n\nFAILED (errors=2)\n"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/RED-cancel-descendants.log",
+      "bytes": 1602,
+      "sha256": "0ae9558aec0d55455a3cfc43806a3458be251c419ccabf16487c5f79e48594bd",
+      "full_text": "test_term_exit_root_still_kills_observed_ignoreterm_child (cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child) ... FAIL\n\n======================================================================\nFAIL: test_term_exit_root_still_kills_observed_ignoreterm_child (cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py\", line 29, in test_term_exit_root_still_kills_observed_ignoreterm_child\n    def test_term_exit_root_still_kills_observed_ignoreterm_child(self):self._case('term-exit')\n                                                                        ~~~~~~~~~~^^^^^^^^^^^^^\n  File \"/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py\", line 21, in _case\n    self.assertTrue(all(pid not in rows or rows[pid].startswith('Z') for pid in children),'observed child remained running after cancellation');self.assertTrue(row['cancel_descendant_cleanup_confirmed'])\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: False is not true : observed child remained running after cancellation\n\n----------------------------------------------------------------------\nRan 1 test in 0.271s\n\nFAILED (failures=1)\n"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/GREEN-cancel-and-once.log",
+      "bytes": 2012,
+      "sha256": "c3769bc97594acc8656b6a68731b773dcf33be73d8b84ec651123bdc4b75016d",
+      "full_text": "test_concurrent_start_has_one_claim_owner_and_three_helpers (once_status_test.OnceStatus.test_concurrent_start_has_one_claim_owner_and_three_helpers) ... ok\ntest_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) ... ok\ntest_one_receipt_launches_three_correct_nodes (once_status_test.OnceStatus.test_one_receipt_launches_three_correct_nodes) ... ok\ntest_stale_receipt_and_wrong_source_launch_none (once_status_test.OnceStatus.test_stale_receipt_and_wrong_source_launch_none) ... ok\ntest_terminal_stop_cancels_and_joins_three_helpers (once_status_test.OnceStatus.test_terminal_stop_cancels_and_joins_three_helpers) ... ok\ntest_wrong_observed_slot_node_launches_none (once_status_test.OnceStatus.test_wrong_observed_slot_node_launches_none) ... ok\ntest_one_receipt_launches_three_correct_nodes (cancel_descendants_test.CancelDescendants.test_one_receipt_launches_three_correct_nodes) ... ok\ntest_preexited_root_reports_unconfirmed_not_full_cleanup (cancel_descendants_test.CancelDescendants.test_preexited_root_reports_unconfirmed_not_full_cleanup) ... ok\ntest_stale_receipt_and_wrong_source_launch_none (cancel_descendants_test.CancelDescendants.test_stale_receipt_and_wrong_source_launch_none) ... ok\ntest_term_exit_root_still_kills_observed_ignoreterm_child (cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child) ... ok\ntest_terminal_stop_cancels_and_joins_three_helpers (cancel_descendants_test.CancelDescendants.test_terminal_stop_cancels_and_joins_three_helpers) ... ok\ntest_three_ignoreterm_roots_and_children_share_kill_budget (cancel_descendants_test.CancelDescendants.test_three_ignoreterm_roots_and_children_share_kill_budget) ... ok\ntest_wrong_observed_slot_node_launches_none (cancel_descendants_test.CancelDescendants.test_wrong_observed_slot_node_launches_none) ... ok\n\n----------------------------------------------------------------------\nRan 13 tests in 5.064s\n\nOK\n"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/GREEN-cancel-bounds.log",
+      "bytes": 1263,
+      "sha256": "d6b675d06045ea13c7997980c964bdb93c79a6f721376eb0c6d497b58a6f2f93",
+      "full_text": "test_term_exit_root_still_kills_observed_ignoreterm_child (cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child) ... {\"fixture_mode\": \"term-exit\", \"cancel_to_watcher_join_seconds\": 0.08093620801810175, \"retained_descendants\": 3, \"remaining_observed_descendants\": 0, \"descendant_cleanup_confirmed\": true, \"direct_helpers_joined\": true}\nok\ntest_preexited_root_reports_unconfirmed_not_full_cleanup (cancel_descendants_test.CancelDescendants.test_preexited_root_reports_unconfirmed_not_full_cleanup) ... {\"fixture_mode\": \"exit-before-cancel\", \"cancel_to_watcher_join_seconds\": 0.03850483300630003, \"retained_descendants\": 0, \"remaining_observed_descendants\": 0, \"descendant_cleanup_confirmed\": false, \"direct_helpers_joined\": true}\nok\ntest_three_ignoreterm_roots_and_children_share_kill_budget (cancel_descendants_test.CancelDescendants.test_three_ignoreterm_roots_and_children_share_kill_budget) ... {\"fixture_mode\": \"ignore-term\", \"cancel_to_watcher_join_seconds\": 2.076543208095245, \"retained_descendants\": 3, \"remaining_observed_descendants\": 0, \"descendant_cleanup_confirmed\": true, \"direct_helpers_joined\": true}\nok\n\n----------------------------------------------------------------------\nRan 3 tests in 2.878s\n\nOK\n"
+    }
+  ],
+  "coverage_and_assertions": [
+    {
+      "case": "one receipt / explicit three nodes",
+      "source": "watcher_coordination_test.py:28-29",
+      "asserts": "3 helper PID files; complete; ordered node IDs 1,2,3; every direct helper poll not None and exit 0. Synthetic helper writes node-specific metadata and request IDs; generator command uses explicit --node-id and URL.",
+      "limit": "Does not execute real helper, real source or binary; source git is a synthetic fixed-revision shim."
+    },
+    {
+      "case": "stale receipt / wrong source / wrong Slot binding",
+      "source": "watcher_coordination_test.py:30-34",
+      "asserts": "No helper PID files and skipped status for each input."
+    },
+    {
+      "case": "terminal supervisor stop",
+      "source": "watcher_coordination_test.py:35-45",
+      "asserts": "Waits for 3 helper PID files, writes stop, asserts partial and every direct helper joined; os.kill(pid,0) must fail for every root."
+    },
+    {
+      "case": "five duplicate guard failures",
+      "source": "once_status_test.py:5-18",
+      "asserts": "Prior status bytes AND nanosecond mtime unchanged, no helper PID files, exit 0 and synthetic token absent from stdout/stderr. Covers wrong source, launcher, Slot, owner and output."
+    },
+    {
+      "case": "concurrent one-shot claim",
+      "source": "once_status_test.py:22-33",
+      "asserts": "Two same-PGID watcher starts both exit 0; exactly one already_claimed output; exactly 3 append-only launch records; 3 node rows all direct helpers joined; every root PID absent. Generated race-runner source and full argv construction are frozen."
+    },
+    {
+      "case": "TERM-exiting root with TERM-ignoring child",
+      "source": "cancel_descendants_test.py:5-30; fake-orphan-helper.py:1-9; fake-ignoreterm-child.py:1-3",
+      "asserts": "3 child-ready files; direct helper joins; partial; watcher return 0; elapsed <3.4 seconds; every observed child PID absent OR zombie/non-running; cleanup confirmed. Frozen finite log: retained=3, remaining=0, elapsed=0.08093620801810175."
+    },
+    {
+      "case": "root exited before cancel",
+      "source": "cancel_descendants_test.py:14-17,31; fake-orphan-helper.py:7",
+      "asserts": "No explicit stop sent; roots exit 3; final metadata partial, direct helpers joined, descendant cleanup false, direct-helper semantics text present. Frozen finite log retained=0, remaining=0, confirmed=false.",
+      "limit": "Does not assert child absence; fixture finally kills known children and whole group. This intentionally models an unconfirmed ancestry result, not sampler cleanup proof."
+    },
+    {
+      "case": "three roots and children ignore TERM",
+      "source": "cancel_descendants_test.py:18-22,32; fake-orphan-helper.py:8; fake-ignoreterm-child.py:2",
+      "asserts": "Same root-join / partial / 3 child-ready / all observed children absent-or-zombie / confirmed / elapsed<3.4 checks. Frozen finite log retained=3, remaining=0, elapsed=2.076543208095245.",
+      "limit": "No per-root kill_escalated==true assertion or per-root readiness after its SIGTERM ignore installation; source selects ignore-TERM mode but the log cannot prove every root required KILL. No serial 3x wait exists in watcher source."
+    }
+  ],
+  "test_first_limits": [
+    "V2 retained RED shows one method/five guard subcase assertion failures; V2 GREEN has 10 invocations. Unchanged once_status_test source is carried into V3 and rerun by producer in V3 13-invocation GREEN.",
+    "V3 first wrong-cwd attempt is import-only failure before fixture creation; metadata RED is two KeyErrors, not orphan proof. Separate functional RED fails child non-running assertion before correction.",
+    "V3 GREEN all and finite-bounds logs are both retained and correspond to the named methods and generators. Current test source includes later diagnostic print lines; pre-edit hashes of every test revision and exact RED watcher bytes are not sealed here, so this review does not assert byte-identical RED/GREEN tests or independently observed chronology.",
+    "Snapshot/ps failure and budget-expiry behavior are reviewed statically, without a dedicated retained synthetic injection test. No independent realtime scheduling or hard 3.000-second bound is claimed.",
+    "Tests inherit the machine environment, then set fixture-specific PATH, FAKE_* variables and a synthetic token in source; a complete inherited environment dump is not retained or claimed.",
+    "Known child PIDs are checked absent or zombie, which proves non-running in the fixture, not wait()-reaping or final whole-owned-PGID zero. That latter proof belongs to the enclosing actual-run supervisor."
+  ]
+}

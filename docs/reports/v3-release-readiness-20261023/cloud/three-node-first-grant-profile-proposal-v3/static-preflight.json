@@ -1,0 +1,27 @@
+{
+  "at_utc": "2026-10-22T23:28:12.028759+00:00",
+  "AST_all_python": true,
+  "helper_bash_n": 0,
+  "helper_byte_unchanged": true,
+  "helper_sha256": "d371c1712b2de2d72e0d03a322870cf2a9626956c02beaa53f473d35c9a45bed",
+  "watcher_sha256": "c45e678799226994c788034e1c3e90bdaf6d99c26fb3380ac5a2cb6501480481",
+  "RED_actual_orphan_failure": {
+    "file": "RED-cancel-descendants.log",
+    "sha256": "0ae9558aec0d55455a3cfc43806a3458be251c419ccabf16487c5f79e48594bd"
+  },
+  "GREEN_all_fake_tests": {
+    "invocations": 13,
+    "distinct_method_bodies": 9,
+    "file": "GREEN-cancel-and-once.log",
+    "sha256": "c3769bc97594acc8656b6a68731b773dcf33be73d8b84ec651123bdc4b75016d"
+  },
+  "GREEN_finite_cancel_bounds": {
+    "cases": 3,
+    "file": "GREEN-cancel-bounds.log",
+    "sha256": "d6b675d06045ea13c7997980c964bdb93c79a6f721376eb0c6d497b58a6f2f93",
+    "observed_root_exits_child_cleanup_seconds": 0.08093620801810175,
+    "observed_shared_KILL_cleanup_seconds": 2.076543208095245,
+    "preexited_root_cleanup_claim": "unconfirmed/partial; relies on enclosing final PGID zero"
+  },
+  "no_product_or_load_started": true
+}

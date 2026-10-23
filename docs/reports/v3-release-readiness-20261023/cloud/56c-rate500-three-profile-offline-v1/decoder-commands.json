@@ -1,0 +1,155 @@
+[
+  {
+    "argv": [
+      "/opt/homebrew/opt/python@3.13/bin/python3.13",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/analyze_profile.py",
+      "1"
+    ],
+    "exit_status": 0,
+    "stdout_closed_receipt": "{\"node_id\": 1, \"kind\": \"goroutine\", \"status\": \"complete\", \"classification_status\": \"complete\", \"error_class\": null, \"classification_error_class\": null, \"elapsed_seconds\": 0.006082540960051119}\n",
+    "stderr_private_bytes": 0,
+    "environment_note": "Python worker inherited executor environment; no environment values emitted, no decoder child commands/network, reference modules only. This differs from proposed allowlist; retained as deviation without rerun.",
+    "worker_source_sha256": "ac53cf2af6b7b2764beeee5857d9edc09387c7e4e9d6b2801d6e23fca817f801",
+    "worker_source_artifact": "analyze_profile-first-goroutine.py",
+    "adapter_sha256": "b9e113316a15fc22a293bd5ae790b2dcae980deb2fdf291d3058fddc678ad2d9",
+    "worker_timeout_seconds": 30,
+    "stdout_maximum_bytes": 65536,
+    "stderr_maximum_bytes": 16384,
+    "stdout_bound_implementation": "fixed-schema small worker output, then post-completion byte-length guard; not a streaming subprocess stdout cap",
+    "private_decoded_output_maximum_bytes": 8388608,
+    "decompressed_profile_maximum_bytes": 4194304
+  },
+  {
+    "argv": [
+      "/opt/homebrew/opt/python@3.13/bin/python3.13",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/analyze_profile.py",
+      "3"
+    ],
+    "exit_status": 0,
+    "stdout_closed_receipt": "{\"node_id\": 2, \"kind\": \"goroutine\", \"status\": \"complete\", \"classification_status\": \"complete\", \"error_class\": null, \"classification_error_class\": null, \"elapsed_seconds\": 0.006154583068564534}\n",
+    "stderr_private_bytes": 0,
+    "environment_note": "Python worker inherited executor environment; no environment values emitted, no decoder child commands/network, reference modules only. This differs from proposed allowlist; retained as deviation without rerun.",
+    "worker_source_sha256": "ac53cf2af6b7b2764beeee5857d9edc09387c7e4e9d6b2801d6e23fca817f801",
+    "worker_source_artifact": "analyze_profile-first-goroutine.py",
+    "adapter_sha256": "b9e113316a15fc22a293bd5ae790b2dcae980deb2fdf291d3058fddc678ad2d9",
+    "worker_timeout_seconds": 30,
+    "stdout_maximum_bytes": 65536,
+    "stderr_maximum_bytes": 16384,
+    "stdout_bound_implementation": "fixed-schema small worker output, then post-completion byte-length guard; not a streaming subprocess stdout cap",
+    "private_decoded_output_maximum_bytes": 8388608,
+    "decompressed_profile_maximum_bytes": 4194304
+  },
+  {
+    "argv": [
+      "/opt/homebrew/opt/python@3.13/bin/python3.13",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/analyze_profile.py",
+      "5"
+    ],
+    "exit_status": 0,
+    "stdout_closed_receipt": "{\"node_id\": 3, \"kind\": \"goroutine\", \"status\": \"complete\", \"classification_status\": \"complete\", \"error_class\": null, \"classification_error_class\": null, \"elapsed_seconds\": 0.005968583980575204}\n",
+    "stderr_private_bytes": 0,
+    "environment_note": "Python worker inherited executor environment; no environment values emitted, no decoder child commands/network, reference modules only. This differs from proposed allowlist; retained as deviation without rerun.",
+    "worker_source_sha256": "ac53cf2af6b7b2764beeee5857d9edc09387c7e4e9d6b2801d6e23fca817f801",
+    "worker_source_artifact": "analyze_profile-first-goroutine.py",
+    "adapter_sha256": "b9e113316a15fc22a293bd5ae790b2dcae980deb2fdf291d3058fddc678ad2d9",
+    "worker_timeout_seconds": 30,
+    "stdout_maximum_bytes": 65536,
+    "stderr_maximum_bytes": 16384,
+    "stdout_bound_implementation": "fixed-schema small worker output, then post-completion byte-length guard; not a streaming subprocess stdout cap",
+    "private_decoded_output_maximum_bytes": 8388608,
+    "decompressed_profile_maximum_bytes": 4194304
+  },
+  {
+    "argv": [
+      "/opt/homebrew/opt/python@3.13/bin/python3.13",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/analyze_profile.py",
+      "0"
+    ],
+    "env": {
+      "PATH": "/usr/bin:/bin",
+      "LANG": "C",
+      "LC_ALL": "C",
+      "GOMAXPROCS": "1",
+      "GOTOOLCHAIN": "local",
+      "GOWORK": "off",
+      "GOPROXY": "off",
+      "GOSUMDB": "off",
+      "TMPDIR": "/tmp/wukongim-v3-readiness-20261023/private/56c-rate500-three-profile-offline-v1/tmp",
+      "PPROF_TMPDIR": "/tmp/wukongim-v3-readiness-20261023/private/56c-rate500-three-profile-offline-v1/tmp"
+    },
+    "exit_status": 0,
+    "stdout_closed_receipt": "{\"node_id\": 1, \"kind\": \"cpu\", \"status\": \"complete\", \"classification_status\": \"complete\", \"error_class\": null, \"classification_error_class\": null, \"elapsed_seconds\": 0.005103584029711783}\n",
+    "stderr_private_bytes": 0,
+    "worker_source_sha256": "d2457bfa600047e9d9a2b8d72a9a75bc66ea38c5389eb10ef645a2065d48c0d8",
+    "worker_source_artifact": "analyze_profile.py",
+    "adapter_sha256": "b9e113316a15fc22a293bd5ae790b2dcae980deb2fdf291d3058fddc678ad2d9",
+    "worker_timeout_seconds": 30,
+    "stdout_maximum_bytes": 65536,
+    "stderr_maximum_bytes": 16384,
+    "stdout_bound_implementation": "fixed-schema small worker output, then post-completion byte-length guard; not a streaming subprocess stdout cap",
+    "private_decoded_output_maximum_bytes": 8388608,
+    "decompressed_profile_maximum_bytes": 4194304
+  },
+  {
+    "argv": [
+      "/opt/homebrew/opt/python@3.13/bin/python3.13",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/analyze_profile.py",
+      "2"
+    ],
+    "env": {
+      "PATH": "/usr/bin:/bin",
+      "LANG": "C",
+      "LC_ALL": "C",
+      "GOMAXPROCS": "1",
+      "GOTOOLCHAIN": "local",
+      "GOWORK": "off",
+      "GOPROXY": "off",
+      "GOSUMDB": "off",
+      "TMPDIR": "/tmp/wukongim-v3-readiness-20261023/private/56c-rate500-three-profile-offline-v1/tmp",
+      "PPROF_TMPDIR": "/tmp/wukongim-v3-readiness-20261023/private/56c-rate500-three-profile-offline-v1/tmp"
+    },
+    "exit_status": 0,
+    "stdout_closed_receipt": "{\"node_id\": 2, \"kind\": \"cpu\", \"status\": \"complete\", \"classification_status\": \"complete\", \"error_class\": null, \"classification_error_class\": null, \"elapsed_seconds\": 0.006001583067700267}\n",
+    "stderr_private_bytes": 0,
+    "worker_source_sha256": "d2457bfa600047e9d9a2b8d72a9a75bc66ea38c5389eb10ef645a2065d48c0d8",
+    "worker_source_artifact": "analyze_profile.py",
+    "adapter_sha256": "b9e113316a15fc22a293bd5ae790b2dcae980deb2fdf291d3058fddc678ad2d9",
+    "worker_timeout_seconds": 30,
+    "stdout_maximum_bytes": 65536,
+    "stderr_maximum_bytes": 16384,
+    "stdout_bound_implementation": "fixed-schema small worker output, then post-completion byte-length guard; not a streaming subprocess stdout cap",
+    "private_decoded_output_maximum_bytes": 8388608,
+    "decompressed_profile_maximum_bytes": 4194304
+  },
+  {
+    "argv": [
+      "/opt/homebrew/opt/python@3.13/bin/python3.13",
+      "/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/analyze_profile.py",
+      "4"
+    ],
+    "env": {
+      "PATH": "/usr/bin:/bin",
+      "LANG": "C",
+      "LC_ALL": "C",
+      "GOMAXPROCS": "1",
+      "GOTOOLCHAIN": "local",
+      "GOWORK": "off",
+      "GOPROXY": "off",
+      "GOSUMDB": "off",
+      "TMPDIR": "/tmp/wukongim-v3-readiness-20261023/private/56c-rate500-three-profile-offline-v1/tmp",
+      "PPROF_TMPDIR": "/tmp/wukongim-v3-readiness-20261023/private/56c-rate500-three-profile-offline-v1/tmp"
+    },
+    "exit_status": 0,
+    "stdout_closed_receipt": "{\"node_id\": 3, \"kind\": \"cpu\", \"status\": \"complete\", \"classification_status\": \"complete\", \"error_class\": null, \"classification_error_class\": null, \"elapsed_seconds\": 0.005672291968949139}\n",
+    "stderr_private_bytes": 0,
+    "worker_source_sha256": "d2457bfa600047e9d9a2b8d72a9a75bc66ea38c5389eb10ef645a2065d48c0d8",
+    "worker_source_artifact": "analyze_profile.py",
+    "adapter_sha256": "b9e113316a15fc22a293bd5ae790b2dcae980deb2fdf291d3058fddc678ad2d9",
+    "worker_timeout_seconds": 30,
+    "stdout_maximum_bytes": 65536,
+    "stderr_maximum_bytes": 16384,
+    "stdout_bound_implementation": "fixed-schema small worker output, then post-completion byte-length guard; not a streaming subprocess stdout cap",
+    "private_decoded_output_maximum_bytes": 8388608,
+    "decompressed_profile_maximum_bytes": 4194304
+  }
+]

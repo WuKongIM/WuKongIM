@@ -1,0 +1,15 @@
+# Three-node first-grant sampler proposal
+
+Staticprivateexperimentadapter only. Newsourcecommit/binarybindings remainpending; norealrunlauncher,productbuild,workload,API/DB/cloudoperation. Original7b07cc helper,6bf22e watcher andexistingrunproofs areunchanged.
+
+Root choseB becauseoriginalproducer hardcodesnode2. Minimalnewhelper adds--node-id(default2;exact1/2/3 beforeartifactI/O); ALLmetadata/requestJSON/filelabels deriveexplicitID. NoURLinference orsidecarrepair. Defaultnode2 behaviorpasses. Auth/registration/signal/cancel/join/normalizers retainbyte-equalfunctionbodies; sameCPU10s/max15s/8MiB,nominal+5s GORdebug0gzip/max5s/4MiB,connect2s,context/heapdisabled.
+
+Newwatcher validatesfullsource/binary/helper andsealedlauncherSHA, plannednodeTOMLnode.id andexistingSlot-convergenceactualNodeIDs. ExactURLs25001/25002/25003 follow reviewedlauncherWK_API_LISTEN_ADDR/WK_NODE_ID overrides; TOMLAPIdefaultportsarenotmistakenforeffectiveports. No additionalidentityAPIrequests. Ononefreshrun-startreceipt, itregistersonehelperpernode withoutwaitingforothers,isolatedoutputs/logs,explicit--node-id1/2/3. Singleclaim preventsduplicatecapture.
+
+Stop/signal/terminal cancelsallhelpers beforeoneshared2sTERM grace and1sdescendantKILL/join budget, notthreeserialbudgets. Partial/skippednodesstayexplicit andarenotreplaced. Existing15smonitorfromfirstregistration isretained,sointer-helperlaunchskewmayresultinpartialcoverage; noprofilecap/timerincrease. Originalprocess570sTERM+5sKILL andall600/start360/target120/latest480/exit7hold90/firstfailuregates mustremainin futurereviewedlauncher.
+
+ThreeCPU andthreeGORrequests increasethemaximumacceptedbodies to36MiB(24MiBCPU+12MiBGOR); sixmaximumrequests versusoldtwo. Theadditionaloverheadisexplicitdiagnosticdisturbance, not acausalperformancecomparison orformal/Linuxacceptance. LocallaunchtimesarenotCPUsubmissiontimestamps;GORoffsetisnominal,nodesnotexactlysynchronous,phasefilemaymixactiveSENDanddrain.
+
+Tests-first helper5methods andwatcher4methods wentRED→GREEN withfakecurl/fakehelpers, noTCP or borrowedprivateprofiles. A3-helperlatch provesoverlap andduplicateclaimdoesnotchangefirststatus. ThreeTERM-ignoringfakehelperswereKILLed/joined together in2.093132s,allownedPIDprobesabsent. Bash/ASTchecksandfullhelper/watcher/source-diffhashes areincluded. Fakeidentities/source/binary existonlyinephemeralfixtures andarenotcandidatebindings.
+
+Rootindependentreview isrequiredbeforesampleruse; exactnewhead/build+actualrunproposal areseparatefuturesteps.

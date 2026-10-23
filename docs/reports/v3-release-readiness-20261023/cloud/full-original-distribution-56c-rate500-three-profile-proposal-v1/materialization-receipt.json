@@ -1,0 +1,70 @@
+{
+  "schema": "wukongim/56c-rate500-three-profile-materialization/v1",
+  "product_started": false,
+  "output_dir": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1",
+  "baseline_output": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-c495-rate500-profile-v1",
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics",
+  "source_revision": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "source_tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "build_root": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-56c-native-v1",
+  "build_manifest_sha256": "17037f9c694787b25580470ed8dd1f6f85cebbd92a735916e0ee024768ffa4f2",
+  "native_binaries": {
+    "wukongim": "e9ecf52ab6f5d3a7b81b07537f1aebf8fa1a6cd86a5dddb90162c1256acfd7c8",
+    "wkcli": "8e43a41f44eff071629287d7721fd8fb6b92aeee65dbaa3e8478b27a880308be"
+  },
+  "config_sha256": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+  "typed_config_diff_vs_c495": [],
+  "planned_identity": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc",
+    "assignment_count": 3,
+    "generation": 1
+  },
+  "executed_inputs": {
+    "launcher.sh": "ce76dd4df0e2dbbe2b7667fbfeebdee6f00c463a607800ed02ff44d20815a282",
+    "supervise.py": "b630ec8f8f575e28c1fbba4b6f01e0434a209e3c1fbbcbd785f4323d21702737",
+    "exact_build_guard.py": "0bbdc6e932f0ef5ce38a00c5cc6d15a6bc2c87adaf66131557ea144134d70e28",
+    "original-distribution-local.yaml": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe"
+  },
+  "sampler": {
+    "scope": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3",
+    "manifest_sha256": "83d363a94bcd4b99239371acd6f4cdadd399bfce7eb337e870e0bb98a026afb8",
+    "files": {
+      "capture-three-node-first-grant-profiles.sh": "d371c1712b2de2d72e0d03a322870cf2a9626956c02beaa53f473d35c9a45bed",
+      "watch-three-node-first-grant.proposed.py": "c45e678799226994c788034e1c3e90bdaf6d99c26fb3380ac5a2cb6501480481"
+    },
+    "nodes": [
+      1,
+      2,
+      3
+    ],
+    "cpu_seconds_each": 10,
+    "GOR_nominal_offset_seconds_each": 5,
+    "max_HTTP_requests_total": 6,
+    "max_profile_body_bytes_total": 37748736,
+    "review_status": "root independent review pending; actual run not authorized"
+  },
+  "launcher_hash_transfer": "fixed supervisor INPUT_HASHES pin before Popen -> LOCAL_PROFILE_LAUNCHER_SHA256 overwrite -> launcher argv -> watcher verification",
+  "limits_unchanged": {
+    "total_seconds": 600,
+    "watchdog_TERM": 570,
+    "watchdog_KILL_after": 5,
+    "startup_seconds": 360,
+    "target_traffic_seconds": 120,
+    "lateststop_seconds": 480,
+    "exit7hold_seconds": 90,
+    "first_failure_stop": true
+  },
+  "strict_soak_entry": "unchanged bench soak chat-lifecycle LoadConfig/Config.Validate; no formal guard spoofing",
+  "runtime_state_directories": {
+    "data": false,
+    "pids": false,
+    "workers": false,
+    "report": false,
+    "config": false,
+    "profiles-three-node": false
+  },
+  "actual_start_requires_later_explicit_root_approval": true
+}

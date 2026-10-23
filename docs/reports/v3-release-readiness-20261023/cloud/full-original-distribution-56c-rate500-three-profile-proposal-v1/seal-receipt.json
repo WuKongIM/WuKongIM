@@ -1,0 +1,13 @@
+{
+  "at_utc": "2026-10-22T23:33:08.920569+00:00",
+  "source_revision": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "source_tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "native_product_SHA256": "e9ecf52ab6f5d3a7b81b07537f1aebf8fa1a6cd86a5dddb90162c1256acfd7c8",
+  "native_CLI_SHA256": "8e43a41f44eff071629287d7721fd8fb6b92aeee65dbaa3e8478b27a880308be",
+  "runtime_input_materialization_verified": true,
+  "sampler_v3_manifest_SHA256": "83d363a94bcd4b99239371acd6f4cdadd399bfce7eb337e870e0bb98a026afb8",
+  "sampler_review_closure": "root external review/approval proof; proposal does not assert a manifest not yet delivered",
+  "original_runtime_behavior_limits_and_config_preserved": true,
+  "product_workload_started": false,
+  "actual_start_requires_new_explicit_root_authorization": true
+}

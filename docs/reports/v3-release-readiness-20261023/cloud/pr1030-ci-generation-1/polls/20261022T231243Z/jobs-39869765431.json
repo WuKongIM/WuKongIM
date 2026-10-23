@@ -1,0 +1,161 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 120140957058,
+      "run_id": 39869765431,
+      "workflow_name": "Safety Automation - Validate Native Package Preview",
+      "head_branch": "codex/v3-metrics-fetch-diagnostics",
+      "run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/runs/39869765431",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOJgfwyc8AAAAb-PWFgg",
+      "head_sha": "56c287493a5e9fc3df65ea0631b99612672cd678",
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/jobs/120140957058",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39869765431/job/120140957058",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-22T23:08:06Z",
+      "started_at": "2026-10-22T23:08:08Z",
+      "completed_at": null,
+      "name": "Build and install deb/rpm preview",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-22T23:08:09Z",
+          "completed_at": "2026-10-22T23:08:11Z"
+        },
+        {
+          "name": "Check out exact source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-22T23:08:11Z",
+          "completed_at": "2026-10-22T23:08:21Z"
+        },
+        {
+          "name": "Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-22T23:08:21Z",
+          "completed_at": "2026-10-22T23:08:34Z"
+        },
+        {
+          "name": "Run package and CLI contracts",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-22T23:08:34Z",
+          "completed_at": "2026-10-22T23:09:16Z"
+        },
+        {
+          "name": "Run single-node cluster SEND integration",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-22T23:09:16Z",
+          "completed_at": "2026-10-22T23:09:26Z"
+        },
+        {
+          "name": "Build deb and rpm preview",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-22T23:09:26Z",
+          "completed_at": "2026-10-22T23:11:10Z"
+        },
+        {
+          "name": "Validate signed repository metadata closure",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-22T23:11:10Z",
+          "completed_at": "2026-10-22T23:11:56Z"
+        },
+        {
+          "name": "Inspect package metadata",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-22T23:11:56Z",
+          "completed_at": "2026-10-22T23:12:03Z"
+        },
+        {
+          "name": "Install on Ubuntu 24.04",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-22T23:12:03Z",
+          "completed_at": "2026-10-22T23:12:22Z"
+        },
+        {
+          "name": "Install on Debian 12",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-22T23:12:22Z",
+          "completed_at": "2026-10-22T23:12:30Z"
+        },
+        {
+          "name": "Install on Rocky Linux 9",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-22T23:12:30Z",
+          "completed_at": "2026-10-22T23:12:45Z"
+        },
+        {
+          "name": "Install on AlmaLinux 9",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 12,
+          "started_at": "2026-10-22T23:12:45Z",
+          "completed_at": null
+        },
+        {
+          "name": "Upload preview packages",
+          "status": "pending",
+          "conclusion": null,
+          "number": 13,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Reject tracked-tree mutation",
+          "status": "pending",
+          "conclusion": null,
+          "number": 14,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up repository Go toolchain",
+          "status": "pending",
+          "conclusion": null,
+          "number": 27,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Check out exact source",
+          "status": "pending",
+          "conclusion": null,
+          "number": 28,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/WuKongIM/WuKongIM/check-runs/120140957058",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000024726,
+      "runner_name": "GitHub Actions 1000024726",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

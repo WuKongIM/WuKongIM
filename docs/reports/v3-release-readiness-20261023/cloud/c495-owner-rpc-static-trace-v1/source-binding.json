@@ -1,0 +1,401 @@
+{
+  "schema": "wukongim/static-owner-rpc-trace/v1",
+  "source_head": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "source_tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "source_working_tree_clean_before": true,
+  "source_files": {
+    "AGENTS.md": {
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "git_blob": "b89d41eebadc701ada7157b387c2f45e8ff76354"
+    },
+    "CONTEXT.md": {
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "git_blob": "d1a1495b25153d5299b1ba22658c188c4c53283b"
+    },
+    "internal/app/FLOW.md": {
+      "bytes": 12335,
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "git_blob": "6d61fcc875cec30f4ba477d3c268bb304bf60149"
+    },
+    "internal/app/FLOW_PRODUCT_RUNTIME.md": {
+      "bytes": 22320,
+      "sha256": "406381c752976427b313e6289183236da5afb64299865657546d1b26ba452b3d",
+      "git_blob": "2878d1187cdd28c97757fe09b2b0a694d8d373ce"
+    },
+    "internal/usecase/presence/FLOW.md": {
+      "bytes": 3192,
+      "sha256": "438ba6664b276dc9b055c14e234b1bcefad55d8f56f649a3779c6df66d780d4e",
+      "git_blob": "d60110d7119f5a810add137269856c115ad88db5"
+    },
+    "internal/runtime/online/FLOW.md": {
+      "bytes": 2192,
+      "sha256": "c7233cdcec9976b5f237194ad7fd211c96e961702ce7621d7e759250a5dbf246",
+      "git_blob": "345d7bf18d22388d848750bd7b57910175cb1cdc"
+    },
+    "internal/runtime/presence/FLOW.md": {
+      "bytes": 2490,
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "git_blob": "239f4dcf87add4bc7b71db1482fa51e5581330e6"
+    },
+    "internal/access/node/FLOW.md": {
+      "bytes": 6088,
+      "sha256": "095836bd2e270d9663e1aa33bdb4457d42a7706b0706dc14610e72fc6beb82a7",
+      "git_blob": "2ed6dad6499127e3c83687e05f47637b8623590b"
+    },
+    "internal/infra/cluster/FLOW.md": {
+      "bytes": 8612,
+      "sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+      "git_blob": "db48cce9f4a4d03cca0b98aaf4a6519857b1a5d1"
+    },
+    "pkg/cluster/FLOW.md": {
+      "bytes": 14273,
+      "sha256": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971",
+      "git_blob": "92bfeaea362f1e002d9cc1a85b549576d624b1db"
+    },
+    "pkg/slot/FLOW.md": {
+      "bytes": 10973,
+      "sha256": "ae0f99b28ea52be22ddb95c785574819a4e4c31614435bff9250e5b10b8ecff2",
+      "git_blob": "176580dc9870b68a801f8d97c02492f4a0d0d30e"
+    },
+    "pkg/db/FLOW.md": {
+      "bytes": 4313,
+      "sha256": "57578a266e60e804ee46f71205b92c7d64df00e0df6e6f9120cc0e1937334017",
+      "git_blob": "a82aa16b26bdca8ce7cb889b3cd1fd38740fdf87"
+    },
+    "pkg/db/meta/FLOW.md": {
+      "bytes": 10701,
+      "sha256": "2fc1c3f670d8cd6a60e4e132c99ee71908c64f771c55bbce853eaa10fe0eaeac",
+      "git_blob": "e0079e3c05da3dab3e6fda6dd9d58fa6e8b8e985"
+    },
+    "internal/app/wiring.go": {
+      "bytes": 55373,
+      "sha256": "e80b950481e6d05ec100616cc7a8db35cc785b42d630a89bbe145c0c81cebc34",
+      "git_blob": "54a0a89540a9efcbc309685a8d4e24d45951cb79"
+    },
+    "internal/usecase/presence/owner_recovery.go": {
+      "bytes": 4604,
+      "sha256": "d2c49e662a578ab380bccc2b594e9f4b100558137c007078ab4694e5d32e6717",
+      "git_blob": "6e418a2f39c6b661adcb604ea0494b22d50d4109"
+    },
+    "internal/usecase/presence/recovery.go": {
+      "bytes": 3764,
+      "sha256": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b",
+      "git_blob": "10a1163dea12a3d638328f80b243b6c6821adda7"
+    },
+    "internal/usecase/presence/recovery_flights.go": {
+      "bytes": 8482,
+      "sha256": "53bb1b4f03152f76bef2e833dc658103f58f334dd38f948f2e2f0de1471cce95",
+      "git_blob": "e1ff793ae997afbc10989e0ec3731c17358c9592"
+    },
+    "internal/runtime/online/recovery.go": {
+      "bytes": 1010,
+      "sha256": "85ceb4b313fa9a4ac82c7566ffbdf7cbf5dee331853baa2adc3e5f0743fe616e",
+      "git_blob": "86610d90b507d1b88ae892cb1e41581af61406ca"
+    },
+    "internal/runtime/online/registry.go": {
+      "bytes": 8940,
+      "sha256": "73e935fe10b2cc5f8a25f5364f285c679889b575efae5a2ed8184223a8701139",
+      "git_blob": "ff3b5246788dc0e908e153154d3c7066c405b565"
+    },
+    "internal/infra/cluster/presence_recovery.go": {
+      "bytes": 8454,
+      "sha256": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55",
+      "git_blob": "491d6b313adeda08fda9c2b3ed48969990c9849f"
+    },
+    "internal/infra/cluster/presence.go": {
+      "bytes": 31462,
+      "sha256": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+      "git_blob": "4fccbb92e33c88d040f2c72df78319c112dfeca6"
+    },
+    "internal/access/node/presence_owner_recovery.go": {
+      "bytes": 3089,
+      "sha256": "f98894ecc89766834c680e39f7eaa2568c3882faa70bf3816c5646081ece212b",
+      "git_blob": "b0697fd8813dc7332a86f0891d3a31b529ee701f"
+    },
+    "internal/access/node/presence_owner_recovery_batch.go": {
+      "bytes": 3878,
+      "sha256": "b1bf46ef8ec33ecfd2aeafcb60b6b62f973c85bf4d7efe485057a0a777a8553f",
+      "git_blob": "328f6b7e233d8e34c1219aa189b147e65ee3234e"
+    },
+    "internal/access/node/presence_rpc.go": {
+      "bytes": 36655,
+      "sha256": "cf69cdf31e23c5bd4cd96039e6e4ed451ef4fa82ced1d61d166cd902a6c27b55",
+      "git_blob": "6ae1a65f3c6c2384a430c1531be88d1005dd97f0"
+    },
+    "internal/access/node/presence_codec.go": {
+      "bytes": 23496,
+      "sha256": "df012114d828e58d5daffa234e0571ed83c764392fb0cac1a6cffa0f23ca34b7",
+      "git_blob": "7c2ab1f6ec8e50d56a9e033459c0db91a2334a1b"
+    },
+    "pkg/cluster/node.go": {
+      "bytes": 48539,
+      "sha256": "b03ec69bca5b6053655d5ae8aeb8e58004c65e31a20018ed1262384a80013b65",
+      "git_blob": "e7033957886e6151220cb431e111b541bb1c24eb"
+    },
+    "pkg/cluster/node_snapshot.go": {
+      "bytes": 12329,
+      "sha256": "c1774d65fa69d09f9a8fd331940d694ff9e6604127f9959a59d4a2e5ebceec55",
+      "git_blob": "4ed4a961c3a9d2800630a4f5d644359aebe44f16"
+    },
+    "pkg/cluster/node_management.go": {
+      "bytes": 8490,
+      "sha256": "2be19976e20f4dccb7464d493a373d87e5970368584e042014d072af9326ccc1",
+      "git_blob": "2bf50013897282f83463881a2395d1bc5d555021"
+    },
+    "pkg/cluster/routing/router.go": {
+      "bytes": 6310,
+      "sha256": "3d9615606be710e781fc0e03337e04750c13402e427011bfc8efddcd715e1ef0",
+      "git_blob": "65fac87ab08be96bd2ac0a28e7d9c92453ef575b"
+    },
+    "pkg/cluster/routing/table.go": {
+      "bytes": 10093,
+      "sha256": "33594ee4ffb424f8ac6a5e1711ab2e3ed8f54e20bfc73d0007ef8c305c81616a",
+      "git_blob": "e32e63fea14c3155a6f4dea7a2d4dbd66c9a8a33"
+    },
+    "pkg/cluster/net/transport.go": {
+      "bytes": 16654,
+      "sha256": "d0a3d07ecf1220069b9c374af65eaa4ee0b400312da6cfb730391c91be8b9be9",
+      "git_blob": "d507ac7b75b7c806142bc2a08dfa806a3f96b209"
+    },
+    "pkg/cluster/net/ids.go": {
+      "bytes": 12556,
+      "sha256": "b47b71fc9f1a4c5a942411a4d5c710af3e3bea01c61864c7bb5d102254017b38",
+      "git_blob": "d10845d1545af0f4751797c16d277a7a7d26a282"
+    },
+    "pkg/transport/server.go": {
+      "bytes": 9854,
+      "sha256": "595a6283946d6b8eb7a225f9c3fd87722c78cfdd3ed71d33e1c12d26c7edf19a",
+      "git_blob": "11ca0a3e7867e4fc5007b11aff730bdab1f91541"
+    },
+    "pkg/transport/client.go": {
+      "bytes": 4914,
+      "sha256": "37eb6c62c720f19432b2df2e71eec676cdb3dafd7a073b5b745a77c3b39f1604",
+      "git_blob": "399cc7576d925fbc1c1f288d524f7ebcd7fd42fe"
+    },
+    "pkg/transport/internal/conn/conn.go": {
+      "bytes": 16017,
+      "sha256": "4385f155f3e7305d51ae1215d1672fb1ab244545c3baf5d5eaef4c42385c8a51",
+      "git_blob": "5e77f3966bcb1e7a0107805ee517d1d936b479da"
+    },
+    "pkg/transport/internal/conn/request_budget.go": {
+      "bytes": 3302,
+      "sha256": "ea6128deeb3e619b9c85032a8660ae15ae4ab175231cdd0e572efa8b3f769271",
+      "git_blob": "6134a5279970a7bc937449b7354bdf3b5b184df3"
+    },
+    "pkg/transport/internal/rpc/service.go": {
+      "bytes": 16391,
+      "sha256": "d93fe20c2b6ee60bf7fcb9503042b8268ef90c828b821788330d01b74afa1172",
+      "git_blob": "767782d6eedc4dda932633bc103e06eb9661430f"
+    },
+    "pkg/transport/internal/rpc/service_queue.go": {
+      "bytes": 4664,
+      "sha256": "b3da821e17fecfd4f1331dca820474940fa9668ca1aa175d673ce136196a70f2",
+      "git_blob": "22388cad64e9f20e2f6bbe02b2c5ed69029242bb"
+    },
+    "pkg/transport/internal/rpc/executor.go": {
+      "bytes": 5045,
+      "sha256": "16315d03e5f9de4d6cf2cc527c003b29c18f6979b21aa1c57436b87bb4e28b01",
+      "git_blob": "ec3c7c0a16d6a0611e7afc6f4155f57d0b3a54e9"
+    },
+    "pkg/transport/internal/rpc/pending.go": {
+      "bytes": 4757,
+      "sha256": "621d63f24d79bf22044ffb44051c2695a196fd3b7937dba41932b3b577c0e557",
+      "git_blob": "9eb887d3a02124e77f1f16e5b9d64e0ec43ebc23"
+    },
+    "pkg/transport/internal/peer/manager.go": {
+      "bytes": 7803,
+      "sha256": "4f89ec54542db83e3d2cb88e585314ee098a5bf70ad053d1406672a105275af4",
+      "git_blob": "f3c8724bfdbc92d0f1cd22e7c693b3bb7f872285"
+    },
+    "pkg/transport/internal/sched/scheduler.go": {
+      "bytes": 15700,
+      "sha256": "ae60b961a0e69dadf4a263a2371b7a57463c6b1aac219953de8c7626f316cb7a",
+      "git_blob": "e9b3294d70b8f01134bac9f88a6cc83baa35e3ca"
+    },
+    "internal/runtime/online/recovery_test.go": {
+      "bytes": 1206,
+      "sha256": "d1ff6b2ac0f3924a735edb624fd29ca8178dc8e9d3215abbe5db28e171886271",
+      "git_blob": "ddffb6b9073d5aa05575b6866875dcae25173cce"
+    },
+    "internal/infra/cluster/presence_recovery_test.go": {
+      "bytes": 6848,
+      "sha256": "883c2d3c10b9a0972644bcb9d547fa32f1336b7b461e8565a1d6860bfd940884",
+      "git_blob": "b5cdac57db9d1e43ab47d7eefde994bf7e5755a2"
+    },
+    "internal/infra/cluster/presence_recovery_integration_test.go": {
+      "bytes": 3903,
+      "sha256": "826a80954b5c8a29090abe1e9d796d8572dc807cb650af9ba98e9f086f1aaca0",
+      "git_blob": "1299af3a88a2b0edb34164f3d1bbb789df2d11c6"
+    },
+    "internal/app/presence_recovery_delivery_test.go": {
+      "bytes": 11202,
+      "sha256": "3cd33dcaff2b455ea76e71f81cb3be7b476058980e29a59d34dd53b772ea9c05",
+      "git_blob": "41b7c11e8ed4a627a20034f10ab6d96c97fe0c4b"
+    },
+    "internal/access/node/presence_owner_recovery_test.go": {
+      "bytes": 2058,
+      "sha256": "6c3e66ee2617bcdfa540fff11b2a6b644f9f42871d36202d1888ff2d40853813",
+      "git_blob": "c7a204315edc8bcdb9155afe29e12b2bbf192fcc"
+    },
+    "internal/access/node/presence_owner_recovery_batch_test.go": {
+      "bytes": 3299,
+      "sha256": "37363795e9becfd7661862f83291e99ef6308a0d4fdb7c542b1fe61760d181cc",
+      "git_blob": "2d810057a95705df88255663ea9bfd41f8df6fdd"
+    },
+    "pkg/transport/internal/rpc/read_context_integration_test.go": {
+      "bytes": 1915,
+      "sha256": "a50ea0fae2edc75ec1aa09b6a70afec7d873a5dd5640fefaee3002afb3c1fcd9",
+      "git_blob": "0f8ec452328bf8ed721e32cc3d4531759e430bdc"
+    },
+    "pkg/cluster/net/transport_performance_test.go": {
+      "bytes": 2164,
+      "sha256": "4d4782467c20f3cf17ab5bfd6fb34a08597e7e277e3adcaa6d8897025c7605b8",
+      "git_blob": "1273499558e7666d96c56837e7a842841b06815a"
+    },
+    "internal/usecase/management/FLOW.md": {
+      "bytes": 4408,
+      "sha256": "0a36331cff291433447a5ca8bd0592e5b468df83518f20685e5d936180bb6ab6",
+      "git_blob": "232b15a11a84829f697b6daa01363e5d94ea3053"
+    },
+    "internal/usecase/management/connections.go": {
+      "bytes": 9410,
+      "sha256": "c460bc3b7815ef3de42fbee005ed4ccd88606b2f78cfa6dfa1e839c83f6758c6",
+      "git_blob": "bbe30c2fe85a939951f06acb601965ad586673af"
+    },
+    "internal/app/observability.go": {
+      "bytes": 93080,
+      "sha256": "27eb7f43fc390a240988e56f92764929aee7432c594ef991d2515203718278b5",
+      "git_blob": "dade9272cdf05470e53c58547172a095e6bad1fb"
+    },
+    "pkg/metrics/transport.go": {
+      "bytes": 17496,
+      "sha256": "d834af3b9b5c6c4e5ca65ffdb2389113ac08ad83d4f0b727a56baa41906b5489",
+      "git_blob": "3220eb0f8e343978034227aea0802cb4a2c8ce0e"
+    },
+    "pkg/metrics/runtime_pressure.go": {
+      "bytes": 16885,
+      "sha256": "ee405c8569dda66eb557840672788b21ebb59198364fbaa75e5cd5564a1e00d0",
+      "git_blob": "8a2aea61352a3a1095b0555d18030be9c39d16f3"
+    },
+    "pkg/transport/internal/core/observer_aggregate.go": {
+      "bytes": 3123,
+      "sha256": "c01e278466ce980ba3137cc839ce4bb1c6ec631e26c91e5a4f382a736cc3200a",
+      "git_blob": "033701cb507ea302d869e70cc000cf1c631116c1"
+    },
+    "internal/bench/FLOW.md": {
+      "bytes": 6617,
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "git_blob": "88cd421cebecc6f34bd33d3c06e15e288bbc1856"
+    },
+    "internal/bench/chatlifecycle/FLOW.md": {
+      "bytes": 6514,
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "git_blob": "25a7a9000f2f00aad9202182e7902ce726c57d1b"
+    },
+    "internal/bench/chatlifecycle/production_observation.go": {
+      "bytes": 38176,
+      "sha256": "85c147271c695a2af5f40fd35d16b13301dde3e3da9588f3bb78843b937bf8b7",
+      "git_blob": "bd8f5cacac3c419ad0ec3d70ba9f3c544d691bd0"
+    },
+    "internal/bench/chatlifecycle/preflight.go": {
+      "bytes": 18969,
+      "sha256": "f20b6d64bdcfe3ef71f9d057a74933f9a0321752fd45b5aedcb2158c6c0ed920",
+      "git_blob": "f2061761deade51b9b90b9e3c639e50966f2fbac"
+    },
+    "internal/bench/chatlifecycle/defaults.go": {
+      "bytes": 10194,
+      "sha256": "2ee3e9b49ba0921ae02daa01ceef22a1c5b1091217afb007d9df96af8ffa6843",
+      "git_blob": "f647fcd0297e2cf787af081672b17159c6be4a4e"
+    },
+    "internal/bench/target/client.go": {
+      "bytes": 52166,
+      "sha256": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762",
+      "git_blob": "9572294f7da517200dd5b24df0852c8ea44771e3"
+    },
+    "go.mod": {
+      "bytes": 6662,
+      "sha256": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d",
+      "git_blob": "840bd60ba9789d0e28aef6db867da2e472c65f41"
+    }
+  },
+  "valid_FLOW_scopes": {
+    "internal/app/FLOW.md": "package",
+    "internal/usecase/presence/FLOW.md": "package",
+    "internal/runtime/online/FLOW.md": "package",
+    "internal/runtime/presence/FLOW.md": "package",
+    "internal/access/node/FLOW.md": "package",
+    "internal/infra/cluster/FLOW.md": "package",
+    "pkg/cluster/FLOW.md": "subtree",
+    "pkg/slot/FLOW.md": "subtree",
+    "pkg/db/FLOW.md": "subtree",
+    "pkg/db/meta/FLOW.md": "package",
+    "internal/usecase/management/FLOW.md": "package",
+    "internal/bench/FLOW.md": "subtree",
+    "internal/bench/chatlifecycle/FLOW.md": "package"
+  },
+  "applicable_FLOW_for_traced_paths": [
+    "internal/app/FLOW.md",
+    "internal/usecase/presence/FLOW.md",
+    "internal/runtime/online/FLOW.md",
+    "internal/access/node/FLOW.md",
+    "internal/infra/cluster/FLOW.md",
+    "pkg/cluster/FLOW.md",
+    "internal/usecase/management/FLOW.md",
+    "internal/bench/FLOW.md",
+    "internal/bench/chatlifecycle/FLOW.md"
+  ],
+  "other_consulted_FLOW": [
+    "internal/runtime/presence/FLOW.md",
+    "pkg/slot/FLOW.md",
+    "pkg/db/FLOW.md",
+    "pkg/db/meta/FLOW.md"
+  ],
+  "transport_has_no_FLOW_in_source_catalog": true,
+  "input_profile_scope": "c495-rate500-offline-profiles-v1",
+  "input_manifest_sha256": "f287cf0196171426cb06d54e80dab501b9d3a8393fa9ea1aca311329a51160cf",
+  "input_manifest_all_members_verified": true,
+  "search_refutation": {
+    "argv": [
+      "git",
+      "grep",
+      "-n",
+      "-e",
+      "UIDSessionView",
+      "-e",
+      "metadataReadBarrier",
+      "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+      "--",
+      "*.go"
+    ],
+    "exit": 1,
+    "matches": 0
+  },
+  "boundaries": {
+    "static_only": true,
+    "source_edits": false,
+    "tests_builds_workloads": false,
+    "network_cloud_or_new_profile": false,
+    "DB_or_log_reads": false,
+    "private_profile_bytes_labels_or_stringtables_emitted": false
+  },
+  "GC_metric_semantics_dependencies": {
+    "go_collector.go": {
+      "path": "/Users/tt/go/pkg/mod/github.com/prometheus/client_golang@v1.16.0/prometheus/go_collector.go",
+      "sha256": "52dbf44b9f013fb44be865706f9c6b77b02ea90b4b2a3d7ac49f7458497719ab",
+      "bytes": 8575
+    },
+    "garbage.go": {
+      "path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/runtime/debug/garbage.go",
+      "sha256": "9828cef35aad0fbd62d055697ec936b53835db88bbb3cbc5f2e1163efddbd870",
+      "bytes": 10100
+    },
+    "mstats.go": {
+      "path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/src/runtime/mstats.go",
+      "sha256": "42a2414ec19fa8da881ef7861e9c69b33506c3d2201138f3b506535079084bee",
+      "bytes": 34738
+    }
+  },
+  "source_working_tree_clean_after": true
+}

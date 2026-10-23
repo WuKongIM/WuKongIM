@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "/opt/homebrew/opt/python@3.13/bin/python3.13",
+    "-m",
+    "unittest",
+    "adapter_test",
+    "-v"
+  ],
+  "exit_status": 0,
+  "output_bytes": 1587,
+  "output_sha256": "cdb95c54bd3fa9b33a4f3d6433a0ec0e729b6ee7852b7a5a43ec4f05eaa19b3d",
+  "test_sha256": "b362427295095a914b617ce1d2deaead41bf27bd176fed3147885ca8532ba688",
+  "same_tests_as_RED": true,
+  "adapter_sha256": "b9e113316a15fc22a293bd5ae790b2dcae980deb2fdf291d3058fddc678ad2d9",
+  "fix": "allow only OS canonical /tmp -> /private/tmp and /var -> /private/var aliases; reject all other symlink ancestors including profile symlink",
+  "earlier_synthetic_failure_retained": true
+}

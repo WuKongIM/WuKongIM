@@ -1,0 +1,228 @@
+{
+  "internal/app/wiring.go": [
+    [
+      392,
+      415
+    ]
+  ],
+  "internal/usecase/presence/owner_recovery.go": [
+    [
+      43,
+      68
+    ],
+    [
+      99,
+      126
+    ]
+  ],
+  "internal/runtime/online/recovery.go": [
+    [
+      3,
+      29
+    ]
+  ],
+  "internal/runtime/online/registry.go": [
+    [
+      8,
+      22
+    ],
+    [
+      267,
+      269
+    ]
+  ],
+  "internal/infra/cluster/presence_recovery.go": [
+    [
+      59,
+      75
+    ],
+    [
+      95,
+      119
+    ],
+    [
+      161,
+      196
+    ]
+  ],
+  "internal/access/node/presence_owner_recovery.go": [
+    [
+      15,
+      48
+    ]
+  ],
+  "internal/access/node/presence_owner_recovery_batch.go": [
+    [
+      15,
+      71
+    ]
+  ],
+  "internal/access/node/presence_rpc.go": [
+    [
+      536,
+      552
+    ]
+  ],
+  "pkg/cluster/node.go": [
+    [
+      470,
+      475
+    ],
+    [
+      547,
+      565
+    ],
+    [
+      791,
+      798
+    ]
+  ],
+  "pkg/cluster/routing/router.go": [
+    [
+      43,
+      48
+    ],
+    [
+      155,
+      162
+    ]
+  ],
+  "pkg/cluster/routing/table.go": [
+    [
+      176,
+      204
+    ]
+  ],
+  "pkg/cluster/net/transport.go": [
+    [
+      13,
+      20
+    ],
+    [
+      146,
+      154
+    ],
+    [
+      172,
+      187
+    ],
+    [
+      259,
+      283
+    ],
+    [
+      322,
+      358
+    ],
+    [
+      416,
+      432
+    ]
+  ],
+  "pkg/transport/server.go": [
+    [
+      93,
+      116
+    ],
+    [
+      234,
+      247
+    ],
+    [
+      276,
+      310
+    ]
+  ],
+  "pkg/transport/client.go": [
+    [
+      109,
+      124
+    ]
+  ],
+  "pkg/transport/internal/conn/conn.go": [
+    [
+      185,
+      221
+    ],
+    [
+      241,
+      267
+    ],
+    [
+      436,
+      470
+    ],
+    [
+      522,
+      537
+    ]
+  ],
+  "pkg/transport/internal/conn/request_budget.go": [
+    [
+      65,
+      103
+    ]
+  ],
+  "pkg/transport/internal/rpc/service.go": [
+    [
+      163,
+      208
+    ],
+    [
+      247,
+      293
+    ],
+    [
+      314,
+      370
+    ],
+    [
+      528,
+      533
+    ],
+    [
+      546,
+      579
+    ]
+  ],
+  "pkg/transport/internal/rpc/executor.go": [
+    [
+      55,
+      68
+    ],
+    [
+      122,
+      139
+    ]
+  ],
+  "pkg/transport/internal/rpc/pending.go": [
+    [
+      98,
+      122
+    ],
+    [
+      163,
+      168
+    ]
+  ],
+  "pkg/transport/internal/peer/manager.go": [
+    [
+      82,
+      121
+    ],
+    [
+      268,
+      279
+    ]
+  ],
+  "pkg/transport/internal/sched/scheduler.go": [
+    [
+      116,
+      159
+    ],
+    [
+      169,
+      183
+    ]
+  ]
+}

@@ -1,0 +1,198 @@
+{
+  "test_event_counts": {
+    "run": 1323,
+    "output": 3150,
+    "pass": 1317,
+    "pause": 249,
+    "cont": 249,
+    "skip": 6
+  },
+  "package_event_counts": {
+    "start": 7,
+    "output": 14,
+    "pass": 7
+  },
+  "failed_tests": [],
+  "skips": [
+    {
+      "Time": "2026-10-22T23:11:18.940560195Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageRuntimeContract",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-22T23:11:18.982451556Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageEmbeddedPrometheus",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-22T23:11:19.909850059Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestEasySDKReadinessSerialDelayFixture",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-22T23:11:48.483732349Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageLifecycle",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-22T23:11:48.483766851Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageSignedRepository",
+      "Elapsed": 0
+    },
+    {
+      "Time": "2026-10-22T23:11:48.855452194Z",
+      "Action": "skip",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageRepositoryDeadlineFixture",
+      "Elapsed": 0
+    }
+  ],
+  "skip_reasons": [
+    {
+      "Time": "2026-10-22T23:11:18.940506454Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageRuntimeContract",
+      "Output": "=== RUN   TestDockerImageRuntimeContract\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:18.940544271Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageRuntimeContract",
+      "Output": "    docker_image_integration_test.go:22: set WK_DOCKER_IMAGE_INTEGRATION=1 to build and validate the Docker image runtime contract\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:18.940554827Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageRuntimeContract",
+      "Output": "--- SKIP: TestDockerImageRuntimeContract (0.00s)\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:18.982431656Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageEmbeddedPrometheus",
+      "Output": "=== RUN   TestDockerImageEmbeddedPrometheus\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:18.982438797Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageEmbeddedPrometheus",
+      "Output": "    docker_prometheus_integration_test.go:18: set WK_DOCKER_PROMETHEUS_IMAGE to the exact image to validate\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:18.982447339Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestDockerImageEmbeddedPrometheus",
+      "Output": "--- SKIP: TestDockerImageEmbeddedPrometheus (0.00s)\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:19.909829488Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestEasySDKReadinessSerialDelayFixture",
+      "Output": "=== RUN   TestEasySDKReadinessSerialDelayFixture\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:19.909831952Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestEasySDKReadinessSerialDelayFixture",
+      "Output": "    easysdk_readiness_schedule_integration_test.go:35: subprocess scheduling fixture only\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:19.90984418Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestEasySDKReadinessSerialDelayFixture",
+      "Output": "--- SKIP: TestEasySDKReadinessSerialDelayFixture (0.00s)\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:48.483701012Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageLifecycle",
+      "Output": "=== RUN   TestNativePackageLifecycle\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:48.483706169Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageLifecycle",
+      "Output": "    native_package_lifecycle_integration_test.go:17: set WK_NATIVE_PACKAGE_LIFECYCLE_INTEGRATION=1 to run the native package lifecycle validation\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:48.483726871Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageLifecycle",
+      "Output": "--- SKIP: TestNativePackageLifecycle (0.00s)\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:48.483741553Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageSignedRepository",
+      "Output": "=== RUN   TestNativePackageSignedRepository\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:48.483751217Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageSignedRepository",
+      "Output": "    native_package_repository_integration_test.go:15: set WK_NATIVE_PACKAGE_REPOSITORY_INTEGRATION=1 to run the signed repository container validation\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:48.483761643Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageSignedRepository",
+      "Output": "--- SKIP: TestNativePackageSignedRepository (0.00s)\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:48.855438103Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageRepositoryDeadlineFixture",
+      "Output": "=== RUN   TestNativePackageRepositoryDeadlineFixture\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:48.855445644Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageRepositoryDeadlineFixture",
+      "Output": "    native_package_repository_output_integration_test.go:92: subprocess fixture only\n"
+    },
+    {
+      "Time": "2026-10-22T23:11:48.85544956Z",
+      "Action": "output",
+      "Package": "github.com/WuKongIM/WuKongIM/scripts",
+      "Test": "TestNativePackageRepositoryDeadlineFixture",
+      "Output": "--- SKIP: TestNativePackageRepositoryDeadlineFixture (0.00s)\n"
+    }
+  ],
+  "output_truncated": false,
+  "elapsed_seconds": 569.093,
+  "output_bytes": 1507298,
+  "cleanup": {
+    "session_id": 2507,
+    "verified": true,
+    "complete": true,
+    "initial_processes": [],
+    "remaining_processes": []
+  }
+}

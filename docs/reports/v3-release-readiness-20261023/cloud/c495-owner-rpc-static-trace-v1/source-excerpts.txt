@@ -1,0 +1,1196 @@
+
+internal/app/wiring.go:392-415
+392	func (a *App) wirePresence() {
+393		if presenceNode, ok := a.cluster.(clusterinfra.PresenceNode); ok {
+394			observer := presenceMetricsObserver{metrics: a.metrics}
+395			recoveryNode, canRecover := a.cluster.(clusterinfra.PresenceRecoveryNode)
+396			directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID(), RequireRecovery: canRecover})
+397			a.presenceDirectory = directory
+398			authority := clusterinfra.NewPresenceDirectoryAuthority(directory)
+399			ownerActions := presenceOwnerActions{local: a.online}
+400			ownerBootID := newOwnerBootID()
+401			ownerReader := presence.NewOwnerRecovery(a.online, presenceNode.NodeID(), ownerBootID, func(target presence.RouteTarget) error {
+402				return clusterinfra.ValidatePresenceTarget(presenceNode, target)
+403			})
+404			if canRecover {
+405				authority.SetRecovery(presence.NewAuthorityRecovery(directory, clusterinfra.NewPresenceRecoveryOwners(recoveryNode, ownerReader)))
+406			}
+407			client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
+408			client.SetLocalOwner(ownerActions)
+409			if a.metrics != nil {
+410				client.SetEndpointLookupObserver(observer)
+411			}
+412			a.presenceAuthorityClient = client
+413			adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, OwnerRoutes: ownerReader, Logger: a.logger.Named("node")})
+414			presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceAuthorityRPC))
+415			presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceOwnerRPC))
+
+internal/usecase/presence/owner_recovery.go:43-68
+43	// ReadOwnerRoutes rechecks the current authority around a bounded active-route read.
+44	func (r *OwnerRecovery) ReadOwnerRoutes(ctx context.Context, target RouteTarget, uids []string) (OwnerRouteSnapshot, error) {
+45		if err := ctx.Err(); err != nil {
+46			return OwnerRouteSnapshot{}, err
+47		}
+48		if r == nil || r.local == nil || r.validate == nil || r.nodeID == 0 || r.bootID == 0 || len(uids) > authority.RecoveryBatchSize {
+49			return OwnerRouteSnapshot{}, authority.ErrRouteNotReady
+50		}
+51		if err := r.validate(target); err != nil {
+52			return OwnerRouteSnapshot{}, err
+53		}
+54		rows, complete := r.local.ActiveRoutesByUIDs(uids, 4096)
+55		if !complete {
+56			return OwnerRouteSnapshot{}, authority.ErrRouteNotReady
+57		}
+58		result := OwnerRouteSnapshot{OwnerNodeID: r.nodeID, OwnerBootID: r.bootID, Routes: make([]Route, 0, len(rows))}
+59		for _, row := range rows {
+60			if row.OwnerNodeID != r.nodeID || row.OwnerBootID != r.bootID || row.HashSlot != target.HashSlot {
+61				return OwnerRouteSnapshot{}, authority.ErrStaleRoute
+62			}
+63			result.Routes = append(result.Routes, routeFromOwnerRoute(row))
+64		}
+65		if err := r.validate(target); err != nil {
+66			return OwnerRouteSnapshot{}, err
+67		}
+68		return result, nil
+
+internal/usecase/presence/owner_recovery.go:99-126
+99	// ReadOwnerRoutesByTargets preserves each target's fence and the owner boot
+100	// identity while limiting the entire response to 4,096 active route rows.
+101	func (r *OwnerRecovery) ReadOwnerRoutesByTargets(ctx context.Context, groups []EndpointLookupGroup) []OwnerRouteResult {
+102		results := make([]OwnerRouteResult, len(groups))
+103		if !ValidOwnerRecoveryPage(groups) || r == nil || r.validate == nil {
+104			for i := range results {
+105				results[i].Err = authority.ErrRouteNotReady
+106			}
+107			return results
+108		}
+109		total := 0
+110		for i, group := range groups {
+111			results[i].Snapshot, results[i].Err = r.ReadOwnerRoutes(ctx, group.Target, group.UIDs)
+112			total += len(results[i].Snapshot.Routes)
+113			if total > 4096 {
+114				results[i] = OwnerRouteResult{Err: authority.ErrRouteNotReady}
+115			}
+116		}
+117		// A later target read may overlap a Slot movement. Revalidate earlier groups
+118		// too, retaining valid siblings instead of failing the whole page.
+119		for i, group := range groups {
+120			if results[i].Err == nil {
+121				if err := r.validate(group.Target); err != nil {
+122					results[i] = OwnerRouteResult{Err: err}
+123				}
+124			}
+125		}
+126		return results
+
+internal/runtime/online/recovery.go:3-29
+3	// ActiveRoutesByUIDs reads only indexed active routes for a bounded UID batch.
+4	// The complete flag is false on output saturation; partial rows cannot prove offline.
+5	func (r *Registry) ActiveRoutesByUIDs(uids []string, limit int) ([]OwnerRoute, bool) {
+6		if r == nil || limit <= 0 || len(uids) > 512 {
+7			return nil, false
+8		}
+9		var routes []OwnerRoute
+10		for i := range r.shards {
+11			shard := &r.shards[i]
+12			shard.mu.RLock()
+13			for _, uid := range uids {
+14				for id := range shard.activeByUID[uid] {
+15					session, ok := shard.bySession[id]
+16					if !ok || session.State != RouteStateActive {
+17						continue
+18					}
+19					if len(routes) == limit {
+20						shard.mu.RUnlock()
+21						return nil, false
+22					}
+23					routes = append(routes, session.Route)
+24				}
+25			}
+26			shard.mu.RUnlock()
+27		}
+28		return routes, true
+29	}
+
+internal/runtime/online/registry.go:8-22
+8	const defaultShardCount = 32
+9	
+10	// Registry stores owner-local gateway session routes in sharded indexes.
+11	type Registry struct {
+12		shards         []registryShard
+13		nextDrainShard atomic.Uint64
+14	}
+15	
+16	type registryShard struct {
+17		mu        sync.RWMutex
+18		bySession map[uint64]LocalSession
+19		// activeByUID supports bounded reconstruction without scanning every session.
+20		activeByUID map[string]map[uint64]struct{}
+21		dirtyIDs    map[uint64]struct{}
+22		dirtyOrder  []uint64
+
+internal/runtime/online/registry.go:267-269
+267	func (r *Registry) sessionShard(sessionID uint64) *registryShard {
+268		return &r.shards[sessionID%uint64(len(r.shards))]
+269	}
+
+internal/infra/cluster/presence_recovery.go:59-75
+59	func (r *PresenceRecoveryOwners) RecoverRoutesByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
+60		results := make([]presence.EndpointLookupResult, len(groups))
+61		fail := func(err error) []presence.EndpointLookupResult {
+62			for i := range results {
+63				results[i] = presence.EndpointLookupResult{Err: err}
+64			}
+65			return results
+66		}
+67		if r == nil || r.node == nil || r.local == nil || !presence.ValidOwnerRecoveryPage(groups) {
+68			return fail(authority.ErrRouteNotReady)
+69		}
+70		select {
+71		case r.admission <- struct{}{}:
+72		case <-ctx.Done():
+73			return fail(ctx.Err())
+74		}
+75		defer func() { <-r.admission }()
+
+internal/infra/cluster/presence_recovery.go:95-119
+95		before, err := r.node.LocalControllerSnapshot(ctx)
+96		if err != nil {
+97			return fail(authority.ErrRouteNotReady)
+98		}
+99		nodes := recoveryOwnerNodes(before)
+100		if len(nodes) == 0 || len(nodes) > 256 {
+101			return fail(authority.ErrRouteNotReady)
+102		}
+103		total := 0
+104		for _, node := range nodes {
+105			readCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+106			snapshots, readErr := r.readOwnerPage(readCtx, node.NodeID, active)
+107			cancel()
+108			if err := ctx.Err(); err != nil {
+109				return fail(err)
+110			}
+111			if readErr != nil {
+112				// Query stale members too: a reachable ingress may still own sessions.
+113				// Only unavailable members with expired/down Controller health may be omitted.
+114				if (node.Health.Freshness == control.NodeHealthStale || node.Health.Status == control.NodeDown) &&
+115					(errors.Is(readErr, context.DeadlineExceeded) || errors.Is(readErr, transport.ErrTimeout) || errors.Is(readErr, transport.ErrDialFailed) || errors.Is(readErr, transport.ErrNodeNotFound)) {
+116					continue
+117				}
+118				return fail(authority.ErrRouteNotReady)
+119			}
+
+internal/infra/cluster/presence_recovery.go:161-196
+161		after, err := r.node.LocalControllerSnapshot(ctx)
+162		if err != nil || !sameRecoveryOwners(nodes, recoveryOwnerNodes(after)) {
+163			return fail(authority.ErrRouteNotReady)
+164		}
+165		for _, i := range indexes {
+166			if err := ValidatePresenceTarget(r.node, groups[i].Target); err != nil {
+167				results[i] = presence.EndpointLookupResult{Err: err}
+168			}
+169		}
+170		return results
+171	}
+172	
+173	// readOwnerPage keeps operation 9 for singleton readers and uses operation 10
+174	// for coalesced reads. Unsupported batch peers stay explicitly unavailable.
+175	func (r *PresenceRecoveryOwners) readOwnerPage(ctx context.Context, node uint64, groups []presence.EndpointLookupGroup) ([]presence.OwnerRouteResult, error) {
+176		if len(groups) == 1 {
+177			var snapshot presence.OwnerRouteSnapshot
+178			var err error
+179			if node == r.node.NodeID() {
+180				snapshot, err = r.local.ReadOwnerRoutes(ctx, groups[0].Target, groups[0].UIDs)
+181			} else {
+182				snapshot, err = r.remote.ReadOwnerRoutes(ctx, node, groups[0].Target, groups[0].UIDs)
+183			}
+184			if err != nil {
+185				return nil, err
+186			}
+187			return []presence.OwnerRouteResult{{Snapshot: snapshot}}, nil
+188		}
+189		if node == r.node.NodeID() {
+190			batch, ok := r.local.(presence.OwnerRouteBatchReader)
+191			if !ok {
+192				return nil, authority.ErrRouteNotReady
+193			}
+194			return batch.ReadOwnerRoutesByTargets(ctx, groups), nil
+195		}
+196		return r.remote.ReadOwnerRoutesByTargets(ctx, node, groups)
+
+internal/access/node/presence_owner_recovery.go:15-48
+15	func (a *Adapter) handleOwnerRoutes(ctx context.Context, req presenceRPCRequest) ([]byte, error) {
+16		var snapshot presence.OwnerRouteSnapshot
+17		var err error
+18		if a == nil || a.ownerRoutes == nil || len(req.EndpointGroups) != 1 || len(req.EndpointGroups[0].UIDs) > authority.RecoveryBatchSize {
+19			err = authority.ErrRouteNotReady
+20		} else {
+21			group := req.EndpointGroups[0]
+22			snapshot, err = a.ownerRoutes.ReadOwnerRoutes(ctx, group.Target, group.UIDs)
+23		}
+24		if len(snapshot.Routes) > maxPresenceRPCCollectionLen {
+25			snapshot = presence.OwnerRouteSnapshot{}
+26			err = authority.ErrRouteNotReady
+27		}
+28		dst := append([]byte(nil), ownerRoutesMagic...)
+29		dst = appendString(dst, presenceRPCStatusForError(err))
+30		dst = appendUvarint(dst, snapshot.OwnerNodeID)
+31		dst = appendUvarint(dst, snapshot.OwnerBootID)
+32		return appendPresenceRoutes(dst, snapshot.Routes), nil
+33	}
+34	
+35	// ReadOwnerRoutes obtains one complete active-route page from an exact owner.
+36	func (c *Client) ReadOwnerRoutes(ctx context.Context, owner uint64, target presence.RouteTarget, uids []string) (presence.OwnerRouteSnapshot, error) {
+37		if c == nil || c.node == nil || owner == 0 || len(uids) > authority.RecoveryBatchSize {
+38			return presence.OwnerRouteSnapshot{}, authority.ErrRouteNotReady
+39		}
+40		body, err := encodePresenceRPCRequestBinary(presenceRPCRequest{Op: presenceOpReadOwnerRoutes, EndpointGroups: []presence.EndpointLookupGroup{{Target: target, UIDs: uids}}})
+41		if err != nil {
+42			return presence.OwnerRouteSnapshot{}, err
+43		}
+44		reply, err := c.node.CallRPC(ctx, owner, PresenceOwnerRPCServiceID, body)
+45		if err != nil {
+46			return presence.OwnerRouteSnapshot{}, err
+47		}
+48		return decodeOwnerRoutes(reply)
+
+internal/access/node/presence_owner_recovery_batch.go:15-71
+15	func (a *Adapter) handleOwnerRoutesByTargets(ctx context.Context, req presenceRPCRequest) ([]byte, error) {
+16		if !presence.ValidOwnerRecoveryPage(req.EndpointGroups) {
+17			return nil, authority.ErrRouteNotReady
+18		}
+19		results := make([]presence.OwnerRouteResult, len(req.EndpointGroups))
+20		var reader presence.OwnerRouteBatchReader
+21		if a != nil {
+22			reader, _ = a.ownerRoutes.(presence.OwnerRouteBatchReader)
+23		}
+24		if reader == nil {
+25			for i := range results {
+26				results[i].Err = authority.ErrRouteNotReady
+27			}
+28		} else {
+29			results = reader.ReadOwnerRoutesByTargets(ctx, req.EndpointGroups)
+30		}
+31		if len(results) != len(req.EndpointGroups) {
+32			return nil, authority.ErrRouteNotReady
+33		}
+34		total := 0
+35		dst := append([]byte(nil), ownerRoutesBatchMagic...)
+36		dst = appendUvarint(dst, uint64(len(results)))
+37		for _, result := range results {
+38			total += len(result.Snapshot.Routes)
+39			if total > 4096 {
+40				return nil, authority.ErrRouteNotReady
+41			}
+42			dst = appendString(dst, presenceRPCStatusForError(result.Err))
+43			dst = appendUvarint(dst, result.Snapshot.OwnerNodeID)
+44			dst = appendUvarint(dst, result.Snapshot.OwnerBootID)
+45			dst = appendPresenceRoutes(dst, result.Snapshot.Routes)
+46		}
+47		return dst, nil
+48	}
+49	
+50	// ReadOwnerRoutesByTargets performs one owner RPC for a bounded multi-Slot page.
+51	// Unsupported or malformed replies fail explicitly; they never become offline proof.
+52	func (c *Client) ReadOwnerRoutesByTargets(ctx context.Context, owner uint64, groups []presence.EndpointLookupGroup) ([]presence.OwnerRouteResult, error) {
+53		if c == nil || c.node == nil || owner == 0 || !presence.ValidOwnerRecoveryPage(groups) {
+54			return nil, authority.ErrRouteNotReady
+55		}
+56		body, err := encodePresenceRPCRequestBinary(presenceRPCRequest{Op: presenceOpReadOwnerRoutesByTargets, EndpointGroups: groups})
+57		if err != nil {
+58			return nil, err
+59		}
+60		reply, err := c.node.CallRPC(ctx, owner, PresenceOwnerRPCServiceID, body)
+61		if err != nil {
+62			return nil, err
+63		}
+64		results, err := decodeOwnerRoutesByTargets(reply)
+65		if err != nil {
+66			return nil, err
+67		}
+68		if len(results) != len(groups) {
+69			return nil, fmt.Errorf("internal/access/node: misaligned owner route results")
+70		}
+71		return results, nil
+
+internal/access/node/presence_rpc.go:536-552
+536	// HandlePresenceOwnerRPC handles one encoded presence owner-action RPC payload.
+537	func (a *Adapter) HandlePresenceOwnerRPC(ctx context.Context, payload []byte) ([]byte, error) {
+538		req, err := decodePresenceRPCRequest(payload)
+539		if err != nil {
+540			a.rpcLogger().Warn("presence owner rpc decode failed",
+541				wklog.Event("internal.access.node.presence_owner_decode_failed"),
+542				wklog.Int("payloadBytes", len(payload)),
+543				wklog.Error(err),
+544			)
+545			return nil, err
+546		}
+547		if req.Op == presenceOpReadOwnerRoutesByTargets {
+548			return a.handleOwnerRoutesByTargets(ctx, req)
+549		}
+550		if req.Op == presenceOpReadOwnerRoutes {
+551			return a.handleOwnerRoutes(ctx, req)
+552		}
+
+pkg/cluster/node.go:470-475
+470	// RouteHashSlot routes hashSlot using the currently installed route snapshot.
+471	func (n *Node) RouteHashSlot(hashSlot uint16) (Route, error) {
+472		if err := n.ensureForeground(); err != nil {
+473			return Route{}, err
+474		}
+475		return n.routeWithAuthorityEpoch(convertRoute(n.router.RouteHashSlot(hashSlot)))
+
+pkg/cluster/node.go:547-565
+547	func (n *Node) CallRPC(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
+548		if err := ctxErr(ctx); err != nil {
+549			return nil, err
+550		}
+551		// Restore coordination must keep reaching peer nodes after Controller has
+552		// fenced foreground traffic. The restore handler independently validates
+553		// the durable coordinator, phase, topology, and per-Slot attempt fences.
+554		if err := n.ensureForeground(); err != nil &&
+555			!(err == ErrMaintenance &&
+556				serviceID == clusternet.RPCScheduledBackupRestore) {
+557			return nil, err
+558		}
+559		n.mu.RLock()
+560		client := n.transportClient
+561		n.mu.RUnlock()
+562		if client == nil {
+563			return nil, ErrNotStarted
+564		}
+565		return client.Call(ctx, nodeID, serviceID, payload)
+
+pkg/cluster/node.go:791-798
+791	func (n *Node) routeWithAuthorityEpoch(route Route, err error) (Route, error) {
+792		if err != nil || n == nil {
+793			return route, err
+794		}
+795		n.mu.RLock()
+796		route.AuthorityEpoch = n.routeAuthorityEpochs[route.HashSlot]
+797		n.mu.RUnlock()
+798		return route, nil
+
+pkg/cluster/routing/router.go:43-48
+43	// Table returns the current immutable route table pointer.
+44	func (r *Router) Table() *Table {
+45		if r == nil {
+46			return nil
+47		}
+48		return r.current.Load()
+
+pkg/cluster/routing/router.go:155-162
+155	// RouteHashSlot routes hashSlot through the current table.
+156	func (r *Router) RouteHashSlot(hashSlot uint16) (Route, error) {
+157		table := r.Table()
+158		if table == nil {
+159			return Route{}, ErrRouteNotReady
+160		}
+161		return table.routeHashSlot(hashSlot)
+162	}
+
+pkg/cluster/routing/table.go:176-204
+176	func (t *Table) routeHashSlot(hashSlot uint16) (Route, error) {
+177		// Keep the legacy full-route path direct. Calling the scalar hot-path helper
+178		// here adds an AuthorityRoute copy and a non-inlined frame to every legacy
+179		// RouteKey fallback, which is still used during rolling upgrades.
+180		if t == nil || len(t.HashToSlot) == 0 {
+181			return Route{}, ErrRouteNotReady
+182		}
+183		if int(hashSlot) >= len(t.HashToSlot) {
+184			return Route{}, fmt.Errorf("%w: hash slot %d out of range", ErrRouteNotReady, hashSlot)
+185		}
+186		slotID := t.HashToSlot[int(hashSlot)]
+187		if slotID == 0 {
+188			return Route{}, ErrRouteNotReady
+189		}
+190		leader := t.SlotLeaders[slotID]
+191		if leader == 0 {
+192			return Route{}, ErrNoSlotLeader
+193		}
+194		return Route{
+195			HashSlot:        hashSlot,
+196			SlotID:          slotID,
+197			Leader:          leader,
+198			LeaderTerm:      t.SlotLeaderTerms[slotID],
+199			ConfigEpoch:     t.SlotConfigEpochs[slotID],
+200			PreferredLeader: t.SlotPreferredLeaders[slotID],
+201			Peers:           append([]uint64(nil), t.SlotPeers[slotID]...),
+202			Revision:        t.Revision,
+203		}, nil
+204	}
+
+pkg/cluster/net/transport.go:13-20
+13	const defaultTransportQueueSize = 4096
+14	const defaultTransportPoolSize = 16
+15	const defaultTransportWriteBatchMaxWait time.Duration = 0
+16	const defaultTransportServiceConcurrency = 128
+17	const defaultTransportForegroundWriteServiceConcurrency = 512
+18	const orderedRaftServiceConcurrency = 1
+19	const defaultTransportServiceQueueSize = 4096
+20	const defaultTransportServiceMaxQueueBytes = 64 << 20
+
+pkg/cluster/net/transport.go:146-154
+146		client, err := transport.NewClient(transport.ClientConfig{
+147			NodeID:         transport.NodeID(cfg.NodeID),
+148			RequestBudgets: true,
+149			Discovery:      discovery,
+150			PoolSize:       cfg.PoolSize,
+151			DialTimeout:    cfg.DialTimeout,
+152			Limits:         limits,
+153			Observer:       observer,
+154		})
+
+pkg/cluster/net/transport.go:172-187
+172	// Call invokes serviceID on nodeID.
+173	func (c *TransportClient) Call(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
+174		return c.CallShard(ctx, nodeID, serviceID, serviceShardKey(serviceID), payload)
+175	}
+176	
+177	// CallOwned invokes serviceID on nodeID and transfers payload ownership.
+178	func (c *TransportClient) CallOwned(ctx context.Context, nodeID uint64, serviceID uint8, payload transport.OwnedBuffer) ([]byte, error) {
+179		return c.CallShardOwned(ctx, nodeID, serviceID, serviceShardKey(serviceID), payload)
+180	}
+181	
+182	// CallShard invokes serviceID on nodeID using shardKey for connection selection.
+183	func (c *TransportClient) CallShard(ctx context.Context, nodeID uint64, serviceID uint8, shardKey uint64, payload []byte) ([]byte, error) {
+184		// gofail: var wkClusterNetCallShardFault string
+185		// if err := gofailClusterNetServiceFault(wkClusterNetCallShardFault, serviceID); err != nil { return nil, err }
+186		response, err := c.client.Call(ctx, transport.NodeID(nodeID), shardKey, servicePriority(serviceID), uint16(serviceID), payload)
+187		return response, translateTransportCallError(nodeID, serviceID, err)
+
+pkg/cluster/net/transport.go:259-283
+259	func serviceShardKey(serviceID uint8) uint64 {
+260		switch serviceID {
+261		case RPCChannelAppend, RPCChannelAppendBatch:
+262			return 0
+263		case RPCChannelPull, RPCChannelPullBatch:
+264			return 1
+265		case RPCChannelAck, RPCChannelPullHint, RPCChannelPullHintBatch, RPCChannelNotify:
+266			return 2
+267		default:
+268			return uint64(serviceID) + 3
+269		}
+270	}
+271	
+272	func servicePriority(serviceID uint8) transport.Priority {
+273		switch serviceID {
+274		case MsgSlotRaft, MsgSlotRaftBatch, RPCControlRaft:
+275			return transport.PriorityRaft
+276		case RPCChannelPull, RPCChannelPullBatch:
+277			return transport.PriorityBulk
+278		case RPCChannelAck, RPCChannelPullHint, RPCChannelPullHintBatch, RPCChannelNotify,
+279			RPCSlotForwardPropose, RPCControlStateSync, RPCControlReportNode, RPCControlReportSlots, RPCControlTaskResult, RPCControlWrite:
+280			return transport.PriorityControl
+281		default:
+282			return transport.PriorityRPC
+283		}
+
+pkg/cluster/net/transport.go:322-358
+322	func (s *TransportServer) serviceOptions(serviceID uint8) transport.ServiceOptions {
+323		cfg := s.cfg.Service
+324		if isOrderedRaftService(serviceID) {
+325			// Each Raft sender uses one stable peer connection. Serial execution on
+326			// the receiver preserves that connection's Append-before-Heartbeat order;
+327			// concurrent handlers could otherwise commit beyond the follower log.
+328			cfg.Concurrency = orderedRaftServiceConcurrency
+329		} else if isForegroundChannelMutationService(serviceID) && cfg.Concurrency <= 0 {
+330			cfg.Concurrency = defaultTransportForegroundWriteServiceConcurrency
+331		}
+332		opts := normalizeTransportServiceOptions(cfg, s.cfg.MaxPayload)
+333		opts.Alias = transportServiceAlias(serviceID)
+334		opts.QueueTimeout = 5 * time.Second
+335		if opts.Timeout == 0 {
+336			opts.Timeout = 30 * time.Second
+337		}
+338		if s.cfg.Service.Timeout == 0 {
+339			switch serviceID {
+340			case RPCOpsMCP:
+341				// CPU capture permits 30s plus authorization, startup and analysis.
+342				opts.Timeout = time.Minute
+343			case RPCScheduledBackupMessages, RPCScheduledBackupSlot, RPCScheduledBackupRestore:
+344				// These RPCs stream complete snapshots or restore stages. Backup and
+345				// restore jobs permit up to 48h; rate limiting may span many minutes.
+346				// Recovery keeps its independent context after the job deadline.
+347				opts.Timeout = 48 * time.Hour
+348			case RPCScheduledBackupRepositoryProbe:
+349				opts.Timeout = 5 * time.Minute
+350			}
+351		}
+352		// Mutations and mixed-purpose services keep running after caller cancellation;
+353		// these read-only services may cooperatively stop once their caller is gone.
+354		switch serviceID {
+355		case RPCChannelLastVisible, RPCChannelConversationHeads, RPCChannelCommittedReads, RPCSlotStatus, RPCNodeSendPermissions, RPCSlotMQTTMetadata, RPCChannelMQTTConsumerRead, RPCChannelWillReceipt, RPCChannelMQTTOriginals:
+356			opts.CancelRunning = true
+357		}
+358		return opts
+
+pkg/cluster/net/transport.go:416-432
+416	func normalizeTransportServiceOptions(cfg TransportServiceConfig, maxPayload int) transport.ServiceOptions {
+417		if cfg.Concurrency <= 0 {
+418			cfg.Concurrency = defaultTransportServiceConcurrency
+419		}
+420		if cfg.QueueSize <= 0 {
+421			cfg.QueueSize = defaultTransportServiceQueueSize
+422		}
+423		if cfg.MaxQueueBytes <= 0 {
+424			cfg.MaxQueueBytes = defaultTransportServiceMaxQueueBytes
+425		}
+426		return transport.ServiceOptions{
+427			Concurrency:   cfg.Concurrency,
+428			QueueSize:     cfg.QueueSize,
+429			MaxQueueBytes: cfg.MaxQueueBytes,
+430			Timeout:       cfg.Timeout,
+431			MaxPayload:    maxPayload,
+432		}
+
+pkg/transport/server.go:93-116
+93		executor, err := s.serviceExecutorLocked(opts.Concurrency)
+94		if err != nil {
+95			return err
+96		}
+97		s.services[serviceID] = rpc.NewServiceWithExecutor(serviceID, handler, opts, s.cfg.Observer, executor)
+98		return nil
+99	}
+100	
+101	func (s *Server) serviceExecutorLocked(concurrency int) (*rpc.Executor, error) {
+102		if concurrency <= 0 {
+103			concurrency = 1
+104		}
+105		if s.executor == nil {
+106			executor, err := rpc.NewExecutor(concurrency, s.cfg.Observer)
+107			if err != nil {
+108				return nil, err
+109			}
+110			s.executor = executor
+111			s.serviceConcurrency = concurrency
+112			return executor, nil
+113		}
+114		s.serviceConcurrency += concurrency
+115		s.executor.Tune(s.serviceConcurrency)
+116		return s.executor, nil
+
+pkg/transport/server.go:234-247
+234	func (s *Server) dispatch(ctx context.Context, inbound conn.Inbound) {
+235		switch inbound.Kind {
+236		case core.FrameKindData, core.FrameKindNotify:
+237			service := s.service(inbound.ServiceID)
+238			if service == nil {
+239				inbound.Payload.Release()
+240				return
+241			}
+242			_ = service.Enqueue(rpc.Request{Payload: inbound.Payload})
+243		case core.FrameKindRPCCancel:
+244			inbound.Payload.Release()
+245			inbound.Conn.CancelInbound(inbound.RequestID)
+246		case core.FrameKindRPCRequest, core.FrameKindRPCBudgetRequest:
+247			s.dispatchRPCRequest(ctx, inbound)
+
+pkg/transport/server.go:276-310
+276		requestCtx, finish, err := inbound.Conn.TrackInbound(inbound.RequestID, time.Duration(inbound.BudgetMillis)*time.Millisecond)
+277		if err != nil {
+278			inbound.Payload.Release()
+279			s.sendRPCError(ctx, inbound, err)
+280			return
+281		}
+282		// Encode borrowed handler bytes into an owned wire buffer before the callback returns.
+283		respond := func(resp rpc.Response) {
+284			select {
+285			case <-requestCtx.Done():
+286				return
+287			case <-inbound.Conn.Done():
+288				return
+289			case <-s.ctx.Done():
+290				return
+291			default:
+292			}
+293			status := wire.ResponseOK
+294			payload := resp.Payload
+295			if resp.Err != nil {
+296				status = responseErrorStatus(resp.Err)
+297				payload = []byte(resp.Err.Error())
+298			}
+299			_ = inbound.Conn.Send(ctx, conn.Outbound{
+300				Kind:      core.FrameKindRPCResponse,
+301				Priority:  inbound.Priority,
+302				ServiceID: inbound.ServiceID,
+303				RequestID: inbound.RequestID,
+304				Payload:   conn.EncodeRPCResponse(status, payload),
+305			})
+306		}
+307	
+308		if err := service.Enqueue(rpc.Request{Context: requestCtx, Finish: finish, Payload: inbound.Payload, RespondBorrowed: respond}); err != nil {
+309			finish()
+310			s.sendRPCError(ctx, inbound, err)
+
+pkg/transport/client.go:109-124
+109		peerConn, err := c.peers.Acquire(ctx, nodeID, shardKey)
+110		if err != nil {
+111			payload.Release()
+112			return nil, err
+113		}
+114		if c.cfg.RequestBudgets {
+115			if err := peerConn.NegotiateRequestBudgets(ctx); err != nil {
+116				payload.Release()
+117				return nil, err
+118			}
+119		}
+120		return peerConn.Call(ctx, conn.Outbound{
+121			Priority:  pri,
+122			ServiceID: serviceID,
+123			Payload:   payload,
+124		})
+
+pkg/transport/internal/conn/conn.go:185-221
+185	// Call sends an RPC request and waits for its response or terminal cancellation.
+186	func (c *Conn) Call(ctx context.Context, outbound Outbound) ([]byte, error) {
+187		requestID := c.nextRequestID.Add(1)
+188		outbound.Kind = core.FrameKindRPCRequest
+189		if c.capability.Load() == 2 && outbound.ServiceID != wire.CapabilityServiceID {
+190			outbound.Kind = core.FrameKindRPCBudgetRequest
+191		}
+192		outbound.RequestID = requestID
+193		outbound.writeCtx = ctx
+194	
+195		respCh := make(chan rpc.Response, 1)
+196		c.pending.Store(requestID, respCh)
+197		c.observePendingRPC("ok")
+198		if err := c.Send(ctx, outbound); err != nil {
+199			c.pending.Delete(requestID)
+200			c.observePendingRPC("ok")
+201			if errors.Is(err, context.Canceled) {
+202				return nil, core.ErrCanceled
+203			}
+204			return nil, err
+205		}
+206	
+207		select {
+208		case resp := <-respCh:
+209			return resp.Payload, resp.Err
+210		case <-ctx.Done():
+211			if outbound.Kind == core.FrameKindRPCBudgetRequest {
+212				// Best effort: a full/failed connection cannot reliably deliver cancellation;
+213				// the propagated budget still bounds queued work on the receiver.
+214				_ = c.Send(c.ctx, Outbound{Kind: core.FrameKindRPCCancel, Priority: core.PriorityControl, ServiceID: outbound.ServiceID, RequestID: requestID})
+215			}
+216			c.pending.Delete(requestID)
+217			c.observePendingRPC("ok")
+218			if errors.Is(ctx.Err(), context.Canceled) {
+219				return nil, core.ErrCanceled
+220			}
+221			return nil, ctx.Err()
+
+pkg/transport/internal/conn/conn.go:241-267
+241	func (c *Conn) readLoop() {
+242		defer close(c.readDone)
+243		for {
+244			frame, err := wire.ReadFrame(c.raw, c.cfg.Limits.MaxFrameBodyBytes)
+245			if err != nil {
+246				c.shutdown(err)
+247				return
+248			}
+249			c.observeBytes("received_bytes", frame.Header.Kind, frame.Header.Priority, frame.Body.Len())
+250			if frame.Header.Kind == core.FrameKindRPCResponse {
+251				c.handleRPCResponse(frame)
+252				continue
+253			}
+254			if c.dispatch == nil {
+255				frame.Body.Release()
+256				continue
+257			}
+258			c.dispatch.Dispatch(c.ctx, Inbound{
+259				BudgetMillis: frame.Header.BudgetMillis,
+260				Kind:         frame.Header.Kind,
+261				Priority:     frame.Header.Priority,
+262				ServiceID:    frame.Header.ServiceID,
+263				RequestID:    frame.Header.RequestID,
+264				Payload:      frame.Body,
+265				Conn:         c,
+266			})
+267		}
+
+pkg/transport/internal/conn/conn.go:436-470
+436	func (c *Conn) handleRPCResponse(frame wire.Frame) {
+437		defer frame.Body.Release()
+438	
+439		responseChannel, pending := c.pending.Take(frame.Header.RequestID)
+440		if !pending {
+441			return
+442		}
+443		defer c.observePendingRPC("ok")
+444		body := frame.Body.Bytes()
+445		response := rpc.Response{}
+446		if len(body) > 0 {
+447			status := body[0]
+448			if status != wire.ResponseOK {
+449				code := core.RemoteErrorCodeGeneric
+450				switch status {
+451				case wire.ResponseServiceNotFound:
+452					code = core.RemoteErrorCodeServiceNotFound
+453				case wire.ResponseTimeout:
+454					code = core.RemoteErrorCodeTimeout
+455				case wire.ResponseCanceled:
+456					code = core.RemoteErrorCodeCanceled
+457				case wire.ResponseBusy:
+458					code = core.RemoteErrorCodeBusy
+459				case wire.ResponseStopped:
+460					code = core.RemoteErrorCodeStopped
+461				}
+462				response.Err = core.RemoteError{Code: code, Message: string(body[1:])}
+463			} else {
+464				response.Payload = append([]byte(nil), body[1:]...)
+465			}
+466		}
+467		select {
+468		case responseChannel <- response:
+469		default:
+470		}
+
+pkg/transport/internal/conn/conn.go:522-537
+522	func (o Outbound) toFrame() wire.Frame {
+523		var budget uint32
+524		if o.Kind == core.FrameKindRPCBudgetRequest && o.writeCtx != nil {
+525			if deadline, ok := o.writeCtx.Deadline(); ok {
+526				remaining := time.Until(deadline)
+527				millis := max(int64(1), (int64(remaining)+int64(time.Millisecond)-1)/int64(time.Millisecond))
+528				budget = uint32(min(millis, int64(^uint32(0))))
+529			}
+530		}
+531		return wire.Frame{
+532			Header: wire.Header{
+533				BudgetMillis: budget,
+534				Kind:         o.Kind,
+535				Priority:     o.Priority,
+536				ServiceID:    o.ServiceID,
+537				RequestID:    o.RequestID,
+
+pkg/transport/internal/conn/request_budget.go:65-103
+65	// TrackInbound binds a request budget to this exact connection generation.
+66	// The returned finish function removes tracking and must run on every terminal path.
+67	func (c *Conn) TrackInbound(id uint64, budget time.Duration) (context.Context, func(), error) {
+68		var ctx context.Context
+69		var cancel context.CancelFunc
+70		if budget > 0 {
+71			ctx, cancel = context.WithTimeout(c.ctx, budget)
+72		} else {
+73			ctx, cancel = context.WithCancel(c.ctx)
+74			owner := &inboundQueueContext{Context: ctx, cancelContext: cancel}
+75			ctx, cancel = owner, owner.cancel
+76		}
+77		c.inboundMu.Lock()
+78		if c.ctx.Err() != nil {
+79			c.inboundMu.Unlock()
+80			cancel()
+81			return nil, nil, core.ErrStopped
+82		}
+83		if c.inboundRequests == nil {
+84			c.inboundRequests = make(map[uint64]context.CancelFunc)
+85		}
+86		if _, exists := c.inboundRequests[id]; exists {
+87			c.inboundMu.Unlock()
+88			cancel()
+89			return nil, nil, fmt.Errorf("%w: duplicate request id", core.ErrInvalidFrame)
+90		}
+91		c.inboundRequests[id] = cancel
+92		c.inboundMu.Unlock()
+93		finish := func() { c.inboundMu.Lock(); delete(c.inboundRequests, id); c.inboundMu.Unlock(); cancel() }
+94		return ctx, finish, nil
+95	}
+96	
+97	// CancelInbound affects only a currently tracked request on this connection.
+98	func (c *Conn) CancelInbound(id uint64) {
+99		c.inboundMu.Lock()
+100		cancel := c.inboundRequests[id]
+101		c.inboundMu.Unlock()
+102		if cancel != nil {
+103			cancel()
+
+pkg/transport/internal/rpc/service.go:163-208
+163	// Enqueue transfers payload ownership on success. Failed admission releases the
+164	// payload but leaves error response and Finish responsibility with the caller.
+165	func (s *Service) Enqueue(req Request) error {
+166		payloadLen := req.Payload.Len()
+167		req.retainedBytes = int64(req.Payload.RetainedBytes())
+168		if s.opts.MaxPayload > 0 && payloadLen > s.opts.MaxPayload {
+169			req.Payload.Release()
+170			s.observeAdmissionAndQueue("too_large", payloadLen, s.queueSnapshot())
+171			return core.ErrMsgTooLarge
+172		}
+173		if req.Context == nil {
+174			req.Context = s.ctx
+175		}
+176		s.mu.Lock()
+177		var err error
+178		result := "ok"
+179		switch {
+180		case s.stopped:
+181			err = core.ErrStopped
+182			result = "stopped"
+183		case req.Context.Err() != nil:
+184			err = requestError(req.Context.Err())
+185			result = "canceled"
+186		case s.queuedItems >= s.opts.QueueSize || req.retainedBytes > s.opts.MaxQueueBytes-s.queuedBytes || req.retainedBytes > s.opts.MaxRetainedBytes-s.retainedBytes:
+187			err = core.ErrBusy
+188			result = "busy"
+189		}
+190		if err != nil {
+191			snapshot := s.queueSnapshotLocked()
+192			s.mu.Unlock()
+193			req.Payload.Release()
+194			s.observeAdmissionAndQueue(result, payloadLen, snapshot)
+195			return err
+196		}
+197		entry := &requestEntry{serviceTask: serviceTask{service: s, req: req}, queued: true, enqueuedAt: time.Now()}
+198		entry.req.entry = entry
+199		s.appendLocked(entry)
+200		s.retainedBytes += req.retainedBytes
+201		s.retainedItems++
+202		s.requestWG.Add(1)
+203		// Install under the queue lock so cancellation cannot race past ownership transfer.
+204		entry.watchQueue(s)
+205		snapshot := s.queueSnapshotLocked()
+206		retained := s.retainedEventLocked()
+207		s.mu.Unlock()
+208		s.observe(retained)
+
+pkg/transport/internal/rpc/service.go:247-293
+247	func (s *Service) pump() {
+248		defer s.pumpWG.Done()
+249		for {
+250			if !s.acquireToken() {
+251				return
+252			}
+253			req, ok := s.nextRequest()
+254			if !ok {
+255				s.releaseToken()
+256				return
+257			}
+258			payloadLen := req.Payload.Len()
+259			s.taskWG.Add(1)
+260			// The queue owner survives execution and all terminal callbacks; no
+261			// pooling or reuse can race a queued-expiry callback that already started.
+262			task := &req.entry.serviceTask
+263			for {
+264				err := s.beforeExecution(req)
+265				if err == nil {
+266					err = s.executor.Submit(task)
+267				}
+268				if err == nil {
+269					break
+270				}
+271				if errors.Is(err, core.ErrBusy) && s.waitSubmitRetry() {
+272					continue
+273				}
+274				if errors.Is(err, core.ErrBusy) {
+275					err = core.ErrStopped
+276				}
+277				s.taskWG.Done()
+278				s.releaseToken()
+279				deliver(req, Response{Err: err})
+280				s.releaseRequest(req)
+281				s.observeTask(taskResult(err), payloadLen, 0)
+282				break
+283			}
+284		}
+285	}
+286	
+287	func (s *Service) acquireToken() bool {
+288		select {
+289		case s.tokens <- struct{}{}:
+290			return true
+291		case <-s.ctx.Done():
+292			return false
+293		}
+
+pkg/transport/internal/rpc/service.go:314-370
+314	// beforeExecution preserves the queue budget through shared-executor admission.
+315	func (s *Service) beforeExecution(req Request) error {
+316		if s.ctx.Err() != nil {
+317			return core.ErrStopped
+318		}
+319		if err := req.Context.Err(); err != nil {
+320			return requestError(err)
+321		}
+322		if s.opts.QueueTimeout > 0 && req.entry != nil && time.Since(req.entry.enqueuedAt) >= s.opts.QueueTimeout {
+323			return core.ErrTimeout
+324		}
+325		return nil
+326	}
+327	
+328	func (s *Service) handle(req Request) error {
+329		// Recheck after executor admission: dispatch can race with caller cancellation.
+330		if err := s.beforeExecution(req); err != nil {
+331			deliver(req, Response{Err: err})
+332			return err
+333		}
+334		ctx := s.ctx
+335		if s.opts.CancelRunning {
+336			ctx = req.Context
+337		}
+338		cancel := func() {}
+339		if s.opts.Timeout > 0 {
+340			ctx, cancel = context.WithTimeout(ctx, s.opts.Timeout)
+341		} else if s.opts.CancelRunning && req.Context != s.ctx {
+342			ctx, cancel = context.WithCancel(ctx)
+343		}
+344		defer cancel()
+345		// The execution context already has a cancel function. Reuse it to link
+346		// service shutdown instead of adding a second cancellation context.
+347		if s.opts.CancelRunning && req.Context != s.ctx {
+348			stopService := context.AfterFunc(s.ctx, cancel)
+349			defer stopService()
+350		}
+351	
+352		if req.entry != nil {
+353			s.observe(core.Event{Name: "service_wait", ServiceID: s.ID, ServiceAlias: s.opts.Alias, Result: "ok", Duration: nonNegativeSince(req.entry.enqueuedAt)})
+354		}
+355		resp, err := s.handler(ctx, req.Payload.Bytes())
+356		if ctx.Err() != nil {
+357			err = requestError(ctx.Err())
+358		}
+359		if req.Reply == nil && req.RespondBorrowed == nil {
+360			return err
+361		}
+362	
+363		reply := Response{Payload: resp, Err: err}
+364		if req.RespondBorrowed == nil {
+365			// Asynchronous receivers need a copy that outlives request payload release.
+366			reply.Payload = append([]byte(nil), resp...)
+367		}
+368		// Reply channels are required to be buffered by callers; non-blocking send keeps Stop from
+369		// waiting forever when the caller has abandoned a request. RespondBorrowed runs inline on the worker.
+370		deliver(req, reply)
+
+pkg/transport/internal/rpc/service.go:528-533
+528	func deliver(req Request, resp Response) {
+529		if req.RespondBorrowed != nil {
+530			req.RespondBorrowed(resp)
+531			return
+532		}
+533		trySendResponse(req.Reply, resp)
+
+pkg/transport/internal/rpc/service.go:546-579
+546	func (t *serviceTask) run() {
+547		if t == nil {
+548			return
+549		}
+550		if t.runFunc != nil {
+551			t.runFunc()
+552			return
+553		}
+554		s := t.service
+555		if s == nil {
+556			return
+557		}
+558		// Release after panic recovery has delivered its terminal response.
+559		defer s.releaseRequest(t.req)
+560	
+561		s.changeInflight(1)
+562		payloadLen := t.req.Payload.Len()
+563		started := time.Now()
+564		result := "ok"
+565		defer func() {
+566			if recovered := recover(); recovered != nil {
+567				result = "panic"
+568				deliver(t.req, Response{
+569					Err: fmt.Errorf("transport: service handler panic: %v", recovered),
+570				})
+571			}
+572			s.observeTask(result, payloadLen, nonNegativeSince(started))
+573			s.changeInflight(-1)
+574			s.releaseToken()
+575			s.taskWG.Done()
+576		}()
+577	
+578		err := s.handle(t.req)
+579		result = taskResult(err)
+
+pkg/transport/internal/rpc/executor.go:55-68
+55		var executor *Executor
+56		pool, err := ants.NewPoolWithFuncGeneric[*serviceTask](
+57			capacity,
+58			func(task *serviceTask) {
+59				if task == nil {
+60					return
+61				}
+62				executor.busy.Add(1)
+63				defer executor.busy.Add(-1)
+64				task.run()
+65			},
+66			ants.WithNonblocking(true),
+67			ants.WithDisablePurge(true),
+68			ants.WithPanicHandler(func(recovered any) {
+
+pkg/transport/internal/rpc/executor.go:122-139
+122	// Submit schedules task execution on the service executor.
+123	func (e *Executor) Submit(task *serviceTask) error {
+124		if e == nil || e.pool == nil {
+125			return core.ErrStopped
+126		}
+127	
+128		err := e.pool.Invoke(task)
+129		if err == nil {
+130			return nil
+131		}
+132		if errors.Is(err, ants.ErrPoolOverload) {
+133			e.rejected.Add(1)
+134			return core.ErrBusy
+135		}
+136		if errors.Is(err, ants.ErrPoolClosed) {
+137			return core.ErrStopped
+138		}
+139		return err
+
+pkg/transport/internal/rpc/pending.go:98-122
+98	// Complete removes a pending RPC request and attempts non-blocking response delivery outside the shard lock.
+99	//
+100	// The return value reports whether the id existed and was removed, not whether
+101	// the response was delivered. Delivery is dropped when the caller channel is full.
+102	func (p *PendingTable) Complete(id uint64, resp Response) bool {
+103		ch, ok := p.Take(id)
+104		if !ok {
+105			return false
+106		}
+107		trySend(ch, resp)
+108		return true
+109	}
+110	
+111	// Take removes a request and transfers its response channel to the response reader.
+112	// Missing or canceled requests need no response payload allocation.
+113	func (p *PendingTable) Take(id uint64) (chan Response, bool) {
+114		shard := p.shardFor(id)
+115		shard.mu.Lock()
+116		ch, ok := shard.entries[id]
+117		if ok {
+118			delete(shard.entries, id)
+119			p.count.Add(-1)
+120		}
+121		shard.mu.Unlock()
+122		return ch, ok
+
+pkg/transport/internal/rpc/pending.go:163-168
+163	func trySend(ch chan Response, resp Response) {
+164		select {
+165		case ch <- resp:
+166		default:
+167		}
+168	}
+
+pkg/transport/internal/peer/manager.go:82-121
+82	// Acquire returns the connection slot selected by shardKey for nodeID.
+83	func (m *Manager) Acquire(ctx context.Context, nodeID core.NodeID, shardKey uint64) (*conn.Conn, error) {
+84		if ctx == nil {
+85			ctx = context.Background()
+86		}
+87		if m.cfg.Discovery == nil {
+88			return nil, fmt.Errorf("%w: discovery is required", core.ErrInvalidConfig)
+89		}
+90		slotIndex := int(shardKey % uint64(m.cfg.PoolSize))
+91	
+92		for {
+93			m.mu.Lock()
+94			if m.stopped {
+95				m.mu.Unlock()
+96				return nil, core.ErrStopped
+97			}
+98			peer, slot := m.slotLocked(nodeID, slotIndex)
+99			if slot.conn != nil {
+100				if connDone(slot.conn) {
+101					slot.conn = nil
+102				} else {
+103					c := slot.conn
+104					m.mu.Unlock()
+105					return c, nil
+106				}
+107			}
+108			if m.inDialCooldownLocked(slot) {
+109				err := slot.lastErr
+110				m.mu.Unlock()
+111				return nil, err
+112			}
+113			if slot.dialing {
+114				ready := slot.ready
+115				m.mu.Unlock()
+116				select {
+117				case <-ready:
+118					continue
+119				case <-ctx.Done():
+120					return nil, ctx.Err()
+121				}
+
+pkg/transport/internal/peer/manager.go:268-279
+268		}
+269		raw, err := m.cfg.Dial(ctx, "tcp", addr)
+270		if err != nil {
+271			if isContextError(err) {
+272				return nil, err
+273			}
+274			return nil, fmt.Errorf("%w: %v", core.ErrDialFailed, err)
+275		}
+276		c := conn.New(raw, conn.Config{Limits: m.cfg.Limits, Observer: m.cfg.Observer, NodeID: nodeID}, nil)
+277		c.Start()
+278		return c, nil
+279	}
+
+pkg/transport/internal/sched/scheduler.go:116-159
+116	func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
+117		if err := ctx.Err(); err != nil {
+118			total, lane := s.snapshotQueuePair(item.Priority)
+119			s.observeEnqueue("canceled", item, total, lane)
+120			return err
+121		}
+122		if err := item.Priority.Validate(); err != nil {
+123			total, lane := s.snapshotQueuePair(item.Priority)
+124			s.observeEnqueue("invalid", item, total, lane)
+125			return err
+126		}
+127		if item.Bytes < 0 {
+128			item.Bytes = 0
+129		}
+130	
+131		s.mu.Lock()
+132	
+133		if s.stopped {
+134			snapshot := s.snapshotQueueLocked()
+135			laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
+136			s.mu.Unlock()
+137			s.observeEnqueue("stopped", item, snapshot, laneSnapshot)
+138			return core.ErrStopped
+139		}
+140		if err := ctx.Err(); err != nil {
+141			snapshot := s.snapshotQueueLocked()
+142			laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
+143			s.mu.Unlock()
+144			s.observeEnqueue("canceled", item, snapshot, laneSnapshot)
+145			return err
+146		}
+147		if s.maxItems > 0 && s.queuedItems+1 > s.maxItems {
+148			snapshot := s.snapshotQueueLocked()
+149			laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
+150			s.mu.Unlock()
+151			s.observeEnqueue("full", item, snapshot, laneSnapshot)
+152			return core.ErrQueueFull
+153		}
+154		if s.maxBytes > 0 && s.queuedBytes+queueBytes(item) > s.maxBytes {
+155			snapshot := s.snapshotQueueLocked()
+156			laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
+157			s.mu.Unlock()
+158			s.observeEnqueue("full", item, snapshot, laneSnapshot)
+159			return core.ErrQueueFull
+
+pkg/transport/internal/sched/scheduler.go:169-183
+169				s.queuedItems++
+170				s.queuedBytes += queueBytes(item)
+171				s.queueRevision = core.NextStateRevision()
+172				snapshot := s.snapshotQueueLocked()
+173				laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
+174				s.cond.Signal()
+175				if item.Priority == core.PriorityControl || item.Priority == core.PriorityRaft {
+176					select {
+177					case s.urgentReady <- struct{}{}:
+178					default:
+179					}
+180				}
+181				s.mu.Unlock()
+182				s.observeEnqueue("ok", item, snapshot, laneSnapshot)
+183				return nil

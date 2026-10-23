@@ -1,0 +1,278 @@
+{
+  "schema": "wukongim/canary-proof-static-binding/v1",
+  "source_head": "c4954c6a638080e6a915ecec305a3381f4afd9a0",
+  "source_tree": "98fead03ba0c727dd733f742790e7737327f3942",
+  "clean_before_after": true,
+  "source_files": {
+    "AGENTS.md": {
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    "CONTEXT.md": {
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "bytes": 12160
+    },
+    "internal/app/FLOW.md": {
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "bytes": 12335
+    },
+    "internal/bench/FLOW.md": {
+      "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+      "bytes": 6617
+    },
+    "internal/bench/chatlifecycle/FLOW.md": {
+      "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+      "bytes": 6514
+    },
+    "internal/runtime/presence/FLOW.md": {
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "bytes": 2490
+    },
+    "internal/usecase/presence/FLOW.md": {
+      "sha256": "438ba6664b276dc9b055c14e234b1bcefad55d8f56f649a3779c6df66d780d4e",
+      "bytes": 3192
+    },
+    "internal/infra/cluster/FLOW.md": {
+      "sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+      "bytes": 8612
+    },
+    "internal/runtime/delivery/FLOW.md": {
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+      "bytes": 3273
+    },
+    "internal/runtime/channelappend/FLOW.md": {
+      "sha256": "7ae41e62c0ba2a83051d9199d963e21dc4fd9c471b611b2c5a9224cdbfa689a5",
+      "bytes": 7313
+    },
+    "internal/infra/delivery/FLOW.md": {
+      "sha256": "060a4a2e615f43bc0178d70aa5f069221ec1552379744dcee07c3462b2cd8363",
+      "bytes": 2635
+    },
+    "internal/contracts/onlinedelivery/FLOW.md": {
+      "sha256": "2cc41f85c4c704d69cd888115356a44ef9aab3265a1c72dd0abaef1f62c7b8de",
+      "bytes": 1505
+    },
+    "pkg/cluster/FLOW.md": {
+      "sha256": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971",
+      "bytes": 14273
+    },
+    "internal/runtime/presence/recovery.go": {
+      "sha256": "720c3c84a7a3210fe39dc0354cd0b56a9728e5db5e79edcab6ee720f6fe6ad83",
+      "bytes": 2712
+    },
+    "internal/runtime/presence/directory.go": {
+      "sha256": "b9ad257b4a6e231416d7813639e6225694a126b4d4953e191985171ddcd27900",
+      "bytes": 19192
+    },
+    "internal/usecase/presence/recovery.go": {
+      "sha256": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b",
+      "bytes": 3764
+    },
+    "internal/usecase/presence/recovery_flights.go": {
+      "sha256": "53bb1b4f03152f76bef2e833dc658103f58f334dd38f948f2e2f0de1471cce95",
+      "bytes": 8482
+    },
+    "internal/usecase/presence/lookup.go": {
+      "sha256": "e32b05f35488b83c468789877547e9e8d8b4ea2347f1d842c7e3851c4e0cf13d",
+      "bytes": 2389
+    },
+    "internal/infra/cluster/presence.go": {
+      "sha256": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+      "bytes": 31462
+    },
+    "internal/infra/cluster/presence_directory.go": {
+      "sha256": "fdfc19ceff1b1d51caa4ffa30cb04afbcba3e476fe97bb8d5cf87f9a854e5f35",
+      "bytes": 5410
+    },
+    "internal/infra/delivery/online_presence.go": {
+      "sha256": "3d740d791dafe04b4b4fb184ce27f8fdfcf03250831efb5c28bca55425655f57",
+      "bytes": 2848
+    },
+    "internal/runtime/delivery/runtime.go": {
+      "sha256": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561",
+      "bytes": 41825
+    },
+    "internal/runtime/delivery/plan_queue.go": {
+      "sha256": "47cb7c5ab5492e5755b1aa9e21c7722f55ec6a3a63ff9d7225ecd76360d5d5b1",
+      "bytes": 5371
+    },
+    "internal/runtime/channelappend/recipient.go": {
+      "sha256": "7f0ebb38452dbdc69c209767de2aa882ce45c8706c3f3acb102f2bb1ee77b33b",
+      "bytes": 24264
+    },
+    "internal/app/wiring.go": {
+      "sha256": "e80b950481e6d05ec100616cc7a8db35cc785b42d630a89bbe145c0c81cebc34",
+      "bytes": 55373
+    },
+    "internal/app/delivery_wiring.go": {
+      "sha256": "67c219633b1c65ba9062c03685768dfc993358c35ea0bd977ecab27000ff788b",
+      "bytes": 2666
+    },
+    "internal/bench/chatlifecycle/groups.go": {
+      "sha256": "b94b7a3a107e9b7470603051a15ffba073de718d2ca01dd0ca183fb61727f047",
+      "bytes": 17850
+    },
+    "internal/bench/chatlifecycle/identity.go": {
+      "sha256": "1b33f36e597cd2639ad74e87f9b5e7e60837527be63a6167b74981505a411c78",
+      "bytes": 5843
+    },
+    "internal/bench/chatlifecycle/session.go": {
+      "sha256": "b51382894de7e306c22bb276d493b8bc605d770109103b65c6ebd6bc494b7e05",
+      "bytes": 55019
+    },
+    "internal/bench/chatlifecycle/traffic.go": {
+      "sha256": "a85ae11e153160e91fefd1e01f1007f4882bb2b7f7f2572dae0457012c3d98e6",
+      "bytes": 21490
+    },
+    "internal/bench/chatlifecycle/engine.go": {
+      "sha256": "9b64ff416e105e869acb8921d7928da5517f800fb6c4159873bf8397bc4076ef",
+      "bytes": 158802
+    },
+    "internal/bench/chatlifecycle/defaults.go": {
+      "sha256": "2ee3e9b49ba0921ae02daa01ceef22a1c5b1091217afb007d9df96af8ffa6843",
+      "bytes": 10194
+    },
+    "internal/bench/chatlifecycle/worker_server.go": {
+      "sha256": "456cc0b9f15653ca31d041d26f54bb5964f7cd2dc3a1f6715d341dd309b4b538",
+      "bytes": 60318
+    },
+    "internal/usecase/presence/recovery_test.go": {
+      "sha256": "64e0499567283c8f49dd228c5916b0a87acc26b4b2fca9fdf0a7f6f0bb39d85c",
+      "bytes": 6461
+    },
+    "internal/usecase/presence/uid_flight_integration_test.go": {
+      "sha256": "e00ead21e618278bf16f9195e87298d8a991092f4f78d28ce0cd37f380dc457b",
+      "bytes": 20110
+    },
+    "internal/runtime/delivery/plan_queue_test.go": {
+      "sha256": "1c3aecb86135c6db7a43a8d8a63d7e6e45c66cbf90dfe355af4830bf90f25a68",
+      "bytes": 1403
+    },
+    "pkg/cluster/routing/router.go": {
+      "sha256": "3d9615606be710e781fc0e03337e04750c13402e427011bfc8efddcd715e1ef0",
+      "bytes": 6310
+    },
+    "pkg/cluster/routing/table.go": {
+      "sha256": "33594ee4ffb424f8ac6a5e1711ab2e3ed8f54e20bfc73d0007ef8c305c81616a",
+      "bytes": 10093
+    },
+    "pkg/cluster/net/transport.go": {
+      "sha256": "d0a3d07ecf1220069b9c374af65eaa4ee0b400312da6cfb730391c91be8b9be9",
+      "bytes": 16654
+    },
+    "internal/app/presence_touch.go": {
+      "sha256": "ccba08987836caaaf43971a2e53d53546c99970a0bbae9fa37e1b11812009c26",
+      "bytes": 15124
+    },
+    "internal/app/app.go": {
+      "sha256": "aafcaad13b39360a01c0ae1afe2540f85ffbee2bf986ae8f14b8e148b62f6676",
+      "bytes": 29171
+    },
+    "internal/app/config.go": {
+      "sha256": "abce8a6edbbb55f7b3c46a2a0957400c94cc47221b7b796f1d74727edfdc9c2a",
+      "bytes": 39947
+    },
+    "internal/usecase/presence/activate.go": {
+      "sha256": "fab0361fbfbdd7c6778ca18df0d132a50f548c74381bf617eb6387d226dbec94",
+      "bytes": 1999
+    },
+    "internal/access/node/presence_rpc.go": {
+      "sha256": "cf69cdf31e23c5bd4cd96039e6e4ed451ef4fa82ced1d61d166cd902a6c27b55",
+      "bytes": 36655
+    },
+    "internal/access/node/presence_codec.go": {
+      "sha256": "df012114d828e58d5daffa234e0571ed83c764392fb0cac1a6cffa0f23ca34b7",
+      "bytes": 23496
+    },
+    "internal/access/gateway/FLOW.md": {
+      "sha256": "617a64aafd4d1e60aef670770f2ac22dd7cdfcd537f1f5cb3a00b98218eefb31",
+      "bytes": 4202
+    },
+    "pkg/cluster/node_defaults.go": {
+      "sha256": "8299936cc45ae6647321e5391c54765ccd8d319a110da24805c554ca59cc02e9",
+      "bytes": 24119
+    }
+  },
+  "valid_FLOW_scopes": {
+    "internal/app/FLOW.md": "package",
+    "internal/bench/FLOW.md": "subtree",
+    "internal/bench/chatlifecycle/FLOW.md": "package",
+    "internal/runtime/presence/FLOW.md": "package",
+    "internal/usecase/presence/FLOW.md": "package",
+    "internal/infra/cluster/FLOW.md": "package",
+    "internal/runtime/delivery/FLOW.md": "package",
+    "internal/runtime/channelappend/FLOW.md": "package",
+    "internal/infra/delivery/FLOW.md": "package",
+    "internal/contracts/onlinedelivery/FLOW.md": "package",
+    "pkg/cluster/FLOW.md": "subtree",
+    "internal/access/gateway/FLOW.md": "package"
+  },
+  "no_tests_source_edits_builds_workload_network_DB": true,
+  "private_retained_input_bindings": {
+    "original-distribution-local.yaml": {
+      "sha256": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+      "bytes": 4361,
+      "mtime_ns": 1792707782342840038,
+      "raw_not_published": true
+    },
+    "evidence/slot-convergence.json": {
+      "sha256": "6de55ae2199a9b26b80257f5132f590f65c821e6bf30f93bbad65407621e4322",
+      "bytes": 123748,
+      "mtime_ns": 1792707921287281234,
+      "raw_not_published": true
+    },
+    "report/diagnostic-status.json": {
+      "sha256": "e2996b187621d6491128c54f3e43fe1279d17b627d5baed86b46995aec76af55",
+      "bytes": 8972,
+      "mtime_ns": 1792708170094723164,
+      "raw_not_published": true
+    },
+    "report/worker-evidence.json": {
+      "sha256": "fc8094a2065db8b062d9628fde0d1a96876b14d8937a8f224464573a7ed73cd9",
+      "bytes": 1374,
+      "mtime_ns": 1792708170102772506,
+      "raw_not_published": true
+    },
+    "safe-retained-worker-cuts.json": {
+      "sha256": "d79c4e9a966502efc7f57a40a2fa24788f4ee04bd5c16381234d840a95dc4ba9",
+      "bytes": 10620,
+      "mtime_ns": 1792708271441396362,
+      "raw_not_published": true
+    },
+    "safe-final-evidence-snapshot.json": {
+      "sha256": "0ff713a51ae429eeac2cc846bfdcce195dfe498ae9e2f5cd6dfe4234dcbe05ec",
+      "bytes": 14131,
+      "mtime_ns": 1792708271627786474,
+      "raw_not_published": true
+    },
+    "config/node1.toml": {
+      "sha256": "ff5fe20ce9fb7942d7a7e59c9e5cc160388b6f4664e40d2da813c8e3a976b25d",
+      "bytes": 8841,
+      "mtime_ns": 1792707894050395159,
+      "raw_not_published": true
+    },
+    "config/node2.toml": {
+      "sha256": "de5adcfca4ae05293f05402974499e76558b470fee0a9431fa05905381bdde0e",
+      "bytes": 8841,
+      "mtime_ns": 1792707894060274799,
+      "raw_not_published": true
+    },
+    "config/node3.toml": {
+      "sha256": "0052bc446b21a56ae3eb02eede154b32e1df6c6beb15767c0baa27ff4006b305",
+      "bytes": 8841,
+      "mtime_ns": 1792707894068176353,
+      "raw_not_published": true
+    }
+  },
+  "safe_evidence_gap": {
+    "Generated.Canary_in_worker_cuts": false,
+    "canary_per_roster_online_inventory": false,
+    "per_canary_SENDACK_or_delivery_plan_timestamps": false,
+    "global_online_and_message_totals_are_not_sufficient_to_reconstruct_these": true
+  },
+  "prior_scope": {
+    "name": "c495-owner-rpc-static-trace-v1",
+    "manifest_sha256": "aa623973097c55f19b4ce4eed376488113a97610d55fd72519710dd9266f1fd0",
+    "status": "separately frozen, not copied or modified"
+  }
+}

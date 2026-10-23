@@ -1,0 +1,6 @@
+{
+  "protection": true,
+  "rulesets": true,
+  "review-agent": true,
+  "review-agent-run": true
+}

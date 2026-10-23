@@ -1,0 +1,25 @@
+{
+  "at_utc": "2026-10-22T23:24:59.864810+00:00",
+  "helper_unchanged_sha256": "d371c1712b2de2d72e0d03a322870cf2a9626956c02beaa53f473d35c9a45bed",
+  "watcher_sha256": "516cdfbbb77de8b590d43807e084da4f855620f8aad9d092ed3083ecdaa67204",
+  "watcher_AST": true,
+  "helper_bash_n": 0,
+  "RED": {
+    "methods": 1,
+    "subcases": 5,
+    "failed": 5,
+    "log_sha256": "f7ecd08af199f4f3c05406f1a09e4c7b072c7e08d3d7e6a6fda2aac46540f1e3"
+  },
+  "GREEN": {
+    "test_invocations": 10,
+    "unique_method_bodies": 6,
+    "passed": 10,
+    "log_sha256": "fbedddd61d0ad8d6919828cc184621403b60a0f70a3fc34aba8ae117aff404ef",
+    "concurrent_claim_owner_count": 1,
+    "concurrent_helper_count": 3,
+    "owned_fake_helpers_joined": true
+  },
+  "actual_TCP_or_product_requests": 0,
+  "source_builds": 0,
+  "actual_run_started": false
+}

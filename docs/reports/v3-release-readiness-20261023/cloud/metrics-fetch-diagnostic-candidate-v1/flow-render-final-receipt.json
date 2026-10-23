@@ -1,0 +1,28 @@
+{
+  "name": "flow-render-final",
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "render",
+    "--write-index"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-metrics-fetch-diagnostics",
+  "environment": {
+    "PATH": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin:/usr/local/go/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/tt/.codex/tmp/arg0-macos/codex-arg0wWE2xx:/Users/tt/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/tt/.bun/bin:/Users/tt/.nvm/versions/node/v24.3.0/bin:/Users/tt/.local/bin:/usr/local/include/protoc/bin:/Users/tt/go/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/tt/flutter/flutter/bin:/Users/tt/.cargo/bin:/Applications/\u6781\u7a7a\u95f4.app/Contents/Resources/app.asar.unpacked/bin/platform-tools:/Users/tt/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS",
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "2",
+    "CGO_ENABLED": "0",
+    "GOFLAGS": "-p=1"
+  },
+  "elapsed_seconds": 0.06987941695842892,
+  "exit_status": 0,
+  "max_output_bytes": 1048576,
+  "timeout_seconds": 60,
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "named_check_entry": null
+}

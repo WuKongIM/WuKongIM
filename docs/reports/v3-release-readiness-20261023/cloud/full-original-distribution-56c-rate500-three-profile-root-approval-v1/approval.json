@@ -1,0 +1,53 @@
+{
+  "schema": "wukongim/root-single-local-diagnostic-approval/v1",
+  "at_utc": "2026-10-22T23:34:38.125232+00:00",
+  "approved": true,
+  "invocations": 1,
+  "command": [
+    "python3",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/supervise.py"
+  ],
+  "source_revision": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "source_tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "proposal_manifest_sha256": "0ecf9147f4041154d5ea99dea711450e5588a8272a8feed5a99da94615c45c46",
+  "sampler_manifest_sha256": "83d363a94bcd4b99239371acd6f4cdadd399bfce7eb337e870e0bb98a026afb8",
+  "sampler_independent_review_manifest_sha256": "1d6807c87235f1cd884d7ca71e3556662199da9649fe38f4ac7604f39fa9d460",
+  "sampler_old_findings_closed": 2,
+  "sampler_new_blockers": 0,
+  "root_complete_diff_review": true,
+  "actual_six_static_inputs_hash_verified": [
+    "launcher.sh",
+    "supervise.py",
+    "exact_build_guard.py",
+    "original-distribution-local.yaml",
+    "watchdog.py",
+    "verify-slots.py"
+  ],
+  "candidate_independent_review_findings": 0,
+  "candidate_first_Linux_CI_passed": true,
+  "candidate_merged_as": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "limits": {
+    "total_seconds": 600,
+    "watchdog_TERM": 570,
+    "watchdog_KILL_after": 5,
+    "startup_seconds": 360,
+    "target_traffic_seconds": 120,
+    "lateststop_seconds": 480,
+    "exit7hold_seconds": 90,
+    "first_failure_stop": true
+  },
+  "workload_config_sha256": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+  "profiles_max_requests": 6,
+  "profiles_max_body_bytes": 37748736,
+  "profile_overhead_explicit": true,
+  "performance_or_Linux_acceptance": false,
+  "retry_restart_build_or_DB_query_authorized": false,
+  "paid_cloud_or_release_authorized": false,
+  "required_delivery": [
+    "first grant and total counters",
+    "new closed metrics_fetch failure projection if present",
+    "six private profile hashes and exactsource offline analysis after cleanup",
+    "final whole owned PGID+64 ports zero",
+    "input and primary-source immutability"
+  ]
+}

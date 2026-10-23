@@ -1,0 +1,16 @@
+{
+  "schema": "wukongim/three-node-first-grant-profile-proposal/v3",
+  "v1_manifest_sha256": "4931566fc978e5faccbf15ea9690252cf7bbce32657b9cabac73a955924e3ac8",
+  "v2_manifest_sha256": "a7d12b14e42a2ba98c5dd293e233e3b0e848e19d7a3ebc7d476f079baa1b012a",
+  "helper_sha256": "d371c1712b2de2d72e0d03a322870cf2a9626956c02beaa53f473d35c9a45bed",
+  "watcher_sha256": "c45e678799226994c788034e1c3e90bdaf6d99c26fb3380ac5a2cb6501480481",
+  "watcher_diff_vs_v2_sha256": "e4b4c990f1507adb13b31ed228b13b0421031a68ca0d8455e36bb60acc773976",
+  "maximum_profile_HTTP_requests": 6,
+  "maximum_profile_body_bytes_all_nodes": 37748736,
+  "HTTP_caps_formats_and_timers_unchanged": true,
+  "shared_cancel_budget_seconds": 3,
+  "additional_ownership_snapshots": "during cancellation only; bounded within shared budget",
+  "cleanup_unconfirmed_retained": true,
+  "future_actual_run_requires_root_review": true,
+  "actual_run_started": false
+}

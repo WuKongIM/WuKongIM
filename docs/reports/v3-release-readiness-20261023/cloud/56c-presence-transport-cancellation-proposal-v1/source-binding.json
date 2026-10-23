@@ -1,0 +1,126 @@
+{
+  "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "read_mode": "exact immutable Git blobs; no checkout mutation",
+  "valid_FLOW_scopes": {
+    "pkg/cluster/FLOW.md": "subtree",
+    "internal/access/node/FLOW.md": "package",
+    "internal/infra/cluster/FLOW.md": "package",
+    "internal/usecase/presence/FLOW.md": "package",
+    "internal/runtime/presence/FLOW.md": "package",
+    "internal/runtime/delivery/FLOW.md": "package"
+  },
+  "source_files": {
+    "AGENTS.md": {
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    "pkg/cluster/FLOW.md": {
+      "sha256": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971",
+      "bytes": 14273
+    },
+    "internal/access/node/FLOW.md": {
+      "sha256": "095836bd2e270d9663e1aa33bdb4457d42a7706b0706dc14610e72fc6beb82a7",
+      "bytes": 6088
+    },
+    "internal/infra/cluster/FLOW.md": {
+      "sha256": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+      "bytes": 8612
+    },
+    "internal/usecase/presence/FLOW.md": {
+      "sha256": "438ba6664b276dc9b055c14e234b1bcefad55d8f56f649a3779c6df66d780d4e",
+      "bytes": 3192
+    },
+    "internal/runtime/presence/FLOW.md": {
+      "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+      "bytes": 2490
+    },
+    "internal/runtime/delivery/FLOW.md": {
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+      "bytes": 3273
+    },
+    "pkg/cluster/net/transport.go": {
+      "sha256": "d0a3d07ecf1220069b9c374af65eaa4ee0b400312da6cfb730391c91be8b9be9",
+      "bytes": 16654
+    },
+    "pkg/cluster/net/transport_performance_test.go": {
+      "sha256": "4d4782467c20f3cf17ab5bfd6fb34a08597e7e277e3adcaa6d8897025c7605b8",
+      "bytes": 2164
+    },
+    "pkg/transport/request_budget_integration_test.go": {
+      "sha256": "5d92892f37377444399a4f0974b167e90db2cea61c4f483e256000d122ec248c",
+      "bytes": 12318
+    },
+    "pkg/transport/internal/conn/request_cancel_progress_integration_test.go": {
+      "sha256": "c43f989610e1c9de2d526cb91c9e25eb6cd9046ca027c4b9b2e3d81f59520e5f",
+      "bytes": 1201
+    },
+    "pkg/transport/queue_cancellation_integration_test.go": {
+      "sha256": "6af22a4ed54a3bb08a63a7af49d15beb89630d27e0cc4083e10e738c85f04bbb",
+      "bytes": 1612
+    },
+    "pkg/transport/internal/conn/conn.go": {
+      "sha256": "4385f155f3e7305d51ae1215d1672fb1ab244545c3baf5d5eaef4c42385c8a51",
+      "bytes": 16017
+    },
+    "pkg/transport/internal/conn/request_budget.go": {
+      "sha256": "ea6128deeb3e619b9c85032a8660ae15ae4ab175231cdd0e572efa8b3f769271",
+      "bytes": 3302
+    },
+    "pkg/transport/internal/conn/queue_cancellation.go": {
+      "sha256": "4d531b9d4341564d1a52e2b0737a7e770cf83721cb010f6f5c3e2ffd7626936f",
+      "bytes": 2315
+    },
+    "pkg/transport/internal/rpc/service.go": {
+      "sha256": "d93fe20c2b6ee60bf7fcb9503042b8268ef90c828b821788330d01b74afa1172",
+      "bytes": 16391
+    },
+    "pkg/transport/internal/sched/scheduler.go": {
+      "sha256": "ae60b961a0e69dadf4a263a2371b7a57463c6b1aac219953de8c7626f316cb7a",
+      "bytes": 15700
+    },
+    "pkg/transport/internal/peer/manager.go": {
+      "sha256": "4f89ec54542db83e3d2cb88e585314ee098a5bf70ad053d1406672a105275af4",
+      "bytes": 7803
+    },
+    "pkg/transport/server.go": {
+      "sha256": "595a6283946d6b8eb7a225f9c3fd87722c78cfdd3ed71d33e1c12d26c7edf19a",
+      "bytes": 9854
+    },
+    "pkg/transport/client.go": {
+      "sha256": "37eb6c62c720f19432b2df2e71eec676cdb3dafd7a073b5b745a77c3b39f1604",
+      "bytes": 4914
+    },
+    "pkg/transport/config.go": {
+      "sha256": "e626d0dba425abd057caa17f711fd4e1e1fea75bb42fc814564e9d331de3d79f",
+      "bytes": 3358
+    },
+    "internal/access/node/presence_rpc.go": {
+      "sha256": "cf69cdf31e23c5bd4cd96039e6e4ed451ef4fa82ced1d61d166cd902a6c27b55",
+      "bytes": 36655
+    },
+    "internal/access/node/presence_owner_recovery.go": {
+      "sha256": "f98894ecc89766834c680e39f7eaa2568c3882faa70bf3816c5646081ece212b",
+      "bytes": 3089
+    },
+    "internal/access/node/presence_owner_recovery_batch_test.go": {
+      "sha256": "37363795e9becfd7661862f83291e99ef6308a0d4fdb7c542b1fe61760d181cc",
+      "bytes": 3299
+    },
+    "internal/infra/cluster/presence_recovery.go": {
+      "sha256": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55",
+      "bytes": 8454
+    },
+    "internal/runtime/delivery/runtime.go": {
+      "sha256": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561",
+      "bytes": 41825
+    }
+  },
+  "execution": "design only; no test/build/product/workload/network/probe executed",
+  "prior_frozen_evidence_modified": false,
+  "nested_rule_discovery": {
+    "pkg/transport": [],
+    "pkg/cluster/net": [],
+    "cmd/wkcli": []
+  }
+}

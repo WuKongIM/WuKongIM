@@ -1,0 +1,8 @@
+test_bad_first_frame_prevents_all_later_queries (__main__.FailFast.test_bad_first_frame_prevents_all_later_queries) ... ok
+test_three_valid_same_rows_use_exactly_three_queries (__main__.FailFast.test_three_valid_same_rows_use_exactly_three_queries) ... ok
+test_valid_first_then_bad_second_stops_third (__main__.FailFast.test_valid_first_then_bad_second_stops_third) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 1.613s
+
+OK

@@ -1,0 +1,16 @@
+{
+  "at_utc": "2026-10-22T23:27:08.848881+00:00",
+  "merged_at": "2026-10-22T23:26:45Z",
+  "merge_commit": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "reviewed_head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "merged_branch_tip_contained": true,
+  "worktree_removed": true,
+  "local_branch_deleted": true,
+  "primary_head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "primary_clean": true,
+  "exact_source_clone_preserved": true,
+  "ordinary_merge_no_admin_flag": true,
+  "new_cloud_or_release": false,
+  "GA_NO_GO": true
+}

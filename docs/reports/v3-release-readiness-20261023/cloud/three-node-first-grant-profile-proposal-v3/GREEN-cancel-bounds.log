@@ -1,0 +1,11 @@
+test_term_exit_root_still_kills_observed_ignoreterm_child (cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child) ... {"fixture_mode": "term-exit", "cancel_to_watcher_join_seconds": 0.08093620801810175, "retained_descendants": 3, "remaining_observed_descendants": 0, "descendant_cleanup_confirmed": true, "direct_helpers_joined": true}
+ok
+test_preexited_root_reports_unconfirmed_not_full_cleanup (cancel_descendants_test.CancelDescendants.test_preexited_root_reports_unconfirmed_not_full_cleanup) ... {"fixture_mode": "exit-before-cancel", "cancel_to_watcher_join_seconds": 0.03850483300630003, "retained_descendants": 0, "remaining_observed_descendants": 0, "descendant_cleanup_confirmed": false, "direct_helpers_joined": true}
+ok
+test_three_ignoreterm_roots_and_children_share_kill_budget (cancel_descendants_test.CancelDescendants.test_three_ignoreterm_roots_and_children_share_kill_budget) ... {"fixture_mode": "ignore-term", "cancel_to_watcher_join_seconds": 2.076543208095245, "retained_descendants": 3, "remaining_observed_descendants": 0, "descendant_cleanup_confirmed": true, "direct_helpers_joined": true}
+ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 2.878s
+
+OK

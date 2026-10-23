@@ -1,0 +1,241 @@
+{
+  "source": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "version": "design only",
+  "closed_reasons": [
+    {
+      "reason": "line_limit",
+      "old_error_text": "observation metrics line limit exceeded",
+      "source_lines": [
+        1164,
+        1196
+      ],
+      "failure_guard": ">100000 total lines or existing Scanner64KiB token guard",
+      "valid_control": "same current line/token boundaries; comments/empty lines still count",
+      "test_seam": "real Client.Metrics in-memory plus existing boundary fixtures",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "series_limit",
+      "old_error_text": "observation metrics series cardinality limit exceeded",
+      "source_lines": [
+        1172
+      ],
+      "failure_guard": ">32768 noncomment/nonempty series, including ignored families",
+      "valid_control": "32768 series accepted under other existing guards",
+      "test_seam": "real Client.Metrics in-memory",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "invalid_value",
+      "old_error_text": "observation metrics contains invalid value",
+      "source_lines": [
+        1189
+      ],
+      "failure_guard": "recognized sample ParseFloat failure, NaN, Inf or value<0",
+      "valid_control": "zero and finite nonnegative values remain accepted",
+      "test_seam": "real Client.Metrics in-memory",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "incomplete_metadata_results",
+      "old_error_text": "observation metrics contains incomplete metadata-create results",
+      "source_lines": [
+        1199
+      ],
+      "failure_guard": "meta family present but total result keys!=3",
+      "valid_control": "three existing results; absent family is not newly rejected here",
+      "test_seam": "real Client.Metrics in-memory",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "invalid_sample",
+      "old_error_text": "observation metrics contains invalid sample",
+      "source_lines": [
+        1221,
+        1245
+      ],
+      "failure_guard": "wrong sample field count before/after label token",
+      "valid_control": "existing two-field/no-label and one-value/label forms",
+      "test_seam": "real Client.Metrics in-memory",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "invalid_labels",
+      "old_error_text": "observation metrics contains invalid labels",
+      "source_lines": [
+        1241,
+        1467,
+        1482,
+        1487,
+        1505,
+        1509,
+        1520
+      ],
+      "failure_guard": "existing brace/quote/escape/Unquote/key/value guards",
+      "valid_control": "name/key<=64, label value<=1024 and existing escapes",
+      "test_seam": "real Client.Metrics or pure production helper where filtering prevents reachability",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "invalid_metadata_labels",
+      "old_error_text": "observation metrics contains invalid metadata-create labels",
+      "source_lines": [
+        1325,
+        1330
+      ],
+      "failure_guard": "len(labels)!=2 or missing slot_id/nonempty result",
+      "valid_control": "same two labels with valid source values",
+      "test_seam": "real Client.Metrics in-memory",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "invalid_metadata_slot",
+      "old_error_text": "observation metrics contains invalid metadata-create Slot",
+      "source_lines": [
+        1334
+      ],
+      "failure_guard": "noncanonical Uint8 or Slot outside1..12",
+      "valid_control": "canonical1 and12 accepted; no HashSlot reinterpretation",
+      "test_seam": "real Client.Metrics in-memory",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "invalid_metadata_counter",
+      "old_error_text": "observation metrics contains invalid metadata-create counter",
+      "source_lines": [
+        1338
+      ],
+      "failure_guard": "not exact nonnegative integer or value>2^53",
+      "valid_control": "0 and2^53 plus existing valid numeric notation",
+      "test_seam": "real Client.Metrics in-memory",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim",
+      "precedence_note": "Through Client.Metrics, negative/nonfinite/unparseable float text fails earlier as invalid_value; use positive fractional or >2^53 exact-counter text for this reachable leaf. Keep all existing earlier-guard order."
+    },
+    {
+      "reason": "invalid_metadata_result",
+      "old_error_text": "observation metrics contains invalid metadata-create result",
+      "source_lines": [
+        1351
+      ],
+      "failure_guard": "nonempty result outside created/already_existing/error",
+      "valid_control": "all three existing result values accepted",
+      "test_seam": "real Client.Metrics in-memory",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "duplicate_metadata_slot_result",
+      "old_error_text": "observation metrics contains duplicate metadata-create Slot result",
+      "source_lines": [
+        1354
+      ],
+      "failure_guard": "same Slot/result bit observed twice",
+      "valid_control": "different Slot/result combinations preserve behavior",
+      "test_seam": "real Client.Metrics in-memory",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "aggregate_overflow",
+      "old_error_text": "observation metrics aggregate overflow",
+      "source_lines": [
+        1363,
+        1371
+      ],
+      "failure_guard": "existing float sum>MaxFloat64 or meta result sum>2^53",
+      "valid_control": "unchanged exact accepted limit; one shared reason for both guards",
+      "test_seam": "real Client.Metrics in-memory",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "unsupported_family",
+      "old_error_text": "observation metrics contains unsupported family",
+      "source_lines": [
+        1368
+      ],
+      "failure_guard": "addMetric defensive unsupported kind",
+      "valid_control": "unknown external metric families remain ignored by main parser",
+      "test_seam": "pure addMetric helper; never fake an HTTP reachable branch",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "invalid_queue_labels",
+      "old_error_text": "observation metrics contains invalid queue labels",
+      "source_lines": [
+        1380
+      ],
+      "failure_guard": "existing json.Marshal(label map) error/empty guard",
+      "valid_control": "normal map[string]string encoding remains valid",
+      "test_seam": "catalog typed-error/text test and source-return audit; no ordinary reachable failure fixture",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "invalid_queue_family",
+      "old_error_text": "observation metrics contains invalid queue family",
+      "source_lines": [
+        1394
+      ],
+      "failure_guard": "addQueueSeries defensive unsupported kind",
+      "valid_control": "four existing queue kinds accepted",
+      "test_seam": "pure addQueueSeries helper",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "duplicate_or_excess_queue_series",
+      "old_error_text": "observation metrics contains duplicate or excessive queue series",
+      "source_lines": [
+        1400
+      ],
+      "failure_guard": "duplicate canonical full-label key or129th unique series",
+      "valid_control": "128 unique series per existing map accepted",
+      "test_seam": "real Client.Metrics in-memory",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "unpaired_queue_series",
+      "old_error_text": "observation metrics contains unpaired queue series",
+      "source_lines": [
+        1427
+      ],
+      "failure_guard": "existing paired-family len0/length mismatch",
+      "valid_control": "matching sets accepted; single missing family presence behavior unchanged",
+      "test_seam": "real Client.Metrics in-memory; direct helper for unreachable len0 form",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "invalid_queue_utilization",
+      "old_error_text": "observation metrics contains invalid queue utilization",
+      "source_lines": [
+        1433
+      ],
+      "failure_guard": "equal lengths but missing matching capacity key OR depth>positive capacity",
+      "valid_control": "depth==capacity accepted; capacity0 remains skipped even if depth>0",
+      "test_seam": "real Client.Metrics in-memory; keep original condition grouped",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "invalid_sample_name",
+      "old_error_text": "observation metrics contains invalid sample name",
+      "source_lines": [
+        1462
+      ],
+      "failure_guard": "existing empty/unbalanced-close sample token guard",
+      "valid_control": "main unknown-family filtering remains unchanged",
+      "test_seam": "pure token helper where main name filtering prevents reachability",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    },
+    {
+      "reason": "label_cardinality_limit",
+      "old_error_text": "observation metrics label cardinality limit exceeded",
+      "source_lines": [
+        1512
+      ],
+      "failure_guard": "duplicate label name or33rd label",
+      "valid_control": "32 distinct labels and existing ordinary labels accepted",
+      "test_seam": "real Client.Metrics in-memory",
+      "grouping": "all returns using this same old text share this reason; no finer root-cause claim"
+    }
+  ],
+  "additional_reason": "unknown",
+  "absence": "empty or absent is reserved for no new parse diagnostic, successful/nonparse positions or old records",
+  "shared_guard_policy": "Line-limit, labels/sample and overflow strings may cover multiple returns. Queue-utilization keeps missing-key/over-capacity and runtime/channel group shared; do not alter guards to split them.",
+  "unreachable_controls": "Defensive helper branches use pure helper/catalog coverage; invalid_queue_labels is not claimed reachable with healthy map[string]string JSON encoding. No new production hook."
+}

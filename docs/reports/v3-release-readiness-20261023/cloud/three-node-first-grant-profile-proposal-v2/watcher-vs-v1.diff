@@ -1,0 +1,26 @@
+--- v1/watch-three-node-first-grant.proposed.py
++++ v2/watch-three-node-first-grant.proposed.py
+@@ -90,14 +90,14 @@
+ try:
+  check(a.owner_pgid==os.getpgrp() and a.base_port==25000,'owner_or_port_mismatch')
+  check(not a.run_dir.is_symlink() and not a.out_dir.is_symlink() and a.out_dir.parent.resolve()==a.run_dir.resolve(),'unsafe_output')
++ try:(a.run_dir/'profile-driver.claim').mkdir(mode=0o700);claimed=True
++ except FileExistsError:print('{"status":"already_claimed","requests":0}');raise SystemExit(0)
+  check(time.monotonic()+20<=a.deadline_mono,'insufficient_budget')
+  check(re.fullmatch('[0-9a-f]{40}',a.source_revision) is not None,'source_revision_invalid')
+  revision=subprocess.check_output(['git','-C',str(a.source_root),'rev-parse','HEAD'],text=True,timeout=2).strip()
+  check(revision==a.source_revision and sha(a.binary.read_bytes())==a.binary_sha256 and sha(a.helper.read_bytes())==a.helper_sha256,'source_mismatch')
+  launcher=a.run_dir/'launcher.sh';check(launcher.is_file() and not launcher.is_symlink() and sha(launcher.read_bytes())==a.launcher_sha256,'launcher_mismatch')
+  node_binding()
+- try:(a.run_dir/'profile-driver.claim').mkdir(mode=0o700);claimed=True
+- except FileExistsError:print('{"status":"already_claimed","requests":0}');raise SystemExit(0)
+  check(not a.out_dir.exists(),'unsafe_existing_output')
+  while True:
+   why=control_reason()
+@@ -134,4 +134,5 @@
+ except SamplerStop as error:status='partial' if captures else 'skipped';reason=str(error);cancel()
+ except Exception as error:status='partial' if captures else 'skipped';reason=type(error).__name__;cancel()
+ finally:
+- if claimed or reason!='not_started':cancel();finish()
++ if claimed:cancel();finish()
++ elif reason!='not_started':print(json.dumps({'status':status,'reason':reason,'requests':0,'status_write_owner':False}))

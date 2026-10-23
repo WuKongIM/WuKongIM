@@ -1,0 +1,57 @@
+{
+  "snapshot": "20261022T231243Z",
+  "logs": [
+    {
+      "id": 120140958182,
+      "name": "PR performance baseline evidence",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 71826,
+      "sha256": "d06d9db8be644c170c8e131a208b96b77a9b3d3f090da864f0e0f91e075a3ceb",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120140958430,
+      "name": "PR messaging unit and race",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 81216,
+      "sha256": "8201e07a90ca41af4a6796e0b83f5234704c4a66621abb068a0c7951e16e23b7",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120140958579,
+      "name": "PR three-node correctness",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 86906,
+      "sha256": "676e44f6c0283e9b49470cc7e734671a420cb2a675d2b46ecdf2987ea7eda0bd",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120140957158,
+      "name": "Emit credential-free wake-up",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 2092,
+      "sha256": "5c5a073b6053443a461bce337b0d5730b518d5e59f1665b8e8a97878ab24e2ad",
+      "actual_checkout_candidates": []
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 12465573753,
+      "name": "three-node-pr-1030-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+      "declared_bytes": 228677232,
+      "declared_digest": "sha256:b780571adc870f5b158d6e74d782383dfb94c3cff996637fdba818802526f6f9",
+      "state": "not_downloaded",
+      "reason": "outside explicit proof allowlist; native package binaries and unrelated artifact contents not fetched"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "schema": "wukongim/56c-closed-finalization-metrics-fetch/v1",
+  "validation_contract_sha256": "fcf27be48ce1abf76ea1e14754cc92bb2814be09b44c23e825ade66b807dbb11",
+  "strict_shape_enum_mask_alignment_verified": true,
+  "records": [
+    {
+      "event": "wkbench.chat_lifecycle.controller_failure",
+      "at": "2026-10-23T07:39:45.494767+08:00",
+      "cut": "terminal",
+      "phase": "finalize",
+      "stage": "meta_checkpoint",
+      "reason": "metrics_fetch",
+      "observed_outcome": "product_failure",
+      "observed_cause": "message_loss",
+      "observed_terminal": true,
+      "metrics_fetch": {
+        "source_mask": 4,
+        "kinds": [
+          "",
+          "",
+          "parse"
+        ]
+      }
+    }
+  ],
+  "source_positions": "observation.service_nodes declaration order; not physical node identity without config binding",
+  "source_log_sha256": "90316940470415ec72dac00bc23e3df9107d2a1ddc01e16858c8c822d2492eaa",
+  "final_report_valid": false
+}

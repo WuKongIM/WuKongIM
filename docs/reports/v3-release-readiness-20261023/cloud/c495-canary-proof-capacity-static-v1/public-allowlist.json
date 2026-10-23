@@ -1,0 +1,48 @@
+{
+  "scope": "c495-canary-proof-capacity-static-v1",
+  "status": "static and retained aggregate evidence, not runtime proof",
+  "files": [
+    {
+      "path": "controlled-test-seams.json",
+      "bytes": 2087,
+      "sha256": "8d83886ac37bbe2ea159d3eb40a8ea0578fef485598e36c10fa7fa1c0b813ca3"
+    },
+    {
+      "path": "parse_retained_authority_metrics.py",
+      "bytes": 5058,
+      "sha256": "e428fae245e7a762dd1d4819e76f7391f16fd722d2808fdede6f94116480ebf5"
+    },
+    {
+      "path": "report.md",
+      "bytes": 12049,
+      "sha256": "f62175ad28bece9c397653296d3c1483dd49fb2f715f3cf28df72b73f3eeac44"
+    },
+    {
+      "path": "retained-authority-metrics.json",
+      "bytes": 154496,
+      "sha256": "35a38f58dc53b1e772367cef96ba6f0a6b8f74a9dd5e48ca011b155059b19ca2"
+    },
+    {
+      "path": "roster-static-enumeration.json",
+      "bytes": 5382,
+      "sha256": "657a817464a39b876ee4665ee651915058e8139cdd876cc67689d6bcb0675b6c"
+    },
+    {
+      "path": "source-binding.json",
+      "bytes": 10721,
+      "sha256": "488fa2cca3793ed005c744362250177e8f51f3c4f26792aa7d89d8a666c5d9a2"
+    }
+  ],
+  "excluded": [
+    "raw UID/Channel",
+    "raw logs/profiles",
+    "private metrics text",
+    "credentials/binaries"
+  ],
+  "limits": [
+    "No tests/builds/workloads/probes/network/DB",
+    "No actual canary online count or first ACK/plan time",
+    "Service13 metrics cannot distinguish operations",
+    "No root cause finding"
+  ]
+}

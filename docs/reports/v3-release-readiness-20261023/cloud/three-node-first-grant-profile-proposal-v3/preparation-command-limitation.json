@@ -1,0 +1,7 @@
+{
+  "first_fixture_invocation_cwd": "/tmp",
+  "result": "module import rejected before fixture process creation",
+  "functional_RED_log": "RED-cancel-descendants.log",
+  "initial_missing_metadata_RED_log": "RED-cancel-metadata-schema.log",
+  "no_product_or_TCP_requests": true
+}

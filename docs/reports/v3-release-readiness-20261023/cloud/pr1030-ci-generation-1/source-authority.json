@@ -1,0 +1,175 @@
+{
+  "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "base": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+  "files": {
+    "56c287493a5e9fc3df65ea0631b99612672cd678": {
+      "AGENTS.md": {
+        "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+        "bytes": 13284
+      },
+      ".github/workflows/README.md": {
+        "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+        "bytes": 85960
+      },
+      ".github/review-agent/policy.json": {
+        "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "bytes": 14492
+      },
+      ".github/workflows/v3-candidate-regression.yml": {
+        "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f",
+        "bytes": 13951
+      },
+      ".github/workflows/three-node-chat-lifecycle-regression.yml": {
+        "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71",
+        "bytes": 13037
+      },
+      ".github/workflows/native-package-preview.yml": {
+        "sha256": "a620e3d2345f670f701d6661869a33fe1673e32a66d02b1d1caf587cf343ccf2",
+        "bytes": 6230
+      },
+      ".github/workflows/manager-browser-smoke.yml": {
+        "sha256": "ba776b1959289d862443e077e85cf13a87df46f6d1620dd3fb25d6ab52451a7b",
+        "bytes": 2865
+      },
+      ".github/workflows/issue-agent-pr-signal.yml": {
+        "sha256": "ad6672a4c58423ac3d08bd8d7eb95a5f1d5392afcd0dd9f0d46f628dc49bfa45",
+        "bytes": 609
+      },
+      "internal/bench/FLOW.md": {
+        "sha256": "52cf2d48010eac69056be43ed5679bae9e50d0aa04b0ddd12e4199e6a99e76e4",
+        "bytes": 6836
+      },
+      "internal/bench/chatlifecycle/FLOW.md": {
+        "sha256": "f938521d9c3129762f11ac914f5172ae1ea8df53c615f13e3d9615424ed91673",
+        "bytes": 6750
+      }
+    },
+    "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded": {
+      "AGENTS.md": {
+        "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+        "bytes": 13284
+      },
+      ".github/workflows/README.md": {
+        "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+        "bytes": 85960
+      },
+      ".github/review-agent/policy.json": {
+        "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "bytes": 14492
+      },
+      ".github/workflows/v3-candidate-regression.yml": {
+        "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f",
+        "bytes": 13951
+      },
+      ".github/workflows/three-node-chat-lifecycle-regression.yml": {
+        "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71",
+        "bytes": 13037
+      },
+      ".github/workflows/native-package-preview.yml": {
+        "sha256": "a620e3d2345f670f701d6661869a33fe1673e32a66d02b1d1caf587cf343ccf2",
+        "bytes": 6230
+      },
+      ".github/workflows/manager-browser-smoke.yml": {
+        "sha256": "ba776b1959289d862443e077e85cf13a87df46f6d1620dd3fb25d6ab52451a7b",
+        "bytes": 2865
+      },
+      ".github/workflows/issue-agent-pr-signal.yml": {
+        "sha256": "ad6672a4c58423ac3d08bd8d7eb95a5f1d5392afcd0dd9f0d46f628dc49bfa45",
+        "bytes": 609
+      },
+      "internal/bench/FLOW.md": {
+        "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f",
+        "bytes": 6617
+      },
+      "internal/bench/chatlifecycle/FLOW.md": {
+        "sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd",
+        "bytes": 6514
+      }
+    }
+  },
+  "applicable_flow": [
+    {
+      "path": "internal/bench/FLOW.md",
+      "scope": "subtree"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "scope": "package"
+    }
+  ],
+  "workflow_invocation_mutation_rerun": false,
+  "changed_files": [
+    "CHANGELOG.md",
+    "cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go",
+    "docs/development/FLOW_INDEX.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "internal/bench/FLOW.md",
+    "internal/bench/chatlifecycle/FLOW.md",
+    "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go",
+    "internal/bench/chatlifecycle/metrics_fetch_failure.go",
+    "internal/bench/chatlifecycle/production_controller.go",
+    "internal/bench/chatlifecycle/production_meta.go",
+    "internal/bench/target/client.go",
+    "internal/bench/target/metrics_failure.go",
+    "internal/bench/target/metrics_failure_diagnostics_test.go"
+  ],
+  "changed_file_hashes_at_head": {
+    "CHANGELOG.md": {
+      "sha256": "3fdfb6cd6cc0a5a6e9ca2f94002712878bbaa87892bcd4259fc1580f49df45ec",
+      "bytes": 193012
+    },
+    "cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go": {
+      "sha256": "3ec85fc977ef3065d2b53695471961795616cf381b5a64be28a1e8bb8b64f4ff",
+      "bytes": 1388
+    },
+    "docs/development/FLOW_INDEX.md": {
+      "sha256": "7fbca62bbe9ff6a17bc2c6fd6e475ccc66f2a39d9965bdf9985cf787199e0368",
+      "bytes": 19368
+    },
+    "docs/development/PROJECT_KNOWLEDGE.md": {
+      "sha256": "89c7c4fc3c77ccfef9a1cc827192d42295090f113fcecec283740b4350500c79",
+      "bytes": 148853
+    },
+    "internal/bench/FLOW.md": {
+      "sha256": "52cf2d48010eac69056be43ed5679bae9e50d0aa04b0ddd12e4199e6a99e76e4",
+      "bytes": 6836
+    },
+    "internal/bench/chatlifecycle/FLOW.md": {
+      "sha256": "f938521d9c3129762f11ac914f5172ae1ea8df53c615f13e3d9615424ed91673",
+      "bytes": 6750
+    },
+    "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go": {
+      "sha256": "279d490730ff7f65aef693013ec44c7ab10152fb15307ba87b47219a59390f4a",
+      "bytes": 18375
+    },
+    "internal/bench/chatlifecycle/metrics_fetch_failure.go": {
+      "sha256": "bd47805a57d94ffc9e34f63532bf86e49e3269586554917fad4fa96afa258bac",
+      "bytes": 1567
+    },
+    "internal/bench/chatlifecycle/production_controller.go": {
+      "sha256": "0c7a41292bc61a0b68ddea2e6a2cff4d78bbd4293f0395d77674c128ef8f9b09",
+      "bytes": 34215
+    },
+    "internal/bench/chatlifecycle/production_meta.go": {
+      "sha256": "8179c7163669a032c92eb9c780e3941bb2bcda81a61d2ebd8b2242e2bf5f55b7",
+      "bytes": 12443
+    },
+    "internal/bench/target/client.go": {
+      "sha256": "797ac967cb5f771d2cd3c146d42eff579cb51570aefe91ac8b566372dcb9e2e7",
+      "bytes": 53374
+    },
+    "internal/bench/target/metrics_failure.go": {
+      "sha256": "7a075f5707876778c2264f053be43c3ac93a6337eb006e5891673fab93d0d98a",
+      "bytes": 3461
+    },
+    "internal/bench/target/metrics_failure_diagnostics_test.go": {
+      "sha256": "aa1bf6986fbd9771eae13031dd1446bf0e2ab52689c4dee620d58b4801ee3ae5",
+      "bytes": 15365
+    }
+  },
+  "workflow_contract_read": {
+    "README_sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+    "unchanged_from_previously_read_c495": true,
+    "current_relevant_sections_read": true
+  }
+}

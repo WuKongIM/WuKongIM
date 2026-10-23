@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12465573753,
+      "node_id": "MDg6QXJ0aWZhY3QxMjQ2NTU3Mzc1Mw==",
+      "name": "three-node-pr-1030-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+      "size_in_bytes": 228677232,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12465573753",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12465573753/zip",
+      "expired": false,
+      "digest": "sha256:b780571adc870f5b158d6e74d782383dfb94c3cff996637fdba818802526f6f9",
+      "created_at": "2026-10-22T23:12:35Z",
+      "updated_at": "2026-10-22T23:12:35Z",
+      "expires_at": "2026-10-29T23:12:25Z",
+      "workflow_run": {
+        "id": 39869765462,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-metrics-fetch-diagnostics",
+        "head_sha": "56c287493a5e9fc3df65ea0631b99612672cd678"
+      }
+    }
+  ]
+}

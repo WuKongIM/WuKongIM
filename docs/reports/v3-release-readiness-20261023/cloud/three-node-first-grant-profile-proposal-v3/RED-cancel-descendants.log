@@ -1,0 +1,18 @@
+test_term_exit_root_still_kills_observed_ignoreterm_child (cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child) ... FAIL
+
+======================================================================
+FAIL: test_term_exit_root_still_kills_observed_ignoreterm_child (cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py", line 29, in test_term_exit_root_still_kills_observed_ignoreterm_child
+    def test_term_exit_root_still_kills_observed_ignoreterm_child(self):self._case('term-exit')
+                                                                        ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py", line 21, in _case
+    self.assertTrue(all(pid not in rows or rows[pid].startswith('Z') for pid in children),'observed child remained running after cancellation');self.assertTrue(row['cancel_descendant_cleanup_confirmed'])
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : observed child remained running after cancellation
+
+----------------------------------------------------------------------
+Ran 1 test in 0.271s
+
+FAILED (failures=1)

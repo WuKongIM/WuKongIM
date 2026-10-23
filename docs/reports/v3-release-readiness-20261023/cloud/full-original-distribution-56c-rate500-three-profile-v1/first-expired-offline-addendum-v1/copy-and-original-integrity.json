@@ -1,0 +1,23 @@
+{
+  "schema": "wukongim/56c-offline-copy-original-integrity/v1",
+  "original_file_count": 36,
+  "original_total_bytes": 66550277,
+  "expected_inventory_sha256": "c6795b3ba45d2e8100a09885d6b6a8a5e1af070e861141bc322bf852d4747cf4",
+  "all_original_paths_size_SHA_mtime_equal_before_and_after_and_independent_final_recheck": true,
+  "copy_count": 3,
+  "copied_files": 36,
+  "copy_full_mapping_verified_before_any_CLI_open": true,
+  "original_databases_opened": false,
+  "copy_parent_mode": "0700",
+  "copy_files_mode": "0600",
+  "PRIVATE_before_inventory_sha256": "c6795b3ba45d2e8100a09885d6b6a8a5e1af070e861141bc322bf852d4747cf4",
+  "PRIVATE_after_inventory_sha256": "c6795b3ba45d2e8100a09885d6b6a8a5e1af070e861141bc322bf852d4747cf4",
+  "PRIVATE_preopen_copy_inventory_sha256": "b917f0447bf3988963587c677f2867e5fa1f2eb56663190281ec4eb18a7508cf",
+  "query_owned_pgid": 71330,
+  "query_owned_group_alive_independent_recheck": false,
+  "all_query_processes_joined": true,
+  "whole_wrapper_elapsed_seconds": 0.3820912920637056,
+  "total_bound_seconds": 90,
+  "actual_queries": 3,
+  "retries_or_additional_groups": 0
+}

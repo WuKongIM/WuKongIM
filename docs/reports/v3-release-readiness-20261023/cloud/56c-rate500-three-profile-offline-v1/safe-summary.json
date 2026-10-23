@@ -1,0 +1,267 @@
+{
+  "schema": "wukongim/three-node-offline-profile-safe-summary/v1",
+  "source": {
+    "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+    "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+    "independent_real_git_clone": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics",
+    "product_sha256": "e9ecf52ab6f5d3a7b81b07537f1aebf8fa1a6cd86a5dddb90162c1256acfd7c8",
+    "compiler": "go1.25.11 darwin/arm64",
+    "build_receipt_manifest_sha256": "17037f9c694787b25580470ed8dd1f6f85cebbd92a735916e0ee024768ffa4f2",
+    "binding_source": "already reviewed exact native build receipt; not reread or rehashed during live workload"
+  },
+  "approval_manifest_sha256": "36f673c8d34dfe762371bc0153f19e888f377b69f17dd6f0664918aadc8545f5",
+  "original_files_verified_unchanged": 51,
+  "source_clean_after": true,
+  "profile_decodes": 6,
+  "fixed_pprof_commands": 12,
+  "automatic_retries": 0,
+  "limits_extended": false,
+  "all_profile_decodes_and_commands_completed": true,
+  "nodes": [
+    {
+      "node_id": 1,
+      "goroutine_time_utc": "2026-10-22T23:39:27.728675000Z",
+      "goroutines": 2522,
+      "delivery_workers": 320,
+      "delivery_disjoint": {
+        "idle_plan_dequeue": 303,
+        "presence_parallel_leader_join": 8,
+        "presence_remote_authority_RPC": 6,
+        "owner_push_RPC": 2,
+        "presence_registry_quota_wait": 1,
+        "presence_UID_flight_join": 0,
+        "unclassified": 0
+      },
+      "recoverPage": 19,
+      "recoverPage_disjoint": {
+        "registry_quota_wait": 15,
+        "executing_cohort_owner_RPC": 4,
+        "UID_flight_join": 0,
+        "unclassified": 0
+      },
+      "owner_read_holders": 4,
+      "owner_holder_context_disjoint": {
+        "inbound_presence_RPC": 4
+      },
+      "owner_read_operations_disjoint": {
+        "single_ReadOwnerRoutes": 3,
+        "batch_ReadOwnerRoutesByTargets": 1
+      },
+      "owner_read_source_line_disjoint": {
+        "182": 3,
+        "196": 1
+      },
+      "Conn_Call": 125,
+      "sampled_Mutex_RWMutex_symbol_occurrences_overlapping": 0,
+      "sampled_owner_Registry_symbols": [],
+      "sampled_server_ReadOwner_symbols": [],
+      "cpu_profile": {
+        "file_sha256": "ef6889507e36c29ee9e13fbaf9ebfa17c32c699e9254664a338069daa678773a",
+        "bytes": 24457,
+        "time_utc": "2026-10-22T23:39:22.684236000Z",
+        "time_unix_nanos": "1792712362684236000",
+        "duration_nanos": "10186860167",
+        "end_utc": "2026-10-22T23:39:32.871096167Z",
+        "period": 10000000,
+        "types": [
+          {
+            "type": "samples",
+            "unit": "count"
+          },
+          {
+            "type": "cpu",
+            "unit": "nanoseconds"
+          }
+        ]
+      },
+      "cpu_sample_count": 208,
+      "cpu_sample_nanoseconds": 2080000000,
+      "cpu_flat_top5": [
+        {
+          "function": "syscall.syscallX",
+          "nanoseconds": 1060000000
+        },
+        {
+          "function": "syscall.syscall",
+          "nanoseconds": 350000000
+        },
+        {
+          "function": "syscall.syscall6",
+          "nanoseconds": 150000000
+        },
+        {
+          "function": "runtime.madvise",
+          "nanoseconds": 100000000
+        },
+        {
+          "function": "runtime.fcntl",
+          "nanoseconds": 60000000
+        }
+      ]
+    },
+    {
+      "node_id": 2,
+      "goroutine_time_utc": "2026-10-22T23:39:27.732950000Z",
+      "goroutines": 2591,
+      "delivery_workers": 320,
+      "delivery_disjoint": {
+        "idle_plan_dequeue": 298,
+        "owner_push_RPC": 7,
+        "presence_registry_quota_wait": 6,
+        "presence_parallel_leader_join": 5,
+        "presence_remote_authority_RPC": 3,
+        "unclassified": 1,
+        "presence_UID_flight_join": 0
+      },
+      "recoverPage": 26,
+      "recoverPage_disjoint": {
+        "registry_quota_wait": 22,
+        "executing_cohort_owner_RPC": 4,
+        "UID_flight_join": 0,
+        "unclassified": 0
+      },
+      "owner_read_holders": 4,
+      "owner_holder_context_disjoint": {
+        "inbound_presence_RPC": 3,
+        "other": 1
+      },
+      "owner_read_operations_disjoint": {
+        "batch_ReadOwnerRoutesByTargets": 3,
+        "single_ReadOwnerRoutes": 1
+      },
+      "owner_read_source_line_disjoint": {
+        "196": 3,
+        "182": 1
+      },
+      "Conn_Call": 137,
+      "sampled_Mutex_RWMutex_symbol_occurrences_overlapping": 0,
+      "sampled_owner_Registry_symbols": [],
+      "sampled_server_ReadOwner_symbols": [],
+      "cpu_profile": {
+        "file_sha256": "51937b42ed889fb971bf3267cd7edb29bb385fecb3a7784c80a16456eb4556b8",
+        "bytes": 25001,
+        "time_utc": "2026-10-22T23:39:22.684240000Z",
+        "time_unix_nanos": "1792712362684240000",
+        "duration_nanos": "10132784667",
+        "end_utc": "2026-10-22T23:39:32.817024667Z",
+        "period": 10000000,
+        "types": [
+          {
+            "type": "samples",
+            "unit": "count"
+          },
+          {
+            "type": "cpu",
+            "unit": "nanoseconds"
+          }
+        ]
+      },
+      "cpu_sample_count": 210,
+      "cpu_sample_nanoseconds": 2100000000,
+      "cpu_flat_top5": [
+        {
+          "function": "syscall.syscallX",
+          "nanoseconds": 780000000
+        },
+        {
+          "function": "syscall.syscall",
+          "nanoseconds": 400000000
+        },
+        {
+          "function": "runtime.madvise",
+          "nanoseconds": 330000000
+        },
+        {
+          "function": "syscall.syscall6",
+          "nanoseconds": 110000000
+        },
+        {
+          "function": "runtime.fcntl",
+          "nanoseconds": 90000000
+        }
+      ]
+    },
+    {
+      "node_id": 3,
+      "goroutine_time_utc": "2026-10-22T23:39:27.746700000Z",
+      "goroutines": 2498,
+      "delivery_workers": 320,
+      "delivery_disjoint": {
+        "idle_plan_dequeue": 285,
+        "presence_remote_authority_RPC": 23,
+        "presence_parallel_leader_join": 7,
+        "presence_registry_quota_wait": 3,
+        "owner_push_RPC": 2,
+        "presence_UID_flight_join": 0,
+        "unclassified": 0
+      },
+      "recoverPage": 16,
+      "recoverPage_disjoint": {
+        "registry_quota_wait": 12,
+        "executing_cohort_owner_RPC": 4,
+        "UID_flight_join": 0,
+        "unclassified": 0
+      },
+      "owner_read_holders": 4,
+      "owner_holder_context_disjoint": {
+        "inbound_presence_RPC": 4
+      },
+      "owner_read_operations_disjoint": {
+        "batch_ReadOwnerRoutesByTargets": 4
+      },
+      "owner_read_source_line_disjoint": {
+        "196": 4
+      },
+      "Conn_Call": 144,
+      "sampled_Mutex_RWMutex_symbol_occurrences_overlapping": 0,
+      "sampled_owner_Registry_symbols": [],
+      "sampled_server_ReadOwner_symbols": [],
+      "cpu_profile": {
+        "file_sha256": "95958b1777f44f83bd3815b9a8800385291528d7041adc5b7f17b5226eca2513",
+        "bytes": 28019,
+        "time_utc": "2026-10-22T23:39:22.684229000Z",
+        "time_unix_nanos": "1792712362684229000",
+        "duration_nanos": "10166140625",
+        "end_utc": "2026-10-22T23:39:32.850369625Z",
+        "period": 10000000,
+        "types": [
+          {
+            "type": "samples",
+            "unit": "count"
+          },
+          {
+            "type": "cpu",
+            "unit": "nanoseconds"
+          }
+        ]
+      },
+      "cpu_sample_count": 216,
+      "cpu_sample_nanoseconds": 2160000000,
+      "cpu_flat_top5": [
+        {
+          "function": "syscall.syscallX",
+          "nanoseconds": 910000000
+        },
+        {
+          "function": "syscall.syscall",
+          "nanoseconds": 350000000
+        },
+        {
+          "function": "runtime.madvise",
+          "nanoseconds": 220000000
+        },
+        {
+          "function": "syscall.syscall6",
+          "nanoseconds": 130000000
+        },
+        {
+          "function": "runtime.fcntl",
+          "nanoseconds": 60000000
+        }
+      ]
+    }
+  ],
+  "profile_scope": "three separate local Darwin cuts, not synchronized cluster snapshot, not Linux acceptance, no failed-message identity join",
+  "active_SEND_end_unknown": true,
+  "environment_deviation_record": "worker-environment-and-output-review.json"
+}

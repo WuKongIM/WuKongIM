@@ -1,0 +1,62 @@
+{
+  "checks": {
+    "analyze_profile-first-goroutine.py": {
+      "sha256": "ac53cf2af6b7b2764beeee5857d9edc09387c7e4e9d6b2801d6e23fca817f801",
+      "bytes": 3438,
+      "imports": [
+        "collections",
+        "datetime",
+        "hashlib",
+        "json",
+        "pathlib",
+        "sys",
+        "time",
+        "offline_adapter"
+      ],
+      "application_environment_read_refs": 0,
+      "subprocess_or_network_refs": 0,
+      "stdout_print_calls": 1,
+      "stdout_policy": "one fixed closed JSON receipt; no profile/body/frame/label/environment string output"
+    },
+    "analyze_profile.py": {
+      "sha256": "d2457bfa600047e9d9a2b8d72a9a75bc66ea38c5389eb10ef645a2065d48c0d8",
+      "bytes": 3800,
+      "imports": [
+        "collections",
+        "datetime",
+        "hashlib",
+        "json",
+        "pathlib",
+        "sys",
+        "time",
+        "offline_adapter"
+      ],
+      "application_environment_read_refs": 0,
+      "subprocess_or_network_refs": 0,
+      "stdout_print_calls": 1,
+      "stdout_policy": "one fixed closed JSON receipt; no profile/body/frame/label/environment string output"
+    },
+    "offline_adapter.py": {
+      "sha256": "b9e113316a15fc22a293bd5ae790b2dcae980deb2fdf291d3058fddc678ad2d9",
+      "bytes": 12444,
+      "imports": [
+        "pathlib",
+        "gzip",
+        "json",
+        "collections",
+        "hashlib",
+        "datetime",
+        "io"
+      ],
+      "application_environment_read_refs": 0,
+      "subprocess_or_network_refs": 0,
+      "stdout_print_calls": 0,
+      "stdout_policy": "no stdout"
+    }
+  },
+  "first_three_GOR_environment_allowlist_compliant": false,
+  "deviation": "First three GOR Python workers inherited executor environment; application code did not read it, spawn commands, connect network or output environment. No rerun. Subsequent CPU workers and all 12 pprof processes used explicit proposed allowlist.",
+  "first_GOR_source_binding_note": "Reconstructed byte-for-byte from initial recorded source write and the single subsequent public mutex-projection patch; hash recorded after execution, not claimed a contemporaneous pre-exec hash. Both versions retained. No profile rerun.",
+  "original_raw_profiles_or_private_stacks_printed": false,
+  "full_mutex_context_public_projection": "Removed from unsealed generated aggregates to private files before sealing; only aggregate nearest Go symbol/line/count remains. No original file mutation or profile re-decode."
+}

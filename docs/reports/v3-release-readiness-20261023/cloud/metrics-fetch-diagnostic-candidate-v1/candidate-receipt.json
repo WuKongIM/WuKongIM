@@ -1,0 +1,86 @@
+{
+  "base": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+  "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "branch": "codex/v3-metrics-fetch-diagnostics",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-metrics-fetch-diagnostics",
+  "clean": true,
+  "changed_paths": {
+    "CHANGELOG.md": "3fdfb6cd6cc0a5a6e9ca2f94002712878bbaa87892bcd4259fc1580f49df45ec",
+    "cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go": "3ec85fc977ef3065d2b53695471961795616cf381b5a64be28a1e8bb8b64f4ff",
+    "docs/development/FLOW_INDEX.md": "7fbca62bbe9ff6a17bc2c6fd6e475ccc66f2a39d9965bdf9985cf787199e0368",
+    "docs/development/PROJECT_KNOWLEDGE.md": "89c7c4fc3c77ccfef9a1cc827192d42295090f113fcecec283740b4350500c79",
+    "internal/bench/FLOW.md": "52cf2d48010eac69056be43ed5679bae9e50d0aa04b0ddd12e4199e6a99e76e4",
+    "internal/bench/chatlifecycle/FLOW.md": "f938521d9c3129762f11ac914f5172ae1ea8df53c615f13e3d9615424ed91673",
+    "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go": "279d490730ff7f65aef693013ec44c7ab10152fb15307ba87b47219a59390f4a",
+    "internal/bench/chatlifecycle/metrics_fetch_failure.go": "bd47805a57d94ffc9e34f63532bf86e49e3269586554917fad4fa96afa258bac",
+    "internal/bench/chatlifecycle/production_controller.go": "0c7a41292bc61a0b68ddea2e6a2cff4d78bbd4293f0395d77674c128ef8f9b09",
+    "internal/bench/chatlifecycle/production_meta.go": "8179c7163669a032c92eb9c780e3941bb2bcda81a61d2ebd8b2242e2bf5f55b7",
+    "internal/bench/target/client.go": "797ac967cb5f771d2cd3c146d42eff579cb51570aefe91ac8b566372dcb9e2e7",
+    "internal/bench/target/metrics_failure.go": "7a075f5707876778c2264f053be43c3ac93a6337eb006e5891673fab93d0d98a",
+    "internal/bench/target/metrics_failure_diagnostics_test.go": "aa1bf6986fbd9771eae13031dd1446bf0e2ab52689c4dee620d58b4801ee3ae5"
+  },
+  "diff_summary": "13 files changed, 1176 insertions(+), 22 deletions(-)",
+  "candidate_diff_sha256": "580b9278cf56422bc32c11fba89c17c635354544b0cbe1c22b9d7f10faf9ab03",
+  "tests_v2_unchanged_from_RED_through_GREEN_race_full": true,
+  "protected_behavior_static_checks": {
+    "metrics_parser_and_helpers": {
+      "path": "internal/bench/target/client.go",
+      "start": "func parseObservationMetrics(",
+      "end_exclusive": "EOF",
+      "sha256": "49fdb48e544069d699c0eefc0a6676d1eea1cd544a61184ae9ef1043ed5bfc7f",
+      "bytes": 12157,
+      "byte_equal_to_base": true
+    },
+    "target_limits": {
+      "path": "internal/bench/target/client.go",
+      "start": "const (",
+      "end_exclusive": "// Terminal fence API",
+      "sha256": "888f0c05b204ba2cc8340c63f8bd9f5f0cf7f4d2677fa7de446fa21d8263ffb6",
+      "bytes": 1510,
+      "byte_equal_to_base": true
+    },
+    "meta_settle_policy": {
+      "path": "internal/bench/chatlifecycle/production_meta.go",
+      "start": "const (",
+      "end_exclusive": "// ProductionMetaMetricsSource",
+      "sha256": "868b44765f1029c8b46e4a0c363374f99c69905dabfe175fb38bf1ca3d5865c0",
+      "bytes": 99,
+      "byte_equal_to_base": true
+    },
+    "meta_settle_loop": {
+      "path": "internal/bench/chatlifecycle/production_meta.go",
+      "start": "func (c *ProductionMetaController) collectSettledMetrics(",
+      "end_exclusive": "func productionMetaExpectation(",
+      "sha256": "d3192af8268f84d3bbae0aed0466edab61fe19da6b38864447d3e80ae064022f",
+      "bytes": 1582,
+      "byte_equal_to_base": true
+    },
+    "finalize_verdict_and_report_gate": {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "start": "func (c *ProductionEvidenceController) Finalize(",
+      "end_exclusive": "// finalizeFailure",
+      "sha256": "a3d6014e3adacb6661f6b8c6591da1f01c6d3fd88433446be2b4bda36a318936",
+      "bytes": 3307,
+      "byte_equal_to_base": true
+    },
+    ".github/review-agent/policy.json": {
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "bytes": 14492,
+      "byte_equal_to_base": true
+    },
+    "internal/bench/chatlifecycle/coordinator.go": {
+      "sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "bytes": 123128,
+      "byte_equal_to_base": true
+    },
+    "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go": {
+      "sha256": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee",
+      "bytes": 13193,
+      "byte_equal_to_base": true
+    }
+  },
+  "no_push_PR_workload_or_cloud": true,
+  "all_invoked_check_sessions_completed": true,
+  "source_positions": "bits 0..2 map observation.service_nodes declaration order; never physical node IDs"
+}

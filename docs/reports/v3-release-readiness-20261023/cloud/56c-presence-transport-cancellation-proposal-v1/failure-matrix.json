@@ -1,0 +1,67 @@
+{
+  "status": "design only; not executed",
+  "source": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "cases": [
+    {
+      "case": "fixture binding",
+      "barrier": "real TCP negotiation + one generation + cancel fence ACK",
+      "current_expected": "all valid, no queue rejection or observer loss",
+      "failure": "fixture_invalid; no cancellation conclusion"
+    },
+    {
+      "case": "nominal success then cancel",
+      "barrier": "Call decoded success before Cancel",
+      "current_expected": "success retained; next response matched",
+      "failure": "stale cancellation/demux/cleanup regression"
+    },
+    {
+      "case": "pre-canceled or queued read",
+      "barrier": "before operation entry, queue admission when applicable",
+      "current_expected": "no port execution; queue slot reusable before A release",
+      "failure": "before-execution cancellation or queue ownership regression"
+    },
+    {
+      "case": "pre-canceled or queued mutation",
+      "barrier": "same as queued read",
+      "current_expected": "zero effects; zero port execution",
+      "failure": "mutation executed without start admission after cancellation"
+    },
+    {
+      "case": "started service13 op8 read",
+      "barrier": "entered, caller canceled, remote fence ACK, inspect",
+      "current_expected": "service ctx not canceled; completes after release",
+      "failure": "policy/binding differs from56c; not automatically message_loss proof"
+    },
+    {
+      "case": "started service14 op10 read (op9 optional)",
+      "barrier": "same; additional250ms actual deadline case",
+      "current_expected": "caller canceled/timeout while service ctx stays valid; completes after release",
+      "failure": "policy/binding differs or transport progress failure"
+    },
+    {
+      "case": "started service13 Register and14 ApplyAction mutations",
+      "barrier": "entered→remote cancel fence→inspect→release",
+      "current_expected": "ctx valid; effect exactly1 despite canceled caller",
+      "failure": "unsafe blanket running-cancellation behavior or duplicated/lost side effect"
+    },
+    {
+      "case": "cancel wins before release/response",
+      "barrier": "caller canceled and remote fence ACK before release",
+      "current_expected": "caller retains canceled result; fresh subsequent RPC receives own result",
+      "failure": "late-response aliasing or stale request tracking"
+    },
+    {
+      "case": "terminal ownership",
+      "barrier": "join every port/Call then final observer state",
+      "current_expected": "queue/inflight/retained0, no observer loss, clean Stop",
+      "failure": "resource ownership leak or incomplete evidence"
+    }
+  ],
+  "not_claimed": [
+    "message_loss causality",
+    "production128 concurrency exhaustion",
+    "actual4-cohort exhaustion",
+    "Registry lock stall",
+    "full plan runtime qualification"
+  ]
+}

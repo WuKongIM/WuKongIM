@@ -1,0 +1,14 @@
+{
+  "at_utc": "2026-10-22T23:44:30.328524+00:00",
+  "owned_pgid": 64933,
+  "remaining_processes": [],
+  "other_wukongim_processes": [],
+  "selected_ports": [
+    25000,
+    25063
+  ],
+  "tested_ports_count": 64,
+  "remaining_listeners": [],
+  "complete": true,
+  "new_product_requests": 0
+}

@@ -1,0 +1,161 @@
+{
+  "source": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "parser_sha256": "797ac967cb5f771d2cd3c146d42eff579cb51570aefe91ac8b566372dcb9e2e7",
+  "branches": [
+    {
+      "code": "parse_leaf_01",
+      "literal": "observation metrics line limit exceeded",
+      "source_lines": [
+        1164,
+        1196
+      ]
+    },
+    {
+      "code": "parse_leaf_02",
+      "literal": "observation metrics series cardinality limit exceeded",
+      "source_lines": [
+        1172
+      ]
+    },
+    {
+      "code": "parse_leaf_03",
+      "literal": "observation metrics contains invalid value",
+      "source_lines": [
+        1189
+      ]
+    },
+    {
+      "code": "parse_leaf_04",
+      "literal": "observation metrics contains incomplete metadata-create results",
+      "source_lines": [
+        1199
+      ]
+    },
+    {
+      "code": "parse_leaf_05",
+      "literal": "observation metrics contains invalid sample",
+      "source_lines": [
+        1221,
+        1245
+      ]
+    },
+    {
+      "code": "parse_leaf_06",
+      "literal": "observation metrics contains invalid labels",
+      "source_lines": [
+        1241,
+        1467,
+        1482,
+        1487,
+        1505,
+        1509,
+        1520
+      ]
+    },
+    {
+      "code": "parse_leaf_07",
+      "literal": "observation metrics contains invalid metadata-create labels",
+      "source_lines": [
+        1325,
+        1330
+      ]
+    },
+    {
+      "code": "parse_leaf_08",
+      "literal": "observation metrics contains invalid metadata-create Slot",
+      "source_lines": [
+        1334
+      ]
+    },
+    {
+      "code": "parse_leaf_09",
+      "literal": "observation metrics contains invalid metadata-create counter",
+      "source_lines": [
+        1338
+      ]
+    },
+    {
+      "code": "parse_leaf_10",
+      "literal": "observation metrics contains invalid metadata-create result",
+      "source_lines": [
+        1351
+      ]
+    },
+    {
+      "code": "parse_leaf_11",
+      "literal": "observation metrics contains duplicate metadata-create Slot result",
+      "source_lines": [
+        1354
+      ]
+    },
+    {
+      "code": "parse_leaf_12",
+      "literal": "observation metrics aggregate overflow",
+      "source_lines": [
+        1363,
+        1371
+      ]
+    },
+    {
+      "code": "parse_leaf_13",
+      "literal": "observation metrics contains unsupported family",
+      "source_lines": [
+        1368
+      ]
+    },
+    {
+      "code": "parse_leaf_14",
+      "literal": "observation metrics contains invalid queue labels",
+      "source_lines": [
+        1380
+      ]
+    },
+    {
+      "code": "parse_leaf_15",
+      "literal": "observation metrics contains invalid queue family",
+      "source_lines": [
+        1394
+      ]
+    },
+    {
+      "code": "parse_leaf_16",
+      "literal": "observation metrics contains duplicate or excessive queue series",
+      "source_lines": [
+        1400
+      ]
+    },
+    {
+      "code": "parse_leaf_17",
+      "literal": "observation metrics contains unpaired queue series",
+      "source_lines": [
+        1427
+      ]
+    },
+    {
+      "code": "parse_leaf_18",
+      "literal": "observation metrics contains invalid queue utilization",
+      "source_lines": [
+        1433
+      ]
+    },
+    {
+      "code": "parse_leaf_19",
+      "literal": "observation metrics contains invalid sample name",
+      "source_lines": [
+        1462
+      ]
+    },
+    {
+      "code": "parse_leaf_20",
+      "literal": "observation metrics label cardinality limit exceeded",
+      "source_lines": [
+        1512
+      ]
+    }
+  ],
+  "limits": [
+    "Repeated literals identify guard groups, not a unique line.",
+    "invalid queue utilization combines missing capacity key and depth above positive capacity.",
+    "Runtime and Channel queues share maximumQueueUtilization; cause alone cannot identify family."
+  ]
+}

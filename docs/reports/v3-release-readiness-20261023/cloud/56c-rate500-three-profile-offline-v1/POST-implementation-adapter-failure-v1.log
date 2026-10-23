@@ -1,0 +1,103 @@
+test_approved_six_paths (adapter_test.Adapter.test_approved_six_paths) ... ok
+test_bad_gzip_and_truncated_protobuf (adapter_test.Adapter.test_bad_gzip_and_truncated_protobuf) ... ok
+test_bad_sample_shape (adapter_test.Adapter.test_bad_sample_shape) ... ok
+test_bytes_sha_mtime_mismatch (adapter_test.Adapter.test_bytes_sha_mtime_mismatch) ... 
+  test_bytes_sha_mtime_mismatch (adapter_test.Adapter.test_bytes_sha_mtime_mismatch) (key='bytes') ... FAIL
+  test_bytes_sha_mtime_mismatch (adapter_test.Adapter.test_bytes_sha_mtime_mismatch) (key='sha256') ... FAIL
+  test_bytes_sha_mtime_mismatch (adapter_test.Adapter.test_bytes_sha_mtime_mismatch) (key='mtime_ns') ... FAIL
+test_compressed_cap (adapter_test.Adapter.test_compressed_cap) ... FAIL
+test_cpu_weights (adapter_test.Adapter.test_cpu_weights) ... ok
+test_decompressed_cap (adapter_test.Adapter.test_decompressed_cap) ... ok
+test_disjoint_precedence_and_overlap (adapter_test.Adapter.test_disjoint_precedence_and_overlap) ... ok
+test_fresh_counts_without_old_assertions (adapter_test.Adapter.test_fresh_counts_without_old_assertions) ... ok
+test_identity_labels_not_decoded (adapter_test.Adapter.test_identity_labels_not_decoded) ... ok
+test_missing (adapter_test.Adapter.test_missing) ... FAIL
+test_owner_holder_and_rpc_cohorts_overlap (adapter_test.Adapter.test_owner_holder_and_rpc_cohorts_overlap) ... ok
+test_public_size_bound_and_closed_error (adapter_test.Adapter.test_public_size_bound_and_closed_error) ... ok
+test_symlink (adapter_test.Adapter.test_symlink) ... ok
+test_unapproved_path (adapter_test.Adapter.test_unapproved_path) ... ok
+test_unknown_kept (adapter_test.Adapter.test_unknown_kept) ... ok
+test_valid_path_and_profile (adapter_test.Adapter.test_valid_path_and_profile) ... ERROR
+test_wrong_type (adapter_test.Adapter.test_wrong_type) ... ok
+
+======================================================================
+ERROR: test_valid_path_and_profile (adapter_test.Adapter.test_valid_path_and_profile)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/adapter_test.py", line 30, in test_valid_path_and_profile
+    p,r=self.make(d);self.assertEqual(A.verify_input(r,{(1,'goroutine'):p})['sha256'],r['sha256']);meta,rows=A.load_profile(p);A.verify_types('goroutine',meta,rows);self.assertEqual(rows[0]['values'],[7])
+                                      ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/offline_adapter.py", line 188, in verify_input
+    if any(p.is_symlink() for p in [path,*path.parents]):raise AdapterError('unsafe_symlink')
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+offline_adapter.AdapterError: unsafe_symlink
+
+======================================================================
+FAIL: test_bytes_sha_mtime_mismatch (adapter_test.Adapter.test_bytes_sha_mtime_mismatch) (key='bytes')
+----------------------------------------------------------------------
+offline_adapter.AdapterError: unsafe_symlink
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/adapter_test.py", line 47, in test_bytes_sha_mtime_mismatch
+    with self.subTest(key=key),self.assertRaisesRegex(A.AdapterError,'input_mismatch'):A.verify_input({**r,key:value},{(1,'goroutine'):p})
+                               ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "input_mismatch" does not match "unsafe_symlink"
+
+======================================================================
+FAIL: test_bytes_sha_mtime_mismatch (adapter_test.Adapter.test_bytes_sha_mtime_mismatch) (key='sha256')
+----------------------------------------------------------------------
+offline_adapter.AdapterError: unsafe_symlink
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/adapter_test.py", line 47, in test_bytes_sha_mtime_mismatch
+    with self.subTest(key=key),self.assertRaisesRegex(A.AdapterError,'input_mismatch'):A.verify_input({**r,key:value},{(1,'goroutine'):p})
+                               ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "input_mismatch" does not match "unsafe_symlink"
+
+======================================================================
+FAIL: test_bytes_sha_mtime_mismatch (adapter_test.Adapter.test_bytes_sha_mtime_mismatch) (key='mtime_ns')
+----------------------------------------------------------------------
+offline_adapter.AdapterError: unsafe_symlink
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/adapter_test.py", line 47, in test_bytes_sha_mtime_mismatch
+    with self.subTest(key=key),self.assertRaisesRegex(A.AdapterError,'input_mismatch'):A.verify_input({**r,key:value},{(1,'goroutine'):p})
+                               ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "input_mismatch" does not match "unsafe_symlink"
+
+======================================================================
+FAIL: test_compressed_cap (adapter_test.Adapter.test_compressed_cap)
+----------------------------------------------------------------------
+offline_adapter.AdapterError: unsafe_symlink
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/adapter_test.py", line 51, in test_compressed_cap
+    with self.assertRaisesRegex(A.AdapterError,'input_oversized'):A.verify_input(r,{(1,'goroutine'):p})
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "input_oversized" does not match "unsafe_symlink"
+
+======================================================================
+FAIL: test_missing (adapter_test.Adapter.test_missing)
+----------------------------------------------------------------------
+offline_adapter.AdapterError: unsafe_symlink
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/56c-rate500-three-profile-offline-v1/adapter_test.py", line 38, in test_missing
+    with self.assertRaisesRegex(A.AdapterError,'missing'):A.verify_input(r,{(1,'goroutine'):p})
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "missing" does not match "unsafe_symlink"
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.019s
+
+FAILED (failures=5, errors=1)

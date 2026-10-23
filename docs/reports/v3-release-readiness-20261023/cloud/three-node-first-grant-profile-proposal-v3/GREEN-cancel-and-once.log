@@ -1,0 +1,18 @@
+test_concurrent_start_has_one_claim_owner_and_three_helpers (once_status_test.OnceStatus.test_concurrent_start_has_one_claim_owner_and_three_helpers) ... ok
+test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) ... ok
+test_one_receipt_launches_three_correct_nodes (once_status_test.OnceStatus.test_one_receipt_launches_three_correct_nodes) ... ok
+test_stale_receipt_and_wrong_source_launch_none (once_status_test.OnceStatus.test_stale_receipt_and_wrong_source_launch_none) ... ok
+test_terminal_stop_cancels_and_joins_three_helpers (once_status_test.OnceStatus.test_terminal_stop_cancels_and_joins_three_helpers) ... ok
+test_wrong_observed_slot_node_launches_none (once_status_test.OnceStatus.test_wrong_observed_slot_node_launches_none) ... ok
+test_one_receipt_launches_three_correct_nodes (cancel_descendants_test.CancelDescendants.test_one_receipt_launches_three_correct_nodes) ... ok
+test_preexited_root_reports_unconfirmed_not_full_cleanup (cancel_descendants_test.CancelDescendants.test_preexited_root_reports_unconfirmed_not_full_cleanup) ... ok
+test_stale_receipt_and_wrong_source_launch_none (cancel_descendants_test.CancelDescendants.test_stale_receipt_and_wrong_source_launch_none) ... ok
+test_term_exit_root_still_kills_observed_ignoreterm_child (cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child) ... ok
+test_terminal_stop_cancels_and_joins_three_helpers (cancel_descendants_test.CancelDescendants.test_terminal_stop_cancels_and_joins_three_helpers) ... ok
+test_three_ignoreterm_roots_and_children_share_kill_budget (cancel_descendants_test.CancelDescendants.test_three_ignoreterm_roots_and_children_share_kill_budget) ... ok
+test_wrong_observed_slot_node_launches_none (cancel_descendants_test.CancelDescendants.test_wrong_observed_slot_node_launches_none) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 5.064s
+
+OK

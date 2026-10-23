@@ -1,0 +1,10 @@
+{
+  "production_head": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+  "production_tracked_files_unchanged": true,
+  "test_files": {
+    "internal/bench/target/metrics_failure_diagnostics_test.go": "c77897b1fb6e3550833c7b0e8bd78ee3b789a46f9e776067e0891b899cc7d5b9",
+    "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go": "279d490730ff7f65aef693013ec44c7ab10152fb15307ba87b47219a59390f4a",
+    "cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go": "3ec85fc977ef3065d2b53695471961795616cf381b5a64be28a1e8bb8b64f4ff"
+  },
+  "test_patch_sha256": "ef86da3cd9c27fe608ef7a2e591bebdca4da4329d5fec60476e9548f816103c2"
+}

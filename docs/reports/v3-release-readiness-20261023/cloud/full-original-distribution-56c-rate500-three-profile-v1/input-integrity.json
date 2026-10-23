@@ -1,0 +1,21 @@
+{
+  "schema": "wukongim/56c-after-run-input-integrity/v1",
+  "all_six_inputs_unchanged": true,
+  "actual_inputs": {
+    "launcher.sh": "ce76dd4df0e2dbbe2b7667fbfeebdee6f00c463a607800ed02ff44d20815a282",
+    "supervise.py": "b630ec8f8f575e28c1fbba4b6f01e0434a209e3c1fbbcbd785f4323d21702737",
+    "exact_build_guard.py": "0bbdc6e932f0ef5ce38a00c5cc6d15a6bc2c87adaf66131557ea144134d70e28",
+    "original-distribution-local.yaml": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe"
+  },
+  "proposal_manifest_sha256": "0ecf9147f4041154d5ea99dea711450e5588a8272a8feed5a99da94615c45c46",
+  "sampler_manifest_sha256": "83d363a94bcd4b99239371acd6f4cdadd399bfce7eb337e870e0bb98a026afb8",
+  "source_revision": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "source_tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "source_clean_after": true,
+  "native_binary_SHA256": {
+    "wukongim": "e9ecf52ab6f5d3a7b81b07537f1aebf8fa1a6cd86a5dddb90162c1256acfd7c8",
+    "wkcli": "8e43a41f44eff071629287d7721fd8fb6b92aeee65dbaa3e8478b27a880308be"
+  }
+}

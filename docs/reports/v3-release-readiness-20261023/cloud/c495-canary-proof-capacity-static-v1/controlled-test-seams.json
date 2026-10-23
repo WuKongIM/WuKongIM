@@ -1,0 +1,50 @@
+{
+  "status": "design only; not implemented or executed",
+  "unchanged_limits": {
+    "proof_per_HashSlot": 1024,
+    "UID_page": 512,
+    "targets_per_page": 256,
+    "recovery_cohorts": 4
+  },
+  "scenarios": [
+    {
+      "name": "Page results beyond proof capacity",
+      "boundary": "Public Directory and AuthorityRecovery.EndpointsByTargets",
+      "shape": "More than1024 same-HashSlot UIDs, mixed live/confirmed-offline; pages512/512/tail",
+      "assert": [
+        "Consume page output before next eviction",
+        "Fresh query for evicted proof stays NotReady until recovery",
+        "No flight cached routes or fabricated offline; exact fences and fresh rereads"
+      ]
+    },
+    {
+      "name": "Late waiter eviction",
+      "existing_test": "internal/usecase/presence/uid_flight_integration_test.go:497-548",
+      "assert": [
+        "Leader/follower reread Directory and return NotReady",
+        "One owner query, no silent retry"
+      ]
+    },
+    {
+      "name": "Large and small Channel fairness",
+      "boundary": "Real bounded delivery Runtime public plan submission",
+      "shape": "One paged large Channel and ready small Channel; hold one versus all four cohorts",
+      "assert": [
+        "One executing plan per Channel and ready-tail rotation",
+        "Spare capacity permits unrelated work; all four admit no fifth",
+        "Finite deterministic release, no invented recovery FIFO guarantee"
+      ]
+    },
+    {
+      "name": "Readonly cancellation versus mutations",
+      "boundary": "Real service13 transport with controlled readonly owner port",
+      "assert": [
+        "Record operation-specific caller deadline, remote start/completion",
+        "Separate queue cancellation and running lifetime",
+        "Preserve mixed mutation semantics; no blanket CancelRunning change"
+      ]
+    }
+  ],
+  "existing_page_test": "internal/usecase/presence/recovery_test.go:143-171 TestAuthorityRecoveryPagesLargeTargetWithoutDiscardingEarlierResults",
+  "verdict": "Whole-roster FIFO loop refuted; contention and residual remote work unconfirmed"
+}

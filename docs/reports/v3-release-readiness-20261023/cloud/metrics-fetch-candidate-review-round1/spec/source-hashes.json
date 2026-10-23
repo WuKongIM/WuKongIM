@@ -1,0 +1,216 @@
+{
+  "axis": "Spec",
+  "recorded_utc": "2026-10-22T23:11:15.504291+00:00",
+  "base": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+  "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "diff_command": "git diff 27fa6d63cf3b2b6c3a9a28575f917d60cc054ded...56c287493a5e9fc3df65ea0631b99612672cd678 --",
+  "commits": [
+    "56c287493a5e9fc3df65ea0631b99612672cd678"
+  ],
+  "changed_sources": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 193012,
+      "sha256": "3fdfb6cd6cc0a5a6e9ca2f94002712878bbaa87892bcd4259fc1580f49df45ec",
+      "git_blob": "92697bf77b7e0e5bebf7044db1b104dc7f72c89d"
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go",
+      "bytes": 1388,
+      "sha256": "3ec85fc977ef3065d2b53695471961795616cf381b5a64be28a1e8bb8b64f4ff",
+      "git_blob": "468397a48fff4d06cff36721b8f881a34af60044"
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "bytes": 19368,
+      "sha256": "7fbca62bbe9ff6a17bc2c6fd6e475ccc66f2a39d9965bdf9985cf787199e0368",
+      "git_blob": "7d0f3df9fc6408691f9d62c88f321e7140c86a8c"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 148853,
+      "sha256": "89c7c4fc3c77ccfef9a1cc827192d42295090f113fcecec283740b4350500c79",
+      "git_blob": "3840a41ff8ca638507a324949d099e09e3cb7c7e"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6836,
+      "sha256": "52cf2d48010eac69056be43ed5679bae9e50d0aa04b0ddd12e4199e6a99e76e4",
+      "git_blob": "6eb6493b1b5231e651841ab56a01b5aa1c9e35cf"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6750,
+      "sha256": "f938521d9c3129762f11ac914f5172ae1ea8df53c615f13e3d9615424ed91673",
+      "git_blob": "213eee4b6635e65e7afb536b63282c3f0476de9d"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go",
+      "bytes": 18375,
+      "sha256": "279d490730ff7f65aef693013ec44c7ab10152fb15307ba87b47219a59390f4a",
+      "git_blob": "c719a33d5086c1ad9262c0d8905db1c3585531ed"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/metrics_fetch_failure.go",
+      "bytes": 1567,
+      "sha256": "bd47805a57d94ffc9e34f63532bf86e49e3269586554917fad4fa96afa258bac",
+      "git_blob": "8dde0e2f80ec5b55624fb699af1eac9e415fe952"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "bytes": 34215,
+      "sha256": "0c7a41292bc61a0b68ddea2e6a2cff4d78bbd4293f0395d77674c128ef8f9b09",
+      "git_blob": "c4fce239f9b856d86cb6545ad46f6f7fa846ff17"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_meta.go",
+      "bytes": 12443,
+      "sha256": "8179c7163669a032c92eb9c780e3941bb2bcda81a61d2ebd8b2242e2bf5f55b7",
+      "git_blob": "95075394c05269e75e5904f5f948a43d0649e88a"
+    },
+    {
+      "path": "internal/bench/target/client.go",
+      "bytes": 53374,
+      "sha256": "797ac967cb5f771d2cd3c146d42eff579cb51570aefe91ac8b566372dcb9e2e7",
+      "git_blob": "0f05a2fa22238b534021c5ce66bcfe539e2cb8ee"
+    },
+    {
+      "path": "internal/bench/target/metrics_failure.go",
+      "bytes": 3461,
+      "sha256": "7a075f5707876778c2264f053be43c3ac93a6337eb006e5891673fab93d0d98a",
+      "git_blob": "299774649895e73fcf7346d8ab3d32e91b3ac14d"
+    },
+    {
+      "path": "internal/bench/target/metrics_failure_diagnostics_test.go",
+      "bytes": 15365,
+      "sha256": "aa1bf6986fbd9771eae13031dd1446bf0e2ab52689c4dee620d58b4801ee3ae5",
+      "git_blob": "b2c8375d0775d1835d848dbf9fd90509fd224687"
+    }
+  ],
+  "rules_and_flows": [
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-metrics-fetch-diagnostics/AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-metrics-fetch-diagnostics/internal/bench/FLOW.md",
+      "bytes": 6836,
+      "sha256": "52cf2d48010eac69056be43ed5679bae9e50d0aa04b0ddd12e4199e6a99e76e4"
+    },
+    {
+      "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-metrics-fetch-diagnostics/internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6750,
+      "sha256": "f938521d9c3129762f11ac914f5172ae1ea8df53c615f13e3d9615424ed91673"
+    }
+  ],
+  "input_documents": [
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-fetch-diagnostic-design-v1/design.md",
+      "bytes": 11654,
+      "sha256": "c7d6af127759e6ac7f7ce03d9ff1b2f6c698160739774fb6f3ffd9caed4b4a47"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-fetch-diagnostic-design-v1/failure-matrix.md",
+      "bytes": 12167,
+      "sha256": "a2e30ed5d568a69a2f02d2908032fea486f373873b39d6d3456645f88d814a01"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-fetch-diagnostic-design-v1/failure-matrix.json",
+      "bytes": 20239,
+      "sha256": "966b26e9693927eb1027cbd2e5788b6426f23df86c145908b6bf8161c39bedf4"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-fetch-diagnostic-candidate-v1/failure-coverage-map.json",
+      "bytes": 12117,
+      "sha256": "ad75a49f86a2dddd5c1bab79b79c3cae3acf3c0c9d8b232e29d130a342f5dd06"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-fetch-diagnostic-candidate-v1/coverage-execution.json",
+      "bytes": 33998,
+      "sha256": "47a9cfffdd51953d07c67db8dcf37404cd552a5e4e0eafa19b06508e7e6ecbd1"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-fetch-diagnostic-candidate-v1/candidate-receipt.json",
+      "bytes": 4620,
+      "sha256": "ce411159db8ab82cb9d592b3bf0294c8ea888c6809687ff7796b4a462d601a15"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-fetch-diagnostic-candidate-v1/tests-first-hashes-v2.json",
+      "bytes": 779,
+      "sha256": "aa8a46b87a83fc479043673541807ec515c1dabf44c9fee4439154364f35ec65"
+    }
+  ],
+  "manifests_verified": [
+    {
+      "scope": "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-fetch-diagnostic-design-v1",
+      "manifest_sha256": "92edcd4b2ecc08e3daddafebcb942511bc88fed550742094740264e2379d3901",
+      "count": 8,
+      "total_payload_bytes": 64467,
+      "all_payload_hashes_match": true
+    },
+    {
+      "scope": "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-fetch-diagnostic-candidate-v1",
+      "manifest_sha256": "f24de367c2d25d24aae241f4140cc09ea3f4414e180f4cbeda2818447b150fb9",
+      "count": 43,
+      "total_payload_bytes": 4501280,
+      "all_payload_hashes_match": true
+    }
+  ],
+  "protected_regions_independently_verified": [
+    {
+      "name": "metrics_parser_and_helpers",
+      "bytes": 12157,
+      "sha256": "49fdb48e544069d699c0eefc0a6676d1eea1cd544a61184ae9ef1043ed5bfc7f",
+      "byte_equal_to_base": true
+    },
+    {
+      "name": "target_limits",
+      "bytes": 1510,
+      "sha256": "888f0c05b204ba2cc8340c63f8bd9f5f0cf7f4d2677fa7de446fa21d8263ffb6",
+      "byte_equal_to_base": true
+    },
+    {
+      "name": "meta_settle_policy",
+      "bytes": 99,
+      "sha256": "868b44765f1029c8b46e4a0c363374f99c69905dabfe175fb38bf1ca3d5865c0",
+      "byte_equal_to_base": true
+    },
+    {
+      "name": "meta_settle_loop",
+      "bytes": 1582,
+      "sha256": "d3192af8268f84d3bbae0aed0466edab61fe19da6b38864447d3e80ae064022f",
+      "byte_equal_to_base": true
+    },
+    {
+      "name": "finalize_verdict_and_report_gate",
+      "bytes": 3307,
+      "sha256": "a3d6014e3adacb6661f6b8c6591da1f01c6d3fd88433446be2b4bda36a318936",
+      "byte_equal_to_base": true
+    },
+    {
+      "name": ".github/review-agent/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "byte_equal_to_base": true
+    },
+    {
+      "name": "internal/bench/chatlifecycle/coordinator.go",
+      "bytes": 123128,
+      "sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "byte_equal_to_base": true
+    },
+    {
+      "name": "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "bytes": 13193,
+      "sha256": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee",
+      "byte_equal_to_base": true
+    }
+  ],
+  "v2_tests_match_preproduction_hashes": true,
+  "source_clean_before_after": true,
+  "head_fenced_before_after": true,
+  "finding_count": 0,
+  "execution_scope": "static local inspection and report files only; no tests/builds/workload/network/cloud/source/GitHub mutations"
+}

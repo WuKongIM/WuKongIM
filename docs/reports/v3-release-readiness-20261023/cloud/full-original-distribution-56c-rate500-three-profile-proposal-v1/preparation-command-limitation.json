@@ -1,0 +1,8 @@
+{
+  "first_unittest_discovery_cwd": "/tmp",
+  "first_discovery_result": "ModuleNotFoundError before fixture or product execution",
+  "retained_initial_discovery_log": "/tmp/RED-input-guard.log",
+  "functional_test_first_RED": "RED-input-guard.log in this proposal: missing trusted launch gate, 4 expected failures",
+  "GREEN": "GREEN-input-guard.log: 2 methods/4 cases pass",
+  "does_not_weaken_runtime_guard": true
+}

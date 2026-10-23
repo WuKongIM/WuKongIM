@@ -1,0 +1,36 @@
+{
+  "source": {
+    "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+    "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+    "independent_real_git_clone": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics",
+    "product_sha256": "e9ecf52ab6f5d3a7b81b07537f1aebf8fa1a6cd86a5dddb90162c1256acfd7c8",
+    "compiler": "go1.25.11 darwin/arm64",
+    "build_receipt_manifest_sha256": "17037f9c694787b25580470ed8dd1f6f85cebbd92a735916e0ee024768ffa4f2",
+    "binding_source": "already reviewed exact native build receipt; not reread or rehashed during live workload"
+  },
+  "clean_before": true,
+  "source_instruction_policy_and_mapping_hashes": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    ".github/review-agent/policy.json": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "internal/usecase/presence/FLOW.md": "438ba6664b276dc9b055c14e234b1bcefad55d8f56f649a3779c6df66d780d4e",
+    "internal/runtime/presence/FLOW.md": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+    "internal/infra/cluster/FLOW.md": "765c444eb2c39fa95ab974e3517b6d902f5a9754be27725a9402fcd63555cb5e",
+    "internal/runtime/delivery/FLOW.md": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+    "internal/usecase/presence/recovery.go": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b",
+    "internal/usecase/presence/recovery_flights.go": "53bb1b4f03152f76bef2e833dc658103f58f334dd38f948f2e2f0de1471cce95",
+    "internal/infra/cluster/presence_recovery.go": "6aab62c676e2e437f7dda08d20221f44569cbb0442b961f95d1f62405c4e4f55",
+    "internal/infra/cluster/presence.go": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+    "internal/runtime/delivery/runtime.go": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561",
+    "internal/runtime/delivery/plan_queue.go": "47cb7c5ab5492e5755b1aa9e21c7722f55ec6a3a63ff9d7225ecd76360d5d5b1"
+  },
+  "approved_tool": {
+    "path": "/Users/tt/Library/Caches/go-build/3b/3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5-d/pprof",
+    "verified_sha256": "3ba3e670094251223a66d80c2bb6d8e6f8695c01b70746d1a419ff1457a3f1e5"
+  },
+  "approval_manifest_sha256": "36f673c8d34dfe762371bc0153f19e888f377b69f17dd6f0664918aadc8545f5",
+  "skill": {
+    "path": "/Users/tt/.agents/skills/diagnosing-bugs/SKILL.md",
+    "sha256": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e",
+    "route": "bounded evidence only; no new workload/probes"
+  }
+}

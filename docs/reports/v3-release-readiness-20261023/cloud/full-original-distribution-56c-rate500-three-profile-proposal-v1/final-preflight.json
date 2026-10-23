@@ -1,0 +1,104 @@
+{
+  "schema": "wukongim/56c-rate500-three-profile-offline-preflight/v1",
+  "at_utc": "2026-10-22T23:31:21.076641+00:00",
+  "product_started": false,
+  "workload_started": false,
+  "checks": [
+    {
+      "check": "ast_parse",
+      "file": "supervise.py",
+      "passed": true
+    },
+    {
+      "check": "ast_parse",
+      "file": "exact_build_guard.py",
+      "passed": true
+    },
+    {
+      "check": "ast_parse",
+      "file": "watchdog.py",
+      "passed": true
+    },
+    {
+      "check": "ast_parse",
+      "file": "verify-slots.py",
+      "passed": true
+    },
+    {
+      "check": "bash-n",
+      "passed": true
+    },
+    {
+      "check": "inmemory_negative_SOURCE",
+      "expected_error": "source_revision_mismatch",
+      "passed": true
+    },
+    {
+      "check": "inmemory_negative_SOURCE_TREE",
+      "expected_error": "source_tree_mismatch",
+      "passed": true
+    },
+    {
+      "check": "inmemory_negative_EXACT_SERVER_SHA",
+      "expected_error": "exact_binary_mismatch",
+      "passed": true
+    },
+    {
+      "check": "actual_trusted_input_guard",
+      "passed": true,
+      "sealed_launcher_sha256": "ce76dd4df0e2dbbe2b7667fbfeebdee6f00c463a607800ed02ff44d20815a282"
+    },
+    {
+      "check": "inmemory_negative_input_pin",
+      "file": "launcher.sh",
+      "passed": true
+    },
+    {
+      "check": "inmemory_negative_input_pin",
+      "file": "watchdog.py",
+      "passed": true
+    },
+    {
+      "check": "inmemory_negative_input_pin",
+      "file": "verify-slots.py",
+      "passed": true
+    },
+    {
+      "check": "inmemory_negative_input_pin",
+      "file": "original-distribution-local.yaml",
+      "passed": true
+    }
+  ],
+  "old_pgid": 50713,
+  "old_pgid_members": [],
+  "other_wukongim_processes": [],
+  "selected_ports": [
+    25000,
+    25063
+  ],
+  "listeners": [],
+  "fd_limit": [
+    1048575,
+    9223372036854775807
+  ],
+  "runtime_state_directories": {
+    "data": false,
+    "pids": false,
+    "workers": false,
+    "report": false,
+    "config": false,
+    "profiles-three-node": false
+  },
+  "config_sha256": "308ecc916ed701b1d7b2f47e15c32f2bd8aa1b1ec43b42ec98dfe58a95a52694",
+  "typed_config_diff_vs_c495": [],
+  "identity": {
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:d08d80258ea09de8c97694a8e328196a89f8e5690805ca2fbe478e1b7e3525dc",
+    "assignment_count": 3,
+    "generation": 1
+  },
+  "source_clean": true,
+  "exact_source_revision": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "sampler_v3_independent_review": "pending root closure",
+  "actual_run_requires_separate_root_approval": true
+}

@@ -1,0 +1,38 @@
+{
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "./internal/bench/target",
+    "./internal/bench/chatlifecycle",
+    "./cmd/wkcli/internal/benchmark",
+    "-run",
+    "^Test(Metrics|MetaCheckpointFailureLeaves)",
+    "-count=1",
+    "-timeout=90s",
+    "-json"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-metrics-fetch-diagnostics",
+  "environment": {
+    "PATH": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin:/usr/local/go/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/tt/.codex/tmp/arg0-macos/codex-arg0wWE2xx:/Users/tt/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/tt/.bun/bin:/Users/tt/.nvm/versions/node/v24.3.0/bin:/Users/tt/.local/bin:/usr/local/include/protoc/bin:/Users/tt/go/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/tt/flutter/flutter/bin:/Users/tt/.cargo/bin:/Applications/\u6781\u7a7a\u95f4.app/Contents/Resources/app.asar.unpacked/bin/platform-tools:/Users/tt/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS",
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMAXPROCS": "2",
+    "CGO_ENABLED": "0",
+    "GOFLAGS": "-p=1"
+  },
+  "started_at_utc": "2026-10-22T22:59:20.256741+00:00",
+  "elapsed_seconds": 6.935864333994687,
+  "exit_status": 0,
+  "test_events": {
+    "pass": 452
+  },
+  "top_level_tests": {
+    "pass": 22
+  },
+  "failure_tests": [],
+  "stdout_bytes": 407266,
+  "stderr_bytes": 0,
+  "tests_unchanged": true
+}

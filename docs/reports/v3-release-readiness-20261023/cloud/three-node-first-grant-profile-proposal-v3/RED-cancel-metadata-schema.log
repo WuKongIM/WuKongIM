@@ -1,0 +1,31 @@
+test_term_exit_root_still_kills_observed_ignoreterm_child (cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child) ... ERROR
+test_preexited_root_reports_unconfirmed_not_full_cleanup (cancel_descendants_test.CancelDescendants.test_preexited_root_reports_unconfirmed_not_full_cleanup) ... ERROR
+
+======================================================================
+ERROR: test_term_exit_root_still_kills_observed_ignoreterm_child (cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py", line 29, in test_term_exit_root_still_kills_observed_ignoreterm_child
+    def test_term_exit_root_still_kills_observed_ignoreterm_child(self):self._case('term-exit')
+                                                                        ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py", line 18, in _case
+    self.assertTrue(row['cancel_descendant_cleanup_confirmed']);self.assertLess(elapsed,3.4)
+                    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'cancel_descendant_cleanup_confirmed'
+
+======================================================================
+ERROR: test_preexited_root_reports_unconfirmed_not_full_cleanup (cancel_descendants_test.CancelDescendants.test_preexited_root_reports_unconfirmed_not_full_cleanup)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py", line 30, in test_preexited_root_reports_unconfirmed_not_full_cleanup
+    def test_preexited_root_reports_unconfirmed_not_full_cleanup(self):self._case('exit-before-cancel')
+                                                                       ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3/cancel_descendants_test.py", line 16, in _case
+    if mode=='exit-before-cancel':self.assertFalse(row['cancel_descendant_cleanup_confirmed']);self.assertIn('direct helper',row['capture_joined_semantics'])
+                                                   ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'cancel_descendant_cleanup_confirmed'
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.650s
+
+FAILED (errors=2)

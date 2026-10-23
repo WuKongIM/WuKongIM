@@ -1,0 +1,31 @@
+{
+  "cwd": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v3",
+  "initial_RED_argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child",
+    "-v"
+  ],
+  "GREEN_argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "once_status_test.OnceStatus",
+    "cancel_descendants_test.CancelDescendants",
+    "-v"
+  ],
+  "finite_bounds_argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "cancel_descendants_test.CancelDescendants.test_term_exit_root_still_kills_observed_ignoreterm_child",
+    "cancel_descendants_test.CancelDescendants.test_preexited_root_reports_unconfirmed_not_full_cleanup",
+    "cancel_descendants_test.CancelDescendants.test_three_ignoreterm_roots_and_children_share_kill_budget",
+    "-v"
+  ],
+  "fake_process_source": "fake-orphan-helper.py -> fake-ignoreterm-child.py",
+  "argv_construction_source": "watcher_coordination_test.py + cancel_descendants_test.py",
+  "fixture_token": "synthetic only; tests assert no token in watcher stdout/stderr",
+  "actual_product_requests": 0
+}

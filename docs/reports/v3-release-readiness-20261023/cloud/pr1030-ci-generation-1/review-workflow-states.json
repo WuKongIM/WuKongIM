@@ -1,0 +1,26 @@
+{
+  "review-agent.yml": {
+    "id": 324187004,
+    "node_id": "W_kwDOJgfwyc4TUrN8",
+    "name": "Safety Automation - Review Agent Controller",
+    "path": ".github/workflows/review-agent.yml",
+    "state": "disabled_manually",
+    "created_at": "2026-07-31T11:36:34.000+08:00",
+    "updated_at": "2026-09-07T15:54:32.000+08:00",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/workflows/324187004",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/review-agent.yml",
+    "badge_url": "https://github.com/WuKongIM/WuKongIM/workflows/Safety%20Automation%20-%20Review%20Agent%20Controller/badge.svg"
+  },
+  "review-agent-run.yml": {
+    "id": 324187001,
+    "node_id": "W_kwDOJgfwyc4TUrN5",
+    "name": "Agent Tool - Review Pull Request",
+    "path": ".github/workflows/review-agent-run.yml",
+    "state": "disabled_manually",
+    "created_at": "2026-07-31T11:36:34.000+08:00",
+    "updated_at": "2026-09-07T15:54:34.000+08:00",
+    "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/workflows/324187001",
+    "html_url": "https://github.com/WuKongIM/WuKongIM/blob/main/.github/workflows/review-agent-run.yml",
+    "badge_url": "https://github.com/WuKongIM/WuKongIM/workflows/Agent%20Tool%20-%20Review%20Pull%20Request/badge.svg"
+  }
+}

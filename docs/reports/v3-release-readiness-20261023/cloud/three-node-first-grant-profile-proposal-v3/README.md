@@ -1,0 +1,9 @@
+# Three-node sampler V3 bounded descendant cancellation
+
+V1 and the already-sealed V2 remain unchanged. V2 fixes the duplicate unclaimed status writer. V3 also preserves pre-TERM observed helper descendants before roots can exit and reparent them. One shared two-second grace plus one-second cleanup budget includes snapshots, KILL and direct-helper waits. A later live-root snapshot adds newly observed descendants; signals are restricted to those observed descendants still in the original owned PGID.
+
+A synthetic TERM-exiting root with an ignore-TERM child reproduced a running orphan before implementation. After correction the three observed children are stopped and helper roots reaped. Three TERM-ignoring roots and children completed cancellation in 2.077 seconds, inside one shared budget. If roots already exited before cancellation, their orphan ancestry cannot be recovered: metadata explicitly says cleanup unconfirmed and partial, even though the direct helpers were reaped. This result depends on enclosing final whole-PGID cleanup. capture_joined means only the registered direct helper was reaped.
+
+Thirteen fake unittest invocations (nine distinct method bodies, with four original controls inherited twice) passed; a separate three-case finite timing run passed. No TCP, product, private profile fixture, API, DB, cloud or Go build. Source helper bytes and HTTP format/time/byte limits are unchanged. The actual synthetic helper/child programs, Python fixtures and exact invocation lists are sealed here for repeatability. Snapshot failures or time exhaustion stay unconfirmed; no broad orphan adoption or process-wide kill is invented.
+
+This proposal adds observability overhead and is diagnostic only. Future exact source/binary/launcher configuration and the one real-run decision remain separate root-reviewed gates.

@@ -1,0 +1,14 @@
+{
+  "schema": "wukongim/three-node-sampler-owned-fake-cancel/v1",
+  "synthetic_helpers": 3,
+  "all_ignore_TERM_before_stop_latch": true,
+  "actual_TCP_or_profile_requests": 0,
+  "stop_reason": "supervisor_stop",
+  "partial": true,
+  "shared_TERM_then_KILL_join_elapsed_seconds": 2.0931322909891605,
+  "all_three_capture_joined": true,
+  "all_three_KILL_escalated": true,
+  "all_three_owned_pid_probes_absent": true,
+  "no_secret_in_stdout_stderr": true,
+  "copied_private_profiles": false
+}

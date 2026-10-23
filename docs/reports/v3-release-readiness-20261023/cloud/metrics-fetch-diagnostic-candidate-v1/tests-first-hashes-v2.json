@@ -1,0 +1,11 @@
+{
+  "production_head": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+  "production_tracked_files_unchanged": true,
+  "test_files": {
+    "internal/bench/target/metrics_failure_diagnostics_test.go": "aa1bf6986fbd9771eae13031dd1446bf0e2ab52689c4dee620d58b4801ee3ae5",
+    "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go": "279d490730ff7f65aef693013ec44c7ab10152fb15307ba87b47219a59390f4a",
+    "cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go": "3ec85fc977ef3065d2b53695471961795616cf381b5a64be28a1e8bb8b64f4ff"
+  },
+  "test_patch_sha256": "e34a68b432c8c0dd7b036de4202e9eab875a6ede664d096e937133e4bdfcf4ba",
+  "pre_production_fixture_correction": "Authorization expectation now includes the existing Bearer prefix; first RED and v1 hashes preserved"
+}

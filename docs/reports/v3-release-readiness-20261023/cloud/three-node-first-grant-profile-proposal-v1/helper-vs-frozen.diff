@@ -1,0 +1,120 @@
+--- frozen/helper7b07cc
++++ proposed/explicit-node-helper
+@@ -7,10 +7,10 @@
+ 
+ usage() {
+   cat <<'USAGE'
+-Temporary fixed-node2 first-grant adapter. Required: --out-dir, --phase-state-file,
++Temporary explicit-node first-grant adapter (node-id defaults to 2). Required: --out-dir, --phase-state-file,
+ --trigger-kind first_grant_receipt, --trigger-observed-phase measurement,
+ --previous-utc (actual first grant), --current-utc (receipt detection),
+---node (one explicit loopback node2 URL), --cpu-seconds10.
++--node (one explicit loopback URL), --node-id 1/2/3, --cpu-seconds10.
+ One CPU request then one goroutine request at local submission+5s. No heap/context.
+ This adapts frozen threshold-helper ownership; it is not an unchanged threshold mode.
+ USAGE
+@@ -21,6 +21,8 @@
+   exit 64
+ }
+ 
++# Producer node identity is explicit; it never derives from a URL or output path.
++NODE_ID=2
+ OUT_DIR=''
+ PHASE_STATE_FILE=''
+ TRIGGER_KIND=''
+@@ -63,6 +65,11 @@
+       CURRENT_UTC="$2"
+       shift 2
+       ;;
++    --node-id)
++      [[ $# -ge 2 ]] || die_usage '--node-id requires a value'
++      NODE_ID="$2"
++      shift 2
++      ;;
+     --node)
+       [[ $# -ge 2 ]] || die_usage '--node requires a value'
+       NODE_URLS+=("$2")
+@@ -87,6 +94,7 @@
+   esac
+ done
+ 
++[[ "$NODE_ID" =~ ^[123]$ ]] || die_usage '--node-id must be exactly 1, 2, or 3'
+ [[ -n "$OUT_DIR" ]] || die_usage '--out-dir is required'
+ [[ -n "$PHASE_STATE_FILE" ]] || die_usage '--phase-state-file is required'
+ LOCAL_PPROF_API_TOKEN="${WK_BENCH_API_TOKEN:-}"
+@@ -112,7 +120,7 @@
+ [[ "$CPU_SECONDS" -eq 10 ]] || die_usage "temporary mode requires cpu-seconds10"
+ NODE_COUNT="${#NODE_URLS[@]}"
+ [[ "$NODE_COUNT" -eq 1 ]] ||
+-  die_usage 'exactly one physical node2 --node value is required'
++  die_usage 'exactly one physical --node value is required'
+ 
+ normalize_rfc3339_nano() {
+   local value="$1" base fraction zone zone_for_date epoch utc_base fraction_digits fraction_nanos
+@@ -280,7 +288,7 @@
+       comma=,
+       [[ "$node" -eq $((NODE_COUNT - 1)) ]] && comma=''
+       printf '    {"node": "node-%s", "cpu": "%s", "heap": "%s", "goroutine": "%s"}%s\n' \
+-        "2" "${CPU_STATUS[$node]}" "${HEAP_STATUS[$node]}" "${GOROUTINE_STATUS[$node]}" "$comma"
++        "$NODE_ID" "${CPU_STATUS[$node]}" "${HEAP_STATUS[$node]}" "${GOROUTINE_STATUS[$node]}" "$comma"
+     done
+     printf '  ]\n'
+     printf '}\n'
+@@ -311,9 +319,9 @@
+     129|130|143) error_class=interrupted ;;
+     *) error_class=curl_error ;;
+   esac
+-  printf '{"schema":"wukongim/local-profile-request-status/v1","node_id":2,"kind":"%s","curl_exit_code":%s,"http_status":%s,"error_class":"%s","retained_body_bytes":%s,"max_bytes":%s}\n' \
+-    "${CAPTURE_KINDS[$index]}" "$curl_code" "$http_json" "$error_class" "$bytes" "$limit" \
+-    >"$REQUEST_DIR/node-2-${CAPTURE_KINDS[$index]}.json"
++  printf '{"schema":"wukongim/local-profile-request-status/v1","node_id":%s,"kind":"%s","curl_exit_code":%s,"http_status":%s,"error_class":"%s","retained_body_bytes":%s,"max_bytes":%s}\n' \
++    "$NODE_ID" "${CAPTURE_KINDS[$index]}" "$curl_code" "$http_json" "$error_class" "$bytes" "$limit" \
++    >"$REQUEST_DIR/node-${NODE_ID}-${CAPTURE_KINDS[$index]}.json"
+   CAPTURE_RESULTS_RECORDED[$index]=1
+ }
+ 
+@@ -413,7 +421,7 @@
+ start_profile_request() {
+   local node_index="$1" kind="$2" url="$3" destination="$4" max_time="$5"
+   local temporary="$destination.next.$$" max_bytes=8388608
+-  local http_file="$REQUEST_DIR/node-2-$kind-http-code"
++  local http_file="$REQUEST_DIR/node-${NODE_ID}-$kind-http-code"
+   case "$kind" in heap) max_bytes=16777216 ;; goroutine|context-*) max_bytes=4194304 ;; esac
+   CAPTURE_STARTED+=("$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+   CAPTURE_REGISTERING=1
+@@ -449,7 +457,7 @@
+     printf '%s\t%s\t%s\n' "$path" "$status" "$bytes" >>"$directory/sources.tsv"
+   done
+   for index in "${!NODE_URLS[@]}"; do
+-    node_number=$((index + 1))
++    node_number="$NODE_ID"
+     start_profile_request "$index" "context-$phase" "${NODE_URLS[$index]}/metrics" \
+       "$directory/node-${node_number}.prom" "$SNAPSHOT_MAX_TIME_SECONDS"
+   done
+@@ -479,7 +487,7 @@
+       cpu) CPU_STATUS[$node_index]="$capture_status" ;;
+       heap) HEAP_STATUS[$node_index]="$capture_status" ;;
+       goroutine) GOROUTINE_STATUS[$node_index]="$capture_status" ;;
+-      context-*) printf '%s\t%s\t%s\t%s\t%s\n' "${CAPTURE_KINDS[$capture_index]}" "$((node_index + 1))" "${CAPTURE_STARTED[$capture_index]}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$capture_status" >>"$OUT_DIR/context/requests.tsv" ;;
++      context-*) printf '%s\t%s\t%s\t%s\t%s\n' "${CAPTURE_KINDS[$capture_index]}" "$NODE_ID" "${CAPTURE_STARTED[$capture_index]}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$capture_status" >>"$OUT_DIR/context/requests.tsv" ;;
+     esac
+   done
+ }
+@@ -493,7 +501,7 @@
+ # Temporary fixed-role schedule. The original request-registration, auth,
+ # cancellation and joins remain in use; this is not a threshold trigger.
+ index=0
+-start_profile_request "$index" cpu   "${NODE_URLS[$index]}/debug/pprof/profile?seconds=${CPU_SECONDS}"   "$PROFILE_DIR/node-2-cpu.pb.gz" "$CPU_MAX_TIME_SECONDS"
++start_profile_request "$index" cpu   "${NODE_URLS[$index]}/debug/pprof/profile?seconds=${CPU_SECONDS}"   "$PROFILE_DIR/node-${NODE_ID}-cpu.pb.gz" "$CPU_MAX_TIME_SECONDS"
+ CAPTURE_REGISTERING=1
+ sleep 5 &
+ TIMER_PID=$!
+@@ -504,7 +512,7 @@
+ if [[ "$(read_phase_state)" != measurement ]]; then
+   handle_signal
+ fi
+-start_profile_request "$index" goroutine   "${NODE_URLS[$index]}/debug/pprof/goroutine?debug=0"   "$PROFILE_DIR/node-2-goroutine.pb.gz" "$SNAPSHOT_MAX_TIME_SECONDS"
++start_profile_request "$index" goroutine   "${NODE_URLS[$index]}/debug/pprof/goroutine?debug=0"   "$PROFILE_DIR/node-${NODE_ID}-goroutine.pb.gz" "$SNAPSHOT_MAX_TIME_SECONDS"
+ 
+ join_profile_requests
+ if (( CAPTURE_CONTEXT == 1 )); then

@@ -1,0 +1,17 @@
+# PR1030 first automatic CI generation
+
+This finite proof covers the original four automatic pull_request workflow runs, each attempt1. All18 checks completed:16 success and2 explicit non-PR event skips. There was no dispatch, replay, rerun, cancellation, workflow enable, ready/merge action, cloud operation or local build/test by this auditor.
+
+Reviewed head56c287493a5e9fc3df65ea0631b99612672cd678 and test merge a514c73b4c950b9ead150c28ff08ef89123f5238 have identical tree582e5bc024147b32aa68074d04c041391af89b96. Merge parents are base27fa6d63cf3b2b6c3a9a28575f917d60cc054ded and reviewed head56. Fourteen checkout job logs bind the actual test merge; the credential-free signal and aggregate have no checkout. Root rules, workflow contract and policy are unchanged at head/base; both applicable valid FLOWs are separately frozen, including their candidate edits.
+
+Candidate default go-unit, independent scripts-integration and serial process E2E passed their exact frozen policy commands, bounds and cleanup contracts. Migration covers all five topologies, including1-to3, followed by cross-node delivery and whole-cluster restart self-chat on1/3nodes with one exact binary. The optional2000QPS comparison is explicitly skipped and not qualification evidence. See named-check-validation.json, e2e-summary.json and the private-report-free self-chat-safe-summary.json.
+
+Three fresh500QPS seams each retain one60s warmup and three60s measured windows, exact90000 measured completions withzero errors/drops and all windowP99<=400ms. Host, Go, source, binary, filesystem and counter-window identities are retained. These are shared hosted runner observations, not a causal performance comparison.
+
+Native preview passed package/CLI contracts, real single-node cluster SEND, TEST ONLY signed repository closure, non-activating package transactions and real-systemd lifecycle on Ubuntu24.04,Debian12,Rocky9,Alma9. No production key, signed channel or publication was used. Optional cosign verification of downloaded GoReleaser was skipped because cosign was unavailable; its download checksum passed.
+
+Six small proof ZIPs have full API size/SHA256, safe member paths/types, member CRC and content hash validation. The original E2E ZIP and raw identity/payload report remain under PRIVATE_original-downloads and are outside PUBLIC_ALLOWLIST.txt. Only allowlisted small text proofs and a finite typed self-chat summary are exposed. Public members are scanned against private report identity/payload string tokens. Large correctness228677232B and native77886009B ZIPs remain metadata-only: no independent local content digest/member/CRC claim for them. API digests and successful job/checksum steps are separate evidence.
+
+CI success does not invalidate the retained exact-c495 full-distribution failure, repair message loss, establish its root cause, prove72-hour stability or2000QPS capacity, publish APT/RPM or qualify GA. This diagnostic-only PR remains Draft at the audit cut; only root decides readiness/merge after both reviews and runtime evidence assessment. Missing or skipped coverage stays explicit.
+
+Replay validators against already retained files only: validate-small-proofs.py, validate-e2e.py and finalize.py. Metadata/collection helpers are bounded read-only GitHub consumers; do not run them as an automatic test retry. SHA256SUMS covers exactly PUBLIC_ALLOWLIST.txt and its finite file list; private original material is excluded.

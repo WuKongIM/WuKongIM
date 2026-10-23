@@ -1,0 +1,16 @@
+{
+  "platform": "darwin-arm64",
+  "binary": "wkcli",
+  "sha256": "8e43a41f44eff071629287d7721fd8fb6b92aeee65dbaa3e8478b27a880308be",
+  "bytes": 41059970,
+  "linkflags": "-s -w -buildid=",
+  "source_revision": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "source_tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "compiler": "go1.25.11",
+  "CGO_ENABLED": 0,
+  "trimpath": true,
+  "buildvcs": true,
+  "vcs_modified": false,
+  "vcs_revision_is_exact_source": true,
+  "product_executed": false
+}

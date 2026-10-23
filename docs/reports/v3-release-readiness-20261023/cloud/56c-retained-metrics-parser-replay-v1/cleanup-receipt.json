@@ -1,0 +1,66 @@
+{
+  "completed_at": "2026-10-22T23:53:57.894067+00:00",
+  "source_head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "source_tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "all_source_hashes_before_after_equal": true,
+  "only_temporary_test_removed_after_byte_verification": true,
+  "fixture_sha256": "2488a9e4d8343fa932ae969c4c7864d7fcaedf940142d35dd7629fc550bb86b9",
+  "tracked_and_untracked_tree_clean_before_remove": true,
+  "detached_worktree_removed_without_force": true,
+  "worktree_absent_from_registration": true,
+  "no_task_branch_created": true,
+  "primary_or_real56_product_checkout_modified_by_this_task": false,
+  "private_cause_files": 0,
+  "input_checks": [
+    {
+      "name": "metrics-first-measured-node1.prom",
+      "sha256": "70db80a81169486c485ff5d55bcdc732581d42024ec0b287acef5ee9cd095d5e",
+      "bytes": 1018764,
+      "mtime_ns": 1792712367885103281,
+      "original_unchanged_after_replay": true,
+      "private_backup_still_verified": true
+    },
+    {
+      "name": "metrics-first-measured-node2.prom",
+      "sha256": "3fa8b1b3b9ea6681fea80b63680efce0668ee817382b49df5bee2aab54423421",
+      "bytes": 997047,
+      "mtime_ns": 1792712367963172347,
+      "original_unchanged_after_replay": true,
+      "private_backup_still_verified": true
+    },
+    {
+      "name": "metrics-first-measured-node3.prom",
+      "sha256": "041a473613664ac91476361be1b3bee6714996493f5aae6758601c618ec80eb9",
+      "bytes": 988707,
+      "mtime_ns": 1792712368054456309,
+      "original_unchanged_after_replay": true,
+      "private_backup_still_verified": true
+    },
+    {
+      "name": "metrics-terminal-node1.prom",
+      "sha256": "508461a24bbe3b3803a7f111f88d8cd8854e83a148d2961e7c472419b68a0e7a",
+      "bytes": 1057137,
+      "mtime_ns": 1792712385818560785,
+      "original_unchanged_after_replay": true,
+      "private_backup_still_verified": true
+    },
+    {
+      "name": "metrics-terminal-node2.prom",
+      "sha256": "9f98338ca5c4344cc203cf5d836be94ba30ea4eb62c5edc9f7c02c51a4e2a422",
+      "bytes": 1043592,
+      "mtime_ns": 1792712385823969178,
+      "original_unchanged_after_replay": true,
+      "private_backup_still_verified": true
+    },
+    {
+      "name": "metrics-terminal-node3.prom",
+      "sha256": "9b8ec5ea917fed81b0654e1da267f3a1dbdc5ad83696af52e117b5e7412f6d25",
+      "bytes": 1030734,
+      "mtime_ns": 1792712385829271445,
+      "original_unchanged_after_replay": true,
+      "private_backup_still_verified": true
+    }
+  ],
+  "Go_test_invocations": 1,
+  "retries": 0
+}

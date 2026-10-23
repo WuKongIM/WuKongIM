@@ -1,0 +1,23 @@
+{
+  "node_id": 1,
+  "kind": "goroutine",
+  "started_at_utc": "2026-10-22T23:45:51.095913+00:00",
+  "input_before": {
+    "sha256": "92e75aa622234d6e4619219d4a7e72000886b70acee8fdf4efcc4cea6e8b4119",
+    "bytes": 23598,
+    "mtime_ns": 1792712367732905067
+  },
+  "classification_status": "complete",
+  "aggregate_sha256": "9eb0e97d10b254466e69201a1023642b972ddec2c1db861302135c84b77fd0d7",
+  "aggregate_bytes": 6949,
+  "private_decoded_bytes": 292822,
+  "input_after": {
+    "sha256": "92e75aa622234d6e4619219d4a7e72000886b70acee8fdf4efcc4cea6e8b4119",
+    "bytes": 23598,
+    "mtime_ns": 1792712367732905067
+  },
+  "status": "complete",
+  "completed_at_utc": "2026-10-22T23:45:51.102081+00:00",
+  "elapsed_seconds": 0.006082540960051119,
+  "public_projection_refinement": "Mutex full symbol contexts retained private; only aggregate nearest product Go symbol/line/count public. No profile re-decode."
+}

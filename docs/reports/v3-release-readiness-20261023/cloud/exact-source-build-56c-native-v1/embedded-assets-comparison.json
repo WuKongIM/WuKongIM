@@ -1,0 +1,534 @@
+[
+  {
+    "source_path": "internal/access/api/demoui/dist/assets/Chat-0bd26d92.js",
+    "bytes": 25346,
+    "sha256": "c9ecd5e1b95ce54e6b94114569dc77c0dce7d0556dc6e6e04916cb15d0eb5943",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/api/demoui/dist/assets/Chat-e2f023a7.css",
+    "bytes": 10923,
+    "sha256": "e2f023a7326d2750d102dd05109d4a04c949d8939e4440915472746cb0b026f9",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/api/demoui/dist/assets/Login-68a64955.css",
+    "bytes": 1881,
+    "sha256": "68a6495555f231b61a03a2123706ed9ce71ae91b9770552770439052f29afe1e",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/api/demoui/dist/assets/Login-fc1be1af.js",
+    "bytes": 3053,
+    "sha256": "1aa46233de46c6cb2b58508c7df7bbacb06e6d7b866d85d4675591fb4081e80e",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/api/demoui/dist/assets/assets-056547b1.css",
+    "bytes": 516,
+    "sha256": "056547b16dd762cfb0ad89df6346f0b7248b4704b09484a64076be85fc69dcbf",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/api/demoui/dist/assets/assets-48a13729.js",
+    "bytes": 1347,
+    "sha256": "f2a2242ef90f91f0793e8b4e99999907009c158a4a889253ec706dbac31d3fce",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/api/demoui/dist/assets/index-00c11449.css",
+    "bytes": 1844,
+    "sha256": "00c11449c7702d0585031f525c4b01e84f62bc915a3397cfd73ca7422da42933",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/api/demoui/dist/assets/index-0c1748c5.js",
+    "bytes": 376546,
+    "sha256": "2407cb08b3de229aec3b1f7c7e0dfa81cabc4c6e3e88de99dc84d27fec4eee36",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/api/demoui/dist/index.html",
+    "bytes": 441,
+    "sha256": "8640276b6ae1c9cab902716fa6c7611407ed00075a4ba09b7998b2f02c32c5c3",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/api/demoui/dist/logo.png",
+    "bytes": 6085,
+    "sha256": "c1433cb94a2f05bf11e5ba3a04be9a531f7ed0a4957b1851cd3c97f064391eef",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/action-form-dialog-Dgf3eh7Z.js",
+    "bytes": 1511,
+    "sha256": "69f24004e928e9cc669fcd5e13df23a27d663ba62590acf2feaa53e4b65b5246",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/arrow-down-BDjUkTdf.js",
+    "bytes": 154,
+    "sha256": "2893650e4cae8514fad5cd4b806f7eb7185caccfaa1dea5b9753011309abd894",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/circle-question-mark-Pbkj54ja.js",
+    "bytes": 237,
+    "sha256": "837be1a25e6ff5602f9a2cf76df6cdb8c748baaa141a715257e743f198805d01",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/confirm-dialog-BlfIIUEM.js",
+    "bytes": 1453,
+    "sha256": "27ea38a136070012985175af484f2d363535928117d74531e74f72cd06cef8f6",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/copy-DK6llW26.js",
+    "bytes": 225,
+    "sha256": "75088080963263ea54310c6d6c5356d5af1d7b05b741b0a9bb2479b4f369076c",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/detail-sheet-DmHgWO7L.js",
+    "bytes": 1366,
+    "sha256": "8e368b264d994072f43c351a7f90d7281d027f1ae15cf570b0053b2d9fd7572e",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/geist-cyrillic-wght-normal-CHSlOQsW.woff2",
+    "bytes": 14692,
+    "sha256": "33d7ab460dff4e1fc586738d5d50e3e04bcb48e9bef7b94154cc7e07aeed6b66",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/geist-latin-ext-wght-normal-DMtmJ5ZE.woff2",
+    "bytes": 15308,
+    "sha256": "3640f9351b2a4631515dffea38092c24e70db9df2ef1e97c10cbdeb4163e6186",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/geist-latin-wght-normal-Dm3htQBi.woff2",
+    "bytes": 28400,
+    "sha256": "0cbbe6286a00f356e98980783cc950a9b693751e04aedfb97d9526ff6dc2b316",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/geist-mono-cyrillic-wght-normal-BZdD_g9V.woff2",
+    "bytes": 12616,
+    "sha256": "a5e8e11f202b076d7640113f3dd28853f90a45991ff4e61a2262f1527c6e17ea",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/geist-mono-latin-ext-wght-normal-b6lpi8_2.woff2",
+    "bytes": 13044,
+    "sha256": "6aadc1c180fd799413a0f225ffc68356d6ed33d2d867d2899322b1c9530ed5e7",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/geist-mono-latin-wght-normal-Cjtb1TV-.woff2",
+    "bytes": 31368,
+    "sha256": "e9fb088eeacced307860d82ceedb0ae9ad2ebfa07a7c0a7279c8c961dd9d5fd3",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/icons-BRtHMaym.js",
+    "bytes": 8995,
+    "sha256": "67eed46ee8cdc30807dee9b80128d3eaaab80a00e7b76c0e6dc6784a50dde129",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/index-8UIgC_rj.js",
+    "bytes": 337464,
+    "sha256": "bf73a06ada60bfa2d047fb61a0c54be652718c2fc8dface6a7f87037d6e9b6a7",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/index-Du3-0AeG.css",
+    "bytes": 94600,
+    "sha256": "e74c22a27a0f7b07da1dcc11339829229c211e371f206837297939d92145e194",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/internationalization-CkLnavra.js",
+    "bytes": 49879,
+    "sha256": "e8c05f3263e19af268f1e1dff00798c3e11a16ca49bf0a253e0a3dcbcdc578b0",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/key-value-list-C1OdtMlN.js",
+    "bytes": 467,
+    "sha256": "b43fd381d3fcbbc889efe4d3c8b08f45751d086bd4fa1b9a590f92729d4f02f8",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/manager-message-payload-CrO-Bdz8.js",
+    "bytes": 316,
+    "sha256": "2cad4205eae3b415da1477242d5d986c9380973e95296a924461700efd35ec3d",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/monitor-node-selector-B2aKocIr.js",
+    "bytes": 1141,
+    "sha256": "1e859f1e67f4a6fe5c8666f7dfb59300fe3040c1884de550bb4c365ad38bbb7e",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/node-config-i18n-BQPjZY_d.js",
+    "bytes": 5602,
+    "sha256": "a99933eae7a9f6ef109e9f25729ad24b7176fcfaf57a45762d76096edb22c134",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/node-filter-D2TXFXyN.js",
+    "bytes": 1147,
+    "sha256": "a4e6678f2bbed1ffa17e021d7c171a66261fb139983cc0de8d8a5d3512e7b93a",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-1k_kcmBA.js",
+    "bytes": 11276,
+    "sha256": "11852b213a4fbcd69dcbe7e7e565a55924005ac1a7ff4fd1f12baf1219aeee27",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-7p3guEEA.js",
+    "bytes": 25156,
+    "sha256": "9887d050be435cb6443ce130d6cd5ffb99ff1d600f187dc7d4703fb5de8a6e84",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-BBiOqBGB.js",
+    "bytes": 27162,
+    "sha256": "725253b137b9d0f88f6af35eaec4114216879f0a9c05b8acd9df9941a342e6f1",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-BDgAnElw.js",
+    "bytes": 30060,
+    "sha256": "079adbc7f9ef556f764988dfd66bf6f6501f3f630ecd4b54e131bd22287404be",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-BbJU6hm0.js",
+    "bytes": 16794,
+    "sha256": "c8bef22d4fd869d929efe692a550769f74d42fdcf7ccba5fca0a21ef79d106f9",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-BrhUw6uI.js",
+    "bytes": 66393,
+    "sha256": "eb6f7056312268469d17b7e50e47d9254fdd56994270fedf99465296a9a55a76",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-C5sgfBV2.js",
+    "bytes": 10574,
+    "sha256": "aaf05a127e335771c62db0930d5573c371676746ea9149b44803a36dc6974fdc",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-CIj-iC5S.js",
+    "bytes": 14313,
+    "sha256": "11bb7cd36ec1ee47bbee154ae63dc06e432c30575f0dbecdee3ccd92e57fdfa8",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-D-RCbGIo.js",
+    "bytes": 15456,
+    "sha256": "bafdfe77818736afbd870ec64d019b12015f36d9908e779cd6ec2c2ae839bcf9",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-DBK7ZUys.js",
+    "bytes": 29671,
+    "sha256": "d0be211e0405f3339e1ca48484f1641bf13ac4f73e86c04f27af7093d0041bea",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-Dd_mZDcH2.js",
+    "bytes": 6286,
+    "sha256": "d81a726653982c13e7c1075d9564593a6f1b38e26206bb6278f6c7910a767395",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-DqaUIKIG.js",
+    "bytes": 28881,
+    "sha256": "698152fa16b34bde662ea0def0da2282809603c0a07aaf2ba699816c5ab906bb",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-DrlhDoPP.js",
+    "bytes": 7449,
+    "sha256": "b4a3ba7a9ee40faf2d094ab3b4fc90441c5535709fe9612c995b6279958bec31",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-GuLuWAJb.js",
+    "bytes": 11073,
+    "sha256": "8a83eacc9ef8eebfc88a3941e386a50a42db9a52645a476a7ec2f349ddb25b15",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-QpXZf7HB.js",
+    "bytes": 5440,
+    "sha256": "ea7dafaeb130f89b73bf47e387b0fc5a1c49b3aa8be452f5995c298e7c965c31",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-Uhs5_TPd.js",
+    "bytes": 17742,
+    "sha256": "6ba8885e8937b92cf34c356db0227ddf7bcf5cda1362ec4ae890239e165a4a44",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-Vd9yu4UC.js",
+    "bytes": 8316,
+    "sha256": "f6bdf8a0841713678af9e423549289fab7e0e5f6222fa68f0ced240c12abf626",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-Yk4VAldT.js",
+    "bytes": 8744,
+    "sha256": "9e592ec54f3b0dedd4741cfc98712b040ea612a2bf1ed2cf4dd10b7cfe377e9d",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-gj0YRSeA.js",
+    "bytes": 11898,
+    "sha256": "c694e0c2f1aff3a657f564eb805af595d93020aa71d75a7859b19b842b4907af",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-header-DycBClwF.js",
+    "bytes": 1319,
+    "sha256": "82bfa0a13cabd20e02cf463c243ec06fcbb4f46289b98bc7e25b2ea9056a117f",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-kSwBta5d.js",
+    "bytes": 388798,
+    "sha256": "72ef650bfd91256fd8ceb1c2038780ea026ddb92f640659c2637f625c708393e",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-ksAYZ6SJ.js",
+    "bytes": 24090,
+    "sha256": "45f0d4fb6365e319d1d3d89148cd844a864d4e6a02580ffd85a6a79014f3d097",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/page-tabs-tnEB8CKB.js",
+    "bytes": 639,
+    "sha256": "f0ac82f44a090fc39150ab46e1c87e5583367f4654919118efc82487882310b8",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/pause-C-qiB3dF.js",
+    "bytes": 200,
+    "sha256": "4795f144ba352d438c76e88bc9fc31b988e8f1311c517edf2d9da9c30c9fbaeb",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/permissions-DlVU-3ev.js",
+    "bytes": 134,
+    "sha256": "f4f61367a906965f3f5427492ffd9e89169943ebf7cdca759d0b05b5ff58ecf5",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/play-BkkcuACI.js",
+    "bytes": 179,
+    "sha256": "ad825dedea78247d819d7e1b288eb24357cd29f0d894832271af894c2d0005db",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/protected-app-shell-fxcDvw7h.js",
+    "bytes": 12723,
+    "sha256": "4fd5a38e1043701e686e5187496877f7f6d25ed392a3c61c0e73bfa87c719b13",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/react-core-C41Lr-7s.js",
+    "bytes": 189644,
+    "sha256": "1248d9a8c645c2ef87e0e8e0a18753933eaa16b034fdc30021b4cb8fdbd93731",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/refresh-cw-CwhT7J6N.js",
+    "bytes": 310,
+    "sha256": "d1526a5221bd5f2dfc5902d4e5ef9bb742f80f96abd3d5c6a7d866427456d199",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/resource-state-C0zNLkrh.js",
+    "bytes": 1091,
+    "sha256": "cfa48767f5c0e2a59a205f90ae90ac937573528e198375c9f2ec6b46e78d9c07",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/rolldown-runtime-S-ySWqyJ.js",
+    "bytes": 694,
+    "sha256": "5db5ba82eef00d1dee7e86e663098c9427d01183a88d357437daff295aec3e75",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/router-CUwpFhXQ.js",
+    "bytes": 93567,
+    "sha256": "a285c97fe0c4d0dd4c8e0beaa2acfb191b288cd2b053c0fc0f2042214464e7c4",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/search-BUeC82_e.js",
+    "bytes": 163,
+    "sha256": "a382287b8772d4392bcbbea5210f351ec9ef05aa7b69205bda0697645e24788e",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/section-card-CHWGwIZX.js",
+    "bytes": 2141,
+    "sha256": "b82d35f18ca2328fbadfcf1e3e16e48f462117691d863ce0efe49dba557fa182",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/sheet-BCkYM0TR.js",
+    "bytes": 24008,
+    "sha256": "370bc56ec46fa95b83ac77f215cbd41289119bcece846d4c69226fb791def738",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/status-badge-rscIRwaF.js",
+    "bytes": 773,
+    "sha256": "6f10686725a7c6d072e93fadfffc477eed98f5191dd8dcb37c0851928598aaa4",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/status-labels-D5vbD6Hp.js",
+    "bytes": 3368,
+    "sha256": "7c0b7f2227b7f9b3cfee25059e1a206afd1934d2fb25fec4b9b23f34189efc92",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/ui-primitives-BB9hC0a6.js",
+    "bytes": 44904,
+    "sha256": "083eec62cfb1c537adfefd67ec1a3d14080f671275705c028ce1508c363cc418",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/use-modal-focus-CZQjdk0o.js",
+    "bytes": 1032,
+    "sha256": "228e761ec4e215377f472c090ca70db9504aaa6aa2ac9a663b1882a8ede7bbed",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/utilities-DqAjjHqi.js",
+    "bytes": 27692,
+    "sha256": "cb0daa33896f32c27b6d231af9bf31ec78632be5bc8bfba14ba0963f06b66d2c",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/assets/utils-BMh8XdsE.js",
+    "bytes": 18708,
+    "sha256": "66f7088025f146426697d68449c998e885fa2260e3903326431594dadcbeaf60",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/favicon.svg",
+    "bytes": 9522,
+    "sha256": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/icons.svg",
+    "bytes": 5031,
+    "sha256": "b45fa506195cfcdef406ba9f0c77b36ddc1a7c224040926ec70abc2fdea7b93a",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/index.html",
+    "bytes": 1688,
+    "sha256": "5fbc247869ad4c0194ba6ce79a981ae836559c675e64b018988802b58cc41e28",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  },
+  {
+    "source_path": "internal/access/manager/webui/dist/logo.png",
+    "bytes": 21203,
+    "sha256": "f14a73f7beed1c11f1c152b8b42f1c632136cba59917c86132b483bba8c7c2a7",
+    "equals_c495_asset": true,
+    "equals_original_cloud_asset": true
+  }
+]

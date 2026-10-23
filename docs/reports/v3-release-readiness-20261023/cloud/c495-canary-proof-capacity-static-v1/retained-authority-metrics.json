@@ -1,0 +1,5386 @@
+{
+  "source": "six already retained Prometheus text files only",
+  "receipts": [
+    {
+      "cut": "first-measured",
+      "node": 1,
+      "bytes": 1024098,
+      "sha256": "e1abfaf05440f145807d27529ec3bbc22963475d0c8e15c7367949d32712dc55",
+      "mtime_ns": 1792708152568321045,
+      "unchanged_after_read": true
+    },
+    {
+      "cut": "first-measured",
+      "node": 2,
+      "bytes": 992279,
+      "sha256": "c9d562ba05f060e6de601f937bbe1e94c3d9dae693a4f1b592c84f1c9651f984",
+      "mtime_ns": 1792708152685422316,
+      "unchanged_after_read": true
+    },
+    {
+      "cut": "first-measured",
+      "node": 3,
+      "bytes": 979383,
+      "sha256": "2289b07d12bb2b76bc659252d04db103f9872b0013f971cb7720f21888d79342",
+      "mtime_ns": 1792708152729040221,
+      "unchanged_after_read": true
+    },
+    {
+      "cut": "terminal",
+      "node": 1,
+      "bytes": 1075478,
+      "sha256": "038d4a5cb3c809be385656ab2feff26941b50f172be8edccfc1da3c77e3c6a64",
+      "mtime_ns": 1792708170305087678,
+      "unchanged_after_read": true
+    },
+    {
+      "cut": "terminal",
+      "node": 2,
+      "bytes": 1032893,
+      "sha256": "f4d7bfce73d71da22c87bf1a562b3654c8b2a4a6c89fd0e126e78cfeda762298",
+      "mtime_ns": 1792708170310826030,
+      "unchanged_after_read": true
+    },
+    {
+      "cut": "terminal",
+      "node": 3,
+      "bytes": 1028245,
+      "sha256": "a97302dbb26046c2e8ddece8225cd5e2f47434db1fcd413340c0353e8addd348",
+      "mtime_ns": 1792708170316457256,
+      "unchanged_after_read": true
+    }
+  ],
+  "selected_series": [
+    {
+      "cut": "first-measured",
+      "node": 1,
+      "series": [
+        {
+          "family": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "5814"
+        },
+        {
+          "family": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "value": "12"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "6.7108864e+07"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "4096"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.0005"
+          },
+          "value": "109"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.001"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.005"
+          },
+          "value": "117"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.025"
+          },
+          "value": "130"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.05"
+          },
+          "value": "149"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.1"
+          },
+          "value": "170"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.25"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.5"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "1"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "2.5"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "5"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "10"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "30"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "+Inf"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "value": "4.439685413"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.0005"
+          },
+          "value": "160"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.001"
+          },
+          "value": "168"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.005"
+          },
+          "value": "176"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.025"
+          },
+          "value": "180"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.05"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.1"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.25"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.5"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "1"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "2.5"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "5"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "10"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "30"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "0.16420903899999992"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_observer_dropped_total",
+          "labels": {},
+          "value": "0"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.0005"
+          },
+          "value": "36"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.001"
+          },
+          "value": "37"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.005"
+          },
+          "value": "45"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.025"
+          },
+          "value": "56"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.05"
+          },
+          "value": "62"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.1"
+          },
+          "value": "79"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.25"
+          },
+          "value": "92"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.5"
+          },
+          "value": "93"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "1"
+          },
+          "value": "93"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "2.5"
+          },
+          "value": "93"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "5"
+          },
+          "value": "93"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "10"
+          },
+          "value": "93"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "30"
+          },
+          "value": "93"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "+Inf"
+          },
+          "value": "93"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "3.7272236220000012"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "93"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.0005"
+          },
+          "value": "23"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.001"
+          },
+          "value": "23"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.005"
+          },
+          "value": "28"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.025"
+          },
+          "value": "34"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.05"
+          },
+          "value": "60"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.1"
+          },
+          "value": "80"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.25"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.5"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "1"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "2.5"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "5"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "10"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "30"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "+Inf"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "3.804436585000003"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "2956"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "2854"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.0005"
+          },
+          "value": "109"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.001"
+          },
+          "value": "113"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.005"
+          },
+          "value": "117"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.025"
+          },
+          "value": "130"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.05"
+          },
+          "value": "149"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.1"
+          },
+          "value": "170"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.25"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.5"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "1"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "2.5"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "5"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "10"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "30"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "+Inf"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority"
+          },
+          "value": "4.439685413"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_count",
+          "labels": {
+            "service": "presence authority"
+          },
+          "value": "182"
+        },
+        {
+          "family": "wukongim_transport_rpc_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority"
+          },
+          "value": "5802"
+        }
+      ]
+    },
+    {
+      "cut": "first-measured",
+      "node": 2,
+      "series": [
+        {
+          "family": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "6025"
+        },
+        {
+          "family": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "value": "10"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "6.7108864e+07"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "4096"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.0005"
+          },
+          "value": "105"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.001"
+          },
+          "value": "110"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.005"
+          },
+          "value": "120"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.025"
+          },
+          "value": "130"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.05"
+          },
+          "value": "148"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.1"
+          },
+          "value": "171"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.25"
+          },
+          "value": "187"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.5"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "1"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "2.5"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "5"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "10"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "30"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "+Inf"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "value": "5.3243386630000025"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.0005"
+          },
+          "value": "165"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.001"
+          },
+          "value": "183"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.005"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.025"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.05"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.1"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.25"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.5"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "1"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "2.5"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "5"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "10"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "30"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "0.030241455999999986"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "189"
+        },
+        {
+          "family": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_observer_dropped_total",
+          "labels": {},
+          "value": "0"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.0005"
+          },
+          "value": "32"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.001"
+          },
+          "value": "34"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.005"
+          },
+          "value": "41"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.025"
+          },
+          "value": "52"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.05"
+          },
+          "value": "69"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.1"
+          },
+          "value": "79"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.25"
+          },
+          "value": "84"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.5"
+          },
+          "value": "84"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "1"
+          },
+          "value": "84"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "2.5"
+          },
+          "value": "84"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "5"
+          },
+          "value": "84"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "10"
+          },
+          "value": "84"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "30"
+          },
+          "value": "84"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "+Inf"
+          },
+          "value": "84"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "2.362047494"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "84"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.0005"
+          },
+          "value": "38"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.001"
+          },
+          "value": "39"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.005"
+          },
+          "value": "48"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.025"
+          },
+          "value": "57"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.05"
+          },
+          "value": "69"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.1"
+          },
+          "value": "84"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.25"
+          },
+          "value": "88"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.5"
+          },
+          "value": "89"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "1"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "2.5"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "5"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "10"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "30"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "+Inf"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "3.337384163"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "90"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "2678"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "2873"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.0005"
+          },
+          "value": "105"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.001"
+          },
+          "value": "110"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.005"
+          },
+          "value": "120"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.025"
+          },
+          "value": "130"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.05"
+          },
+          "value": "148"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.1"
+          },
+          "value": "171"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.25"
+          },
+          "value": "187"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.5"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "1"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "2.5"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "5"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "10"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "30"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "+Inf"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority"
+          },
+          "value": "5.3243386630000025"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_count",
+          "labels": {
+            "service": "presence authority"
+          },
+          "value": "188"
+        },
+        {
+          "family": "wukongim_transport_rpc_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority"
+          },
+          "value": "6015"
+        }
+      ]
+    },
+    {
+      "cut": "first-measured",
+      "node": 3,
+      "series": [
+        {
+          "family": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "5787"
+        },
+        {
+          "family": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "value": "18"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "6.7108864e+07"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "4096"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.0005"
+          },
+          "value": "112"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.001"
+          },
+          "value": "116"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.005"
+          },
+          "value": "121"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.025"
+          },
+          "value": "133"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.05"
+          },
+          "value": "155"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.1"
+          },
+          "value": "177"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.25"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.5"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "1"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "2.5"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "5"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "10"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "30"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "+Inf"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "value": "3.0972308769999994"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.0005"
+          },
+          "value": "154"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.001"
+          },
+          "value": "163"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.005"
+          },
+          "value": "170"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.025"
+          },
+          "value": "179"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.05"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.1"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.25"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.5"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "1"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "2.5"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "5"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "10"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "30"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "0.230594339"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_observer_dropped_total",
+          "labels": {},
+          "value": "0"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.0005"
+          },
+          "value": "46"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.001"
+          },
+          "value": "48"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.005"
+          },
+          "value": "48"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.025"
+          },
+          "value": "57"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.05"
+          },
+          "value": "73"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.1"
+          },
+          "value": "88"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.25"
+          },
+          "value": "99"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.5"
+          },
+          "value": "99"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "1"
+          },
+          "value": "99"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "2.5"
+          },
+          "value": "99"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "5"
+          },
+          "value": "99"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "10"
+          },
+          "value": "99"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "30"
+          },
+          "value": "99"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "+Inf"
+          },
+          "value": "99"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "3.3928345"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "99"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.0005"
+          },
+          "value": "39"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.001"
+          },
+          "value": "43"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.005"
+          },
+          "value": "49"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.025"
+          },
+          "value": "62"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.05"
+          },
+          "value": "74"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.1"
+          },
+          "value": "89"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.25"
+          },
+          "value": "96"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.5"
+          },
+          "value": "96"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "1"
+          },
+          "value": "96"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "2.5"
+          },
+          "value": "96"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "5"
+          },
+          "value": "96"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "10"
+          },
+          "value": "96"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "30"
+          },
+          "value": "96"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "+Inf"
+          },
+          "value": "96"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "2.849744034"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "96"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "3141"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "3048"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.0005"
+          },
+          "value": "112"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.001"
+          },
+          "value": "116"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.005"
+          },
+          "value": "121"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.025"
+          },
+          "value": "133"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.05"
+          },
+          "value": "155"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.1"
+          },
+          "value": "177"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.25"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.5"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "1"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "2.5"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "5"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "10"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "30"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "+Inf"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority"
+          },
+          "value": "3.0972308769999994"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_count",
+          "labels": {
+            "service": "presence authority"
+          },
+          "value": "181"
+        },
+        {
+          "family": "wukongim_transport_rpc_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority"
+          },
+          "value": "5769"
+        }
+      ]
+    },
+    {
+      "cut": "terminal",
+      "node": 1,
+      "series": [
+        {
+          "family": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "9674"
+        },
+        {
+          "family": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "value": "2"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "6.7108864e+07"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "4096"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.0005"
+          },
+          "value": "216"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.001"
+          },
+          "value": "220"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.005"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.025"
+          },
+          "value": "239"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.05"
+          },
+          "value": "259"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.1"
+          },
+          "value": "284"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.25"
+          },
+          "value": "299"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.5"
+          },
+          "value": "301"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "1"
+          },
+          "value": "302"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "2.5"
+          },
+          "value": "302"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "5"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "10"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "30"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "+Inf"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "value": "10.237618659"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.0005"
+          },
+          "value": "216"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.001"
+          },
+          "value": "250"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.005"
+          },
+          "value": "276"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.025"
+          },
+          "value": "298"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.05"
+          },
+          "value": "302"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.1"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.25"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.5"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "1"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "2.5"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "5"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "10"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "30"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "0.6395192129999997"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_observer_dropped_total",
+          "labels": {},
+          "value": "0"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.0005"
+          },
+          "value": "40"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.001"
+          },
+          "value": "41"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.005"
+          },
+          "value": "51"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.025"
+          },
+          "value": "68"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.05"
+          },
+          "value": "94"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.1"
+          },
+          "value": "136"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.25"
+          },
+          "value": "156"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.5"
+          },
+          "value": "159"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "1"
+          },
+          "value": "160"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "2.5"
+          },
+          "value": "161"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "5"
+          },
+          "value": "162"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "10"
+          },
+          "value": "162"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "30"
+          },
+          "value": "162"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "+Inf"
+          },
+          "value": "162"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "15.569694122000001"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "162"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.0005"
+          },
+          "value": "23"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.001"
+          },
+          "value": "23"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.005"
+          },
+          "value": "30"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.025"
+          },
+          "value": "48"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.05"
+          },
+          "value": "95"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.1"
+          },
+          "value": "135"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.25"
+          },
+          "value": "150"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.5"
+          },
+          "value": "151"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "1"
+          },
+          "value": "151"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "2.5"
+          },
+          "value": "151"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "5"
+          },
+          "value": "151"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "10"
+          },
+          "value": "152"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "30"
+          },
+          "value": "152"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "+Inf"
+          },
+          "value": "152"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "11.947972707"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "152"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "5142"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "4829"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "timeout",
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "16"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "timeout",
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "10"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.0005"
+          },
+          "value": "216"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.001"
+          },
+          "value": "220"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.005"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.025"
+          },
+          "value": "239"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.05"
+          },
+          "value": "259"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.1"
+          },
+          "value": "284"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.25"
+          },
+          "value": "299"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.5"
+          },
+          "value": "301"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "1"
+          },
+          "value": "302"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "2.5"
+          },
+          "value": "302"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "5"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "10"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "30"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "+Inf"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority"
+          },
+          "value": "10.237618659"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_count",
+          "labels": {
+            "service": "presence authority"
+          },
+          "value": "303"
+        },
+        {
+          "family": "wukongim_transport_rpc_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority"
+          },
+          "value": "9672"
+        }
+      ]
+    },
+    {
+      "cut": "terminal",
+      "node": 2,
+      "series": [
+        {
+          "family": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "10473"
+        },
+        {
+          "family": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "6.7108864e+07"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "4096"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.0005"
+          },
+          "value": "228"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.001"
+          },
+          "value": "233"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.005"
+          },
+          "value": "244"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.025"
+          },
+          "value": "255"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.05"
+          },
+          "value": "273"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.1"
+          },
+          "value": "298"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.25"
+          },
+          "value": "325"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.5"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "1"
+          },
+          "value": "327"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "2.5"
+          },
+          "value": "327"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "5"
+          },
+          "value": "328"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "10"
+          },
+          "value": "328"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "30"
+          },
+          "value": "328"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "+Inf"
+          },
+          "value": "328"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "value": "11.087820907000003"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "value": "328"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.0005"
+          },
+          "value": "240"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.001"
+          },
+          "value": "280"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.005"
+          },
+          "value": "307"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.025"
+          },
+          "value": "325"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.05"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.1"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.25"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.5"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "1"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "2.5"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "5"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "10"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "30"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "0.45751782599999996"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_observer_dropped_total",
+          "labels": {},
+          "value": "0"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.0005"
+          },
+          "value": "34"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.001"
+          },
+          "value": "37"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.005"
+          },
+          "value": "45"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.025"
+          },
+          "value": "64"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.05"
+          },
+          "value": "100"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.1"
+          },
+          "value": "132"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.25"
+          },
+          "value": "144"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.5"
+          },
+          "value": "145"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "1"
+          },
+          "value": "145"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "2.5"
+          },
+          "value": "145"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "5"
+          },
+          "value": "146"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "10"
+          },
+          "value": "146"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "30"
+          },
+          "value": "146"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "+Inf"
+          },
+          "value": "146"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "10.205377744"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "146"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.0005"
+          },
+          "value": "40"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.001"
+          },
+          "value": "42"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.005"
+          },
+          "value": "54"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.025"
+          },
+          "value": "76"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.05"
+          },
+          "value": "117"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.1"
+          },
+          "value": "145"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.25"
+          },
+          "value": "152"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "0.5"
+          },
+          "value": "155"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "1"
+          },
+          "value": "157"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "2.5"
+          },
+          "value": "158"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "5"
+          },
+          "value": "160"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "10"
+          },
+          "value": "161"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "30"
+          },
+          "value": "161"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3",
+            "le": "+Inf"
+          },
+          "value": "161"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "21.264841621000006"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "161"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "canceled",
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "1"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "4642"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "5057"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "timeout",
+            "service": "presence authority",
+            "target_node": "3"
+          },
+          "value": "18"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.0005"
+          },
+          "value": "226"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.001"
+          },
+          "value": "231"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.005"
+          },
+          "value": "242"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.025"
+          },
+          "value": "253"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.05"
+          },
+          "value": "271"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.1"
+          },
+          "value": "296"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.25"
+          },
+          "value": "323"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.5"
+          },
+          "value": "324"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "1"
+          },
+          "value": "325"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "2.5"
+          },
+          "value": "325"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "5"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "10"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "30"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "+Inf"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority"
+          },
+          "value": "11.087813908000003"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_count",
+          "labels": {
+            "service": "presence authority"
+          },
+          "value": "326"
+        },
+        {
+          "family": "wukongim_transport_rpc_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority"
+          },
+          "value": "10473"
+        }
+      ]
+    },
+    {
+      "cut": "terminal",
+      "node": 3,
+      "series": [
+        {
+          "family": "wukongim_runtime_pool_admission_total",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "9980"
+        },
+        {
+          "family": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_bytes_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "6.7108864e+07"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "4096"
+        },
+        {
+          "family": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority"
+          },
+          "value": "0"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.0005"
+          },
+          "value": "232"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.001"
+          },
+          "value": "236"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.005"
+          },
+          "value": "243"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.025"
+          },
+          "value": "255"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.05"
+          },
+          "value": "277"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.1"
+          },
+          "value": "302"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.25"
+          },
+          "value": "310"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "0.5"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "1"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "2.5"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "5"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "10"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "30"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority",
+            "le": "+Inf"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "value": "4.474620001999999"
+        },
+        {
+          "family": "wukongim_runtime_pool_task_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "result": "ok",
+            "task": "presence authority"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.0005"
+          },
+          "value": "222"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.001"
+          },
+          "value": "259"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.005"
+          },
+          "value": "284"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.025"
+          },
+          "value": "308"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.05"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.1"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.25"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "0.5"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "1"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "2.5"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "5"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "10"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "30"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_bucket",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok",
+            "le": "+Inf"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_sum",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "0.5845789640000004"
+        },
+        {
+          "family": "wukongim_runtime_pool_wait_duration_seconds_count",
+          "labels": {
+            "component": "transport",
+            "pool": "service",
+            "priority": "none",
+            "queue": "presence authority",
+            "result": "ok"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "transport",
+            "pool": "presence authority"
+          },
+          "value": "128"
+        },
+        {
+          "family": "wukongim_transport_observer_dropped_total",
+          "labels": {},
+          "value": "0"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.0005"
+          },
+          "value": "48"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.001"
+          },
+          "value": "51"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.005"
+          },
+          "value": "57"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.025"
+          },
+          "value": "71"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.05"
+          },
+          "value": "104"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.1"
+          },
+          "value": "142"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.25"
+          },
+          "value": "157"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "0.5"
+          },
+          "value": "159"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "1"
+          },
+          "value": "159"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "2.5"
+          },
+          "value": "159"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "5"
+          },
+          "value": "161"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "10"
+          },
+          "value": "161"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "30"
+          },
+          "value": "161"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1",
+            "le": "+Inf"
+          },
+          "value": "161"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "14.991596672"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "161"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.0005"
+          },
+          "value": "41"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.001"
+          },
+          "value": "47"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.005"
+          },
+          "value": "53"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.025"
+          },
+          "value": "79"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.05"
+          },
+          "value": "107"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.1"
+          },
+          "value": "147"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.25"
+          },
+          "value": "161"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "0.5"
+          },
+          "value": "163"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "1"
+          },
+          "value": "163"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "2.5"
+          },
+          "value": "164"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "5"
+          },
+          "value": "165"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "10"
+          },
+          "value": "166"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "30"
+          },
+          "value": "166"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2",
+            "le": "+Inf"
+          },
+          "value": "166"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "17.368800703999998"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_duration_seconds_count",
+          "labels": {
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "166"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "canceled",
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "1"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority",
+            "target_node": "1"
+          },
+          "value": "5108"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "5250"
+        },
+        {
+          "family": "wukongim_transport_rpc_client_total",
+          "labels": {
+            "result": "timeout",
+            "service": "presence authority",
+            "target_node": "2"
+          },
+          "value": "15"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.0005"
+          },
+          "value": "232"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.001"
+          },
+          "value": "236"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.005"
+          },
+          "value": "243"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.025"
+          },
+          "value": "255"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.05"
+          },
+          "value": "277"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.1"
+          },
+          "value": "302"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.25"
+          },
+          "value": "310"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "0.5"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "1"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "2.5"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "5"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "10"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "30"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_bucket",
+          "labels": {
+            "service": "presence authority",
+            "le": "+Inf"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_sum",
+          "labels": {
+            "service": "presence authority"
+          },
+          "value": "4.474620001999999"
+        },
+        {
+          "family": "wukongim_transport_rpc_duration_seconds_count",
+          "labels": {
+            "service": "presence authority"
+          },
+          "value": "312"
+        },
+        {
+          "family": "wukongim_transport_rpc_total",
+          "labels": {
+            "result": "ok",
+            "service": "presence authority"
+          },
+          "value": "9979"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "Cumulative cuts are not a per-request timeline; file mtimes are retention metadata, not instant sampling timestamps.",
+    "Authority service mixes read and mutation operations; totals do not distinguish those operations.",
+    "Handler and client latencies are sampled one in32; absence of slow sampled handler does not bound all handler durations.",
+    "The first/terminal gauges do not measure peak/intermediate occupancy.",
+    "Service task result ok is transport-handler success; typed application rejection encoded in a successful reply remains ok.",
+    "Response callback ignores Send enqueue error; no dedicated response-Send-result metric or retained request correlation exists.",
+    "No other labels, raw metrics, UIDs, payloads or runtime error text are copied."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schema": "wukongim/56c-one-run-seal/v1",
+  "at_utc": "2026-10-22T23:44:30.332825+00:00",
+  "actual_invocations": 1,
+  "root_approval_manifest_sha256": "5dc4300cb8925914c285c0826ae836c43a94661e7574b6c3f1bd11570d09233e",
+  "proposal_manifest_sha256": "0ecf9147f4041154d5ea99dea711450e5588a8272a8feed5a99da94615c45c46",
+  "source_revision": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "final_report_absent": true,
+  "launcher_exit_status": 8,
+  "retained_expired_count": 1,
+  "profiles_complete": 6,
+  "profile_decode_or_DB_query": false,
+  "source_and_inputs_unchanged": true,
+  "private_primary_evidence_unchanged": true,
+  "final_zero_complete": true,
+  "safe_projection_preparation_limitation": "initial derived-only projection stopped on legal null last-example list after two safe files; original evidence unchanged; null handled as empty list in final finite projection"
+}

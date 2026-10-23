@@ -1,0 +1,20 @@
+{
+  "at_utc": "2026-10-22T23:26:13.188963+00:00",
+  "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "base": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+  "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "human_standing_merge_authorization": "以后你自己合并 不需要再让我确认",
+  "ordinary_admin_merge_authority": "README.md lines810-811; admin true; no blocking review; no bypass flags",
+  "independent_standards_findings": 0,
+  "independent_spec_findings": 0,
+  "CI_first_attempt_workflows": 4,
+  "CI_success_checks": 16,
+  "CI_event_skips": 2,
+  "CI_manifest_sha256": "5da29824982d03277750bb280a622e48d5be86599c66e375232c891d75cf07ae",
+  "preconditions_manifest_sha256": "e2a0fccdf3300c2c70fd9aa241f48eebaf6231d1c26dd2b832270d51465332a2",
+  "source_clean": true,
+  "diagnostic_only": true,
+  "existing_message_loss_unresolved": true,
+  "GA_NO_GO": true,
+  "paid_cloud_or_release": false
+}

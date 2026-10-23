@@ -1,0 +1,26 @@
+{
+  "schema": "wukongim/56c-offline-exact-message-provenance/v1",
+  "at_utc": "2026-10-23T00:04:12.342780+00:00",
+  "source_revision": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "source_tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "source_clean_after": true,
+  "native_CLI_sha256": "8e43a41f44eff071629287d7721fd8fb6b92aeee65dbaa3e8478b27a880308be",
+  "actual_private_driver_sha256": "d1e0f575a852f267cb40ab8a2ec75a8e9d2fe71e8705452d815abfde1ed98c12",
+  "proposal_manifest_sha256": "d519009bd18276f69d2b2cdb589beece16ce31e149ffcdd21040c0320dc195c9",
+  "frozen_run_manifest_sha256": "12ff2d138559c914b64209b021cda0af1f63bfe1dfee34eac4172615850d50b0",
+  "original_run_all12members_unchanged": true,
+  "original_proposal_all16members_unchanged": true,
+  "exact_once_actual_invocations": 1,
+  "sample": {
+    "worker_id": 1,
+    "domain": 4,
+    "generation": 1,
+    "ordinal": 214,
+    "group_index": 1735,
+    "fingerprint": "562ccbccd13140cd9a4a1ca28610ea89"
+  },
+  "scope": "one group/client number x three read-only private copies; same-run exact uint64 warning tuple inside fixed firstgrant-terminal window",
+  "real_service_or_profile_or_API_or_cloud_operations": 0,
+  "raw_UID_channel_clientno_SQL_DB_errors": "private only",
+  "underlying_presence_timeout_cause": "not established by durable row/warning association"
+}

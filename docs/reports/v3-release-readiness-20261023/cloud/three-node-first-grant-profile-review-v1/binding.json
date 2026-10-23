@@ -1,0 +1,206 @@
+{
+  "schema": "wukongim/three-node-sampler-independent-read-only-review/v1",
+  "proposal_root": "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1",
+  "proposal_manifest_sha256": "4931566fc978e5faccbf15ea9690252cf7bbce32657b9cabac73a955924e3ac8",
+  "payload_count": 19,
+  "all_payloads_verified": [
+    {
+      "path": "GREEN-helper-adapter.log",
+      "sha256": "987cfe074680399b942fb53c67da959d6b56628a5aced918b2cda06df0e377c7",
+      "bytes": 103
+    },
+    {
+      "path": "GREEN-three-node-watcher-final.log",
+      "sha256": "290b2ef48fc7f573f69c19ebe9e6ce90507b43a84f3379747881f1fe9a7451e4",
+      "bytes": 102
+    },
+    {
+      "path": "GREEN-three-node-watcher.log",
+      "sha256": "c8eb4d8db0d2534891f4f5b50a986e196f1b82bf8dea529d9eb0f914d4c203fa",
+      "bytes": 102
+    },
+    {
+      "path": "README.md",
+      "sha256": "eb4aa97273369107bef9c851986940b49a8afffaed2abaffaf159c8f20bdf314",
+      "bytes": 2505
+    },
+    {
+      "path": "RED-helper-adapter.log",
+      "sha256": "3a4cb0db6c4cf793b1f6f427b4344983d4b04bd4eae0264d58b8903681823ed4",
+      "bytes": 5815
+    },
+    {
+      "path": "RED-three-node-watcher.log",
+      "sha256": "74740dc902b9b5e65511b1ef70f84b8521d4cf4a57548813f2c4cc8efc84d0e1",
+      "bytes": 10415
+    },
+    {
+      "path": "capture-three-node-first-grant-profiles.sh",
+      "sha256": "d371c1712b2de2d72e0d03a322870cf2a9626956c02beaa53f473d35c9a45bed",
+      "bytes": 20009
+    },
+    {
+      "path": "failure-matrix.md",
+      "sha256": "fa6a8db97c43b96d9d1acc5cbf8386994bb4278ec85fc27bc86c800abf3d5192",
+      "bytes": 2562
+    },
+    {
+      "path": "fake-once-overlap-receipt.json",
+      "sha256": "0e8eae3eef2808be2d69822835d285d2a733118b0e81c25822ee49e64055c049",
+      "bytes": 434
+    },
+    {
+      "path": "fake-shared-kill-receipt.json",
+      "sha256": "02d77530fffe2f28c4b0c3a60eaec84dbce3096a6e9f523d95f5750957fc55f0",
+      "bytes": 491
+    },
+    {
+      "path": "frozen-inputs.json",
+      "sha256": "bc1858012a4891c19943c634d0b617188bc7d0efc376edc0c97a81d20b75c6af",
+      "bytes": 935
+    },
+    {
+      "path": "helper-vs-frozen.diff",
+      "sha256": "d21382c57319cf65d14fa66adcde7959a469ad08614256002e35f8155aff7e9e",
+      "bytes": 5822
+    },
+    {
+      "path": "helper_adapter_test.py",
+      "sha256": "ebc27173695ade28f6c2da9e6155bcf9f63023b88c85a6c3e23a08620689e209",
+      "bytes": 4559
+    },
+    {
+      "path": "proposal-receipt.json",
+      "sha256": "341d1dd4e5c2f0701dbdf3f71dbefb9256223b8cb2837f0f1e7cb9d3d528c834",
+      "bytes": 2722
+    },
+    {
+      "path": "static-preflight.json",
+      "sha256": "909993902f4d2f3049350ede089879422171d2a42fe8ea8c475b64827c33b5b2",
+      "bytes": 1025
+    },
+    {
+      "path": "unchanged-helper-mechanisms.json",
+      "sha256": "6ce7a1f3d6efaf7ab72b58695666e84b414bdb4eeb11c5eb35495982e8712fd0",
+      "bytes": 1605
+    },
+    {
+      "path": "watch-three-node-first-grant.proposed.py",
+      "sha256": "8ae11ee4771fff341c6086c623a3e7026da8a15bd5adadd44e806abdfead07cd",
+      "bytes": 12032
+    },
+    {
+      "path": "watcher-vs-frozen.diff",
+      "sha256": "bb789f1bc8f4ffabf309a0813516c2886a94c3fc2d0319b2e14d848285e07334",
+      "bytes": 17157
+    },
+    {
+      "path": "watcher_coordination_test.py",
+      "sha256": "6a36ce21d97de458526ad0bb7729ecf67c4a9a8a0af459a6d984659d8a5c062e",
+      "bytes": 5578
+    }
+  ],
+  "old_helper": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/capture-first-grant-profiles.sh",
+    "sha256": "7b07cc119282fe0b1f263914d721bc86c60f0ca6cb1766ebbf60cb3c297e4ff9"
+  },
+  "old_watcher": {
+    "path": "/tmp/wukongim-v3-readiness-20261023/cloud/profile-first-grant-proposal-v2/watch-first-grant.py",
+    "sha256": "6bf22ebcf256c04e34f24c84a9e6f8217417295c23dfd57dcf48032c7f14e566"
+  },
+  "frozen_diffs_exactly_recreated_by_static_comparison": true,
+  "helper_function_comparison": [
+    {
+      "name": "normalize_rfc3339_nano",
+      "byte_equal": true,
+      "reviewed_body_sha256": "5eb344510baa5e98d31af30cdc8630afd63949c6631d6c7e6dd5eeac5489b8f5",
+      "producer_declared_body_sha256": "cdd5512add00613b6fe5817bf015fea1e37b2537efad8e36ff8d242f8e0a3ab8"
+    },
+    {
+      "name": "normalize_loopback_url",
+      "byte_equal": true,
+      "reviewed_body_sha256": "7495abc54bc4d2f50f95ccc1c637e5b682ebbeef3bf83328adca0e2352fb9fe6",
+      "producer_declared_body_sha256": "ecb13944e7b46122987f172eee7f79d70d4e8a74b4121f98d24f44ba3be4fe88"
+    },
+    {
+      "name": "read_phase_state",
+      "byte_equal": true,
+      "reviewed_body_sha256": "82aabfc293e201ae87645cf4de41599fc0688329f8c556dea1dcc3c4d5e91b12",
+      "producer_declared_body_sha256": "e860b5c9ba7e16963fef38f594e764eaf0806c8c6374947a7779e12e9344d7f1"
+    },
+    {
+      "name": "terminate_children",
+      "byte_equal": true,
+      "reviewed_body_sha256": "097c1ac402d8a92a5bebd2ea27600d3dca9ee1c0df063897a47339c8ce468d0c",
+      "producer_declared_body_sha256": "6989354f3f8a020b6f35560b9b4843e38b51238aeddf02c82375fc35bfad260e"
+    },
+    {
+      "name": "remove_temporary_files",
+      "byte_equal": true,
+      "reviewed_body_sha256": "1e6a6222d845facadb7cc1ec839326c40a55497fc4baaed527f9f6c16fef2a3a",
+      "producer_declared_body_sha256": "bfddd070e8b43a169eb57996fbded61e2b25be58853a06e6584923610e74a5e6"
+    },
+    {
+      "name": "handle_signal",
+      "byte_equal": true,
+      "reviewed_body_sha256": "4f46d40f3f43b7d895dc950649a2725da9b9b1ffcce1a456e03d930a151a247b",
+      "producer_declared_body_sha256": "fdd6d6f7a4931ec8e6fefd384276b9f4a81e94b0f42991c95271c6bc9439ee68"
+    },
+    {
+      "name": "cleanup_on_exit",
+      "byte_equal": true,
+      "reviewed_body_sha256": "919122f1e97bc6dfddb52fcf6eb6331c733c47acadae920368a8abf6a16fd0f2",
+      "producer_declared_body_sha256": "ff7af2c7c68c61ef9150cd81f621c7bbcb4806798a724a31c92da5c32ced849b"
+    },
+    {
+      "name": "write_authorization_header",
+      "byte_equal": true,
+      "reviewed_body_sha256": "f329cf092b35263e31992a60bcd8491efca1f8cb2b4e0708981bbc47a92d3225",
+      "producer_declared_body_sha256": "f7dd7d466c9d639fd6da5469377e33c32a6b4e1f04e7836026d449ec51c94de6"
+    },
+    {
+      "name": "start_profile_request",
+      "byte_equal": false,
+      "scope": "changed explicit-node HTTP-code filename / disabled-context node-label only; request registration/join control flow preserved in diff"
+    },
+    {
+      "name": "join_profile_requests",
+      "byte_equal": false,
+      "scope": "changed explicit-node HTTP-code filename / disabled-context node-label only; request registration/join control flow preserved in diff"
+    }
+  ],
+  "reviewed_full_files": [
+    "capture-three-node-first-grant-profiles.sh",
+    "watch-three-node-first-grant.proposed.py",
+    "helper_adapter_test.py",
+    "watcher_coordination_test.py",
+    "README.md",
+    "failure-matrix.md",
+    "proposal-receipt.json",
+    "static-preflight.json",
+    "frozen-inputs.json",
+    "unchanged-helper-mechanisms.json",
+    "helper-vs-frozen.diff",
+    "watcher-vs-frozen.diff",
+    "RED-helper-adapter.log",
+    "GREEN-helper-adapter.log",
+    "RED-three-node-watcher.log",
+    "GREEN-three-node-watcher.log",
+    "GREEN-three-node-watcher-final.log",
+    "fake-once-overlap-receipt.json",
+    "fake-shared-kill-receipt.json"
+  ],
+  "execution": {
+    "proposal_helper_or_watcher": false,
+    "tests": false,
+    "product_or_workload": false,
+    "real_sampling_or_cloud": false,
+    "proposal_mutation": false
+  },
+  "findings": {
+    "P2": 2,
+    "P1": 0,
+    "P0": 0
+  },
+  "ready_for_next_run": false
+}

@@ -1,0 +1,23 @@
+test_approved_six_paths (adapter_test.Adapter.test_approved_six_paths) ... ok
+test_bad_gzip_and_truncated_protobuf (adapter_test.Adapter.test_bad_gzip_and_truncated_protobuf) ... ok
+test_bad_sample_shape (adapter_test.Adapter.test_bad_sample_shape) ... ok
+test_bytes_sha_mtime_mismatch (adapter_test.Adapter.test_bytes_sha_mtime_mismatch) ... ok
+test_compressed_cap (adapter_test.Adapter.test_compressed_cap) ... ok
+test_cpu_weights (adapter_test.Adapter.test_cpu_weights) ... ok
+test_decompressed_cap (adapter_test.Adapter.test_decompressed_cap) ... ok
+test_disjoint_precedence_and_overlap (adapter_test.Adapter.test_disjoint_precedence_and_overlap) ... ok
+test_fresh_counts_without_old_assertions (adapter_test.Adapter.test_fresh_counts_without_old_assertions) ... ok
+test_identity_labels_not_decoded (adapter_test.Adapter.test_identity_labels_not_decoded) ... ok
+test_missing (adapter_test.Adapter.test_missing) ... ok
+test_owner_holder_and_rpc_cohorts_overlap (adapter_test.Adapter.test_owner_holder_and_rpc_cohorts_overlap) ... ok
+test_public_size_bound_and_closed_error (adapter_test.Adapter.test_public_size_bound_and_closed_error) ... ok
+test_symlink (adapter_test.Adapter.test_symlink) ... ok
+test_unapproved_path (adapter_test.Adapter.test_unapproved_path) ... ok
+test_unknown_kept (adapter_test.Adapter.test_unknown_kept) ... ok
+test_valid_path_and_profile (adapter_test.Adapter.test_valid_path_and_profile) ... ok
+test_wrong_type (adapter_test.Adapter.test_wrong_type) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.019s
+
+OK

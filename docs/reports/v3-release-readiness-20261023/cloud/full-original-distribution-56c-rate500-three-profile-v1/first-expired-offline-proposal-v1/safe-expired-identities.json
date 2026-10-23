@@ -1,0 +1,31 @@
+{
+  "schema": "wukongim/56c-expired-single-safe-identity/v1",
+  "results": [
+    {
+      "attempted_candidates": 3335,
+      "candidate_count": 1,
+      "decoded": {
+        "domain": 4,
+        "domain_name": "ordinary_group",
+        "generation": 1,
+        "ordinal": 214
+      },
+      "enumerated_initial_indexes": 10000,
+      "fingerprint": "562ccbccd13140cd9a4a1ca28610ea89",
+      "match_unique": true,
+      "matches": [
+        {
+          "sender_user_index": 1735,
+          "target_group_index": 1735
+        }
+      ],
+      "reason": "same_128bit_fingerprint",
+      "sample_index": 9223380832947798230,
+      "status": "unique_initial_population_fingerprint_match",
+      "worker_generation": 1,
+      "worker_id": 1
+    }
+  ],
+  "helper_sha256": "b00bc13c14a084c022c927977d061cf06d6f2a143f52f1ff46e8d769e00fc950",
+  "pure_offline_only": true
+}

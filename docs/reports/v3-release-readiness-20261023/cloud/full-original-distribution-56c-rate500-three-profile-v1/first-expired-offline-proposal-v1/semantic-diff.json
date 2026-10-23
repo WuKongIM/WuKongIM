@@ -1,0 +1,28 @@
+{
+  "baseline_driver_sha256": "c6e4b3d526b0e8745452988162b82dcd3351792d4c6f034eb527d3df408febc6",
+  "new_driver_sha256": "d1e0f575a852f267cb40ab8a2ec75a8e9d2fe71e8705452d815abfde1ed98c12",
+  "fixed_binding_changes": [
+    "c495 source/binary/run proof -> exact56c native8e43/run proof12ff",
+    "sampleworker2/ordinal314/group1646 -> worker1/ordinal214/group1735",
+    "original36files66553406B pin -> this run36files66550277B pin",
+    "new private identity/source-proof/canonical-warn inventory pins"
+  ],
+  "narrow_safety_changes": [
+    "after each query: invalid/nonunique/malformed/nonzero frame immediately stops later queries",
+    "after each valid row: replica MessageID/seq mismatch immediately stops later queries",
+    "same90s outer/85s work now also bounds offline parsing of three canonical warn logs; fixed12MiB total/4MiB each; exact uint64 tuple plus firstgrant-terminal window only"
+  ],
+  "unchanged": [
+    "10s per query",
+    "max3queries",
+    "onegroup",
+    "limit100",
+    "GOMAX1",
+    "copy path/SHA/size verification before CLI",
+    "originalneveropened",
+    "originalhash+mtimepostcheck",
+    "outer85work+2TERM+1KILL within90",
+    "no retries/queryexpansion/new services/cloud"
+  ],
+  "PRIVATE_full_diff_sha256": "988b30b6e0e41fe29a1b1e78b9313eb2f10e06a163d46f73beeb4e890353d2a4"
+}

@@ -1,0 +1,139 @@
+{
+  "schema": "wukongim/56c-three-node-safe-profile-collection/v1",
+  "profiles": [
+    {
+      "node_id": 1,
+      "status": "complete",
+      "reason": "ok",
+      "helper_joined": true,
+      "helper_exit_status": 0,
+      "kill_escalated": false,
+      "helper_launch_parent_observed_at": "2026-10-22T23:39:22.610194+00:00",
+      "capture": {
+        "status": "complete",
+        "valid": true,
+        "reason": "ok",
+        "start_phase": "measurement",
+        "end_phase": "measurement",
+        "started_at_utc": "2026-10-22T23:39:22Z",
+        "completed_at_utc": "2026-10-22T23:39:32Z",
+        "cpu_seconds": 10
+      },
+      "requests": [
+        {
+          "kind": "cpu",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "bytes": 24457,
+          "sha256": "ef6889507e36c29ee9e13fbaf9ebfa17c32c699e9254664a338069daa678773a",
+          "max_bytes": 8388608,
+          "private_relative_path": "profiles-three-node/node-1/profiles/node-1-cpu.pb.gz"
+        },
+        {
+          "kind": "goroutine",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "bytes": 23598,
+          "sha256": "92e75aa622234d6e4619219d4a7e72000886b70acee8fdf4efcc4cea6e8b4119",
+          "max_bytes": 4194304,
+          "private_relative_path": "profiles-three-node/node-1/profiles/node-1-goroutine.pb.gz"
+        }
+      ]
+    },
+    {
+      "node_id": 2,
+      "status": "complete",
+      "reason": "ok",
+      "helper_joined": true,
+      "helper_exit_status": 0,
+      "kill_escalated": false,
+      "helper_launch_parent_observed_at": "2026-10-22T23:39:22.612921+00:00",
+      "capture": {
+        "status": "complete",
+        "valid": true,
+        "reason": "ok",
+        "start_phase": "measurement",
+        "end_phase": "measurement",
+        "started_at_utc": "2026-10-22T23:39:22Z",
+        "completed_at_utc": "2026-10-22T23:39:32Z",
+        "cpu_seconds": 10
+      },
+      "requests": [
+        {
+          "kind": "cpu",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "bytes": 25001,
+          "sha256": "51937b42ed889fb971bf3267cd7edb29bb385fecb3a7784c80a16456eb4556b8",
+          "max_bytes": 8388608,
+          "private_relative_path": "profiles-three-node/node-2/profiles/node-2-cpu.pb.gz"
+        },
+        {
+          "kind": "goroutine",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "bytes": 22212,
+          "sha256": "8118dd3b5a80d2e123bd436ac8943c640026c3dfff308c1c6c104bdba96b7f0f",
+          "max_bytes": 4194304,
+          "private_relative_path": "profiles-three-node/node-2/profiles/node-2-goroutine.pb.gz"
+        }
+      ]
+    },
+    {
+      "node_id": 3,
+      "status": "complete",
+      "reason": "ok",
+      "helper_joined": true,
+      "helper_exit_status": 0,
+      "kill_escalated": false,
+      "helper_launch_parent_observed_at": "2026-10-22T23:39:22.615427+00:00",
+      "capture": {
+        "status": "complete",
+        "valid": true,
+        "reason": "ok",
+        "start_phase": "measurement",
+        "end_phase": "measurement",
+        "started_at_utc": "2026-10-22T23:39:22Z",
+        "completed_at_utc": "2026-10-22T23:39:32Z",
+        "cpu_seconds": 10
+      },
+      "requests": [
+        {
+          "kind": "cpu",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "bytes": 28019,
+          "sha256": "95958b1777f44f83bd3815b9a8800385291528d7041adc5b7f17b5226eca2513",
+          "max_bytes": 8388608,
+          "private_relative_path": "profiles-three-node/node-3/profiles/node-3-cpu.pb.gz"
+        },
+        {
+          "kind": "goroutine",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "bytes": 22937,
+          "sha256": "286b86b2bb05b5e836a1247cf48aecb543ce7f5a314d9325d4094ab4432c458a",
+          "max_bytes": 4194304,
+          "private_relative_path": "profiles-three-node/node-3/profiles/node-3-goroutine.pb.gz"
+        }
+      ]
+    }
+  ],
+  "HTTP_requests": 6,
+  "accepted_body_bytes": 146224,
+  "accepted_body_cap": 37748736,
+  "raw_profiles_private": true,
+  "cancel_descendant_cleanup_confirmed": null,
+  "direct_helper_joined_semantics": "registered direct helper reaped only; actual whole PGID final zero separately proved",
+  "limits": [
+    "parent launch timestamps and nominal5s only; not exact synchronized CPU/GOR submissions",
+    "phase labels do not prove active SEND for entire window; active/drain may mix",
+    "six profiles add diagnostic perturbation; no Linux/formal/performance acceptance"
+  ]
+}

@@ -1,0 +1,93 @@
+--- v2/watch-three-node-first-grant.proposed.py
++++ v3/watch-three-node-first-grant.proposed.py
+@@ -5,7 +5,7 @@
+ for name in ['source-root','binary','helper']:p.add_argument('--'+name,type=pathlib.Path,required=True)
+ for name in ['source-revision','binary-sha256','helper-sha256','launcher-sha256','run-hash','assignment-hash']:p.add_argument('--'+name,required=True)
+ p.add_argument('--generation',type=int,required=True);p.add_argument('--base-port',type=int,required=True);p.add_argument('--owner-pgid',type=int,required=True);p.add_argument('--deadline-mono',type=float,required=True)
+-a=p.parse_args();began=time.monotonic();wall=datetime.datetime.now(datetime.timezone.utc);captures={};bindings={};stop_reason=None;claimed=False;phase=a.run_dir/'profile-phase';status='skipped';reason='not_started';receipt=None;capture_start=None;cancel_attempted=False;ownership_snapshot_error=None
++a=p.parse_args();began=time.monotonic();wall=datetime.datetime.now(datetime.timezone.utc);captures={};bindings={};stop_reason=None;claimed=False;phase=a.run_dir/'profile-phase';status='skipped';reason='not_started';receipt=None;capture_start=None;cancel_attempted=False;ownership_snapshot_error=None;cancel_descendant_cleanup_confirmed=None;cancel_retained_descendants=[];cancel_remaining_descendants=[]
+ utc=lambda:datetime.datetime.now(datetime.timezone.utc).isoformat();sha=lambda data:hashlib.sha256(data).hexdigest()
+ class SamplerStop(ValueError):pass
+ def check(ok,code):
+@@ -31,33 +31,52 @@
+   current=front.pop();children=[pid for pid,ppid in parents.items() if ppid==current];ids.extend(children);front.extend(children)
+  return ids
+ def cancel():
+- global cancel_attempted,ownership_snapshot_error
++ global cancel_attempted,ownership_snapshot_error,cancel_descendant_cleanup_confirmed,cancel_retained_descendants,cancel_remaining_descendants,status,reason
+  if cancel_attempted:return
+- active=[entry for entry in captures.values() if entry['process'].poll() is None]
+- if not active:return
+- cancel_attempted=True
++ registered=list(captures.values());active=[entry for entry in registered if entry['process'].poll() is None]
++ if not active and not any(entry['process'].returncode!=0 for entry in registered):return
++ cancel_attempted=True;started=time.monotonic();grace=min(a.deadline_mono-1,started+2);until=min(a.deadline_mono,started+3)
++ # Snapshot before TERM: a root may exit during grace and reparent its children.
++ unknown=any(entry['process'].poll() is not None for entry in registered);retained=set()
++ try:retained.update(owned_descendants([entry['process'].pid for entry in registered],max(.001,until-time.monotonic())))
++ except Exception as error:ownership_snapshot_error=type(error).__name__;unknown=True
++ if any(entry['process'].poll() is not None for entry in active):unknown=True
+  phase.write_text('drain\n')
+- # All helpers receive TERM before one shared grace period, never 3 serial waits.
+  for entry in active:
+   try:entry['process'].send_signal(signal.SIGTERM)
+   except ProcessLookupError:pass
+- until=min(a.deadline_mono-1,time.monotonic()+2)
+- while any(entry['process'].poll() is None for entry in active) and time.monotonic()<until:time.sleep(.01)
+- live=[entry for entry in active if entry['process'].poll() is None]
+- until=min(a.deadline_mono,time.monotonic()+1)
++ while any(entry['process'].poll() is None for entry in active) and time.monotonic()<grace:time.sleep(.01)
++ live=[entry for entry in registered if entry['process'].poll() is None]
+  if live:
+-  roots=[entry['process'].pid for entry in live]
+-  try:descendants=owned_descendants(roots,max(.001,until-time.monotonic()))
+-  except Exception as error:descendants=[];ownership_snapshot_error=type(error).__name__
+-  for pid in reversed(descendants):
+-   try:os.kill(pid,signal.SIGKILL)
+-   except ProcessLookupError:pass
+-  for entry in live:
+-   entry['kill_escalated']=True
+-   if entry['process'].poll() is None:entry['process'].kill()
+- for entry in active:
++  try:retained.update(owned_descendants([entry['process'].pid for entry in live],max(.001,until-time.monotonic())))
++  except Exception as error:ownership_snapshot_error=type(error).__name__;unknown=True
++ cancel_retained_descendants=sorted(retained)
++ for pid in reversed(cancel_retained_descendants):
++  try:
++   if os.getpgid(pid)==a.owner_pgid:os.kill(pid,signal.SIGKILL)
++  except ProcessLookupError:pass
++ for entry in live:
++  entry['kill_escalated']=True
++  if entry['process'].poll() is None:entry['process'].kill()
++ for entry in registered:
+   try:entry['process'].wait(timeout=max(.001,until-time.monotonic()))
+-  except subprocess.TimeoutExpired:pass
++  except subprocess.TimeoutExpired:unknown=True
++ # Only known descendants in this owned group are inspected. Zombies are stopped,
++ # while adopted children cannot be wait()ed by this watcher.
++ while True:
++  try:
++   rows={}
++   for line in subprocess.check_output(['ps','-axo','pid=,pgid=,stat='],text=True,timeout=max(.001,until-time.monotonic())).splitlines():
++    fields=line.split()
++    if len(fields)==3 and int(fields[1])==a.owner_pgid:rows[int(fields[0])]=fields[2]
++   cancel_remaining_descendants=[pid for pid in retained if pid in rows and not rows[pid].startswith('Z')]
++  except Exception as error:ownership_snapshot_error=type(error).__name__;unknown=True;break
++  if not cancel_remaining_descendants or time.monotonic()>=until:break
++  time.sleep(min(.01,max(0,until-time.monotonic())))
++ cancel_descendant_cleanup_confirmed=not unknown and not cancel_remaining_descendants and all(entry['process'].poll() is not None for entry in registered)
++ if not cancel_descendant_cleanup_confirmed:
++  status='partial'
++  if reason=='ok':reason='descendant_cleanup_unconfirmed'
+ 
+ def read_json(path,maximum):
+  check(not path.is_symlink() and path.is_file() and path.stat().st_size<=maximum,'unsafe_or_oversized_evidence')
+@@ -85,7 +104,7 @@
+  return row
+ def finish():
+  nodes=[collect(node,captures.get(node)) for node in [1,2,3]]
+- row={'schema':'wukongim/temporary-three-node-first-grant-profile-driver/v1','fixture_or_real_target':'caller_declared_loopback_physical_nodes1_2_3','status':status,'reason':reason,'started_at_utc':wall.isoformat(),'completed_at_utc':utc(),'owner_pgid':a.owner_pgid,'driver_pid':os.getpid(),'receipt':receipt,'nodes':nodes,'requested_cpu_seconds_per_node':10,'requested_goroutine_offset_seconds_per_node':5,'cpu_max_bytes_per_node':8388608,'goroutine_max_bytes_per_node':4194304,'maximum_profile_bodies_bytes_all_nodes':37748736,'maximum_profile_HTTP_requests':6,'cancel_join_budget_is_shared_not_serial':True,'ownership_snapshot_error_class':ownership_snapshot_error,'actual_cpu_submission_and_goroutine_offsets':'not independently observed; local launch times and nominal+5s only; nodes are not exactly synchronized','phase_label_semantics':'matching firstgrant receipt until observed stop/terminal; does not prove active SEND throughout; profiles may mix active/drain','additional_sampling_disturbance':True,'causal_performance_comparison':False,'no_performance_acceptance':True}
++ row={'schema':'wukongim/temporary-three-node-first-grant-profile-driver/v1','fixture_or_real_target':'caller_declared_loopback_physical_nodes1_2_3','status':status,'reason':reason,'started_at_utc':wall.isoformat(),'completed_at_utc':utc(),'owner_pgid':a.owner_pgid,'driver_pid':os.getpid(),'receipt':receipt,'nodes':nodes,'requested_cpu_seconds_per_node':10,'requested_goroutine_offset_seconds_per_node':5,'cpu_max_bytes_per_node':8388608,'goroutine_max_bytes_per_node':4194304,'maximum_profile_bodies_bytes_all_nodes':37748736,'maximum_profile_HTTP_requests':6,'cancel_join_budget_is_shared_not_serial':True,'ownership_snapshot_error_class':ownership_snapshot_error,'cancel_descendant_cleanup_confirmed':cancel_descendant_cleanup_confirmed,'cancel_retained_descendant_pids':cancel_retained_descendants,'cancel_remaining_descendant_pids':cancel_remaining_descendants,'capture_joined_semantics':'registered direct helper reaped only; not proof that every descendant was joined; unconfirmed ancestry depends on final whole-owned-PGID cleanup','actual_cpu_submission_and_goroutine_offsets':'not independently observed; local launch times and nominal+5s only; nodes are not exactly synchronized','phase_label_semantics':'matching firstgrant receipt until observed stop/terminal; does not prove active SEND throughout; profiles may mix active/drain','additional_sampling_disturbance':True,'causal_performance_comparison':False,'no_performance_acceptance':True}
+  dest=a.run_dir/'profile-driver-status.json';temp=dest.with_suffix('.next');temp.write_text(json.dumps(row,indent=2)+'\n');temp.chmod(0o600);temp.replace(dest)
+ try:
+  check(a.owner_pgid==os.getpgrp() and a.base_port==25000,'owner_or_port_mismatch')

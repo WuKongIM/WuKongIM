@@ -1,0 +1,938 @@
+diff --git a/cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go b/cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go
+new file mode 100644
+index 000000000..468397a48
+--- /dev/null
++++ b/cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go
+@@ -0,0 +1,27 @@
++package benchmark
++
++import (
++	"encoding/json"
++	"strings"
++	"testing"
++
++	"github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
++)
++
++func TestMetricsFetchDiagnosticCannotChangeCLIOutcome(t *testing.T) {
++	var diagnostic chatlifecycle.FinalizationFailure
++	if err := json.Unmarshal([]byte(`{"stage":"meta_checkpoint","reason":"metrics_fetch","observed_decision":"product_failure","observed_outcome":"product_failure","observed_cause":"message_loss","observed_terminal":true,"metrics_fetch":{"source_mask":5,"kinds":["transport","","parse"]}}`), &diagnostic); err != nil {
++		t.Fatal(err)
++	}
++	result := chatlifecycle.CoordinatorResult{Outcome: chatlifecycle.CoordinatorHarnessInvalid, Code: chatlifecycle.CoordinatorCodeFinalize, FinalizationFailure: diagnostic.Bounded()}
++	verdict := chatLifecycleCoordinatorVerdict(result)
++	if verdict.Outcome != chatlifecycle.VerdictHarnessInvalid || verdict.Cause != chatlifecycle.VerdictCauseInvalidObservation || chatLifecycleVerdictExitCode(verdict) != exitChatLifecycleHarness {
++		t.Fatal("diagnostic changed CLI exit or validity")
++	}
++	summary := chatLifecycleCoordinatorSummary(verdict, result, "unavailable")
++	for _, part := range []string{"finalization_stage=meta_checkpoint", "finalization_reason=metrics_fetch", "report=unavailable", "observed_cause=message_loss"} {
++		if !strings.Contains(summary, part) {
++			t.Errorf("missing %s", part)
++		}
++	}
++}
+diff --git a/internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go b/internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go
+new file mode 100644
+index 000000000..c719a33d5
+--- /dev/null
++++ b/internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go
+@@ -0,0 +1,533 @@
++package chatlifecycle
++
++import (
++	"context"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"net/http"
++	"os"
++	"path/filepath"
++	"reflect"
++	"strings"
++	"sync/atomic"
++	"testing"
++
++	"github.com/WuKongIM/WuKongIM/internal/bench/target"
++)
++
++type metricsFetchSourceFunc func(context.Context) (target.MetricsSnapshot, error)
++
++func (f metricsFetchSourceFunc) Metrics(ctx context.Context) (target.MetricsSnapshot, error) {
++	return f(ctx)
++}
++
++type metricsFetchTripFunc func(*http.Request) (*http.Response, error)
++
++func (f metricsFetchTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
++
++type metricsFetchSecretError struct {
++	cause     error
++	formatted atomic.Int32
++}
++
++func (e *metricsFetchSecretError) Error() string {
++	if e != nil {
++		e.formatted.Add(1)
++	}
++	return "private-source-token private-uid http://private.invalid/body"
++}
++func (e *metricsFetchSecretError) Unwrap() error {
++	if e == nil {
++		return nil
++	}
++	return e.cause
++}
++
++func metricsFetchTargetError(t *testing.T, kind string) error {
++	t.Helper()
++	secret := &metricsFetchSecretError{}
++	client := target.NewClient(target.Config{APIAddrs: []string{"http://node.invalid"}, HTTPClient: &http.Client{Transport: metricsFetchTripFunc(func(req *http.Request) (*http.Response, error) {
++		if kind == "transport" {
++			return nil, secret
++		}
++		status := 200
++		body := "go_goroutines NaN\n"
++		if kind == "auth" {
++			status = 403
++			body = "private-source-token"
++		}
++		return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), ContentLength: int64(len(body)), Request: req}, nil
++	})}})
++	_, err := client.Metrics(context.Background())
++	if err == nil {
++		t.Fatal("fixture requires failed Metrics")
++	}
++	return err
++}
++
++func metricsFetchProjection(t *testing.T, err error) map[string]any {
++	t.Helper()
++	failure := finalizationDiagnostic(metaCheckpointFailure("metrics_fetch", err), "controller_unknown", "invalid")
++	raw, marshalErr := json.Marshal(failure)
++	if marshalErr != nil {
++		t.Fatal(marshalErr)
++	}
++	var got map[string]any
++	if json.Unmarshal(raw, &got) != nil {
++		t.Fatal("cannot decode safe projection")
++	}
++	if got["stage"] != "meta_checkpoint" || got["reason"] != "metrics_fetch" {
++		t.Errorf("outer leaf changed: %s", raw)
++	}
++	return got
++}
++func metricsFetchAssertVector(t *testing.T, record map[string]any, mask int, kinds [3]string) {
++	t.Helper()
++	nested, ok := record["metrics_fetch"].(map[string]any)
++	if !ok {
++		t.Error("missing bounded metrics_fetch projection")
++		return
++	}
++	if nested["source_mask"] != float64(mask) {
++		t.Errorf("source mask=%v want=%d", nested["source_mask"], mask)
++	}
++	want := []any{kinds[0], kinds[1], kinds[2]}
++	if !reflect.DeepEqual(nested["kinds"], want) {
++		t.Errorf("closed kinds=%v want=%v", nested["kinds"], want)
++	}
++	if len(nested) != 2 {
++		t.Error("metrics fetch projection has unbounded fields")
++	}
++}
++
++func TestMetricsFetchThreeSourceJoinAndOrder(t *testing.T) {
++	permutations := [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}}
++	typed := [3]error{metricsFetchTargetError(t, "transport"), metricsFetchTargetError(t, "parse"), metricsFetchTargetError(t, "auth")}
++	tags := [3]string{"transport", "parse", "auth"}
++	for mask := 0; mask < 8; mask++ {
++		for orderID, order := range permutations {
++			t.Run(fmt.Sprintf("mask_%d_order_%d", mask, orderID), func(t *testing.T) {
++				started := make(chan int, 3)
++				returned := make(chan int, 3)
++				var release [3]chan struct{}
++				var calls atomic.Int32
++				var sources [3]ProductionMetaMetricsSource
++				var errs [3]error
++				var kinds [3]string
++				for i := range sources {
++					release[i] = make(chan struct{})
++					if mask&(1<<i) != 0 {
++						errs[i] = typed[i]
++						kinds[i] = tags[i]
++					}
++					sources[i] = metricsFetchSourceFunc(func(context.Context) (target.MetricsSnapshot, error) {
++						calls.Add(1)
++						started <- i
++						<-release[i]
++						returned <- i
++						return target.MetricsSnapshot{GoGoroutines: float64(i + 1)}, errs[i]
++					})
++				}
++				type outcome struct {
++					snapshots [3]target.MetricsSnapshot
++					err       error
++				}
++				done := make(chan outcome, 1)
++				go func() {
++					snapshots, err := collectProductionMetaMetrics(context.Background(), sources)
++					done <- outcome{snapshots, err}
++				}()
++				for range 3 {
++					<-started
++				}
++				close(release[order[0]])
++				<-returned
++				var early *outcome
++				select {
++				case got := <-done:
++					early = &got
++					t.Error("collection returned before joining all sources")
++				default:
++				}
++				close(release[order[1]])
++				close(release[order[2]])
++				for range 2 {
++					<-returned
++				}
++				var got outcome
++				if early != nil {
++					got = *early
++				} else {
++					got = <-done
++				}
++				if calls.Load() != 3 {
++					t.Error("source call count changed")
++				}
++				if mask == 0 {
++					if got.err != nil {
++						t.Fatal("successful source round failed")
++					}
++					for i := range got.snapshots {
++						if got.snapshots[i].GoGoroutines != float64(i+1) {
++							t.Error("completion order reordered source snapshot")
++						}
++					}
++					return
++				}
++				if !errors.Is(got.err, ErrLifecycleHarnessInvalid) {
++					t.Fatal("failed source round lost harness classification")
++				}
++				if !reflect.DeepEqual(got.snapshots, [3]target.MetricsSnapshot{}) {
++					t.Error("partial snapshots escaped failed round")
++				}
++				metricsFetchAssertVector(t, metricsFetchProjection(t, got.err), mask, kinds)
++			})
++		}
++	}
++}
++
++func TestMetricsFetchPrivateCauseIsolation(t *testing.T) {
++	for _, tc := range []struct {
++		name  string
++		cause error
++		kind  string
++	}{
++		{"private", nil, "unknown"}, {"canceled", context.Canceled, "context_canceled"}, {"deadline", context.DeadlineExceeded, "context_deadline"},
++		{"product", ErrLifecycleProductFailure, "unknown"}, {"both_contexts", errors.Join(context.Canceled, context.DeadlineExceeded), "mixed"},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			private := &metricsFetchSecretError{cause: tc.cause}
++			f := newMetaDiagnosticFixture(t, true)
++			f.sources[1].err = private
++			before := f.accounting.Snapshot()
++			waits := 0
++			f.controller.settleWait = func(context.Context) error { waits++; return nil }
++			err := f.controller.Checkpoint(context.Background(), f.workers, f.assignment, true)
++			if !errors.Is(err, ErrLifecycleHarnessInvalid) {
++				t.Fatal("lost harness sentinel")
++			}
++			for _, hidden := range []error{private, context.Canceled, context.DeadlineExceeded, ErrLifecycleProductFailure} {
++				if errors.Is(err, hidden) {
++					t.Error("private source cause changed aggregate classification")
++				}
++			}
++			if waits != 0 || !reflect.DeepEqual(before, f.accounting.Snapshot()) {
++				t.Error("failed fetch changed settle retries or baseline")
++			}
++			for _, source := range f.sources {
++				if source.calls != 2 {
++					t.Error("fetch failure added a retry or skipped a source")
++				}
++			}
++			metricsFetchAssertVector(t, metricsFetchProjection(t, err), 2, [3]string{"", tc.kind, ""})
++			if strings.Contains(fmt.Sprint(err), "private") || strings.Contains(fmt.Sprintf("%+v", err), "private") || private.formatted.Load() != 0 {
++				t.Error("source cause was formatted")
++			}
++			// The aggregate must retain exactly the original three references privately,
++			// while its only unwrapped public cause remains the old harness sentinel.
++			aggregate := errors.Unwrap(err)
++			value := reflect.ValueOf(aggregate)
++			if value.Kind() != reflect.Pointer || value.IsNil() {
++				t.Error("missing private aggregate")
++				return
++			}
++			field := value.Elem().FieldByName("causes")
++			if !field.IsValid() || field.Type() != reflect.TypeOf([3]error{}) {
++				t.Error("private causes are not a fixed three-element array")
++				return
++			}
++			if !field.Index(0).IsNil() || !field.Index(2).IsNil() || field.Index(1).IsNil() || field.Index(1).Elem().Pointer() != reflect.ValueOf(private).Pointer() {
++				t.Error("aggregate did not retain exact source references")
++			}
++			if errors.Unwrap(aggregate) != ErrLifecycleHarnessInvalid {
++				t.Error("aggregate unwrap exposed source errors")
++			}
++		})
++	}
++}
++
++func TestMetricsFetchParentContextStillWinsAfterJoin(t *testing.T) {
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	started := make(chan struct{}, 3)
++	returned := make(chan struct{}, 3)
++	release := make(chan struct{})
++	var sources [3]ProductionMetaMetricsSource
++	for i := range sources {
++		sources[i] = metricsFetchSourceFunc(func(context.Context) (target.MetricsSnapshot, error) {
++			started <- struct{}{}
++			<-release
++			returned <- struct{}{}
++			return target.MetricsSnapshot{}, &metricsFetchSecretError{}
++		})
++	}
++	done := make(chan error, 1)
++	go func() { _, err := collectProductionMetaMetrics(ctx, sources); done <- err }()
++	for range 3 {
++		<-started
++	}
++	cancel()
++	select {
++	case <-done:
++		t.Error("parent cancellation skipped source joins")
++	default:
++	}
++	close(release)
++	for range 3 {
++		<-returned
++	}
++	err := <-done
++	if err != context.Canceled {
++		t.Error("parent context precedence changed")
++	}
++	failure := finalizationDiagnostic(metaCheckpointFailure("metrics_fetch", err), "controller_unknown", "invalid")
++	raw, _ := json.Marshal(failure)
++	if failure.Reason != "context_canceled" || strings.Contains(string(raw), "metrics_fetch") {
++		t.Error("parent context retained a child-source diagnostic")
++	}
++}
++
++func TestMetricsFetchParentContextStopsBeforeSources(t *testing.T) {
++	ctx, cancel := context.WithCancel(context.Background())
++	cancel()
++	calls := 0
++	var sources [3]ProductionMetaMetricsSource
++	for i := range sources {
++		sources[i] = metricsFetchSourceFunc(func(context.Context) (target.MetricsSnapshot, error) { calls++; return target.MetricsSnapshot{}, nil })
++	}
++	_, err := collectProductionMetaMetrics(ctx, sources)
++	if err != context.Canceled || calls != 0 {
++		t.Error("pre-canceled round contacted sources")
++	}
++}
++
++func TestMetricsFetchBoundedProjection(t *testing.T) {
++	cases := []struct {
++		name          string
++		stage, reason string
++		mask          int
++		kinds         [3]string
++		want          bool
++		wantKinds     [3]string
++	}{
++		{name: "valid", stage: "meta_checkpoint", reason: "metrics_fetch", mask: 5, kinds: [3]string{"transport", "", "parse"}, want: true, wantKinds: [3]string{"transport", "", "parse"}},
++		{name: "malicious_kind", stage: "meta_checkpoint", reason: "metrics_fetch", mask: 1, kinds: [3]string{strings.Repeat("private-token", 1024), "", ""}, want: true, wantKinds: [3]string{"unknown", "", ""}},
++		{name: "zero_mask", stage: "meta_checkpoint", reason: "metrics_fetch"},
++		{name: "outside_mask", stage: "meta_checkpoint", reason: "metrics_fetch", mask: 8, kinds: [3]string{"transport", "", ""}},
++		{name: "missing_failure_kind", stage: "meta_checkpoint", reason: "metrics_fetch", mask: 1},
++		{name: "success_has_kind", stage: "meta_checkpoint", reason: "metrics_fetch", mask: 1, kinds: [3]string{"transport", "parse", ""}},
++		{name: "other_stage", stage: "controller_guard", reason: "state", mask: 1, kinds: [3]string{"transport", "", ""}},
++		{name: "other_reason", stage: "meta_checkpoint", reason: "metrics_preview", mask: 1, kinds: [3]string{"transport", "", ""}},
++		{name: "unknown_stage", stage: "private-stage", reason: "private-reason", mask: 1, kinds: [3]string{"private-token", "", ""}},
++	}
++	for _, tc := range cases {
++		t.Run(tc.name, func(t *testing.T) {
++			input := map[string]any{"stage": tc.stage, "reason": tc.reason, "metrics_fetch": map[string]any{"source_mask": tc.mask, "kinds": tc.kinds}}
++			raw, _ := json.Marshal(input)
++			var failure FinalizationFailure
++			if err := json.Unmarshal(raw, &failure); err != nil {
++				t.Fatal(err)
++			}
++			before, _ := json.Marshal(failure)
++			bounded := failure.Bounded()
++			after, _ := json.Marshal(failure)
++			if string(before) != string(after) {
++				t.Error("Bounded mutated caller-owned data")
++			}
++			encoded, _ := json.Marshal(bounded)
++			var got map[string]any
++			_ = json.Unmarshal(encoded, &got)
++			if tc.want {
++				metricsFetchAssertVector(t, got, tc.mask, tc.wantKinds)
++			} else if _, exists := got["metrics_fetch"]; exists {
++				t.Error("invalid/foreign metrics projection escaped")
++			}
++			if strings.Contains(string(encoded), "private") {
++				t.Error("private injected data escaped Bounded")
++			}
++		})
++	}
++	for mask := 0; mask < 256; mask++ {
++		t.Run(fmt.Sprintf("mask_%03d", mask), func(t *testing.T) {
++			var kinds [3]string
++			for i := range 3 {
++				if mask&(1<<i) != 0 {
++					kinds[i] = "unknown"
++				}
++			}
++			raw, _ := json.Marshal(map[string]any{"stage": "meta_checkpoint", "reason": "metrics_fetch", "metrics_fetch": map[string]any{"source_mask": mask, "kinds": kinds}})
++			var f FinalizationFailure
++			_ = json.Unmarshal(raw, &f)
++			encoded, _ := json.Marshal(f.Bounded())
++			var got map[string]any
++			_ = json.Unmarshal(encoded, &got)
++			if mask > 0 && mask < 8 {
++				metricsFetchAssertVector(t, got, mask, kinds)
++			} else if _, ok := got["metrics_fetch"]; ok {
++				t.Error("invalid mask retained")
++			}
++		})
++	}
++}
++
++func TestMetricsFetchFinalizePreservesFailureAndNoReport(t *testing.T) {
++	f := newMetaDiagnosticFixture(t, false)
++	f.sources[0].err = &metricsFetchSecretError{cause: ErrLifecycleProductFailure}
++	metaErr := f.controller.Checkpoint(context.Background(), f.workers, f.assignment, false)
++	c, cut, log, _ := newFinalizeDiagnosticFixture(t)
++	before := c.frozen
++	c.meta = finalizeMetaProbe{err: metaErr}
++	err := c.Finalize(context.Background(), cut)
++	if err == nil || !errors.Is(err, ErrLifecycleHarnessInvalid) || errors.Is(err, ErrLifecycleProductFailure) {
++		t.Fatal("source product error became product evidence")
++	}
++	if !reflect.DeepEqual(c.frozen, before) {
++		t.Error("frozen evidence changed")
++	}
++	if _, err := os.Stat(filepath.Join(c.outputDir, "final.json")); !os.IsNotExist(err) {
++		t.Error("failed metrics fetch produced final report")
++	}
++	found := 0
++	for _, line := range strings.Split(log.String(), "\n") {
++		if line == "" {
++			continue
++		}
++		var record map[string]any
++		if json.Unmarshal([]byte(line), &record) != nil {
++			t.Fatal("invalid diagnostic JSON")
++		}
++		if record["event"] == "wkbench.chat_lifecycle.controller_failure" {
++			found++
++			metricsFetchAssertVector(t, record, 1, [3]string{"unknown", "", ""})
++			if record["reason"] != "metrics_fetch" || record["observed_outcome"] != string(before.Outcome) {
++				t.Error("finalization leaf or frozen observation changed")
++			}
++		}
++	}
++	if found != 1 || strings.Contains(log.String(), "private") {
++		t.Error("missing, duplicate or unsafe failure event")
++	}
++}
++
++// A custom source cannot introduce arbitrary public kinds through a method name.
++type metricsFetchSpoofError struct{}
++
++func (*metricsFetchSpoofError) Error() string              { return "private-spoof-token" }
++func (*metricsFetchSpoofError) MetricsFailureKind() string { return "private-spoof-token" }
++
++func TestMetricsFetchUnknownSourceErrorShapes(t *testing.T) {
++	var typedNil *metricsFetchSecretError
++	for _, tc := range []struct {
++		name string
++		err  error
++		kind string
++	}{
++		{"typed_nil", typedNil, "unknown"}, {"wrapped", errors.Join(&metricsFetchSecretError{}), "unknown"}, {"spoof_method", &metricsFetchSpoofError{}, "unknown"},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			f := newMetaDiagnosticFixture(t, false)
++			f.sources[2].err = tc.err
++			err := f.controller.Checkpoint(context.Background(), f.workers, f.assignment, false)
++			metricsFetchAssertVector(t, metricsFetchProjection(t, err), 4, [3]string{"", "", tc.kind})
++		})
++	}
++}
++
++func TestMetricsFetchConstructorStillRejectsMissingSource(t *testing.T) {
++	_, err := NewProductionMetaController(ProductionMetaControllerOptions{Config: LocalConfig(), Accounting: NewMetaCreateAccounting()})
++	if err != ErrLifecycleHarnessInvalid {
++		t.Error("constructor guard changed")
++	}
++}
++
++func TestMetricsFetchSameKindSourceMasks(t *testing.T) {
++	typed := metricsFetchTargetError(t, "transport")
++	for _, mask := range []int{3, 5, 6, 7} {
++		t.Run(fmt.Sprint(mask), func(t *testing.T) {
++			f := newMetaDiagnosticFixture(t, false)
++			var kinds [3]string
++			for i := range f.sources {
++				if mask&(1<<i) != 0 {
++					f.sources[i].err = typed
++					kinds[i] = "transport"
++				}
++			}
++			err := f.controller.Checkpoint(context.Background(), f.workers, f.assignment, false)
++			metricsFetchAssertVector(t, metricsFetchProjection(t, err), mask, kinds)
++		})
++	}
++}
++
++// metricsFetchCutContext publishes a deterministic terminal context without a timer.
++type metricsFetchCutContext struct {
++	context.Context
++	done  chan struct{}
++	cause error
++}
++
++func (c *metricsFetchCutContext) Done() <-chan struct{} { return c.done }
++func (c *metricsFetchCutContext) Err() error {
++	select {
++	case <-c.done:
++		return c.cause
++	default:
++		return nil
++	}
++}
++func (c *metricsFetchCutContext) stop(err error) { c.cause = err; close(c.done) }
++
++func TestMetricsFetchParentDeadlineBeforeAndAfterJoin(t *testing.T) {
++	for _, before := range []bool{true, false} {
++		t.Run(fmt.Sprint(before), func(t *testing.T) {
++			ctx := &metricsFetchCutContext{Context: context.Background(), done: make(chan struct{})}
++			started := make(chan struct{}, 3)
++			returned := make(chan struct{}, 3)
++			release := make(chan struct{})
++			var calls atomic.Int32
++			var sources [3]ProductionMetaMetricsSource
++			for i := range sources {
++				sources[i] = metricsFetchSourceFunc(func(context.Context) (target.MetricsSnapshot, error) {
++					calls.Add(1)
++					started <- struct{}{}
++					<-release
++					returned <- struct{}{}
++					return target.MetricsSnapshot{}, &metricsFetchSecretError{}
++				})
++			}
++			if before {
++				ctx.stop(context.DeadlineExceeded)
++				_, err := collectProductionMetaMetrics(ctx, sources)
++				if err != context.DeadlineExceeded || calls.Load() != 0 {
++					t.Error("expired parent contacted sources")
++				}
++				return
++			}
++			done := make(chan error, 1)
++			go func() { _, err := collectProductionMetaMetrics(ctx, sources); done <- err }()
++			for range 3 {
++				<-started
++			}
++			ctx.stop(context.DeadlineExceeded)
++			select {
++			case <-done:
++				t.Error("deadline skipped joins")
++			default:
++			}
++			close(release)
++			for range 3 {
++				<-returned
++			}
++			err := <-done
++			if err != context.DeadlineExceeded {
++				t.Error("parent deadline precedence lost")
++			}
++			failure := finalizationDiagnostic(metaCheckpointFailure("metrics_fetch", err), "controller_unknown", "invalid")
++			raw, _ := json.Marshal(failure)
++			if failure.Reason != "context_deadline" || strings.Contains(string(raw), "metrics_fetch") {
++				t.Error("parent deadline became source diagnostic")
++			}
++		})
++	}
++}
+diff --git a/internal/bench/target/metrics_failure_diagnostics_test.go b/internal/bench/target/metrics_failure_diagnostics_test.go
+new file mode 100644
+index 000000000..b2c8375d0
+--- /dev/null
++++ b/internal/bench/target/metrics_failure_diagnostics_test.go
+@@ -0,0 +1,360 @@
++package target
++
++import (
++	"context"
++	"errors"
++	"io"
++	"net/http"
++	"net/url"
++	"strconv"
++	"strings"
++	"sync"
++	"sync/atomic"
++	"testing"
++	"time"
++)
++
++// metricsDiagnosticContext changes cancellation deterministically without timers.
++type metricsDiagnosticContext struct {
++	mu   sync.Mutex
++	done chan struct{}
++	err  error
++}
++
++func newMetricsDiagnosticContext() *metricsDiagnosticContext {
++	return &metricsDiagnosticContext{done: make(chan struct{})}
++}
++func (*metricsDiagnosticContext) Deadline() (time.Time, bool) { return time.Time{}, false }
++func (c *metricsDiagnosticContext) Done() <-chan struct{}     { return c.done }
++func (c *metricsDiagnosticContext) Err() error                { c.mu.Lock(); defer c.mu.Unlock(); return c.err }
++func (*metricsDiagnosticContext) Value(any) any               { return nil }
++func (c *metricsDiagnosticContext) stop(err error) {
++	c.mu.Lock()
++	defer c.mu.Unlock()
++	if c.err == nil {
++		c.err = err
++		close(c.done)
++	}
++}
++
++type metricsDiagnosticSecret struct{ calls atomic.Int32 }
++
++func (e *metricsDiagnosticSecret) Error() string {
++	e.calls.Add(1)
++	return "private-token private-uid http://private.invalid/response"
++}
++
++type metricsDiagnosticBody struct {
++	reader               io.Reader
++	closeErr             error
++	reads, bytes, closes int
++}
++
++func (b *metricsDiagnosticBody) Read(p []byte) (int, error) {
++	b.reads++
++	n, err := b.reader.Read(p)
++	b.bytes += n
++	return n, err
++}
++func (b *metricsDiagnosticBody) Close() error { b.closes++; return b.closeErr }
++
++type metricsDiagnosticReadFunc func([]byte) (int, error)
++
++func (f metricsDiagnosticReadFunc) Read(p []byte) (int, error) { return f(p) }
++
++type metricsDiagnosticRepeater struct{ remaining int64 }
++
++func (r *metricsDiagnosticRepeater) Read(p []byte) (int, error) {
++	if r.remaining == 0 {
++		return 0, io.EOF
++	}
++	n := min(int64(len(p)), r.remaining)
++	for i := range int(n) {
++		p[i] = 'x'
++	}
++	r.remaining -= n
++	return int(n), nil
++}
++
++func TestMetricsFailureBoundary(t *testing.T) {
++	type testCase struct {
++		name    string
++		modes   []string
++		kind    string
++		calls   int
++		initial error
++		addrs   []string
++		causal  error
++		success bool
++	}
++	cases := []testCase{
++		{name: "pre_canceled", kind: "context_canceled", initial: context.Canceled, causal: context.Canceled},
++		{name: "pre_deadline", kind: "context_deadline", initial: context.DeadlineExceeded, causal: context.DeadlineExceeded},
++		{name: "no_addresses", kind: "configuration", addrs: []string{" ", ""}},
++		{name: "request_construction", kind: "configuration", addrs: []string{"://bad"}},
++		{name: "transport", modes: []string{"transport"}, kind: "transport", calls: 1},
++		{name: "client_timeout_live_parent", modes: []string{"transport_timeout"}, kind: "transport", calls: 1},
++		{name: "causal_do_cancel", modes: []string{"transport_cancel"}, kind: "context_canceled", calls: 1, causal: context.Canceled},
++		{name: "causal_do_deadline", modes: []string{"transport_deadline"}, kind: "context_deadline", calls: 1, causal: context.DeadlineExceeded},
++		{name: "independent_do_at_cancel", modes: []string{"transport_cancel_independent"}, kind: "transport", calls: 1},
++		{name: "context_at_next_address", modes: []string{"transport_stop_after"}, kind: "mixed", calls: 1, addrs: []string{"http://one.invalid", "http://two.invalid"}},
++		{name: "unauthorized", modes: []string{"401", "valid"}, kind: "auth", calls: 1},
++		{name: "forbidden", modes: []string{"403", "valid"}, kind: "auth", calls: 1},
++		{name: "informational_status", modes: []string{"199"}, kind: "http_status", calls: 1},
++		{name: "non_auth_client_status", modes: []string{"404"}, kind: "http_status", calls: 1},
++		{name: "status", modes: []string{"503"}, kind: "http_status", calls: 1},
++		{name: "redirect_without_location", modes: []string{"302"}, kind: "http_status", calls: 1},
++		{name: "mixed_addresses", modes: []string{"transport", "503"}, kind: "mixed", calls: 2},
++		{name: "same_statuses", modes: []string{"503", "503"}, kind: "http_status", calls: 2},
++		{name: "same_transport", modes: []string{"transport", "transport"}, kind: "transport", calls: 2},
++		{name: "fallback_success", modes: []string{"transport", "valid"}, calls: 2, success: true},
++		{name: "fallback_status_success", modes: []string{"503", "valid"}, calls: 2, success: true},
++		{name: "earlier_failure_then_auth", modes: []string{"transport", "403", "valid"}, kind: "auth", calls: 2},
++		{name: "earlier_failure_then_length", modes: []string{"503", "huge_length", "valid"}, kind: "response_limit", calls: 2},
++		{name: "content_length", modes: []string{"huge_length"}, kind: "response_limit", calls: 1},
++		{name: "stream_length", modes: []string{"huge_read"}, kind: "response_limit", calls: 1},
++		{name: "body_read", modes: []string{"body_fail"}, kind: "body_read", calls: 1},
++		{name: "body_cancel", modes: []string{"body_cancel"}, kind: "context_canceled", calls: 1, causal: context.Canceled},
++		{name: "body_deadline", modes: []string{"body_deadline"}, kind: "context_deadline", calls: 1, causal: context.DeadlineExceeded},
++		{name: "body_independent_at_cancel", modes: []string{"body_cancel_independent"}, kind: "body_read", calls: 1},
++		{name: "earlier_failure_then_body_cancel", modes: []string{"503", "body_cancel"}, kind: "mixed", calls: 2},
++		{name: "earlier_failure_then_do_cancel", modes: []string{"body_fail", "transport_cancel"}, kind: "mixed", calls: 2},
++		{name: "ignored_close_error", modes: []string{"valid_close_error"}, calls: 1, success: true},
++		{name: "ignored_status_drain_error", modes: []string{"status_read_error"}, kind: "http_status", calls: 1},
++		{name: "selected_body_parse_failure", modes: []string{"transport", "parse", "valid"}, kind: "parse", calls: 2},
++		{name: "empty_204", modes: []string{"empty204"}, calls: 1, success: true},
++		{name: "empty_body", modes: []string{"empty"}, calls: 1, success: true},
++	}
++	for _, tc := range cases {
++		t.Run(tc.name, func(t *testing.T) {
++			ctx := newMetricsDiagnosticContext()
++			if tc.initial != nil {
++				ctx.stop(tc.initial)
++			}
++			secret := &metricsDiagnosticSecret{}
++			var bodies []*metricsDiagnosticBody
++			calls := 0
++			hc := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
++				index := calls
++				calls++
++				if index >= len(tc.modes) {
++					t.Errorf("unexpected request %d", calls)
++					return nil, secret
++				}
++				mode := tc.modes[index]
++				if req.Header.Get("Authorization") != "Bearer synthetic-token" {
++					t.Error("auth header changed")
++				}
++				switch mode {
++				case "transport":
++					return nil, secret
++				case "transport_timeout":
++					return nil, &url.Error{Op: "Get", URL: "http://private.invalid", Err: context.DeadlineExceeded}
++				case "transport_cancel":
++					ctx.stop(context.Canceled)
++					return nil, ctx.Err()
++				case "transport_deadline":
++					ctx.stop(context.DeadlineExceeded)
++					return nil, ctx.Err()
++				case "transport_cancel_independent", "transport_stop_after":
++					ctx.stop(context.Canceled)
++					return nil, secret
++				}
++				status := http.StatusOK
++				length := int64(-1)
++				var reader io.Reader = strings.NewReader("go_goroutines 7\n")
++				switch mode {
++				case "401":
++					status = http.StatusUnauthorized
++					reader = strings.NewReader(strings.Repeat("private-token", 100))
++				case "403":
++					status = http.StatusForbidden
++					reader = strings.NewReader("private-token")
++				case "199":
++					status = 199
++				case "404":
++					status = 404
++				case "503":
++					status = http.StatusServiceUnavailable
++					reader = strings.NewReader("private-token")
++				case "302":
++					status = http.StatusFound
++				case "huge_length":
++					length = maxObservationMetricsResponseBytes + 1
++				case "huge_read":
++					reader = &metricsDiagnosticRepeater{remaining: maxObservationMetricsResponseBytes + 2}
++				case "body_fail":
++					reader = metricsDiagnosticReadFunc(func([]byte) (int, error) { return 0, secret })
++				case "body_cancel":
++					reader = metricsDiagnosticReadFunc(func([]byte) (int, error) { ctx.stop(context.Canceled); return 0, ctx.Err() })
++				case "body_deadline":
++					reader = metricsDiagnosticReadFunc(func([]byte) (int, error) { ctx.stop(context.DeadlineExceeded); return 0, ctx.Err() })
++				case "body_cancel_independent":
++					reader = metricsDiagnosticReadFunc(func([]byte) (int, error) { ctx.stop(context.Canceled); return 0, secret })
++				case "status_read_error":
++					status = http.StatusServiceUnavailable
++					reader = metricsDiagnosticReadFunc(func([]byte) (int, error) { return 0, secret })
++				case "parse":
++					reader = strings.NewReader("go_goroutines NaN\n")
++				case "empty204":
++					status = http.StatusNoContent
++					reader = strings.NewReader("")
++				case "empty":
++					reader = strings.NewReader("")
++				}
++				body := &metricsDiagnosticBody{reader: reader}
++				if mode == "valid_close_error" {
++					body.closeErr = secret
++				}
++				bodies = append(bodies, body)
++				return &http.Response{StatusCode: status, Header: make(http.Header), Body: body, ContentLength: length, Request: req}, nil
++			})}
++			addrs := tc.addrs
++			if addrs == nil {
++				for range max(1, len(tc.modes)) {
++					addrs = append(addrs, "http://node.invalid")
++				}
++			}
++			client := NewClient(Config{APIAddrs: addrs, Token: "synthetic-token", HTTPClient: hc})
++			snapshot, err := client.Metrics(ctx)
++			if tc.success {
++				if err != nil {
++					t.Fatalf("unexpected error: %v", err)
++				}
++				if tc.name != "empty_body" && tc.name != "empty_204" && snapshot.GoGoroutines != 7 {
++					t.Error("selected snapshot changed")
++				}
++			} else {
++				if err == nil {
++					t.Fatal("failure became success")
++				}
++				if got := err.Error(); got != "observation metrics "+tc.kind {
++					t.Errorf("bounded class = %q, want %q", got, tc.kind)
++				}
++				if tc.causal != nil && !errors.Is(err, tc.causal) {
++					t.Error("original causal context lost")
++				}
++				if tc.causal == nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
++					t.Error("new causal context exposure")
++				}
++				if errors.Is(err, secret) {
++					t.Error("previously discarded private transport/body cause newly exposed")
++				}
++			}
++			if calls != tc.calls {
++				t.Errorf("HTTP calls=%d want=%d", calls, tc.calls)
++			}
++			for _, body := range bodies {
++				if body.closes != 1 {
++					t.Error("response body not closed exactly once")
++				}
++				if body.bytes > int(maxObservationMetricsResponseBytes+1) {
++					t.Error("read exceeded existing limit+1")
++				}
++			}
++			if tc.name == "content_length" && bodies[0].reads != 0 {
++				t.Error("oversized content-length body was read")
++			}
++			if tc.name == "unauthorized" && bodies[0].bytes > 512 {
++				t.Error("status drain exceeded 512")
++			}
++			if secret.calls.Load() != 0 {
++				t.Error("private error text formatted")
++			}
++		})
++	}
++}
++
++func TestMetricsFailureParserBoundary(t *testing.T) {
++	var queueExcess strings.Builder
++	for i := range 129 {
++		queueExcess.WriteString(`wukongim_runtime_pool_queue_depth{pool="p` + strconv.Itoa(i) + `"} 1` + "\n")
++	}
++	cases := []struct {
++		name, body string
++		wantError  bool
++	}{
++		{"sample", "go_goroutines 1 2\n", true}, {"labels", `go_goroutines{x="oops} 1` + "\n", true},
++		{"negative", "go_goroutines -1\n", true}, {"infinite", "go_goroutines +Inf\n", true},
++		{"metadata_labels", `wukongim_channelv2_meta_created_total{slot_id="1",result="created",extra="private"} 1` + "\n", true},
++		{"metadata_slot", `wukongim_channelv2_meta_created_total{slot_id="13",result="created"} 1` + "\n", true},
++		{"metadata_counter", `wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 0.5` + "\n", true},
++		{"metadata_counter_overflow", `wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 9007199254740993` + "\n", true},
++		{"metadata_aggregate_overflow", `wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 9007199254740992` + "\n" + `wukongim_channelv2_meta_created_total{slot_id="2",result="created"} 1` + "\n", true},
++		{"metadata_result", `wukongim_channelv2_meta_created_total{slot_id="1",result="private"} 1` + "\n", true},
++		{"metadata_duplicate", strings.Repeat(`wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 1`+"\n", 2), true},
++		{"metadata_incomplete", `wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 1` + "\n", true},
++		{"queue_excess", queueExcess.String(), true},
++		{"queue_duplicate", strings.Repeat(`wukongim_runtime_pool_queue_depth{pool="a"} 1`+"\n", 2), true},
++		{"queue_unpaired", "wukongim_runtime_pool_queue_depth{pool=\"a\"} 1\nwukongim_runtime_pool_queue_capacity{pool=\"b\"} 2\n", true},
++		{"queue_overflow", "wukongim_runtime_pool_queue_depth{pool=\"a\"} 3\nwukongim_runtime_pool_queue_capacity{pool=\"a\"} 2\n", true},
++		{"aggregate_overflow", "go_goroutines 1.7976931348623157e308\ngo_goroutines 1.7976931348623157e308\n", true},
++		{"line_count", strings.Repeat("#\n", maxObservationMetricLines+1), true},
++		{"line_bytes", "#" + strings.Repeat("x", maxObservationMetricLineBytes) + "\n", true},
++		{"series_count", strings.Repeat("future_metric 1\n", maxObservationMetricSeries+1), true},
++		{"unknown_family_ignored", "private_future_metric{invalid labels\ngo_goroutines 7\n", false},
++		{"missing_required_stays_fetch_success", "go_goroutines 7\n", false},
++	}
++	for _, tc := range cases {
++		t.Run(tc.name, func(t *testing.T) {
++			direct, directErr := parseObservationMetrics([]byte(tc.body))
++			calls := 0
++			client := NewClient(Config{APIAddrs: []string{"http://node.invalid"}, HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
++				calls++
++				return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(tc.body)), ContentLength: int64(len(tc.body)), Request: req}, nil
++			})}})
++			got, err := client.Metrics(context.Background())
++			if calls != 1 {
++				t.Error("parser failure retried HTTP")
++			}
++			if tc.wantError {
++				if directErr == nil || err == nil {
++					t.Fatal("parser rejection changed")
++				}
++				if err.Error() != "observation metrics parse" {
++					t.Errorf("parser class=%q", err.Error())
++				}
++			} else {
++				if directErr != nil || err != nil {
++					t.Fatal("successful parser changed")
++				}
++				if got.GoGoroutines != direct.GoGoroutines {
++					t.Error("parser snapshot changed")
++				}
++			}
++		})
++	}
++}
++
++func TestMetricsSharedObservationHelpers(t *testing.T) {
++	for _, operation := range []string{"debug", "profile"} {
++		t.Run(operation, func(t *testing.T) {
++			calls := 0
++			client := NewClient(Config{APIAddrs: []string{"http://one.invalid", "http://two.invalid"}, HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
++				calls++
++				status := http.StatusServiceUnavailable
++				body := "private-token"
++				if calls == 2 {
++					status = http.StatusOK
++					if operation == "debug" {
++						body = `{"node_id":7}`
++					} else {
++						body = "profile"
++					}
++				}
++				return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), ContentLength: int64(len(body)), Request: req}, nil
++			})}})
++			if operation == "debug" {
++				got, err := client.DebugConfig(context.Background())
++				if err != nil || got.NodeID != 7 {
++					t.Error("debug helper changed")
++				}
++			} else if err := client.ForceGC(context.Background()); err != nil {
++				t.Error("profile helper changed")
++			}
++			if calls != 2 {
++				t.Error("other observation fallback changed")
++			}
++		})
++	}
++}

@@ -1,0 +1,108 @@
+{
+  "schema": "wukongim/three-node-sampler-frozen-test-evidence-review/v1",
+  "tests_executed_by_reviewer": false,
+  "helper_test_source": {
+    "path": "helper_adapter_test.py",
+    "sha256": "ebc27173695ade28f6c2da9e6155bcf9f63023b88c85a6c3e23a08620689e209",
+    "methods": 5,
+    "coverage": [
+      "explicit 1/2/3 identities and URLs",
+      "default 2",
+      "six invalid values before output/curl",
+      "node3 HTTP-error partial identity",
+      "TERM joins cooperative fake curl children; no TCP"
+    ]
+  },
+  "watcher_test_source": {
+    "path": "watcher_coordination_test.py",
+    "sha256": "6a36ce21d97de458526ad0bb7729ecf67c4a9a8a0af459a6d984659d8a5c062e",
+    "methods": 4,
+    "coverage": [
+      "one receipt launches three correctly identified helpers",
+      "stale receipt and wrong source launch none",
+      "wrong observed Slot node launches none",
+      "terminal stop joins three cooperative fake root helpers"
+    ],
+    "not_covered": [
+      "failed pre-claim duplicate preserving existing status",
+      "invalid owner/path causing zero artifact writes",
+      "root exits but leaves TERM-ignoring child",
+      "root already exited before cancellation with live child",
+      "ownership ps failure/timeout",
+      "all-three TERM-ignoring shared KILL fixture implementation",
+      "overlap latch/duplicate fixture implementation"
+    ]
+  },
+  "frozen_logs": [
+    {
+      "path": "RED-helper-adapter.log",
+      "sha256": "3a4cb0db6c4cf793b1f6f427b4344983d4b04bd4eae0264d58b8903681823ed4",
+      "text": ".FFF.FF\n======================================================================\nFAIL: test_explicit_three_node_identities (__main__.HelperIdentity.test_explicit_three_node_identities) (node='1')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py\", line 33, in test_explicit_three_node_identities\n    with self.subTest(node=n):self.check_case(n)\n                              ~~~~~~~~~~~~~~~^^^\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py\", line 24, in check_case\n    root,phase,out,env,log=self.setup_case(d,case);r=subprocess.run(self.command(phase,out,node),env=env,capture_output=True,timeout=3);self.assertEqual(r.returncode,0,r.stderr.decode());self.assertNotIn(TOKEN.encode(),r.stdout+r.stderr)\n                                                                                                                                        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 64 != 0 : [local-threshold-pprof] ERROR: unknown argument: --node-id\n\n\n======================================================================\nFAIL: test_explicit_three_node_identities (__main__.HelperIdentity.test_explicit_three_node_identities) (node='2')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py\", line 33, in test_explicit_three_node_identities\n    with self.subTest(node=n):self.check_case(n)\n                              ~~~~~~~~~~~~~~~^^^\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py\", line 24, in check_case\n    root,phase,out,env,log=self.setup_case(d,case);r=subprocess.run(self.command(phase,out,node),env=env,capture_output=True,timeout=3);self.assertEqual(r.returncode,0,r.stderr.decode());self.assertNotIn(TOKEN.encode(),r.stdout+r.stderr)\n                                                                                                                                        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 64 != 0 : [local-threshold-pprof] ERROR: unknown argument: --node-id\n\n\n======================================================================\nFAIL: test_explicit_three_node_identities (__main__.HelperIdentity.test_explicit_three_node_identities) (node='3')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py\", line 33, in test_explicit_three_node_identities\n    with self.subTest(node=n):self.check_case(n)\n                              ~~~~~~~~~~~~~~~^^^\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py\", line 24, in check_case\n    root,phase,out,env,log=self.setup_case(d,case);r=subprocess.run(self.command(phase,out,node),env=env,capture_output=True,timeout=3);self.assertEqual(r.returncode,0,r.stderr.decode());self.assertNotIn(TOKEN.encode(),r.stdout+r.stderr)\n                                                                                                                                        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 64 != 0 : [local-threshold-pprof] ERROR: unknown argument: --node-id\n\n\n======================================================================\nFAIL: test_node3_partial_retains_producer_identity (__main__.HelperIdentity.test_node3_partial_retains_producer_identity)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py\", line 39, in test_node3_partial_retains_producer_identity\n    def test_node3_partial_retains_producer_identity(self):self.check_case('3','http_error')\n                                                           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py\", line 24, in check_case\n    root,phase,out,env,log=self.setup_case(d,case);r=subprocess.run(self.command(phase,out,node),env=env,capture_output=True,timeout=3);self.assertEqual(r.returncode,0,r.stderr.decode());self.assertNotIn(TOKEN.encode(),r.stdout+r.stderr)\n                                                                                                                                        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 64 != 0 : [local-threshold-pprof] ERROR: unknown argument: --node-id\n\n\n======================================================================\nFAIL: test_signal_cancel_joins_fakecurl_and_preserves_node3 (__main__.HelperIdentity.test_signal_cancel_joins_fakecurl_and_preserves_node3)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/helper_adapter_test.py\", line 47, in test_signal_cancel_joins_fakecurl_and_preserves_node3\n    self.assertTrue(log.exists());p.send_signal(signal.SIGTERM);stdout,stderr=p.communicate(timeout=2);self.assertEqual(p.returncode,0);self.assertNotIn(TOKEN.encode(),stdout+stderr)\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^\nAssertionError: False is not true\n\n----------------------------------------------------------------------\nRan 5 tests in 0.677s\n\nFAILED (failures=5)\n"
+    },
+    {
+      "path": "GREEN-helper-adapter.log",
+      "sha256": "987cfe074680399b942fb53c67da959d6b56628a5aced918b2cda06df0e377c7",
+      "text": ".....\n----------------------------------------------------------------------\nRan 5 tests in 1.684s\n\nOK\n"
+    },
+    {
+      "path": "RED-three-node-watcher.log",
+      "sha256": "74740dc902b9b5e65511b1ef70f84b8521d4cf4a57548813f2c4cc8efc84d0e1",
+      "text": "FFFFF\n======================================================================\nFAIL: test_one_receipt_launches_three_correct_nodes (__main__.ThreeNode.test_one_receipt_launches_three_correct_nodes)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py\", line 29, in test_one_receipt_launches_three_correct_nodes\n    row,count=self.run_case();self.assertEqual(count,3);self.assertEqual(row['status'],'complete');self.assertEqual([n['node_id'] for n in row['nodes']],[1,2,3]);self.assertTrue(all(n['capture_joined'] and n['helper_exit_status']==0 for n in row['nodes']))\n              ~~~~~~~~~~~~~^^\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py\", line 25, in run_case\n    try:stdout,stderr=p.communicate(timeout=4);self.assertEqual(p.returncode,0,stderr.decode());row=json.loads((run/'profile-driver-status.json').read_text());return row,len(list(root.glob('node-?.pid')))\n                                               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 2 != 0 : usage: watch-three-node-first-grant.proposed.py [-h] --run-dir RUN_DIR\n                                                --out-dir OUT_DIR\n                                                --source-root SOURCE_ROOT\n                                                --binary BINARY\n                                                --helper HELPER\n                                                --source-revision SOURCE_REVISION\n                                                --binary-sha256 BINARY_SHA256\n                                                --helper-sha256 HELPER_SHA256\n                                                --run-hash RUN_HASH\n                                                --assignment-hash ASSIGNMENT_HASH\n                                                --generation GENERATION\n                                                --base-port BASE_PORT\n                                                --owner-pgid OWNER_PGID\n                                                --deadline-mono DEADLINE_MONO\nwatch-three-node-first-grant.proposed.py: error: unrecognized arguments: --launcher-sha256 fd3906588c2365de43f8855fcffc278adc53e9b7033c6b28961a6ac059d68d5e\n\n\n======================================================================\nFAIL: test_stale_receipt_and_wrong_source_launch_none (__main__.ThreeNode.test_stale_receipt_and_wrong_source_launch_none) (opts={'lag': 3})\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py\", line 32, in test_stale_receipt_and_wrong_source_launch_none\n    with self.subTest(opts=opts):row,count=self.run_case(**opts);self.assertEqual(count,0);self.assertEqual(row['status'],'skipped')\n                                           ~~~~~~~~~~~~~^^^^^^^^\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py\", line 25, in run_case\n    try:stdout,stderr=p.communicate(timeout=4);self.assertEqual(p.returncode,0,stderr.decode());row=json.loads((run/'profile-driver-status.json').read_text());return row,len(list(root.glob('node-?.pid')))\n                                               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 2 != 0 : usage: watch-three-node-first-grant.proposed.py [-h] --run-dir RUN_DIR\n                                                --out-dir OUT_DIR\n                                                --source-root SOURCE_ROOT\n                                                --binary BINARY\n                                                --helper HELPER\n                                                --source-revision SOURCE_REVISION\n                                                --binary-sha256 BINARY_SHA256\n                                                --helper-sha256 HELPER_SHA256\n                                                --run-hash RUN_HASH\n                                                --assignment-hash ASSIGNMENT_HASH\n                                                --generation GENERATION\n                                                --base-port BASE_PORT\n                                                --owner-pgid OWNER_PGID\n                                                --deadline-mono DEADLINE_MONO\nwatch-three-node-first-grant.proposed.py: error: unrecognized arguments: --launcher-sha256 fd3906588c2365de43f8855fcffc278adc53e9b7033c6b28961a6ac059d68d5e\n\n\n======================================================================\nFAIL: test_stale_receipt_and_wrong_source_launch_none (__main__.ThreeNode.test_stale_receipt_and_wrong_source_launch_none) (opts={'bad_source': True})\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py\", line 32, in test_stale_receipt_and_wrong_source_launch_none\n    with self.subTest(opts=opts):row,count=self.run_case(**opts);self.assertEqual(count,0);self.assertEqual(row['status'],'skipped')\n                                           ~~~~~~~~~~~~~^^^^^^^^\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py\", line 25, in run_case\n    try:stdout,stderr=p.communicate(timeout=4);self.assertEqual(p.returncode,0,stderr.decode());row=json.loads((run/'profile-driver-status.json').read_text());return row,len(list(root.glob('node-?.pid')))\n                                               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 2 != 0 : usage: watch-three-node-first-grant.proposed.py [-h] --run-dir RUN_DIR\n                                                --out-dir OUT_DIR\n                                                --source-root SOURCE_ROOT\n                                                --binary BINARY\n                                                --helper HELPER\n                                                --source-revision SOURCE_REVISION\n                                                --binary-sha256 BINARY_SHA256\n                                                --helper-sha256 HELPER_SHA256\n                                                --run-hash RUN_HASH\n                                                --assignment-hash ASSIGNMENT_HASH\n                                                --generation GENERATION\n                                                --base-port BASE_PORT\n                                                --owner-pgid OWNER_PGID\n                                                --deadline-mono DEADLINE_MONO\nwatch-three-node-first-grant.proposed.py: error: unrecognized arguments: --launcher-sha256 fd3906588c2365de43f8855fcffc278adc53e9b7033c6b28961a6ac059d68d5e\n\n\n======================================================================\nFAIL: test_terminal_stop_cancels_and_joins_three_helpers (__main__.ThreeNode.test_terminal_stop_cancels_and_joins_three_helpers)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py\", line 41, in test_terminal_stop_cancels_and_joins_three_helpers\n    self.assertEqual(len(list(root.glob('node-?.pid'))),3);(run/'evidence/profile-stop').write_text('fixture-stop\\n');stdout,stderr=p.communicate(timeout=4);row=json.loads((run/'profile-driver-status.json').read_text());self.assertEqual(row['status'],'partial');self.assertTrue(all(n['capture_joined'] for n in row['nodes']))\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 != 3\n\n======================================================================\nFAIL: test_wrong_observed_slot_node_launches_none (__main__.ThreeNode.test_wrong_observed_slot_node_launches_none)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py\", line 34, in test_wrong_observed_slot_node_launches_none\n    row,count=self.run_case(bad_slot=True);self.assertEqual(count,0);self.assertEqual(row['status'],'skipped')\n              ~~~~~~~~~~~~~^^^^^^^^^^^^^^^\n  File \"/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py\", line 25, in run_case\n    try:stdout,stderr=p.communicate(timeout=4);self.assertEqual(p.returncode,0,stderr.decode());row=json.loads((run/'profile-driver-status.json').read_text());return row,len(list(root.glob('node-?.pid')))\n                                               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 2 != 0 : usage: watch-three-node-first-grant.proposed.py [-h] --run-dir RUN_DIR\n                                                --out-dir OUT_DIR\n                                                --source-root SOURCE_ROOT\n                                                --binary BINARY\n                                                --helper HELPER\n                                                --source-revision SOURCE_REVISION\n                                                --binary-sha256 BINARY_SHA256\n                                                --helper-sha256 HELPER_SHA256\n                                                --run-hash RUN_HASH\n                                                --assignment-hash ASSIGNMENT_HASH\n                                                --generation GENERATION\n                                                --base-port BASE_PORT\n                                                --owner-pgid OWNER_PGID\n                                                --deadline-mono DEADLINE_MONO\nwatch-three-node-first-grant.proposed.py: error: unrecognized arguments: --launcher-sha256 fd3906588c2365de43f8855fcffc278adc53e9b7033c6b28961a6ac059d68d5e\n\n\n----------------------------------------------------------------------\nRan 4 tests in 0.221s\n\nFAILED (failures=5)\n"
+    },
+    {
+      "path": "GREEN-three-node-watcher.log",
+      "sha256": "c8eb4d8db0d2534891f4f5b50a986e196f1b82bf8dea529d9eb0f914d4c203fa",
+      "text": "....\n----------------------------------------------------------------------\nRan 4 tests in 1.219s\n\nOK\n"
+    },
+    {
+      "path": "GREEN-three-node-watcher-final.log",
+      "sha256": "290b2ef48fc7f573f69c19ebe9e6ce90507b43a84f3379747881f1fe9a7451e4",
+      "text": "....\n----------------------------------------------------------------------\nRan 4 tests in 1.092s\n\nOK\n"
+    }
+  ],
+  "frozen_extra_receipts": [
+    {
+      "path": "fake-once-overlap-receipt.json",
+      "sha256": "0e8eae3eef2808be2d69822835d285d2a733118b0e81c25822ee49e64055c049",
+      "content": {
+        "schema": "wukongim/three-node-sampler-once-overlap-fixture/v1",
+        "synthetic_helpers": 3,
+        "all3_simultaneously_live_before_release_latch": true,
+        "explicit_node_ids_and_API_URLs_match": true,
+        "first_status": "complete",
+        "second_status": "already_claimed",
+        "second_requests": 0,
+        "first_status_bytes_and_mtime_unchanged_after_duplicate": true,
+        "actual_TCP_or_profile_requests": 0,
+        "copied_private_profiles": false
+      },
+      "generating_program_or_exact_argv_frozen": false
+    },
+    {
+      "path": "fake-shared-kill-receipt.json",
+      "sha256": "02d77530fffe2f28c4b0c3a60eaec84dbce3096a6e9f523d95f5750957fc55f0",
+      "content": {
+        "schema": "wukongim/three-node-sampler-owned-fake-cancel/v1",
+        "synthetic_helpers": 3,
+        "all_ignore_TERM_before_stop_latch": true,
+        "actual_TCP_or_profile_requests": 0,
+        "stop_reason": "supervisor_stop",
+        "partial": true,
+        "shared_TERM_then_KILL_join_elapsed_seconds": 2.0931322909891605,
+        "all_three_capture_joined": true,
+        "all_three_KILL_escalated": true,
+        "all_three_owned_pid_probes_absent": true,
+        "no_secret_in_stdout_stderr": true,
+        "copied_private_profiles": false
+      },
+      "generating_program_or_exact_argv_frozen": false
+    }
+  ],
+  "limits": [
+    "RED helper logs show old CLI rejecting new node-id before identity behavior; RED watcher logs show old parser rejecting launcher-sha256 before coordination guards. These support interface RED, not separate executions of every guard path.",
+    "GREEN logs declare 5 helper and 4 watcher methods pass; exact original command/environment and per-command before/after test hashes are not separately frozen in V1.",
+    "The two extra receipt JSON files are claims of fake scenarios; their generating programs/argv are absent from the 19-member payload.",
+    "No actual three-node product run or real profiles are evidence in this proposal.",
+    "Static counterexamples in review.md were not run by reviewer."
+  ]
+}

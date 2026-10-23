@@ -1,0 +1,111 @@
+{
+  "cpu_profile": {
+    "file_sha256": "51937b42ed889fb971bf3267cd7edb29bb385fecb3a7784c80a16456eb4556b8",
+    "bytes": 25001,
+    "time_utc": "2026-10-22T23:39:22.684240000Z",
+    "time_unix_nanos": "1792712362684240000",
+    "duration_nanos": "10132784667",
+    "end_utc": "2026-10-22T23:39:32.817024667Z",
+    "period": 10000000,
+    "types": [
+      {
+        "type": "samples",
+        "unit": "count"
+      },
+      {
+        "type": "cpu",
+        "unit": "nanoseconds"
+      }
+    ]
+  },
+  "cpu_sample_count": 210,
+  "cpu_total_sample_nanoseconds": 2100000000,
+  "cpu_flat_top_20": [
+    {
+      "function": "syscall.syscallX",
+      "nanoseconds": 780000000
+    },
+    {
+      "function": "syscall.syscall",
+      "nanoseconds": 400000000
+    },
+    {
+      "function": "runtime.madvise",
+      "nanoseconds": 330000000
+    },
+    {
+      "function": "syscall.syscall6",
+      "nanoseconds": 110000000
+    },
+    {
+      "function": "runtime.fcntl",
+      "nanoseconds": 90000000
+    },
+    {
+      "function": "runtime.kevent",
+      "nanoseconds": 30000000
+    },
+    {
+      "function": "runtime.memclrNoHeapPointers",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.findObject",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "cmpbody",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.usleep",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.scanobject",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.gopark",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.walltime",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.getMCache",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.memequal",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.newBucket",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/internal/app.multiChannelObserver.SetWorkerInflight",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.greyobject",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "internal/runtime/atomic.(*Uint8).Load",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "sync.(*WaitGroup).Add",
+      "nanoseconds": 10000000
+    }
+  ],
+  "node_id": 2,
+  "capture_metadata_binding": "72d1ac95425c222575499ea3180938c488c159fc01488a8d0d06c044f4b09e78",
+  "request_status": "HTTP200/curl0/complete",
+  "first_grant": "2026-10-23T07:39:22.590978+08:00",
+  "terminal_supervisor_at": "2026-10-22T23:39:45.812617+00:00",
+  "active_SEND_end_unknown": true
+}

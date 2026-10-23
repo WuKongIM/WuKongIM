@@ -1,0 +1,531 @@
+{
+  "status": "design only, must precede implementation",
+  "source": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "cases": [
+    {
+      "id": "leaf_line_limit",
+      "layer": "target parser",
+      "failure": ">100000 total lines or existing Scanner64KiB token guard",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "line_limit",
+        "original_cause_Error": "observation metrics line limit exceeded"
+      },
+      "control": "same current line/token boundaries; comments/empty lines still count",
+      "seam": "real Client.Metrics in-memory plus existing boundary fixtures",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_series_limit",
+      "layer": "target parser",
+      "failure": ">32768 noncomment/nonempty series, including ignored families",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "series_limit",
+        "original_cause_Error": "observation metrics series cardinality limit exceeded"
+      },
+      "control": "32768 series accepted under other existing guards",
+      "seam": "real Client.Metrics in-memory",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_invalid_value",
+      "layer": "target parser",
+      "failure": "recognized sample ParseFloat failure, NaN, Inf or value<0",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "invalid_value",
+        "original_cause_Error": "observation metrics contains invalid value"
+      },
+      "control": "zero and finite nonnegative values remain accepted",
+      "seam": "real Client.Metrics in-memory",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_incomplete_metadata_results",
+      "layer": "target parser",
+      "failure": "meta family present but total result keys!=3",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "incomplete_metadata_results",
+        "original_cause_Error": "observation metrics contains incomplete metadata-create results"
+      },
+      "control": "three existing results; absent family is not newly rejected here",
+      "seam": "real Client.Metrics in-memory",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_invalid_sample",
+      "layer": "target parser",
+      "failure": "wrong sample field count before/after label token",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "invalid_sample",
+        "original_cause_Error": "observation metrics contains invalid sample"
+      },
+      "control": "existing two-field/no-label and one-value/label forms",
+      "seam": "real Client.Metrics in-memory",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_invalid_labels",
+      "layer": "target parser",
+      "failure": "existing brace/quote/escape/Unquote/key/value guards",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "invalid_labels",
+        "original_cause_Error": "observation metrics contains invalid labels"
+      },
+      "control": "name/key<=64, label value<=1024 and existing escapes",
+      "seam": "real Client.Metrics or pure production helper where filtering prevents reachability",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_invalid_metadata_labels",
+      "layer": "target parser",
+      "failure": "len(labels)!=2 or missing slot_id/nonempty result",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "invalid_metadata_labels",
+        "original_cause_Error": "observation metrics contains invalid metadata-create labels"
+      },
+      "control": "same two labels with valid source values",
+      "seam": "real Client.Metrics in-memory",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_invalid_metadata_slot",
+      "layer": "target parser",
+      "failure": "noncanonical Uint8 or Slot outside1..12",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "invalid_metadata_slot",
+        "original_cause_Error": "observation metrics contains invalid metadata-create Slot"
+      },
+      "control": "canonical1 and12 accepted; no HashSlot reinterpretation",
+      "seam": "real Client.Metrics in-memory",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_invalid_metadata_counter",
+      "layer": "target parser",
+      "failure": "not exact nonnegative integer or value>2^53",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "invalid_metadata_counter",
+        "original_cause_Error": "observation metrics contains invalid metadata-create counter"
+      },
+      "control": "0 and2^53 plus existing valid numeric notation",
+      "seam": "real Client.Metrics in-memory",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_invalid_metadata_result",
+      "layer": "target parser",
+      "failure": "nonempty result outside created/already_existing/error",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "invalid_metadata_result",
+        "original_cause_Error": "observation metrics contains invalid metadata-create result"
+      },
+      "control": "all three existing result values accepted",
+      "seam": "real Client.Metrics in-memory",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_duplicate_metadata_slot_result",
+      "layer": "target parser",
+      "failure": "same Slot/result bit observed twice",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "duplicate_metadata_slot_result",
+        "original_cause_Error": "observation metrics contains duplicate metadata-create Slot result"
+      },
+      "control": "different Slot/result combinations preserve behavior",
+      "seam": "real Client.Metrics in-memory",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_aggregate_overflow",
+      "layer": "target parser",
+      "failure": "existing float sum>MaxFloat64 or meta result sum>2^53",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "aggregate_overflow",
+        "original_cause_Error": "observation metrics aggregate overflow"
+      },
+      "control": "unchanged exact accepted limit; one shared reason for both guards",
+      "seam": "real Client.Metrics in-memory",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_unsupported_family",
+      "layer": "target parser",
+      "failure": "addMetric defensive unsupported kind",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "unsupported_family",
+        "original_cause_Error": "observation metrics contains unsupported family"
+      },
+      "control": "unknown external metric families remain ignored by main parser",
+      "seam": "pure addMetric helper; never fake an HTTP reachable branch",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_invalid_queue_labels",
+      "layer": "target parser",
+      "failure": "existing json.Marshal(label map) error/empty guard",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "invalid_queue_labels",
+        "original_cause_Error": "observation metrics contains invalid queue labels"
+      },
+      "control": "normal map[string]string encoding remains valid",
+      "seam": "catalog typed-error/text test and source-return audit; no ordinary reachable failure fixture",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_invalid_queue_family",
+      "layer": "target parser",
+      "failure": "addQueueSeries defensive unsupported kind",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "invalid_queue_family",
+        "original_cause_Error": "observation metrics contains invalid queue family"
+      },
+      "control": "four existing queue kinds accepted",
+      "seam": "pure addQueueSeries helper",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_duplicate_or_excess_queue_series",
+      "layer": "target parser",
+      "failure": "duplicate canonical full-label key or129th unique series",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "duplicate_or_excess_queue_series",
+        "original_cause_Error": "observation metrics contains duplicate or excessive queue series"
+      },
+      "control": "128 unique series per existing map accepted",
+      "seam": "real Client.Metrics in-memory",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_unpaired_queue_series",
+      "layer": "target parser",
+      "failure": "existing paired-family len0/length mismatch",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "unpaired_queue_series",
+        "original_cause_Error": "observation metrics contains unpaired queue series"
+      },
+      "control": "matching sets accepted; single missing family presence behavior unchanged",
+      "seam": "real Client.Metrics in-memory; direct helper for unreachable len0 form",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_invalid_queue_utilization",
+      "layer": "target parser",
+      "failure": "equal lengths but missing matching capacity key OR depth>positive capacity",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "invalid_queue_utilization",
+        "original_cause_Error": "observation metrics contains invalid queue utilization"
+      },
+      "control": "depth==capacity accepted; capacity0 remains skipped even if depth>0",
+      "seam": "real Client.Metrics in-memory; keep original condition grouped",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_invalid_sample_name",
+      "layer": "target parser",
+      "failure": "existing empty/unbalanced-close sample token guard",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "invalid_sample_name",
+        "original_cause_Error": "observation metrics contains invalid sample name"
+      },
+      "control": "main unknown-family filtering remains unchanged",
+      "seam": "pure token helper where main name filtering prevents reachability",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "leaf_label_cardinality_limit",
+      "layer": "target parser",
+      "failure": "duplicate label name or33rd label",
+      "expected": {
+        "MetricsFailure": "parse when wrapped by Metrics",
+        "MetricsParseFailure": "label_cardinality_limit",
+        "original_cause_Error": "observation metrics label cardinality limit exceeded"
+      },
+      "control": "32 distinct labels and existing ordinary labels accepted",
+      "seam": "real Client.Metrics in-memory",
+      "execution": "tests-first after separate implementation approval"
+    },
+    {
+      "id": "nil",
+      "layer": "target extraction",
+      "failure": "nil error",
+      "expected": "empty reason, no diagnostic",
+      "control": "no source string or interface interrogation",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "authentic_wrap",
+      "layer": "target extraction",
+      "failure": "fmt/wrapped genuine private parser cause",
+      "expected": "errors.As yields exact closed reason; original Error text/unwrap preserved",
+      "control": "one cause per actual Metrics parser invocation",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "forged_text",
+      "layer": "target extraction",
+      "failure": "errors.New with exact known old parser text",
+      "expected": "unknown, never match Error strings",
+      "control": "fixed Error compatibility does not grant provenance",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "forged_interface",
+      "layer": "target extraction",
+      "failure": "foreign type advertises MetricsParseReason or MetricsFailureKind method/private-looking text",
+      "expected": "unknown; only private concrete type matches",
+      "control": "no duck-typed interface authority",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "typed_nil_or_invalid_private_enum",
+      "layer": "target extraction",
+      "failure": "typed nil private cause or malformed private enum from package test",
+      "expected": "closed unknown; no panic or arbitrary output",
+      "control": "constructor/catalog never emits invalid production values",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "unknown_external_reason",
+      "layer": "public sanitization",
+      "failure": "long/unsupported reason string",
+      "expected": "unknown only at parse position, raw text absent",
+      "control": "known enum survives",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "nonparse_with_nested_leaf",
+      "layer": "production projection",
+      "failure": "transport/auth/body_read/mixed kind wrapping a typed-looking leaf",
+      "expected": "parse_reasons empty at that position; original kind unchanged",
+      "control": "extract reasons only after kind==parse",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "all_success",
+      "layer": "collection",
+      "failure": "three successful sources",
+      "expected": "no SourceMask failure and no parse_reasons",
+      "control": "same snapshots returned",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "same_kind_source_masks",
+      "layer": "collection",
+      "failure": "masks1..7 with parse at failed slots",
+      "expected": "same declaration order and exact bits; successes empty",
+      "control": "completion order cannot reorder source positions",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "mixed_source_kinds",
+      "layer": "collection",
+      "failure": "transport + parse + success, permutations",
+      "expected": "kinds and mask unchanged; reasons only corresponding parse slot",
+      "control": "all sources joined exactly once",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "unknown_parse_error",
+      "layer": "collection",
+      "failure": "kind=parse but no genuine private leaf",
+      "expected": "new producer emits unknown for that parse slot",
+      "control": "old missing vector remains missing",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "parent_cancel_before",
+      "layer": "collection",
+      "failure": "parent context already canceled before launch",
+      "expected": "existing context_canceled path; no metrics_fetch/reasons; no sources launched",
+      "control": "unchanged call count",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "parent_cancel_after_join",
+      "layer": "collection",
+      "failure": "parent cancels while controlled sources settle",
+      "expected": "join all, then parent context wins; no metrics_fetch/reasons",
+      "control": "no child-context error leaks into aggregate",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "parent_deadline_before_after",
+      "layer": "collection",
+      "failure": "deadline before launch or after joined results",
+      "expected": "same parent precedence and errors.Is behavior",
+      "control": "no sleeps; controlled error/barrier fixture",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "harness_chain",
+      "layer": "collection",
+      "failure": "parse leaf plus another source product/context cause",
+      "expected": "aggregate Error/Unwrap still only old harness sentinel",
+      "control": "private causes not joined/unwrapped into verdict chain",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "mask_zero_or_outside",
+      "layer": "bounded projection",
+      "failure": "mask0 or bits outside0b111",
+      "expected": "existing entire metrics_fetch omitted, reasons cannot rescue it",
+      "control": "valid masks unchanged",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "kind_mask_mismatch",
+      "layer": "bounded projection",
+      "failure": "missing kind at failed slot or kind at success slot",
+      "expected": "existing entire metrics_fetch omitted",
+      "control": "reasons cannot change existing validation",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "no_parse_kind",
+      "layer": "bounded projection",
+      "failure": "new reasons supplied with only nonparse kinds",
+      "expected": "drop optional reasons; preserve valid old mask/kinds",
+      "control": "no new classification from reason alone",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "reason_in_nonparse_slot",
+      "layer": "bounded projection",
+      "failure": "new vector has value at success/nonparse position",
+      "expected": "clear that cell; no raw output; preserve old fields",
+      "control": "parse cells bounded independently",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "present_empty_parse_cell",
+      "layer": "bounded projection",
+      "failure": "valid new vector empty at a parse kind",
+      "expected": "map that parse cell to unknown",
+      "control": "absent legacy vector is not filled",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "new_vector_length_type",
+      "layer": "JSON optional field",
+      "failure": "new reason array length0/1/2/4+, scalar/object, nonstring cells",
+      "expected": "ignore optional new field as malformed; retain old mask/kinds/stage/verdict",
+      "control": "writer always exact3; field-specific bounded decoder, no unbounded slice",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "old_report_absent",
+      "layer": "compatibility",
+      "failure": "old valid report has parse kind but no parse_reasons",
+      "expected": "decode and bounded output keep field absent",
+      "control": "do not fabricate historical unknown",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "new_report_old_reader",
+      "layer": "compatibility",
+      "failure": "new valid report adds optional reason vector",
+      "expected": "existing supported unknown-field-tolerant CLI/report readers preserve outcome",
+      "control": "no report schema/version or verdict migration",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "stage_guard",
+      "layer": "finalization",
+      "failure": "every unrelated stage/reason and parent-context branch",
+      "expected": "new reasons absent together with existing metrics_fetch guard",
+      "control": "only meta_checkpoint/metrics_fetch may project",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "field_alias_ownership",
+      "layer": "bounded projection",
+      "failure": "caller mutates input vector after bounded projection",
+      "expected": "returned fixed vector is copied and stable",
+      "control": "no shared mutable diagnostic slice",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "CLI_exit_no_final",
+      "layer": "CLI consumer",
+      "failure": "failure diagnostic has optional known/unknown/malicious reasons",
+      "expected": "same exit8/harness-invalid/no final and observed product-failure preservation",
+      "control": "optional diagnostics never grant report validity",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "HTTP_control_matrix",
+      "layer": "target acquisition",
+      "failure": "configuration/context/transport/auth/status/8MiB limit/bodyread/mixed failures",
+      "expected": "all old kinds/limits/attempt counts remain; no parse reasons",
+      "control": "same source fallback and response checks",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "parser_algorithm_controls",
+      "layer": "target parser",
+      "failure": "queue cap0, ignored family, missing required families, partial Slot population",
+      "expected": "preserve all current semantics and separate ValidateRequired behavior",
+      "control": "no new validation or relaxed guard",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "bounded_output",
+      "layer": "diagnostic output",
+      "failure": "labels/body/token/raw error placed in synthetic failure fixtures",
+      "expected": "none appears in marshaled diagnostic; only closed enums and mask/3cells",
+      "control": "no metric labels or raw failed-response capture added",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "unchanged_settle_retry_verdict",
+      "layer": "checkpoint controls",
+      "failure": "all first failure/settle/accounting/snapshot report control cases",
+      "expected": "same control flow, timers, call counts, accounting and observed verdict",
+      "control": "reasons are not retry/settle/stop inputs",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "all_20_catalog_coverage",
+      "layer": "structural pure contract",
+      "failure": "every fixed parser errors.New site in exact baseline",
+      "expected": "all normal fixed returns gain private typed cause; old Error texts byte-equal",
+      "control": "defensive/unreachable sites audited honestly, no test-only product branch",
+      "execution": "design only; not implemented or run"
+    },
+    {
+      "id": "earlier_guard_precedence",
+      "layer": "target parser",
+      "failure": "negative metadata counter, malformed labels plus unsupported result, or several simultaneous invalid properties",
+      "expected": "same first preexisting guard/reason as exact8df; typed tagging does not reorder checks",
+      "control": "in particular negative metadata value remains invalid_value before exact-counter validation",
+      "execution": "design only; not implemented or run"
+    }
+  ],
+  "count": 52,
+  "test_policy": "Reuse existing pure parser/HTTP-in-memory/diagnostic/CLI fixtures and add typed assertions; avoid duplicate large bound bodies. No TCP, live target, new workload or cloud operation.",
+  "validation_after_future_approval": [
+    "Fast target parser/metrics failure checks",
+    "chatlifecycle three-source/mask/context/diagnostic controls",
+    "CLI diagnostic exit/no-final compatibility",
+    "Named flow-doc-contracts if FLOW files change; directly related repository checks"
+  ],
+  "current_6cut_replay": "All six nearby inputs pass; actual failed round absent. These tests do not identify its leaf or loss cause."
+}

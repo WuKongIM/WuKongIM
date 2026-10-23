@@ -1,0 +1,27 @@
+cancel_descendants_test (unittest.loader._FailedTest.cancel_descendants_test) ... ERROR
+cancel_descendants_test (unittest.loader._FailedTest.cancel_descendants_test) ... ERROR
+
+======================================================================
+ERROR: cancel_descendants_test (unittest.loader._FailedTest.cancel_descendants_test)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: cancel_descendants_test
+Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/loader.py", line 137, in loadTestsFromName
+    module = __import__(module_name)
+ModuleNotFoundError: No module named 'cancel_descendants_test'
+
+
+======================================================================
+ERROR: cancel_descendants_test (unittest.loader._FailedTest.cancel_descendants_test)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: cancel_descendants_test
+Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/loader.py", line 137, in loadTestsFromName
+    module = __import__(module_name)
+ModuleNotFoundError: No module named 'cancel_descendants_test'
+
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+FAILED (errors=2)

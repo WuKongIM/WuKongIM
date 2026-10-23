@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "/opt/homebrew/opt/python@3.13/bin/python3.13",
+    "-m",
+    "unittest",
+    "adapter_test",
+    "-v"
+  ],
+  "started_at_utc": "2026-10-22T23:43:27.451936+00:00",
+  "exit_status": 1,
+  "output_bytes": 2264,
+  "output_sha256": "f7659084d1b6837697034c959a802eb393290c7709e6df8f3d81c2d90f6634fd",
+  "result": "missing adapter module before implementation; no actual profile decoded",
+  "test_sha256": "b362427295095a914b617ce1d2deaead41bf27bd176fed3147885ca8532ba688"
+}

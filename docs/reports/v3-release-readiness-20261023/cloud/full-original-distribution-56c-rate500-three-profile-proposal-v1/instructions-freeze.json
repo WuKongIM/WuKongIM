@@ -1,0 +1,18 @@
+{
+  "source_revision": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "sha256": "52cf2d48010eac69056be43ed5679bae9e50d0aa04b0ddd12e4199e6a99e76e4"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "sha256": "f938521d9c3129762f11ac914f5172ae1ea8df53c615f13e3d9615424ed91673"
+    }
+  ],
+  "scope": "temporary fixed-source diagnostic control; no production repository changes"
+}

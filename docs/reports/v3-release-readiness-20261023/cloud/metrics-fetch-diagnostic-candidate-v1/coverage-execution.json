@@ -1,0 +1,878 @@
+{
+  "matrix_cases": 54,
+  "all_patterns_matched_passing_tests": true,
+  "cases": [
+    {
+      "id": "M01",
+      "patterns": {
+        "TestMetricsFailureBoundary/pre_canceled": [
+          "TestMetricsFailureBoundary/pre_canceled"
+        ]
+      }
+    },
+    {
+      "id": "M02",
+      "patterns": {
+        "TestMetricsFailureBoundary/pre_deadline": [
+          "TestMetricsFailureBoundary/pre_deadline"
+        ]
+      }
+    },
+    {
+      "id": "M03",
+      "patterns": {
+        "TestMetricsFailureBoundary/no_addresses": [
+          "TestMetricsFailureBoundary/no_addresses"
+        ]
+      }
+    },
+    {
+      "id": "M04",
+      "patterns": {
+        "TestMetricsFailureBoundary/request_construction": [
+          "TestMetricsFailureBoundary/request_construction"
+        ]
+      }
+    },
+    {
+      "id": "M05",
+      "patterns": {
+        "TestMetricsFailureBoundary/transport": [
+          "TestMetricsFailureBoundary/transport"
+        ]
+      }
+    },
+    {
+      "id": "M06",
+      "patterns": {
+        "TestMetricsFailureBoundary/client_timeout_live_parent": [
+          "TestMetricsFailureBoundary/client_timeout_live_parent"
+        ]
+      }
+    },
+    {
+      "id": "M07",
+      "patterns": {
+        "TestMetricsFailureBoundary/causal_do_cancel": [
+          "TestMetricsFailureBoundary/causal_do_cancel"
+        ]
+      }
+    },
+    {
+      "id": "M08",
+      "patterns": {
+        "TestMetricsFailureBoundary/causal_do_deadline": [
+          "TestMetricsFailureBoundary/causal_do_deadline"
+        ]
+      }
+    },
+    {
+      "id": "M09",
+      "patterns": {
+        "TestMetricsFailureBoundary/independent_do_at_cancel": [
+          "TestMetricsFailureBoundary/independent_do_at_cancel"
+        ]
+      }
+    },
+    {
+      "id": "M10",
+      "patterns": {
+        "TestMetricsFailureBoundary/context_at_next_address": [
+          "TestMetricsFailureBoundary/context_at_next_address"
+        ]
+      }
+    },
+    {
+      "id": "M11",
+      "patterns": {
+        "TestMetricsFailureBoundary/unauthorized": [
+          "TestMetricsFailureBoundary/unauthorized"
+        ],
+        "TestMetricsFailureBoundary/forbidden": [
+          "TestMetricsFailureBoundary/forbidden"
+        ]
+      }
+    },
+    {
+      "id": "M12",
+      "patterns": {
+        "TestMetricsFailureBoundary/informational_status": [
+          "TestMetricsFailureBoundary/informational_status"
+        ],
+        "TestMetricsFailureBoundary/non_auth_client_status": [
+          "TestMetricsFailureBoundary/non_auth_client_status"
+        ],
+        "TestMetricsFailureBoundary/status": [
+          "TestMetricsFailureBoundary/status"
+        ],
+        "TestMetricsFailureBoundary/redirect_without_location": [
+          "TestMetricsFailureBoundary/redirect_without_location"
+        ]
+      }
+    },
+    {
+      "id": "M13",
+      "patterns": {
+        "TestMetricsFailureBoundary/mixed_addresses": [
+          "TestMetricsFailureBoundary/mixed_addresses"
+        ]
+      }
+    },
+    {
+      "id": "M14",
+      "patterns": {
+        "TestMetricsFailureBoundary/same_statuses": [
+          "TestMetricsFailureBoundary/same_statuses"
+        ],
+        "TestMetricsFailureBoundary/same_transport": [
+          "TestMetricsFailureBoundary/same_transport"
+        ]
+      }
+    },
+    {
+      "id": "M15",
+      "patterns": {
+        "TestMetricsFailureBoundary/fallback_success": [
+          "TestMetricsFailureBoundary/fallback_success"
+        ],
+        "TestMetricsFailureBoundary/fallback_status_success": [
+          "TestMetricsFailureBoundary/fallback_status_success"
+        ]
+      }
+    },
+    {
+      "id": "M16",
+      "patterns": {
+        "TestMetricsFailureBoundary/earlier_failure_then_auth": [
+          "TestMetricsFailureBoundary/earlier_failure_then_auth"
+        ],
+        "TestMetricsFailureBoundary/earlier_failure_then_length": [
+          "TestMetricsFailureBoundary/earlier_failure_then_length"
+        ]
+      }
+    },
+    {
+      "id": "M17",
+      "patterns": {
+        "TestMetricsFailureBoundary/content_length": [
+          "TestMetricsFailureBoundary/content_length"
+        ]
+      }
+    },
+    {
+      "id": "M18",
+      "patterns": {
+        "TestMetricsFailureBoundary/stream_length": [
+          "TestMetricsFailureBoundary/stream_length"
+        ]
+      }
+    },
+    {
+      "id": "M19",
+      "patterns": {
+        "TestMetricsFailureBoundary/body_read": [
+          "TestMetricsFailureBoundary/body_read"
+        ]
+      }
+    },
+    {
+      "id": "M20",
+      "patterns": {
+        "TestMetricsFailureBoundary/body_cancel": [
+          "TestMetricsFailureBoundary/body_cancel"
+        ],
+        "TestMetricsFailureBoundary/body_deadline": [
+          "TestMetricsFailureBoundary/body_deadline"
+        ]
+      }
+    },
+    {
+      "id": "M21",
+      "patterns": {
+        "TestMetricsFailureBoundary/earlier_failure_then_body_cancel": [
+          "TestMetricsFailureBoundary/earlier_failure_then_body_cancel"
+        ],
+        "TestMetricsFailureBoundary/earlier_failure_then_do_cancel": [
+          "TestMetricsFailureBoundary/earlier_failure_then_do_cancel"
+        ]
+      }
+    },
+    {
+      "id": "M22",
+      "patterns": {
+        "TestMetricsFailureBoundary/ignored_close_error": [
+          "TestMetricsFailureBoundary/ignored_close_error"
+        ],
+        "TestMetricsFailureBoundary/ignored_status_drain_error": [
+          "TestMetricsFailureBoundary/ignored_status_drain_error"
+        ]
+      }
+    },
+    {
+      "id": "M23",
+      "patterns": {
+        "TestMetricsFailureParserBoundary/sample": [
+          "TestMetricsFailureParserBoundary/sample"
+        ],
+        "TestMetricsFailureParserBoundary/labels": [
+          "TestMetricsFailureParserBoundary/labels"
+        ],
+        "TestMetricsFailureParserBoundary/negative": [
+          "TestMetricsFailureParserBoundary/negative"
+        ],
+        "TestMetricsFailureParserBoundary/infinite": [
+          "TestMetricsFailureParserBoundary/infinite"
+        ]
+      }
+    },
+    {
+      "id": "M24",
+      "patterns": {
+        "TestMetricsFailureParserBoundary/metadata_*": [
+          "TestMetricsFailureParserBoundary/metadata_aggregate_overflow",
+          "TestMetricsFailureParserBoundary/metadata_counter",
+          "TestMetricsFailureParserBoundary/metadata_counter_overflow",
+          "TestMetricsFailureParserBoundary/metadata_duplicate",
+          "TestMetricsFailureParserBoundary/metadata_incomplete",
+          "TestMetricsFailureParserBoundary/metadata_labels",
+          "TestMetricsFailureParserBoundary/metadata_result",
+          "TestMetricsFailureParserBoundary/metadata_slot"
+        ],
+        "TestObservationMetricsRejectsInvalidMetadataCreateSlotSeries": [
+          "TestObservationMetricsRejectsInvalidMetadataCreateSlotSeries"
+        ]
+      }
+    },
+    {
+      "id": "M25",
+      "patterns": {
+        "TestMetricsFailureParserBoundary/queue_*": [
+          "TestMetricsFailureParserBoundary/queue_duplicate",
+          "TestMetricsFailureParserBoundary/queue_excess",
+          "TestMetricsFailureParserBoundary/queue_overflow",
+          "TestMetricsFailureParserBoundary/queue_unpaired"
+        ],
+        "TestMetricsFailureParserBoundary/aggregate_overflow": [
+          "TestMetricsFailureParserBoundary/aggregate_overflow"
+        ]
+      }
+    },
+    {
+      "id": "M26",
+      "patterns": {
+        "TestMetricsFailureParserBoundary/line_count": [
+          "TestMetricsFailureParserBoundary/line_count"
+        ],
+        "TestMetricsFailureParserBoundary/line_bytes": [
+          "TestMetricsFailureParserBoundary/line_bytes"
+        ],
+        "TestMetricsFailureParserBoundary/series_count": [
+          "TestMetricsFailureParserBoundary/series_count"
+        ]
+      }
+    },
+    {
+      "id": "M27",
+      "patterns": {
+        "TestMetricsFailureParserBoundary/unknown_family_ignored": [
+          "TestMetricsFailureParserBoundary/unknown_family_ignored"
+        ]
+      }
+    },
+    {
+      "id": "M28",
+      "patterns": {
+        "TestMetricsFailureBoundary/empty_body": [
+          "TestMetricsFailureBoundary/empty_body"
+        ],
+        "TestMetricsFailureBoundary/empty_204": [
+          "TestMetricsFailureBoundary/empty_204"
+        ],
+        "TestMetricsFailureParserBoundary/missing_required_stays_fetch_success": [
+          "TestMetricsFailureParserBoundary/missing_required_stays_fetch_success"
+        ],
+        "TestMetaCheckpointFailureLeaves/preview_missing_result": [
+          "TestMetaCheckpointFailureLeaves/preview_missing_result"
+        ]
+      }
+    },
+    {
+      "id": "M29",
+      "patterns": {
+        "TestMetricsFailureBoundary/selected_body_parse_failure": [
+          "TestMetricsFailureBoundary/selected_body_parse_failure"
+        ]
+      }
+    },
+    {
+      "id": "M30",
+      "patterns": {
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_*": [
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_order_0",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_order_1",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_order_2",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_order_3",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_order_4",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_order_5"
+        ]
+      }
+    },
+    {
+      "id": "M31",
+      "patterns": {
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_1_*": [
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_1_order_0",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_1_order_1",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_1_order_2",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_1_order_3",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_1_order_4",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_1_order_5"
+        ]
+      }
+    },
+    {
+      "id": "M32",
+      "patterns": {
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_2_*": [
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_2_order_0",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_2_order_1",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_2_order_2",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_2_order_3",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_2_order_4",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_2_order_5"
+        ]
+      }
+    },
+    {
+      "id": "M33",
+      "patterns": {
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_4_*": [
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_4_order_0",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_4_order_1",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_4_order_2",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_4_order_3",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_4_order_4",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_4_order_5"
+        ]
+      }
+    },
+    {
+      "id": "M34",
+      "patterns": {
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_3_*": [
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_3_order_0",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_3_order_1",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_3_order_2",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_3_order_3",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_3_order_4",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_3_order_5"
+        ],
+        "TestMetricsFetchSameKindSourceMasks/3": [
+          "TestMetricsFetchSameKindSourceMasks/3"
+        ]
+      }
+    },
+    {
+      "id": "M35",
+      "patterns": {
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_5_*": [
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_5_order_0",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_5_order_1",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_5_order_2",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_5_order_3",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_5_order_4",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_5_order_5"
+        ],
+        "TestMetricsFetchSameKindSourceMasks/5": [
+          "TestMetricsFetchSameKindSourceMasks/5"
+        ]
+      }
+    },
+    {
+      "id": "M36",
+      "patterns": {
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_6_*": [
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_6_order_0",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_6_order_1",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_6_order_2",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_6_order_3",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_6_order_4",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_6_order_5"
+        ],
+        "TestMetricsFetchSameKindSourceMasks/6": [
+          "TestMetricsFetchSameKindSourceMasks/6"
+        ]
+      }
+    },
+    {
+      "id": "M37",
+      "patterns": {
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_7_*": [
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_7_order_0",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_7_order_1",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_7_order_2",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_7_order_3",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_7_order_4",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_7_order_5"
+        ],
+        "TestMetricsFetchSameKindSourceMasks/7": [
+          "TestMetricsFetchSameKindSourceMasks/7"
+        ]
+      }
+    },
+    {
+      "id": "M38",
+      "patterns": {
+        "TestMetricsFetchPrivateCauseIsolation/private": [
+          "TestMetricsFetchPrivateCauseIsolation/private"
+        ]
+      }
+    },
+    {
+      "id": "M39",
+      "patterns": {
+        "TestMetricsFetchPrivateCauseIsolation/canceled": [
+          "TestMetricsFetchPrivateCauseIsolation/canceled"
+        ],
+        "TestMetricsFetchPrivateCauseIsolation/deadline": [
+          "TestMetricsFetchPrivateCauseIsolation/deadline"
+        ]
+      }
+    },
+    {
+      "id": "M40",
+      "patterns": {
+        "TestMetricsFetchPrivateCauseIsolation/product": [
+          "TestMetricsFetchPrivateCauseIsolation/product"
+        ],
+        "TestMetricsFetchFinalizePreservesFailureAndNoReport": [
+          "TestMetricsFetchFinalizePreservesFailureAndNoReport"
+        ]
+      }
+    },
+    {
+      "id": "M41",
+      "patterns": {
+        "TestMetricsFetchParentContextStopsBeforeSources": [
+          "TestMetricsFetchParentContextStopsBeforeSources"
+        ],
+        "TestMetricsFetchParentDeadlineBeforeAndAfterJoin/true": [
+          "TestMetricsFetchParentDeadlineBeforeAndAfterJoin/true"
+        ]
+      }
+    },
+    {
+      "id": "M42",
+      "patterns": {
+        "TestMetricsFetchParentContextStillWinsAfterJoin": [
+          "TestMetricsFetchParentContextStillWinsAfterJoin"
+        ],
+        "TestMetricsFetchParentDeadlineBeforeAndAfterJoin/false": [
+          "TestMetricsFetchParentDeadlineBeforeAndAfterJoin/false"
+        ]
+      }
+    },
+    {
+      "id": "M43",
+      "patterns": {
+        "TestMetricsFetchThreeSourceJoinAndOrder": [
+          "TestMetricsFetchThreeSourceJoinAndOrder"
+        ],
+        "TestMetricsFetchParentContextStillWinsAfterJoin": [
+          "TestMetricsFetchParentContextStillWinsAfterJoin"
+        ]
+      }
+    },
+    {
+      "id": "M44",
+      "patterns": {
+        "TestMetricsFetchPrivateCauseIsolation": [
+          "TestMetricsFetchPrivateCauseIsolation"
+        ]
+      }
+    },
+    {
+      "id": "M45",
+      "patterns": {
+        "TestMetaCheckpointFailureLeaves/preview_*": [
+          "TestMetaCheckpointFailureLeaves/preview_assignment",
+          "TestMetaCheckpointFailureLeaves/preview_fractional_result",
+          "TestMetaCheckpointFailureLeaves/preview_missing_result",
+          "TestMetaCheckpointFailureLeaves/preview_slot_total"
+        ],
+        "TestMetaCheckpointFailureLeaves/settle_*": [
+          "TestMetaCheckpointFailureLeaves/settle_canceled",
+          "TestMetaCheckpointFailureLeaves/settle_deadline",
+          "TestMetaCheckpointFailureLeaves/settle_missing",
+          "TestMetaCheckpointFailureLeaves/settle_private_error"
+        ],
+        "TestMetaCheckpointFailureLeaves/accounting_*": [
+          "TestMetaCheckpointFailureLeaves/accounting_counter_regression",
+          "TestMetaCheckpointFailureLeaves/accounting_initial_reheat"
+        ]
+      }
+    },
+    {
+      "id": "M46",
+      "patterns": {
+        "TestMetricsFetchBoundedProjection/valid": [
+          "TestMetricsFetchBoundedProjection/valid"
+        ],
+        "TestMetricsFetchFinalizePreservesFailureAndNoReport": [
+          "TestMetricsFetchFinalizePreservesFailureAndNoReport"
+        ],
+        "TestMetricsFetchDiagnosticCannotChangeCLIOutcome": [
+          "TestMetricsFetchDiagnosticCannotChangeCLIOutcome"
+        ]
+      }
+    },
+    {
+      "id": "M47",
+      "patterns": {
+        "TestMetricsFetchBoundedProjection/malicious_kind": [
+          "TestMetricsFetchBoundedProjection/malicious_kind"
+        ]
+      }
+    },
+    {
+      "id": "M48",
+      "patterns": {
+        "TestMetricsFetchBoundedProjection/mask_*": [
+          "TestMetricsFetchBoundedProjection/mask_000",
+          "TestMetricsFetchBoundedProjection/mask_001",
+          "TestMetricsFetchBoundedProjection/mask_002",
+          "TestMetricsFetchBoundedProjection/mask_003",
+          "TestMetricsFetchBoundedProjection/mask_004",
+          "TestMetricsFetchBoundedProjection/mask_005",
+          "TestMetricsFetchBoundedProjection/mask_006",
+          "TestMetricsFetchBoundedProjection/mask_007",
+          "TestMetricsFetchBoundedProjection/mask_008",
+          "TestMetricsFetchBoundedProjection/mask_009",
+          "TestMetricsFetchBoundedProjection/mask_010",
+          "TestMetricsFetchBoundedProjection/mask_011",
+          "TestMetricsFetchBoundedProjection/mask_012",
+          "TestMetricsFetchBoundedProjection/mask_013",
+          "TestMetricsFetchBoundedProjection/mask_014",
+          "TestMetricsFetchBoundedProjection/mask_015",
+          "TestMetricsFetchBoundedProjection/mask_016",
+          "TestMetricsFetchBoundedProjection/mask_017",
+          "TestMetricsFetchBoundedProjection/mask_018",
+          "TestMetricsFetchBoundedProjection/mask_019",
+          "TestMetricsFetchBoundedProjection/mask_020",
+          "TestMetricsFetchBoundedProjection/mask_021",
+          "TestMetricsFetchBoundedProjection/mask_022",
+          "TestMetricsFetchBoundedProjection/mask_023",
+          "TestMetricsFetchBoundedProjection/mask_024",
+          "TestMetricsFetchBoundedProjection/mask_025",
+          "TestMetricsFetchBoundedProjection/mask_026",
+          "TestMetricsFetchBoundedProjection/mask_027",
+          "TestMetricsFetchBoundedProjection/mask_028",
+          "TestMetricsFetchBoundedProjection/mask_029",
+          "TestMetricsFetchBoundedProjection/mask_030",
+          "TestMetricsFetchBoundedProjection/mask_031",
+          "TestMetricsFetchBoundedProjection/mask_032",
+          "TestMetricsFetchBoundedProjection/mask_033",
+          "TestMetricsFetchBoundedProjection/mask_034",
+          "TestMetricsFetchBoundedProjection/mask_035",
+          "TestMetricsFetchBoundedProjection/mask_036",
+          "TestMetricsFetchBoundedProjection/mask_037",
+          "TestMetricsFetchBoundedProjection/mask_038",
+          "TestMetricsFetchBoundedProjection/mask_039",
+          "TestMetricsFetchBoundedProjection/mask_040",
+          "TestMetricsFetchBoundedProjection/mask_041",
+          "TestMetricsFetchBoundedProjection/mask_042",
+          "TestMetricsFetchBoundedProjection/mask_043",
+          "TestMetricsFetchBoundedProjection/mask_044",
+          "TestMetricsFetchBoundedProjection/mask_045",
+          "TestMetricsFetchBoundedProjection/mask_046",
+          "TestMetricsFetchBoundedProjection/mask_047",
+          "TestMetricsFetchBoundedProjection/mask_048",
+          "TestMetricsFetchBoundedProjection/mask_049",
+          "TestMetricsFetchBoundedProjection/mask_050",
+          "TestMetricsFetchBoundedProjection/mask_051",
+          "TestMetricsFetchBoundedProjection/mask_052",
+          "TestMetricsFetchBoundedProjection/mask_053",
+          "TestMetricsFetchBoundedProjection/mask_054",
+          "TestMetricsFetchBoundedProjection/mask_055",
+          "TestMetricsFetchBoundedProjection/mask_056",
+          "TestMetricsFetchBoundedProjection/mask_057",
+          "TestMetricsFetchBoundedProjection/mask_058",
+          "TestMetricsFetchBoundedProjection/mask_059",
+          "TestMetricsFetchBoundedProjection/mask_060",
+          "TestMetricsFetchBoundedProjection/mask_061",
+          "TestMetricsFetchBoundedProjection/mask_062",
+          "TestMetricsFetchBoundedProjection/mask_063",
+          "TestMetricsFetchBoundedProjection/mask_064",
+          "TestMetricsFetchBoundedProjection/mask_065",
+          "TestMetricsFetchBoundedProjection/mask_066",
+          "TestMetricsFetchBoundedProjection/mask_067",
+          "TestMetricsFetchBoundedProjection/mask_068",
+          "TestMetricsFetchBoundedProjection/mask_069",
+          "TestMetricsFetchBoundedProjection/mask_070",
+          "TestMetricsFetchBoundedProjection/mask_071",
+          "TestMetricsFetchBoundedProjection/mask_072",
+          "TestMetricsFetchBoundedProjection/mask_073",
+          "TestMetricsFetchBoundedProjection/mask_074",
+          "TestMetricsFetchBoundedProjection/mask_075",
+          "TestMetricsFetchBoundedProjection/mask_076",
+          "TestMetricsFetchBoundedProjection/mask_077",
+          "TestMetricsFetchBoundedProjection/mask_078",
+          "TestMetricsFetchBoundedProjection/mask_079",
+          "TestMetricsFetchBoundedProjection/mask_080",
+          "TestMetricsFetchBoundedProjection/mask_081",
+          "TestMetricsFetchBoundedProjection/mask_082",
+          "TestMetricsFetchBoundedProjection/mask_083",
+          "TestMetricsFetchBoundedProjection/mask_084",
+          "TestMetricsFetchBoundedProjection/mask_085",
+          "TestMetricsFetchBoundedProjection/mask_086",
+          "TestMetricsFetchBoundedProjection/mask_087",
+          "TestMetricsFetchBoundedProjection/mask_088",
+          "TestMetricsFetchBoundedProjection/mask_089",
+          "TestMetricsFetchBoundedProjection/mask_090",
+          "TestMetricsFetchBoundedProjection/mask_091",
+          "TestMetricsFetchBoundedProjection/mask_092",
+          "TestMetricsFetchBoundedProjection/mask_093",
+          "TestMetricsFetchBoundedProjection/mask_094",
+          "TestMetricsFetchBoundedProjection/mask_095",
+          "TestMetricsFetchBoundedProjection/mask_096",
+          "TestMetricsFetchBoundedProjection/mask_097",
+          "TestMetricsFetchBoundedProjection/mask_098",
+          "TestMetricsFetchBoundedProjection/mask_099",
+          "TestMetricsFetchBoundedProjection/mask_100",
+          "TestMetricsFetchBoundedProjection/mask_101",
+          "TestMetricsFetchBoundedProjection/mask_102",
+          "TestMetricsFetchBoundedProjection/mask_103",
+          "TestMetricsFetchBoundedProjection/mask_104",
+          "TestMetricsFetchBoundedProjection/mask_105",
+          "TestMetricsFetchBoundedProjection/mask_106",
+          "TestMetricsFetchBoundedProjection/mask_107",
+          "TestMetricsFetchBoundedProjection/mask_108",
+          "TestMetricsFetchBoundedProjection/mask_109",
+          "TestMetricsFetchBoundedProjection/mask_110",
+          "TestMetricsFetchBoundedProjection/mask_111",
+          "TestMetricsFetchBoundedProjection/mask_112",
+          "TestMetricsFetchBoundedProjection/mask_113",
+          "TestMetricsFetchBoundedProjection/mask_114",
+          "TestMetricsFetchBoundedProjection/mask_115",
+          "TestMetricsFetchBoundedProjection/mask_116",
+          "TestMetricsFetchBoundedProjection/mask_117",
+          "TestMetricsFetchBoundedProjection/mask_118",
+          "TestMetricsFetchBoundedProjection/mask_119",
+          "TestMetricsFetchBoundedProjection/mask_120",
+          "TestMetricsFetchBoundedProjection/mask_121",
+          "TestMetricsFetchBoundedProjection/mask_122",
+          "TestMetricsFetchBoundedProjection/mask_123",
+          "TestMetricsFetchBoundedProjection/mask_124",
+          "TestMetricsFetchBoundedProjection/mask_125",
+          "TestMetricsFetchBoundedProjection/mask_126",
+          "TestMetricsFetchBoundedProjection/mask_127",
+          "TestMetricsFetchBoundedProjection/mask_128",
+          "TestMetricsFetchBoundedProjection/mask_129",
+          "TestMetricsFetchBoundedProjection/mask_130",
+          "TestMetricsFetchBoundedProjection/mask_131",
+          "TestMetricsFetchBoundedProjection/mask_132",
+          "TestMetricsFetchBoundedProjection/mask_133",
+          "TestMetricsFetchBoundedProjection/mask_134",
+          "TestMetricsFetchBoundedProjection/mask_135",
+          "TestMetricsFetchBoundedProjection/mask_136",
+          "TestMetricsFetchBoundedProjection/mask_137",
+          "TestMetricsFetchBoundedProjection/mask_138",
+          "TestMetricsFetchBoundedProjection/mask_139",
+          "TestMetricsFetchBoundedProjection/mask_140",
+          "TestMetricsFetchBoundedProjection/mask_141",
+          "TestMetricsFetchBoundedProjection/mask_142",
+          "TestMetricsFetchBoundedProjection/mask_143",
+          "TestMetricsFetchBoundedProjection/mask_144",
+          "TestMetricsFetchBoundedProjection/mask_145",
+          "TestMetricsFetchBoundedProjection/mask_146",
+          "TestMetricsFetchBoundedProjection/mask_147",
+          "TestMetricsFetchBoundedProjection/mask_148",
+          "TestMetricsFetchBoundedProjection/mask_149",
+          "TestMetricsFetchBoundedProjection/mask_150",
+          "TestMetricsFetchBoundedProjection/mask_151",
+          "TestMetricsFetchBoundedProjection/mask_152",
+          "TestMetricsFetchBoundedProjection/mask_153",
+          "TestMetricsFetchBoundedProjection/mask_154",
+          "TestMetricsFetchBoundedProjection/mask_155",
+          "TestMetricsFetchBoundedProjection/mask_156",
+          "TestMetricsFetchBoundedProjection/mask_157",
+          "TestMetricsFetchBoundedProjection/mask_158",
+          "TestMetricsFetchBoundedProjection/mask_159",
+          "TestMetricsFetchBoundedProjection/mask_160",
+          "TestMetricsFetchBoundedProjection/mask_161",
+          "TestMetricsFetchBoundedProjection/mask_162",
+          "TestMetricsFetchBoundedProjection/mask_163",
+          "TestMetricsFetchBoundedProjection/mask_164",
+          "TestMetricsFetchBoundedProjection/mask_165",
+          "TestMetricsFetchBoundedProjection/mask_166",
+          "TestMetricsFetchBoundedProjection/mask_167",
+          "TestMetricsFetchBoundedProjection/mask_168",
+          "TestMetricsFetchBoundedProjection/mask_169",
+          "TestMetricsFetchBoundedProjection/mask_170",
+          "TestMetricsFetchBoundedProjection/mask_171",
+          "TestMetricsFetchBoundedProjection/mask_172",
+          "TestMetricsFetchBoundedProjection/mask_173",
+          "TestMetricsFetchBoundedProjection/mask_174",
+          "TestMetricsFetchBoundedProjection/mask_175",
+          "TestMetricsFetchBoundedProjection/mask_176",
+          "TestMetricsFetchBoundedProjection/mask_177",
+          "TestMetricsFetchBoundedProjection/mask_178",
+          "TestMetricsFetchBoundedProjection/mask_179",
+          "TestMetricsFetchBoundedProjection/mask_180",
+          "TestMetricsFetchBoundedProjection/mask_181",
+          "TestMetricsFetchBoundedProjection/mask_182",
+          "TestMetricsFetchBoundedProjection/mask_183",
+          "TestMetricsFetchBoundedProjection/mask_184",
+          "TestMetricsFetchBoundedProjection/mask_185",
+          "TestMetricsFetchBoundedProjection/mask_186",
+          "TestMetricsFetchBoundedProjection/mask_187",
+          "TestMetricsFetchBoundedProjection/mask_188",
+          "TestMetricsFetchBoundedProjection/mask_189",
+          "TestMetricsFetchBoundedProjection/mask_190",
+          "TestMetricsFetchBoundedProjection/mask_191",
+          "TestMetricsFetchBoundedProjection/mask_192",
+          "TestMetricsFetchBoundedProjection/mask_193",
+          "TestMetricsFetchBoundedProjection/mask_194",
+          "TestMetricsFetchBoundedProjection/mask_195",
+          "TestMetricsFetchBoundedProjection/mask_196",
+          "TestMetricsFetchBoundedProjection/mask_197",
+          "TestMetricsFetchBoundedProjection/mask_198",
+          "TestMetricsFetchBoundedProjection/mask_199",
+          "TestMetricsFetchBoundedProjection/mask_200",
+          "TestMetricsFetchBoundedProjection/mask_201",
+          "TestMetricsFetchBoundedProjection/mask_202",
+          "TestMetricsFetchBoundedProjection/mask_203",
+          "TestMetricsFetchBoundedProjection/mask_204",
+          "TestMetricsFetchBoundedProjection/mask_205",
+          "TestMetricsFetchBoundedProjection/mask_206",
+          "TestMetricsFetchBoundedProjection/mask_207",
+          "TestMetricsFetchBoundedProjection/mask_208",
+          "TestMetricsFetchBoundedProjection/mask_209",
+          "TestMetricsFetchBoundedProjection/mask_210",
+          "TestMetricsFetchBoundedProjection/mask_211",
+          "TestMetricsFetchBoundedProjection/mask_212",
+          "TestMetricsFetchBoundedProjection/mask_213",
+          "TestMetricsFetchBoundedProjection/mask_214",
+          "TestMetricsFetchBoundedProjection/mask_215",
+          "TestMetricsFetchBoundedProjection/mask_216",
+          "TestMetricsFetchBoundedProjection/mask_217",
+          "TestMetricsFetchBoundedProjection/mask_218",
+          "TestMetricsFetchBoundedProjection/mask_219",
+          "TestMetricsFetchBoundedProjection/mask_220",
+          "TestMetricsFetchBoundedProjection/mask_221",
+          "TestMetricsFetchBoundedProjection/mask_222",
+          "TestMetricsFetchBoundedProjection/mask_223",
+          "TestMetricsFetchBoundedProjection/mask_224",
+          "TestMetricsFetchBoundedProjection/mask_225",
+          "TestMetricsFetchBoundedProjection/mask_226",
+          "TestMetricsFetchBoundedProjection/mask_227",
+          "TestMetricsFetchBoundedProjection/mask_228",
+          "TestMetricsFetchBoundedProjection/mask_229",
+          "TestMetricsFetchBoundedProjection/mask_230",
+          "TestMetricsFetchBoundedProjection/mask_231",
+          "TestMetricsFetchBoundedProjection/mask_232",
+          "TestMetricsFetchBoundedProjection/mask_233",
+          "TestMetricsFetchBoundedProjection/mask_234",
+          "TestMetricsFetchBoundedProjection/mask_235",
+          "TestMetricsFetchBoundedProjection/mask_236",
+          "TestMetricsFetchBoundedProjection/mask_237",
+          "TestMetricsFetchBoundedProjection/mask_238",
+          "TestMetricsFetchBoundedProjection/mask_239",
+          "TestMetricsFetchBoundedProjection/mask_240",
+          "TestMetricsFetchBoundedProjection/mask_241",
+          "TestMetricsFetchBoundedProjection/mask_242",
+          "TestMetricsFetchBoundedProjection/mask_243",
+          "TestMetricsFetchBoundedProjection/mask_244",
+          "TestMetricsFetchBoundedProjection/mask_245",
+          "TestMetricsFetchBoundedProjection/mask_246",
+          "TestMetricsFetchBoundedProjection/mask_247",
+          "TestMetricsFetchBoundedProjection/mask_248",
+          "TestMetricsFetchBoundedProjection/mask_249",
+          "TestMetricsFetchBoundedProjection/mask_250",
+          "TestMetricsFetchBoundedProjection/mask_251",
+          "TestMetricsFetchBoundedProjection/mask_252",
+          "TestMetricsFetchBoundedProjection/mask_253",
+          "TestMetricsFetchBoundedProjection/mask_254",
+          "TestMetricsFetchBoundedProjection/mask_255"
+        ],
+        "TestMetricsFetchBoundedProjection/success_has_kind": [
+          "TestMetricsFetchBoundedProjection/success_has_kind"
+        ],
+        "TestMetricsFetchBoundedProjection/missing_failure_kind": [
+          "TestMetricsFetchBoundedProjection/missing_failure_kind"
+        ]
+      }
+    },
+    {
+      "id": "M49",
+      "patterns": {
+        "TestMetricsFetchBoundedProjection/other_stage": [
+          "TestMetricsFetchBoundedProjection/other_stage"
+        ],
+        "TestMetricsFetchBoundedProjection/other_reason": [
+          "TestMetricsFetchBoundedProjection/other_reason"
+        ],
+        "TestMetricsFetchBoundedProjection/unknown_stage": [
+          "TestMetricsFetchBoundedProjection/unknown_stage"
+        ]
+      }
+    },
+    {
+      "id": "M50",
+      "patterns": {
+        "TestMetricsFetchUnknownSourceErrorShapes": [
+          "TestMetricsFetchUnknownSourceErrorShapes"
+        ],
+        "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_*": [
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_order_0",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_order_1",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_order_2",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_order_3",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_order_4",
+          "TestMetricsFetchThreeSourceJoinAndOrder/mask_0_order_5"
+        ]
+      }
+    },
+    {
+      "id": "M51",
+      "patterns": {
+        "TestMetricsFetchPrivateCauseIsolation": [
+          "TestMetricsFetchPrivateCauseIsolation"
+        ],
+        "TestMetricsFailureBoundary": [
+          "TestMetricsFailureBoundary"
+        ]
+      }
+    },
+    {
+      "id": "M52",
+      "patterns": {
+        "TestMetricsFetchPrivateCauseIsolation/both_contexts": [
+          "TestMetricsFetchPrivateCauseIsolation/both_contexts"
+        ]
+      }
+    },
+    {
+      "id": "M53",
+      "patterns": {
+        "TestMetricsSharedObservationHelpers": [
+          "TestMetricsSharedObservationHelpers"
+        ],
+        "TestObservationBodyReadPreservesCausalCancellation": [
+          "TestObservationBodyReadPreservesCausalCancellation"
+        ]
+      }
+    },
+    {
+      "id": "M54",
+      "patterns": {
+        "TestMetricsFetchConstructorStillRejectsMissingSource": [
+          "TestMetricsFetchConstructorStillRejectsMissingSource"
+        ],
+        "TestMetaCheckpointFailureLeaves/nil_context": [
+          "TestMetaCheckpointFailureLeaves/nil_context"
+        ]
+      }
+    }
+  ]
+}

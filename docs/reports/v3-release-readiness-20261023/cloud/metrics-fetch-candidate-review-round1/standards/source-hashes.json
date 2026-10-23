@@ -1,0 +1,195 @@
+{
+  "review_axis": "Standards",
+  "review_mode": "static_read_only",
+  "base": "27fa6d63cf3b2b6c3a9a28575f917d60cc054ded",
+  "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "head_tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "diff_command": "git diff 27fa6d63cf3b2b6c3a9a28575f917d60cc054ded...56c287493a5e9fc3df65ea0631b99612672cd678 --",
+  "commits": [
+    "56c287493a5e9fc3df65ea0631b99612672cd678"
+  ],
+  "recorded_at_utc": "2026-10-22T23:09:52.948992+00:00",
+  "worktree_clean": true,
+  "documented_standard_findings": 0,
+  "heuristic_findings": 0,
+  "human_working_agreements_sha256": "2b89c5fe79527ca6c591c792f987aa899ebddd30edb718c339d07d123e7112a3",
+  "rules_sources": [
+    "AGENTS.md",
+    "internal/bench/FLOW.md",
+    "internal/bench/chatlifecycle/FLOW.md",
+    "docs/agents/issue-tracker.md",
+    ".github/workflows/README.md",
+    ".github/review-agent/policy.json"
+  ],
+  "no_additional_subtree_AGENTS_or_contribution_standards_found": true,
+  "fowler_baseline_considered": [
+    "Mysterious Name",
+    "Duplicated Code",
+    "Feature Envy",
+    "Data Clumps",
+    "Primitive Obsession",
+    "Repeated Switches",
+    "Shotgun Surgery",
+    "Divergent Change",
+    "Speculative Generality",
+    "Message Chains",
+    "Middle Man",
+    "Refused Bequest"
+  ],
+  "tests_first_v2_blobs_match": true,
+  "supplied_evidence_manifests": [
+    {
+      "directory": "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-fetch-diagnostic-design-v1",
+      "manifest": "SHA256SUMS",
+      "manifest_sha256": "92edcd4b2ecc08e3daddafebcb942511bc88fed550742094740264e2379d3901",
+      "payload_entries": 8
+    },
+    {
+      "directory": "/tmp/wukongim-v3-readiness-20261023/cloud/metrics-fetch-diagnostic-candidate-v1",
+      "manifest": "SHA256SUMS",
+      "manifest_sha256": "f24de367c2d25d24aae241f4140cc09ea3f4414e180f4cbeda2818447b150fb9",
+      "payload_entries": 43
+    }
+  ],
+  "execution_checks_not_rerun": [
+    "tests",
+    "race",
+    "go-format",
+    "flow-doc-contracts"
+  ],
+  "sources": [
+    {
+      "path": ".github/review-agent/policy.json",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "git_blob": "9fb5ac274b91e73b364794536f31896ecbf51c01",
+      "base_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    },
+    {
+      "path": ".github/workflows/README.md",
+      "bytes": 85960,
+      "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+      "git_blob": "c6492152b32db43fd10a4a2975c123de933fa517",
+      "base_sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4"
+    },
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "git_blob": "b89d41eebadc701ada7157b387c2f45e8ff76354",
+      "base_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 193012,
+      "sha256": "3fdfb6cd6cc0a5a6e9ca2f94002712878bbaa87892bcd4259fc1580f49df45ec",
+      "git_blob": "92697bf77b7e0e5bebf7044db1b104dc7f72c89d",
+      "base_sha256": "a3774049a7cd6e3304a341a85602734b8f0d663b6f0aa90ecd9be17dfff0f10f"
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/chat_lifecycle_runner.go",
+      "bytes": 13193,
+      "sha256": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee",
+      "git_blob": "ff994dda5ba9802928eb508582b21075673ce8b3",
+      "base_sha256": "105a340bfdb85cedd514613c07a29ebeb53c95ae4d0e849fe876eeb5c4afedee"
+    },
+    {
+      "path": "cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go",
+      "bytes": 1388,
+      "sha256": "3ec85fc977ef3065d2b53695471961795616cf381b5a64be28a1e8bb8b64f4ff",
+      "git_blob": "468397a48fff4d06cff36721b8f881a34af60044",
+      "base_sha256": null
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "bytes": 1615,
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+      "git_blob": "5a6f59558cb9a0fd32605b9c2a42bbce7ce591d8",
+      "base_sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529"
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "bytes": 19368,
+      "sha256": "7fbca62bbe9ff6a17bc2c6fd6e475ccc66f2a39d9965bdf9985cf787199e0368",
+      "git_blob": "7d0f3df9fc6408691f9d62c88f321e7140c86a8c",
+      "base_sha256": "1fe31f0e6db40116e271543f8f52920208dee70e0e11213c3a153d53161c21f4"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 148853,
+      "sha256": "89c7c4fc3c77ccfef9a1cc827192d42295090f113fcecec283740b4350500c79",
+      "git_blob": "3840a41ff8ca638507a324949d099e09e3cb7c7e",
+      "base_sha256": "f105fbc9034deabfc7a6e1347639d7b4993acaf27b2480c13e3a773c543e575f"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "bytes": 6836,
+      "sha256": "52cf2d48010eac69056be43ed5679bae9e50d0aa04b0ddd12e4199e6a99e76e4",
+      "git_blob": "6eb6493b1b5231e651841ab56a01b5aa1c9e35cf",
+      "base_sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "bytes": 6750,
+      "sha256": "f938521d9c3129762f11ac914f5172ae1ea8df53c615f13e3d9615424ed91673",
+      "git_blob": "213eee4b6635e65e7afb536b63282c3f0476de9d",
+      "base_sha256": "9bbe671968a6a7b20bde9b3900b0cca05cd758badf6443c18131372c3119a5cd"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/coordinator.go",
+      "bytes": 123128,
+      "sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1",
+      "git_blob": "f35f8608e6080c4d40725031e94791bcad71120c",
+      "base_sha256": "41b858f542bb20fbdd868da6c68e8e20147b7622db255fee9dfd6ec9aa76e1e1"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go",
+      "bytes": 18375,
+      "sha256": "279d490730ff7f65aef693013ec44c7ab10152fb15307ba87b47219a59390f4a",
+      "git_blob": "c719a33d5086c1ad9262c0d8905db1c3585531ed",
+      "base_sha256": null
+    },
+    {
+      "path": "internal/bench/chatlifecycle/metrics_fetch_failure.go",
+      "bytes": 1567,
+      "sha256": "bd47805a57d94ffc9e34f63532bf86e49e3269586554917fad4fa96afa258bac",
+      "git_blob": "8dde0e2f80ec5b55624fb699af1eac9e415fe952",
+      "base_sha256": null
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_controller.go",
+      "bytes": 34215,
+      "sha256": "0c7a41292bc61a0b68ddea2e6a2cff4d78bbd4293f0395d77674c128ef8f9b09",
+      "git_blob": "c4fce239f9b856d86cb6545ad46f6f7fa846ff17",
+      "base_sha256": "0c3905553b7aa3daafa2fe8b74753179a94a1bd39c467c7a4ef51ac2da4998ce"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/production_meta.go",
+      "bytes": 12443,
+      "sha256": "8179c7163669a032c92eb9c780e3941bb2bcda81a61d2ebd8b2242e2bf5f55b7",
+      "git_blob": "95075394c05269e75e5904f5f948a43d0649e88a",
+      "base_sha256": "9ca546402471998154468977ab180c461781de56c2bec5029f20d8d24096ff20"
+    },
+    {
+      "path": "internal/bench/target/client.go",
+      "bytes": 53374,
+      "sha256": "797ac967cb5f771d2cd3c146d42eff579cb51570aefe91ac8b566372dcb9e2e7",
+      "git_blob": "0f05a2fa22238b534021c5ce66bcfe539e2cb8ee",
+      "base_sha256": "8057352b1b271bf84e8aab963f67e1783f01be8fdcfffca4df1d900dca064762"
+    },
+    {
+      "path": "internal/bench/target/metrics_failure.go",
+      "bytes": 3461,
+      "sha256": "7a075f5707876778c2264f053be43c3ac93a6337eb006e5891673fab93d0d98a",
+      "git_blob": "299774649895e73fcf7346d8ab3d32e91b3ac14d",
+      "base_sha256": null
+    },
+    {
+      "path": "internal/bench/target/metrics_failure_diagnostics_test.go",
+      "bytes": 15365,
+      "sha256": "aa1bf6986fbd9771eae13031dd1446bf0e2ab52689c4dee620d58b4801ee3ae5",
+      "git_blob": "b2c8375d0775d1835d848dbf9fd90509fd224687",
+      "base_sha256": null
+    }
+  ]
+}

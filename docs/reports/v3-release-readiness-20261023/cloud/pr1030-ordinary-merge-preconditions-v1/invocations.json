@@ -1,0 +1,128 @@
+{
+  "started_at": "2026-10-22T23:24:09.816957+00:00",
+  "completed_at": "2026-10-22T23:24:12.486967+00:00",
+  "read_only": true,
+  "requests": {
+    "pr": {
+      "argv": [
+        "gh",
+        "pr",
+        "view",
+        "1030",
+        "--repo",
+        "WuKongIM/WuKongIM",
+        "--json",
+        "number,url,state,headRefOid,baseRefOid,isDraft,mergeStateStatus,mergeable,reviewDecision,reviews,statusCheckRollup"
+      ],
+      "exit_code": 0,
+      "stdout_bytes": 6556,
+      "stderr_bytes": 0,
+      "stdout_sha256": "76e7c44050f8dbf48baa0a898e03fd770ed55063a73625fbf07c900e0511348a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "actor": {
+      "argv": [
+        "gh",
+        "api",
+        "--method",
+        "GET",
+        "user",
+        "--jq",
+        "{login,id}"
+      ],
+      "exit_code": 0,
+      "stdout_bytes": 35,
+      "stderr_bytes": 0,
+      "stdout_sha256": "f15dde9d38c1fd75c1218fc7fd5dfab5321561891527999865e657f69867a741",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "repository": {
+      "argv": [
+        "gh",
+        "api",
+        "--method",
+        "GET",
+        "repos/WuKongIM/WuKongIM",
+        "--jq",
+        "{full_name,default_branch,permissions,allow_merge_commit,allow_squash_merge,allow_rebase_merge}"
+      ],
+      "exit_code": 0,
+      "stdout_bytes": 219,
+      "stderr_bytes": 0,
+      "stdout_sha256": "9d2cdbd286a242027d23ad809edfbbae42ff0c9f4f70e2a6aa0a5c5e24466f41",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "main": {
+      "argv": [
+        "gh",
+        "api",
+        "--method",
+        "GET",
+        "repos/WuKongIM/WuKongIM/branches/main",
+        "--jq",
+        "{name,protected,commit_sha:.commit.sha}"
+      ],
+      "exit_code": 0,
+      "stdout_bytes": 89,
+      "stderr_bytes": 0,
+      "stdout_sha256": "33823797922438966dcc9d9bc72f8ff00324589faf843137a146866272df5529",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "protection": {
+      "argv": [
+        "gh",
+        "api",
+        "--method",
+        "GET",
+        "repos/WuKongIM/WuKongIM/branches/main/protection"
+      ],
+      "exit_code": 0,
+      "stdout_bytes": 1200,
+      "stderr_bytes": 0,
+      "stdout_sha256": "20d7e38e9ee07736822d3b21bd9b803e633c60bdf8520baf00b9ea0d66231396",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "rulesets": {
+      "argv": [
+        "gh",
+        "api",
+        "--method",
+        "GET",
+        "repos/WuKongIM/WuKongIM/rulesets?includes_parents=true&per_page=100"
+      ],
+      "exit_code": 0,
+      "stdout_bytes": 2,
+      "stderr_bytes": 0,
+      "stdout_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "review-agent": {
+      "argv": [
+        "gh",
+        "api",
+        "--method",
+        "GET",
+        "repos/WuKongIM/WuKongIM/actions/workflows/review-agent.yml"
+      ],
+      "exit_code": 0,
+      "stdout_bytes": 565,
+      "stderr_bytes": 0,
+      "stdout_sha256": "fbfed0c16d7be70359ffde24c441ef62665b6576d1612267f1114fd012ed582a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "review-agent-run": {
+      "argv": [
+        "gh",
+        "api",
+        "--method",
+        "GET",
+        "repos/WuKongIM/WuKongIM/actions/workflows/review-agent-run.yml"
+      ],
+      "exit_code": 0,
+      "stdout_bytes": 551,
+      "stderr_bytes": 0,
+      "stdout_sha256": "6c7decf216bd016cdd8b5b10f9f31188d9741877edba1dcfb8ca3d73fcfe1202",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

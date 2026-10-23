@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Temporary receipt-fenced three-node sampler; never starts a workload."""
+import argparse,datetime,hashlib,json,os,pathlib,re,signal,subprocess,time,tomllib
+p=argparse.ArgumentParser();p.add_argument('--run-dir',type=pathlib.Path,required=True);p.add_argument('--out-dir',type=pathlib.Path,required=True)
+for name in ['source-root','binary','helper']:p.add_argument('--'+name,type=pathlib.Path,required=True)
+for name in ['source-revision','binary-sha256','helper-sha256','launcher-sha256','run-hash','assignment-hash']:p.add_argument('--'+name,required=True)
+p.add_argument('--generation',type=int,required=True);p.add_argument('--base-port',type=int,required=True);p.add_argument('--owner-pgid',type=int,required=True);p.add_argument('--deadline-mono',type=float,required=True)
+a=p.parse_args();began=time.monotonic();wall=datetime.datetime.now(datetime.timezone.utc);captures={};bindings={};stop_reason=None;claimed=False;phase=a.run_dir/'profile-phase';status='skipped';reason='not_started';receipt=None;capture_start=None;cancel_attempted=False;ownership_snapshot_error=None
+utc=lambda:datetime.datetime.now(datetime.timezone.utc).isoformat();sha=lambda data:hashlib.sha256(data).hexdigest()
+class SamplerStop(ValueError):pass
+def check(ok,code):
+ if not ok:raise SamplerStop(code)
+def handle(sig,frame):
+ global stop_reason
+ stop_reason='signal_'+signal.Signals(sig).name
+for s in [signal.SIGTERM,signal.SIGINT,signal.SIGHUP]:signal.signal(s,handle)
+def control_reason():
+ if stop_reason:return stop_reason
+ if abs((datetime.datetime.now(datetime.timezone.utc)-wall).total_seconds()-(time.monotonic()-began))>1:return 'clock_confounded'
+ if (a.run_dir/'evidence/coordinator-exit-status').exists():return 'coordinator_terminal'
+ if (a.run_dir/'evidence/profile-stop').exists():return 'supervisor_stop'
+ if time.monotonic()>=a.deadline_mono-3:return 'hard_deadline'
+ return None
+def owned_descendants(roots,timeout):
+ parents={}
+ for line in subprocess.check_output(['ps','-axo','pid=,ppid=,pgid='],text=True,timeout=timeout).splitlines():
+  fields=line.split()
+  if len(fields)==3 and int(fields[2])==a.owner_pgid:parents[int(fields[0])]=int(fields[1])
+ ids=[];front=list(roots)
+ while front:
+  current=front.pop();children=[pid for pid,ppid in parents.items() if ppid==current];ids.extend(children);front.extend(children)
+ return ids
+def cancel():
+ global cancel_attempted,ownership_snapshot_error
+ if cancel_attempted:return
+ active=[entry for entry in captures.values() if entry['process'].poll() is None]
+ if not active:return
+ cancel_attempted=True
+ phase.write_text('drain\n')
+ # All helpers receive TERM before one shared grace period, never 3 serial waits.
+ for entry in active:
+  try:entry['process'].send_signal(signal.SIGTERM)
+  except ProcessLookupError:pass
+ until=min(a.deadline_mono-1,time.monotonic()+2)
+ while any(entry['process'].poll() is None for entry in active) and time.monotonic()<until:time.sleep(.01)
+ live=[entry for entry in active if entry['process'].poll() is None]
+ until=min(a.deadline_mono,time.monotonic()+1)
+ if live:
+  roots=[entry['process'].pid for entry in live]
+  try:descendants=owned_descendants(roots,max(.001,until-time.monotonic()))
+  except Exception as error:descendants=[];ownership_snapshot_error=type(error).__name__
+  for pid in reversed(descendants):
+   try:os.kill(pid,signal.SIGKILL)
+   except ProcessLookupError:pass
+  for entry in live:
+   entry['kill_escalated']=True
+   if entry['process'].poll() is None:entry['process'].kill()
+ for entry in active:
+  try:entry['process'].wait(timeout=max(.001,until-time.monotonic()))
+  except subprocess.TimeoutExpired:pass
+
+def read_json(path,maximum):
+ check(not path.is_symlink() and path.is_file() and path.stat().st_size<=maximum,'unsafe_or_oversized_evidence')
+ return json.loads(path.read_bytes())
+def node_binding():
+ data=read_json(a.run_dir/'evidence/slot-convergence.json',2<<20)
+ check(data['schema']=='wukongim/local-original-slot-convergence/v1' and data['hash_slots']==256 and data['logical_slots']==12 and data['voters']==[1,2,3] and data['stable_seconds']>=2,'node_binding_mismatch')
+ inventories=data['inventories'];check(len(inventories)==3 and {r['node'] for r in inventories}=={1,2,3},'node_binding_mismatch')
+ rows={r['node']:r for r in inventories};slot_sha=sha((a.run_dir/'evidence/slot-convergence.json').read_bytes())
+ for node in [1,2,3]:
+  path=a.run_dir/f'config/node{node}.toml';check(path.is_file() and not path.is_symlink() and path.stat().st_size<=128<<10,'node_config_invalid');raw=path.read_bytes();cfg=tomllib.loads(raw.decode())
+  check(cfg['node']['id']==node,'node_binding_mismatch');items=rows[node]['voter']['items'];check(len(items)==12 and all(r['node_log']['node_id']==node for r in items),'node_binding_mismatch')
+  bindings[node]={'node_id':node,'API_URL':'http://127.0.0.1:'+str(a.base_port+node),'config_sha256':sha(raw),'config_node_id':node,'observed_slot_NodeID':node,'slot_receipt_sha256':slot_sha,'launcher_sha256':a.launcher_sha256,'effective_env_binding':{'WK_NODE_ID':str(node),'WK_API_LISTEN_ADDR':'127.0.0.1:'+str(a.base_port+node)},'port_binding_evidence':'sealed launcher mapping reviewed before run; TOML API default is overridden by this environment; existing manager Slot node IDs, no extra API probe'}
+def collect(node,entry):
+ row={'node_id':node,'binding':bindings.get(node),'capture_pid':None if entry is None else entry['process'].pid,'capture_joined':entry is None or entry['process'].poll() is not None,'helper_exit_status':None if entry is None else entry['process'].returncode,'kill_escalated':False if entry is None else entry['kill_escalated'],'helper_launch_parent_observed_at':None if entry is None else entry['launched_at'],'status':'skipped' if entry is None else 'partial','reason':'not_launched' if entry is None else 'metadata_missing'}
+ if entry is None:return row
+ try:
+  meta=read_json(entry['out']/'metadata.json',64<<10);check(len(meta['nodes'])==1 and meta['nodes'][0]['node']==f'node-{node}','producer_node_mismatch')
+  requests={}
+  for kind in ['cpu','goroutine']:
+   item=read_json(entry['out']/f'requests/node-{node}-{kind}.json',16<<10);check(item['node_id']==node and item['kind']==kind,'producer_node_mismatch');requests[kind]={k:item[k] for k in ['node_id','kind','curl_exit_code','http_status','error_class','retained_body_bytes','max_bytes'] if k in item}
+  row.update(status='complete' if meta['capture']['valid'] else 'partial',reason=meta['capture']['reason'],metadata=meta,requests=requests)
+ except SamplerStop as error:row['reason']=str(error)
+ except Exception as error:row['reason']=type(error).__name__
+ return row
+def finish():
+ nodes=[collect(node,captures.get(node)) for node in [1,2,3]]
+ row={'schema':'wukongim/temporary-three-node-first-grant-profile-driver/v1','fixture_or_real_target':'caller_declared_loopback_physical_nodes1_2_3','status':status,'reason':reason,'started_at_utc':wall.isoformat(),'completed_at_utc':utc(),'owner_pgid':a.owner_pgid,'driver_pid':os.getpid(),'receipt':receipt,'nodes':nodes,'requested_cpu_seconds_per_node':10,'requested_goroutine_offset_seconds_per_node':5,'cpu_max_bytes_per_node':8388608,'goroutine_max_bytes_per_node':4194304,'maximum_profile_bodies_bytes_all_nodes':37748736,'maximum_profile_HTTP_requests':6,'cancel_join_budget_is_shared_not_serial':True,'ownership_snapshot_error_class':ownership_snapshot_error,'actual_cpu_submission_and_goroutine_offsets':'not independently observed; local launch times and nominal+5s only; nodes are not exactly synchronized','phase_label_semantics':'matching firstgrant receipt until observed stop/terminal; does not prove active SEND throughout; profiles may mix active/drain','additional_sampling_disturbance':True,'causal_performance_comparison':False,'no_performance_acceptance':True}
+ dest=a.run_dir/'profile-driver-status.json';temp=dest.with_suffix('.next');temp.write_text(json.dumps(row,indent=2)+'\n');temp.chmod(0o600);temp.replace(dest)
+try:
+ check(a.owner_pgid==os.getpgrp() and a.base_port==25000,'owner_or_port_mismatch')
+ check(not a.run_dir.is_symlink() and not a.out_dir.is_symlink() and a.out_dir.parent.resolve()==a.run_dir.resolve(),'unsafe_output')
+ check(time.monotonic()+20<=a.deadline_mono,'insufficient_budget')
+ check(re.fullmatch('[0-9a-f]{40}',a.source_revision) is not None,'source_revision_invalid')
+ revision=subprocess.check_output(['git','-C',str(a.source_root),'rev-parse','HEAD'],text=True,timeout=2).strip()
+ check(revision==a.source_revision and sha(a.binary.read_bytes())==a.binary_sha256 and sha(a.helper.read_bytes())==a.helper_sha256,'source_mismatch')
+ launcher=a.run_dir/'launcher.sh';check(launcher.is_file() and not launcher.is_symlink() and sha(launcher.read_bytes())==a.launcher_sha256,'launcher_mismatch')
+ node_binding()
+ try:(a.run_dir/'profile-driver.claim').mkdir(mode=0o700);claimed=True
+ except FileExistsError:print('{"status":"already_claimed","requests":0}');raise SystemExit(0)
+ check(not a.out_dir.exists(),'unsafe_existing_output')
+ while True:
+  why=control_reason()
+  if why:raise SamplerStop(why)
+  source=a.run_dir/'report/run-start.json'
+  if source.exists() or source.is_symlink():
+   x=read_json(source,4096);data=source.read_bytes()
+   check(set(x)=={'schema','stage','started_at','expected_end_at','run_hash','assignment_hash','generation'} and (x['schema'],x['stage'],x['run_hash'],x['assignment_hash'],x['generation'])==('wukongim.chat_lifecycle.run_start/v1','shakeout',a.run_hash,a.assignment_hash,a.generation),'receipt_identity_mismatch')
+   start=datetime.datetime.fromisoformat(x['started_at'].replace('Z','+00:00'));end=datetime.datetime.fromisoformat(x['expected_end_at'].replace('Z','+00:00'));seen=datetime.datetime.now(datetime.timezone.utc)
+   check(start.tzinfo is not None and end.tzinfo is not None and (end-start).total_seconds()==259200,'receipt_time_invalid');lag=(seen-start).total_seconds();check(0<lag<=2,'missed_early_window')
+   why=control_reason()
+   if why:raise SamplerStop(why)
+   check(time.monotonic()+20<=a.deadline_mono,'insufficient_budget_after_receipt_wait')
+   receipt={'sha256':sha(data),'run_hash':x['run_hash'],'assignment_hash':x['assignment_hash'],'generation':x['generation'],'started_at':x['started_at'],'seen_at':seen.isoformat(),'detection_lag_seconds':lag,'publication_lag_limit':'receipt written after firstgrant and datasetprobe; exact capture at firstgrant impossible'}
+   phase.write_text('measurement\n');phase.chmod(0o600);a.out_dir.mkdir(mode=0o700)
+   for node in [1,2,3]:
+    why=control_reason()
+    if why:raise SamplerStop(why)
+    node_out=a.out_dir/f'node-{node}';launched_at=utc()
+    with (a.run_dir/f'profile-helper-node-{node}.log').open('wb') as log:
+     process=subprocess.Popen(['bash',str(a.helper),'--out-dir',str(node_out),'--phase-state-file',str(phase),'--trigger-kind','first_grant_receipt','--trigger-observed-phase','measurement','--previous-utc',start.isoformat(),'--current-utc',seen.isoformat(),'--node',bindings[node]['API_URL'],'--node-id',str(node),'--cpu-seconds','10'],stdout=log,stderr=subprocess.STDOUT)
+    captures[node]={'process':process,'out':node_out,'launched_at':launched_at,'kill_escalated':False}
+    if capture_start is None:capture_start=time.monotonic()
+   while any(entry['process'].poll() is None for entry in captures.values()):
+    why=control_reason()
+    if why or time.monotonic()-capture_start>=15:
+     reason=why or 'capture_deadline';status='partial';cancel();break
+    time.sleep(.02)
+   if status!='partial':
+    rows=[collect(node,captures[node]) for node in [1,2,3]];status='complete' if all(r['status']=='complete' for r in rows) else 'partial';reason='ok' if status=='complete' else 'node_capture_partial'
+   break
+  time.sleep(.05)
+except SystemExit:raise
+except SamplerStop as error:status='partial' if captures else 'skipped';reason=str(error);cancel()
+except Exception as error:status='partial' if captures else 'skipped';reason=type(error).__name__;cancel()
+finally:
+ if claimed or reason!='not_started':cancel();finish()

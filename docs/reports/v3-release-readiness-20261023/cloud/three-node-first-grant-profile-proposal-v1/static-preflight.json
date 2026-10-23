@@ -1,0 +1,24 @@
+{
+  "schema": "wukongim/three-node-sampler-static-preflight/v1",
+  "at_utc": "2026-10-22T23:19:16.459554+00:00",
+  "helper_bash_n": 0,
+  "watcher_AST": true,
+  "fake_test_results": {
+    "helper_methods": 5,
+    "helper_GREEN_log_sha256": "987cfe074680399b942fb53c67da959d6b56628a5aced918b2cda06df0e377c7",
+    "watcher_methods": 4,
+    "watcher_GREEN_final_log_sha256": "290b2ef48fc7f573f69c19ebe9e6ce90507b43a84f3379747881f1fe9a7451e4",
+    "fake_shared_KILL_join_elapsed_seconds": 2.0931322909891605,
+    "all3_concurrently_live_and_claim_once_proved": true,
+    "real_TCP_profiles": 0,
+    "private_profiles_borrowed": false
+  },
+  "original_helper_watcher_unchanged": true,
+  "future_source_revision": null,
+  "future_binary_SHA": null,
+  "future_exact_source_binding": "pending finalhead/reviews/build and a separatelyreviewedactual-run materialization",
+  "future_real_run_launcher_materialized": false,
+  "actual_product_or_workload_started": false,
+  "native_or_Go_builds": 0,
+  "API_or_DB_or_cloud_operations": 0
+}

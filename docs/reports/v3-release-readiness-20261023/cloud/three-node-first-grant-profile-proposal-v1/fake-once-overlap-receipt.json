@@ -1,0 +1,12 @@
+{
+  "schema": "wukongim/three-node-sampler-once-overlap-fixture/v1",
+  "synthetic_helpers": 3,
+  "all3_simultaneously_live_before_release_latch": true,
+  "explicit_node_ids_and_API_URLs_match": true,
+  "first_status": "complete",
+  "second_status": "already_claimed",
+  "second_requests": 0,
+  "first_status_bytes_and_mtime_unchanged_after_duplicate": true,
+  "actual_TCP_or_profile_requests": 0,
+  "copied_private_profiles": false
+}

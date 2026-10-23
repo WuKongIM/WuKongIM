@@ -1,0 +1,198 @@
+{
+  "schema": "wukongim/offline-profile-aggregate/v1",
+  "goroutine_profile": {
+    "file_sha256": "8118dd3b5a80d2e123bd436ac8943c640026c3dfff308c1c6c104bdba96b7f0f",
+    "bytes": 22212,
+    "time_utc": "2026-10-22T23:39:27.732950000Z",
+    "time_unix_nanos": "1792712367732950000",
+    "duration_nanos": "0",
+    "end_utc": "2026-10-22T23:39:27.732950000Z",
+    "period": 1,
+    "types": [
+      {
+        "type": "goroutine",
+        "unit": "count"
+      }
+    ]
+  },
+  "goroutines_total": 2591,
+  "aggregated_stack_records": 142,
+  "delivery_runWorker_total": 320,
+  "delivery_runWorker_disjoint": {
+    "idle_plan_dequeue": 298,
+    "owner_push_RPC": 7,
+    "presence_registry_quota_wait": 6,
+    "presence_parallel_leader_join": 5,
+    "presence_remote_authority_RPC": 3,
+    "unclassified": 1,
+    "presence_UID_flight_join": 0
+  },
+  "recoverPage_total": 26,
+  "recoverPage_disjoint": {
+    "registry_quota_wait": 22,
+    "executing_cohort_owner_RPC": 4,
+    "UID_flight_join": 0,
+    "unclassified": 0
+  },
+  "actual_owner_read_holder_total": 4,
+  "actual_owner_read_holder_context_disjoint": {
+    "inbound_presence_RPC": 3,
+    "other": 1
+  },
+  "actual_owner_read_operation_disjoint": {
+    "batch_ReadOwnerRoutesByTargets": 3,
+    "single_ReadOwnerRoutes": 1
+  },
+  "actual_owner_read_source_line_disjoint": {
+    "196": 3,
+    "182": 1
+  },
+  "Conn_Call_total": 137,
+  "Conn_Call_nearest_non_transport_product_frame_disjoint": [
+    {
+      "function": "pkg/cluster/channels.(*QuorumPeerLink).Exchange",
+      "line": 45,
+      "count": 32
+    },
+    {
+      "function": "internal/access/node.(*Client).ForwardSendBatch",
+      "line": 120,
+      "count": 28
+    },
+    {
+      "function": "pkg/slot/proxy.(*Store).callSendPermission",
+      "line": 332,
+      "count": 27
+    },
+    {
+      "function": "pkg/cluster/propose.(*NetworkForwardClient).forward",
+      "line": 39,
+      "count": 16
+    },
+    {
+      "function": "internal/access/node.(*Client).EndpointsByTargets",
+      "line": 704,
+      "count": 14
+    },
+    {
+      "function": "internal/access/node.(*Client).PushBatch",
+      "line": 56,
+      "count": 8
+    },
+    {
+      "function": "pkg/slot/proxy.callAuthoritativeRPCWithStatuses[go.shape.struct { Status string \"json:\\\"status\\\"\"; LeaderID uint64 \"json:\\\"leader_id,omitempty\\\"\"; Meta *github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelRuntimeMeta \"json:\\\"meta,omitempty\\\"\"; Metas []github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelRuntimeMeta \"json:\\\"metas,omitempty\\\"\"; Cursor github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelRuntimeMetaCursor \"json:\\\"cursor,omitempty\\\"\"; Done bool \"json:\\\"done,omitempty\\\"\" }]",
+      "line": 92,
+      "count": 7
+    },
+    {
+      "function": "internal/access/node.(*Client).ReadOwnerRoutesByTargets",
+      "line": 60,
+      "count": 3
+    },
+    {
+      "function": "internal/access/node.(*Client).ReadOwnerRoutes",
+      "line": 44,
+      "count": 1
+    },
+    {
+      "function": "internal/access/node.(*Client).callService",
+      "line": 788,
+      "count": 1
+    }
+  ],
+  "delivery_enqueue_callers": 0,
+  "Slot_runApplyTask_callers": 12,
+  "recovery_symbol_line_aggregates_overlapping": [
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).admitRecoveryPage",
+      "line": 156,
+      "count": 22
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+      "line": 58,
+      "count": 22
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets.func1",
+      "line": 68,
+      "count": 26
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets",
+      "line": 100,
+      "count": 26
+    },
+    {
+      "function": "internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage",
+      "line": 196,
+      "count": 3
+    },
+    {
+      "function": "internal/infra/cluster.(*PresenceRecoveryOwners).RecoverRoutesByTargets",
+      "line": 106,
+      "count": 4
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).executeRecoveryCohort",
+      "line": 228,
+      "count": 4
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+      "line": 62,
+      "count": 4
+    },
+    {
+      "function": "internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage",
+      "line": 182,
+      "count": 1
+    }
+  ],
+  "limits": "Disjoint only within named cohorts; cohorts overlap. One node at one point. Source line proves which branch is sampled, not quota dimension, elapsed waits, remote serving cause, sampled-message identity or Linux/whole-window capacity. CPU nanoseconds are on-CPU samples, never disk/off-CPU latency. No raw stack records/labels/identities are published.",
+  "selected_symbol_counts_overlapping": [
+    {
+      "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+      "count": 1821
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+      "count": 1821
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+      "count": 26
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).admitRecoveryPage",
+      "count": 22
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).GoN.func1",
+      "count": 9
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).executeRecoveryCohort",
+      "count": 4
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage",
+      "count": 4
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).ReadOwnerRoutesByTargets",
+      "count": 3
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).ReadOwnerRoutes",
+      "count": 1
+    }
+  ],
+  "node_id": 2,
+  "capture_metadata_binding": "72d1ac95425c222575499ea3180938c488c159fc01488a8d0d06c044f4b09e78",
+  "request_status": "HTTP200/curl0/complete",
+  "first_grant": "2026-10-23T07:39:22.590978+08:00",
+  "terminal_supervisor_at": "2026-10-22T23:39:45.812617+00:00",
+  "active_SEND_end_unknown": true,
+  "mutex_nearest_product_symbol_line_disjoint": []
+}

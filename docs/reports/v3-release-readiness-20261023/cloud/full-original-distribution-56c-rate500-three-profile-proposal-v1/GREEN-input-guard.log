@@ -1,0 +1,7 @@
+test_launcher_member_and_manifest_drift_rejected (input_guard_contract_test.InputGuard.test_launcher_member_and_manifest_drift_rejected) ... ok
+test_valid_inputs_return_only_pinned_launcher_hash (input_guard_contract_test.InputGuard.test_valid_inputs_return_only_pinned_launcher_hash) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.012s
+
+OK

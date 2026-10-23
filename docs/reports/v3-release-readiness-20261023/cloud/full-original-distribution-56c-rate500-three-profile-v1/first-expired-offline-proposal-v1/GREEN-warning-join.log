@@ -1,0 +1,7 @@
+test_helper_function_exists_before_real_use (__main__.WarningJoin.test_helper_function_exists_before_real_use) ... ok
+test_only_exact_uint64_tuple_in_window_is_projected (__main__.WarningJoin.test_only_exact_uint64_tuple_in_window_is_projected) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.010s
+
+OK

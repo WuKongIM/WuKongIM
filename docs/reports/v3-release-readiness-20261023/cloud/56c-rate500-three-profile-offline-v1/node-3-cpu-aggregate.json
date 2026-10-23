@@ -1,0 +1,111 @@
+{
+  "cpu_profile": {
+    "file_sha256": "95958b1777f44f83bd3815b9a8800385291528d7041adc5b7f17b5226eca2513",
+    "bytes": 28019,
+    "time_utc": "2026-10-22T23:39:22.684229000Z",
+    "time_unix_nanos": "1792712362684229000",
+    "duration_nanos": "10166140625",
+    "end_utc": "2026-10-22T23:39:32.850369625Z",
+    "period": 10000000,
+    "types": [
+      {
+        "type": "samples",
+        "unit": "count"
+      },
+      {
+        "type": "cpu",
+        "unit": "nanoseconds"
+      }
+    ]
+  },
+  "cpu_sample_count": 216,
+  "cpu_total_sample_nanoseconds": 2160000000,
+  "cpu_flat_top_20": [
+    {
+      "function": "syscall.syscallX",
+      "nanoseconds": 910000000
+    },
+    {
+      "function": "syscall.syscall",
+      "nanoseconds": 350000000
+    },
+    {
+      "function": "runtime.madvise",
+      "nanoseconds": 220000000
+    },
+    {
+      "function": "syscall.syscall6",
+      "nanoseconds": 130000000
+    },
+    {
+      "function": "runtime.fcntl",
+      "nanoseconds": 60000000
+    },
+    {
+      "function": "runtime.scanobject",
+      "nanoseconds": 40000000
+    },
+    {
+      "function": "runtime.(*mspan).init",
+      "nanoseconds": 30000000
+    },
+    {
+      "function": "runtime.greyobject",
+      "nanoseconds": 30000000
+    },
+    {
+      "function": "runtime.spanOf",
+      "nanoseconds": 30000000
+    },
+    {
+      "function": "runtime.pthread_cond_wait",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.kevent",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.memmove",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.usleep",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "runtime.(*mspan).typePointersOfUnchecked",
+      "nanoseconds": 20000000
+    },
+    {
+      "function": "syscall.rawSyscall",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "cmpbody",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.chansend",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "runtime.pthread_cond_timedwait_relative_np",
+      "nanoseconds": 10000000
+    },
+    {
+      "function": "hash/crc32.castagnoliUpdate",
+      "nanoseconds": 10000000
+    }
+  ],
+  "node_id": 3,
+  "capture_metadata_binding": "53ff0a211caa40fc162e85e521bb3598bbaa0e847515f6ddca7fb01b1916a188",
+  "request_status": "HTTP200/curl0/complete",
+  "first_grant": "2026-10-23T07:39:22.590978+08:00",
+  "terminal_supervisor_at": "2026-10-22T23:39:45.812617+00:00",
+  "active_SEND_end_unknown": true
+}

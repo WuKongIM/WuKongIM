@@ -1,0 +1,12 @@
+{
+  "at_utc": "2026-10-22T23:15:34.958094+00:00",
+  "source_clean": true,
+  "binary_count": 2,
+  "tracked_embedded_assets_equal": 76,
+  "runtime_started": false,
+  "tests_started": false,
+  "source_revision": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "source_tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "cloud_binary_byte_equality_claimed": false,
+  "scope": "Exact reviewed metrics-fetch diagnostic candidate; native construction only, no workload/Linux/performance qualification"
+}

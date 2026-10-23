@@ -1,0 +1,592 @@
+{
+  "snapshot": "20261022T231558Z",
+  "logs": [
+    {
+      "id": 120140957058,
+      "name": "Build and install deb/rpm preview",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 230416,
+      "sha256": "01759f64208b50e762b5812f41f01ac88949b8b3ac35591b3698666c822fe77a",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120142826074,
+      "name": "Exercise Rocky Linux 9 package lifecycle",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 83306,
+      "sha256": "9131f64541d0dcbfe8948d4aba5e67c5ae6fcf4881c25bbefd27ad86418d1297",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120142826076,
+      "name": "Exercise AlmaLinux 9 package lifecycle",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 83210,
+      "sha256": "7c0d1d0a453e93b3efa81ba264d731dc89eac75f5bf03b3d4f75c8f4107fcc7d",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120142826160,
+      "name": "Exercise Debian 12 package lifecycle",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 83282,
+      "sha256": "5b0ffc863b9127e1c4bb09a40a388d55f8d61e652bc22c823c1c27019cce3014",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120142826300,
+      "name": "Exercise Ubuntu 24.04 package lifecycle",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 83218,
+      "sha256": "7be907ac9c3b19dba65d746280db364b6dc5f97bd71ddfe9880ac93dd336ae07",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120140958124,
+      "name": "Candidate default suite (go-unit)",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 85934,
+      "sha256": "de8a1d4711557680ea025fe0f791e728bef5b12dd428a2f41e900f6420451053",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120140958182,
+      "name": "PR performance baseline evidence",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 71826,
+      "sha256": "d06d9db8be644c170c8e131a208b96b77a9b3d3f090da864f0e0f91e075a3ceb",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120140958430,
+      "name": "PR messaging unit and race",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 81216,
+      "sha256": "8201e07a90ca41af4a6796e0b83f5234704c4a66621abb068a0c7951e16e23b7",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120140958579,
+      "name": "PR three-node correctness",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 86906,
+      "sha256": "676e44f6c0283e9b49470cc7e734671a420cb2a675d2b46ecdf2987ea7eda0bd",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120141065040,
+      "name": "PR 500 QPS / mixed-send",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 86437,
+      "sha256": "772e4447e2198e93d56ac6d733a44550cbb1828cea8d0d281bcddebb17049800",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120141065079,
+      "name": "PR 500 QPS / tcp-sendack",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 84324,
+      "sha256": "6a03add3ae80926ae7f79e12ff8b3c2f22cc39977065cb4c427a3a09f73c0547",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120141065201,
+      "name": "PR 500 QPS / channel-append",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 83495,
+      "sha256": "9027b9054e917d73cfefbcacb7764b6171756ac62fa850ece4e44a5da011478c",
+      "actual_checkout_candidates": [
+        "a514c73b4c950b9ead150c28ff08ef89123f5238"
+      ]
+    },
+    {
+      "id": 120143088511,
+      "name": "PR three-node regression",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 2674,
+      "sha256": "f6c4c7a709d91f5bcdafa1c046f3260581452c70ff4c268cece9083fd83eb474",
+      "actual_checkout_candidates": []
+    },
+    {
+      "id": 120140957158,
+      "name": "Emit credential-free wake-up",
+      "status": "completed",
+      "conclusion": "success",
+      "bytes": 2092,
+      "sha256": "5c5a073b6053443a461bce337b0d5730b518d5e59f1665b8e8a97878ab24e2ad",
+      "actual_checkout_candidates": []
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 12466245987,
+      "name": "wukongim-native-package-preview-39869765431",
+      "declared_bytes": 77886009,
+      "declared_digest": "sha256:b6a20935999fd7551bb8bfa6d623a2236c0c0e3f3477a9b4d8e72fcdab86cde9",
+      "state": "not_downloaded",
+      "reason": "outside explicit proof allowlist; native package binaries and unrelated artifact contents not fetched"
+    },
+    {
+      "id": 12466535264,
+      "name": "v3-candidate-default-39869765472-1",
+      "declared_bytes": 8256,
+      "declared_digest": "sha256:a9fe508f21d71b8224c3d465018ea6ff7a35ac2d76b0a7eab5c44f231f12a5dd",
+      "state": "verified",
+      "zip_bytes": 8256,
+      "zip_sha256": "a9fe508f21d71b8224c3d465018ea6ff7a35ac2d76b0a7eab5c44f231f12a5dd",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "command.json",
+          "bytes": 334,
+          "compressed_bytes": 213,
+          "crc32": "c797ebb8",
+          "sha256": "0cb6625e3ac51b84b8154054b2295ed766dcd7cb0cb0967da00310244dffa3d9"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "identity.json",
+          "bytes": 286,
+          "compressed_bytes": 190,
+          "crc32": "5cd7d96b",
+          "sha256": "d0e8700ef8a0f42838f8de6255ab36c09e7af32f479b5e6f5a0ae779024986d5"
+        },
+        {
+          "path": "policy.json",
+          "bytes": 14492,
+          "compressed_bytes": 2758,
+          "crc32": "4b2851e1",
+          "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+        },
+        {
+          "path": "result.json",
+          "bytes": 370,
+          "compressed_bytes": 195,
+          "crc32": "7e0273d3",
+          "sha256": "f04048330862222a43e41e6f7ce3525fbe1c13ad5e85cbed4c5407c62d7ffa33"
+        },
+        {
+          "path": "stdout-stderr.log",
+          "bytes": 22029,
+          "compressed_bytes": 4135,
+          "crc32": "bff229ab",
+          "sha256": "3621bacf6db6f9fd8c33fd5fd03f2b4b9dd71561b5286fa9a3356e8207ddf3e9"
+        }
+      ]
+    },
+    {
+      "id": 12465937403,
+      "name": "500qps-tcp-sendack-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+      "declared_bytes": 8110,
+      "declared_digest": "sha256:cecd30b06363f61077eee5733d01aca8860b709f6f624d0f4c6f2b673c21229a",
+      "state": "verified",
+      "zip_bytes": 8110,
+      "zip_sha256": "cecd30b06363f61077eee5733d01aca8860b709f6f624d0f4c6f2b673c21229a",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "arrival.json",
+          "bytes": 58099,
+          "compressed_bytes": 2995,
+          "crc32": "86e62bf7",
+          "sha256": "6135aee31e7c9b4bd5617ba2fd8abad21f52087eeb85e3f1de0ed6e541acab2f"
+        },
+        {
+          "path": "arrival.warmup.json",
+          "bytes": 19447,
+          "compressed_bytes": 1180,
+          "crc32": "b55a697d",
+          "sha256": "d8403fe79c8e0db6988f7401009a68d56007d8e5fa004eab98427e55bd4d924e"
+        },
+        {
+          "path": "benchmark.txt",
+          "bytes": 2953,
+          "compressed_bytes": 840,
+          "crc32": "1f4470b7",
+          "sha256": "6ed9f9554d90c960fd748e6921d570cb0691886c8d15e9c9cd7dec885a385d4f"
+        },
+        {
+          "path": "binary.sha256",
+          "bytes": 124,
+          "compressed_bytes": 106,
+          "crc32": "89205405",
+          "sha256": "9b6119e653126ae7fd380874d62523fbece02a8d7e8e7adfea03a00b61d78c4a"
+        },
+        {
+          "path": "data-filesystem.json",
+          "bytes": 244,
+          "compressed_bytes": 159,
+          "crc32": "77ec143c",
+          "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+        },
+        {
+          "path": "filesystem-preflight.txt",
+          "bytes": 123,
+          "compressed_bytes": 109,
+          "crc32": "d946f0d1",
+          "sha256": "fe23534cd8f17651d5a0baa5b80579009f0baa562911b3cfc2cca1f2e34c4929"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "host.json",
+          "bytes": 4484,
+          "compressed_bytes": 1180,
+          "crc32": "1b77ff76",
+          "sha256": "372bc9835676a2d36a431151ae3a65cba3b74707813a1897bcc9ceaa3b094902"
+        },
+        {
+          "path": "kernel.txt",
+          "bytes": 113,
+          "compressed_bytes": 100,
+          "crc32": "5f528912",
+          "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+        },
+        {
+          "path": "result.json",
+          "bytes": 18,
+          "compressed_bytes": 20,
+          "crc32": "81529131",
+          "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+        },
+        {
+          "path": "source.sha",
+          "bytes": 41,
+          "compressed_bytes": 42,
+          "crc32": "cfb4cb01",
+          "sha256": "ad9354c164f1579f4b5236ee67ef272ce329a77153c09b299ce467b3e7a679b1"
+        }
+      ]
+    },
+    {
+      "id": 12465847720,
+      "name": "500qps-mixed-send-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+      "declared_bytes": 231670,
+      "declared_digest": "sha256:df653da4649ce9446c0e8431c255b88e600f01cc1cbd2c0c8a10a9ab8a88ee12",
+      "state": "verified",
+      "zip_bytes": 231670,
+      "zip_sha256": "df653da4649ce9446c0e8431c255b88e600f01cc1cbd2c0c8a10a9ab8a88ee12",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "arrival.json",
+          "bytes": 57698,
+          "compressed_bytes": 3455,
+          "crc32": "6bfe0cab",
+          "sha256": "ed245e3b0aeaf1e911c3d730f973f9ba8ed1102aee32847c61fc76b812fd1ade"
+        },
+        {
+          "path": "arrival.warmup.json",
+          "bytes": 19303,
+          "compressed_bytes": 1323,
+          "crc32": "a69b22bb",
+          "sha256": "cc72a9328c2cfa4fbf4e7eb1df1e06c30cc68f6d7be977bb9c9634bb157c700e"
+        },
+        {
+          "path": "benchmark.txt",
+          "bytes": 4012,
+          "compressed_bytes": 1029,
+          "crc32": "7ba5ff6c",
+          "sha256": "a9d6b1d891174f376ac4d7a75b1fa72777bd394f550b94ee53d0296a81663e80"
+        },
+        {
+          "path": "binary.sha256",
+          "bytes": 123,
+          "compressed_bytes": 106,
+          "crc32": "56ab10bb",
+          "sha256": "4644f12eb6d815b785bcaeeab51826b62235969a6c365d7bed6a26dd2e95d063"
+        },
+        {
+          "path": "counters/after.json",
+          "bytes": 314078,
+          "compressed_bytes": 13622,
+          "crc32": "45498bb4",
+          "sha256": "4cb558b01b6a051029fee50d65bdb18027b1d01b7fa4227ba9c1988f26085e37"
+        },
+        {
+          "path": "counters/before.json",
+          "bytes": 313330,
+          "compressed_bytes": 13185,
+          "crc32": "683802b7",
+          "sha256": "f50af128d83919fae9b87ad09c6f40172ba64b4ae1c93c26b35d178ba9c2ef71"
+        },
+        {
+          "path": "counters/window.json",
+          "bytes": 534,
+          "compressed_bytes": 320,
+          "crc32": "d3f47b92",
+          "sha256": "c74348a7aa773193cc9c37aeb16eb5779daf09c767d724c6fc32c089c569befd"
+        },
+        {
+          "path": "counters.warmup/after.json",
+          "bytes": 313330,
+          "compressed_bytes": 13177,
+          "crc32": "993702c1",
+          "sha256": "5c3d3521c872da4a8490995cd63d23effa4be86be7e793aec9a54ce02ed21353"
+        },
+        {
+          "path": "counters.warmup/before.json",
+          "bytes": 310784,
+          "compressed_bytes": 12042,
+          "crc32": "bcecab4b",
+          "sha256": "a6d7010e04e52bb06fff64361c298426f7a9feb24d48e6c076cf92fcbc1a7820"
+        },
+        {
+          "path": "counters.warmup/window.json",
+          "bytes": 478,
+          "compressed_bytes": 297,
+          "crc32": "63eade7f",
+          "sha256": "6af4f7e2d3fa00256128a5c5772b5dc90f782ebe163651b168bea746d6f6dae3"
+        },
+        {
+          "path": "data-filesystem.json",
+          "bytes": 244,
+          "compressed_bytes": 159,
+          "crc32": "77ec143c",
+          "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb"
+        },
+        {
+          "path": "filesystem-preflight.txt",
+          "bytes": 123,
+          "compressed_bytes": 109,
+          "crc32": "a05c3b07",
+          "sha256": "4b4c013abd386d16a0cc0b4c6f8f5313e046a5a9035ecbe5d0acd4a8deffeff6"
+        },
+        {
+          "path": "flight/retention-status.txt",
+          "bytes": 28,
+          "compressed_bytes": 30,
+          "crc32": "1785ba98",
+          "sha256": "fe914d9861d4c6f558854c355a1422208df73e3235e7e7061ec8948c58874fed"
+        },
+        {
+          "path": "flight/window.json",
+          "bytes": 2088481,
+          "compressed_bytes": 168994,
+          "crc32": "12f2e030",
+          "sha256": "77d9a87a1b844a207257096fce67db57e625d8a12f22998d54dc42283dae1ab0"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "host.json",
+          "bytes": 4483,
+          "compressed_bytes": 1177,
+          "crc32": "86213588",
+          "sha256": "eda047d6a2a8a735ae06c3c4b5fe8cf2f09af8a2646057a1a5bcab415d0b6401"
+        },
+        {
+          "path": "kernel.txt",
+          "bytes": 113,
+          "compressed_bytes": 100,
+          "crc32": "5f528912",
+          "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+        },
+        {
+          "path": "result.json",
+          "bytes": 18,
+          "compressed_bytes": 20,
+          "crc32": "81529131",
+          "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+        },
+        {
+          "path": "source.sha",
+          "bytes": 41,
+          "compressed_bytes": 42,
+          "crc32": "cfb4cb01",
+          "sha256": "ad9354c164f1579f4b5236ee67ef272ce329a77153c09b299ce467b3e7a679b1"
+        }
+      ]
+    },
+    {
+      "id": 12465573753,
+      "name": "three-node-pr-1030-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+      "declared_bytes": 228677232,
+      "declared_digest": "sha256:b780571adc870f5b158d6e74d782383dfb94c3cff996637fdba818802526f6f9",
+      "state": "not_downloaded",
+      "reason": "outside explicit proof allowlist; native package binaries and unrelated artifact contents not fetched"
+    },
+    {
+      "id": 12464969047,
+      "name": "500qps-channel-append-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+      "declared_bytes": 26510,
+      "declared_digest": "sha256:f003f7c5e5267808f82a421c5c1fbc442c13fb751f3231aced93c3f80c02024a",
+      "state": "verified",
+      "zip_bytes": 26510,
+      "zip_sha256": "f003f7c5e5267808f82a421c5c1fbc442c13fb751f3231aced93c3f80c02024a",
+      "full_size_sha_crc_valid": true,
+      "members": [
+        {
+          "path": "arrival.json",
+          "bytes": 57932,
+          "compressed_bytes": 3632,
+          "crc32": "3f9ff4fb",
+          "sha256": "b85f171c9146e2f536448671237502bd9531d79e7bcfad6d44a150d3f1a614a3"
+        },
+        {
+          "path": "arrival.warmup.json",
+          "bytes": 19371,
+          "compressed_bytes": 1373,
+          "crc32": "cd705b0d",
+          "sha256": "fa4fb93164ee3dcebdba01660091fb3f95699cc2a382e985e02c0bc18f193f59"
+        },
+        {
+          "path": "benchmark.txt",
+          "bytes": 2381,
+          "compressed_bytes": 848,
+          "crc32": "5bae7cd0",
+          "sha256": "1fb35bae4e9c59bacff4a3e3930d134f9583d58e46a3ec08cdca2d201da7a2cd"
+        },
+        {
+          "path": "binary.sha256",
+          "bytes": 127,
+          "compressed_bytes": 108,
+          "crc32": "0409cb78",
+          "sha256": "e540a1d804d8a31808d0664dcd0c25901925ace03f3f8f7ac264c6e073781593"
+        },
+        {
+          "path": "counters/after.json",
+          "bytes": 50681,
+          "compressed_bytes": 4463,
+          "crc32": "92741db6",
+          "sha256": "a0d1a7beafa78c73ab0e669d55534a20e49e655fc5a5d14c3be5998ff1df55e2"
+        },
+        {
+          "path": "counters/before.json",
+          "bytes": 50458,
+          "compressed_bytes": 4300,
+          "crc32": "0a396ade",
+          "sha256": "0cb8c0bce58198697746d2c73a9c34176e6fa6c765bca9cbc1deed096f95ca4e"
+        },
+        {
+          "path": "counters/window.json",
+          "bytes": 576,
+          "compressed_bytes": 350,
+          "crc32": "2aebbbe4",
+          "sha256": "6e44e50063185f2ad00375200d6188699f94e3719097a5f40b6f9a5adc376329"
+        },
+        {
+          "path": "counters.warmup/after.json",
+          "bytes": 50457,
+          "compressed_bytes": 4289,
+          "crc32": "3ee2fd4c",
+          "sha256": "eda441e788251c467a28aa02fac70dcb69efa0fd0ee3898d3b7244715a2670ad"
+        },
+        {
+          "path": "counters.warmup/before.json",
+          "bytes": 21584,
+          "compressed_bytes": 2945,
+          "crc32": "617a950d",
+          "sha256": "055d97d6e614a611633963e08f7c7fde9f74882ecb7596ff107c79a7a66db490"
+        },
+        {
+          "path": "counters.warmup/window.json",
+          "bytes": 504,
+          "compressed_bytes": 314,
+          "crc32": "388f6247",
+          "sha256": "b42713b5f95bcc62224d0341d85c5e20ad900cd2687069051be54fad5940a6db"
+        },
+        {
+          "path": "data-filesystem.json",
+          "bytes": 249,
+          "compressed_bytes": 163,
+          "crc32": "a22f9e15",
+          "sha256": "95ca5a8b351a9be79d3029c333938a6727249e2050ec8c9090519c21dc095fb6"
+        },
+        {
+          "path": "filesystem-preflight.txt",
+          "bytes": 123,
+          "compressed_bytes": 109,
+          "crc32": "18dc278c",
+          "sha256": "a03ef678c0ecbcda8bdeb913152f4acd7cc6afa15ac6b7f353ea0c27f654c260"
+        },
+        {
+          "path": "go-version.txt",
+          "bytes": 33,
+          "compressed_bytes": 35,
+          "crc32": "dd48af92",
+          "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd"
+        },
+        {
+          "path": "host.json",
+          "bytes": 4633,
+          "compressed_bytes": 1245,
+          "crc32": "8008e2b9",
+          "sha256": "688d220dbb2a22abc0ee7562fbe06e65e1e3096092d9b117d9d04b06ab00c9db"
+        },
+        {
+          "path": "kernel.txt",
+          "bytes": 113,
+          "compressed_bytes": 100,
+          "crc32": "5f528912",
+          "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5"
+        },
+        {
+          "path": "result.json",
+          "bytes": 18,
+          "compressed_bytes": 20,
+          "crc32": "81529131",
+          "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28"
+        },
+        {
+          "path": "source.sha",
+          "bytes": 41,
+          "compressed_bytes": 42,
+          "crc32": "cfb4cb01",
+          "sha256": "ad9354c164f1579f4b5236ee67ef272ce329a77153c09b299ce467b3e7a679b1"
+        }
+      ]
+    }
+  ]
+}

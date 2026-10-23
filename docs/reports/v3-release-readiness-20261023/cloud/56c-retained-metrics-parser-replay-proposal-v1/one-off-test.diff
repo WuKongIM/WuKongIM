@@ -1,0 +1,212 @@
+--- c495/one-off-test.go
++++ 56c/one-off-test.go
+@@ -12,26 +12,60 @@
+ 	"os"
+ 	"path/filepath"
+-	"regexp"
++	"errors"
++	"bufio"
++	"math"
++	"strconv"
++	"strings"
+ 	"testing"
+ )
+ 
+-type retainedC495Transport func(*http.Request) (*http.Response, error)
+-
+-func (f retainedC495Transport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+-
+-// TestRetainedC495MetricsParserOffline replays nearby retained scrapes through
++type retained56CTransport func(*http.Request) (*http.Response, error)
++
++func (f retained56CTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
++
++// TestRetained56CMetricsParserOffline replays nearby retained scrapes through
+ // the real parser without opening a listener or reconstructing failed evidence.
+-func TestRetainedC495MetricsParserOffline(t *testing.T) {
++func TestRetained56CMetricsParserOffline(t *testing.T) {
+ 	root, receiptPath := os.Getenv("WK_METRICS_REPLAY_ROOT"), os.Getenv("WK_METRICS_REPLAY_RECEIPT")
+-	if root == "" || receiptPath == "" {
++	privateDir := os.Getenv("WK_METRICS_REPLAY_PRIVATE_CAUSES")
++	if root != "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1" || receiptPath == "" || privateDir == "" {
+ 		t.Fatal("explicit private replay paths required")
+ 	}
++	if err := os.Mkdir(privateDir, 0700); err != nil { t.Fatal("fresh private cause directory required") }
+ 	source, err := os.ReadFile("client.go")
+ 	if err != nil {
+ 		t.Fatal("source literal allowlist unavailable")
+ 	}
+-	allowed := map[string]bool{}
+-	for _, match := range regexp.MustCompile(`errors.New\("([^"\\]+)"\)`).FindAllSubmatch(source, -1) {
+-		allowed[string(match[1])] = true
++	sourceDigest := sha256.Sum256(source)
++	if hex.EncodeToString(sourceDigest[:]) != "797ac967cb5f771d2cd3c146d42eff579cb51570aefe91ac8b566372dcb9e2e7" { t.Fatal("parser source mismatch") }
++	reasons := map[string]string{
++		"observation metrics line limit exceeded": "parse_leaf_01",
++		"observation metrics series cardinality limit exceeded": "parse_leaf_02",
++		"observation metrics contains invalid value": "parse_leaf_03",
++		"observation metrics contains incomplete metadata-create results": "parse_leaf_04",
++		"observation metrics contains invalid sample": "parse_leaf_05",
++		"observation metrics contains invalid labels": "parse_leaf_06",
++		"observation metrics contains invalid metadata-create labels": "parse_leaf_07",
++		"observation metrics contains invalid metadata-create Slot": "parse_leaf_08",
++		"observation metrics contains invalid metadata-create counter": "parse_leaf_09",
++		"observation metrics contains invalid metadata-create result": "parse_leaf_10",
++		"observation metrics contains duplicate metadata-create Slot result": "parse_leaf_11",
++		"observation metrics aggregate overflow": "parse_leaf_12",
++		"observation metrics contains unsupported family": "parse_leaf_13",
++		"observation metrics contains invalid queue labels": "parse_leaf_14",
++		"observation metrics contains invalid queue family": "parse_leaf_15",
++		"observation metrics contains duplicate or excessive queue series": "parse_leaf_16",
++		"observation metrics contains unpaired queue series": "parse_leaf_17",
++		"observation metrics contains invalid queue utilization": "parse_leaf_18",
++		"observation metrics contains invalid sample name": "parse_leaf_19",
++		"observation metrics label cardinality limit exceeded": "parse_leaf_20",
++	}
++	expected := map[string]struct{ SHA string; Bytes int64; Mtime int64 }{
++		"metrics-first-measured-node1.prom": {SHA: "70db80a81169486c485ff5d55bcdc732581d42024ec0b287acef5ee9cd095d5e", Bytes: 1018764, Mtime: 1792712367885103281},
++		"metrics-first-measured-node2.prom": {SHA: "3fa8b1b3b9ea6681fea80b63680efce0668ee817382b49df5bee2aab54423421", Bytes: 997047, Mtime: 1792712367963172347},
++		"metrics-first-measured-node3.prom": {SHA: "041a473613664ac91476361be1b3bee6714996493f5aae6758601c618ec80eb9", Bytes: 988707, Mtime: 1792712368054456309},
++		"metrics-terminal-node1.prom": {SHA: "508461a24bbe3b3803a7f111f88d8cd8854e83a148d2961e7c472419b68a0e7a", Bytes: 1057137, Mtime: 1792712385818560785},
++		"metrics-terminal-node2.prom": {SHA: "9f98338ca5c4344cc203cf5d836be94ba30ea4eb62c5edc9f7c02c51a4e2a422", Bytes: 1043592, Mtime: 1792712385823969178},
++		"metrics-terminal-node3.prom": {SHA: "9b8ec5ea917fed81b0654e1da267f3a1dbdc5ad83696af52e117b5e7412f6d25", Bytes: 1030734, Mtime: 1792712385829271445},
+ 	}
+ 	type result struct {
+@@ -41,8 +75,8 @@
+ 		MtimeNanos          int64   `json:"mtime_nanos"`
+ 		ParseOK             bool    `json:"parse_ok"`
+-		ConstantError       string  `json:"constant_error,omitempty"`
+-		Created             uint64  `json:"created"`
+-		RuntimeQueuePercent float64 `json:"runtime_queue_percent"`
+-		ChannelQueuePercent float64 `json:"channel_queue_percent"`
++		ReasonCode          string  `json:"reason_code,omitempty"`
++		FailureKind MetricsFailureKind `json:"failure_kind,omitempty"`
++		PrivateCauseRetained bool `json:"private_cause_retained,omitempty"`
++		QueueProjection map[string]interface{} `json:"queue_projection,omitempty"`
+ 	}
+ 	var results []result
+@@ -53,30 +87,40 @@
+ 			path := filepath.Join(root, "evidence", name)
+ 			before, err := os.Lstat(path)
+-			if err != nil || !before.Mode().IsRegular() || before.Size() <= 0 || before.Size() > 2<<20 {
++			if err != nil || !before.Mode().IsRegular() || before.Size() <= 0 || before.Size() > 2<<20 || before.Size() != expected[name].Bytes || before.ModTime().UnixNano() != expected[name].Mtime {
+ 				t.Fatal("invalid retained input")
+ 			}
+-			body, err := os.ReadFile(path)
+-			if err != nil {
++			file, err := os.Open(path)
++			if err != nil { t.Fatal("retained input unavailable") }
++			body, err := io.ReadAll(io.LimitReader(file, (2<<20)+1))
++			closeErr := file.Close()
++			if err != nil || closeErr != nil || len(body) > 2<<20 {
+ 				t.Fatal("retained input unavailable")
+ 			}
+ 			digest := sha256.Sum256(body)
+-			client := NewClient(Config{APIAddrs: []string{"http://retained.invalid"}, HTTPClient: &http.Client{Transport: retainedC495Transport(func(r *http.Request) (*http.Response, error) {
++			if hex.EncodeToString(digest[:]) != expected[name].SHA { t.Fatal("retained digest mismatch") }
++			client := NewClient(Config{APIAddrs: []string{"http://retained.invalid"}, HTTPClient: &http.Client{Transport: retained56CTransport(func(r *http.Request) (*http.Response, error) {
+ 				calls++
+-				if r.URL.Path != "/metrics" {
++				if calls > 6 || r.Method != http.MethodGet || r.URL.Scheme != "http" || r.URL.Host != "retained.invalid" || r.URL.Path != "/metrics" || r.URL.RawQuery != "" || r.URL.User != nil {
+ 					t.Fatal("unexpected replay path")
+ 				}
+ 				return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(body)), Request: r}, nil
+ 			})}})
+-			snapshot, parseErr := client.Metrics(context.Background())
+-			entry := result{Name: name, SHA256: hex.EncodeToString(digest[:]), Bytes: before.Size(), MtimeNanos: before.ModTime().UnixNano(), ParseOK: parseErr == nil, Created: uint64(snapshot.MetaCreatedTotal["created"]), RuntimeQueuePercent: snapshot.RuntimeQueueMaxPercent, ChannelQueuePercent: snapshot.ChannelWorkerQueueMaxPercent}
++			_, parseErr := client.Metrics(context.Background())
++			entry := result{Name: name, SHA256: hex.EncodeToString(digest[:]), Bytes: before.Size(), MtimeNanos: before.ModTime().UnixNano(), ParseOK: parseErr == nil}
+ 			if parseErr != nil {
+-				entry.ConstantError = "redacted_nonliteral_error"
+-				if allowed[parseErr.Error()] {
+-					entry.ConstantError = parseErr.Error()
+-				}
+-				t.Errorf("cut=%s node=%d retained_parser_failed", cut, node)
+-			}
++                entry.FailureKind = MetricsFailure(parseErr).Bounded()
++                entry.ReasonCode = "unmapped_private"
++                cause := errors.Unwrap(parseErr)
++                if cause != nil {
++                    if code, known := reasons[cause.Error()]; known { entry.ReasonCode = code }
++                    encoded, encodeErr := json.Marshal(map[string]string{"cause": cause.Error()})
++                    if encodeErr != nil || len(encoded) > 64<<10 || retained56WriteExclusive(filepath.Join(privateDir, name+".cause.json"), append(encoded, '\n')) != nil { t.Fatal("private cause receipt failed") }
++                    entry.PrivateCauseRetained = true
++                    if strings.Contains(cause.Error(), "queue") { entry.QueueProjection = retained56QueueProjection(body) }
++                }
++                t.Errorf("cut=%s node=%d retained_parser_failed kind=%s reason=%s", cut, node, entry.FailureKind, entry.ReasonCode)
++            }
+ 			after, err := os.Lstat(path)
+-			again, readErr := os.ReadFile(path)
++			again, readErr := retained56ReadBounded(path)
+ 			if err != nil || readErr != nil || !after.Mode().IsRegular() || after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) || sha256.Sum256(again) != digest {
+ 				t.Fatal("retained input mutated")
+@@ -93,6 +137,68 @@
+ 		Results                    []result `json:"results"`
+ 	}{Calls: calls, Results: results}, "", "  ")
+-	if err != nil || os.WriteFile(receiptPath, append(encoded, '\n'), 0600) != nil {
++	if err != nil || retained56WriteExclusive(receiptPath, append(encoded, '\n')) != nil {
+ 		t.Fatal("receipt failed")
+ 	}
+ }
++
++
++func retained56WriteExclusive(path string, encoded []byte) error {
++    file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
++    if err != nil { return err }
++    _, writeErr := file.Write(encoded)
++    closeErr := file.Close()
++    if writeErr != nil { return writeErr }
++    return closeErr
++}
++
++// Diagnostic only; labels stay in memory and cannot change the real parser result.
++func retained56QueueProjection(body []byte) map[string]interface{} {
++    names := [4]string{"wukongim_runtime_pool_queue_depth", "wukongim_runtime_pool_queue_capacity", "wukongim_channelv2_worker_queue_depth", "wukongim_channelv2_worker_queue_capacity"}
++    values := [4]map[string]float64{}
++    scanner := bufio.NewScanner(bytes.NewReader(body))
++    scanner.Buffer(make([]byte, 4096), maxObservationMetricLineBytes)
++    for scanner.Scan() {
++        line := strings.TrimSpace(scanner.Text())
++        index := -1
++        for i, allowed := range names { if observationMetricName(line) == allowed { index = i; break } }
++        if index < 0 { continue }
++        token, text, err := splitObservationMetricSample(line)
++        if err != nil { return map[string]interface{}{"complete": false} }
++        _, labels, err := parseObservationMetricToken(token)
++        if err != nil { return map[string]interface{}{"complete": false} }
++        value, err := strconv.ParseFloat(text, 64)
++        if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value < 0 { return map[string]interface{}{"complete": false} }
++        key, err := json.Marshal(labels)
++        if err != nil { return map[string]interface{}{"complete": false} }
++        if values[index] == nil { values[index] = make(map[string]float64) }
++        if _, exists := values[index][string(key)]; exists || len(values[index]) >= maxObservationQueueSeries { return map[string]interface{}{"complete": false} }
++        values[index][string(key)] = value
++    }
++    if scanner.Err() != nil { return map[string]interface{}{"complete": false} }
++    rows := make([]map[string]interface{}, 0, 2)
++    for pair := 0; pair < 2; pair++ {
++        i := pair*2
++        depths, capacities := values[i], values[i+1]
++        missingCapacity, missingDepth, over, zero := 0, 0, 0, 0
++        for key, depth := range depths {
++            capacity, ok := capacities[key]
++            if !ok { missingCapacity++ } else if capacity > 0 && depth > capacity { over++ }
++        }
++        for key, capacity := range capacities {
++            if _, ok := depths[key]; !ok { missingDepth++ }
++            if capacity == 0 { zero++ }
++        }
++        rows = append(rows, map[string]interface{}{"depth_family": names[i], "capacity_family": names[i+1], "depth_series": len(depths), "capacity_series": len(capacities), "missing_capacity": missingCapacity, "missing_depth": missingDepth, "depth_above_positive_capacity": over, "zero_capacity": zero})
++    }
++    return map[string]interface{}{"complete": true, "rows": rows}
++}
++
++
++func retained56ReadBounded(path string) ([]byte, error) {
++    file, err := os.Open(path)
++    if err != nil { return nil, errors.New("retained read failed") }
++    body, readErr := io.ReadAll(io.LimitReader(file, (2<<20)+1))
++    closeErr := file.Close()
++    if readErr != nil || closeErr != nil || len(body) > 2<<20 { return nil, errors.New("retained read failed") }
++    return body, nil
++}

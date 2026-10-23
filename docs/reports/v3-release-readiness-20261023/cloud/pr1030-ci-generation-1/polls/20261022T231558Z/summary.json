@@ -1,0 +1,189 @@
+[
+  {
+    "id": 39869765510,
+    "name": "Safety Automation - Issue Agent PR Signal",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120140957158,
+        "name": "Emit credential-free wake-up",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": []
+  },
+  {
+    "id": 39869765462,
+    "name": "Three-Node Chat Lifecycle Regression pull_request 1030 attempt 1",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120140958182,
+        "name": "PR performance baseline evidence",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120140958430,
+        "name": "PR messaging unit and race",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120140958579,
+        "name": "PR three-node correctness",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120140959786,
+        "name": "Fixed Linux SEND diagnosis",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120140960213,
+        "name": "Nightly direct 500 QPS qualification",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 120141065040,
+        "name": "PR 500 QPS / mixed-send",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120141065079,
+        "name": "PR 500 QPS / tcp-sendack",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120141065201,
+        "name": "PR 500 QPS / channel-append",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120143088511,
+        "name": "PR three-node regression",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12465937403,
+        "name": "500qps-tcp-sendack-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+        "bytes": 8110,
+        "digest": "sha256:cecd30b06363f61077eee5733d01aca8860b709f6f624d0f4c6f2b673c21229a"
+      },
+      {
+        "id": 12465847720,
+        "name": "500qps-mixed-send-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+        "bytes": 231670,
+        "digest": "sha256:df653da4649ce9446c0e8431c255b88e600f01cc1cbd2c0c8a10a9ab8a88ee12"
+      },
+      {
+        "id": 12465573753,
+        "name": "three-node-pr-1030-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+        "bytes": 228677232,
+        "digest": "sha256:b780571adc870f5b158d6e74d782383dfb94c3cff996637fdba818802526f6f9"
+      },
+      {
+        "id": 12464969047,
+        "name": "500qps-channel-append-a514c73b4c950b9ead150c28ff08ef89123f5238-1",
+        "bytes": 26510,
+        "digest": "sha256:f003f7c5e5267808f82a421c5c1fbc442c13fb751f3231aced93c3f80c02024a"
+      }
+    ]
+  },
+  {
+    "id": 39869765431,
+    "name": "Safety Automation - Validate Native Package Preview",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120140957058,
+        "name": "Build and install deb/rpm preview",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120142826074,
+        "name": "Exercise Rocky Linux 9 package lifecycle",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120142826076,
+        "name": "Exercise AlmaLinux 9 package lifecycle",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120142826160,
+        "name": "Exercise Debian 12 package lifecycle",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120142826300,
+        "name": "Exercise Ubuntu 24.04 package lifecycle",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12466245987,
+        "name": "wukongim-native-package-preview-39869765431",
+        "bytes": 77886009,
+        "digest": "sha256:b6a20935999fd7551bb8bfa6d623a2236c0c0e3f3477a9b4d8e72fcdab86cde9"
+      }
+    ]
+  },
+  {
+    "id": 39869765472,
+    "name": "V3 Candidate Regression pull_request 1030 attempt 1",
+    "status": "in_progress",
+    "conclusion": null,
+    "attempt": 1,
+    "jobs": [
+      {
+        "id": 120140957700,
+        "name": "Candidate scripts integration",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 120140958124,
+        "name": "Candidate default suite (go-unit)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 120143702815,
+        "name": "Candidate migration and messaging E2E",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12466535264,
+        "name": "v3-candidate-default-39869765472-1",
+        "bytes": 8256,
+        "digest": "sha256:a9fe508f21d71b8224c3d465018ea6ff7a35ac2d76b0a7eab5c44f231f12a5dd"
+      }
+    ]
+  }
+]

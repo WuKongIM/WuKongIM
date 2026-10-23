@@ -1,0 +1,11 @@
+{
+  "c495_controls_unchanged": {
+    "launcher.sh": "136e133510841bff54ff40ce7f1b533926f84519aecb5a66f8bfa9e31d628650",
+    "supervise.py": "13bbe2127e67522d5ed68dae86e1d2954b5b2fde5f83ac313cda0ec5b81fc25c",
+    "exact_build_guard.py": "4a158ee458b7e0e7f4bb68c84ac42cafe3200bf6d52af5658a7739bda8c408da"
+  },
+  "sampler_v1_manifest_sha256": "4931566fc978e5faccbf15ea9690252cf7bbce32657b9cabac73a955924e3ac8",
+  "sampler_v2_manifest_sha256": "a7d12b14e42a2ba98c5dd293e233e3b0e848e19d7a3ebc7d476f079baa1b012a",
+  "sampler_v3_manifest_sha256": "83d363a94bcd4b99239371acd6f4cdadd399bfce7eb337e870e0bb98a026afb8",
+  "no_mutating_operations_on_previous_runs": true
+}

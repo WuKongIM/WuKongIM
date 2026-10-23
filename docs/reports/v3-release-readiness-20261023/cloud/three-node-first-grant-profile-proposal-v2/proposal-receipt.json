@@ -1,0 +1,18 @@
+{
+  "schema": "wukongim/three-node-first-grant-profile-proposal/v2",
+  "v1_manifest_sha256": "4931566fc978e5faccbf15ea9690252cf7bbce32657b9cabac73a955924e3ac8",
+  "helper_sha256": "d371c1712b2de2d72e0d03a322870cf2a9626956c02beaa53f473d35c9a45bed",
+  "watcher_sha256": "516cdfbbb77de8b590d43807e084da4f855620f8aad9d092ed3083ecdaa67204",
+  "watcher_diff_sha256": "fb0d26545ef9c3783f0b68d0332c3f4a22b0172684006d903d8dc1d68eb91f1a",
+  "correction": "claim-owner-only status writes; atomic claim before source/launcher/node guards after owner/output safety; unclaimed closed stdout only",
+  "all_request_caps_timers_formats_unchanged": true,
+  "profile_nodes": [
+    1,
+    2,
+    3
+  ],
+  "maximum_HTTP_requests": 6,
+  "maximum_profile_body_bytes": 37748736,
+  "new_run_source_binding": "provided separately by exact run proposal; not run",
+  "requires_root_review_before_real_use": true
+}

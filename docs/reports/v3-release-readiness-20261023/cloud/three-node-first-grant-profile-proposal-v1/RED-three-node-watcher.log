@@ -1,0 +1,122 @@
+FFFFF
+======================================================================
+FAIL: test_one_receipt_launches_three_correct_nodes (__main__.ThreeNode.test_one_receipt_launches_three_correct_nodes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py", line 29, in test_one_receipt_launches_three_correct_nodes
+    row,count=self.run_case();self.assertEqual(count,3);self.assertEqual(row['status'],'complete');self.assertEqual([n['node_id'] for n in row['nodes']],[1,2,3]);self.assertTrue(all(n['capture_joined'] and n['helper_exit_status']==0 for n in row['nodes']))
+              ~~~~~~~~~~~~~^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py", line 25, in run_case
+    try:stdout,stderr=p.communicate(timeout=4);self.assertEqual(p.returncode,0,stderr.decode());row=json.loads((run/'profile-driver-status.json').read_text());return row,len(list(root.glob('node-?.pid')))
+                                               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 0 : usage: watch-three-node-first-grant.proposed.py [-h] --run-dir RUN_DIR
+                                                --out-dir OUT_DIR
+                                                --source-root SOURCE_ROOT
+                                                --binary BINARY
+                                                --helper HELPER
+                                                --source-revision SOURCE_REVISION
+                                                --binary-sha256 BINARY_SHA256
+                                                --helper-sha256 HELPER_SHA256
+                                                --run-hash RUN_HASH
+                                                --assignment-hash ASSIGNMENT_HASH
+                                                --generation GENERATION
+                                                --base-port BASE_PORT
+                                                --owner-pgid OWNER_PGID
+                                                --deadline-mono DEADLINE_MONO
+watch-three-node-first-grant.proposed.py: error: unrecognized arguments: --launcher-sha256 fd3906588c2365de43f8855fcffc278adc53e9b7033c6b28961a6ac059d68d5e
+
+
+======================================================================
+FAIL: test_stale_receipt_and_wrong_source_launch_none (__main__.ThreeNode.test_stale_receipt_and_wrong_source_launch_none) (opts={'lag': 3})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py", line 32, in test_stale_receipt_and_wrong_source_launch_none
+    with self.subTest(opts=opts):row,count=self.run_case(**opts);self.assertEqual(count,0);self.assertEqual(row['status'],'skipped')
+                                           ~~~~~~~~~~~~~^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py", line 25, in run_case
+    try:stdout,stderr=p.communicate(timeout=4);self.assertEqual(p.returncode,0,stderr.decode());row=json.loads((run/'profile-driver-status.json').read_text());return row,len(list(root.glob('node-?.pid')))
+                                               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 0 : usage: watch-three-node-first-grant.proposed.py [-h] --run-dir RUN_DIR
+                                                --out-dir OUT_DIR
+                                                --source-root SOURCE_ROOT
+                                                --binary BINARY
+                                                --helper HELPER
+                                                --source-revision SOURCE_REVISION
+                                                --binary-sha256 BINARY_SHA256
+                                                --helper-sha256 HELPER_SHA256
+                                                --run-hash RUN_HASH
+                                                --assignment-hash ASSIGNMENT_HASH
+                                                --generation GENERATION
+                                                --base-port BASE_PORT
+                                                --owner-pgid OWNER_PGID
+                                                --deadline-mono DEADLINE_MONO
+watch-three-node-first-grant.proposed.py: error: unrecognized arguments: --launcher-sha256 fd3906588c2365de43f8855fcffc278adc53e9b7033c6b28961a6ac059d68d5e
+
+
+======================================================================
+FAIL: test_stale_receipt_and_wrong_source_launch_none (__main__.ThreeNode.test_stale_receipt_and_wrong_source_launch_none) (opts={'bad_source': True})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py", line 32, in test_stale_receipt_and_wrong_source_launch_none
+    with self.subTest(opts=opts):row,count=self.run_case(**opts);self.assertEqual(count,0);self.assertEqual(row['status'],'skipped')
+                                           ~~~~~~~~~~~~~^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py", line 25, in run_case
+    try:stdout,stderr=p.communicate(timeout=4);self.assertEqual(p.returncode,0,stderr.decode());row=json.loads((run/'profile-driver-status.json').read_text());return row,len(list(root.glob('node-?.pid')))
+                                               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 0 : usage: watch-three-node-first-grant.proposed.py [-h] --run-dir RUN_DIR
+                                                --out-dir OUT_DIR
+                                                --source-root SOURCE_ROOT
+                                                --binary BINARY
+                                                --helper HELPER
+                                                --source-revision SOURCE_REVISION
+                                                --binary-sha256 BINARY_SHA256
+                                                --helper-sha256 HELPER_SHA256
+                                                --run-hash RUN_HASH
+                                                --assignment-hash ASSIGNMENT_HASH
+                                                --generation GENERATION
+                                                --base-port BASE_PORT
+                                                --owner-pgid OWNER_PGID
+                                                --deadline-mono DEADLINE_MONO
+watch-three-node-first-grant.proposed.py: error: unrecognized arguments: --launcher-sha256 fd3906588c2365de43f8855fcffc278adc53e9b7033c6b28961a6ac059d68d5e
+
+
+======================================================================
+FAIL: test_terminal_stop_cancels_and_joins_three_helpers (__main__.ThreeNode.test_terminal_stop_cancels_and_joins_three_helpers)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py", line 41, in test_terminal_stop_cancels_and_joins_three_helpers
+    self.assertEqual(len(list(root.glob('node-?.pid'))),3);(run/'evidence/profile-stop').write_text('fixture-stop\n');stdout,stderr=p.communicate(timeout=4);row=json.loads((run/'profile-driver-status.json').read_text());self.assertEqual(row['status'],'partial');self.assertTrue(all(n['capture_joined'] for n in row['nodes']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 != 3
+
+======================================================================
+FAIL: test_wrong_observed_slot_node_launches_none (__main__.ThreeNode.test_wrong_observed_slot_node_launches_none)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py", line 34, in test_wrong_observed_slot_node_launches_none
+    row,count=self.run_case(bad_slot=True);self.assertEqual(count,0);self.assertEqual(row['status'],'skipped')
+              ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v1/watcher_coordination_test.py", line 25, in run_case
+    try:stdout,stderr=p.communicate(timeout=4);self.assertEqual(p.returncode,0,stderr.decode());row=json.loads((run/'profile-driver-status.json').read_text());return row,len(list(root.glob('node-?.pid')))
+                                               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 0 : usage: watch-three-node-first-grant.proposed.py [-h] --run-dir RUN_DIR
+                                                --out-dir OUT_DIR
+                                                --source-root SOURCE_ROOT
+                                                --binary BINARY
+                                                --helper HELPER
+                                                --source-revision SOURCE_REVISION
+                                                --binary-sha256 BINARY_SHA256
+                                                --helper-sha256 HELPER_SHA256
+                                                --run-hash RUN_HASH
+                                                --assignment-hash ASSIGNMENT_HASH
+                                                --generation GENERATION
+                                                --base-port BASE_PORT
+                                                --owner-pgid OWNER_PGID
+                                                --deadline-mono DEADLINE_MONO
+watch-three-node-first-grant.proposed.py: error: unrecognized arguments: --launcher-sha256 fd3906588c2365de43f8855fcffc278adc53e9b7033c6b28961a6ac059d68d5e
+
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.221s
+
+FAILED (failures=5)

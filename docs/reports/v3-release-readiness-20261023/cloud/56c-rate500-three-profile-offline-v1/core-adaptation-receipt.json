@@ -1,0 +1,18 @@
+{
+  "old_decoder_sha256": "d946a4a217d7126c85e6df8eb253982f05128435eef5e08877c277292e120389",
+  "old_classifier_sha256": "5f6bf0f7292bb7fd317791009ce9c19f8bf52a5b53b6f538c9d7c2c2b074187b",
+  "decoder_functions_fields_packed_stamp_and_old_load_byte_equal": true,
+  "new_load_change": "only function name/parameter and first input path expression; remaining function body byte equal",
+  "classification_core_change": "only function wrapper, returned summary and removal of three historic observed-count assertions; retained original Conn.Call holder assertion and all classification priority/branch logic",
+  "removed_historical_assertions": [
+    "assert sum(worker.values())==320 and worker['unclassified']==0",
+    "assert sum(recovery.values())==12 and recovery['unclassified']==0",
+    "assert sum(owner_context.values())==4 and owner_context['other']==0"
+  ],
+  "decoder_base_sha256": "ab0f57a786bf12ea8a56d4c3ce76d4ea443e1ed4262b0b3b57d92d3185ddcd86",
+  "adapted_load_sha256": "4ba7ee1b58ab03f863436e8d1f68d00da3a557fa0bc6e528968413da025fc584",
+  "classification_core_generated_sha256": "8c2800ebc4337cc4b814912afcefb2925a1790ee58a302f06da78bae930f246b",
+  "initial_implementation_adapter_sha256": "a4acdebee1931b87173abb5273a0d93056e6d418bf4c955c205c5aad3c0d163a",
+  "final_adapter_sha256": "b9e113316a15fc22a293bd5ae790b2dcae980deb2fdf291d3058fddc678ad2d9",
+  "path_guard_fix": "Only OS canonical /tmp and /var aliases accepted; all other symlink paths/ancestors rejected; unchanged tests show GREEN."
+}

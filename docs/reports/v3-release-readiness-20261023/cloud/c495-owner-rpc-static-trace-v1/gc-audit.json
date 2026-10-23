@@ -1,0 +1,408 @@
+{
+  "source": "fixed GC families from six existing retained scrapes only",
+  "first_grant_unix_seconds": "1792708147.269544",
+  "exact_warning_unix_seconds": "1792708160.098",
+  "snapshots": [
+    {
+      "cut": "first-measured",
+      "node": 1,
+      "input_sha256": "e1abfaf05440f145807d27529ec3bbc22963475d0c8e15c7367949d32712dc55",
+      "input_bytes": 1024098,
+      "input_mtime_ns": 1792708152568321045,
+      "gc_summary": {
+        "go_gc_duration_seconds{quantile=\"0\"}": "2.925e-05",
+        "go_gc_duration_seconds{quantile=\"0.25\"}": "6.9625e-05",
+        "go_gc_duration_seconds{quantile=\"0.5\"}": "0.000191625",
+        "go_gc_duration_seconds{quantile=\"0.75\"}": "0.003552417",
+        "go_gc_duration_seconds{quantile=\"1\"}": "0.012135458",
+        "go_gc_duration_seconds_sum": "0.082485789",
+        "go_gc_duration_seconds_count": "37",
+        "go_memstats_last_gc_time_seconds": "1.792708150904446e+09"
+      },
+      "runtime_gc_pause_histogram": [
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"6.399999999999999e-08\"}",
+          "value": "0"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"6.399999999999999e-07\"}",
+          "value": "0"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"7.167999999999999e-06\"}",
+          "value": "6"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"8.191999999999999e-05\"}",
+          "value": "49"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.0009175039999999999\"}",
+          "value": "59"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.010485759999999998\"}",
+          "value": "73"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.11744051199999998\"}",
+          "value": "74"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"+Inf\"}",
+          "value": "74"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_sum",
+          "value": "0.02446208"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_count",
+          "value": "74"
+        }
+      ],
+      "forced_or_cycle_metric_samples": [],
+      "last_gc_seconds_after_first_grant": "3.634902",
+      "last_gc_seconds_relative_to_exact_presence_warning": "-9.193554",
+      "maximum_reported_pause_ms": "12.135458000",
+      "gc_count_below_256_history_capacity": true
+    },
+    {
+      "cut": "first-measured",
+      "node": 2,
+      "input_sha256": "c9d562ba05f060e6de601f937bbe1e94c3d9dae693a4f1b592c84f1c9651f984",
+      "input_bytes": 992279,
+      "input_mtime_ns": 1792708152685422316,
+      "gc_summary": {
+        "go_gc_duration_seconds{quantile=\"0\"}": "1.9416e-05",
+        "go_gc_duration_seconds{quantile=\"0.25\"}": "4.3e-05",
+        "go_gc_duration_seconds{quantile=\"0.5\"}": "7.3875e-05",
+        "go_gc_duration_seconds{quantile=\"0.75\"}": "0.002349625",
+        "go_gc_duration_seconds{quantile=\"1\"}": "0.013712792",
+        "go_gc_duration_seconds_sum": "0.055806957",
+        "go_gc_duration_seconds_count": "34",
+        "go_memstats_last_gc_time_seconds": "1.7927081526110091e+09"
+      },
+      "runtime_gc_pause_histogram": [
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"6.399999999999999e-08\"}",
+          "value": "0"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"6.399999999999999e-07\"}",
+          "value": "0"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"7.167999999999999e-06\"}",
+          "value": "5"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"8.191999999999999e-05\"}",
+          "value": "54"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.0009175039999999999\"}",
+          "value": "58"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.010485759999999998\"}",
+          "value": "66"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.11744051199999998\"}",
+          "value": "68"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"+Inf\"}",
+          "value": "68"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_sum",
+          "value": "0.028993664000000002"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_count",
+          "value": "68"
+        }
+      ],
+      "forced_or_cycle_metric_samples": [],
+      "last_gc_seconds_after_first_grant": "5.3414651",
+      "last_gc_seconds_relative_to_exact_presence_warning": "-7.4869909",
+      "maximum_reported_pause_ms": "13.712792000",
+      "gc_count_below_256_history_capacity": true
+    },
+    {
+      "cut": "first-measured",
+      "node": 3,
+      "input_sha256": "2289b07d12bb2b76bc659252d04db103f9872b0013f971cb7720f21888d79342",
+      "input_bytes": 979383,
+      "input_mtime_ns": 1792708152729040221,
+      "gc_summary": {
+        "go_gc_duration_seconds{quantile=\"0\"}": "2.0208e-05",
+        "go_gc_duration_seconds{quantile=\"0.25\"}": "4.6042e-05",
+        "go_gc_duration_seconds{quantile=\"0.5\"}": "9.6625e-05",
+        "go_gc_duration_seconds{quantile=\"0.75\"}": "0.003992917",
+        "go_gc_duration_seconds{quantile=\"1\"}": "0.012520208",
+        "go_gc_duration_seconds_sum": "0.096675663",
+        "go_gc_duration_seconds_count": "35",
+        "go_memstats_last_gc_time_seconds": "1.792708152426605e+09"
+      },
+      "runtime_gc_pause_histogram": [
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"6.399999999999999e-08\"}",
+          "value": "0"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"6.399999999999999e-07\"}",
+          "value": "0"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"7.167999999999999e-06\"}",
+          "value": "8"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"8.191999999999999e-05\"}",
+          "value": "52"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.0009175039999999999\"}",
+          "value": "58"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.010485759999999998\"}",
+          "value": "65"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.11744051199999998\"}",
+          "value": "70"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"+Inf\"}",
+          "value": "70"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_sum",
+          "value": "0.05966336"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_count",
+          "value": "70"
+        }
+      ],
+      "forced_or_cycle_metric_samples": [],
+      "last_gc_seconds_after_first_grant": "5.157061",
+      "last_gc_seconds_relative_to_exact_presence_warning": "-7.671395",
+      "maximum_reported_pause_ms": "12.520208000",
+      "gc_count_below_256_history_capacity": true
+    },
+    {
+      "cut": "terminal",
+      "node": 1,
+      "input_sha256": "038d4a5cb3c809be385656ab2feff26941b50f172be8edccfc1da3c77e3c6a64",
+      "input_bytes": 1075478,
+      "input_mtime_ns": 1792708170305087678,
+      "gc_summary": {
+        "go_gc_duration_seconds{quantile=\"0\"}": "2.925e-05",
+        "go_gc_duration_seconds{quantile=\"0.25\"}": "7.1917e-05",
+        "go_gc_duration_seconds{quantile=\"0.5\"}": "0.000446041",
+        "go_gc_duration_seconds{quantile=\"0.75\"}": "0.00540025",
+        "go_gc_duration_seconds{quantile=\"1\"}": "0.012135458",
+        "go_gc_duration_seconds_sum": "0.124165954",
+        "go_gc_duration_seconds_count": "43",
+        "go_memstats_last_gc_time_seconds": "1.792708167851764e+09"
+      },
+      "runtime_gc_pause_histogram": [
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"6.399999999999999e-08\"}",
+          "value": "0"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"6.399999999999999e-07\"}",
+          "value": "0"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"7.167999999999999e-06\"}",
+          "value": "6"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"8.191999999999999e-05\"}",
+          "value": "55"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.0009175039999999999\"}",
+          "value": "65"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.010485759999999998\"}",
+          "value": "84"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.11744051199999998\"}",
+          "value": "86"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"+Inf\"}",
+          "value": "86"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_sum",
+          "value": "0.039578368"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_count",
+          "value": "86"
+        }
+      ],
+      "forced_or_cycle_metric_samples": [],
+      "last_gc_seconds_after_first_grant": "20.582220",
+      "last_gc_seconds_relative_to_exact_presence_warning": "7.753764",
+      "maximum_reported_pause_ms": "12.135458000",
+      "gc_count_below_256_history_capacity": true
+    },
+    {
+      "cut": "terminal",
+      "node": 2,
+      "input_sha256": "f4d7bfce73d71da22c87bf1a562b3654c8b2a4a6c89fd0e126e78cfeda762298",
+      "input_bytes": 1032893,
+      "input_mtime_ns": 1792708170310826030,
+      "gc_summary": {
+        "go_gc_duration_seconds{quantile=\"0\"}": "1.9416e-05",
+        "go_gc_duration_seconds{quantile=\"0.25\"}": "4.7332e-05",
+        "go_gc_duration_seconds{quantile=\"0.5\"}": "8.5208e-05",
+        "go_gc_duration_seconds{quantile=\"0.75\"}": "0.003088541",
+        "go_gc_duration_seconds{quantile=\"1\"}": "0.013712792",
+        "go_gc_duration_seconds_sum": "0.072837872",
+        "go_gc_duration_seconds_count": "40",
+        "go_memstats_last_gc_time_seconds": "1.792708168712523e+09"
+      },
+      "runtime_gc_pause_histogram": [
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"6.399999999999999e-08\"}",
+          "value": "0"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"6.399999999999999e-07\"}",
+          "value": "0"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"7.167999999999999e-06\"}",
+          "value": "6"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"8.191999999999999e-05\"}",
+          "value": "62"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.0009175039999999999\"}",
+          "value": "67"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.010485759999999998\"}",
+          "value": "78"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.11744051199999998\"}",
+          "value": "80"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"+Inf\"}",
+          "value": "80"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_sum",
+          "value": "0.031878912"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_count",
+          "value": "80"
+        }
+      ],
+      "forced_or_cycle_metric_samples": [],
+      "last_gc_seconds_after_first_grant": "21.442979",
+      "last_gc_seconds_relative_to_exact_presence_warning": "8.614523",
+      "maximum_reported_pause_ms": "13.712792000",
+      "gc_count_below_256_history_capacity": true
+    },
+    {
+      "cut": "terminal",
+      "node": 3,
+      "input_sha256": "a97302dbb26046c2e8ddece8225cd5e2f47434db1fcd413340c0353e8addd348",
+      "input_bytes": 1028245,
+      "input_mtime_ns": 1792708170316457256,
+      "gc_summary": {
+        "go_gc_duration_seconds{quantile=\"0\"}": "2.0208e-05",
+        "go_gc_duration_seconds{quantile=\"0.25\"}": "4.6792e-05",
+        "go_gc_duration_seconds{quantile=\"0.5\"}": "9.7125e-05",
+        "go_gc_duration_seconds{quantile=\"0.75\"}": "0.005750042",
+        "go_gc_duration_seconds{quantile=\"1\"}": "0.012520208",
+        "go_gc_duration_seconds_sum": "0.113969496",
+        "go_gc_duration_seconds_count": "40",
+        "go_memstats_last_gc_time_seconds": "1.7927081674956539e+09"
+      },
+      "runtime_gc_pause_histogram": [
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"6.399999999999999e-08\"}",
+          "value": "0"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"6.399999999999999e-07\"}",
+          "value": "0"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"7.167999999999999e-06\"}",
+          "value": "8"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"8.191999999999999e-05\"}",
+          "value": "60"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.0009175039999999999\"}",
+          "value": "66"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.010485759999999998\"}",
+          "value": "74"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"0.11744051199999998\"}",
+          "value": "80"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_bucket{le=\"+Inf\"}",
+          "value": "80"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_sum",
+          "value": "0.071123968"
+        },
+        {
+          "series": "go_sched_pauses_total_gc_seconds_count",
+          "value": "80"
+        }
+      ],
+      "forced_or_cycle_metric_samples": [],
+      "last_gc_seconds_after_first_grant": "20.2261099",
+      "last_gc_seconds_relative_to_exact_presence_warning": "7.3976539",
+      "maximum_reported_pause_ms": "12.520208000",
+      "gc_count_below_256_history_capacity": true
+    }
+  ],
+  "cadence_source": {
+    "default_observation_seconds": 5,
+    "nextGC_initial": "measured start",
+    "nextGC_after_success": "previous nextGC plus1hour",
+    "first_due_round": "three concurrent ForceGC calls before respective Metrics reads",
+    "preflight": "each target is ForceGCd before measurement/user workload startup",
+    "ForceGC": "GET /debug/pprof/heap?gc=1; bounded heap profile response discarded"
+  },
+  "interpretation": [
+    "All reported maximum GC-cycle STW pause totals are below14ms, providing evidence against a single250ms STW pause as the direct RPC deadline cause.",
+    "GC counts at terminal are43,40,40, below the runtime256-cycle pause history; quantile1 derives from that retained pause history via the pinned Prometheus collector.",
+    "First-cut lastGC offsets are3.634902,5.3414651,5.157061 seconds; terminal lastGC offsets20.582220,21.442979,20.2261099 seconds. These identify only each cut latestGC, not the timing or kind of all intervening GCs.",
+    "No forced-cycle metric is present in these cuts. LastGC cannot distinguish automatic from forcedGC.",
+    "Full runtime.GC concurrent work, heap profile construction/transfer, allocation assist, OS scheduling and cumulative nonGC delays can outlast a small STW pause; no causality or absence of such interference is established.",
+    "The exact presence warning at+12.828456s cannot be matched to one GC from two LastGC observations. CPU profile/GOR timestamps do not fill the missing event timeline.",
+    "Do not remove first due forcedGC, increase RPC budgets or alter qualification gates on this evidence alone."
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "go_version": "go version go1.25.11 darwin/arm64",
+  "go_binary_sha256": "b65655bf3d496007755bd132e9611f9e5e64c46e33d89fcafdef916e299587fd",
+  "gofmt_binary_sha256": "91ab6531a3d3389e3fc84f8d877d0f0d23466f8ee5c94cf57049a4cd85ef90ed",
+  "go_environment": "{\n\t\"GOARCH\": \"arm64\",\n\t\"GOMOD\": \"/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-metrics-fetch-diagnostics/go.mod\",\n\t\"GOOS\": \"darwin\",\n\t\"GOTOOLCHAIN\": \"local\",\n\t\"GOVERSION\": \"go1.25.11\",\n\t\"GOWORK\": \"off\"\n}\n",
+  "primary_checkout_head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+  "primary_checkout_status": []
+}

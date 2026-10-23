@@ -1,0 +1,3 @@
+# Test-first bounded adapter failure cases
+
+Before adapter implementation: exact approved path mapping; missing path; symlink; byte/SHA/mtime mismatch; compressed input cap; gzip decode failure; truncated protobuf; 4 MiB decompression cap; wrong sample type/value shape; identity label omission; fresh delivery/recovery/holder counts without historical fixed totals; mutually-exclusive precedence with overlapping named cohorts; unknown stacks remain unclassified; CPU sample units/weights; per-profile output bound and closed error class. All fixtures are synthetic in-memory or temporary files, no real input decoded by tests.

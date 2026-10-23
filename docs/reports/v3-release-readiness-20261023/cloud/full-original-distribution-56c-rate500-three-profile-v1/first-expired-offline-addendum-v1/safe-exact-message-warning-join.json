@@ -1,0 +1,61 @@
+{
+  "schema": "wukongim/56c-single-expired-exact-warning-join/v1",
+  "fingerprint": "562ccbccd13140cd9a4a1ca28610ea89",
+  "unique_durable_message": {
+    "message_id": "2113414966718509057",
+    "message_seq": "1",
+    "replicas_matching": 3,
+    "clientno_fingerprint_matches": true
+  },
+  "canonical_log_window": {
+    "first_grant": "2026-10-23T07:39:22.590978+08:00",
+    "terminal_cut": "2026-10-23T07:39:45.494767+08:00"
+  },
+  "exact_message_warning_match_count": 1,
+  "exact_message_warning_matches": [
+    {
+      "node_id": 3,
+      "at": "2026-10-23T07:39:33.369000+08:00",
+      "message_id": "2113414966718509057",
+      "message_seq": "1",
+      "phase": "presence",
+      "result": "timeout",
+      "mode": "durable",
+      "fixed_error_reason": "deadline_exceeded",
+      "within_firstgrant_terminal_window": true,
+      "exact_db_messageID_and_seq_match": true
+    }
+  ],
+  "canonical_nodes": [
+    {
+      "node_id": 1,
+      "sha256": "b3a241104e9d674c37e5f5e49d4c297b4031199c1a46e26f17422df9eb871fa3",
+      "bytes": 3611,
+      "in_window_incomplete_warnings": 9,
+      "outside_window_incomplete_warnings": 0,
+      "unparseable_candidates": 0
+    },
+    {
+      "node_id": 2,
+      "sha256": "b0d90b2fb4427cb225154b34442e05363ff432b23e1d4648450910ad631f402f",
+      "bytes": 7218,
+      "in_window_incomplete_warnings": 17,
+      "outside_window_incomplete_warnings": 0,
+      "unparseable_candidates": 0
+    },
+    {
+      "node_id": 3,
+      "sha256": "cc29192e3706f3ad1beaba2382d8b64e1dd385c48f1944ace5d5c49262ef1c09",
+      "bytes": 72763,
+      "in_window_incomplete_warnings": 10,
+      "outside_window_incomplete_warnings": 4,
+      "unparseable_candidates": 180
+    }
+  ],
+  "status": "exact_message_warning_found",
+  "limits": [
+    "durable row is not proof of online RECV",
+    "warning phase is observed outcome, not root cause",
+    "one group three copies only; no retry or new service request"
+  ]
+}

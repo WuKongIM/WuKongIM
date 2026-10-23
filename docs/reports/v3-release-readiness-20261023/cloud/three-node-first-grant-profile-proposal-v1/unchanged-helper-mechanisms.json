@@ -1,0 +1,26 @@
+{
+  "schema": "wukongim/three-node-helper-mechanism-preservation/v1",
+  "original_helper_sha256": "7b07cc119282fe0b1f263914d721bc86c60f0ca6cb1766ebbf60cb3c297e4ff9",
+  "new_helper_sha256": "d371c1712b2de2d72e0d03a322870cf2a9626956c02beaa53f473d35c9a45bed",
+  "byte_equal_function_bodies": {
+    "normalize_rfc3339_nano": "cdd5512add00613b6fe5817bf015fea1e37b2537efad8e36ff8d242f8e0a3ab8",
+    "normalize_loopback_url": "ecb13944e7b46122987f172eee7f79d70d4e8a74b4121f98d24f44ba3be4fe88",
+    "read_phase_state": "e860b5c9ba7e16963fef38f594e764eaf0806c8c6374947a7779e12e9344d7f1",
+    "terminate_children": "6989354f3f8a020b6f35560b9b4843e38b51238aeddf02c82375fc35bfad260e",
+    "remove_temporary_files": "bfddd070e8b43a169eb57996fbded61e2b25be58853a06e6584923610e74a5e6",
+    "handle_signal": "fdd6d6f7a4931ec8e6fefd384276b9f4a81e94b0f42991c95271c6bc9439ee68",
+    "cleanup_on_exit": "ff7af2c7c68c61ef9150cd81f621c7bbcb4806798a724a31c92da5c32ced849b",
+    "write_authorization_header": "f7dd7d466c9d639fd6da5469377e33c32a6b4e1f04e7836026d449ec51c94de6"
+  },
+  "connect_timeout_seconds": 2,
+  "cpu_seconds": 10,
+  "CPU_max_time_seconds": 15,
+  "goroutine_nominal_timer_seconds": 5,
+  "goroutine_max_time_seconds": 5,
+  "CPU_max_bytes": 8388608,
+  "goroutine_max_bytes": 4194304,
+  "goroutine_format": "debug0gzipprotobuf",
+  "heap_context_disabled": true,
+  "changed_fields": "explicit node-id parse/default2/validation and all identity-producinglabels+filenames only",
+  "reason_not_byte_reused": "original literalnode2 falselyidentified other physicalnodes; rootexplicitly chose minimalproduceradapter"
+}

@@ -1,0 +1,77 @@
+{
+  "schema": "wukongim/56c-exact-source-selection/v1",
+  "at_utc": "2026-10-22T23:15:27.054533+00:00",
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics",
+  "head": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "real_git_directory": true,
+  "source_clean": true,
+  "source_changes_vs_27fa": [
+    "CHANGELOG.md",
+    "cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go",
+    "docs/development/FLOW_INDEX.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "internal/bench/FLOW.md",
+    "internal/bench/chatlifecycle/FLOW.md",
+    "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go",
+    "internal/bench/chatlifecycle/metrics_fetch_failure.go",
+    "internal/bench/chatlifecycle/production_controller.go",
+    "internal/bench/chatlifecycle/production_meta.go",
+    "internal/bench/target/client.go",
+    "internal/bench/target/metrics_failure.go",
+    "internal/bench/target/metrics_failure_diagnostics_test.go"
+  ],
+  "scope": "13 reviewed diagnostic/test/documentation paths; no runtime qualification claim",
+  "clone_commands": [
+    {
+      "name": "clone",
+      "argv": [
+        "git",
+        "clone",
+        "--shared",
+        "--no-checkout",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+        "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM",
+      "started_at": "2026-10-22T23:15:25.507513+00:00",
+      "finished_at": "2026-10-22T23:15:25.542135+00:00",
+      "elapsed_seconds": 0.034537792089395225,
+      "exit_status": 0,
+      "timeout_seconds": 60,
+      "max_output_bytes": 1048576,
+      "stdout_bytes": 0,
+      "stderr_bytes": 117
+    },
+    {
+      "name": "checkout",
+      "argv": [
+        "git",
+        "checkout",
+        "--detach",
+        "56c287493a5e9fc3df65ea0631b99612672cd678"
+      ],
+      "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-56c-diagnostics",
+      "started_at": "2026-10-22T23:15:25.542146+00:00",
+      "finished_at": "2026-10-22T23:15:26.270367+00:00",
+      "elapsed_seconds": 0.7282337920041755,
+      "exit_status": 0,
+      "timeout_seconds": 60,
+      "max_output_bytes": 1048576,
+      "stdout_bytes": 0,
+      "stderr_bytes": 77
+    }
+  ],
+  "assets76_equal_c495_and_original_cloud": true,
+  "baseline_public_manifest_sha256": "ece8616d6e2075eea66ad000889d43ab63e7711fbbcb21c3966d6223181b0aba",
+  "baseline_payload_count": 19,
+  "original_assets_manifest_sha256": "4839da0bde46cb9d14b48fbb2f4c3a4aea7ca642ef119f8873da4e6eed45f08d",
+  "original_bundle_zip_sha256": "b5d5503195572d6569e150cfb15f7018cd30294c9caaa108eea965c25cef75fa",
+  "original_bundle_tar_sha256": "cb6bf5ccc33a0be9950cffe4810490b9f21e7370658fa8836adfee5da1e3b4b3",
+  "original_cloud_assets_directly_compared": 76,
+  "prior_clones_or_binaries_modified": false,
+  "build_started": false,
+  "source_delta_sha256": "580b9278cf56422bc32c11fba89c17c635354544b0cbe1c22b9d7f10faf9ab03",
+  "source_delta_matches_reviewed_candidate": true,
+  "real_git_directory_not_symlink": true
+}

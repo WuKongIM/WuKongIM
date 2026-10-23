@@ -1,0 +1,64 @@
+{
+  "schema": "wukongim/56c-single-expired-offline-proposal/v1",
+  "at_utc": "2026-10-22T23:59:42.049526+00:00",
+  "future_output": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-addendum-v1",
+  "source_revision": "56c287493a5e9fc3df65ea0631b99612672cd678",
+  "source_tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "native_cli_sha256": "8e43a41f44eff071629287d7721fd8fb6b92aeee65dbaa3e8478b27a880308be",
+  "frozen_run_manifest_sha256": "12ff2d138559c914b64209b021cda0af1f63bfe1dfee34eac4172615850d50b0",
+  "selected_sample": {
+    "worker_id": 1,
+    "domain": 4,
+    "generation": 1,
+    "ordinal": 214,
+    "group_index": 1735,
+    "fingerprint": "562ccbccd13140cd9a4a1ca28610ea89"
+  },
+  "hash_lookup": {
+    "candidate_enumeration": 10000,
+    "candidate_attempts": 3335,
+    "unique_matches": 1,
+    "CPU_seconds": 0.011748999999999999,
+    "private_matches_sha256": "b4d0d1a5c41ba4404a0110d052e1fb669c7632fe07f37365d68b2866c7c73bf1",
+    "safe_identity_sha256": "4842853400fa20311784b1f80537ee5ca820c270c7614d8339083b296b4c6a8e",
+    "helper_sha256": "b00bc13c14a084c022c927977d061cf06d6f2a143f52f1ff46e8d769e00fc950"
+  },
+  "driver_sha256": "d1e0f575a852f267cb40ab8a2ec75a8e9d2fe71e8705452d815abfde1ed98c12",
+  "private_full_diff_sha256": "988b30b6e0e41fe29a1b1e78b9313eb2f10e06a163d46f73beeb4e890353d2a4",
+  "pinned_expected_inventory_sha256": "c6795b3ba45d2e8100a09885d6b6a8a5e1af070e861141bc322bf852d4747cf4",
+  "expected_original_files": 36,
+  "expected_original_bytes": 66550277,
+  "source_binding_sha256": "3f6b842d8482ad9030d6f54d7bb05dbde9fdba73afcb300ca9d6f293c7d5a47b",
+  "canonical_warn_inventory_sha256": "7818867832d2f1445b0079569d3263930b3a1919e90499d3524043c739df1b0a",
+  "before_any_CLI_open": [
+    "full frozen inventory pin/current equality",
+    "fresh output/exact source clean+CLI SHA",
+    "all copies mapping matches original size+SHA"
+  ],
+  "budgets": {
+    "outer_total_seconds": 90,
+    "work_ceiling_seconds": 85,
+    "TERM_grace": 2,
+    "KILL_join": 1,
+    "maximum_queries": 3,
+    "groups": 1,
+    "nodes": 3,
+    "per_query_timeout_seconds": 10,
+    "GOMAXPROCS": 1,
+    "SQL_limit": 100,
+    "require_has_more": false,
+    "retry_or_expansion": false,
+    "warn_log_count": 3,
+    "warn_file_max_bytes": 4194304,
+    "warn_total_max_bytes": 12582912,
+    "warn_parsing_in_same_work_budget": true
+  },
+  "original_DB_never_opened": true,
+  "DB_copies_created": 0,
+  "actual_DB_queries_executed": 0,
+  "proposed_invocation": [
+    "python3",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-56c-rate500-three-profile-v1/first-expired-offline-proposal-v1/PRIVATE_offline_db_inspect.proposed.py"
+  ],
+  "root_later_single_invocation_approval_required": true
+}

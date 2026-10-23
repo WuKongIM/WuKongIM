@@ -1,0 +1,7 @@
+# Exact56c one-expired-message offline association
+
+The single approved driver completed in0.382091 seconds, using exactly three read-only queries on independently verified private copies of one group. Each replica returned one identical durable row: decimal MessageID2113414966718509057, seq1. The reconstructed ClientMsgNo fingerprint matches the retained expiry sample562ccbccd13140cd9a4a1ca28610ea89.
+
+That exact MessageID+seq matches one canonical node3 warning at07:39:33.369+08:00: presence / timeout / durable / deadline_exceeded. It lies inside this run's first-grant07:39:22.590978→terminal07:39:45.494767 window. This is a same-run exact-message association rather than a same-group/time inference. Durable existence does not prove online RECV; the warning identifies the observed failure phase, and the underlying reason for presence timeout remains separate.
+
+All36 original files/66,550,277bytes retained identical path/size/SHA/mtime against the pinned inventory before, after and in an independent final recheck. Every copy matched the full original path/size/SHA mapping before any CLI opened it. Original databases were never engine-opened. All three query children and outer child were joined; ownedPGID71330 was absent on independent recheck. Canonical warning logs retained identical bytes/SHA/mtime. Source/proposal/frozen12payload run proof remain unchanged. No query retry, other group, service, profile decode, network probe or cloud action occurred. All raw identities, SQL, DB copies, CLI output and private error bytes remain private.

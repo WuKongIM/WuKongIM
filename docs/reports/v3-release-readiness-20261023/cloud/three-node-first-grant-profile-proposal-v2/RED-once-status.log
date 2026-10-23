@@ -1,0 +1,86 @@
+test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) ... 
+  test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='wrong_source') ... FAIL
+  test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='wrong_launcher') ... FAIL
+  test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='wrong_slot') ... FAIL
+  test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='unsafe_owner') ... FAIL
+  test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='unsafe_output') ... FAIL
+
+======================================================================
+FAIL: test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='wrong_source')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v2/once_status_test.py", line 16, in test_existing_claim_status_survives_all_guard_failures
+    stdout,stderr=p.communicate(timeout=3);self.assertEqual(p.returncode,0,stderr.decode());self.assertEqual((status.read_bytes(),status.stat().st_mtime_ns),before);self.assertEqual(len(list(root.glob('node-?.pid'))),0);self.assertNotIn(b'synthetic-fixture-token',stdout+stderr)
+                                                                                            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (b'{\n  "schema": "wukongim/temporary-three-n[2082 chars]6172) != (b'{"original_first_status":true}\n', 1792711457692491509)
+
+First differing element 0:
+b'{\n  "schema": "wukongim/temporary-three-n[2060 chars]n}\n'
+b'{"original_first_status":true}\n'
+
+Diff is 2395 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='wrong_launcher')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v2/once_status_test.py", line 16, in test_existing_claim_status_survives_all_guard_failures
+    stdout,stderr=p.communicate(timeout=3);self.assertEqual(p.returncode,0,stderr.decode());self.assertEqual((status.read_bytes(),status.stat().st_mtime_ns),before);self.assertEqual(len(list(root.glob('node-?.pid'))),0);self.assertNotIn(b'synthetic-fixture-token',stdout+stderr)
+                                                                                            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (b'{\n  "schema": "wukongim/temporary-three-n[2084 chars]4649) != (b'{"original_first_status":true}\n', 1792711458225228270)
+
+First differing element 0:
+b'{\n  "schema": "wukongim/temporary-three-n[2062 chars]n}\n'
+b'{"original_first_status":true}\n'
+
+Diff is 2397 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='wrong_slot')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v2/once_status_test.py", line 16, in test_existing_claim_status_survives_all_guard_failures
+    stdout,stderr=p.communicate(timeout=3);self.assertEqual(p.returncode,0,stderr.decode());self.assertEqual((status.read_bytes(),status.stat().st_mtime_ns),before);self.assertEqual(len(list(root.glob('node-?.pid'))),0);self.assertNotIn(b'synthetic-fixture-token',stdout+stderr)
+                                                                                            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (b'{\n  "schema": "wukongim/temporary-three-n[3576 chars]6268) != (b'{"original_first_status":true}\n', 1792711458452601854)
+
+First differing element 0:
+b'{\n  "schema": "wukongim/temporary-three-n[3554 chars]n}\n'
+b'{"original_first_status":true}\n'
+
+Diff is 4029 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='unsafe_owner')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v2/once_status_test.py", line 16, in test_existing_claim_status_survives_all_guard_failures
+    stdout,stderr=p.communicate(timeout=3);self.assertEqual(p.returncode,0,stderr.decode());self.assertEqual((status.read_bytes(),status.stat().st_mtime_ns),before);self.assertEqual(len(list(root.glob('node-?.pid'))),0);self.assertNotIn(b'synthetic-fixture-token',stdout+stderr)
+                                                                                            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (b'{\n  "schema": "wukongim/temporary-three-n[2090 chars]2184) != (b'{"original_first_status":true}\n', 1792711458583549458)
+
+First differing element 0:
+b'{\n  "schema": "wukongim/temporary-three-n[2068 chars]n}\n'
+b'{"original_first_status":true}\n'
+
+Diff is 2403 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_existing_claim_status_survives_all_guard_failures (once_status_test.OnceStatus.test_existing_claim_status_survives_all_guard_failures) (case='unsafe_output')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/wukongim-v3-readiness-20261023/cloud/three-node-first-grant-profile-proposal-v2/once_status_test.py", line 16, in test_existing_claim_status_survives_all_guard_failures
+    stdout,stderr=p.communicate(timeout=3);self.assertEqual(p.returncode,0,stderr.decode());self.assertEqual((status.read_bytes(),status.stat().st_mtime_ns),before);self.assertEqual(len(list(root.glob('node-?.pid'))),0);self.assertNotIn(b'synthetic-fixture-token',stdout+stderr)
+                                                                                            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (b'{\n  "schema": "wukongim/temporary-three-n[2080 chars]6959) != (b'{"original_first_status":true}\n', 1792711458634391951)
+
+First differing element 0:
+b'{\n  "schema": "wukongim/temporary-three-n[2058 chars]n}\n'
+b'{"original_first_status":true}\n'
+
+Diff is 2393 characters long. Set self.maxDiff to None to see it.
+
+----------------------------------------------------------------------
+Ran 1 test in 0.987s
+
+FAILED (failures=5)

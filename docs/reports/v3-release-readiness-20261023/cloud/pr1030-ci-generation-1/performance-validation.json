@@ -1,0 +1,254 @@
+{
+  "tcp-sendack": {
+    "artifact_id": 12465937403,
+    "schema": "scheduled-arrival/v1",
+    "phase": "measurement",
+    "qualification": true,
+    "windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.215399,
+        "scheduled_to_start_p99_ms": 1.07485,
+        "service_p99_ms": 177.534353
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.201627,
+        "scheduled_to_start_p99_ms": 1.073855,
+        "service_p99_ms": 177.532318
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.205619,
+        "scheduled_to_start_p99_ms": 1.076812,
+        "service_p99_ms": 177.522892
+      }
+    ],
+    "one_second_cohorts": 180,
+    "warmup_windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 178.215294,
+        "scheduled_to_start_p99_ms": 1.07333,
+        "service_p99_ms": 177.549476
+      }
+    ],
+    "source_sha": "a514c73b4c950b9ead150c28ff08ef89123f5238",
+    "binary_sha256_file": "b3f9efb9f81bf4496a3592001af98cd72d296b2de69489927bf2ca662f3ccc03  /home/runner/work/_temp/500qps-tcp-sendack/benchmark.test\n",
+    "go_version": "go version go1.25.11 linux/amd64",
+    "visible_CPUs": "4",
+    "CPU_model": "AMD EPYC 9V74 80-Core Processor",
+    "data_filesystem": {
+      "filesystems": [
+        {
+          "target": "/",
+          "source": "/dev/sda1",
+          "fstype": "ext4",
+          "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+        }
+      ]
+    }
+  },
+  "mixed-send": {
+    "artifact_id": 12465847720,
+    "schema": "scheduled-arrival/v1",
+    "phase": "measurement",
+    "qualification": true,
+    "windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 13.919224,
+        "scheduled_to_start_p99_ms": 1.27564,
+        "service_p99_ms": 12.431841
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 16.907432,
+        "scheduled_to_start_p99_ms": 1.56251,
+        "service_p99_ms": 15.349902
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 18.856614,
+        "scheduled_to_start_p99_ms": 1.87547,
+        "service_p99_ms": 18.371656
+      }
+    ],
+    "one_second_cohorts": 180,
+    "warmup_windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 15.934153,
+        "scheduled_to_start_p99_ms": 1.259752,
+        "service_p99_ms": 14.404654
+      }
+    ],
+    "source_sha": "a514c73b4c950b9ead150c28ff08ef89123f5238",
+    "binary_sha256_file": "ee5dc6a8e456b51f5abea18949f3135b4b4074ac05653561f748c0f14858439e  /home/runner/work/_temp/500qps-mixed-send/benchmark.test\n",
+    "go_version": "go version go1.25.11 linux/amd64",
+    "visible_CPUs": "4",
+    "CPU_model": "AMD EPYC 7763 64-Core Processor",
+    "data_filesystem": {
+      "filesystems": [
+        {
+          "target": "/",
+          "source": "/dev/sda1",
+          "fstype": "ext4",
+          "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+        }
+      ]
+    },
+    "counter_window": {
+      "counter_scope": "post-warmup through completed handlers; rolling trace and one-second sampler enabled; see flight receipt for actual instrumentation interval",
+      "counter_window_seconds": 180.034378977,
+      "ended_at": "2026-10-22T23:13:44.687669688Z",
+      "go_version": "go1.25.11",
+      "goarch": "amd64",
+      "gomaxprocs": 4,
+      "goos": "linux",
+      "handlers_completed": true,
+      "offered_qps": 500,
+      "operations": 90000,
+      "profile_enabled": true,
+      "schema": "mixed-send-counters/v1",
+      "started_at": "2026-10-22T23:10:44.653290711Z"
+    }
+  },
+  "channel-append": {
+    "artifact_id": 12464969047,
+    "schema": "scheduled-arrival/v1",
+    "phase": "measurement",
+    "qualification": true,
+    "windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 177.114895,
+        "scheduled_to_start_p99_ms": 1.076197,
+        "service_p99_ms": 176.933123
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 213.579886,
+        "scheduled_to_start_p99_ms": 1.08706,
+        "service_p99_ms": 212.099553
+      },
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 202.95365,
+        "scheduled_to_start_p99_ms": 1.116473,
+        "service_p99_ms": 202.727138
+      }
+    ],
+    "one_second_cohorts": 180,
+    "warmup_windows": [
+      {
+        "planned": 30000,
+        "started": 30000,
+        "completed": 30000,
+        "errors": 0,
+        "dropped": 0,
+        "target_per_second": 500,
+        "started_per_second": 500,
+        "scheduled_to_completion_p99_ms": 223.39188,
+        "scheduled_to_start_p99_ms": 1.071716,
+        "service_p99_ms": 222.975908
+      }
+    ],
+    "source_sha": "a514c73b4c950b9ead150c28ff08ef89123f5238",
+    "binary_sha256_file": "020d665df688785b40561c17d6e5467322d5e4da8a9508e2a232d3de8cae44b4  /home/runner/work/_temp/500qps-channel-append/benchmark.test\n",
+    "go_version": "go version go1.25.11 linux/amd64",
+    "visible_CPUs": "4",
+    "CPU_model": "AMD EPYC 9V74 80-Core Processor",
+    "data_filesystem": {
+      "filesystems": [
+        {
+          "target": "/",
+          "source": "/dev/nvme0n1p1",
+          "fstype": "ext4",
+          "options": "rw,relatime,discard,journal_async_commit,nobarrier,errors=remount-ro,commit=30,data=writeback"
+        }
+      ]
+    },
+    "counter_window": {
+      "counter_scope": "post-setup through completed handlers; includes boundary snapshot and benchmark timer overhead; three-node aggregate; replication stages sampled 1/32; physical batches unsampled",
+      "counter_window_seconds": 180.003009635,
+      "ended_at": "2026-10-22T23:13:13.923001791Z",
+      "go_version": "go1.25.11",
+      "goarch": "amd64",
+      "gomaxprocs": 4,
+      "goos": "linux",
+      "handlers_completed": true,
+      "offered_qps": 500,
+      "operations": 90000,
+      "profile_enabled": false,
+      "schema": "channel-append-counters/v1",
+      "started_at": "2026-10-22T23:10:13.919992156Z"
+    }
+  }
+}

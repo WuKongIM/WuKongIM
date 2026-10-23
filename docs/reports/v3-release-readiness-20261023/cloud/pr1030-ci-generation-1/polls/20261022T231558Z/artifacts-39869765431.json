@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 12466245987,
+      "node_id": "MDg6QXJ0aWZhY3QxMjQ2NjI0NTk4Nw==",
+      "name": "wukongim-native-package-preview-39869765431",
+      "size_in_bytes": 77886009,
+      "url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12466245987",
+      "archive_download_url": "https://api.github.com/repos/WuKongIM/WuKongIM/actions/artifacts/12466245987/zip",
+      "expired": false,
+      "digest": "sha256:b6a20935999fd7551bb8bfa6d623a2236c0c0e3f3477a9b4d8e72fcdab86cde9",
+      "created_at": "2026-10-22T23:13:04Z",
+      "updated_at": "2026-10-22T23:13:04Z",
+      "expires_at": "2026-11-05T23:13:02Z",
+      "workflow_run": {
+        "id": 39869765431,
+        "repository_id": 638054601,
+        "head_repository_id": 638054601,
+        "head_branch": "codex/v3-metrics-fetch-diagnostics",
+        "head_sha": "56c287493a5e9fc3df65ea0631b99612672cd678"
+      }
+    }
+  ]
+}

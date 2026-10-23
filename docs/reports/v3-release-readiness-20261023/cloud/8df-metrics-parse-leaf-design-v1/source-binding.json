@@ -1,0 +1,60 @@
+{
+  "head": "8dfcd35b7d604fb5d3da3d75e36ab267e2f4b1bf",
+  "source_ref": "origin/main observed; local main differs and is not used",
+  "tree": "582e5bc024147b32aa68074d04c041391af89b96",
+  "tree_equal_to_reviewed56": true,
+  "valid_FLOW_scopes": {
+    "internal/bench/FLOW.md": "subtree",
+    "internal/bench/chatlifecycle/FLOW.md": "package"
+  },
+  "source_files": {
+    "AGENTS.md": {
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    "internal/bench/FLOW.md": {
+      "bytes": 6836,
+      "sha256": "52cf2d48010eac69056be43ed5679bae9e50d0aa04b0ddd12e4199e6a99e76e4"
+    },
+    "internal/bench/chatlifecycle/FLOW.md": {
+      "bytes": 6750,
+      "sha256": "f938521d9c3129762f11ac914f5172ae1ea8df53c615f13e3d9615424ed91673"
+    },
+    "internal/bench/target/client.go": {
+      "bytes": 53374,
+      "sha256": "797ac967cb5f771d2cd3c146d42eff579cb51570aefe91ac8b566372dcb9e2e7"
+    },
+    "internal/bench/target/metrics_failure.go": {
+      "bytes": 3461,
+      "sha256": "7a075f5707876778c2264f053be43c3ac93a6337eb006e5891673fab93d0d98a"
+    },
+    "internal/bench/target/metrics_failure_diagnostics_test.go": {
+      "bytes": 15365,
+      "sha256": "aa1bf6986fbd9771eae13031dd1446bf0e2ab52689c4dee620d58b4801ee3ae5"
+    },
+    "internal/bench/chatlifecycle/metrics_fetch_failure.go": {
+      "bytes": 1567,
+      "sha256": "bd47805a57d94ffc9e34f63532bf86e49e3269586554917fad4fa96afa258bac"
+    },
+    "internal/bench/chatlifecycle/metrics_fetch_diagnostics_test.go": {
+      "bytes": 18375,
+      "sha256": "279d490730ff7f65aef693013ec44c7ab10152fb15307ba87b47219a59390f4a"
+    },
+    "internal/bench/chatlifecycle/production_meta.go": {
+      "bytes": 12443,
+      "sha256": "8179c7163669a032c92eb9c780e3941bb2bcda81a61d2ebd8b2242e2bf5f55b7"
+    },
+    "internal/bench/chatlifecycle/production_controller.go": {
+      "bytes": 34215,
+      "sha256": "0c7a41292bc61a0b68ddea2e6a2cff4d78bbd4293f0395d77674c128ef8f9b09"
+    },
+    "cmd/wkcli/internal/benchmark/metrics_fetch_diagnostics_test.go": {
+      "bytes": 1388,
+      "sha256": "3ec85fc977ef3065d2b53695471961795616cf381b5a64be28a1e8bb8b64f4ff"
+    }
+  },
+  "source_snapshots_copied": false,
+  "implementation_or_tests_executed": false,
+  "current_replay_manifest_sha256": "e45495d7fc2f1409480ecb90d73bdc3f42829ecffc9688fc199cd5453e26bcd1",
+  "historical_evidence_modified": false
+}

@@ -1,0 +1,32 @@
+{
+  "events": [
+    {
+      "Time": "2026-10-23T07:53:12.594757+08:00",
+      "Action": "start",
+      "Package": "github.com/WuKongIM/WuKongIM/internal/bench/target"
+    },
+    {
+      "Time": "2026-10-23T07:53:13.109404+08:00",
+      "Action": "run",
+      "Package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+      "Test": "TestRetained56CMetricsParserOffline"
+    },
+    {
+      "Time": "2026-10-23T07:53:13.137267+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+      "Test": "TestRetained56CMetricsParserOffline",
+      "Elapsed": 0.03
+    },
+    {
+      "Time": "2026-10-23T07:53:13.139462+08:00",
+      "Action": "pass",
+      "Package": "github.com/WuKongIM/WuKongIM/internal/bench/target",
+      "Elapsed": 0.545
+    }
+  ],
+  "stdout_bytes": 1424,
+  "stderr_bytes": 0,
+  "test_invocations": 1,
+  "raw_log_handling": "bounded originals retained privately; only fixed event fields public"
+}

@@ -1,0 +1,181 @@
+{
+  "schema": "wukongim/offline-profile-aggregate/v1",
+  "goroutine_profile": {
+    "file_sha256": "286b86b2bb05b5e836a1247cf48aecb543ce7f5a314d9325d4094ab4432c458a",
+    "bytes": 22937,
+    "time_utc": "2026-10-22T23:39:27.746700000Z",
+    "time_unix_nanos": "1792712367746700000",
+    "duration_nanos": "0",
+    "end_utc": "2026-10-22T23:39:27.746700000Z",
+    "period": 1,
+    "types": [
+      {
+        "type": "goroutine",
+        "unit": "count"
+      }
+    ]
+  },
+  "goroutines_total": 2498,
+  "aggregated_stack_records": 141,
+  "delivery_runWorker_total": 320,
+  "delivery_runWorker_disjoint": {
+    "idle_plan_dequeue": 285,
+    "presence_remote_authority_RPC": 23,
+    "presence_parallel_leader_join": 7,
+    "presence_registry_quota_wait": 3,
+    "owner_push_RPC": 2,
+    "presence_UID_flight_join": 0,
+    "unclassified": 0
+  },
+  "recoverPage_total": 16,
+  "recoverPage_disjoint": {
+    "registry_quota_wait": 12,
+    "executing_cohort_owner_RPC": 4,
+    "UID_flight_join": 0,
+    "unclassified": 0
+  },
+  "actual_owner_read_holder_total": 4,
+  "actual_owner_read_holder_context_disjoint": {
+    "inbound_presence_RPC": 4
+  },
+  "actual_owner_read_operation_disjoint": {
+    "batch_ReadOwnerRoutesByTargets": 4
+  },
+  "actual_owner_read_source_line_disjoint": {
+    "196": 4
+  },
+  "Conn_Call_total": 144,
+  "Conn_Call_nearest_non_transport_product_frame_disjoint": [
+    {
+      "function": "internal/access/node.(*Client).EndpointsByTargets",
+      "line": 704,
+      "count": 43
+    },
+    {
+      "function": "pkg/cluster/channels.(*QuorumPeerLink).Exchange",
+      "line": 45,
+      "count": 22
+    },
+    {
+      "function": "pkg/slot/proxy.callAuthoritativeRPCWithStatuses[go.shape.struct { Status string \"json:\\\"status\\\"\"; LeaderID uint64 \"json:\\\"leader_id,omitempty\\\"\"; Meta *github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelRuntimeMeta \"json:\\\"meta,omitempty\\\"\"; Metas []github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelRuntimeMeta \"json:\\\"metas,omitempty\\\"\"; Cursor github.com/WuKongIM/WuKongIM/pkg/db/meta.ChannelRuntimeMetaCursor \"json:\\\"cursor,omitempty\\\"\"; Done bool \"json:\\\"done,omitempty\\\"\" }]",
+      "line": 92,
+      "count": 20
+    },
+    {
+      "function": "internal/access/node.(*Client).ForwardSendBatch",
+      "line": 120,
+      "count": 19
+    },
+    {
+      "function": "pkg/slot/proxy.(*Store).callSendPermission",
+      "line": 332,
+      "count": 19
+    },
+    {
+      "function": "pkg/cluster/propose.(*NetworkForwardClient).forward",
+      "line": 39,
+      "count": 14
+    },
+    {
+      "function": "internal/access/node.(*Client).ReadOwnerRoutesByTargets",
+      "line": 60,
+      "count": 4
+    },
+    {
+      "function": "internal/access/node.(*Client).PushBatch",
+      "line": 56,
+      "count": 2
+    },
+    {
+      "function": "internal/access/node.(*Client).callService",
+      "line": 788,
+      "count": 1
+    }
+  ],
+  "delivery_enqueue_callers": 0,
+  "Slot_runApplyTask_callers": 10,
+  "recovery_symbol_line_aggregates_overlapping": [
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).admitRecoveryPage",
+      "line": 156,
+      "count": 12
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+      "line": 58,
+      "count": 12
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets.func1",
+      "line": 68,
+      "count": 16
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).EndpointsByTargets",
+      "line": 100,
+      "count": 16
+    },
+    {
+      "function": "internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage",
+      "line": 196,
+      "count": 4
+    },
+    {
+      "function": "internal/infra/cluster.(*PresenceRecoveryOwners).RecoverRoutesByTargets",
+      "line": 106,
+      "count": 4
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).executeRecoveryCohort",
+      "line": 228,
+      "count": 4
+    },
+    {
+      "function": "internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+      "line": 62,
+      "count": 4
+    }
+  ],
+  "limits": "Disjoint only within named cohorts; cohorts overlap. One node at one point. Source line proves which branch is sampled, not quota dimension, elapsed waits, remote serving cause, sampled-message identity or Linux/whole-window capacity. CPU nanoseconds are on-CPU samples, never disk/off-CPU latency. No raw stack records/labels/identities are published.",
+  "selected_symbol_counts_overlapping": [
+    {
+      "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+      "count": 1820
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+      "count": 1820
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).recoverPage",
+      "count": 16
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).GoN.func1",
+      "count": 13
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).admitRecoveryPage",
+      "count": 12
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/internal/usecase/presence.(*AuthorityRecovery).executeRecoveryCohort",
+      "count": 4
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceRecoveryOwners).readOwnerPage",
+      "count": 4
+    },
+    {
+      "function": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Client).ReadOwnerRoutesByTargets",
+      "count": 4
+    }
+  ],
+  "node_id": 3,
+  "capture_metadata_binding": "53ff0a211caa40fc162e85e521bb3598bbaa0e847515f6ddca7fb01b1916a188",
+  "request_status": "HTTP200/curl0/complete",
+  "first_grant": "2026-10-23T07:39:22.590978+08:00",
+  "terminal_supervisor_at": "2026-10-22T23:39:45.812617+00:00",
+  "active_SEND_end_unknown": true,
+  "mutex_nearest_product_symbol_line_disjoint": []
+}
