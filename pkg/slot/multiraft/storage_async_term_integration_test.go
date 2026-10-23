@@ -13,19 +13,31 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-// Failure matrix precedes the async-storage change: an old pending append must
-// not stop a higher-term leader message, consume the new leader's submitted
-// Future when it finally completes, apply undurable bytes, or rewrite an old
-// Future after leadership loss. Only public Runtime, Storage, Transport and
-// Future contracts drive this three-voter cluster. Two remote votes are needed:
-// the candidate's self-vote response is itself waiting for durable storage.
+// An old pending append must not stop higher-term leadership loss or consume a
+// new leader's submitted Future when it finally completes. Separate public
+// scenarios keep both proofs within the unchanged four-Ready ownership limit:
+// a higher-term leader heartbeat, and same-term CheckQuorum loss followed by a
+// real election. The latter avoids an unrelated follower HardState write.
 func TestRuntimeStorageOldTermAppendCannotResolveNewTermFuture(t *testing.T) {
+	t.Run("higher_term_leader_message", func(t *testing.T) {
+		storageTermFutureScenario(t, false)
+	})
+	t.Run("quorum_loss_then_new_term_future", func(t *testing.T) {
+		storageTermFutureScenario(t, true)
+	})
+}
+
+// storageTermFutureScenario uses only Runtime, Storage, Transport and Future
+// contracts. Two remote votes are needed because the candidate's self-vote
+// response is itself waiting for durable storage.
+func storageTermFutureScenario(t *testing.T, quorumLoss bool) {
+	t.Helper()
 	store := newStorageFenceGate()
 	fsm := &storageAsyncFSM{internalFakeStateMachine: &internalFakeStateMachine{}, store: store}
 	transport := &storageTermTransport{sent: make(chan raftpb.Message, 128)}
 	rt, err := New(Options{
 		NodeID: 1, Workers: 1, TickInterval: 10 * time.Millisecond, Transport: transport,
-		Raft: RaftOptions{ElectionTick: 10, HeartbeatTick: 1, PreVote: false, CheckQuorum: false},
+		Raft: RaftOptions{ElectionTick: 10, HeartbeatTick: 1, PreVote: false, CheckQuorum: quorumLoss},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -68,6 +80,8 @@ func TestRuntimeStorageOldTermAppendCannotResolveNewTermFuture(t *testing.T) {
 		peers[id] = peer
 	}
 	allowVotes := true
+	dropPeerReplies := false
+	var droppedPeerReplies [4]int
 	holdPeer3AppendReplies := false
 	var heldPeer3Reply *raftpb.Message
 	votes := make(map[uint64]raftpb.Message, 2)
@@ -102,6 +116,10 @@ func TestRuntimeStorageOldTermAppendCannotResolveNewTermFuture(t *testing.T) {
 		}
 		reply, ok := peer.reply(t, m)
 		if ok {
+			if dropPeerReplies && (reply.Type == raftpb.MsgAppResp || reply.Type == raftpb.MsgHeartbeatResp) {
+				droppedPeerReplies[reply.From]++
+				return
+			}
 			if reply.From == 2 && reply.Type == raftpb.MsgAppResp && !reply.Reject {
 				peer2AckTerm, peer2AckIndex = reply.Term, reply.Index
 			}
@@ -175,23 +193,30 @@ func TestRuntimeStorageOldTermAppendCannotResolveNewTermFuture(t *testing.T) {
 	}
 	t.Log("term/Future setup: current-term leader and controlled old append confirmed")
 
-	// Peers 2 and 3 elect peer 2 using their durable shared prefix. Node 1's
-	// uncommitted tail does not prevent that legitimate two-voter majority.
-	higherTerm := baseline.Term + 1
-	for _, peer := range peers {
-		peer.term, peer.voted = higherTerm, 2
-	}
 	allowVotes = false
+	if quorumLoss {
+		// The real ticker detects the loss of both peers' acknowledgements.
+		// No local MsgCheckQuorum or MsgHup is injected. Stepping down in the
+		// same term needs no additional HardState storage owner.
+		dropPeerReplies = true
+	} else {
+		// Peers 2 and 3 elect peer 2 using their durable shared prefix. Node
+		// 1's uncommitted tail does not prevent that two-voter majority.
+		higherTerm := baseline.Term + 1
+		for _, peer := range peers {
+			peer.term, peer.voted = higherTerm, 2
+		}
+		if err := rt.Step(ctx, Envelope{SlotID: slotID, Message: raftpb.Message{
+			Type: raftpb.MsgHeartbeat, From: 2, To: 1, Term: higherTerm, Commit: baseline.CommitIndex,
+		}}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	// Both remote votes remain available, but only peer 2 returns append ACKs
 	// until release. Peer 3 persists its entries while its ACK is delayed. With
 	// the local append also held, the new leader cannot commit its noop and
 	// consume another Ready owner merely to manufacture this test interleaving.
 	holdPeer3AppendReplies = true
-	if err := rt.Step(ctx, Envelope{SlotID: slotID, Message: raftpb.Message{
-		Type: raftpb.MsgHeartbeat, From: 2, To: 1, Term: higherTerm, Commit: baseline.CommitIndex,
-	}}); err != nil {
-		t.Fatal(err)
-	}
 	var oldDone storageTermResult
 	until("old Future leadership failure before append release", func() bool {
 		select {
@@ -204,9 +229,25 @@ func TestRuntimeStorageOldTermAppendCannotResolveNewTermFuture(t *testing.T) {
 	if !errors.Is(oldDone.err, ErrNotLeader) || store.durable.Load() {
 		t.Fatalf("old Future must fail leadership while append remains held: err=%v durable=%v", oldDone.err, store.durable.Load())
 	}
+	if !quorumLoss {
+		store.release()
+		until("old append durability after higher-term failure", store.durable.Load)
+		if _, err := old.Wait(ctx); !errors.Is(err, ErrNotLeader) {
+			t.Fatalf("higher-term Future was rewritten by late completion: %v", err)
+		}
+		if fsm.earlyApply.Load() || transport.overflow.Load() {
+			t.Fatal("higher-term durability, apply or bounded transport invariant violated")
+		}
+		return
+	}
+	lost, err := rt.Status(slotID)
+	if err != nil || lost.Term != baseline.Term || lost.Role != RoleFollower || droppedPeerReplies[2] == 0 || droppedPeerReplies[3] == 0 {
+		t.Fatalf("leadership loss lacked actual same-term quorum-loss witness: role=%v term=%d baseline=%d dropped=%v err=%v", lost.Role, lost.Term, baseline.Term, droppedPeerReplies, err)
+	}
+	dropPeerReplies = false
 	until("next-term candidate and both actual vote requests", func() bool {
 		s, e := rt.Status(slotID)
-		if e != nil || s.Role != RoleCandidate || s.Term <= higherTerm || votes[2].Term != s.Term || votes[3].Term != s.Term {
+		if e != nil || s.Role != RoleCandidate || s.Term <= baseline.Term || votes[2].Term != s.Term || votes[3].Term != s.Term {
 			return false
 		}
 		newTerm = s.Term
@@ -221,8 +262,7 @@ func TestRuntimeStorageOldTermAppendCannotResolveNewTermFuture(t *testing.T) {
 		return e == nil && s.Role == RoleLeader && s.Term == newTerm
 	})
 	// Finish peer 2's real log-prefix probe before submitting another entry.
-	// Otherwise its pending probe may suppress the network witness while the
-	// fifth accepted Ready correctly enters bounded synchronous backpressure.
+	// Otherwise its pending probe may suppress the actual payload witness.
 	until("peer 2 durable noop acknowledgement", func() bool {
 		return newLeaderNoopIndex != 0 && peer2AckTerm == newTerm && peer2AckIndex >= newLeaderNoopIndex
 	})

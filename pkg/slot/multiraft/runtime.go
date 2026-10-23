@@ -145,7 +145,22 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 	defer g.finishProcessing()
 	g.statusRefreshedInPass = false
 
-	worked := g.processRequests()
+	worked := false
+	defer func() {
+		if worked && g.shouldProcess() {
+			g.refreshStatusAfterPass()
+		}
+	}()
+	if g.storageCountPaused {
+		// Reliable completion publication already schedules this Slot. Consume
+		// refunds before admitting more inputs; HasReady alone must not spin.
+		worked = g.drainStorageCompletions()
+		if !g.shouldProcess() || g.storagePipeline.budget.slotCountFull(g) {
+			return false
+		}
+		g.storageCountPaused = false
+	}
+	worked = g.processRequests() || worked
 	if !g.shouldProcess() {
 		return false
 	}
@@ -153,6 +168,9 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 	// turn in this bounded owner pass while physical persistence runs separately.
 	readyWorked, _ := g.processReady(context.Background(), r.opts.Transport)
 	worked = readyWorked || worked
+	if g.storageCountPaused {
+		return false
+	}
 
 	if !g.shouldProcess() {
 		return false
@@ -163,6 +181,9 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 	}
 	readyProcessed, _ := g.processReady(context.Background(), r.opts.Transport)
 	worked = readyProcessed || worked
+	if g.storageCountPaused {
+		return false
+	}
 
 	if !g.shouldProcess() {
 		return false
@@ -172,11 +193,11 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 		return false
 	}
 	readyProcessed, requeue := g.processReady(context.Background(), r.opts.Transport)
-	g.compactAfterStorage()
 	worked = readyProcessed || worked
-	if worked {
-		g.refreshStatusAfterPass()
+	if g.storageCountPaused {
+		return false
 	}
+	g.compactAfterStorage()
 	return requeue
 }
 

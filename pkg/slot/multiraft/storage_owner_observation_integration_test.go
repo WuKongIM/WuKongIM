@@ -14,7 +14,7 @@ import (
 )
 
 // Failure matrix precedes instrumentation: asynchronous physical Save must not
-// become owner waiting; count saturation must expose the actual join; an owner
+// become owner waiting; byte saturation must expose the actual join; an owner
 // waiting for the shared Save permit must be distinguishable from that join;
 // legal oversized Ready is a non-budget fence. Cancellation clips all owner
 // subsets once, and releasing physical gates cannot mutate a published sample.
@@ -53,21 +53,23 @@ func TestRuntimeOwnerStorageOrdinaryAsyncSaveExcluded(t *testing.T) {
 
 func TestRuntimeOwnerStorageBudgetDrainClipsAndIsImmutable(t *testing.T) {
 	gate := newStorageFenceGate()
-	rt, ctx := ownerObservationRuntime(t, 1, 1, map[SlotID]Storage{502: gate}, gate.release)
+	rt, ctx := ownerObservationRuntime(t, 1, 4, map[SlotID]Storage{502: gate}, gate.release)
 	ownerObservationArm(t, rt, 502, gate)
-	first, err := rt.Propose(ctx, 502, proposalString("first-held"))
+	// Both entries fit individually, but their retained ownership exceeds 8 MiB.
+	// This remains a real byte fallback when count admission pauses before Ready.
+	first, err := rt.Propose(ctx, 502, proposalPayload(0, bytes.Repeat([]byte{'a'}, 5<<20)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	storageFenceEntered(t, ctx, gate.entered)
-	second := ownerObservationPropose(t, rt, ctx, 502, "second-borrowed")
+	second := ownerObservationPropose(t, rt, ctx, 502, string(bytes.Repeat([]byte{'b'}, 4<<20)))
 	sample, err := ownerObservationRead(rt, ctx, 502, 40*time.Millisecond)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("read escaped held owner join: %v", err)
 	}
 	owner := ownerObservationWire(t, sample)
 	p := owner.Phases[0]
-	if p.Budget.Duration <= 0 || p.Budget.DrainWait <= 0 || p.Budget.RejectMask&1 == 0 || !p.Budget.Unfinished || p.Other.Duration != 0 {
+	if p.Budget.Duration <= 0 || p.Budget.DrainWait <= 0 || p.Budget.RejectMask&4 == 0 || !p.Budget.Unfinished || p.Other.Duration != 0 {
 		t.Fatalf("missing budget join witness: %+v", p)
 	}
 	before, _ := json.Marshal(sample)
@@ -91,10 +93,10 @@ func TestRuntimeOwnerStorageBudgetDrainClipsAndIsImmutable(t *testing.T) {
 func TestRuntimeOwnerStorageBudgetSavePermit(t *testing.T) {
 	target := newBlockingMarkAppliedStorage()
 	a, b := newStorageFenceGate(), newStorageFenceGate()
-	rt, ctx := ownerObservationRuntime(t, 2, 1, map[SlotID]Storage{503: target, 504: a, 505: b}, func() { target.unblock(); a.release(); b.release() })
+	rt, ctx := ownerObservationRuntime(t, 2, 4, map[SlotID]Storage{503: target, 504: a, 505: b}, func() { target.unblock(); a.release(); b.release() })
 	baseline, _ := rt.Status(503)
 	target.armAfter(baseline.CommitIndex + 1)
-	first, err := rt.Propose(ctx, 503, proposalString("target-held-apply"))
+	first, err := rt.Propose(ctx, 503, proposalPayload(0, bytes.Repeat([]byte{'a'}, 3<<20)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +111,7 @@ func TestRuntimeOwnerStorageBudgetSavePermit(t *testing.T) {
 		peers = append(peers, f)
 		storageFenceEntered(t, ctx, gate.entered)
 	}
-	second := ownerObservationPropose(t, rt, ctx, 503, "target-needs-permit")
+	second := ownerObservationPropose(t, rt, ctx, 503, string(bytes.Repeat([]byte{'b'}, 6<<20)))
 	blocked, stop := context.WithTimeout(ctx, 20*time.Millisecond)
 	_, err = rt.FreshStatus(blocked, 503)
 	stop()
@@ -125,7 +127,7 @@ func TestRuntimeOwnerStorageBudgetSavePermit(t *testing.T) {
 		t.Fatalf("read escaped occupied Save permits: %v", err)
 	}
 	p := ownerObservationWire(t, sample).Phases[0]
-	if p.Budget.SavePermit <= 0 || p.Budget.RejectMask&1 == 0 || p.Other.Duration != 0 {
+	if p.Budget.SavePermit <= 0 || p.Budget.RejectMask&4 == 0 || p.Other.Duration != 0 {
 		t.Fatalf("missing owner Save permit witness: %+v", p)
 	}
 	a.release()

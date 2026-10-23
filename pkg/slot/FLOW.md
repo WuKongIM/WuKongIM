@@ -44,12 +44,12 @@ plugin, migration, message projections, and MQTT session state.
 2. A Multi-Raft worker groups contiguous queued read barriers into one fresh
    quorum round, retaining each caller's cancellation, pending bound and durable
    apply fence. Later arrivals and intervening controls require another round.
-   Each scheduler pass gives queued controls a turn while more Ready work is
+   Each non-paused scheduler pass gives queued controls a turn while more Ready work is
    available. One owner handles RawNode and its asynchronous local-storage messages;
    a bounded append FIFO persists work and returns reliable private completions.
    Only the owner publishes durable memory and dependent Raft replies. Application
    waits for its append prefix, including committed HardState, then uses the existing
-   per-Slot apply FIFO. Ordinary network messages progress during Save. The runtime batches normal
+   per-Slot apply FIFO. Network messages progress during Save while count capacity remains. The runtime batches normal
    entries, flushes before configuration changes, and atomically applies an
    ownership-validated FSM batch before persisting apply and completing futures.
    Durable Slot storage owns snapshot payload bytes; the Raft memory view keeps
@@ -103,10 +103,10 @@ plugin, migration, message projections, and MQTT session state.
   storage ownership caps each Slot at `min(4, MaxApplyingTasks)` Ready records and
   8 MiB, and each Runtime at `4 * Workers` records and `8 MiB * Workers`; running
   work and unconsumed completions remain charged. These are queue ownership limits,
-  not RawNode-input or RSS limits. Large legal entries, saturation, snapshots and
-  configuration use one borrowed synchronous Ready after joining prior append/apply
-  work. Async Save, fallback and compaction share the worker-sized Save allowance.
-  Close/reload retain old identity until physical work and completion ownership join.
+  not RawNode-input or RSS limits. A full Slot count pauses before Ready, returns the worker, and resumes after one complete lease retires; same-Slot message-only Ready and queued inputs also wait.
+  Node/byte limits, large legal entries, snapshots and configuration retain one borrowed synchronous Ready joining prior append/apply work. No accepted Ready is parked.
+  Async Save, fallback and compaction share the worker-sized Save allowance.
+  Close/reload retain old identity until physical work and completion ownership join. Terminal queued and borrowed-control Futures retain the exact cause across submission, with callbacks outside locks.
   Network Step rejects local-storage types/endpoints; only private completions deliver those responses.
 - Recovery starts at a verified snapshot/certified FSM boundary and replays its
   committed suffix; a watermark alone cannot skip replay. Unknown or migration writes invalidate
@@ -136,7 +136,7 @@ plugin, migration, message projections, and MQTT session state.
   per-kind totals are not spans or fsync measurements and cannot be added to phase
   durations or to each other: asynchronous Save and Send can overlap. Overlap can
   mean parallel progress and does not itself establish owner blocking. Owner storage
-  coverage separately records budget fallback scopes and drain/Save-admission/synchronous-work subsets; non-budget fences use a disjoint scope with closed cause bits. Explicit owner tokens exclude ordinary async Save; missing fields remain unknown, and subsets must not be added to parent time.
+  coverage excludes count-paused scheduling time and separately records budget fallback scopes and drain/Save-admission/synchronous-work subsets; non-budget fences use a disjoint scope with closed cause bits. Explicit owner tokens exclude ordinary async Save; missing fields remain unknown, and subsets must not be added to parent time.
   The RPC trace retains only its longest barrier group, publishing it whole within 32 spans or reporting drops. Cancellation closes observation without releasing
   its still-unconfirmed Raft read budget or changing late results.
 

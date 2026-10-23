@@ -1,11 +1,11 @@
 # Sampled Slot read blocking at 2,000 SEND/s
 
-The unchanged local workload still fails on candidate
-`8950ad75c054b4f38175dc2e762ed6fad20513ff`. Same-request observation and a
-controlled public Runtime regression identify synchronous Slot persistence as
-a material blocker of Raft message processing. This report establishes the
-mechanism to repair; it does not establish that the repair passes capacity or
-qualifies v3 for release.
+The unchanged local workload still fails on candidate `77c7a88b`. Same-request
+observations now identify full per-Slot storage ownership and its synchronous
+fallback as a material blocker of the shared Raft worker. Earlier observations,
+controlled regressions and failed runs remain below. These findings support
+the next scheduling repair; they do not establish a capacity pass or qualify
+v3 for release.
 
 ## Fixed workload and result
 
@@ -104,10 +104,12 @@ New queued ownership is bounded by both count and bytes: at most
 owners and `8 MiB * Workers` per Runtime. Queued, executing and completed work
 retains its credit until all associated completion records are consumed or
 joined and retired. These limits do not bound RawNode inputs or total RSS.
-An oversized legal Ready, saturation, snapshot or configuration change uses
-one borrowed synchronous fallback after joining prior work. Both paths share
-the original worker-sized physical Save limit; fallback does not add parallel
-disk writers or reject previously legal large entries.
+A full per-Slot count now yields before accepting another Ready and resumes
+when the first complete lease returns. Other budget saturation, an oversized
+legal Ready, snapshot or configuration change uses one borrowed synchronous
+fallback after joining prior work. Both paths share the original worker-sized
+physical Save limit; fallback does not add parallel disk writers or reject
+previously legal large entries.
 
 Close retains the generation until all entered storage calls return; queued
 append work that has not entered Save is skipped, while accepted apply work
@@ -237,6 +239,58 @@ existing 4 MiB collector budget. This change leaves scheduling, ownership
 limits, deadlines and workload gates unchanged. The next original-scale run
 must establish the dominant owner path before a further execution-path change;
 the observation tests alone do not establish the workload's root cause.
+
+## Owner occupancy at the original workload
+
+The exact `77c7a88b` candidate passes all four first automatic Linux workflows.
+Their actual merge checkout has the candidate's tracked tree. Three 60-second
+500-SEND/s windows each complete all 30,000 messages with zero errors/drops;
+scheduled-total p99 is 18.65, 20.99 and 24.28 ms. These checks do not replace
+the original-scale local workload or Linux capacity qualification.
+
+R19 retains the same workload, gates and bounded collectors. Its first saved
+failing active cut is +35.042566541 seconds: 70,013 primary sends, 63,509 ACKs,
+21 first-attempt failures and zero terminal outcomes. In the preceding five
+seconds, primary rate is 2,001.7653/s and ACK rate is 1,364.97634/s. Outstanding
+message work grows from 3,320 to 6,504; this is not an RPC queue measurement.
+Final totals contain three exhausted attempt timeouts and 6,389 stop-induced
+session closures. Loss, duplicate, corruption and sequence counters remain
+zero, but the original first-attempt gate fails.
+
+Strict endpoint pairing yields 2,844 pairs and 163 successful permission RPCs.
+Of those permission requests, 140 have positive budget owner occupancy. All
+169 positive phase records carry only the per-Slot count rejection bit; these
+are phase-presence counts, not counts of rejection operations. In the 118
+permission samples from active acquisition cuts, budget owner occupancy
+averages 162.73 ms, comprising 114.51 ms draining prior work and 48.20 ms of
+synchronous processing; Save-permit waiting averages 0.000858 ms. The mean
+per-request share of the full read barrier is 57.88%, with median 62.41%.
+The final acquisition contributes 45 additional pre-failure permission pairs;
+two of those also record compaction occupancy.
+
+The samples distinguish an actual owner-held path from ordinary asynchronous
+Save overlap. They do not individually attribute the 21 first-attempt failures:
+all 163 sampled permission RPCs succeed. Zero same-Slot owner coverage cannot
+exclude another Slot occupying the shared worker. Selected samples also do
+not establish whole-traffic percentiles or a cross-run speedup.
+
+The selected follow-up is admission before `Ready()` when this Slot's count
+is full. It must return the worker without accepting another Ready and resume
+the existing FIFO when the first complete lease returns. A paused owner pass
+must consume reliable completions before new inputs and avoid self-requeue
+spinning. Same-Slot message-only work may wait; node/byte/oversize and
+maintenance fallbacks keep their original contracts. No queue limit or worker
+count increases. Parked time is not owner occupancy, and reducing the old owner
+metric alone cannot establish a repair. Public progress/safety regressions
+and the unchanged 2,000-SEND/s workload remain required.
+
+R19's strict analysis, first-failure timeline and independent cleanup receipts
+are respectively
+`0a029cf6a7dcf0ea22d88142f64a5c5e454e507fdb5b79ee064eb270fed884f2`,
+`0aa945d5eec270c1d0bfebda49cff2d4012a60576625e575970ee5bf19bb8d5c`
+and `ea3b9831cc9a960d11bb372da3d33857b61796a37120d2889fb30fa5cdbe1a24`.
+The first Linux CI audit is
+`a74ca0a8f4ab9e18920e70ad11b0a139bc35c2799a8b253646629d7c85c31c14`.
 
 ## Retained evidence
 

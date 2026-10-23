@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Return shared Raft workers when a Slot's storage task limit is full, resuming
+  its FIFO when capacity is returned; finish queued proposals when their
+  Slot closes or fails. / Slot 存储任务达到上限时让出共享 Raft worker，额度归还后
+  恢复原队列；关闭或故障时正确结束仍在排队的提案。
+
 - Distinguish sampled Slot owner storage fallback, drain and Save-admission time
   from ordinary asynchronous Save overlap, with fixed-size per-read observations.
   / Slot 读取采样区分 owner 存储回退、排空和写盘准入时间，与普通异步 Save 重叠分开记录。

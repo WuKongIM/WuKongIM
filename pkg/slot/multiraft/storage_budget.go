@@ -53,6 +53,17 @@ func newStorageBudget(workers, maxApplying int) (*storageBudget, error) {
 	return &storageBudget{slots: make(map[*slot]storageUsage), nodeCount: workers * storageSlotOwners, slotCount: count, nodeBytes: int64(workers) * storageSlotBytes, saves: make(chan struct{}, workers)}, nil
 }
 
+// slotCountFull checks existing ownership before Ready accepts more work.
+// Only this Slot's owner can add its leases; other goroutines only return them.
+func (b *storageBudget) slotCountFull(g *slot) bool {
+	if b == nil {
+		return false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.slots[g].count >= b.slotCount
+}
+
 func (b *storageBudget) reserve(g *slot, bytes int64, parts uint8) (*storageLease, bool) {
 	return b.reserveWithReason(g, bytes, parts, nil)
 }

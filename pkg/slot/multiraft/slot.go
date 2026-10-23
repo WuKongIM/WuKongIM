@@ -38,6 +38,9 @@ type slot struct {
 	status                       Status
 	storageView                  *storageAdapter
 	apply                        *applyPipeline
+	// storageCountPaused is owner-only scheduling state, not physical ownership.
+	// Close/fatal need not clear it; a replacement generation starts unpaused.
+	storageCountPaused bool
 	// storagePipeline owns bounded append work; only the Raft owner consumes completions.
 	storagePipeline    *storagePipeline
 	storageTasks       int
@@ -51,13 +54,16 @@ type slot struct {
 	cond               *sync.Cond
 	processing         bool
 	// applying counts async apply tasks that have been accepted for this Slot.
-	applying           int
-	rawNode            *raft.RawNode
-	requests           []raftpb.Message
-	requestWorkBuf     []raftpb.Message
-	requestCount       int
-	controls           []controlAction
-	controlWorkBuf     []controlAction
+	applying       int
+	rawNode        *raft.RawNode
+	requests       []raftpb.Message
+	requestWorkBuf []raftpb.Message
+	requestCount   int
+	controls       []controlAction
+	controlWorkBuf []controlAction
+	// activeControls borrows the owner's immutable batch until release. Under
+	// mu, terminal paths can resolve Futures across the queue/submitted handoff.
+	activeControls     []controlAction
 	submittedProposals []*future
 	submittedConfigs   []*future
 	pendingProposals   map[uint64]trackedFuture
@@ -576,7 +582,14 @@ func (g *slot) processControls(ctx context.Context) bool {
 			g.issueReadBarrierBatch(controls[i:end])
 			i = end - 1
 		case controlPropose:
+			if action.future == nil {
+				continue
+			}
 			action.future.observeStageSince("meta_create_slot_control_wait", nil, action.future.createdAt)
+			if err := g.currentErr(); err != nil {
+				action.future.resolveAndDispatch(Result{}, err)
+				continue
+			}
 			// Temporary-copy controls select opaque command bytes without adding
 			// product command knowledge or changing ordinary proposal admission.
 			pauseMatch := ""
@@ -590,10 +603,15 @@ func (g *slot) processControls(ctx context.Context) bool {
 				action.future.resolveAndDispatch(Result{}, classifyRawProposalError(err, g.rawNode.BasicStatus()))
 				continue
 			}
-			g.mu.Lock()
-			g.submittedProposals = append(g.submittedProposals, action.future)
-			g.mu.Unlock()
+			g.publishSubmittedFuture(action.future, false)
 		case controlConfigChange:
+			if action.future == nil {
+				continue
+			}
+			if err := g.currentErr(); err != nil {
+				action.future.resolveAndDispatch(Result{}, err)
+				continue
+			}
 			cc, err := toRaftConfChange(action.change)
 			if err != nil {
 				action.future.resolveAndDispatch(Result{}, err)
@@ -603,9 +621,7 @@ func (g *slot) processControls(ctx context.Context) bool {
 				action.future.resolveAndDispatch(Result{}, err)
 				continue
 			}
-			g.mu.Lock()
-			g.submittedConfigs = append(g.submittedConfigs, action.future)
-			g.mu.Unlock()
+			g.publishSubmittedFuture(action.future, true)
 		case controlCampaign:
 			_ = g.rawNode.Campaign()
 		case controlTransferLeader:
@@ -834,6 +850,25 @@ func (g *slot) executeStrictLeaderTransfer(request *strictLeaderTransferRequest,
 	request.finish(strictLeaderTransferResponse{result: result})
 }
 
+// publishSubmittedFuture transfers a selected control to the tracked FIFO under
+// the terminal fence. The borrowed active batch preserves the exact close cause;
+// completion callbacks are dispatched only after releasing mu.
+func (g *slot) publishSubmittedFuture(fut *future, config bool) {
+	g.mu.Lock()
+	err := g.admissionErrLocked()
+	if err == nil {
+		if config {
+			g.submittedConfigs = append(g.submittedConfigs, fut)
+		} else {
+			g.submittedProposals = append(g.submittedProposals, fut)
+		}
+	}
+	g.mu.Unlock()
+	if err != nil {
+		fut.resolveAndDispatch(Result{}, err)
+	}
+}
+
 func (g *slot) takeRequestBatch() []raftpb.Message {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -860,12 +895,14 @@ func (g *slot) takeControlBatch() []controlAction {
 	g.queuedBackgroundControls = 0
 	g.controls = g.controlWorkBuf[:0]
 	g.controlWorkBuf = nil
+	g.activeControls = batch
 	return batch
 }
 
 func (g *slot) releaseControlBatch(batch []controlAction) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.activeControls = nil
 	clear(batch)
 	g.controlWorkBuf = batch[:0]
 }
@@ -924,6 +961,12 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 	}
 	if !g.rawNode.HasReady() {
 		g.compactAfterStorage()
+		return completed, false
+	}
+	// A full per-Slot count can be checked without accepting or retaining Ready.
+	// Node/byte limits and legal oversized work keep their existing fallback.
+	if g.storagePipeline != nil && g.storagePipeline.budget.slotCountFull(g) {
+		g.storageCountPaused = true
 		return completed, false
 	}
 	ready := g.rawNode.Ready()
@@ -2324,7 +2367,27 @@ func (g *slot) failPendingLocked(err error) []futureCompletion {
 		g.failUnconfirmedReadCallersLocked(err)
 	}
 	completions := make([]futureCompletion, 0, len(g.submittedProposals)+len(g.submittedConfigs)+len(g.pendingProposals)+len(g.pendingConfigs))
+	terminal := g.closed || g.fatalErr != nil
+	if terminal {
+		for _, action := range g.activeControls {
+			if action.future != nil {
+				if completion := action.future.resolve(Result{}, err); completion.future != nil {
+					completions = append(completions, completion)
+				}
+			}
+		}
+	}
 	for i := range g.controls {
+		if terminal && g.controls[i].future != nil {
+			if completion := g.controls[i].future.resolve(Result{}, err); completion.future != nil {
+				completions = append(completions, completion)
+			}
+			// Terminal proposal controls cannot enter RawNode. Release queued
+			// references without clearing the concurrently borrowed batch.
+			g.controls[i].future = nil
+			g.controls[i].data = nil
+			g.controls[i].change.Context = nil
+		}
 		if g.controls[i].readBarrier != nil {
 			g.controls[i].readBarrier.finish(err)
 		}

@@ -2119,7 +2119,12 @@ specification, runbook, report, or module documentation; link to them when neede
   and retired. Limits are `min(4, normalized MaxApplyingTasks)` Ready owners / 8 MiB
   per Slot and `4 * Workers` Ready owners / `8 MiB * Workers` per Runtime. They bound
   new queue ownership, not upstream inputs, allocator overhead or total RSS.
-  Saturation and oversized legal entries use one borrowed synchronous Ready;
+  A full per-Slot owner count pauses before accepting another Ready and returns
+  the shared worker. A paused pass drains private completions before new inputs;
+  the first fully retired lease resumes the existing FIFO. No accepted Ready,
+  extra payload queue or waiting goroutine is parked. Same-Slot message-only
+  work may wait, while other Slots retain worker turns. Node/byte saturation
+  and oversized legal entries still use one borrowed synchronous Ready;
   snapshots, configuration and compaction also join both lanes. Async and
   synchronous Save share `Workers` physical I/O permits. Close/reload join the
   retiring generation before its identity or storage can be reused. Close skips
@@ -2129,9 +2134,15 @@ specification, runbook, report, or module documentation; link to them when neede
   even when the Raft owner has not yet consumed the failure completion. Fatal
   retirement clears completed mailbox records; unfinished Save/apply work stays
   charged until its physical completion.
+  Terminal shutdown/failure resolves proposals still queued or borrowed by the
+  current control batch before their submitted-Future handoff. The borrowed
+  batch remains visible under the Slot lock without copying its payload;
+  callbacks dispatch outside that lock and retain the exact terminal cause.
+  Ordinary leadership loss keeps its separate submitted/pending semantics.
   The [same-request diagnosis](../reports/2026-10-24-sampled-raft-read-blocking.md)
-  retains R16's failed 2,000-SEND/s gate and public held-Save heartbeat regression;
-  passing that mechanism regression alone is not performance qualification.
+  retains the failed 2,000-SEND/s gates and public held-Save regressions. R19
+  identifies per-Slot count fallback in sampled owner occupancy; paused time
+  is not owner occupancy, and reduced occupancy alone is not a workload pass.
 
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
