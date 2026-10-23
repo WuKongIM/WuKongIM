@@ -21,6 +21,8 @@ const defaultTransportServiceMaxQueueBytes = 64 << 20
 
 // TransportServerConfig configures a transport-backed cluster RPC server.
 type TransportServerConfig struct {
+	// RPCTracing accepts negotiated request-local timings without changing handlers.
+	RPCTracing bool
 	// NodeID is the local cluster node ID reported by transport observations.
 	NodeID uint64
 	// MaxPayload rejects inbound RPC payloads larger than this many bytes when positive.
@@ -59,9 +61,10 @@ type TransportServer struct {
 func NewTransportServer(cfg TransportServerConfig) *TransportServer {
 	limits := normalizeTransportLimits(cfg.Limits, 0)
 	server, err := transport.NewServer(transport.ServerConfig{
-		NodeID:   transport.NodeID(cfg.NodeID),
-		Limits:   limits,
-		Observer: cfg.Observer,
+		NodeID:     transport.NodeID(cfg.NodeID),
+		Limits:     limits,
+		Observer:   cfg.Observer,
+		RPCTracing: cfg.RPCTracing,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("cluster/net: create transport server: %v", err))
@@ -101,6 +104,8 @@ func (s *TransportServer) Addr() string {
 
 // TransportClientConfig configures a transport-backed cluster RPC client.
 type TransportClientConfig struct {
+	// RPCTraceEvery selects one in N complete outbound RPCs; zero disables timing.
+	RPCTraceEvery uint32
 	// Discovery resolves node IDs to addresses.
 	Discovery transport.Discovery
 	// NodeID is the local cluster node ID reported by transport observations.
@@ -151,6 +156,7 @@ func NewTransportClient(cfg TransportClientConfig) *TransportClient {
 		DialTimeout:    cfg.DialTimeout,
 		Limits:         limits,
 		Observer:       observer,
+		RPCTraceEvery:  cfg.RPCTraceEvery,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("cluster/net: create transport client: %v", err))

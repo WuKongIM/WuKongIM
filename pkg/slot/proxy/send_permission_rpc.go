@@ -12,6 +12,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
@@ -393,7 +394,13 @@ func (s *Store) handleSendPermissionRPC(ctx context.Context, raw []byte) ([]byte
 // while queued; local callers pass zero because their request is already owned.
 func (s *Store) acquireSendPermissionEnvelope(ctx context.Context, waitBytes int) (func(), error) {
 	started := s.permissionStart()
+	admission := rpctrace.Begin(ctx, rpctrace.StagePermissionAdmission)
 	fail := func(err error) (func(), error) {
+		result := rpctrace.ResultFor(err)
+		if errors.Is(err, ErrPermissionBusy) {
+			result = rpctrace.ResultBusy
+		}
+		admission.End(result)
 		s.permissionStage("admission", sendPermissionErrorClass(err), started)
 		return nil, err
 	}
@@ -450,6 +457,7 @@ func (s *Store) acquireSendPermissionEnvelope(ctx context.Context, waitBytes int
 		return fail(err)
 	}
 	s.permissionInflight.Add(1)
+	admission.End(rpctrace.ResultOK)
 	s.permissionStage("admission", "ok", started)
 	if s.permissionObserver != nil {
 		s.permissionObserver.ObserveSendPermissionInflight(1)
@@ -514,6 +522,14 @@ func (s *Store) serveSendPermissions(ctx context.Context, q sendPermissionReques
 }
 
 func (s *Store) serveAdmittedSendPermissions(ctx context.Context, q sendPermissionRequest) (sendPermissionReply, error) {
+	authority := rpctrace.Begin(ctx, rpctrace.StagePermissionAuthority)
+	result := rpctrace.ResultError
+	defer func() {
+		if err := ctx.Err(); err != nil {
+			result = rpctrace.ResultFor(err)
+		}
+		authority.End(result)
+	}()
 	out := sendPermissionReply{Format: 1}
 	if q.Format != 1 || len(q.Groups) == 0 || len(q.Groups) > permissionBatchMaxReads {
 		return out, metadb.ErrInvalidArgument
@@ -544,6 +560,15 @@ func (s *Store) serveAdmittedSendPermissions(ctx context.Context, q sendPermissi
 	out.Groups = make([]sendPermissionGroupReply, len(q.Groups))
 	s.permissionCount("slot_groups", len(q.Groups))
 	runSlotMetadataBatchWorkers(goruntimeregistry.TaskSlotPermissionBatch, len(q.Groups), func(i int) { out.Groups[i] = s.readSendPermissionSlot(ctx, q.Groups[i]) })
+	result = rpctrace.ResultOK
+	if rpctrace.From(ctx) != nil {
+		for _, group := range out.Groups {
+			if group.Status != "ok" {
+				result = rpctrace.ResultError
+				break
+			}
+		}
+	}
 	return out, nil
 }
 func (s *Store) readSendPermissionSlot(ctx context.Context, g sendPermissionGroup) sendPermissionGroupReply {
@@ -591,10 +616,13 @@ func (s *Store) readSendPermissionSlot(ctx context.Context, g sendPermissionGrou
 		return out
 	}
 	barrierStarted := s.permissionStart()
+	barrierSpan := rpctrace.Begin(ctx, rpctrace.StagePermissionBarrier)
 	if err := barrier.ReadSlotBarrier(ctx, multiraft.SlotID(g.Fence.SlotID)); err != nil {
+		barrierSpan.End(rpctrace.ResultFor(err))
 		s.permissionStage("barrier", sendPermissionErrorClass(err), barrierStarted)
 		return out
 	}
+	barrierSpan.End(rpctrace.ResultOK)
 	s.permissionStage("barrier", "ok", barrierStarted)
 	reads := make([]metadb.PermissionFactRead, len(g.Reads))
 	for i, r := range g.Reads {
@@ -605,7 +633,9 @@ func (s *Store) readSendPermissionSlot(ctx context.Context, g sendPermissionGrou
 		reads[i] = metadb.PermissionFactRead{Kind: kind, HashSlot: r.HashSlot, ChannelID: r.Read.ChannelID, ChannelType: r.Read.ChannelType, UID: r.Read.UID}
 	}
 	snapshotStarted := s.permissionStart()
+	snapshotSpan := rpctrace.Begin(ctx, rpctrace.StagePermissionSnapshot)
 	facts, err := s.db.ReadPermissionSnapshot(ctx, reads)
+	snapshotSpan.End(rpctrace.ResultFor(err))
 	s.permissionStage("snapshot", sendPermissionErrorClass(err), snapshotStarted)
 	if err != nil {
 		return out

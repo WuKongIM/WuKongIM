@@ -82,7 +82,7 @@ func (s *Store) Record(event Event) {
 	if s == nil {
 		return
 	}
-	event = normalizeEvent(event, s.now(), s.maxError)
+	event = cloneEvent(normalizeEvent(event, s.now(), s.maxError))
 	s.mu.Lock()
 	if overwritten := s.events[s.nextSlot]; overwritten.id != 0 {
 		delete(s.byID, overwritten.id)

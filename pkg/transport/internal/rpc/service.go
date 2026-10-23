@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -20,6 +21,8 @@ const (
 
 // Request is one service invocation owned by the service after a successful Enqueue.
 type Request struct {
+	// TraceQueue spans admission through actual handler entry, including executor wait.
+	TraceQueue rpctrace.Span
 	// Context carries the connection lifetime and negotiated caller budget. Nil
 	// uses the service lifetime. Running cancellation is opt-in per service.
 	Context context.Context
@@ -335,6 +338,7 @@ func (s *Service) handle(req Request) error {
 	if s.opts.CancelRunning {
 		ctx = req.Context
 	}
+	ctx = rpctrace.Copy(ctx, req.Context)
 	cancel := func() {}
 	if s.opts.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, s.opts.Timeout)
@@ -352,10 +356,16 @@ func (s *Service) handle(req Request) error {
 	if req.entry != nil {
 		s.observe(core.Event{Name: "service_wait", ServiceID: s.ID, ServiceAlias: s.opts.Alias, Result: "ok", Duration: nonNegativeSince(req.entry.enqueuedAt)})
 	}
+	req.TraceQueue.End(rpctrace.ResultOK)
+	handlerSpan := rpctrace.Begin(ctx, rpctrace.StageHandler)
+	handlerResult := rpctrace.ResultError
+	defer func() { handlerSpan.End(handlerResult) }()
 	resp, err := s.handler(ctx, req.Payload.Bytes())
 	if ctx.Err() != nil {
 		err = requestError(ctx.Err())
 	}
+	handlerResult = core.RPCTraceResult(err)
+	handlerSpan.End(handlerResult)
 	if req.Reply == nil && req.RespondBorrowed == nil {
 		return err
 	}
@@ -526,6 +536,7 @@ func trySendResponse(ch chan Response, resp Response) {
 }
 
 func deliver(req Request, resp Response) {
+	req.TraceQueue.End(core.RPCTraceResult(resp.Err))
 	if req.RespondBorrowed != nil {
 		req.RespondBorrowed(resp)
 		return

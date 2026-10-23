@@ -9,6 +9,7 @@ import (
 	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc"
@@ -17,6 +18,8 @@ import (
 
 // Server owns inbound connection and service registry state.
 type Server struct {
+	// traceRecorder bounds selected inbound request observations independently of service admission.
+	traceRecorder *rpctrace.Recorder
 	// cfg stores normalized inbound transport settings.
 	cfg ServerConfig
 	// observer drains transport events away from service and connection hot paths.
@@ -52,24 +55,32 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	var recorder *rpctrace.Recorder
+	if normalized.RPCTracing {
+		recorder, err = rpctrace.NewRecorder(128)
+		if err != nil {
+			return nil, err
+		}
+	}
 	observer := core.NewObserverDrain(normalized.Observer, goruntimeregistry.TaskTransportServerObserver)
 	if observer != nil {
 		normalized.Observer = observer
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		cfg:      normalized,
-		observer: observer,
-		ctx:      ctx,
-		cancel:   cancel,
-		services: make(map[uint16]*rpc.Service),
-		conns:    make(map[*conn.Conn]struct{}),
+		cfg:           normalized,
+		traceRecorder: recorder,
+		observer:      observer,
+		ctx:           ctx,
+		cancel:        cancel,
+		services:      make(map[uint16]*rpc.Service),
+		conns:         make(map[*conn.Conn]struct{}),
 	}, nil
 }
 
 // Handle registers handler as the service implementation for serviceID.
 func (s *Server) Handle(serviceID uint16, handler Handler, opts ServiceOptions) error {
-	if serviceID == wire.CapabilityServiceID {
+	if serviceID == wire.CapabilityServiceID || serviceID == wire.TraceCapabilityServiceID {
 		return fmt.Errorf("%w: reserved transport capability service", ErrInvalidConfig)
 	}
 	if handler == nil {
@@ -261,6 +272,31 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 		_ = inbound.Conn.Send(ctx, conn.Outbound{Kind: core.FrameKindRPCResponse, Priority: core.PriorityControl, ServiceID: inbound.ServiceID, RequestID: inbound.RequestID, Payload: conn.EncodeRPCResponse(wire.ResponseOK, []byte(wire.CapabilityRequestBudgets))})
 		return
 	}
+	if inbound.ServiceID == wire.TraceCapabilityServiceID {
+		if !s.cfg.RPCTracing {
+			inbound.Payload.Release()
+			s.sendRPCErrorStatus(ctx, inbound, wire.ResponseServiceNotFound, fmt.Errorf("transport: service %d not found", inbound.ServiceID))
+			return
+		}
+		valid := inbound.Kind == core.FrameKindRPCRequest && inbound.Conn.AcceptRPCTracePayload(inbound.Payload.Bytes())
+		if !valid {
+			inbound.Payload.Release()
+			s.sendRPCError(ctx, inbound, ErrInvalidFrame)
+			return
+		}
+		response := conn.EncodeRPCResponse(wire.ResponseOK, inbound.Payload.Bytes())
+		inbound.Payload.Release()
+		_ = inbound.Conn.Send(ctx, conn.Outbound{Kind: core.FrameKindRPCResponse, Priority: core.PriorityControl, ServiceID: inbound.ServiceID, RequestID: inbound.RequestID, Payload: response})
+		return
+	}
+	if s.traceRecorder != nil {
+		if token, ok := inbound.Conn.TraceIdentity(inbound.RequestID); ok {
+			inbound.Trace = s.traceRecorder.Start(ctx, rpctrace.SideServer, inbound.ServiceID)
+			if inbound.Trace != nil {
+				inbound.Trace.Bind(token, inbound.RequestID)
+			}
+		}
+	}
 	service := s.service(inbound.ServiceID)
 	if service == nil {
 		inbound.Payload.Release()
@@ -279,14 +315,18 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 		s.sendRPCError(ctx, inbound, err)
 		return
 	}
+	requestCtx = rpctrace.With(requestCtx, inbound.Trace)
 	// Encode borrowed handler bytes into an owned wire buffer before the callback returns.
 	respond := func(resp rpc.Response) {
 		select {
 		case <-requestCtx.Done():
+			core.FinishRPCTrace(s.cfg.Observer, 0, inbound.Trace, core.RPCTraceResult(requestCtx.Err()))
 			return
 		case <-inbound.Conn.Done():
+			core.FinishRPCTrace(s.cfg.Observer, 0, inbound.Trace, rpctrace.ResultStopped)
 			return
 		case <-s.ctx.Done():
+			core.FinishRPCTrace(s.cfg.Observer, 0, inbound.Trace, rpctrace.ResultStopped)
 			return
 		default:
 		}
@@ -296,16 +336,21 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 			status = responseErrorStatus(resp.Err)
 			payload = []byte(resp.Err.Error())
 		}
+		encode := inbound.Trace.Begin(rpctrace.StageResponseEncode)
+		response := conn.EncodeRPCResponse(status, payload)
+		encode.End(rpctrace.ResultOK)
 		_ = inbound.Conn.Send(ctx, conn.Outbound{
 			Kind:      core.FrameKindRPCResponse,
 			Priority:  inbound.Priority,
 			ServiceID: inbound.ServiceID,
 			RequestID: inbound.RequestID,
-			Payload:   conn.EncodeRPCResponse(status, payload),
+			Payload:   response, Trace: inbound.Trace, FinishTrace: true, TraceResult: core.RPCTraceResult(resp.Err),
 		})
 	}
 
-	if err := service.Enqueue(rpc.Request{Context: requestCtx, Finish: finish, Payload: inbound.Payload, RespondBorrowed: respond}); err != nil {
+	queue := inbound.Trace.Begin(rpctrace.StageServiceQueue)
+	if err := service.Enqueue(rpc.Request{Context: requestCtx, Finish: finish, TraceQueue: queue, Payload: inbound.Payload, RespondBorrowed: respond}); err != nil {
+		queue.End(core.RPCTraceResult(err))
 		finish()
 		s.sendRPCError(ctx, inbound, err)
 		return
@@ -336,17 +381,22 @@ func responseErrorStatus(err error) uint8 {
 func (s *Server) sendRPCErrorStatus(ctx context.Context, inbound conn.Inbound, status uint8, err error) {
 	select {
 	case <-inbound.Conn.Done():
+		core.FinishRPCTrace(s.cfg.Observer, 0, inbound.Trace, rpctrace.ResultStopped)
 		return
 	case <-s.ctx.Done():
+		core.FinishRPCTrace(s.cfg.Observer, 0, inbound.Trace, rpctrace.ResultStopped)
 		return
 	default:
 	}
+	encode := inbound.Trace.Begin(rpctrace.StageResponseEncode)
+	response := conn.EncodeRPCResponse(status, []byte(err.Error()))
+	encode.End(rpctrace.ResultOK)
 	_ = inbound.Conn.Send(ctx, conn.Outbound{
 		Kind:      core.FrameKindRPCResponse,
 		Priority:  inbound.Priority,
 		ServiceID: inbound.ServiceID,
 		RequestID: inbound.RequestID,
-		Payload:   conn.EncodeRPCResponse(status, []byte(err.Error())),
+		Payload:   response, Trace: inbound.Trace, FinishTrace: true, TraceResult: core.RPCTraceResult(err),
 	})
 }
 

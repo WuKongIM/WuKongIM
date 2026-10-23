@@ -52,6 +52,10 @@ It does not own gateway frames, concrete cluster routing, or session storage.
   Directory proof, including after FIFO eviction; failed completions may propagate
   their typed failure. Canceling a follower does not cancel its leader;
   a canceled leader leaves live followers retryable without adding a retry.
+- Optional RPC phase tracing measures actual quota waits, unfinished shared-flight
+  waits and proof installation on the current request context. Already completed
+  flights create no wait span; follower observations do not invent a creator
+  parent or change cancellation, proof freshness, bounds or retries.
 - Import-boundary tests reject concrete entry, protocol, cluster, and app imports.
 
 ## Read First

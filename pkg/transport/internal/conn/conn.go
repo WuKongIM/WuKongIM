@@ -10,6 +10,7 @@ import (
 	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc"
@@ -36,6 +37,17 @@ type Config struct {
 
 // Outbound is one caller-owned frame queued for connection writes.
 type Outbound struct {
+	// Trace carries a selected request's bounded observation through the write owner.
+	Trace *rpctrace.Trace
+	// FinishTrace transfers terminal server sample ownership to this response write.
+	FinishTrace bool
+	// TraceResult preserves the handler outcome when the response write succeeds.
+	TraceResult         rpctrace.Result
+	traceQueue          rpctrace.Span
+	traceWrite          rpctrace.Span
+	traceObserver       core.Observer
+	traceNodeID         core.NodeID
+	responseObservation *responseObservation
 	// Kind identifies the outbound frame behavior; zero defaults to FrameKindData.
 	Kind core.FrameKind
 	// Priority selects the scheduler lane.
@@ -52,6 +64,8 @@ type Outbound struct {
 
 // Inbound is one received frame transferred to Dispatch ownership.
 type Inbound struct {
+	// Trace is attached by the server only after negotiated identity validation.
+	Trace *rpctrace.Trace
 	// BudgetMillis is the remaining receiver budget of a negotiated request.
 	BudgetMillis uint32
 	// Kind identifies the inbound frame behavior.
@@ -103,6 +117,12 @@ type Conn struct {
 	// pending-table mutations so downstream revision-aware gauges cannot regress.
 	pendingObservationMu sync.Mutex
 
+	// traceMu owns the independent once-per-connection trace capability and token.
+	traceMu       sync.Mutex
+	traceState    uint8
+	traceToken    [16]byte
+	traceErr      error
+	traceReady    chan struct{}
 	nextRequestID atomic.Uint64
 
 	ctx    context.Context
@@ -163,8 +183,18 @@ func (c *Conn) Send(ctx context.Context, outbound Outbound) error {
 	if outbound.Kind == 0 {
 		outbound.Kind = core.FrameKindData
 	}
+	if outbound.Trace != nil {
+		stage := rpctrace.StageClientQueue
+		if outbound.Kind == core.FrameKindRPCResponse {
+			stage = rpctrace.StageResponseQueue
+		}
+		outbound.traceQueue = outbound.Trace.Begin(stage)
+		outbound.traceObserver = c.cfg.Observer
+		outbound.traceNodeID = c.cfg.NodeID
+	}
 	if outbound.Payload.Len() > c.cfg.Limits.MaxFrameBodyBytes {
 		outbound.Payload.Release()
+		outbound.finishTraceWrite(core.ErrMsgTooLarge)
 		return core.ErrMsgTooLarge
 	}
 
@@ -177,16 +207,38 @@ func (c *Conn) Send(ctx context.Context, outbound Outbound) error {
 	})
 	if err != nil {
 		outbound.Payload.Release()
+		outbound.finishTraceWrite(err)
 		return err
 	}
 	return nil
 }
 
 // Call sends an RPC request and waits for its response or terminal cancellation.
-func (c *Conn) Call(ctx context.Context, outbound Outbound) ([]byte, error) {
-	requestID := c.nextRequestID.Add(1)
+func (c *Conn) Call(ctx context.Context, outbound Outbound) (_ []byte, err error) {
+	var requestID uint64
+	for {
+		previous := c.nextRequestID.Load()
+		if previous >= rpcTraceSampleBit-1 {
+			outbound.Payload.Release()
+			return nil, core.ErrInvalidFrame
+		}
+		requestID = previous + 1
+		if c.nextRequestID.CompareAndSwap(previous, requestID) {
+			break
+		}
+	}
+	if outbound.ServiceID != wire.CapabilityServiceID && outbound.ServiceID != wire.TraceCapabilityServiceID {
+		if trace := rpctrace.From(ctx); trace != nil {
+			if token, ok := c.TraceIdentity(requestID | rpcTraceSampleBit); ok && trace.Bind(token, requestID|rpcTraceSampleBit) {
+				requestID |= rpcTraceSampleBit
+				outbound.Trace = trace
+				outbound.responseObservation = &responseObservation{trace: trace}
+				defer func() { outbound.responseObservation.finish(core.RPCTraceResult(err)) }()
+			}
+		}
+	}
 	outbound.Kind = core.FrameKindRPCRequest
-	if c.capability.Load() == 2 && outbound.ServiceID != wire.CapabilityServiceID {
+	if c.capability.Load() == 2 && outbound.ServiceID != wire.CapabilityServiceID && outbound.ServiceID != wire.TraceCapabilityServiceID {
 		outbound.Kind = core.FrameKindRPCBudgetRequest
 	}
 	outbound.RequestID = requestID
@@ -357,16 +409,25 @@ func (c *Conn) writeOutboundBatch(items []sched.Item, outbounds []Outbound, fram
 		}
 		if timeout := c.cfg.Limits.WriteTimeout; timeout > 0 {
 			if err := c.raw.SetWriteDeadline(time.Now().Add(timeout)); err != nil {
-				releaseOutbounds(outbounds)
+				finishOutbounds(outbounds, err)
 				return err
 			}
 		}
+		for i := range outbounds {
+			outbounds[i].traceQueue.End(rpctrace.ResultOK)
+			stage := rpctrace.StageRequestWrite
+			if outbounds[i].Kind == core.FrameKindRPCResponse {
+				stage = rpctrace.StageResponseWrite
+			}
+			outbounds[i].traceWrite = outbounds[i].Trace.Begin(stage)
+		}
 		if err := writeFramesInto(c.raw, buffers, frames, c.cfg.Limits.MaxFrameBodyBytes); err != nil {
-			releaseOutbounds(outbounds)
+			finishOutbounds(outbounds, err)
 			return err
 		}
 		var sentBytesByKind [core.FrameKindRPCCancel + 1][core.PriorityBulk + 1]int
 		for _, outbound := range outbounds {
+			outbound.finishTraceWrite(nil)
 			sentBytesByKind[outbound.Kind][outbound.Priority] += outbound.Payload.Len()
 			outbound.Payload.Release()
 		}
@@ -389,13 +450,14 @@ func (c *Conn) writeOutboundBatch(items []sched.Item, outbounds []Outbound, fram
 		}
 		if outbound.writeCtx != nil && outbound.writeCtx.Err() != nil {
 			outbound.Payload.Release()
+			outbound.finishTraceWrite(outbound.writeCtx.Err())
 			c.pending.Delete(outbound.RequestID)
 			c.observePendingRPC("ok")
 			continue
 		}
 		if c.outboundBatchWouldExceed(len(outbounds), batchBytes, outbound) {
 			if err := flush(); err != nil {
-				releaseSchedItems(items[i:])
+				finishSchedItems(items[i:], err)
 				return outbounds, frames, err
 			}
 		}
@@ -427,7 +489,7 @@ func (c *Conn) shutdown(err error) {
 		c.cancelInboundRequests()
 		_ = c.raw.Close()
 		drained := c.scheduler.Stop(err)
-		releaseSchedItems(drained)
+		finishSchedItems(drained, err)
 		c.pending.FailAll(err)
 		c.observePendingRPC("stopped")
 	})
@@ -540,19 +602,23 @@ func (o Outbound) toFrame() wire.Frame {
 	}
 }
 
-func releaseSchedItems(items []sched.Item) {
+func releaseSchedItems(items []sched.Item) { finishSchedItems(items, core.ErrStopped) }
+func finishSchedItems(items []sched.Item, err error) {
 	for _, item := range items {
 		outbound, ok := item.Value.(Outbound)
 		if !ok {
 			continue
 		}
 		outbound.Payload.Release()
+		outbound.finishTraceWrite(err)
 	}
 }
 
-func releaseOutbounds(outbounds []Outbound) {
+func releaseOutbounds(outbounds []Outbound) { finishOutbounds(outbounds, core.ErrStopped) }
+func finishOutbounds(outbounds []Outbound, err error) {
 	for _, outbound := range outbounds {
 		outbound.Payload.Release()
+		outbound.finishTraceWrite(err)
 	}
 }
 

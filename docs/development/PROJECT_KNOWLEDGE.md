@@ -2020,6 +2020,17 @@ specification, runbook, report, or module documentation; link to them when neede
   labels, parser bounds and release gates stay unchanged. This coherence repair
   does not establish the cause of an unretained scrape or a presence timeout.
 
+- RPC phase diagnostics are opt-in through `diagnostics.rpc_sample_every` and
+  require the existing diagnostics store to be enabled. A negotiated connection
+  generation token and full RequestID join caller/receiver samples; ordinary
+  per-connection RequestIDs alone cannot. Samples use the existing bounded
+  observer drain and store, with at most 128 active observations per endpoint and
+  32 intervals per RPC. Local durations may overlap; independent endpoint clocks
+  cannot establish one-way network delay. Missing/unfinished intervals, bounded
+  query retention and observer drops remain incomplete evidence. Shared permission
+  cohorts do not claim one caller as their parent, and tracing does not grant
+  cancellation authority over started mutations.
+
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
   does not establish compiled-source provenance. Exact reproduction uses a clean

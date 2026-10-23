@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync/atomic"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 // NodeID identifies a cluster node in transport routing.
@@ -75,6 +77,8 @@ type DurationSamples struct {
 
 // Event describes a transport lifecycle, scheduling, or service observation.
 type Event struct {
+	// RPCTrace is one detached request sample, delivered without latency aggregation.
+	RPCTrace *rpctrace.Sample
 	// Count is the number of counter events represented; zero means one legacy event.
 	Count uint64
 	// Samples is non-nil for aggregated duration events, including empty samples.

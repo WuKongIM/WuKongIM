@@ -56,12 +56,12 @@ Stop or startup rollback
   must not introduce a local business bypass.
   Real single-node SEND/SENDACK smoke coverage lives in the integration tier and
   uses the production-default send deadline; native-package preview runs it explicitly.
-- Synchronous before-send Webhook admission is wired independently of asynchronous
-  Webhook workers and plugin enablement; configuration errors fail startup.
-- Gateway feedback uses the existing Online Delivery FeedbackHandler directly;
-  disabled delivery leaves that optional port absent.
-- Optional features are wired only when all required ports exist; unavailable
-  capabilities stay explicit instead of receiving partial implementations.
+- Synchronous before-send Webhook admission is independent of Webhook workers and plugin enablement; configuration errors fail startup.
+- Gateway feedback uses Online Delivery FeedbackHandler directly; disabled delivery leaves that optional port absent.
+- Optional features require all their ports; unavailable capabilities remain explicit.
+- RPC phase samples require diagnostics enabled and nonzero `diagnostics.rpc_sample_every`.
+  Both transport endpoints feed detached samples through the bounded observer drain, independently of metrics.
+  Existing queries return `rpc.client`/`rpc.server`; missing samples do not prove absence of waits.
 - Manager Channel inventory and its node RPC share the non-activating Channel
   observer; lifecycle metadata and Leader residency remain separate evidence.
 - Opt-in MQTT composition shares the existing Gateway and device-token verifier,

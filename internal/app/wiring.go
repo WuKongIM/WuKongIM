@@ -210,6 +210,7 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 		}, a.metrics.PrometheusRegistry()).MustRegister(a.goroutines)
 	}
 	clusterCfg.Goroutines = a.goroutines
+	clusterCfg.Transport.RPCTraceEvery = 0
 	if top != nil && a.cfg.Top.APIEnabled {
 		clusterCfg.Channel.Observer = combineChannelObservers(clusterCfg.Channel.Observer, topChannelObserver{top: top})
 		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, topSlotObserver{top: top})
@@ -219,6 +220,11 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 	}
 	if a.cfg.Observability.Diagnostics.Enabled {
 		a.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(a.cfg))
+		if every := a.cfg.Observability.Diagnostics.RPCSampleEvery; every != 0 {
+			clusterCfg.Transport.RPCTraceEvery = every
+			clusterCfg.Transport.Observer = combineTransportObservers(clusterCfg.Transport.Observer,
+				&rpcDiagnosticsObserver{store: a.diagnostics, nodeID: clusterCfg.NodeID})
+		}
 		clusterCfg.Slots.PreferredLeaderObserver = combinePreferredLeaderObservers(
 			clusterCfg.Slots.PreferredLeaderObserver,
 			&preferredLeaderDiagnosticsObserver{store: a.diagnostics, nodeID: clusterCfg.NodeID},

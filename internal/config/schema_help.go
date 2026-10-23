@@ -346,6 +346,10 @@ var schemaHelp = map[string]fieldHelp{
 		EN: "Captures bounded node-local diagnostic events; enabled when omitted.",
 		ZH: "是否采集本节点的有界诊断事件；省略时启用。",
 	},
+	"diagnostics.rpc_sample_every": {
+		EN: "Selects one in N outbound RPCs for bounded request-local timings and accepts negotiated inbound timings while diagnostics.enable is true. Defaults to 0 (disabled); 32 selects one in 32. Range: 0..4294967295. Ordinary metric sampling is unchanged. Enabling timing adds capability negotiation; failure may prevent this RPC from being sent.",
+		ZH: "diagnostics.enable 为 true 时，每 N 次出站 RPC 选择一次有界同请求耗时采样，并接收协商后的入站耗时采样。默认 0（禁用），32 表示每 32 次选一次；范围为 0..4294967295。普通指标采样保持不变；启用会增加能力协商，协商失败可能阻止本次 RPC 发出。",
+	},
 	"diagnostics.buffer_size": {
 		EN: "Maximum diagnostic events retained in memory; 0 uses 50000.",
 		ZH: "内存中最多保留的诊断事件数；0 使用默认值 50000。",

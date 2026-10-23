@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 const (
@@ -62,12 +63,26 @@ func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLo
 		// A={u1}, B={u1,u2} must make u2 available before B waits for A's u1.
 		r.executeRecoveryCohort(ctx, cohort)
 	}
+	trace := rpctrace.From(ctx)
 	for i, group := range groups {
 		if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
 			continue
 		}
 		var err error
+		var waitSpan rpctrace.Span
+		observingWait := false
 		for _, flight := range waits[i] {
+			if trace != nil && !observingWait {
+				// A completed local flight must not look like a follower wait.
+				// This probe controls observation only; the original select below
+				// still decides the result, including cancellation races.
+				select {
+				case <-flight.done:
+				default:
+					waitSpan = trace.Begin(rpctrace.StageRecoveryFlight)
+					observingWait = true
+				}
+			}
 			select {
 			case <-ctx.Done():
 				err = ctx.Err()
@@ -80,6 +95,9 @@ func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLo
 		}
 		if ctx.Err() != nil {
 			err = ctx.Err()
+		}
+		if observingWait {
+			waitSpan.End(rpctrace.ResultFor(err))
 		}
 		if err != nil {
 			results[i] = EndpointLookupResult{Err: err}
@@ -154,13 +172,17 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 		if len(newKeys) != 0 && (r.cohorts >= recoveryMaxCohorts || len(newKeys) > recoveryMaxKeys-len(r.inFlight) || uidBytes > recoveryMaxUIDBytes-r.ownedUIDBytes) {
 			changed := r.changed
 			r.mu.Unlock()
+			// Only measure quota waiting, not Directory reads or admission locks.
+			span := rpctrace.Begin(ctx, rpctrace.StageRecoveryAdmission)
 			select {
 			case <-ctx.Done():
+				span.End(rpctrace.ResultFor(ctx.Err()))
 				for _, i := range indexes {
 					results[i] = EndpointLookupResult{Err: ctx.Err()}
 				}
 				return results, nil, waits
 			case <-changed:
+				span.End(rpctrace.ResultOK)
 				continue
 			}
 		}
@@ -246,7 +268,10 @@ func (r *AuthorityRecovery) executeRecoveryCohort(ctx context.Context, cohort *r
 			set(group, recovered[i].Err)
 			continue
 		}
-		set(group, r.directory.InstallRecoveredRoutes(group.Target, group.UIDs, recovered[i].Routes))
+		span := rpctrace.Begin(ctx, rpctrace.StageRecoveryInstall)
+		err := r.directory.InstallRecoveredRoutes(group.Target, group.UIDs, recovered[i].Routes)
+		span.End(rpctrace.ResultFor(err))
+		set(group, err)
 	}
 }
 

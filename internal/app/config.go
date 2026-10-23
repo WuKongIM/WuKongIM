@@ -233,6 +233,10 @@ func (c *ObservabilityConfig) SetDiagnosticsExplicitFlags(enabledSet, sampleRate
 type DiagnosticsConfig struct {
 	// Enabled turns local diagnostics event capture on or off.
 	Enabled bool
+	// RPCSampleEvery selects one in N outbound RPCs for bounded request-local
+	// timing and permits inbound negotiated timing while diagnostics is enabled.
+	// Zero disables RPC timing without changing ordinary metric sampling.
+	RPCSampleEvery uint32
 	// BufferSize is the maximum number of diagnostics events retained in memory.
 	BufferSize int
 	// SampleRate is the baseline keep probability for successful diagnostics events.

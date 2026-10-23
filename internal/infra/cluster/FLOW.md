@@ -110,6 +110,9 @@ management, plugins, diagnostics, and bounded operations observations.
 - Fanout and diagnostic work must remain concurrency-, deadline-, and result-
   bounded and must not place user, Channel, Slot, or node identities in metric
   labels.
+- Optional request-local RPC phases distinguish presence owner-round admission
+  from each serial owner read. Child contexts retain observation metadata under
+  the original 250 ms bound; tracing changes no membership or authority proof.
 
 - Message-update storage maps a narrow usecase port to authoritative Slot operations. Read adapters preserve edit version/time and byte-limited continuation after content growth; committed history and persisted previews retain separate base-read semantics.
 

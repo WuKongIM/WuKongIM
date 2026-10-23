@@ -19,6 +19,8 @@ type Dialer func(network, addr string, timeout time.Duration) (net.Conn, error)
 
 // ClientConfig configures outbound peer connections and limits.
 type ClientConfig struct {
+	// RPCTraceEvery samples one complete RPC per interval; zero disables negotiation and recording.
+	RPCTraceEvery uint32
 	// RequestBudgets negotiates deadline/cancel support once per connection before
 	// business RPC. Unsupported older peers retain version-1 request behavior.
 	RequestBudgets bool
@@ -40,6 +42,8 @@ type ClientConfig struct {
 
 // ServerConfig configures inbound transport service state.
 type ServerConfig struct {
+	// RPCTracing accepts negotiated, bounded request observations; false disables capture.
+	RPCTracing bool
 	// NodeID is the local cluster node ID used for inbound transport identity.
 	NodeID NodeID
 	// Limits bounds frame, queue, batch, and timeout behavior; the all-zero value uses DefaultLimits.

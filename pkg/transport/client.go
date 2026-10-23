@@ -3,7 +3,9 @@ package transport
 import (
 	"context"
 	"errors"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"net"
+	"sync/atomic"
 	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
@@ -14,9 +16,12 @@ import (
 
 // Client owns outbound peer connection state.
 type Client struct {
-	cfg      ClientConfig
-	peers    *peer.Manager
-	observer *core.ObserverDrain
+	// traceRecorder and traceSequence bound opt-in endpoint observations.
+	traceRecorder *rpctrace.Recorder
+	traceSequence atomic.Uint64
+	cfg           ClientConfig
+	peers         *peer.Manager
+	observer      *core.ObserverDrain
 }
 
 // NewClient validates config and builds a minimal client shell.
@@ -25,13 +30,21 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	var recorder *rpctrace.Recorder
+	if normalized.RPCTraceEvery > 0 {
+		recorder, err = rpctrace.NewRecorder(128)
+		if err != nil {
+			return nil, err
+		}
+	}
 	observer := core.NewObserverDrain(normalized.Observer, goruntimeregistry.TaskTransportClientObserver)
 	if observer != nil {
 		normalized.Observer = observer
 	}
 	return &Client{
-		cfg:      normalized,
-		observer: observer,
+		cfg:           normalized,
+		traceRecorder: recorder,
+		observer:      observer,
 		peers: peer.NewManager(peer.Config{
 			Discovery: normalized.Discovery,
 			PoolSize:  normalized.PoolSize,
@@ -106,17 +119,35 @@ func (c *Client) CallOwned(ctx context.Context, nodeID NodeID, shardKey uint64, 
 			c.cfg.Observer.ObserveTransport(Event{Name: "client_rpc", NodeID: nodeID, ServiceID: serviceID, Result: result, Duration: time.Since(started)})
 		}()
 	}
+	var trace *rpctrace.Trace
+	if c.traceRecorder != nil && (rpctrace.From(ctx) != nil || (c.traceSequence.Add(1)-1)%uint64(c.cfg.RPCTraceEvery) == 0) {
+		trace = c.traceRecorder.Start(ctx, rpctrace.SideClient, serviceID)
+		ctx = rpctrace.With(ctx, trace)
+		defer func() { core.FinishRPCTrace(c.cfg.Observer, nodeID, trace, core.RPCTraceResult(err)) }()
+	}
+	acquire := trace.Begin(rpctrace.StagePeerAcquire)
 	peerConn, err := c.peers.Acquire(ctx, nodeID, shardKey)
+	acquire.End(core.RPCTraceResult(err))
 	if err != nil {
 		payload.Release()
 		return nil, err
 	}
+	capability := trace.Begin(rpctrace.StageCapability)
 	if c.cfg.RequestBudgets {
 		if err := peerConn.NegotiateRequestBudgets(ctx); err != nil {
 			payload.Release()
+			capability.End(core.RPCTraceResult(err))
 			return nil, err
 		}
 	}
+	if trace != nil {
+		if err := peerConn.NegotiateRPCTrace(ctx); err != nil {
+			payload.Release()
+			capability.End(core.RPCTraceResult(err))
+			return nil, err
+		}
+	}
+	capability.End(rpctrace.ResultOK)
 	return peerConn.Call(ctx, conn.Outbound{
 		Priority:  pri,
 		ServiceID: serviceID,

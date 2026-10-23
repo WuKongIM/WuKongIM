@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Add opt-in bounded RPC phase samples to the existing diagnostics interface,
+  correlating caller and receiver queue, handler and response-write intervals.
+  / 现有诊断接口新增默认关闭的有界 RPC 分段观测，可关联调用端与接收端的
+  排队、处理和响应写回阶段。
+
 - Identify storage-overlap scan failures with fixed diagnostic reasons while
   preserving scan limits and missing-evidence decisions.
 

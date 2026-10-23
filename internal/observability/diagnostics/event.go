@@ -1,6 +1,10 @@
 package diagnostics
 
-import "time"
+import (
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
+)
 
 // Stage identifies a stable diagnostics step in the message processing path.
 type Stage string
@@ -15,6 +19,10 @@ type ErrorCode string
 type Status string
 
 const (
+	// StageRPCClient identifies one selected outbound RPC timing sample.
+	StageRPCClient Stage = "rpc.client"
+	// StageRPCServer identifies one selected inbound RPC timing sample.
+	StageRPCServer Stage = "rpc.server"
 	// StageSlotPreferredLeaderReconcile identifies one retained physical-Slot
 	// PreferredLeader reconciliation decision.
 	StageSlotPreferredLeaderReconcile Stage = "slot.preferred_leader_reconcile"
@@ -61,6 +69,8 @@ const (
 
 // Event describes one diagnostic fact observed on the local node.
 type Event struct {
+	// RPC retains one detached bounded timing sample, without request payloads.
+	RPC *rpctrace.Sample `json:"rpc,omitempty"`
 	// TraceID correlates events that belong to the same diagnostics trace.
 	TraceID string `json:"trace_id,omitempty"`
 	// SpanID identifies this event span within a trace when span data is available.
@@ -195,6 +205,16 @@ func normalizeEvent(event Event, now time.Time, maxErrorBytes int) Event {
 }
 
 func redactEvent(event Event) Event {
+	event = cloneEvent(event)
 	event.FromUID = ""
+	return event
+}
+
+// cloneEvent detaches mutable timing evidence at store and query ownership transfers.
+func cloneEvent(event Event) Event {
+	if event.RPC != nil {
+		sample := event.RPC.Clone()
+		event.RPC = &sample
+	}
 	return event
 }
