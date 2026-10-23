@@ -1,0 +1,158 @@
+{
+  "artifacts": [
+    {
+      "bytes": 3472,
+      "mode": "0600",
+      "path": "diagnostic-result.json",
+      "sha256": "f892b11128384ae3604ecb1e5b1108437bd24f549f1ac1ed3bb4060550f55260"
+    },
+    {
+      "bytes": 570,
+      "mode": "0600",
+      "path": "supervisor-events.json",
+      "sha256": "965263d55ed0d1bfa72f82a920a9c9e31d5073de6800244ac01db0a2eef495b4"
+    },
+    {
+      "bytes": 35767,
+      "mode": "0600",
+      "path": "diagnostic-cuts.jsonl",
+      "sha256": "840de81c005e9433115bb4fbc0eb2d9068cf78b0d2ac7c23d8e13684380306a8"
+    },
+    {
+      "bytes": 920,
+      "mode": "0600",
+      "path": "cleanup-receipt.json",
+      "sha256": "1e4d1d294b680a7ad78912540f7b5c8148e78385d0d9f69a32a08702e9a80288"
+    },
+    {
+      "bytes": 3549,
+      "mode": "0600",
+      "path": "preflight.json",
+      "sha256": "0891dbf419733fb76fb2b4918da0e06de854a22514e2fdafdeb8b65b16cc2550"
+    },
+    {
+      "bytes": 98687,
+      "mode": "0600",
+      "path": "host-process-samples.jsonl",
+      "sha256": "7aaf3eea83d73621f53755da76acbed60caf6ad43d457b2e3384b7729323cd23"
+    },
+    {
+      "bytes": 391,
+      "mode": "0600",
+      "path": "report/run-start.json",
+      "sha256": "9348e2eeb434896a65795225381f0c49d6564b505dcb9232e89c358757f3508f"
+    },
+    {
+      "bytes": 447297,
+      "mode": "0600",
+      "path": "report/worker-evidence.json",
+      "sha256": "81f79bfa4f539eb3703760ed40691b916473a50f2a82f5948f2989488761b918"
+    },
+    {
+      "bytes": 23759,
+      "mode": "0600",
+      "path": "report/final.json",
+      "sha256": "6b797e4d3e6f6d9736884a2dc6fc54ee26b3bee36e4889339bbd22067326d203"
+    },
+    {
+      "bytes": 24093,
+      "mode": "0600",
+      "path": "report/final.md",
+      "sha256": "6c2d9b0a877b1c330503b155c2f5e7f59880752b6f3abc68ceccb53a6406a208"
+    },
+    {
+      "bytes": 9058,
+      "mode": "0600",
+      "path": "report/diagnostic-status.json",
+      "sha256": "2388c5a7b0bd0e70ed2d7a5411a0c99d7db5e52c05e9f3204cac048f15cc5013"
+    },
+    {
+      "bytes": 10845,
+      "mode": "0600",
+      "path": "logs/coordinator.log",
+      "sha256": "926a8e03911c7fbd7f5d61d433269d74387c736ed88bd3dc0ac6009850dcd20d"
+    },
+    {
+      "bytes": 4079,
+      "mode": "0600",
+      "path": "logs/launcher.log",
+      "sha256": "87bab54ceaba698d89856f0d2b54cf7a914cbe9f71d8bdf0e4743c84a44a25b7"
+    },
+    {
+      "bytes": 251070,
+      "mode": "0600",
+      "path": "logs/service-1.log",
+      "sha256": "39017b324e608ff8770119811bd0ec045df732324e140dff5806a12214cae5b5"
+    },
+    {
+      "bytes": 311373,
+      "mode": "0600",
+      "path": "logs/service-2.log",
+      "sha256": "e7d88eb3030eed5adb7e7d097d7891f2e7a34e58e68826ae612caa11d426195f"
+    },
+    {
+      "bytes": 197579,
+      "mode": "0600",
+      "path": "logs/service-3.log",
+      "sha256": "6662ec0c1fa74ecbc7f70b92294cb8cc1feb6e2feccc1f8d34672d58985fd94f"
+    },
+    {
+      "bytes": 1035441,
+      "mode": "0600",
+      "path": "evidence/metrics-first-measured-node1.prom",
+      "sha256": "55c98f6df8bdd496a6016ceae30d1f429bd1c013bb459ceb2aa5bc36f95e09d3"
+    },
+    {
+      "bytes": 1006789,
+      "mode": "0600",
+      "path": "evidence/metrics-first-measured-node2.prom",
+      "sha256": "8f43f248cbdb497f06bbcc8751e75d0a51d2bb6d2e290ecf6f5a2f325d6c5e12"
+    },
+    {
+      "bytes": 995216,
+      "mode": "0600",
+      "path": "evidence/metrics-first-measured-node3.prom",
+      "sha256": "768757316dbf55aeeffeea779c28d7c8dd9a2c5ed30bae4f0238e2e23329b993"
+    },
+    {
+      "bytes": 1144739,
+      "mode": "0600",
+      "path": "evidence/metrics-terminal-node1.prom",
+      "sha256": "bf81458c8f41814282b74fabe8fca7119857475bdfd63ed16da3aa08ac010114"
+    },
+    {
+      "bytes": 1119503,
+      "mode": "0600",
+      "path": "evidence/metrics-terminal-node2.prom",
+      "sha256": "b002396c19c4059b5a73b6788f5ff0046ee604b378690f92a7427b53f912f6a2"
+    },
+    {
+      "bytes": 1101922,
+      "mode": "0600",
+      "path": "evidence/metrics-terminal-node3.prom",
+      "sha256": "802f588f60a28248db49a75476071712f498abbf62743c998722ee61d36519dc"
+    }
+  ],
+  "initial_projection_mode_assertion_preserved_as_tool_feedback": true,
+  "normalization_content_and_mtime_unchanged": true,
+  "original_final_report_present": true,
+  "privacy_metadata_normalized_to_0700_dirs_0600_raw_files": [
+    "logs/",
+    "evidence/",
+    "diagnostic-result.json",
+    "supervisor-events.json",
+    "diagnostic-cuts.jsonl",
+    "cleanup-receipt.json",
+    "preflight.json",
+    "host-process-samples.jsonl",
+    "logs/launcher.log",
+    "evidence/metrics-first-measured-node1.prom",
+    "evidence/metrics-first-measured-node2.prom",
+    "evidence/metrics-first-measured-node3.prom",
+    "evidence/metrics-terminal-node1.prom",
+    "evidence/metrics-terminal-node2.prom",
+    "evidence/metrics-terminal-node3.prom"
+  ],
+  "raw_inputs_not_public": true,
+  "schema": "wukongim/local2k-safe-private-inventory/v1"
+}

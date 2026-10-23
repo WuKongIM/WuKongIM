@@ -1,0 +1,137 @@
+{
+  "schema": "wukongim/profiled2000-closed-worker-cuts/v1",
+  "cuts": [
+    {
+      "at": "2026-10-23T12:50:10.018851916+08:00",
+      "cut": "periodic",
+      "elapsed_since_firstgrant_seconds": 5.049608,
+      "messages": {
+        "sent": 10013,
+        "send_attempts": 10572,
+        "first_attempts": 10013,
+        "first_attempt_failures": 60,
+        "send_acknowledged": 7717,
+        "send_rejected": 60,
+        "received": 8817,
+        "receive_acknowledged": 8817,
+        "receive_ack_failures": 0,
+        "retry_attempts": 559,
+        "terminal": 0,
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      }
+    },
+    {
+      "at": "2026-10-23T12:50:15.018906958+08:00",
+      "cut": "periodic",
+      "elapsed_since_firstgrant_seconds": 10.049663,
+      "messages": {
+        "sent": 19990,
+        "send_attempts": 21296,
+        "first_attempts": 19990,
+        "first_attempt_failures": 187,
+        "send_acknowledged": 17938,
+        "send_rejected": 200,
+        "received": 21321,
+        "receive_acknowledged": 21321,
+        "receive_ack_failures": 0,
+        "retry_attempts": 1306,
+        "terminal": 0,
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      }
+    },
+    {
+      "at": "2026-10-23T12:50:23.102189+08:00",
+      "cut": "terminal",
+      "elapsed_since_firstgrant_seconds": 18.132946,
+      "messages": {
+        "sent": 22001,
+        "send_attempts": 23689,
+        "first_attempts": 22001,
+        "first_attempt_failures": 379,
+        "send_acknowledged": 22001,
+        "send_rejected": 396,
+        "received": 27522,
+        "receive_acknowledged": 27522,
+        "receive_ack_failures": 0,
+        "retry_attempts": 1688,
+        "terminal": 0,
+        "losses": 2,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "harness": {
+        "classification": "product_failure",
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 193806,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      }
+    }
+  ],
+  "periodic_active_rate": {
+    "first_periodic_seconds": 5.049608,
+    "second_periodic_seconds": 10.049663,
+    "first_attempts_delta": 9977,
+    "elapsed_delta_seconds": 5.000055000000001,
+    "active_offered_SEND_per_second": 1995.3780508414404,
+    "semantics": "periodic-to-periodic firstattempt delta; terminal/drain average excluded; profiled diagnostic only"
+  }
+}

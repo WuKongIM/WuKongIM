@@ -1,0 +1,121 @@
+{
+  "schema": "wukongim/local-diagnostic-independent-terminal-review/v1",
+  "observed_at_utc": "2026-10-23T05:18:20.493190+00:00",
+  "reviewer": "ci_audit",
+  "read_only_commands": [
+    "ps pid,pgid,comm",
+    "lsof exact TCP LISTEN range",
+    "git rev-parse/status",
+    "bounded local metadata reads and hashes"
+  ],
+  "service_probes": 0,
+  "signals_or_process_mutations": 0,
+  "tests_builds_or_product_starts": 0,
+  "owned_pgid": 43106,
+  "independent_inventory": {
+    "owned_pgid_process_count": 0,
+    "all_wukongim_wkcli_process_count": 0,
+    "listening_count": 0,
+    "port_range": [
+      25000,
+      25063
+    ],
+    "port_count": 64,
+    "ps_exit": 0,
+    "lsof_exit": 1,
+    "zero_verified": true
+  },
+  "actual_original_final": {
+    "path": "report/final.json",
+    "sha256": "2e928cd0bf79ca5905c566e2ac74972e75fc7f64664eeb6adfd4de9a9d347830",
+    "bytes": 23684,
+    "outcome": "product_failure",
+    "cause": "overall_first_attempt_rate",
+    "terminal": true,
+    "first_measured_started_at_utc": "2026-10-23T05:14:52.445922+00:00",
+    "window_elapsed_ns": 15286131667,
+    "messages": {
+      "sent": 22001,
+      "send_attempts": 24308,
+      "first_attempts": 22001,
+      "first_attempt_failures": 760,
+      "send_acknowledged": 22001,
+      "send_rejected": 829,
+      "received": 27635,
+      "receive_acknowledged": 27635,
+      "receive_ack_failures": 0,
+      "retry_attempts": 2307,
+      "terminal": 0,
+      "losses": 1,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "correlation": {
+      "pending_unfinished": 0,
+      "outstanding": 0,
+      "sampled": 197,
+      "delivered": 196,
+      "expired": 1,
+      "duplicate_completions": 0,
+      "conflicting_completions": 0,
+      "unknown_acknowledgments": 0
+    }
+  },
+  "executor_cleanup": {
+    "sha256": "9cae43b9160e457d1e1675181e3b81c0f1bf9220ca19dee2ac1f30df0a97a181",
+    "at_utc": "2026-10-23T05:16:39.778410+00:00",
+    "elapsed_seconds": 360.91396199993324,
+    "complete": true,
+    "owned_pgid": 43106,
+    "launcher_exit_status": 7,
+    "diagnostic_receipt_sha256": "243b6bda81c8a43a93bccf95152a177f1c39e393b849221835922ffda73c4800"
+  },
+  "source_repositories": {
+    "source": {
+      "head": "161814ce559366847d2b026850ab0afe0e52aed6",
+      "tree": "79d83fd62c4e95f2c7468c3730089892c58b475b",
+      "tracked_untracked_clean": true
+    },
+    "primary": {
+      "head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+      "tree": "d3ae8bec9e277cc0b7a95d51762682224e505be2",
+      "tracked_untracked_clean": true
+    },
+    "qualification": {
+      "head": "8b4c12b1f6722f969b907fdfd2b2d9425dac5aa9",
+      "tree": "42b2e756ef119da3cbaa67eaf51d7d35d2d12cf9",
+      "tracked_untracked_clean": true
+    }
+  },
+  "development_worktree_excluded_from_clean_claim": true,
+  "actual_binaries": {
+    "wukongim": {
+      "sha256": "a22287913fa83210290334de75e230466318071f464018c4a4a34a46b2d7b47e",
+      "bytes": 64618866
+    },
+    "wkcli": {
+      "sha256": "3586fcabfc4751f5731aa68e981446c4751994a3e8c2d6af22bb8026489256bf",
+      "bytes": 41060466
+    }
+  },
+  "immutable_bindings": {
+    "prepared_receipt_sha256": "225061242cfb17333d8c194b7d7ff22338b55a0eb6c4a2f55750fe0b1c47dff9",
+    "root_decision_sha256": "d2bf6588a432c0af6f8135805f9e59e8adf427b891690682a941e0111cb99481",
+    "build_manifest_sha256": "4d5c75a41120d9d8c0f4d1262a7c80e32c9dce129fd8125120ce7e8da6c3c6bc",
+    "build_manifest_members_verified": 12,
+    "runtime_six_pins": {
+      "exact_build_guard.py": "a2c58b3018892354fbaea7417b21dee5939487346442dff7a036c61308a7d151",
+      "launcher.sh": "ecd44536ee1827b1f602527c1eecdf8dad0cf6b69b767f7fd07bb6e6848b7260",
+      "original-distribution-local.yaml": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+      "supervise.py": "a0cd3dca3452d892a970586b73e8a360a2fe00b57430047107172d5518549447",
+      "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+      "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415"
+    },
+    "first_measured_source_sha256": "7dd8d1ada9c8af945e81e6cd18befb01967e439ef6b33aa9553157895c5fcbc8"
+  },
+  "local_observer_correction": {
+    "initial_metadata_discovery": "A top-level JSON inventory assumed every JSON was an object; supervisor-events.json is an array and raised AttributeError. Corrected by checking JSON type; no source/runtime mutation, raw data changes, or discarded product failure."
+  },
+  "interpretation": "Original overall_first_attempt_rate product_failure preserved. SEND=ACK and successful cleanup do not establish the original 2,000 SEND/s acceptance gates. One sampled expiry remains recorded. No unique historical root-cause conclusion."
+}

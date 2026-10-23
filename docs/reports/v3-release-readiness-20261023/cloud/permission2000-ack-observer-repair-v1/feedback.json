@@ -1,0 +1,87 @@
+{
+  "scope": "ACK-count Top observer publication only",
+  "base": "7f36a7cce79641f1704be9841c3c470527f67231",
+  "changed_files": [
+    "CHANGELOG.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "docs/development/FLOW_INDEX.md",
+    "internal/app/FLOW.md",
+    "internal/app/top_collector.go",
+    "internal/app/top_ack_gauge_test.go",
+    "internal/app/top_ack_observer_integration_test.go"
+  ],
+  "blocking_red_cases": 2,
+  "red_compiled": true,
+  "normal": {
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "test",
+      "-tags=integration",
+      "./internal/app",
+      "-run",
+      "^Test(Top|OnlineDelivery|DeliveryEnabledPerson|ConfigureObservabilityWiresTop|NewWiresTop)",
+      "-count=1",
+      "-timeout=60s",
+      "-v"
+    ],
+    "exit": 0,
+    "elapsed_seconds": 5.795894791954197,
+    "log_sha256": "bc8e2a08140c3b64943f8d8123c1b5b6a8a5362a6c0d274fd2dfe87a24ddcc45"
+  },
+  "race": {
+    "argv": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "test",
+      "-tags=integration",
+      "-race",
+      "./internal/app",
+      "-run",
+      "^Test(Top|OnlineDelivery|DeliveryEnabledPerson|ConfigureObservabilityWiresTop|NewWiresTop)",
+      "-count=1",
+      "-timeout=60s",
+      "-v"
+    ],
+    "exit": 0,
+    "elapsed_seconds": 19.55953175004106,
+    "log_sha256": "6fd67ab46abf7430a370c583302cd2fccf0d6531c50d194b80e81c134eb27acb"
+  },
+  "normal_root_pass": 39,
+  "race_root_pass": 39,
+  "skip": 0,
+  "flow": {
+    "named_check": "flow-doc-contracts-final",
+    "argv": [
+      "go",
+      "run",
+      "./scripts/flowcheck",
+      "--mode",
+      "check"
+    ],
+    "exit": 0,
+    "elapsed_seconds": 0.08100391691550612,
+    "log_sha256": "c118df0e2430f0f8640ad44d48179c62cb26afff53988af3696baf1daff46a7a",
+    "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "policy": {
+      "arguments": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 60,
+      "max_output_bytes": 1048576
+    }
+  },
+  "flow_initial_failures_preserved": [
+    "flow-doc-contracts.json",
+    "flow-doc-contracts-concise.json"
+  ],
+  "all_owned_commands_terminal": true,
+  "git_diff_check_exit": 0,
+  "committed": false,
+  "pushed": false,
+  "new_runtime_workload_executed": false,
+  "limits": "No proof of unique historical loss cause or same-scale 2000 SEND/s acceptance. Other Top callbacks still use their existing lock."
+}

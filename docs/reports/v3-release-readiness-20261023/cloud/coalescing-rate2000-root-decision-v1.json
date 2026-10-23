@@ -1,0 +1,37 @@
+{
+  "schema": "wukongim/local2k-root-decision/v1",
+  "at_utc": "2026-10-23T06:11:41.955755+00:00",
+  "source_revision": "8100d7fd7a9455029e8de4f6370f140ff07612bc",
+  "source_tree": "ff1a0135caa5e933550fa12f9ac601b786af8980",
+  "runtime_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-coalescing-rate2000-unprofiled-v1",
+  "prepared_sha256": "c24b1949279452ace38064b93eb01fd3277e76516ae2d70686fee211db51990d",
+  "independent_verification": {
+    "six_pins": true,
+    "supervisor_function_AST_equal": 11,
+    "launcher_body_equal": true,
+    "fixed_inputs_equal": 3,
+    "planner_config_model_equal": 9,
+    "binary_SHA_verified": 2,
+    "build_text_members_verified": 12,
+    "source_clean": true
+  },
+  "prestart_zero": {
+    "all_wukongim_wkcli_processes": 0,
+    "listeners_25000_25063": 0
+  },
+  "functional": {
+    "send_ban_e2e_exit": 0,
+    "cohort_four_layout_exit": 0,
+    "original_time_limits_and_assertions": true
+  },
+  "scope": "one native shared Mac diagnosis; not Linux/cloud/release qualification",
+  "decision": "start_once",
+  "gates_changed": false,
+  "profiles": false,
+  "paid_resources": false,
+  "no_auto_retry": true,
+  "total_seconds": 600,
+  "traffic_target_seconds": 120,
+  "product_change": "1ms to5ms concurrent collection only; existing 64cohorts/1024calls/16MiB limits and fresh reads retained",
+  "CI_status": "PR1035 first correctness task failed; exact closed cause still under investigation, not retried; local test does not erase CI failure"
+}

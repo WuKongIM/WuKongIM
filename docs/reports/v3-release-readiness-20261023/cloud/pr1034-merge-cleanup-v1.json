@@ -1,0 +1,68 @@
+{
+  "schema": "wukongim.merge_cleanup_receipt/v1",
+  "observed_at": "2026-10-23T05:57:42.711009+00:00",
+  "pr": 1034,
+  "merge_commit": "830ebbdcc3f3cb0b8d005648a187db40b02f55d4",
+  "merge_parents": [
+    "966ec67df1435ad07bbb82724cd940f550755179",
+    "d08031d576c3497c56b0dfba60e4db8370224c04"
+  ],
+  "branch_tip": "d08031d576c3497c56b0dfba60e4db8370224c04",
+  "origin_main": "830ebbdcc3f3cb0b8d005648a187db40b02f55d4",
+  "merge_tree": "e084b653ba2aea7e549c6421eaf203a16820d294",
+  "head_tree_equals_merge_tree": true,
+  "head_is_ancestor_of_origin_main": true,
+  "fetch": {
+    "arguments": [
+      "git",
+      "fetch",
+      "--no-tags",
+      "origin",
+      "refs/heads/main:refs/remotes/origin/main"
+    ],
+    "exit_code": 0,
+    "primary_branch_advanced": false
+  },
+  "cleanup": {
+    "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-permission-admission",
+    "branch": "codex/v3-permission-admission",
+    "before_clean_including_ignored": true,
+    "before_tip": "d08031d576c3497c56b0dfba60e4db8370224c04",
+    "worktree_remove_exit_code": 0,
+    "ordinary_branch_delete_exit_code": 0,
+    "force_used": false,
+    "worktree_absent": true,
+    "local_branch_absent": true
+  },
+  "preserved": {
+    "primary_head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+    "primary_branch": "main",
+    "primary_clean": true,
+    "all_other_linked_worktrees_unchanged": true,
+    "other_linked_worktree_count": 14,
+    "all_other_local_branch_refs_and_upstreams_unchanged": true,
+    "other_local_branch_count": 302,
+    "new_permission_coalescing_preserved": true,
+    "real_git_exact_source_clones_count": 10,
+    "real_git_exact_source_clones_heads_trees_unchanged": true
+  },
+  "private_snapshot_bindings": {
+    "pr1034-merge-cleanup-before-private.json": {
+      "bytes": 38769,
+      "sha256": "b9195a339858957ce7efd4da0e40e066c5b7873c19f3343f53c7f873c32fc0ba"
+    },
+    "pr1034-merge-cleanup-clones-before-private.json": {
+      "bytes": 2475,
+      "sha256": "f718549e80c9525ca5d0035a12051bf70de7897c4329ab8986832bf20320e09e"
+    },
+    "pr1034-merge-cleanup-fetch-private.json": {
+      "bytes": 295,
+      "sha256": "faefae82943113b74f789d8f6541b59b7ad63a63e1fb3cc0a8e14916077d075d"
+    },
+    "pr1034-merge-cleanup-commands-private.json": {
+      "bytes": 635,
+      "sha256": "6a9f36a7a60547b32d6a702d2fa32b541ab173587b19839b76faa985d9ae5c50"
+    }
+  },
+  "scope": "Only origin/main was fetched and the one proven-merged clean task worktree/local branch was removed. No source/build/test/product/workflow/cloud operations."
+}

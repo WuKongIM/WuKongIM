@@ -1,0 +1,360 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 32d408231..f419794c7 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,9 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Keep Top ACK-count publication independent of the shared metrics ingestion
++  lock so storage observations cannot hold up delivery ACK bookkeeping.
++
+ - Report gateway actor-ready queues without a fixed item capacity instead of
+   treating their initial slice allocation as a hard limit. Queue depth and
+   admission behavior remain unchanged, avoiding false metrics-parse failures.
+diff --git a/docs/development/FLOW_INDEX.md b/docs/development/FLOW_INDEX.md
+index 2829697db..ca35daaa2 100644
+--- a/docs/development/FLOW_INDEX.md
++++ b/docs/development/FLOW_INDEX.md
+@@ -24,7 +24,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
+ | [internal/access/opsmcp/FLOW.md](../../internal/access/opsmcp/FLOW.md) | `package` | Authenticates and routes the embedded closed-world Operations MCP while revalidating owner, revision, credential, and admission fences. | 49 | ok |
+ | [internal/access/reviewagentcheckmcp/FLOW.md](../../internal/access/reviewagentcheckmcp/FLOW.md) | `package` | Exposes only protected named Review Agent checks and trusted generation-bound evidence through local stdio MCP. | 44 | ok |
+ | [internal/access/reviewagentcli/FLOW.md](../../internal/access/reviewagentcli/FLOW.md) | `package` | Exposes Review Agent control operations and model-result normalization through strict bounded JSON process contracts. | 45 | ok |
+-| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 148 | warning |
++| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 150 | warning |
+ | [internal/bench/FLOW.md](../../internal/bench/FLOW.md) | `subtree` | Implements deterministic black-box benchmark planning, workers, traffic, and evidence. | 125 | warning |
+ | [internal/bench/chatlifecycle/FLOW.md](../../internal/bench/chatlifecycle/FLOW.md) | `package` | Runs the fenced chat-lifecycle workload, evidence pipeline, and aged-data capacity proof. | 113 | warning |
+ | [internal/contracts/backup/FLOW.md](../../internal/contracts/backup/FLOW.md) | `package` | Defines bounded entry-independent backup, repository, export, restore, and Controller coordination DTOs without policy or I/O. | 54 | ok |
+diff --git a/docs/development/PROJECT_KNOWLEDGE.md b/docs/development/PROJECT_KNOWLEDGE.md
+index 9e3066e78..09ce220d1 100644
+--- a/docs/development/PROJECT_KNOWLEDGE.md
++++ b/docs/development/PROJECT_KNOWLEDGE.md
+@@ -1,5 +1,12 @@
+ # Project Knowledge
+ 
++Delivery publishes pending ACK counts while holding its ACK mutation lock. The
++Top ACK-count observer must use independent atomic publication instead of the
++shared Top ingestion/control mutex; snapshots and clones must retain the real
++current count, including reset-to-zero, without rewriting historical samples.
++This observability constraint does not change ACK identity/order or prove that
++message-loss and throughput acceptance gates are satisfied.
++
+ Gateway actor-ready queues deduplicate pending connections but have no fixed
+ item-admission limit. Their initial slice capacity is allocation only; publish
+ capacity zero and the real depth. Do not clamp depth or relax benchmark parser
+diff --git a/internal/app/FLOW.md b/internal/app/FLOW.md
+index 6d61fcc87..c54da8842 100644
+--- a/internal/app/FLOW.md
++++ b/internal/app/FLOW.md
+@@ -135,6 +135,8 @@ The app configures aggregate MQTT storage on every product node, including when
+ - Default product Gateway/message composition owns one bounded ordered Channel submitter, using the existing Router and normalized Gateway record/worker/byte settings. Injected handlers/usecases retain their explicit execution behavior. Constructor rollback, Stop and restore maintenance join accepted callbacks before dependencies close or restart; timed-out drains retain their fence.
+ - Composition wires UID/source-Channel policy mutations, unified send facts, and bounded permission-stage/RPC/ban-scope and sealed-batch ownership observers through existing ports. Every topology follows the same cluster-authoritative admission path. Policy mutation observers write credential-free structured audits; proposal errors retain an unknown outcome rather than reporting tentative state as durable.
+ 
++Top ACK-binding counts use independent atomic publication while delivery serializes ACK mutations; publication never acquires the shared Top ingestion/control mutex.
++Sampling and cloning capture the current count, including zero; historical samples remain immutable. Other Top observations keep their existing locks.
+ 
+ ## Read First
+ - [app.go](app.go)
+diff --git a/internal/app/top_collector.go b/internal/app/top_collector.go
+index 51d09ab04..347256ecc 100644
+--- a/internal/app/top_collector.go
++++ b/internal/app/top_collector.go
+@@ -8,6 +8,7 @@ import (
+ 	"sort"
+ 	"strings"
+ 	"sync"
++	"sync/atomic"
+ 	"time"
+ 
+ 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
+@@ -77,8 +78,11 @@ type topCollector struct {
+ 
+ 	counters map[string]uint64
+ 	gauges   map[string]int64
+-	histos   map[string][]float64
+-	alerts   map[string]*topAlertState
++	// deliveryAckBindings publishes the serialized runtime ACK count without
++	// taking the ingestion mutex while the runtime holds its ACK mutation lock.
++	deliveryAckBindings atomic.Int64
++	histos              map[string][]float64
++	alerts              map[string]*topAlertState
+ 	// alertOrder stores alert fingerprints in creation order for bounded retention.
+ 	alertOrder []string
+ 	alertSeq   uint64
+@@ -411,7 +415,7 @@ func (c *topCollector) SetDeliveryAckBindings(count int64) {
+ 	if c == nil {
+ 		return
+ 	}
+-	c.setGauge(topGaugeDeliveryAckBindings, count)
++	c.deliveryAckBindings.Store(count)
+ }
+ 
+ func (c *topCollector) SetDeliveryRecipientQueue(depth, capacity int64) {
+@@ -489,6 +493,7 @@ func (c *topCollector) recordSampleAt(at time.Time) {
+ 	c.mu.Lock()
+ 	counters := cloneUint64Map(c.counters)
+ 	gauges := cloneInt64Map(c.gauges)
++	gauges[topGaugeDeliveryAckBindings] = c.deliveryAckBindings.Load()
+ 	histos := cloneHistos(c.histos)
+ 	c.histos = make(map[string][]float64)
+ 	c.mu.Unlock()
+@@ -545,6 +550,9 @@ func (c *topCollector) clone() *topCollector {
+ 	out := newTopCollector(c.options)
+ 	out.counters = cloneUint64Map(c.counters)
+ 	out.gauges = cloneInt64Map(c.gauges)
++	ackBindings := c.deliveryAckBindings.Load()
++	out.deliveryAckBindings.Store(ackBindings)
++	out.gauges[topGaugeDeliveryAckBindings] = ackBindings
+ 	out.histos = cloneHistos(c.histos)
+ 	out.alerts = cloneTopAlertStates(c.alerts)
+ 	out.alertOrder = append([]string(nil), c.alertOrder...)
+diff --git a/internal/app/top_ack_gauge_test.go b/internal/app/top_ack_gauge_test.go
+new file mode 100644
+index 000000000..d11db977d
+--- /dev/null
++++ b/internal/app/top_ack_gauge_test.go
+@@ -0,0 +1,47 @@
++package app
++
++import (
++	"context"
++	"testing"
++	"time"
++
++	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
++)
++
++func newAckGaugeCollector() *topCollector {
++	return newTopCollector(topCollectorOptions{ResourceSampler: func() topResourceSample { return topResourceSample{} }})
++}
++
++func requireAckGauge(t *testing.T, collector *topCollector, want int64) {
++	t.Helper()
++	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{Window: time.Minute, View: accessapi.TopViewAll})
++	if err != nil {
++		t.Fatalf("SnapshotTop: %v", err)
++	}
++	if snapshot.Delivery == nil || snapshot.Delivery.AckBindings != want {
++		t.Fatalf("delivery snapshot = %+v, want ACK bindings %d", snapshot.Delivery, want)
++	}
++}
++
++func TestTopAckGaugeSnapshotCloneAndZero(t *testing.T) {
++	collector := newAckGaugeCollector()
++	collector.recordSampleAt(time.Unix(100, 0))
++	collector.recordSampleAt(time.Unix(101, 0))
++	requireAckGauge(t, collector, 0)
++	collector.SetDeliveryAckBindings(7)
++	copy := collector.clone()
++	// A live update must not rewrite already retained samples.
++	requireAckGauge(t, collector, 0)
++	copy.recordSampleAt(time.Unix(102, 0))
++	requireAckGauge(t, copy, 7)
++	collector.recordSampleAt(time.Unix(102, 0))
++	requireAckGauge(t, collector, 7)
++	collector.SetDeliveryAckBindings(0)
++	collector.recordSampleAt(time.Unix(103, 0))
++	requireAckGauge(t, collector, 0)
++	copy.recordSampleAt(time.Unix(103, 0))
++	requireAckGauge(t, copy, 7)
++	zeroCopy := collector.clone()
++	zeroCopy.recordSampleAt(time.Unix(104, 0))
++	requireAckGauge(t, zeroCopy, 0)
++}
+diff --git a/internal/app/top_ack_observer_integration_test.go b/internal/app/top_ack_observer_integration_test.go
+new file mode 100644
+index 000000000..022959e9b
+--- /dev/null
++++ b/internal/app/top_ack_observer_integration_test.go
+@@ -0,0 +1,191 @@
++//go:build integration
++
++package app
++
++import (
++	"context"
++	"sync"
++	"testing"
++	"time"
++
++	channelappendcontract "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
++	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
++	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
++)
++
++// ackProgressWriter exposes the actual runtime reservation-to-write boundary.
++type ackProgressWriter struct{ writes chan struct{} }
++
++func (w *ackProgressWriter) WriteSession(context.Context, runtimedelivery.LocalSessionWrite) runtimedelivery.SessionWriteResult {
++	w.writes <- struct{}{}
++	return runtimedelivery.SessionWriteResult{Disposition: runtimedelivery.SessionWriteAccepted}
++}
++
++func newAckProgressRuntime(t *testing.T, collector *topCollector) (*runtimedelivery.Runtime, *ackProgressWriter) {
++	t.Helper()
++	writer := &ackProgressWriter{writes: make(chan struct{}, 16)}
++	observer := (&App{topProvider: collector}).onlineDeliveryObserver()
++	runtime := runtimedelivery.NewRuntime(runtimedelivery.RuntimeOptions{
++		LocalNodeID: 1, Workers: 1, SessionWriter: writer,
++		AckObserver: observer, AckBatchObserver: observer, Observer: observer,
++	})
++	if err := runtime.Start(context.Background()); err != nil {
++		t.Fatal(err)
++	}
++	t.Cleanup(func() { stopAckProgressRuntime(t, runtime) })
++	return runtime, writer
++}
++
++func stopAckProgressRuntime(t *testing.T, runtime *runtimedelivery.Runtime) {
++	t.Helper()
++	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
++	defer cancel()
++	if err := runtime.Stop(ctx); err != nil {
++		t.Errorf("Stop did not join runtime workers: %v", err)
++	}
++}
++
++func ackProgressPush() onlinedelivery.OwnerPush {
++	return onlinedelivery.OwnerPush{
++		OwnerNodeID: 1,
++		Event:       channelappendcontract.CommittedEnvelope{MessageID: 1, MessageSeq: 1, ChannelID: "test", ChannelType: 1},
++		Routes:      []onlinedelivery.Route{{UID: "test-recipient", SessionID: 1, OwnerNodeID: 1}},
++	}
++}
++
++func ackProgressCommand() runtimedelivery.Recvack {
++	return runtimedelivery.Recvack{UID: "test-recipient", SessionID: 1, MessageID: 1, MessageSeq: 1}
++}
++
++func requireAckProgressPush(t *testing.T, runtime *runtimedelivery.Runtime) {
++	t.Helper()
++	result, err := runtime.PushOwner(context.Background(), ackProgressPush())
++	if err != nil || len(result.Accepted) != 1 || len(result.Dropped)+len(result.Retryable) != 0 {
++		t.Fatalf("PushOwner = %+v, %v", result, err)
++	}
++}
++
++func TestTopAckObserverProgressWhileCollectorIngestionLocked(t *testing.T) {
++	for _, boundary := range []string{"recvack", "push_reservation_and_recvack"} {
++		t.Run(boundary, func(t *testing.T) {
++			collector := newAckGaugeCollector()
++			runtime, writer := newAckProgressRuntime(t, collector)
++			if boundary == "recvack" {
++				requireAckProgressPush(t, runtime)
++				<-writer.writes
++			}
++			collector.mu.Lock()
++			locked := true
++			var calls []<-chan struct{}
++			// Release the simulated ingestion lock before joining callers, even
++			// when old code fails the progress assertion; then runtime cleanup runs.
++			defer func() {
++				if locked {
++					collector.mu.Unlock()
++				}
++				for _, done := range calls {
++					select {
++					case <-done:
++					case <-time.After(time.Second):
++						t.Error("public runtime caller did not join after lock release")
++					}
++				}
++			}()
++			var pushResult onlinedelivery.OwnerPushResult
++			var pushErr error
++			if boundary != "recvack" {
++				done := make(chan struct{})
++				calls = append(calls, done)
++				go func() {
++					defer close(done)
++					pushResult, pushErr = runtime.PushOwner(context.Background(), ackProgressPush())
++				}()
++				select {
++				case <-writer.writes:
++				case <-time.After(200 * time.Millisecond):
++					t.Fatal("PushOwner ACK reservation blocked on Top ingestion mutex before session write")
++				}
++			}
++			ackDone := make(chan struct{})
++			calls = append(calls, ackDone)
++			var ackErr error
++			go func() {
++				defer close(ackDone)
++				ackErr = runtime.Recvack(context.Background(), ackProgressCommand())
++			}()
++			select {
++			case <-ackDone:
++				if ackErr != nil {
++					t.Fatal(ackErr)
++				}
++			case <-time.After(200 * time.Millisecond):
++				t.Fatal("Recvack blocked on Top ingestion mutex")
++			}
++			collector.mu.Unlock()
++			locked = false
++			for _, done := range calls {
++				select {
++				case <-done:
++				case <-time.After(time.Second):
++					t.Fatal("public runtime caller did not finish")
++				}
++			}
++			if boundary != "recvack" && (pushErr != nil || len(pushResult.Accepted) != 1 || len(pushResult.Dropped)+len(pushResult.Retryable) != 0) {
++				t.Fatalf("PushOwner = %+v, %v", pushResult, pushErr)
++			}
++			collector.recordSampleAt(time.Unix(100, 0))
++			collector.recordSampleAt(time.Unix(101, 0))
++			requireAckGauge(t, collector, 0)
++		})
++	}
++}
++
++func TestTopAckObserverRuntimeResetAndRestart(t *testing.T) {
++	collector := newAckGaugeCollector()
++	runtime, _ := newAckProgressRuntime(t, collector)
++	collector.recordSampleAt(time.Unix(100, 0))
++	requireAckProgressPush(t, runtime)
++	collector.recordSampleAt(time.Unix(101, 0))
++	requireAckGauge(t, collector, 1)
++	stopAckProgressRuntime(t, runtime)
++	collector.recordSampleAt(time.Unix(102, 0))
++	requireAckGauge(t, collector, 0)
++	if err := runtime.Start(context.Background()); err != nil {
++		t.Fatal(err)
++	}
++	requireAckProgressPush(t, runtime)
++	collector.recordSampleAt(time.Unix(103, 0))
++	requireAckGauge(t, collector, 1)
++	if err := runtime.Recvack(context.Background(), ackProgressCommand()); err != nil {
++		t.Fatal(err)
++	}
++	collector.recordSampleAt(time.Unix(104, 0))
++	requireAckGauge(t, collector, 0)
++}
++
++func TestTopAckGaugeConcurrentSamplingAndClone(t *testing.T) {
++	collector := newAckGaugeCollector()
++	var workers sync.WaitGroup
++	workers.Add(2)
++	go func() {
++		defer workers.Done()
++		for i := 0; i < 100; i++ {
++			collector.SetDeliveryAckBindings(int64(i))
++		}
++	}()
++	go func() {
++		defer workers.Done()
++		for i := 0; i < 100; i++ {
++			collector.recordSampleAt(time.Unix(int64(100+i), 0))
++			copy := collector.clone()
++			copy.recordSampleAt(time.Unix(int64(101+i), 0))
++		}
++	}()
++	workers.Wait()
++	collector.SetDeliveryAckBindings(0)
++	collector.recordSampleAt(time.Unix(201, 0))
++	requireAckGauge(t, collector, 0)
++	copy := collector.clone()
++	copy.recordSampleAt(time.Unix(202, 0))
++	requireAckGauge(t, copy, 0)
++}

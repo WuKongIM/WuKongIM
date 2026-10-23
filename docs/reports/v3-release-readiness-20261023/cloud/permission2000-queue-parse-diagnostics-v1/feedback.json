@@ -1,0 +1,126 @@
+{
+  "schema": "queue_parse_diagnostics_feedback_v1",
+  "base": "d08031d576c3497c56b0dfba60e4db8370224c04",
+  "scope": "internal/bench/target/*.go",
+  "seam": "public target.Client.Metrics using httptest fixed scrapes",
+  "failure_ways": [
+    "runtime same-count missing capacity key loses closed category",
+    "runtime depth above positive capacity loses closed category",
+    "channel worker same-count missing capacity key loses closed category",
+    "channel worker depth above positive capacity loses closed category",
+    "new reasons fail closed Bounded catalog",
+    "outer parse classification or fixed error text changes",
+    "unpaired count, single-family, or capacity-zero acceptance changes",
+    "foreign spoof or arbitrary reason escapes unknown"
+  ],
+  "red": {
+    "command": [
+      "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+      "test",
+      "./internal/bench/target",
+      "-run",
+      "^TestMetricsQueueFailureReasonsThroughClient$",
+      "-count=1",
+      "-timeout=45s"
+    ],
+    "environment": {
+      "GOWORK": "off",
+      "GOTOOLCHAIN": "local",
+      "GOPROXY": "off"
+    },
+    "exit_code": 1,
+    "elapsed_seconds": 1.288,
+    "output": "--- FAIL: TestMetricsQueueFailureReasonsThroughClient (0.00s)\n    --- FAIL: TestMetricsQueueFailureReasonsThroughClient/runtime_missing_capacity (0.00s)\n        metrics_parse_diagnostics_test.go:193: reason=\"invalid_queue_utilization\" want=\"runtime_queue_missing_capacity\"\n    --- FAIL: TestMetricsQueueFailureReasonsThroughClient/runtime_over_capacity (0.00s)\n        metrics_parse_diagnostics_test.go:193: reason=\"invalid_queue_utilization\" want=\"runtime_queue_over_capacity\"\n    --- FAIL: TestMetricsQueueFailureReasonsThroughClient/channel_missing_capacity (0.00s)\n        metrics_parse_diagnostics_test.go:193: reason=\"invalid_queue_utilization\" want=\"channel_queue_missing_capacity\"\n    --- FAIL: TestMetricsQueueFailureReasonsThroughClient/channel_over_capacity (0.00s)\n        metrics_parse_diagnostics_test.go:193: reason=\"invalid_queue_utilization\" want=\"channel_queue_over_capacity\"\nFAIL\nFAIL\tgithub.com/WuKongIM/WuKongIM/internal/bench/target\t0.573s\nFAIL\n"
+  },
+  "green": [
+    {
+      "command": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "./internal/bench/target",
+        "-count=1",
+        "-timeout=60s"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.864,
+      "output": "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/target\t0.443s\n"
+    },
+    {
+      "command": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "-race",
+        "./internal/bench/target",
+        "-count=1",
+        "-timeout=60s"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.505,
+      "output": "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/target\t2.746s\n"
+    },
+    {
+      "command": [
+        "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+        "test",
+        "./internal/bench/chatlifecycle",
+        "-run",
+        "MetricsParse",
+        "-count=1",
+        "-timeout=60s"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.982,
+      "output": "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle\t0.309s\n"
+    }
+  ],
+  "frozen_context": [
+    {
+      "path": "AGENTS.md",
+      "revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "CONTEXT.md",
+      "revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "sha256": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73"
+    },
+    {
+      "path": "internal/bench/chatlifecycle/FLOW.md",
+      "revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "sha256": "ff2b4ae3474dcd49cb81e2365b4c425335bb28e57e1df224a967bf57abf47106"
+    }
+  ],
+  "changed_files": [
+    {
+      "path": "internal/bench/target/client.go",
+      "sha256": "a1c6d02b4ec68550a41d9bcf7b5ec6a9416bdfb1a1b8c6828356195e75ff36e8"
+    },
+    {
+      "path": "internal/bench/target/metrics_parse_failure.go",
+      "sha256": "070d62a09ea054a3ccf3c9829b828576dda03b6f80bb1af455e7c054778ebdbe"
+    },
+    {
+      "path": "internal/bench/target/metrics_parse_diagnostics_test.go",
+      "sha256": "5ac9e69cb6977105e0678991a1c1767e019659e027c3b02cf71ab2fd46edd49b"
+    }
+  ],
+  "preserved": [
+    "outer parse classification",
+    "all fixed error strings",
+    "unpaired count guard",
+    "single-family guard behavior",
+    "positive capacity overrun rejection",
+    "capacity zero legality",
+    "all thresholds",
+    "no retries",
+    "legacy invalid_queue_utilization Bounded acceptance",
+    "foreign spoof remains unknown"
+  ],
+  "result": "four public-seam RED cases followed by target normal/race and chatlifecycle MetricsParse GREEN",
+  "committed_or_pushed": false
+}

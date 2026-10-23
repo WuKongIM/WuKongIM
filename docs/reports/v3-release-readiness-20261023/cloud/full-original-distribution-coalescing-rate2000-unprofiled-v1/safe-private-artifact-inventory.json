@@ -1,0 +1,118 @@
+{
+  "schema": "wukongim/local2k-safe-private-inventory/v1",
+  "raw_inputs_not_public": true,
+  "missing_original_final_report": true,
+  "original_final_path": "report/final.json",
+  "artifacts": [
+    {
+      "path": "diagnostic-result.json",
+      "bytes": 1945,
+      "sha256": "939619770bbffbef951085777297c7e2d5995ec7d7bc5a39b4dc10222ee49b56"
+    },
+    {
+      "path": "diagnostic-cuts.jsonl",
+      "bytes": 16823,
+      "sha256": "2f764a3af6eb60bf160231bd023a6ce5e0e129bc0e76da21c942f992eafd5b03"
+    },
+    {
+      "path": "host-process-samples.jsonl",
+      "bytes": 71412,
+      "sha256": "2b88bb782f7551bbb358deb2bfeb71d3f1ecb9f199f97a636f61ed05ab339849"
+    },
+    {
+      "path": "cleanup-receipt.json",
+      "bytes": 919,
+      "sha256": "2fb687b2ac61f91df89e768654e288e4630ee0a61622cf3e8004c0cf1dc940c3"
+    },
+    {
+      "path": "logs/coordinator.log",
+      "bytes": 7445,
+      "sha256": "d091f5847b85ace8b0952ce21e9bd4d9d1d7c74d54adba3857e98beb043e6701"
+    },
+    {
+      "path": "logs/launcher.log",
+      "bytes": 4079,
+      "sha256": "883d32d4906481b18e440cf928e129082b986e038f9528207c9a4cb4cc2de16f"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/coalescing-rate2000-prepared-inputs-v1.json",
+      "bytes": 11276,
+      "sha256": "c24b1949279452ace38064b93eb01fd3277e76516ae2d70686fee211db51990d"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/coalescing-rate2000-root-decision-v1.json",
+      "bytes": 1515,
+      "sha256": "d4d1e9aa0e43b76fa1b81d415cf9e23e6d3d013eecc5c9b36964a5c2bb3eb3d3"
+    },
+    {
+      "path": "logs/service-1.log",
+      "bytes": 56117,
+      "sha256": "57bc3664337b1b776a2c9f59214c592b788a9a4be214e7a1eeb858e8ba140630"
+    },
+    {
+      "path": "logs/service-2.log",
+      "bytes": 71482,
+      "sha256": "f47b2fa818f447c5d9335fb4d1757dad38ba2afd6736034b316fd6c2e883b5b2"
+    },
+    {
+      "path": "logs/service-3.log",
+      "bytes": 117586,
+      "sha256": "e4fa1b4f59328af8054cdd7841445db52e57e6b88d72ced682553ea9beb81c52"
+    },
+    {
+      "path": "report/diagnostic-status.json",
+      "bytes": 9016,
+      "sha256": "aeaa0b3db9eb09c8d201c448ef6e2616c5a9bea6e03a892b342780d4759b4818"
+    },
+    {
+      "path": "report/run-start.json",
+      "bytes": 389,
+      "sha256": "bea88878252f9df1e5d5ff78f0e776c0fbaf3966620e039f36ac9cf43bc90c69"
+    },
+    {
+      "path": "report/worker-evidence.json",
+      "bytes": 2150,
+      "sha256": "52b6e0c6e991f932a22a429e8c4a1b403b0af042002145444270b4531803e24d"
+    },
+    {
+      "path": "evidence/metrics-first-measured-node1.prom",
+      "bytes": 1020918,
+      "sha256": "aa969f8db41930103bf54b4ab4be06e12830f27373ab97fce5874df9efc7e180"
+    },
+    {
+      "path": "evidence/metrics-first-measured-node2.prom",
+      "bytes": 1011069,
+      "sha256": "a98dffa910add309842cfb604a842d3a733f5a8a9564b3d1ec38911fca9ee13a"
+    },
+    {
+      "path": "evidence/metrics-first-measured-node3.prom",
+      "bytes": 995271,
+      "sha256": "656913585823f935bcac43c233c3ee9aaa86c33d85847b4e4a581eb9ad42a801"
+    },
+    {
+      "path": "evidence/metrics-first-measured-receipt.json",
+      "bytes": 449,
+      "sha256": "4c25d243d0b59199610614010760b2d8f2ff9db3afd366e97928b3197508b728"
+    },
+    {
+      "path": "evidence/metrics-terminal-node1.prom",
+      "bytes": 1071687,
+      "sha256": "19a9b93ca3f3ccd25f5e3f533051b86c0b47b812b7d2e06a40e4108418cb0c56"
+    },
+    {
+      "path": "evidence/metrics-terminal-node2.prom",
+      "bytes": 1054477,
+      "sha256": "8b714612b366022fe59f84c393877904a0f3ecb6cc436bebe5133debeb2a872f"
+    },
+    {
+      "path": "evidence/metrics-terminal-node3.prom",
+      "bytes": 1047756,
+      "sha256": "ce38e35a658542926ca4e7ff25fafe899bf7e1cf5d9cec1baa899b2186ae85b7"
+    },
+    {
+      "path": "evidence/metrics-terminal-receipt.json",
+      "bytes": 450,
+      "sha256": "f808179cd5b63c471de019e13d11f511bb4abe4d742bd0e7dc8d9e450c9a56ef"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# ACK-count observer repair
+
+Base `7f36a7cce79641f1704be9841c3c470527f67231`; seven uncommitted files, no push. The existing real delivery Runtime is wired to the real app ACK and Runtime observers; a bounded in-memory session writer marks reservation completion. Holding the actual Top ingestion mutex reproduces both Recvack and pre-write PushOwner blocking on the original code (two 200 ms failures). All caller goroutines finish after releasing the lock, then Runtime Stop joins its workers. Other owner-push observations may still wait for the collector; the fix claims only ACK publication independence.
+
+The production change is limited to an independent atomic current ACK count and its capture in samples/clones. ACK locking, order, routes, TTL, reset and admission/verdict gates are unchanged. Snapshot/clone isolation, explicit zero, Runtime Stop/restart and concurrent sampling tests were all written and frozen before implementation. Old compatibility controls passed; the two progress cases failed by blocking, not compilation.
+
+Related app tests: 39 root PASS / 0 skip, 0.618 s. Same focused race set: 39 PASS / 0 skip, 1.807 s. The timed/goroutine tests carry the integration build tag; the synchronous snapshot test remains default tier. This is focused validation, not the whole repository suite. FLOW first exceeded the 150-line hard limit; both intermediate failures are retained. Final app FLOW is 150 lines, generated index updated, named flow-doc-contracts passes 88/88 with 0 invalid and 20 pre-existing warnings. Diff whitespace check passes.
+
+The observed convoy and these controlled regressions do not prove the unique cause of historical loss. Same-scale unprofiled 2,000 SEND/s acceptance still remains to be run under unchanged gates. No product process, network sampling or cloud action was performed by this repair task. All commands are terminal.

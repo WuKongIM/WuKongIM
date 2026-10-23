@@ -1,0 +1,825 @@
+{
+  "schema": "pr1035_head5f_failed_rocky_rerun_v1",
+  "repository": "WuKongIM/WuKongIM",
+  "pr": 1035,
+  "source_head": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+  "source_tree": "061aa8b1f18c4cae4c16454b602f799fc9ac7b44",
+  "workflow_run_id": 39916326388,
+  "first_attempt": {
+    "attempt": 1,
+    "job_id": 120292720535,
+    "conclusion": "failure",
+    "failed_stage": "download_exact_preview_packages",
+    "reason": "artifact_download_retries_exhausted",
+    "action_internal_download_retry_count": 5,
+    "root_cause": "undetermined",
+    "lifecycle_executed": false,
+    "sealed_receipt": "pr1035-head5f-ci-delivery-safe.json",
+    "sealed_receipt_sha256": "5340dd343e07c49b3acf691d2b5bbed9737fca83430a2f3d57329053acdb750d",
+    "private_original_log_sha256": "3106b0a55c0bd51876a5e05baef5c3017ede3e482517b8b475e6d46a562a2f4c"
+  },
+  "decision": {
+    "at": "2026-10-23T07:32:56.607426+00:00",
+    "authorization": "root explicitly authorized exactly one bounded rerun of failed Rocky job after preserving and diagnosing the first failure",
+    "authorized_principal": "tangtaoit",
+    "permission_from_preceding_snapshot": "admin",
+    "max_agent_post_calls": 1,
+    "scope": "failed job 120292720535 only; no whole-workflow rerun, other passed jobs, workflow enable/dispatch, review-agent invocation or merge",
+    "basis": "Artifact delivery stage failed before Rocky package validation/lifecycle; no confirmed network/backend root cause",
+    "instruction_source": ".github/workflows/README.md@5f679978",
+    "instruction_lines": [
+      "178-218",
+      "298-307",
+      "804-811"
+    ],
+    "source_head_rechecked_before_decision": true,
+    "run_attempt_1_completed_failure_rechecked": true
+  },
+  "request": {
+    "method": "POST",
+    "endpoint": "repos/WuKongIM/WuKongIM/actions/jobs/120292720535/rerun",
+    "agent_invocation_count": 1,
+    "enable_debug_logging": false,
+    "started_at": "2026-10-23T07:32:56.609204+00:00",
+    "completed_at": "2026-10-23T07:32:58.181241+00:00"
+  },
+  "status": "sealed_attempt2_rocky_success_original_attempt1_failure_preserved",
+  "polls": [
+    {
+      "at": "2026-10-23T07:34:10.092785+00:00",
+      "run_identity_observed": {
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "run_attempt": 2
+      },
+      "run_metadata_get": "success_but_projection_not_saved_before_followup_failed",
+      "jobs_get": {
+        "endpoint": "actions/runs/39916326388/attempts/2/jobs?per_page=100",
+        "status": "api_read_failure",
+        "http_status": 502,
+        "request_count": 1
+      },
+      "limits": "No POST repeated; read API failure is not a CI job outcome."
+    },
+    {
+      "at": "2026-10-23T07:35:32.958039+00:00",
+      "api_reads": [
+        {
+          "path": "actions/runs/39916326388",
+          "gh_exit": 0,
+          "bytes": 12567,
+          "sha256": "72b2868fdc0ff924db2976dc589af475c4961152f3e5bcfdf107ced71baeb63a"
+        },
+        {
+          "path": "actions/runs/39916326388/attempts/2/jobs?per_page=100",
+          "gh_exit": 0,
+          "bytes": 14464,
+          "sha256": "5abfa1ac613b2c707e3d6e65d59c21a23b292c33b7416329aeb8656b14ad79ab"
+        }
+      ],
+      "run": {
+        "id": 39916326388,
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": "success",
+        "run_attempt": 2,
+        "created_at": "2026-10-23T07:13:01Z",
+        "updated_at": "2026-10-23T07:34:57Z"
+      },
+      "jobs": [
+        {
+          "id": 120297714596,
+          "name": "Exercise Rocky Linux 9 package lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+          "run_attempt": 2,
+          "started_at": "2026-10-23T07:33:02Z",
+          "completed_at": "2026-10-23T07:34:56Z",
+          "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297714596",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Download the exact preview packages",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Verify the downloaded package set",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "Exercise the operator-owned lifecycle",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 7,
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 13,
+              "name": "Post Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 14,
+              "name": "Post Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 15,
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "id": 120297714992,
+          "name": "Build and install deb/rpm preview",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+          "run_attempt": 2,
+          "started_at": "2026-10-23T07:13:03Z",
+          "completed_at": "2026-10-23T07:20:00Z",
+          "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297714992",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Run package and CLI contracts",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Run single-node cluster SEND integration",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "Build deb and rpm preview",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 7,
+              "name": "Validate signed repository metadata closure",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 8,
+              "name": "Inspect package metadata",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Install on Ubuntu 24.04",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 10,
+              "name": "Install on Debian 12",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 11,
+              "name": "Install on Rocky Linux 9",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 12,
+              "name": "Install on AlmaLinux 9",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 13,
+              "name": "Upload preview packages",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 14,
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 27,
+              "name": "Post Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 28,
+              "name": "Post Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 29,
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "id": 120297716136,
+          "name": "Exercise Debian 12 package lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+          "run_attempt": 2,
+          "started_at": "2026-10-23T07:20:02Z",
+          "completed_at": "2026-10-23T07:21:40Z",
+          "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297716136",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Download the exact preview packages",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Verify the downloaded package set",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "Exercise the operator-owned lifecycle",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 7,
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 13,
+              "name": "Post Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 14,
+              "name": "Post Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 15,
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "id": 120297716971,
+          "name": "Exercise AlmaLinux 9 package lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+          "run_attempt": 2,
+          "started_at": "2026-10-23T07:20:02Z",
+          "completed_at": "2026-10-23T07:25:34Z",
+          "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297716971",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Download the exact preview packages",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Verify the downloaded package set",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "Exercise the operator-owned lifecycle",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 7,
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 13,
+              "name": "Post Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 14,
+              "name": "Post Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 15,
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "id": 120297758783,
+          "name": "Exercise Ubuntu 24.04 package lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+          "run_attempt": 2,
+          "started_at": "2026-10-23T07:20:02Z",
+          "completed_at": "2026-10-23T07:21:43Z",
+          "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297758783",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Download the exact preview packages",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Verify the downloaded package set",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "Exercise the operator-owned lifecycle",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 7,
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 13,
+              "name": "Post Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 14,
+              "name": "Post Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 15,
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ],
+      "status": "attempt2_completed"
+    }
+  ],
+  "limits": {
+    "no_local_go_build_tests_product_db": true,
+    "no_local_http": true,
+    "no_artifact_download_or_large_analysis": true,
+    "no_further_rerun_even_if_failure": true,
+    "no_merge": true
+  },
+  "response": {
+    "gh_exit": 0,
+    "http_status": 201,
+    "bytes": 1415,
+    "sha256": "a74c8fd9ebd814f885b2dfb565c828a319f04a9ca97271b4c89b666a0a9f6ec8",
+    "stderr_bytes": 0,
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "raw_saved_private": true
+  },
+  "attempt2": {
+    "attempt": 2,
+    "run_conclusion": "success",
+    "fresh_rocky_job": {
+      "id": 120297714596,
+      "name": "Exercise Rocky Linux 9 package lifecycle",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+      "run_attempt": 2,
+      "started_at": "2026-10-23T07:33:02Z",
+      "completed_at": "2026-10-23T07:34:56Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297714596",
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 2,
+          "name": "Check out exact source",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 3,
+          "name": "Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 4,
+          "name": "Download the exact preview packages",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 5,
+          "name": "Verify the downloaded package set",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 6,
+          "name": "Exercise the operator-owned lifecycle",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 7,
+          "name": "Reject tracked-tree mutation",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 13,
+          "name": "Post Set up repository Go toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 14,
+          "name": "Post Check out exact source",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 15,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    "prior_success_aliases": [
+      {
+        "name": "Build and install deb/rpm preview",
+        "attempt1_job_id": 120290592546,
+        "attempt2_alias_job_id": 120297714992,
+        "identical_original_started_at": "2026-10-23T07:13:03Z",
+        "identical_original_completed_at": "2026-10-23T07:20:00Z",
+        "steps_identical": true,
+        "actual_fresh_execution_claim": false
+      },
+      {
+        "name": "Exercise Debian 12 package lifecycle",
+        "attempt1_job_id": 120292720394,
+        "attempt2_alias_job_id": 120297716136,
+        "identical_original_started_at": "2026-10-23T07:20:02Z",
+        "identical_original_completed_at": "2026-10-23T07:21:40Z",
+        "steps_identical": true,
+        "actual_fresh_execution_claim": false
+      },
+      {
+        "name": "Exercise AlmaLinux 9 package lifecycle",
+        "attempt1_job_id": 120292720448,
+        "attempt2_alias_job_id": 120297716971,
+        "identical_original_started_at": "2026-10-23T07:20:02Z",
+        "identical_original_completed_at": "2026-10-23T07:25:34Z",
+        "steps_identical": true,
+        "actual_fresh_execution_claim": false
+      },
+      {
+        "name": "Exercise Ubuntu 24.04 package lifecycle",
+        "attempt1_job_id": 120292720487,
+        "attempt2_alias_job_id": 120297758783,
+        "identical_original_started_at": "2026-10-23T07:20:02Z",
+        "identical_original_completed_at": "2026-10-23T07:21:43Z",
+        "steps_identical": true,
+        "actual_fresh_execution_claim": false
+      }
+    ],
+    "only_rocky_has_new_execution_interval": true,
+    "jobs_api_relabels_prior_successes_as_attempt2_with_new_ids": true
+  },
+  "latest_checks": {
+    "at": "2026-10-23T07:37:02.769203+00:00",
+    "filter": "latest",
+    "bytes": 70615,
+    "sha256": "524df2853c2b2dcfff009903a2563540f50f0521c36d7efb6c1b1710ab291a07",
+    "checks": [
+      {
+        "id": 120297758783,
+        "name": "Exercise Ubuntu 24.04 package lifecycle",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297758783"
+      },
+      {
+        "id": 120297716971,
+        "name": "Exercise AlmaLinux 9 package lifecycle",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297716971"
+      },
+      {
+        "id": 120297716136,
+        "name": "Exercise Debian 12 package lifecycle",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297716136"
+      },
+      {
+        "id": 120297714992,
+        "name": "Build and install deb/rpm preview",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297714992"
+      },
+      {
+        "id": 120297714596,
+        "name": "Exercise Rocky Linux 9 package lifecycle",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297714596"
+      },
+      {
+        "id": 120292313618,
+        "name": "PR three-node regression",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120292313618"
+      },
+      {
+        "id": 120292205018,
+        "name": "Candidate migration and messaging E2E",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326508/job/120292205018"
+      },
+      {
+        "id": 120291681658,
+        "name": "Fixed Linux SEND diagnosis",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "skipped",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120291681658"
+      },
+      {
+        "id": 120290954499,
+        "name": "Nightly direct 500 QPS qualification",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "skipped",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290954499"
+      },
+      {
+        "id": 120290679098,
+        "name": "PR 500 QPS / tcp-sendack",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290679098"
+      },
+      {
+        "id": 120290679091,
+        "name": "PR 500 QPS / channel-append",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290679091"
+      },
+      {
+        "id": 120290679062,
+        "name": "PR 500 QPS / mixed-send",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290679062"
+      },
+      {
+        "id": 120290598992,
+        "name": "Emit credential-free wake-up",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916328968/job/120290598992"
+      },
+      {
+        "id": 120290594428,
+        "name": "PR messaging unit and race",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290594428"
+      },
+      {
+        "id": 120290594272,
+        "name": "PR three-node correctness",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290594272"
+      },
+      {
+        "id": 120290594069,
+        "name": "PR performance baseline evidence",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290594069"
+      },
+      {
+        "id": 120290593673,
+        "name": "Candidate scripts integration",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326508/job/120290593673"
+      },
+      {
+        "id": 120290593354,
+        "name": "Candidate default suite (go-unit)",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326508/job/120290593354"
+      },
+      {
+        "id": 120290592974,
+        "name": "Real three-node Manager Chromium smoke",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326430/job/120290592974"
+      },
+      {
+        "id": 120290592560,
+        "name": "Emit credential-free wake-up",
+        "head_sha": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326447/job/120290592560"
+      }
+    ],
+    "conclusion_counts": {
+      "success": 18,
+      "skipped": 2
+    }
+  },
+  "final_pr_snapshot": {
+    "head": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+    "base": "830ebbdcc3f3cb0b8d005648a187db40b02f55d4",
+    "merge_commit_sha": "6187a75637bc89b4f0973d31c7e54462b157c5ae",
+    "state": "open",
+    "merged": false,
+    "bytes": 17623,
+    "sha256": "a04280e500ccfe470b17c469149cfbab98531dfa2d000a95fa32173ba1917028"
+  },
+  "verification_limits": [
+    "The first Native attempt failed and remains recorded as failure.",
+    "Only one job rerun POST was invoked; the GitHub attempt2 API assigns new alias IDs to four historical successful jobs with unchanged pre-request execution intervals.",
+    "Rocky attempt2 download, package verification and lifecycle success are job/step metadata; no inner result artifact or successful-job log was downloaded.",
+    "A successful rerun does not establish the original artifact delivery root cause.",
+    "V3, ThreeNode and Manager retain first-attempt success from the independent first receipt.",
+    "No local 2k, release, publication or merge success is claimed."
+  ],
+  "updated_at": "2026-10-23T07:37:04.197589+00:00",
+  "sealed": true
+}

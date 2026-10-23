@@ -1,0 +1,27 @@
+{
+  "named_check": "flow-index-render-final",
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "render",
+    "--write-index"
+  ],
+  "exit": 0,
+  "elapsed_seconds": 0.08864520792849362,
+  "log_sha256": "5ca49956b23d02062de121518c2742d33bfb3768463081d8e438c87de41d5854",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "policy": {
+    "arguments": [
+      "go",
+      "run",
+      "./scripts/flowcheck",
+      "--mode",
+      "check"
+    ],
+    "working_dir": ".",
+    "timeout_seconds": 60,
+    "max_output_bytes": 1048576
+  }
+}

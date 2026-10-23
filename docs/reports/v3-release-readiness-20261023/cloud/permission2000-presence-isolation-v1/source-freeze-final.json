@@ -1,0 +1,15 @@
+{
+  "source": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+  "test_sha256": "8a50954c99b465fac27bc22b0bb72ec3f82b7eb14c39df9751df3754d591213c",
+  "test_bytes": 11004,
+  "production_diff": "",
+  "untracked": [
+    "internal/app/presence_cold_rpc_isolation_integration_test.go"
+  ],
+  "plan_sha256": "1e45abc96de9adc811f787ef4acf0c033a4f93ca4e00e1ed5889de823aedde0a",
+  "stage": "frozen_before_single_execution",
+  "arms": 3,
+  "delay_injected": false,
+  "gates_changed": false,
+  "pre_execution_correction": "Node.RegisterRPC only registers once; stable handler delegates to per-arm adapter under lock; original pre-execution source preserved, no execution yet"
+}

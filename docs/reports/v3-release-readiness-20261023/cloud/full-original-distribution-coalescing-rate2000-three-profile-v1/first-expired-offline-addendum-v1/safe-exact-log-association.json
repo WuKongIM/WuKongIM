@@ -1,0 +1,97 @@
+{
+  "schema": "wukongim/single-expired-exact-log-association/v1",
+  "source_revision": "8100d7fd7a9455029e8de4f6370f140ff07612bc",
+  "selected_samples": 1,
+  "replica_rows_unique_and_same_exact_uint64_identity": true,
+  "log_files_read": 3,
+  "canonical_app_log_only": true,
+  "window_start_utc": "2026-10-23T06:31:47.953626+00:00",
+  "window_end_utc": "2026-10-23T06:32:15.050118+00:00",
+  "log_time_interpretation": "Source log formatter omits timezone; parsed local timestamps use the run-start explicit +08:00 offset. No profile-time or aggregate correlation substitutes for exact identity.",
+  "nodes": [
+    {
+      "node_id": 1,
+      "source_bytes": 62342,
+      "source_sha256": "d1595013620959624309b7f92618579aaef4a5804ef8812474fef5baa94c102e",
+      "source_unchanged": true,
+      "line_count": 181,
+      "format_counts": {
+        "console_json_fields": 181
+      },
+      "unparsed_lines": 0,
+      "exact_identity_lines": 1,
+      "exact_identity_missing_time": 0,
+      "exact_identity_outside_window": 0,
+      "exact_identity_unrecognized_event_or_stage": 0,
+      "within_window_closed_stages": [
+        {
+          "event": "internal.app.delivery.plan_incomplete",
+          "stage": "presence",
+          "result": "timeout",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "node_id": 2,
+      "source_bytes": 59654,
+      "source_sha256": "5d4cf6d6b91574a149acc2e9068d7c057e77ddecedc24c76a9aed0a9eaf87a2c",
+      "source_unchanged": true,
+      "line_count": 173,
+      "format_counts": {
+        "console_json_fields": 173
+      },
+      "unparsed_lines": 0,
+      "exact_identity_lines": 0,
+      "exact_identity_missing_time": 0,
+      "exact_identity_outside_window": 0,
+      "exact_identity_unrecognized_event_or_stage": 0,
+      "within_window_closed_stages": []
+    },
+    {
+      "node_id": 3,
+      "source_bytes": 56812,
+      "source_sha256": "5ed10684efd635fc3c82ddf49492e2ad97e768d1f92f8411e739af1a6acb6ca7",
+      "source_unchanged": true,
+      "line_count": 165,
+      "format_counts": {
+        "console_json_fields": 165
+      },
+      "unparsed_lines": 0,
+      "exact_identity_lines": 0,
+      "exact_identity_missing_time": 0,
+      "exact_identity_outside_window": 0,
+      "exact_identity_unrecognized_event_or_stage": 0,
+      "within_window_closed_stages": []
+    }
+  ],
+  "source_files": [
+    {
+      "path": "internal/app/online_delivery.go",
+      "sha256": "d5e799fd95f18307e8c9c43b4851aeac6a6ef59fe8e8277a283a8375e0be5d7a"
+    },
+    {
+      "path": "internal/runtime/delivery/runtime.go",
+      "sha256": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561"
+    },
+    {
+      "path": "internal/runtime/delivery/runtime_ports.go",
+      "sha256": "dd3d45bd9c123691345dfd25e22abe967ae713837d38bd2b23f07716897ce2cc"
+    },
+    {
+      "path": "pkg/wklog/field.go",
+      "sha256": "dd37a16b79a3d83a352be209030fa46fcf9dd89a1269327547978894690fa43f"
+    },
+    {
+      "path": "internal/log/zap.go",
+      "sha256": "9748904ada62df60c56f61e3685c87b62b24427bfb174d79eb2769d64a7b53b2"
+    }
+  ],
+  "private_exact_match_receipt_sha256": "e7e90e85c1ebeef3803c56eaa18e9b3eee54977b4b0d3c0caa5540b31e00d67b",
+  "public_identity_values": false,
+  "limits": [
+    "Only the one preselected expired sample was joined; the other two were not searched.",
+    "Absent or unparsed log lines do not establish absent execution.",
+    "Terminal failure phase identifies the recorded plan failure; it does not by itself distinguish underlying CPU, lock, transport or storage causes."
+  ]
+}

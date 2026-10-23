@@ -1,0 +1,1772 @@
+{
+  "schema": "wukongim/local2000-five-gor-closed-analysis/v1",
+  "source_revision": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "source_tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "inputs": [
+    {
+      "node": 1,
+      "cut": "goroutine-early",
+      "relative_private_path": "profiles-three-node/node-1/profiles/node-1-goroutine-early.txt",
+      "bytes": 3667621,
+      "sha256": "29de2913e083405e41b48ecd76fb7c7f32e60101d775043f3914da2527758282",
+      "mtime_ns": 1792731007137640000,
+      "immutable_after": true
+    },
+    {
+      "node": 1,
+      "cut": "goroutine-late",
+      "relative_private_path": "profiles-three-node/node-1/profiles/node-1-goroutine-late.txt",
+      "bytes": 8218744,
+      "sha256": "37a9539da052198dc1fa79d2bf5c02ead4b1d75c243d1f55b0e9a8e671e6a436",
+      "mtime_ns": 1792731009831894366,
+      "immutable_after": true
+    },
+    {
+      "node": 2,
+      "cut": "goroutine-early",
+      "relative_private_path": "profiles-three-node/node-2/profiles/node-2-goroutine-early.txt",
+      "bytes": 3546003,
+      "sha256": "77bfbb9b586318a9a2d0e2e857f24ea5294f33af6702a94611116920a6b3cebf",
+      "mtime_ns": 1792731007086715147,
+      "immutable_after": true
+    },
+    {
+      "node": 2,
+      "cut": "goroutine-late",
+      "relative_private_path": "profiles-three-node/node-2/profiles/node-2-goroutine-late.txt",
+      "bytes": 8177146,
+      "sha256": "a73dd4a8c4e2a26be93c4e04295cefa21e58977bbaa631bb1fdf729708c2da16",
+      "mtime_ns": 1792731009889086413,
+      "immutable_after": true
+    },
+    {
+      "node": 3,
+      "cut": "goroutine-early",
+      "relative_private_path": "profiles-three-node/node-3/profiles/node-3-goroutine-early.txt",
+      "bytes": 3627875,
+      "sha256": "4fc59c702d1e590e141896ea1bbe6a4e6ec6a0e74d8384043d7cce43db37d940",
+      "mtime_ns": 1792731007064809489,
+      "immutable_after": true
+    }
+  ],
+  "exclusive_category_priority": [
+    "raftlog_writer",
+    "db_commit_owner",
+    "wait_apply_idle",
+    "Raft_processSlot",
+    "permission_serving_barrier",
+    "other_read_barrier",
+    "DB_commit_submit_result",
+    "person_directory_membership_worker",
+    "person_directory_completion_worker",
+    "person_directory_idle_or_other_worker",
+    "origin_permission_caller",
+    "origin_permission_cohort_worker",
+    "permission_serving_admission",
+    "physical_fsync_or_WAL_background",
+    "other"
+  ],
+  "observed_files": [
+    {
+      "node": 1,
+      "cut": "goroutine-early",
+      "request_submit_after_firstgrant_seconds": 1.224139,
+      "request_join_after_firstgrant_seconds": 4.382435,
+      "snapshotted_goroutines": 4130,
+      "state_counts": {
+        "running": 1,
+        "chan receive": 781,
+        "select": 2069,
+        "syscall": 5,
+        "sync.Cond.Wait": 1067,
+        "sync.WaitGroup.Wait": 134,
+        "IO wait": 43,
+        "runnable": 29,
+        "sleep": 1
+      },
+      "unknown_state_headers": 0,
+      "goroutines_with_elided_frames": 0,
+      "exclusive_category_state_counts": [
+        {
+          "category": "DB_commit_submit_result",
+          "state": "select",
+          "count": 1
+        },
+        {
+          "category": "Raft_processSlot",
+          "state": "runnable",
+          "count": 3
+        },
+        {
+          "category": "db_commit_owner",
+          "state": "select",
+          "count": 2
+        },
+        {
+          "category": "origin_permission_caller",
+          "state": "select",
+          "count": 130
+        },
+        {
+          "category": "origin_permission_cohort_worker",
+          "state": "select",
+          "count": 1
+        },
+        {
+          "category": "origin_permission_cohort_worker",
+          "state": "sync.WaitGroup.Wait",
+          "count": 11
+        },
+        {
+          "category": "other",
+          "state": "IO wait",
+          "count": 43
+        },
+        {
+          "category": "other",
+          "state": "chan receive",
+          "count": 773
+        },
+        {
+          "category": "other",
+          "state": "runnable",
+          "count": 26
+        },
+        {
+          "category": "other",
+          "state": "running",
+          "count": 1
+        },
+        {
+          "category": "other",
+          "state": "select",
+          "count": 1837
+        },
+        {
+          "category": "other",
+          "state": "sleep",
+          "count": 1
+        },
+        {
+          "category": "other",
+          "state": "sync.Cond.Wait",
+          "count": 1064
+        },
+        {
+          "category": "other",
+          "state": "sync.WaitGroup.Wait",
+          "count": 123
+        },
+        {
+          "category": "other",
+          "state": "syscall",
+          "count": 5
+        },
+        {
+          "category": "permission_serving_barrier",
+          "state": "select",
+          "count": 97
+        },
+        {
+          "category": "person_directory_completion_worker",
+          "state": "select",
+          "count": 1
+        },
+        {
+          "category": "person_directory_membership_worker",
+          "state": "chan receive",
+          "count": 7
+        },
+        {
+          "category": "physical_fsync_or_WAL_background",
+          "state": "sync.Cond.Wait",
+          "count": 3
+        },
+        {
+          "category": "raftlog_writer",
+          "state": "chan receive",
+          "count": 1
+        }
+      ],
+      "watched_symbol_source_line_counts": [
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).projectBatch",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 485,
+          "state": "chan receive",
+          "count": 7
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).projectBatch",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 515,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).runWorker",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 406,
+          "state": "chan receive",
+          "count": 7
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).runWorker",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 406,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).CompletePersonDirectoryTasks",
+          "source": "pkg/cluster/node_channel_migration_worker.go",
+          "line": 237,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).EnsureUserChannelMembershipBatch",
+          "source": "pkg/cluster/node_meta.go",
+          "line": 904,
+          "state": "chan receive",
+          "count": 7
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).collect",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 501,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).nextRequest",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 431,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 403,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 408,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).submitResult",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 329,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*DB).runWriteWorker",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 102,
+          "state": "chan receive",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*DB).submitWrite",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 90,
+          "state": "runnable",
+          "count": 3
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*pebbleStore).Save",
+          "source": "pkg/raftlog/pebble_store.go",
+          "line": 186,
+          "state": "runnable",
+          "count": 3
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).readBarrier",
+          "source": "pkg/slot/multiraft/read_barrier.go",
+          "line": 96,
+          "state": "select",
+          "count": 97
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadSendPermissionMetadataBatch",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 187,
+          "state": "select",
+          "count": 130
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).readSendPermissionSlot",
+          "source": "pkg/slot/proxy/send_permission_rpc.go",
+          "line": 594,
+          "state": "select",
+          "count": 97
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 286,
+          "state": "select",
+          "count": 8
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 286,
+          "state": "sync.WaitGroup.Wait",
+          "count": 11
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushLoop",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/record/log_writer.go",
+          "line": 673,
+          "state": "sync.Cond.Wait",
+          "count": 3
+        }
+      ],
+      "overlapping_closed_subsets": {
+        "raftlog_writer": [
+          {
+            "category": "idle_writeCh_or_other",
+            "state": "chan receive",
+            "count": 1
+          }
+        ],
+        "DB_commit_owner": [
+          {
+            "category": "collect",
+            "state": "select",
+            "count": 1
+          },
+          {
+            "category": "next_request",
+            "state": "select",
+            "count": 1
+          }
+        ],
+        "Raft_processSlot": [
+          {
+            "category": "shared_raftlog_req_done",
+            "state": "runnable",
+            "count": 3
+          }
+        ],
+        "persondirectory_worker": [
+          {
+            "category": "completion_proposal",
+            "state": "select",
+            "count": 1
+          },
+          {
+            "category": "membership_proposal_wave",
+            "state": "chan receive",
+            "count": 7
+          }
+        ]
+      },
+      "observed_waitApplyIdle_symbol_count": 0
+    },
+    {
+      "node": 1,
+      "cut": "goroutine-late",
+      "request_submit_after_firstgrant_seconds": 4.266542,
+      "request_join_after_firstgrant_seconds": 4.915188,
+      "snapshotted_goroutines": 4328,
+      "state_counts": {
+        "running": 1,
+        "chan receive": 433,
+        "select": 2970,
+        "syscall": 5,
+        "sync.Cond.Wait": 521,
+        "runnable": 220,
+        "sync.WaitGroup.Wait": 107,
+        "IO wait": 47,
+        "sync.Mutex.Lock": 24
+      },
+      "unknown_state_headers": 0,
+      "goroutines_with_elided_frames": 0,
+      "exclusive_category_state_counts": [
+        {
+          "category": "DB_commit_submit_result",
+          "state": "runnable",
+          "count": 49
+        },
+        {
+          "category": "DB_commit_submit_result",
+          "state": "select",
+          "count": 11
+        },
+        {
+          "category": "Raft_processSlot",
+          "state": "chan receive",
+          "count": 12
+        },
+        {
+          "category": "db_commit_owner",
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "category": "db_commit_owner",
+          "state": "sync.WaitGroup.Wait",
+          "count": 1
+        },
+        {
+          "category": "origin_permission_caller",
+          "state": "select",
+          "count": 330
+        },
+        {
+          "category": "origin_permission_cohort_worker",
+          "state": "select",
+          "count": 3
+        },
+        {
+          "category": "origin_permission_cohort_worker",
+          "state": "sync.WaitGroup.Wait",
+          "count": 15
+        },
+        {
+          "category": "other",
+          "state": "IO wait",
+          "count": 47
+        },
+        {
+          "category": "other",
+          "state": "chan receive",
+          "count": 417
+        },
+        {
+          "category": "other",
+          "state": "runnable",
+          "count": 168
+        },
+        {
+          "category": "other",
+          "state": "running",
+          "count": 1
+        },
+        {
+          "category": "other",
+          "state": "select",
+          "count": 2395
+        },
+        {
+          "category": "other",
+          "state": "sync.Cond.Wait",
+          "count": 519
+        },
+        {
+          "category": "other",
+          "state": "sync.Mutex.Lock",
+          "count": 24
+        },
+        {
+          "category": "other",
+          "state": "sync.WaitGroup.Wait",
+          "count": 91
+        },
+        {
+          "category": "other",
+          "state": "syscall",
+          "count": 5
+        },
+        {
+          "category": "permission_serving_barrier",
+          "state": "select",
+          "count": 227
+        },
+        {
+          "category": "person_directory_completion_worker",
+          "state": "select",
+          "count": 4
+        },
+        {
+          "category": "person_directory_membership_worker",
+          "state": "chan receive",
+          "count": 4
+        },
+        {
+          "category": "physical_fsync_or_WAL_background",
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "category": "physical_fsync_or_WAL_background",
+          "state": "sync.Cond.Wait",
+          "count": 2
+        },
+        {
+          "category": "raftlog_writer",
+          "state": "runnable",
+          "count": 1
+        }
+      ],
+      "watched_symbol_source_line_counts": [
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).projectBatch",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 485,
+          "state": "chan receive",
+          "count": 4
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).projectBatch",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 515,
+          "state": "select",
+          "count": 4
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).runWorker",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 406,
+          "state": "chan receive",
+          "count": 4
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).runWorker",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 406,
+          "state": "select",
+          "count": 4
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).CompletePersonDirectoryTasks",
+          "source": "pkg/cluster/node_channel_migration_worker.go",
+          "line": 237,
+          "state": "select",
+          "count": 4
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).EnsureUserChannelMembershipBatch",
+          "source": "pkg/cluster/node_meta.go",
+          "line": 904,
+          "state": "chan receive",
+          "count": 4
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 413,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 413,
+          "state": "sync.WaitGroup.Wait",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).submitResult",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 329,
+          "state": "runnable",
+          "count": 49
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).submitResult",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 329,
+          "state": "select",
+          "count": 11
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*DB).runWriteWorker",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 108,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*DB).submitWrite",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 90,
+          "state": "chan receive",
+          "count": 12
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*pebbleStore).Save",
+          "source": "pkg/raftlog/pebble_store.go",
+          "line": 186,
+          "state": "chan receive",
+          "count": 12
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.collectWriteRequests",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 132,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).readBarrier",
+          "source": "pkg/slot/multiraft/read_barrier.go",
+          "line": 96,
+          "state": "select",
+          "count": 227
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadSendPermissionMetadataBatch",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 187,
+          "state": "select",
+          "count": 330
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).readSendPermissionSlot",
+          "source": "pkg/slot/proxy/send_permission_rpc.go",
+          "line": 594,
+          "state": "select",
+          "count": 227
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 286,
+          "state": "select",
+          "count": 28
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 286,
+          "state": "sync.WaitGroup.Wait",
+          "count": 15
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2.(*commitPipeline).publish",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/commit.go",
+          "line": 492,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2.(*commitPipeline).publish",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/commit.go",
+          "line": 492,
+          "state": "sync.WaitGroup.Wait",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushLoop",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/record/log_writer.go",
+          "line": 673,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushLoop",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/record/log_writer.go",
+          "line": 673,
+          "state": "sync.Cond.Wait",
+          "count": 2
+        }
+      ],
+      "overlapping_closed_subsets": {
+        "raftlog_writer": [
+          {
+            "category": "collect_cross_scope_batch",
+            "state": "runnable",
+            "count": 1
+          }
+        ],
+        "DB_commit_owner": [
+          {
+            "category": "pebble_publish_or_WAL_wait",
+            "state": "runnable",
+            "count": 1
+          },
+          {
+            "category": "pebble_publish_or_WAL_wait",
+            "state": "sync.WaitGroup.Wait",
+            "count": 1
+          }
+        ],
+        "Raft_processSlot": [
+          {
+            "category": "shared_raftlog_req_done",
+            "state": "chan receive",
+            "count": 12
+          }
+        ],
+        "persondirectory_worker": [
+          {
+            "category": "completion_proposal",
+            "state": "select",
+            "count": 4
+          },
+          {
+            "category": "membership_proposal_wave",
+            "state": "chan receive",
+            "count": 4
+          }
+        ]
+      },
+      "observed_waitApplyIdle_symbol_count": 0
+    },
+    {
+      "node": 2,
+      "cut": "goroutine-early",
+      "request_submit_after_firstgrant_seconds": 1.22343,
+      "request_join_after_firstgrant_seconds": 4.386293,
+      "snapshotted_goroutines": 4187,
+      "state_counts": {
+        "running": 1,
+        "chan receive": 865,
+        "select": 2083,
+        "syscall": 5,
+        "sync.Cond.Wait": 1062,
+        "runnable": 15,
+        "sync.WaitGroup.Wait": 100,
+        "IO wait": 55,
+        "sleep": 1
+      },
+      "unknown_state_headers": 0,
+      "goroutines_with_elided_frames": 0,
+      "exclusive_category_state_counts": [
+        {
+          "category": "DB_commit_submit_result",
+          "state": "select",
+          "count": 3
+        },
+        {
+          "category": "Raft_processSlot",
+          "state": "chan receive",
+          "count": 4
+        },
+        {
+          "category": "Raft_processSlot",
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "category": "db_commit_owner",
+          "state": "select",
+          "count": 1
+        },
+        {
+          "category": "db_commit_owner",
+          "state": "sync.WaitGroup.Wait",
+          "count": 1
+        },
+        {
+          "category": "origin_permission_caller",
+          "state": "select",
+          "count": 130
+        },
+        {
+          "category": "origin_permission_cohort_worker",
+          "state": "select",
+          "count": 18
+        },
+        {
+          "category": "origin_permission_cohort_worker",
+          "state": "sync.WaitGroup.Wait",
+          "count": 2
+        },
+        {
+          "category": "other",
+          "state": "IO wait",
+          "count": 55
+        },
+        {
+          "category": "other",
+          "state": "chan receive",
+          "count": 859
+        },
+        {
+          "category": "other",
+          "state": "runnable",
+          "count": 13
+        },
+        {
+          "category": "other",
+          "state": "running",
+          "count": 1
+        },
+        {
+          "category": "other",
+          "state": "select",
+          "count": 1855
+        },
+        {
+          "category": "other",
+          "state": "sleep",
+          "count": 1
+        },
+        {
+          "category": "other",
+          "state": "sync.Cond.Wait",
+          "count": 1060
+        },
+        {
+          "category": "other",
+          "state": "sync.WaitGroup.Wait",
+          "count": 97
+        },
+        {
+          "category": "other",
+          "state": "syscall",
+          "count": 5
+        },
+        {
+          "category": "permission_serving_barrier",
+          "state": "select",
+          "count": 69
+        },
+        {
+          "category": "person_directory_idle_or_other_worker",
+          "state": "select",
+          "count": 6
+        },
+        {
+          "category": "person_directory_membership_worker",
+          "state": "chan receive",
+          "count": 2
+        },
+        {
+          "category": "physical_fsync_or_WAL_background",
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "category": "physical_fsync_or_WAL_background",
+          "state": "sync.Cond.Wait",
+          "count": 2
+        },
+        {
+          "category": "raftlog_writer",
+          "state": "select",
+          "count": 1
+        }
+      ],
+      "watched_symbol_source_line_counts": [
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).projectBatch",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 485,
+          "state": "chan receive",
+          "count": 2
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).runWorker",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 397,
+          "state": "select",
+          "count": 6
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).runWorker",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 406,
+          "state": "chan receive",
+          "count": 2
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).EnsureUserChannelMembershipBatch",
+          "source": "pkg/cluster/node_meta.go",
+          "line": 904,
+          "state": "chan receive",
+          "count": 2
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).nextRequest",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 431,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 403,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 413,
+          "state": "sync.WaitGroup.Wait",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).submitResult",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 329,
+          "state": "select",
+          "count": 3
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*DB).runWriteWorker",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 108,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*DB).submitWrite",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 90,
+          "state": "chan receive",
+          "count": 4
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*pebbleStore).Save",
+          "source": "pkg/raftlog/pebble_store.go",
+          "line": 186,
+          "state": "chan receive",
+          "count": 4
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.collectWriteRequests",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 132,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).readBarrier",
+          "source": "pkg/slot/multiraft/read_barrier.go",
+          "line": 96,
+          "state": "select",
+          "count": 69
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadSendPermissionMetadataBatch",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 187,
+          "state": "select",
+          "count": 130
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).readSendPermissionSlot",
+          "source": "pkg/slot/proxy/send_permission_rpc.go",
+          "line": 594,
+          "state": "select",
+          "count": 69
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 286,
+          "state": "select",
+          "count": 19
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 286,
+          "state": "sync.WaitGroup.Wait",
+          "count": 2
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2.(*commitPipeline).publish",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/commit.go",
+          "line": 492,
+          "state": "sync.WaitGroup.Wait",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushLoop",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/record/log_writer.go",
+          "line": 673,
+          "state": "sync.Cond.Wait",
+          "count": 2
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushLoop",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/record/log_writer.go",
+          "line": 726,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).syncWithLatency",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/record/log_writer.go",
+          "line": 808,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "internal/poll.(*FD).Fsync",
+          "source": "internal/poll/fd_fsync_darwin.go",
+          "line": 21,
+          "state": "runnable",
+          "count": 1
+        }
+      ],
+      "overlapping_closed_subsets": {
+        "DB_commit_owner": [
+          {
+            "category": "next_request",
+            "state": "select",
+            "count": 1
+          },
+          {
+            "category": "pebble_publish_or_WAL_wait",
+            "state": "sync.WaitGroup.Wait",
+            "count": 1
+          }
+        ],
+        "raftlog_writer": [
+          {
+            "category": "collect_cross_scope_batch",
+            "state": "select",
+            "count": 1
+          }
+        ],
+        "Raft_processSlot": [
+          {
+            "category": "other_processSlot",
+            "state": "runnable",
+            "count": 1
+          },
+          {
+            "category": "shared_raftlog_req_done",
+            "state": "chan receive",
+            "count": 4
+          }
+        ],
+        "persondirectory_worker": [
+          {
+            "category": "idle_or_other",
+            "state": "select",
+            "count": 6
+          },
+          {
+            "category": "membership_proposal_wave",
+            "state": "chan receive",
+            "count": 2
+          }
+        ],
+        "physical_fsync_context": [
+          {
+            "category": "Pebble_WAL_LogWriter_sync",
+            "state": "runnable",
+            "count": 1
+          }
+        ]
+      },
+      "observed_waitApplyIdle_symbol_count": 0
+    },
+    {
+      "node": 2,
+      "cut": "goroutine-late",
+      "request_submit_after_firstgrant_seconds": 4.267977,
+      "request_join_after_firstgrant_seconds": 4.964221,
+      "snapshotted_goroutines": 4460,
+      "state_counts": {
+        "running": 1,
+        "chan receive": 563,
+        "select": 3132,
+        "syscall": 5,
+        "sync.Cond.Wait": 495,
+        "runnable": 79,
+        "sync.Mutex.Lock": 14,
+        "sync.WaitGroup.Wait": 125,
+        "IO wait": 46
+      },
+      "unknown_state_headers": 0,
+      "goroutines_with_elided_frames": 0,
+      "exclusive_category_state_counts": [
+        {
+          "category": "DB_commit_submit_result",
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "category": "DB_commit_submit_result",
+          "state": "select",
+          "count": 53
+        },
+        {
+          "category": "DB_commit_submit_result",
+          "state": "sync.Mutex.Lock",
+          "count": 1
+        },
+        {
+          "category": "Raft_processSlot",
+          "state": "chan receive",
+          "count": 12
+        },
+        {
+          "category": "db_commit_owner",
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "category": "db_commit_owner",
+          "state": "select",
+          "count": 1
+        },
+        {
+          "category": "origin_permission_caller",
+          "state": "select",
+          "count": 283
+        },
+        {
+          "category": "origin_permission_cohort_worker",
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "category": "origin_permission_cohort_worker",
+          "state": "select",
+          "count": 42
+        },
+        {
+          "category": "origin_permission_cohort_worker",
+          "state": "sync.WaitGroup.Wait",
+          "count": 4
+        },
+        {
+          "category": "other",
+          "state": "IO wait",
+          "count": 46
+        },
+        {
+          "category": "other",
+          "state": "chan receive",
+          "count": 543
+        },
+        {
+          "category": "other",
+          "state": "runnable",
+          "count": 75
+        },
+        {
+          "category": "other",
+          "state": "running",
+          "count": 1
+        },
+        {
+          "category": "other",
+          "state": "select",
+          "count": 2523
+        },
+        {
+          "category": "other",
+          "state": "sync.Cond.Wait",
+          "count": 493
+        },
+        {
+          "category": "other",
+          "state": "sync.Mutex.Lock",
+          "count": 13
+        },
+        {
+          "category": "other",
+          "state": "sync.WaitGroup.Wait",
+          "count": 120
+        },
+        {
+          "category": "other",
+          "state": "syscall",
+          "count": 5
+        },
+        {
+          "category": "permission_serving_barrier",
+          "state": "select",
+          "count": 230
+        },
+        {
+          "category": "person_directory_membership_worker",
+          "state": "chan receive",
+          "count": 8
+        },
+        {
+          "category": "physical_fsync_or_WAL_background",
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "category": "physical_fsync_or_WAL_background",
+          "state": "sync.Cond.Wait",
+          "count": 2
+        },
+        {
+          "category": "raftlog_writer",
+          "state": "sync.WaitGroup.Wait",
+          "count": 1
+        }
+      ],
+      "watched_symbol_source_line_counts": [
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).projectBatch",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 485,
+          "state": "chan receive",
+          "count": 8
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).runWorker",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 406,
+          "state": "chan receive",
+          "count": 8
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).EnsureUserChannelMembershipBatch",
+          "source": "pkg/cluster/node_meta.go",
+          "line": 904,
+          "state": "chan receive",
+          "count": 8
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).nextRequest",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 431,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 403,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 413,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).submitResult",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 316,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).submitResult",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 316,
+          "state": "sync.Mutex.Lock",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).submitResult",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 329,
+          "state": "select",
+          "count": 53
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*DB).flushWriteRequests",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 184,
+          "state": "sync.WaitGroup.Wait",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*DB).runWriteWorker",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 115,
+          "state": "sync.WaitGroup.Wait",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*DB).submitWrite",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 90,
+          "state": "chan receive",
+          "count": 12
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*pebbleStore).Save",
+          "source": "pkg/raftlog/pebble_store.go",
+          "line": 186,
+          "state": "chan receive",
+          "count": 12
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).readBarrier",
+          "source": "pkg/slot/multiraft/read_barrier.go",
+          "line": 96,
+          "state": "select",
+          "count": 230
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadSendPermissionMetadataBatch",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 187,
+          "state": "select",
+          "count": 283
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).readSendPermissionSlot",
+          "source": "pkg/slot/proxy/send_permission_rpc.go",
+          "line": 594,
+          "state": "select",
+          "count": 230
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 286,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 286,
+          "state": "select",
+          "count": 46
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 286,
+          "state": "sync.WaitGroup.Wait",
+          "count": 4
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2.(*commitPipeline).publish",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/commit.go",
+          "line": 492,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2.(*commitPipeline).publish",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/commit.go",
+          "line": 492,
+          "state": "sync.WaitGroup.Wait",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushLoop",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/record/log_writer.go",
+          "line": 673,
+          "state": "sync.Cond.Wait",
+          "count": 2
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushLoop",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/record/log_writer.go",
+          "line": 726,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).syncWithLatency",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/record/log_writer.go",
+          "line": 808,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "internal/poll.(*FD).Fsync",
+          "source": "internal/poll/fd_fsync_darwin.go",
+          "line": 21,
+          "state": "runnable",
+          "count": 1
+        }
+      ],
+      "overlapping_closed_subsets": {
+        "DB_commit_owner": [
+          {
+            "category": "next_request",
+            "state": "select",
+            "count": 1
+          },
+          {
+            "category": "pebble_publish_or_WAL_wait",
+            "state": "runnable",
+            "count": 1
+          }
+        ],
+        "raftlog_writer": [
+          {
+            "category": "batch_commit_publish_wait",
+            "state": "sync.WaitGroup.Wait",
+            "count": 1
+          }
+        ],
+        "Raft_processSlot": [
+          {
+            "category": "shared_raftlog_req_done",
+            "state": "chan receive",
+            "count": 12
+          }
+        ],
+        "persondirectory_worker": [
+          {
+            "category": "membership_proposal_wave",
+            "state": "chan receive",
+            "count": 8
+          }
+        ],
+        "physical_fsync_context": [
+          {
+            "category": "Pebble_WAL_LogWriter_sync",
+            "state": "runnable",
+            "count": 1
+          }
+        ]
+      },
+      "observed_waitApplyIdle_symbol_count": 0
+    },
+    {
+      "node": 3,
+      "cut": "goroutine-early",
+      "request_submit_after_firstgrant_seconds": 1.220901,
+      "request_join_after_firstgrant_seconds": 4.382511,
+      "snapshotted_goroutines": 4111,
+      "state_counts": {
+        "running": 1,
+        "chan receive": 789,
+        "select": 2006,
+        "syscall": 5,
+        "runnable": 64,
+        "sync.Cond.Wait": 1065,
+        "sync.WaitGroup.Wait": 135,
+        "IO wait": 45,
+        "sleep": 1
+      },
+      "unknown_state_headers": 0,
+      "goroutines_with_elided_frames": 0,
+      "exclusive_category_state_counts": [
+        {
+          "category": "Raft_processSlot",
+          "state": "chan receive",
+          "count": 2
+        },
+        {
+          "category": "Raft_processSlot",
+          "state": "runnable",
+          "count": 4
+        },
+        {
+          "category": "db_commit_owner",
+          "state": "select",
+          "count": 2
+        },
+        {
+          "category": "origin_permission_caller",
+          "state": "select",
+          "count": 129
+        },
+        {
+          "category": "origin_permission_cohort_worker",
+          "state": "select",
+          "count": 22
+        },
+        {
+          "category": "origin_permission_cohort_worker",
+          "state": "sync.WaitGroup.Wait",
+          "count": 1
+        },
+        {
+          "category": "other",
+          "state": "IO wait",
+          "count": 45
+        },
+        {
+          "category": "other",
+          "state": "chan receive",
+          "count": 779
+        },
+        {
+          "category": "other",
+          "state": "runnable",
+          "count": 33
+        },
+        {
+          "category": "other",
+          "state": "running",
+          "count": 1
+        },
+        {
+          "category": "other",
+          "state": "select",
+          "count": 1817
+        },
+        {
+          "category": "other",
+          "state": "sleep",
+          "count": 1
+        },
+        {
+          "category": "other",
+          "state": "sync.Cond.Wait",
+          "count": 1062
+        },
+        {
+          "category": "other",
+          "state": "sync.WaitGroup.Wait",
+          "count": 134
+        },
+        {
+          "category": "other",
+          "state": "syscall",
+          "count": 5
+        },
+        {
+          "category": "permission_serving_barrier",
+          "state": "runnable",
+          "count": 25
+        },
+        {
+          "category": "permission_serving_barrier",
+          "state": "select",
+          "count": 36
+        },
+        {
+          "category": "person_directory_membership_worker",
+          "state": "chan receive",
+          "count": 8
+        },
+        {
+          "category": "physical_fsync_or_WAL_background",
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "category": "physical_fsync_or_WAL_background",
+          "state": "sync.Cond.Wait",
+          "count": 3
+        },
+        {
+          "category": "raftlog_writer",
+          "state": "runnable",
+          "count": 1
+        }
+      ],
+      "watched_symbol_source_line_counts": [
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).projectBatch",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 485,
+          "state": "chan receive",
+          "count": 8
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory.(*Projector).runWorker",
+          "source": "internal/runtime/persondirectory/projector.go",
+          "line": 406,
+          "state": "chan receive",
+          "count": 8
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).EnsureUserChannelMembershipBatch",
+          "source": "pkg/cluster/node_meta.go",
+          "line": 904,
+          "state": "chan receive",
+          "count": 8
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).nextRequest",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 431,
+          "state": "select",
+          "count": 2
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+          "source": "pkg/db/internal/commit/coordinator.go",
+          "line": 403,
+          "state": "select",
+          "count": 2
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*DB).runWriteWorker",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 108,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*DB).submitWrite",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 90,
+          "state": "chan receive",
+          "count": 2
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*DB).submitWrite",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 90,
+          "state": "runnable",
+          "count": 2
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*pebbleStore).Save",
+          "source": "pkg/raftlog/pebble_store.go",
+          "line": 177,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*pebbleStore).Save",
+          "source": "pkg/raftlog/pebble_store.go",
+          "line": 186,
+          "state": "chan receive",
+          "count": 2
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.(*pebbleStore).Save",
+          "source": "pkg/raftlog/pebble_store.go",
+          "line": 186,
+          "state": "runnable",
+          "count": 3
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.collectWriteRequests",
+          "source": "pkg/raftlog/pebble_writer.go",
+          "line": 132,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/raftlog.fsyncDir",
+          "source": "pkg/raftlog/snapshot_store.go",
+          "line": 334,
+          "state": "runnable",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).readBarrier",
+          "source": "pkg/slot/multiraft/read_barrier.go",
+          "line": 96,
+          "state": "runnable",
+          "count": 25
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).readBarrier",
+          "source": "pkg/slot/multiraft/read_barrier.go",
+          "line": 96,
+          "state": "select",
+          "count": 36
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).ReadSendPermissionMetadataBatch",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 187,
+          "state": "select",
+          "count": 129
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).readSendPermissionSlot",
+          "source": "pkg/slot/proxy/send_permission_rpc.go",
+          "line": 594,
+          "state": "runnable",
+          "count": 25
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).readSendPermissionSlot",
+          "source": "pkg/slot/proxy/send_permission_rpc.go",
+          "line": 594,
+          "state": "select",
+          "count": 36
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 234,
+          "state": "select",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 286,
+          "state": "select",
+          "count": 21
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy.(*Store).runSendPermissionCohort",
+          "source": "pkg/slot/proxy/send_permission_cohort.go",
+          "line": 286,
+          "state": "sync.WaitGroup.Wait",
+          "count": 1
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushLoop",
+          "source": "github.com/cockroachdb/pebble/v2@v2.1.4/record/log_writer.go",
+          "line": 673,
+          "state": "sync.Cond.Wait",
+          "count": 3
+        },
+        {
+          "symbol": "internal/poll.(*FD).Fsync",
+          "source": "internal/poll/fd_fsync_darwin.go",
+          "line": 21,
+          "state": "runnable",
+          "count": 1
+        }
+      ],
+      "overlapping_closed_subsets": {
+        "DB_commit_owner": [
+          {
+            "category": "next_request",
+            "state": "select",
+            "count": 2
+          }
+        ],
+        "raftlog_writer": [
+          {
+            "category": "collect_cross_scope_batch",
+            "state": "runnable",
+            "count": 1
+          }
+        ],
+        "physical_fsync_context": [
+          {
+            "category": "snapshot_directory_fsync",
+            "state": "runnable",
+            "count": 1
+          }
+        ],
+        "Raft_processSlot": [
+          {
+            "category": "other_processSlot",
+            "state": "runnable",
+            "count": 2
+          },
+          {
+            "category": "shared_raftlog_req_done",
+            "state": "chan receive",
+            "count": 2
+          },
+          {
+            "category": "shared_raftlog_req_done",
+            "state": "runnable",
+            "count": 2
+          }
+        ],
+        "persondirectory_worker": [
+          {
+            "category": "membership_proposal_wave",
+            "state": "chan receive",
+            "count": 8
+          }
+        ]
+      },
+      "observed_waitApplyIdle_symbol_count": 0
+    }
+  ],
+  "node3_late": {
+    "status": "8MiB_streaming_cap_failure_body_deleted",
+    "available": false,
+    "counts": null
+  },
+  "elapsed_parse_and_hash_seconds": 0.37856600002851337,
+  "raw_stacks_arguments_IDs_or_full_callchains_public": false,
+  "CPU_profiles_decoded": false,
+  "new_HTTP_DB_product_build_test_operations": 0
+}

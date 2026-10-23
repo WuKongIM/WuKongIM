@@ -1,0 +1,63 @@
+{
+  "schema": "wukongim/single-expired-offline-db/v2",
+  "started_at_utc": "2026-10-23T07:36:49.173545+00:00",
+  "finished_at_utc": "2026-10-23T07:36:49.553230+00:00",
+  "selected_count": 1,
+  "selected_domain": "primary_person",
+  "binary_sha256": "ac51875da442f156027c3b8297a6cf688c20bc4a97144f6ba47ebfee0fc0caaa",
+  "original_databases_opened": false,
+  "maximum_queries": 3,
+  "per_command_timeout_seconds": 10,
+  "overall_bound_seconds": 90,
+  "original_file_count": 57,
+  "original_bytes": 163374763,
+  "expected_inventory_sha256": "6251cb4ff5ad918b79d10a59021910d5ebbcff8f2917c35525c4ebfd4bcdd13a",
+  "original_bytes_mtime_unchanged": true,
+  "nodes": [
+    {
+      "node_id": 1,
+      "opened_copy": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.062475499929860234,
+      "process_joined": true,
+      "stdout_bytes": 452,
+      "stdout_sha256": "3aeb45574c62877fabee9ecd9aa9cf08f90250d7d8d9b7df7fc1af991f7313ff",
+      "stderr_bytes": 1784,
+      "stderr_sha256": "c6552f2d601aace4af715fd93e2da32ee3e52fd4cdf5a3f1a6dcb7a74ee91900",
+      "status": "unique_matching_durable_row",
+      "matching_row_count": 1,
+      "has_more": false
+    },
+    {
+      "node_id": 2,
+      "opened_copy": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.05912529199849814,
+      "process_joined": true,
+      "stdout_bytes": 452,
+      "stdout_sha256": "3aeb45574c62877fabee9ecd9aa9cf08f90250d7d8d9b7df7fc1af991f7313ff",
+      "stderr_bytes": 1784,
+      "stderr_sha256": "e8f7173b3fc5c1a6d485c288073a41f2cf8673ad312214d9be91f262294e6fb8",
+      "status": "unique_matching_durable_row",
+      "matching_row_count": 1,
+      "has_more": false
+    },
+    {
+      "node_id": 3,
+      "opened_copy": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.05258745909668505,
+      "process_joined": true,
+      "stdout_bytes": 452,
+      "stdout_sha256": "3aeb45574c62877fabee9ecd9aa9cf08f90250d7d8d9b7df7fc1af991f7313ff",
+      "stderr_bytes": 1784,
+      "stderr_sha256": "5204b5ae0497f05b2101dd045c915bbb0fee7f782a0c869a54430fafb802a933",
+      "status": "unique_matching_durable_row",
+      "matching_row_count": 1,
+      "has_more": false
+    }
+  ],
+  "all_three_unique": true,
+  "same_message_identity_across_replicas": true,
+  "identity_values_public": false
+}

@@ -1,0 +1,91 @@
+{
+  "revision": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "bytes": 10973,
+      "sha256": "ae0f99b28ea52be22ddb95c785574819a4e4c31614435bff9250e5b10b8ecff2"
+    },
+    {
+      "path": "pkg/db/FLOW.md",
+      "bytes": 4313,
+      "sha256": "57578a266e60e804ee46f71205b92c7d64df00e0df6e6f9120cc0e1937334017"
+    },
+    {
+      "path": "pkg/db/meta/FLOW.md",
+      "bytes": 10701,
+      "sha256": "2fc1c3f670d8cd6a60e4e132c99ee71908c64f771c55bbce853eaa10fe0eaeac"
+    },
+    {
+      "path": "internal/usecase/message/FLOW.md",
+      "bytes": 9514,
+      "sha256": "e02fa0e23332e80174eb4ba4ee9cd4ed078a311d8f436ece35fb3b4f1f6f9348"
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "bytes": 14273,
+      "sha256": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971"
+    },
+    {
+      "path": "pkg/slot/multiraft/read_barrier.go",
+      "bytes": 6691,
+      "sha256": "1305c33b42ae35f11e733202083ddea683d1dd7b983895ca40276054b1ac1f9a"
+    },
+    {
+      "path": "pkg/slot/multiraft/slot.go",
+      "bytes": 68949,
+      "sha256": "9154ed49ebdc0d2339e3f72939a1de2fdc3caaf3d21e6c5130bbda9a2362d55a"
+    },
+    {
+      "path": "pkg/db/internal/commit/coordinator.go",
+      "bytes": 23823,
+      "sha256": "0d15993e76046d5c2da5515f8f980ee87a3ac859950f0918fd694f53caf4becc"
+    },
+    {
+      "path": "pkg/raftlog/pebble_store.go",
+      "bytes": 11056,
+      "sha256": "67fa4a437bb9205a0e9576e2804431e4f04feb40514e8ca4582116b2f672ccf1"
+    },
+    {
+      "path": "pkg/raftlog/pebble_writer.go",
+      "bytes": 16126,
+      "sha256": "1c703832eca5c1a64d325127d18930a19971f76e62515002444353b28e68d362"
+    },
+    {
+      "path": "pkg/raftlog/pebble_db.go",
+      "bytes": 8018,
+      "sha256": "5aeb028c00b5193c2c2d30eec869ae49486d4dd1b47ddc06b4caac0103d137dd"
+    },
+    {
+      "path": "internal/runtime/persondirectory/projector.go",
+      "bytes": 16036,
+      "sha256": "5d027b97b9c707c3eade2ee620479da1778b4fdf6e585fc2ba6078d7e735b4f5"
+    }
+  ],
+  "absent_FLOW_files": [
+    "internal/runtime/persondirectory/FLOW.md",
+    "pkg/raftlog/FLOW.md"
+  ],
+  "external_pinned_source": {
+    "module": "github.com/cockroachdb/pebble/v2",
+    "version": "v2.1.4",
+    "file": "commit.go",
+    "bytes": 20293,
+    "sha256": "aaf94b6b79c366c7666a5b4d85bd18818bc9e82d13629e1bd5e231255da470b8"
+  },
+  "definitions": {
+    "ReadBarrier96": "one select waiting request.resp or ctx.Done; cannot distinguish queue/quorum/apply from that frame",
+    "DBsubmitResult329": "one select waiting pending.done/cancel/close, not necessarily physical disk write",
+    "raftlogSave186": "submitWrite90 waits req.done from shared one writer;12Save not12physicalfsync",
+    "raftlogCollect132": "one5ms timer set at first dequeue; not reset on each arrival; snapshotselect/runnable alone cannot establish delay duration",
+    "raftlogFlush184": "Pebble Batch.Commit(Sync); publish492 may wait another publisher orWALsync, not uniquely fsync",
+    "persondirWorker397": "idle task select",
+    "persondirWorker406": "projectBatch; membership485 andcompletion515 remain separate stages",
+    "runnable_state": "point state, not a measured scheduling delay or time duration"
+  }
+}

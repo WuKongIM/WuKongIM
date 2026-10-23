@@ -1,0 +1,49 @@
+{
+  "schema": "wukongim/local-diagnostic-independent-terminal-review/v1",
+  "observed_at_utc": "2026-10-23T07:34:56.200387+00:00",
+  "reviewer": "ci_audit",
+  "read_only_commands": [
+    "ps pid,pgid,comm",
+    "lsof exact TCP LISTEN range"
+  ],
+  "service_probes": 0,
+  "signals_or_process_mutations": 0,
+  "tests_builds_or_product_starts": 0,
+  "owned_pgid": 82337,
+  "independent_inventory": {
+    "owned_pgid_process_count": 0,
+    "all_wukongim_wkcli_process_count": 0,
+    "listening_count": 0,
+    "port_range": [
+      25000,
+      25063
+    ],
+    "port_count": 64,
+    "ps_exit": 0,
+    "lsof_exit": 1,
+    "zero_verified": true
+  },
+  "executor_cleanup_receipt_sha256": "a8fbf338845e7ff82cc072e17a89b12624a181c657d470584e64e7b26737b5d3",
+  "final_report_present": true,
+  "final_report_sha256": "2267ea289fcadf3603f280a10de1f469c159abae631b1f8f410228b42770cfff",
+  "original_verdict": {
+    "outcome": "product_failure",
+    "cause": "message_loss",
+    "terminal": true
+  },
+  "messages": {
+    "sent": 42002,
+    "send_acknowledged": 42002,
+    "first_attempt_failures": 0,
+    "send_rejected": 0,
+    "retry_attempts": 1519,
+    "losses": 3
+  },
+  "sampled_delivery": {
+    "sampled": 402,
+    "delivered": 399,
+    "expired": 3,
+    "pending_unfinished": 0
+  },
+  "interpretation": "Independent terminal inventory and original closed verdict only; no service probes or new sampling."
+}

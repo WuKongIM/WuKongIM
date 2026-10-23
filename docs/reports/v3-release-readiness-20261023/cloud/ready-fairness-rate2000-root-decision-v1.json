@@ -1,0 +1,14 @@
+{
+  "schema": "wukongim/local2000-single-run-decision/v1",
+  "candidate": "d08031d576c3497c56b0dfba60e4db8370224c04",
+  "tree": "e084b653ba2aea7e549c6421eaf203a16820d294",
+  "prepared_receipt_sha256": "efb7bdd729502a7aa901bb8d3fae4502f3e224f7de47edad8f6d453132326dd2",
+  "root_verified_6pins_11AST_3fixed": true,
+  "root_verified_build_12members_and_binarySHA": true,
+  "single_run": true,
+  "profile": false,
+  "original_gates_unchanged": true,
+  "runtime_total_limit_seconds": 600,
+  "target_traffic_seconds": 120,
+  "cloud_start_authorized": false
+}

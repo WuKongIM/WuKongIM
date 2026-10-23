@@ -1,0 +1,84 @@
+{
+  "stage": "plan_only_not_executed",
+  "source": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+  "source_files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    "internal/app/FLOW.md": "97552ae0d95e4957c4005b6c6af0a961414eb9f9dec93faf7e15d5a89b28405b",
+    "internal/usecase/presence/FLOW.md": "bf5dc014ecbb61f951e11d0576189ed3cfadf5d319ffb312fbe9cc84f2742a49",
+    "internal/runtime/presence/FLOW.md": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee",
+    "internal/infra/cluster/FLOW.md": "534e7fce0d3e53d1cef322c0529f779b9dba5453643e1a5e8a3396f228f2abdc",
+    "internal/access/node/FLOW.md": "095836bd2e270d9663e1aa33bdb4457d42a7706b0706dc14610e72fc6beb82a7",
+    "pkg/cluster/FLOW.md": "0a7ba4b4094ba483f4b7bdc17a654496e7e1a3560349c3ddb4ae401f19633d36",
+    "internal/app/presence_recovery_delivery_test.go": "3cd33dcaff2b455ea76e71f81cb3be7b476058980e29a59d34dd53b772ea9c05",
+    "internal/app/recipient_delivery_production_benchmark_test.go": "b2b0b1c64adcffaea95aadd0958bc28d1def6b65ae2cc3ec74816efbabd138e7",
+    "internal/app/mqtt_source_preparation_integration_test.go": "35b1e9b9933cf9f6345edfa9965854f3703890c7ee55521d924a5cc67b0fba24",
+    "internal/usecase/presence/recovery.go": "a2f531aa8deee17942cefaa01f25efeea0cf0e041ffc6cf54fa1d77db8c3306b",
+    "internal/usecase/presence/recovery_flights.go": "5af40084a1a35cfadf0cc713309229ac873044e4e8defec9fd2d9b6a593ba31c",
+    "internal/usecase/presence/owner_recovery.go": "d2c49e662a578ab380bccc2b594e9f4b100558137c007078ab4694e5d32e6717",
+    "internal/infra/cluster/presence_recovery.go": "bbd399c04d4e33ccdf3e0a6c34439bf4cb5d1e22cf7408e9751ffc55fe53ad46"
+  },
+  "scope": "One new app integration diagnostic test in new worktree from exact source; no product changes. Reuse actual three-node cluster lifecycle from MQTT fixture, not MQTT operations; real Registry/OwnerRecovery/node RPC/PresenceRecoveryOwners/AuthorityRecovery.",
+  "arms": [
+    "32 independent concurrent cold lookups with two UIDs each",
+    "32 concurrent callers joining one cold UID",
+    "same 64 distinct UIDs in one legal cross-target page"
+  ],
+  "bounds": {
+    "cohorts": 16,
+    "keys": 8192,
+    "uid_bytes": 134217728,
+    "uids_per_page": 512,
+    "targets_per_page": 256,
+    "returned_routes": 4096,
+    "caller_deadline_seconds": 5,
+    "rpc_child_deadline_ms": 250,
+    "test_timeout_seconds": 90,
+    "outer_command_seconds": 110,
+    "reserved_cleanup_seconds": 10,
+    "outer_output_bytes": 1048576
+  },
+  "observations": [
+    "caller entry/exit",
+    "cohort adapter entry/exit and UID/target counts",
+    "real local owner and remote CallRPC entry/exit",
+    "server owner handler entry/exit",
+    "peak active rounds, completed/canceled/joined counts"
+  ],
+  "limits": [
+    "caller-to-cohort includes directory and scheduling; not pure quota timing",
+    "pre-RPC residual includes second admission, membership and validation; not exact standalone attribution",
+    "same UID may complete before all followers enter; a low call count alone is not proof all joined",
+    "no real-world reproduction claim if all arms complete below five seconds",
+    "cross-caller batching is absent today; prepacked arm demonstrates existing API capability only"
+  ],
+  "failure_modes": [
+    "wrong or stale target or owner boot must not become empty success",
+    "late cancellation must not publish stale proof; all goroutines and nodes join",
+    "actual independent admission must never exceed sixteen",
+    "no artificial delay in measured arms",
+    "startup failure is setup failure, not presence timeout",
+    "no automatic retries or workload amplification"
+  ],
+  "planned_test": "TestPresenceColdRecoveryRPCIsolation",
+  "command_argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "-tags=integration",
+    "./internal/app",
+    "-run",
+    "^TestPresenceColdRecoveryRPCIsolation$",
+    "-count=1",
+    "-timeout=90s",
+    "-parallel=1",
+    "-p=2",
+    "-v"
+  ],
+  "environment_changes": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off"
+  },
+  "execution_wrapper": "Existing scripts/run-v3-candidate-check.py run_command, timeout110s, output1MiB, owned session cleanup; total allocation120s. No execution authorized by this plan."
+}

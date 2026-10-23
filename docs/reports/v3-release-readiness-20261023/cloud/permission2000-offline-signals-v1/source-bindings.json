@@ -1,0 +1,112 @@
+{
+  "revision": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "metrics_FLOW_exists": false,
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "bytes": 10973,
+      "sha256": "ae0f99b28ea52be22ddb95c785574819a4e4c31614435bff9250e5b10b8ecff2"
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "bytes": 14273,
+      "sha256": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "bytes": 12335,
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_cohort.go",
+      "bytes": 10579,
+      "sha256": "d84be076ccc93552ada25c867d2c641cdfb1b67ce78ef4ac154a3247b58ad352"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_rpc.go",
+      "bytes": 21523,
+      "sha256": "872417d9cb60df5d12a59f17da5fe17a055f29f166d7e38d8e763eccf9faa781"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_observer.go",
+      "bytes": 1474,
+      "sha256": "cabe577ee9405ab53f49259b82f63ba4f221a02f0751244b0369d3ccfee169ed"
+    },
+    {
+      "path": "pkg/metrics/send_permission.go",
+      "bytes": 3941,
+      "sha256": "35fed2bd524f4de3050a571c271de9b71a5a76b5f07d7745db161f1e5e62470d"
+    },
+    {
+      "path": "pkg/metrics/slot.go",
+      "bytes": 6886,
+      "sha256": "3043f7193b666771c953c1e1bed6f7569b3fbffe451eb6aa5f76edfa48b6fbea"
+    },
+    {
+      "path": "pkg/metrics/transport.go",
+      "bytes": 17496,
+      "sha256": "d834af3b9b5c6c4e5ca65ffdb2389113ac08ad83d4f0b727a56baa41906b5489"
+    },
+    {
+      "path": "pkg/metrics/runtime_pressure.go",
+      "bytes": 17268,
+      "sha256": "b5cdd014aff8a54b81d9a02239c8f88d16db370b7aea2ebff152ccdb1ac9feca"
+    },
+    {
+      "path": "pkg/metrics/channel_runtime.go",
+      "bytes": 26661,
+      "sha256": "4b516e84d602737c96e99aa03504a6094b3f23e1a3049c0a1cc8190bb77b58b4"
+    },
+    {
+      "path": "pkg/slot/multiraft/read_barrier.go",
+      "bytes": 6691,
+      "sha256": "1305c33b42ae35f11e733202083ddea683d1dd7b983895ca40276054b1ac1f9a"
+    },
+    {
+      "path": "pkg/slot/multiraft/slot.go",
+      "bytes": 68949,
+      "sha256": "9154ed49ebdc0d2339e3f72939a1de2fdc3caaf3d21e6c5130bbda9a2362d55a"
+    },
+    {
+      "path": "internal/app/observability.go",
+      "bytes": 93080,
+      "sha256": "27eb7f43fc390a240988e56f92764929aee7432c594ef991d2515203718278b5"
+    },
+    {
+      "path": "pkg/cluster/net/ids.go",
+      "bytes": 12556,
+      "sha256": "b47b71fc9f1a4c5a942411a4d5c710af3e3bea01c61864c7bb5d102254017b38"
+    }
+  ],
+  "definitions": {
+    "origin_limits": {
+      "max_active_cohorts": 64,
+      "max_owned_calls": 1024,
+      "owned_credit_bytes": 16777216,
+      "count_source": "pkg/slot/proxy/send_permission_cohort.go:98-103",
+      "cohort_count_metric": "wukongim_message_permission_counts_total{kind=cohort_busy}",
+      "owned_gauge": "wukongim_message_permission_cohort_owned{kind=cohorts|calls|budget_bytes}"
+    },
+    "serving_limits": {
+      "executing": 128,
+      "waiting": 1024,
+      "undecoded_wait_bytes": 16777216,
+      "wait_seconds": 2,
+      "source": "pkg/slot/proxy/send_permission_rpc.go:22-30,394-463",
+      "inflight_metric": "wukongim_message_permission_inflight",
+      "admission_hist": "wukongim_message_permission_duration_seconds{stage=admission,result=ok|busy|...}"
+    },
+    "permission_stages": "pkg/metrics/send_permission.go:47-69; rpc.go:593-609",
+    "slot_proposal_metric_semantics": "pkg/slot/multiraft/slot.go:2302-2310 ->internal/app/observability.go:919-923 ->pkg/metrics/slot.go:141-148",
+    "read_barrier": "pkg/slot/multiraft/read_barrier.go:66-71 ->internal/app/observability.go:926-931",
+    "transport_sampling": "pkg/metrics/transport.go:82-107, one_in32_duration_samples"
+  },
+  "source_clean_after": true,
+  "new_HTTP_product_build_or_DB_operations": 0
+}

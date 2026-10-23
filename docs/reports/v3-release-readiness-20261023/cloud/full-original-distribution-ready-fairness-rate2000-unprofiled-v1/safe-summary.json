@@ -1,0 +1,119 @@
+{
+  "schema": "wukongim/local2k-safe-summary/v1",
+  "source_revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+  "source_tree": "e084b653ba2aea7e549c6421eaf203a16820d294",
+  "configured_SEND_per_second": 2000,
+  "derived_max_global_burst": 4000,
+  "same_population_nodes_workers_batch": true,
+  "supervisor_started_at_utc": "2026-10-23T05:27:58.464195+00:00",
+  "firstgrant_at": "2026-10-23T13:32:12.524324+08:00",
+  "finished_at_utc": "2026-10-23T05:32:32.388006+00:00",
+  "outer_controller_result": {
+    "outcome": "harness_invalid",
+    "cause": "invalid_observation",
+    "coordinator_code": "finalize",
+    "finalization_stage": "meta_checkpoint",
+    "finalization_reason": "metrics_fetch",
+    "launcher_exit_status": 8,
+    "coordinator_exit_status": 8
+  },
+  "original_controller_failure": {
+    "event": "wkbench.chat_lifecycle.controller_failure",
+    "at": "2026-10-23T13:32:26.088433+08:00",
+    "cut": "terminal",
+    "phase": "finalize",
+    "stage": "meta_checkpoint",
+    "reason": "metrics_fetch",
+    "metrics_fetch": {
+      "source_mask": 7,
+      "kinds": [
+        "parse",
+        "parse",
+        "parse"
+      ],
+      "parse_reasons": [
+        "invalid_queue_utilization",
+        "invalid_queue_utilization",
+        "invalid_queue_utilization"
+      ]
+    },
+    "observed_outcome": "product_failure",
+    "observed_cause": "overall_first_attempt_rate",
+    "observed_terminal": true
+  },
+  "original_final_report_present": false,
+  "original_final_verdict": null,
+  "messages": null,
+  "correlation": null,
+  "observed_terminal_worker_cut_messages": {
+    "sent": 22001,
+    "send_attempts": 23407,
+    "first_attempts": 22001,
+    "first_attempt_failures": 264,
+    "send_acknowledged": 22001,
+    "send_rejected": 278,
+    "received": 27848,
+    "receive_acknowledged": 27848,
+    "receive_ack_failures": 0,
+    "retry_attempts": 1406,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 0,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "prior_observed_product_decision": {
+    "observed_outcome": "product_failure",
+    "observed_cause": "overall_first_attempt_rate",
+    "observed_terminal": true
+  },
+  "active_rate": {
+    "periodic_start_at": "2026-10-23T13:32:17.569435833+08:00",
+    "periodic_end_at": "2026-10-23T13:32:22.569492375+08:00",
+    "elapsed_seconds": 5.000056542,
+    "delta_primary_SEND": 10016,
+    "primary_SEND_per_second": 2003.1773472692862,
+    "retries_excluded": true,
+    "terminal_drain_excluded": true
+  },
+  "first_periodic_SEND_per_second": 1980.5309239415626,
+  "observed_terminal_first_attempt_failure_fraction": 0.011999454570246808,
+  "unchanged_gate": "overall_first_attempt_rate: failures*10000<first_attempts; original gate not changed",
+  "target_measured_seconds": 120,
+  "full_target_window_completed": false,
+  "host_resources": {
+    "schema": "wukongim/local2k-safe-host-resources/v1",
+    "sample_count": 53,
+    "first_at": "2026-10-23T05:27:58.620104+00:00",
+    "last_at": "2026-10-23T05:32:27.221239+00:00",
+    "maximum_owned_RSS_sum_bytes": 4709826560,
+    "maximum_owned_process_CPU_percent_sum": 235.20000000000002,
+    "other_WK_seen": false,
+    "limitation": "Owned RSS is sampled aggregate, not continuous peak. ps CPU percent is process lifetime average, not isolated host headroom. Shared Mac and disk; no formal Linux capacity inference."
+  },
+  "cleanup_complete": true,
+  "owned_pgid": 50680,
+  "runtime_seconds": 273.9204224169953,
+  "limits_unchanged": true,
+  "profile_captures": 0,
+  "automatic_retry": false,
+  "formal_Linux_cloud_capacity_acceptance": false,
+  "limitations": [
+    "Outer harness invalid and prior observed product failure are separate. No final report/correlation/percentiles can be inferred.",
+    "Exact failed coordinator metrics response body was not retained; six adjacent saved scrape pairs are valid under exact queue parser.",
+    "Terminal worker cut includes drain; active QPS uses only two periodic cuts.",
+    "Shared native Mac; this is one bounded diagnostic and did not complete120s."
+  ]
+}

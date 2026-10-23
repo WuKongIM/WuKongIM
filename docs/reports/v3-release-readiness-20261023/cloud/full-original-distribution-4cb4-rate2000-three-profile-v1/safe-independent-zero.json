@@ -1,0 +1,222 @@
+{
+  "schema": "wukongim/local-profile-independent-terminal-review/v1",
+  "observed_at_utc": "2026-10-23T04:55:16.123488+00:00",
+  "reviewer": "ci_audit",
+  "read_only_commands": [
+    "ps pid,pgid,comm",
+    "lsof exact TCP LISTEN range",
+    "git rev-parse/status",
+    "bounded metadata/binary hash reads"
+  ],
+  "service_probes": 0,
+  "signals_or_process_mutations": 0,
+  "tests_builds_or_product_starts": 0,
+  "raw_profile_reads_or_decodes": 0,
+  "owned_pgid": 33388,
+  "independent_inventory": {
+    "owned_pgid_process_count": 0,
+    "all_wukongim_wkcli_process_count": 0,
+    "listening_count": 0,
+    "port_range": [
+      25000,
+      25063
+    ],
+    "port_count": 64,
+    "ps_exit": 0,
+    "lsof_exit": 1,
+    "zero_verified": true
+  },
+  "original_final": {
+    "outcome": "product_failure",
+    "cause": "overall_first_attempt_rate",
+    "terminal": true,
+    "first_measured_started_at_utc": "2026-10-23T04:50:04.969243+00:00",
+    "window_elapsed_ns": 18132746042,
+    "messages": {
+      "sent": 22001,
+      "send_attempts": 23689,
+      "first_attempts": 22001,
+      "first_attempt_failures": 379,
+      "send_acknowledged": 22001,
+      "send_rejected": 396,
+      "received": 27522,
+      "receive_acknowledged": 27522,
+      "receive_ack_failures": 0,
+      "retry_attempts": 1688,
+      "terminal": 0,
+      "losses": 2,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "correlation": {
+      "pending_unfinished": 0,
+      "outstanding": 0,
+      "sampled": 197,
+      "delivered": 195,
+      "expired": 2,
+      "duplicate_completions": 0,
+      "conflicting_completions": 0,
+      "unknown_acknowledgments": 0
+    }
+  },
+  "executor_cleanup": {
+    "at_utc": "2026-10-23T04:51:55.305274+00:00",
+    "elapsed_seconds": 361.24158341705333,
+    "complete": true,
+    "owned_pgid": 33388,
+    "launcher_exit_status": 7
+  },
+  "sampler_metadata_only": {
+    "status": "partial",
+    "reason": "node_capture_partial",
+    "requests": [
+      {
+        "node": 1,
+        "kind": "cpu",
+        "curl_exit_code": 0,
+        "error_class": "none",
+        "retained_body_bytes_before_failure_discard": 29367,
+        "max_bytes": 4194304
+      },
+      {
+        "node": 1,
+        "kind": "goroutine-early",
+        "curl_exit_code": 0,
+        "error_class": "none",
+        "retained_body_bytes_before_failure_discard": 3667621,
+        "max_bytes": 8388608
+      },
+      {
+        "node": 1,
+        "kind": "goroutine-late",
+        "curl_exit_code": 0,
+        "error_class": "none",
+        "retained_body_bytes_before_failure_discard": 8218744,
+        "max_bytes": 8388608
+      },
+      {
+        "node": 2,
+        "kind": "cpu",
+        "curl_exit_code": 0,
+        "error_class": "none",
+        "retained_body_bytes_before_failure_discard": 25632,
+        "max_bytes": 4194304
+      },
+      {
+        "node": 2,
+        "kind": "goroutine-early",
+        "curl_exit_code": 0,
+        "error_class": "none",
+        "retained_body_bytes_before_failure_discard": 3546003,
+        "max_bytes": 8388608
+      },
+      {
+        "node": 2,
+        "kind": "goroutine-late",
+        "curl_exit_code": 0,
+        "error_class": "none",
+        "retained_body_bytes_before_failure_discard": 8177146,
+        "max_bytes": 8388608
+      },
+      {
+        "node": 3,
+        "kind": "cpu",
+        "curl_exit_code": 0,
+        "error_class": "none",
+        "retained_body_bytes_before_failure_discard": 26302,
+        "max_bytes": 4194304
+      },
+      {
+        "node": 3,
+        "kind": "goroutine-early",
+        "curl_exit_code": 0,
+        "error_class": "none",
+        "retained_body_bytes_before_failure_discard": 3627875,
+        "max_bytes": 8388608
+      },
+      {
+        "node": 3,
+        "kind": "goroutine-late",
+        "curl_exit_code": 63,
+        "error_class": "max_filesize",
+        "retained_body_bytes_before_failure_discard": 8388608,
+        "max_bytes": 8388608
+      }
+    ],
+    "raw_profile_bytes_not_independently_read": true,
+    "failed_body_byte_count_semantics": "Observed temporary body count before V3 failure discard; not a claim that failed body remains stored."
+  },
+  "evidence_sha256": {
+    "report/final.json": {
+      "sha256": "d1e6f21e68b933e7b65bc694106b2d28eb3a84364be40f2f801ed25dd16b9b0b",
+      "bytes": 23685
+    },
+    "cleanup-receipt.json": {
+      "sha256": "27d90b555caf1bd46fdc5cf466dd27050d39c8599a091860270b048295d7eb2e",
+      "bytes": 921
+    },
+    "diagnostic-result.json": {
+      "sha256": "5c03bcaa8cbb0ec3da721d48eb40009f0cc3758e30d99bc19f2d50b069c59aa9",
+      "bytes": 3498
+    },
+    "evidence/first-measured-status.json": {
+      "sha256": "14172ea9ba44bbde1db229d62906fab6cb3c954f317d8ab260df9c1652153c9d",
+      "bytes": 5783
+    },
+    "profile-driver-status.json": {
+      "sha256": "b02285d6456bd4acd59481ede457d6057a09761ce00fe872dbe03a5c3a439ecd",
+      "bytes": 11735
+    }
+  },
+  "source_repositories": {
+    "source": {
+      "head": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+      "tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+      "tracked_untracked_clean": true
+    },
+    "primary": {
+      "head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+      "tree": "d3ae8bec9e277cc0b7a95d51762682224e505be2",
+      "tracked_untracked_clean": true
+    },
+    "qualification": {
+      "head": "8b4c12b1f6722f969b907fdfd2b2d9425dac5aa9",
+      "tree": "42b2e756ef119da3cbaa67eaf51d7d35d2d12cf9",
+      "tracked_untracked_clean": true
+    }
+  },
+  "actual_binaries": {
+    "wukongim": {
+      "sha256": "0c258855fdd4439abab5cc3ab87b7608dca5f4b936ec5033cd5eb5899e708618",
+      "bytes": 64618866
+    },
+    "wkcli": {
+      "sha256": "4a250e92881403a1657fd8bfcaa28b34975424c6ee6cf808bd3b0078ffe9ec98",
+      "bytes": 41060466
+    }
+  },
+  "immutable_bindings": {
+    "proposal_manifest_sha256": "d77ba0a79cdfef258a9b6bf8c5fc8b26417912479a58d25b187731ba0904d93f",
+    "proposal_members_verified": 12,
+    "runtime_six_pins": {
+      "launcher.sh": "61b2ab2c1d78fd397c29a81d96c56b47275c911c3b46402059dc9b614c07164c",
+      "exact_build_guard.py": "3ac915f13ec8dbd296a3abc512fff7a19bf7d2c02710a60ea9c3925d8d4cf32e",
+      "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415",
+      "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+      "original-distribution-local.yaml": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+      "supervise.py": "f585996f244cb6baf15a995a7240e857751a48a6f63817b8c21b362cca46527c"
+    },
+    "sampler_pins": {
+      "capture-permission-three-node.sh": "e0c3b9cba665bb7937325810894c2ac6dae8d8f647f86a11acd9801544613326",
+      "watch-permission-three-node.py": "e4cf76e74c7d0bbffddd84c5f204a5a63aa9b29050575d92f66855a9ed6324bd",
+      "SAMPLER_SHA256SUMS": "a9270ce44c628bfd87d510e892200fcbf01b112cfbf42e3acb007130d03a3c90"
+    },
+    "yaml_byte_equal_prior_unprofiled": true
+  },
+  "limitations": [
+    "Profiled shared-Mac diagnostic; not acceptance or an unperturbed comparison.",
+    "Original first-attempt-rate failure preserved; sampled expiry and request errors do not replace original verdict.",
+    "No raw profile decode or historical root-cause conclusion."
+  ]
+}

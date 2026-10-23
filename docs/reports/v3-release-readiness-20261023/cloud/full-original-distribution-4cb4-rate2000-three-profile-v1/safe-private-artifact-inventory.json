@@ -1,0 +1,114 @@
+{
+  "schema": "wukongim/profiled2000-private-inputs/v1",
+  "raw_inputs_not_public": true,
+  "artifacts": [
+    {
+      "relative_private_path": "report/final.json",
+      "bytes": 23685,
+      "mtime_ns": 1792731023207304206,
+      "sha256": "d1e6f21e68b933e7b65bc694106b2d28eb3a84364be40f2f801ed25dd16b9b0b"
+    },
+    {
+      "relative_private_path": "report/run-start.json",
+      "bytes": 391,
+      "mtime_ns": 1792731005007135105,
+      "sha256": "bafcc239667be592ff0febc3336cef5dcf46950b330fee935340dc4c6b1d762d"
+    },
+    {
+      "relative_private_path": "report/worker-evidence.json",
+      "bytes": 1967,
+      "mtime_ns": 1792731023118927064,
+      "sha256": "a96d94aee05cfd3d3a67b5e8a284c63da90cd4a062add04abf3381167c9d127c"
+    },
+    {
+      "relative_private_path": "report/diagnostic-status.json",
+      "bytes": 8972,
+      "mtime_ns": 1792731023102998597,
+      "sha256": "7336c3c04b1e1d260f702f7607337dc872d8f391836737ba25ddfea0548bf641"
+    },
+    {
+      "relative_private_path": "logs/coordinator.log",
+      "bytes": 4210,
+      "mtime_ns": 1792731023223220298,
+      "sha256": "f73140ca0982397f08d23b81d8ef62eae994f959f51754c620453889ae9d296c"
+    },
+    {
+      "relative_private_path": "logs/service-1.log",
+      "bytes": 146390,
+      "mtime_ns": 1792731019683622905,
+      "sha256": "003113a04a01b9e25e49776c2052ed6aebf1fb002f498841fa9df853bf861781"
+    },
+    {
+      "relative_private_path": "logs/service-2.log",
+      "bytes": 112023,
+      "mtime_ns": 1792731017980585739,
+      "sha256": "a4622e5246bc590bab7345c141644ef77fbf3098b4738b8939c55dd93259b96f"
+    },
+    {
+      "relative_private_path": "logs/service-3.log",
+      "bytes": 52309,
+      "mtime_ns": 1792731018715876061,
+      "sha256": "12646ce48d1fd1cba5c504bd04895308c13e7c4e28f9a200c5a44e31841cc67f"
+    },
+    {
+      "relative_private_path": "diagnostic-result.json",
+      "bytes": 3498,
+      "mtime_ns": 1792731115306444279,
+      "sha256": "5c03bcaa8cbb0ec3da721d48eb40009f0cc3758e30d99bc19f2d50b069c59aa9"
+    },
+    {
+      "relative_private_path": "supervisor-events.json",
+      "bytes": 572,
+      "mtime_ns": 1792731023391489614,
+      "sha256": "ad2f06d54640fb58f687ae8231824363a7fe84327100cfb938607424795c933f"
+    },
+    {
+      "relative_private_path": "profile-driver-status.json",
+      "bytes": 11735,
+      "mtime_ns": 1792731010121176722,
+      "sha256": "b02285d6456bd4acd59481ede457d6057a09761ce00fe872dbe03a5c3a439ecd"
+    },
+    {
+      "relative_private_path": "host-process-samples.jsonl",
+      "bytes": 97060,
+      "mtime_ns": 1792731110940724524,
+      "sha256": "11878734d501338a1b470679a1b63fe11a84e790e24b5d5d3a4b460e5791447b"
+    },
+    {
+      "relative_private_path": "evidence/metrics-first-measured-node1.prom",
+      "bytes": 1038322,
+      "mtime_ns": 1792731010289163908,
+      "sha256": "dd46a0fb123eabac4d2e5c0842b6681e7cf3dd372ceeb2fa7ef1c0e96f0979a6"
+    },
+    {
+      "relative_private_path": "evidence/metrics-first-measured-node2.prom",
+      "bytes": 1026748,
+      "mtime_ns": 1792731010351966142,
+      "sha256": "b98e3e3e7e52c3ad584b0f15b7aa393fa5a977f5928a836805ba24388d5997a1"
+    },
+    {
+      "relative_private_path": "evidence/metrics-first-measured-node3.prom",
+      "bytes": 1012816,
+      "mtime_ns": 1792731010381241590,
+      "sha256": "69a513a4fa1313e7cc1f80a26ee1cc705aafea9f0f84d40a7de0c89d5170dd3e"
+    },
+    {
+      "relative_private_path": "evidence/metrics-terminal-node1.prom",
+      "bytes": 1092001,
+      "mtime_ns": 1792731023415640589,
+      "sha256": "8e4be2dcc118b52839477527d017132cfa992c6571436491fa4295917f1d13d5"
+    },
+    {
+      "relative_private_path": "evidence/metrics-terminal-node2.prom",
+      "bytes": 1075335,
+      "mtime_ns": 1792731023431477888,
+      "sha256": "884acc13cf45caf55bbec8a6dee80ca7bb59e3a697aca78cf33690074a1d857c"
+    },
+    {
+      "relative_private_path": "evidence/metrics-terminal-node3.prom",
+      "bytes": 1055291,
+      "mtime_ns": 1792731023444611492,
+      "sha256": "ce73f1f50667935b80f28aced72cafbf5b813a4d75e6f29af7dd2d03790fa1c7"
+    }
+  ]
+}

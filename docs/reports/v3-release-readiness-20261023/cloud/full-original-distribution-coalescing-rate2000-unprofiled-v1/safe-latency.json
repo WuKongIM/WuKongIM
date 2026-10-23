@@ -1,0 +1,59 @@
+{
+  "schema": "wukongim/local2k-safe-latency/v1",
+  "original_final_report_present": false,
+  "final_latency_histograms": null,
+  "percentiles": null,
+  "worker_evidence_class_counts": [
+    0,
+    1,
+    1
+  ],
+  "observed_worker_cut_hot_latency": [
+    {
+      "cut": "periodic",
+      "at": "2026-10-23T14:16:36.832889333+08:00",
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 2877,
+        "above_limit": 2867
+      }
+    },
+    {
+      "cut": "periodic",
+      "at": "2026-10-23T14:16:41.832916458+08:00",
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 9939,
+        "above_limit": 9917
+      }
+    },
+    {
+      "cut": "periodic",
+      "at": "2026-10-23T14:16:46.832943917+08:00",
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 15393,
+        "above_limit": 15368
+      }
+    },
+    {
+      "cut": "periodic",
+      "at": "2026-10-23T14:16:51.832973167+08:00",
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 19770,
+        "above_limit": 19741
+      }
+    },
+    {
+      "cut": "terminal",
+      "at": "2026-10-23T14:16:57.135303+08:00",
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 21011,
+        "above_limit": 20982
+      }
+    }
+  ],
+  "threshold_counter_is_not_histogram_or_percentile": true
+}

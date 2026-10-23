@@ -1,0 +1,347 @@
+//go:build integration
+
+package app
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"path/filepath"
+	"sync"
+	"testing"
+	"time"
+
+	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+)
+
+// coldRPCStats records only closed stage names and aggregate durations.
+type coldRPCStats struct {
+	mu      sync.Mutex
+	Stages  map[string]*coldRPCStage `json:"stages"`
+	UIDs    []int                    `json:"uids_per_round"`
+	Targets []int                    `json:"targets_per_round"`
+}
+type coldRPCStage struct {
+	Count  int   `json:"count"`
+	Active int   `json:"active"`
+	Peak   int   `json:"peak"`
+	SumNS  int64 `json:"sum_ns"`
+	MaxNS  int64 `json:"max_ns"`
+}
+
+func (s *coldRPCStats) begin(stage string) func() {
+	start := time.Now()
+	s.mu.Lock()
+	v := s.Stages[stage]
+	if v == nil {
+		v = &coldRPCStage{}
+		s.Stages[stage] = v
+	}
+	v.Count++
+	v.Active++
+	if v.Active > v.Peak {
+		v.Peak = v.Active
+	}
+	s.mu.Unlock()
+	return func() {
+		d := time.Since(start).Nanoseconds()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		v.Active--
+		v.SumNS += d
+		if d > v.MaxNS {
+			v.MaxNS = d
+		}
+	}
+}
+func (s *coldRPCStats) duration(stage string, d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v := s.Stages[stage]
+	if v == nil {
+		v = &coldRPCStage{}
+		s.Stages[stage] = v
+	}
+	v.Count++
+	v.SumNS += d.Nanoseconds()
+	if d.Nanoseconds() > v.MaxNS {
+		v.MaxNS = d.Nanoseconds()
+	}
+}
+
+type coldRPCCallKey struct{}
+type coldRPCCall struct{ started time.Time }
+
+// The facade delegates every cluster operation to the actual live Node.
+type coldRPCNode struct {
+	*cluster.Node
+	stats *coldRPCStats
+}
+
+func (n *coldRPCNode) CallRPC(ctx context.Context, id uint64, service uint8, payload []byte) ([]byte, error) {
+	done := n.stats.begin("remote_rpc")
+	defer done()
+	return n.Node.CallRPC(ctx, id, service, payload)
+}
+func (n *coldRPCNode) LocalControllerSnapshot(ctx context.Context) (control.Snapshot, error) {
+	done := n.stats.begin("membership_snapshot")
+	defer done()
+	return n.Node.LocalControllerSnapshot(ctx)
+}
+
+// These decorators observe public ports without changing contexts or results.
+type coldRPCOwners struct {
+	inner *clusterinfra.PresenceRecoveryOwners
+	stats *coldRPCStats
+}
+
+func (o *coldRPCOwners) RecoverRoutes(ctx context.Context, target presence.RouteTarget, uids []string) ([]presence.Route, error) {
+	r := o.RecoverRoutesByTargets(ctx, []presence.EndpointLookupGroup{{Target: target, UIDs: uids}})[0]
+	return r.Routes, r.Err
+}
+func (o *coldRPCOwners) RecoverRoutesByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
+	if call, ok := ctx.Value(coldRPCCallKey{}).(*coldRPCCall); ok {
+		o.stats.duration("caller_to_cohort_residual", time.Since(call.started))
+	}
+	done := o.stats.begin("cohort")
+	defer done()
+	uids := 0
+	for _, g := range groups {
+		uids += len(g.UIDs)
+	}
+	o.stats.mu.Lock()
+	o.stats.UIDs = append(o.stats.UIDs, uids)
+	o.stats.Targets = append(o.stats.Targets, len(groups))
+	o.stats.mu.Unlock()
+	return o.inner.RecoverRoutesByTargets(ctx, groups)
+}
+
+type coldRPCReader struct {
+	inner *presence.OwnerRecovery
+	stats *coldRPCStats
+	stage string
+}
+
+func (r *coldRPCReader) ReadOwnerRoutes(ctx context.Context, target presence.RouteTarget, uids []string) (presence.OwnerRouteSnapshot, error) {
+	done := r.stats.begin(r.stage)
+	defer done()
+	return r.inner.ReadOwnerRoutes(ctx, target, uids)
+}
+func (r *coldRPCReader) ReadOwnerRoutesByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.OwnerRouteResult {
+	done := r.stats.begin(r.stage)
+	defer done()
+	return r.inner.ReadOwnerRoutesByTargets(ctx, groups)
+}
+
+type coldRPCHandler struct {
+	mu      sync.RWMutex
+	adapter *accessnode.Adapter
+}
+
+func (h *coldRPCHandler) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	h.mu.RLock()
+	adapter := h.adapter
+	h.mu.RUnlock()
+	return adapter.HandlePresenceOwnerRPC(ctx, payload)
+}
+
+// One isolated real transport experiment; no delay injection, retries or gate changes.
+func TestPresenceColdRecoveryRPCIsolation(t *testing.T) {
+	root := t.TempDir()
+	voters := []cluster.ControlVoter{{NodeID: 1, Addr: freeSendackSmokeTCPAddr(t)}, {NodeID: 2, Addr: freeSendackSmokeTCPAddr(t)}, {NodeID: 3, Addr: freeSendackSmokeTCPAddr(t)}}
+	nodes := make([]*cluster.Node, 0, 3)
+	handlers := make([]*coldRPCHandler, 0, 3)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		var wg sync.WaitGroup
+		failures := make(chan bool, len(nodes))
+		for _, n := range nodes {
+			wg.Add(1)
+			go func(n *cluster.Node) { defer wg.Done(); failures <- n.Stop(ctx) != nil }(n)
+		}
+		wg.Wait()
+		close(failures)
+		failed := 0
+		for f := range failures {
+			if f {
+				failed++
+			}
+		}
+		t.Logf("PRESENCE_CLEANUP {\"nodes\":%d,\"joined\":true,\"stop_failures\":%d}", len(nodes), failed)
+		if failed != 0 {
+			t.Error("node cleanup failed")
+		}
+	})
+	for _, v := range voters {
+		cfg := cluster.Config{NodeID: v.NodeID, ListenAddr: v.Addr, DataDir: filepath.Join(root, fmt.Sprintf("node-%d", v.NodeID)), Control: cluster.ControlConfig{ClusterID: "presence-cold-rpc-isolation", Voters: voters, AllowBootstrap: true}, Slots: cluster.SlotConfig{InitialSlotCount: 2, HashSlotCount: 256, ReplicaCount: 3}}
+		cfg.Channel.ReplicaCount = 3
+		cfg.HealthReport.Interval = 200 * time.Millisecond
+		n, err := cluster.New(cfg)
+		if err != nil {
+			t.Fatal("cluster construction failed")
+		}
+		nodes = append(nodes, n)
+		h := &coldRPCHandler{}
+		handlers = append(handlers, h)
+		n.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, h)
+	}
+	setup, cancelSetup := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancelSetup()
+	started := make(chan error, 3)
+	for _, n := range nodes {
+		go func(n *cluster.Node) { started <- n.Start(setup) }(n)
+	}
+	for range nodes {
+		if <-started != nil {
+			t.Fatal("cluster startup failed")
+		}
+	}
+	for {
+		ready := true
+		for _, n := range nodes {
+			c, cancel := context.WithTimeout(setup, 200*time.Millisecond)
+			err := n.ProbeWriteReady(c)
+			cancel()
+			if err != nil {
+				ready = false
+			}
+		}
+		if ready {
+			break
+		}
+		select {
+		case <-setup.Done():
+			t.Fatal("cluster readiness timed out")
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	// All target fields come from actual routing; the first selected leader is the authority.
+	var leader uint64
+	var groups []presence.EndpointLookupGroup
+	for i := 0; i < 10000 && len(groups) < 64; i++ {
+		uid := fmt.Sprintf("cold-isolation-%d", i)
+		r, err := nodes[0].RouteKey(uid)
+		if err != nil || r.Leader == 0 {
+			continue
+		}
+		if leader == 0 {
+			leader = r.Leader
+		}
+		if r.Leader != leader {
+			continue
+		}
+		groups = append(groups, presence.EndpointLookupGroup{Target: presence.RouteTarget{HashSlot: r.HashSlot, SlotID: r.SlotID, LeaderNodeID: r.Leader, LeaderTerm: r.LeaderTerm, ConfigEpoch: r.ConfigEpoch}, UIDs: []string{uid}})
+	}
+	if len(groups) != 64 {
+		t.Fatal("not enough exact live target routes")
+	}
+	for _, arm := range []string{"independent_32_by_2", "same_uid_32", "packed_64"} {
+		t.Run(arm, func(t *testing.T) {
+			stats := &coldRPCStats{Stages: make(map[string]*coldRPCStage)}
+			directory := authority.NewDirectory(authority.DirectoryOptions{LocalNodeID: leader, RequireRecovery: true})
+			for _, g := range groups {
+				directory.BecomeAuthority(g.Target)
+			}
+			var local *coldRPCReader
+			for _, n := range nodes {
+				registry := online.NewRegistry(online.RegistryOptions{})
+				for i, g := range groups {
+					if uint64(i%3+1) != n.NodeID() {
+						continue
+					}
+					route := online.OwnerRoute{UID: g.UIDs[0], HashSlot: g.Target.HashSlot, OwnerNodeID: n.NodeID(), OwnerBootID: n.NodeID() + 100, OwnerSeq: 1, SessionID: uint64(i + 1)}
+					if registry.RegisterPending(online.LocalSession{Route: route}) != nil || registry.MarkActive(uint64(i+1)) != nil {
+						t.Fatal("registry fixture failed")
+					}
+				}
+				owner := presence.NewOwnerRecovery(registry, n.NodeID(), n.NodeID()+100, func(target presence.RouteTarget) error { return clusterinfra.ValidatePresenceTarget(n, target) })
+				reader := &coldRPCReader{inner: owner, stats: stats, stage: "server_owner"}
+				handler := handlers[n.NodeID()-1]
+				handler.mu.Lock()
+				handler.adapter = accessnode.New(accessnode.Options{OwnerRoutes: reader})
+				handler.mu.Unlock()
+				if n.NodeID() == leader {
+					local = &coldRPCReader{inner: owner, stats: stats, stage: "local_owner"}
+				}
+			}
+			n := &coldRPCNode{Node: nodes[leader-1], stats: stats}
+			owners := &coldRPCOwners{inner: clusterinfra.NewPresenceRecoveryOwners(n, local), stats: stats}
+			recovery := presence.NewAuthorityRecovery(directory, owners)
+			var requests [][]presence.EndpointLookupGroup
+			switch arm {
+			case "independent_32_by_2":
+				for i := 0; i < 32; i++ {
+					requests = append(requests, groups[i*2:i*2+2])
+				}
+			case "same_uid_32":
+				for i := 0; i < 32; i++ {
+					requests = append(requests, groups[:1])
+				}
+			case "packed_64":
+				requests = append(requests, groups)
+			}
+			start := make(chan struct{})
+			results := make(chan bool, len(requests))
+			var wg sync.WaitGroup
+			wall := time.Now()
+			for _, request := range requests {
+				wg.Add(1)
+				go func(request []presence.EndpointLookupGroup) {
+					defer wg.Done()
+					<-start
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					ctx = context.WithValue(ctx, coldRPCCallKey{}, &coldRPCCall{started: time.Now()})
+					done := stats.begin("caller")
+					defer done()
+					out := recovery.EndpointsByTargets(ctx, request)
+					ok := len(out) == len(request)
+					for i, r := range out {
+						if r.Err != nil || len(r.Routes) != len(request[i].UIDs) {
+							ok = false
+						}
+					}
+					results <- ok
+				}(request)
+			}
+			close(start)
+			wg.Wait()
+			close(results)
+			passed := 0
+			for ok := range results {
+				if ok {
+					passed++
+				}
+			}
+			stats.mu.Lock()
+			peak := 0
+			if s := stats.Stages["cohort"]; s != nil {
+				peak = s.Peak
+			}
+			active := 0
+			for _, s := range stats.Stages {
+				active += s.Active
+			}
+			value := map[string]any{"arm": arm, "callers": len(requests), "succeeded": passed, "failed": len(requests) - passed, "wall_ns": time.Since(wall).Nanoseconds(), "stats": stats, "joined": true, "active_observed": active, "no_delay_injection": true}
+			data, err := json.Marshal(value)
+			stats.mu.Unlock()
+			if err != nil {
+				t.Fatal("closed receipt failed")
+			}
+			t.Logf("PRESENCE_ARM %s", data)
+			if peak > 16 || active != 0 {
+				t.Error("cohort bound or joined invariant failed")
+			}
+			if passed != len(requests) {
+				t.Error("real presence lookup did not return complete owner proof")
+			}
+		})
+	}
+}

@@ -1,0 +1,44 @@
+{
+  "head": "8100d7fd7a9455029e8de4f6370f140ff07612bc",
+  "scope": "Uncommitted eight-file actor-ready metric correction only. No schedule/admission/parser/gate modification.",
+  "files": {
+    "CHANGELOG.md": {
+      "bytes": 195308,
+      "sha256": "e76c71756cb66d7454f35fd307ab7da122a4fd3ce15ecc4a927a10af905a56ec"
+    },
+    "docs/development/FLOW_INDEX.md": {
+      "bytes": 19368,
+      "sha256": "7548f1870807a0b3d87e1d450c950322a49230ba6409198c51c8dd61184d6355"
+    },
+    "docs/development/PROJECT_KNOWLEDGE.md": {
+      "bytes": 151467,
+      "sha256": "aafbf5b636f1dd2ff800acf0e1f62cd64e9fec2d0b4c1553fc1b6a739f71e52a"
+    },
+    "pkg/gateway/FLOW.md": {
+      "bytes": 7161,
+      "sha256": "af7fc6b32801f4e5154131ac43332fd9fba577100933521bf6556376cbca14fc"
+    },
+    "pkg/gateway/transport/gnet/actor.go": {
+      "bytes": 4145,
+      "sha256": "0eb4ef115fb977428f220bf0f61c80636abbda73d93db0da903777fa80008716"
+    },
+    "pkg/gateway/transport/gnet/actor_test.go": {
+      "bytes": 6347,
+      "sha256": "d8ee1f64b9e244fcc27e24d12209ac9b9cdb3512d26812b639e872ef2f030f0d"
+    },
+    "pkg/gateway/types/observer.go": {
+      "bytes": 5786,
+      "sha256": "06b3af8bd516275b4ab453d82c4c0cddda05796f170c2ab462c5e2d95808edd1"
+    },
+    "pkg/metrics/runtime_pressure.go": {
+      "bytes": 17356,
+      "sha256": "1a3326518d60564a6049bd9bf0b06c9dd9e542d598b1794fb2138367606fd252"
+    }
+  },
+  "patch_sha256": "7ec35cbd5dba018f98e2913027274711fc9fec66ebddff9f2b0c600494a5b46d",
+  "rules": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "pkg/gateway/FLOW.md": "af7fc6b32801f4e5154131ac43332fd9fba577100933521bf6556376cbca14fc"
+  },
+  "first_flow_failure": "88 compliant/0 invalid/20 existing warnings; generated FLOW index stale after authorized FLOW edit. Original check retained; regenerated index and reran same check."
+}

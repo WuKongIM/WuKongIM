@@ -1,0 +1,14 @@
+{
+  "named_check": "flow-doc-contracts",
+  "argv": [
+    "go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "check"
+  ],
+  "exit": 1,
+  "elapsed_seconds": 0.8174205420073122,
+  "log_sha256": "d943ba04a796d63ab419ad4128bc1a8c2bc3a2efa1c7430c818277e0363fefa0",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+}

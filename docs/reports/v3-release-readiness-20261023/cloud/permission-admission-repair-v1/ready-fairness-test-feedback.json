@@ -1,0 +1,43 @@
+{
+  "schema": "wukongim/ready-control-fairness-feedback/v1",
+  "base": "161814ce559366847d2b026850ab0afe0e52aed6",
+  "candidate": "d08031d576c3497c56b0dfba60e4db8370224c04",
+  "tree": "e084b653ba2aea7e549c6421eaf203a16820d294",
+  "RED_record": "../permission2000-ready-fairness-red-v1/feedback.json",
+  "red_expected": "probe persisted after 8/8 injected appends before code fix",
+  "green_checks": [
+    {
+      "name": "finite Ready chain public Runtime regression",
+      "exit": 0,
+      "package_elapsed_seconds": 0.545
+    },
+    {
+      "name": "full multiraft integration suite",
+      "exit": 0,
+      "package_elapsed_seconds": 17.361
+    },
+    {
+      "name": "focused read/persistence/snapshot race",
+      "exit": 0,
+      "package_elapsed_seconds": 1.839
+    },
+    {
+      "name": "permission proxy integration regressions",
+      "exit": 0,
+      "package_elapsed_seconds": 8.464
+    },
+    {
+      "name": "flow-doc-contracts",
+      "exit": 0,
+      "valid": 88,
+      "invalid": 0,
+      "existing_warnings": 20
+    }
+  ],
+  "retained_non_product_observation": "first flowcheck failed due stale generated index after FLOW line count changed; regenerated canonical index and rechecked successfully",
+  "limits_changed": false,
+  "collection_window_milliseconds": 1,
+  "max_cohorts": 64,
+  "full_2k_retest_pending": true,
+  "actual_gateway_message_spectrum_proven_equal_fixture": false
+}

@@ -1,0 +1,122 @@
+{
+  "schema": "wukongim/local2k-safe-private-inventory/v1",
+  "raw_inputs_not_public": true,
+  "original_final_report_present": true,
+  "artifacts": [
+    {
+      "path": "diagnostic-result.json",
+      "bytes": 3446,
+      "sha256": "58da89981c2ee7d2d4d8574b2a841f2b19f80512271580eb74f937be4bad7581"
+    },
+    {
+      "path": "diagnostic-cuts.jsonl",
+      "bytes": 23255,
+      "sha256": "3efd9747d9297a9968738dec8086c85b251ea2b2765b2be69fe589692c72ee62"
+    },
+    {
+      "path": "host-process-samples.jsonl",
+      "bytes": 95457,
+      "sha256": "fd757a0b8112e031024d41b1435da3163a7c237064554bae106346c5bb016212"
+    },
+    {
+      "path": "cleanup-receipt.json",
+      "bytes": 920,
+      "sha256": "a8fbf338845e7ff82cc072e17a89b12624a181c657d470584e64e7b26737b5d3"
+    },
+    {
+      "path": "logs/coordinator.log",
+      "bytes": 6875,
+      "sha256": "220c7d9d117658c258758f5dc01b856a3386c1031c16378f89f34257aaf4d12d"
+    },
+    {
+      "path": "logs/launcher.log",
+      "bytes": 4071,
+      "sha256": "f849ff7d77d7ecd4aa43cc222288b342c347fb138d1fe70edba47b39a18af08d"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/ack-gauge-rate2000-prepared-inputs-v1.json",
+      "bytes": 11316,
+      "sha256": "635ff6735ffa0acf4b2bef82e386cff8e0409b7a15e2ef5c2e62b9f33748d637"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/ack-gauge-rate2000-root-decision-v1.json",
+      "bytes": 1171,
+      "sha256": "fd027440d2d998f0f81f793b154e752ae7badf90a549ef37b8ed207292e73a3d"
+    },
+    {
+      "path": "logs/service-1.log",
+      "bytes": 62131,
+      "sha256": "de99510607e0df9486bd42852c272ffed8e7edcf21aa63ec7bf14f63ade55f17"
+    },
+    {
+      "path": "logs/service-2.log",
+      "bytes": 87447,
+      "sha256": "acf258dd10e20eab3b15c2cfe92295829a6180f2da6708fb114a3ee44fe88a96"
+    },
+    {
+      "path": "logs/service-3.log",
+      "bytes": 64544,
+      "sha256": "69b26dfbe2dbe3b320ba7e064dbb04fbdd3020109a12984cfeb6360731c6c6e9"
+    },
+    {
+      "path": "report/diagnostic-status.json",
+      "bytes": 9014,
+      "sha256": "9b21d611a296be7a4a3c4df2f069f3eb8e1b3f94c4bcabd807252b95437811fa"
+    },
+    {
+      "path": "report/final.json",
+      "bytes": 23693,
+      "sha256": "2267ea289fcadf3603f280a10de1f469c159abae631b1f8f410228b42770cfff"
+    },
+    {
+      "path": "report/run-start.json",
+      "bytes": 391,
+      "sha256": "e79efe8f178367783c58c1de55036dabf5ab5276ebe8cccfc7a22e96c34f649b"
+    },
+    {
+      "path": "report/worker-evidence.json",
+      "bytes": 2751,
+      "sha256": "9f1aebb1f337f7796e53c50aedf97eaefd9a275656ac0250762e6c76dccda68c"
+    },
+    {
+      "path": "evidence/metrics-first-measured-node1.prom",
+      "bytes": 1035315,
+      "sha256": "28adc5fb72b6f3e28fc3b5fb0c3545dc69b030f9e75d80150a668ed11439a94d"
+    },
+    {
+      "path": "evidence/metrics-first-measured-node2.prom",
+      "bytes": 1011197,
+      "sha256": "a1f988311cc3c0f0cdb18574325af083156177a37ac425f804bde58f2a0f1611"
+    },
+    {
+      "path": "evidence/metrics-first-measured-node3.prom",
+      "bytes": 995140,
+      "sha256": "03d2785061d52f537680400fcc3b4bdc088ad91893d03aaf56b820a98d122778"
+    },
+    {
+      "path": "evidence/metrics-first-measured-receipt.json",
+      "bytes": 449,
+      "sha256": "fcc585a87429456d252c350d224c33f84c4b8885a40139a425ca310fd42977be"
+    },
+    {
+      "path": "evidence/metrics-terminal-node1.prom",
+      "bytes": 1088339,
+      "sha256": "cf7c4bdca4364a9055c4b83bf41a28c3ecd205300f9c72fde6f3e2a53b8901de"
+    },
+    {
+      "path": "evidence/metrics-terminal-node2.prom",
+      "bytes": 1058202,
+      "sha256": "aef83b6e9a3c2592cc0ab22f41332f3cf536f61f76373505b46f12949354de9b"
+    },
+    {
+      "path": "evidence/metrics-terminal-node3.prom",
+      "bytes": 1041849,
+      "sha256": "dd28dbe82efe57f1b01c610d980e9d987f794f39cb5a48e9c3ce29c1fe7f1c1c"
+    },
+    {
+      "path": "evidence/metrics-terminal-receipt.json",
+      "bytes": 450,
+      "sha256": "6814f6a25fc4f01686c04a05ce62b9f59683a041cede110f059acb54c92e3e76"
+    }
+  ]
+}

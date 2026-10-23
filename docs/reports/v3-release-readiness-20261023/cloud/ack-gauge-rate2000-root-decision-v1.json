@@ -1,0 +1,21 @@
+{
+  "schema": "wukongim/root-single-local2k-decision/v1",
+  "at_utc": "2026-10-23T07:25:10.401890+00:00",
+  "source_revision": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+  "source_tree": "061aa8b1f18c4cae4c16454b602f799fc9ac7b44",
+  "prepared_input_sha256": "635ff6735ffa0acf4b2bef82e386cff8e0409b7a15e2ef5c2e62b9f33748d637",
+  "root_independently_verified_build_12members_binaries_instructions_12members_inputs_6pins": true,
+  "root_verified_11_supervisor_function_ASTs_and_launcher_tail_unchanged": true,
+  "standards_findings": 0,
+  "spec_findings": 0,
+  "fresh_wukongim_process_count": 0,
+  "fresh_port_listener_count": 0,
+  "prior_offline_lookup": "one_guard_rejection_child_joined_group_absent_output_absent_zero_DBcopies_zero_queries_no_retry",
+  "prior_failures_retained": true,
+  "single_start_authorized": true,
+  "must_wait_ci_audit_quiet_notification_before_start": true,
+  "no_profiles_no_automatic_retry": true,
+  "original_configuration_gates_time_limits_unchanged": true,
+  "runtime_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-ack-gauge-rate2000-unprofiled-v1",
+  "native_Mac_diagnosis_not_Linux_acceptance": true
+}

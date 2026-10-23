@@ -1,0 +1,53 @@
+{
+  "schema": "wukongim/single-expired-offline-lookup-completion/v1",
+  "finished_at_utc": "2026-10-23T07:39:35.061675+00:00",
+  "source_revision": "8100d7fd7a9455029e8de4f6370f140ff07612bc",
+  "source_tree": "ff1a0135caa5e933550fa12f9ac601b786af8980",
+  "native_cli_sha256": "ac51875da442f156027c3b8297a6cf688c20bc4a97144f6ba47ebfee0fc0caaa",
+  "driver_sha256": "f45684a025737a244c11566226f5611274c195140db06e7078ebc64a7c34feea",
+  "python_interpreter_sha256": "a1f6d9dc20d4787a84dc2fe782094a7bac5946f49a962aa0af48a02f0e8d5bc5",
+  "root_decision_sha256": "817932ab40670f244a535b4c4c36743ac0bf9cc00564c041cfb704b6db421756",
+  "clock_probe_sha256": "2b161980d8aa6cebf4c4ac27c664cac828ef2b172a92d81bf7df67349b1ac313",
+  "original_inventory_sha256": "6251cb4ff5ad918b79d10a59021910d5ebbcff8f2917c35525c4ebfd4bcdd13a",
+  "source_instructions": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    "internal/app/FLOW.md": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+    "internal/runtime/delivery/FLOW.md": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+    "internal/bench/FLOW.md": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73",
+    "internal/bench/chatlifecycle/FLOW.md": "ff2b4ae3474dcd49cb81e2365b4c425335bb28e57e1df224a967bf57abf47106",
+    "pkg/db/FLOW.md": "57578a266e60e804ee46f71205b92c7d64df00e0df6e6f9120cc0e1937334017",
+    "pkg/db/message/FLOW.md": "32732f4f0df214406ff53467a8396275c189404b147ae1ad353eda4c397c6e09"
+  },
+  "selected_samples": 1,
+  "original_files": 57,
+  "original_bytes": 163374763,
+  "original_sha_size_mtime_unchanged": true,
+  "original_DB_engine_opens": 0,
+  "verified_copies_opened": 3,
+  "queries_total": 3,
+  "unique_rows_per_replica": [
+    1,
+    1,
+    1
+  ],
+  "all_three_same_exact_uint64_message_identity": true,
+  "per_query_timeout_seconds": 10,
+  "rows_cap": 100,
+  "worker_work_seconds": 85,
+  "term_seconds": 2,
+  "kill_join_seconds": 1,
+  "outer_seconds": 90,
+  "actual_elapsed_seconds": 0.6234928329940885,
+  "exit_code": 0,
+  "owned_worker_and_query_processes_joined": true,
+  "owned_group_independently_absent": true,
+  "canonical_logs_read": 3,
+  "matching_in_window_closed_stage_counts": {
+    "presence_timeout": 1
+  },
+  "message_identity_values_public": false,
+  "original_v2_and_usrbin_v3_guard_failures_preserved": true,
+  "execution_boundary": "Only the conditionally authorized fixed Python3.13 v3 call queried DB copies. No fallback, additional target, query retry, product execution or HTTP sampling.",
+  "conclusion": "The one selected expired person sample has the same durable identity on all three replicas and exactly matches one presence-timeout plan terminal log in the workload window. Underlying timeout cause and the other expired samples remain unresolved."
+}

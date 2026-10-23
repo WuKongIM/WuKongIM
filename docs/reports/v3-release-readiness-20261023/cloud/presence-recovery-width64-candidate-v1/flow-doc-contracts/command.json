@@ -1,0 +1,14 @@
+{
+  "arguments": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "check"
+  ],
+  "working_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-presence-recovery-width64",
+  "timeout_seconds": 60,
+  "max_output_bytes": 1048576,
+  "named_check": "flow-doc-contracts",
+  "policy_source": "3768ad3ed914767632c41daeead042118a978488"
+}

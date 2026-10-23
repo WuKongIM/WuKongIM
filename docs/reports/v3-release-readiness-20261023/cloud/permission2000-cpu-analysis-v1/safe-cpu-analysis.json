@@ -1,0 +1,244 @@
+{
+  "schema": "wukongim/permission2000-cpu-analysis/v1",
+  "scope": "Offline bounded go1.25.11 tool pprof -top only; three inventory-verified preexisting CPU profiles. No target execution, build, tests, browser or new sample.",
+  "source_revision": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "source_tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "profile_run": "full-original-distribution-4cb4-rate2000-three-profile-v1",
+  "nodes": [
+    {
+      "node": 1,
+      "wall_seconds_rounded": 3.19,
+      "cpu_samples": 129,
+      "sampled_cpu_ms": 1290,
+      "approx_sampled_core_equivalents": 0.404,
+      "service_gomaxprocs": 2,
+      "closed_symbol_cpu": {
+        "transport_writeLoop": {
+          "ms": 450,
+          "samples": 45,
+          "percent": 34.88
+        },
+        "pebble_LogWriter_flushLoop": {
+          "ms": 60,
+          "samples": 6
+        },
+        "pebble_LogWriter_syncWithLatency_and_osFileSync_same_chain": {
+          "ms": 20,
+          "samples": 2
+        },
+        "slot_multiraft_stack_union": {
+          "ms": 40,
+          "samples": 4
+        },
+        "metadata_apply_commit_stack_union": {
+          "ms": 40,
+          "samples": 4
+        },
+        "runtime_gc_malloc_scheduler_union": {
+          "ms": 210,
+          "samples": 21
+        },
+        "explicit_ReadBarrier_ReadIndex_frame_focus": {
+          "matched_samples": 0,
+          "meaning": "No CPU samples matched the fixed symbol expression; not evidence of zero calls or zero off-CPU delay."
+        }
+      }
+    },
+    {
+      "node": 2,
+      "wall_seconds_rounded": 3.21,
+      "cpu_samples": 134,
+      "sampled_cpu_ms": 1340,
+      "approx_sampled_core_equivalents": 0.417,
+      "service_gomaxprocs": 2,
+      "closed_symbol_cpu": {
+        "transport_writeLoop": {
+          "ms": 410,
+          "samples": 41,
+          "percent": 30.6
+        },
+        "pebble_LogWriter_flushLoop": {
+          "ms": 90,
+          "samples": 9
+        },
+        "pebble_LogWriter_syncWithLatency_and_osFileSync_same_chain": {
+          "ms": 20,
+          "samples": 2
+        },
+        "slot_multiraft_stack_union": {
+          "ms": 20,
+          "samples": 2
+        },
+        "metadata_apply_commit_stack_union": {
+          "ms": 20,
+          "samples": 2
+        },
+        "runtime_gc_malloc_scheduler_union": {
+          "ms": 270,
+          "samples": 27
+        },
+        "explicit_ReadBarrier_ReadIndex_frame_focus": {
+          "matched_samples": 0,
+          "meaning": "No CPU samples matched the fixed symbol expression; not evidence of zero calls or zero off-CPU delay."
+        }
+      }
+    },
+    {
+      "node": 3,
+      "wall_seconds_rounded": 3.2,
+      "cpu_samples": 128,
+      "sampled_cpu_ms": 1280,
+      "approx_sampled_core_equivalents": 0.4,
+      "service_gomaxprocs": 2,
+      "closed_symbol_cpu": {
+        "transport_writeLoop": {
+          "ms": 540,
+          "samples": 54,
+          "percent": 42.19
+        },
+        "pebble_LogWriter_flushLoop": {
+          "ms": 90,
+          "samples": 9
+        },
+        "pebble_LogWriter_syncWithLatency_and_osFileSync_same_chain": {
+          "ms": 30,
+          "samples": 3
+        },
+        "slot_multiraft_stack_union": {
+          "ms": 30,
+          "samples": 3
+        },
+        "metadata_apply_commit_stack_union": {
+          "ms": 30,
+          "samples": 3
+        },
+        "runtime_gc_malloc_scheduler_union": {
+          "ms": 200,
+          "samples": 20
+        },
+        "explicit_ReadBarrier_ReadIndex_frame_focus": {
+          "matched_samples": 0,
+          "meaning": "No CPU samples matched the fixed symbol expression; not evidence of zero calls or zero off-CPU delay."
+        }
+      }
+    }
+  ],
+  "semantics": [
+    "CPU samples are observations, not function invocation counts. The samples/count decode and cpu-time decode agree on 10ms per sample.",
+    "Cumulative symbols in the same call chain overlap. Focus unions also overlap each other; never sum categories or nested cumulative rows.",
+    "The profiles account for about 0.40-0.42 sampled cores per service, not saturation of GOMAXPROCS=2. Ratios are sampled CPU/wall, not a host utilization measurement.",
+    "The 213-243ms barrier means, 11-13us snapshot means and 208 origin cohort_busy counts belong to the prior unprofiled run supplied by the parent. They are not per-request spans joined to these CPU samples.",
+    "Profiling is diagnostic and cannot qualify the unchanged unprofiled first-attempt or latency gate."
+  ],
+  "proven_facts": [
+    "The largest sampled CPU chain on each node is generic transport writeLoop -> writeOutboundBatch -> WriteFramesInto -> net.Buffers.WriteTo -> writev: 450/410/540ms, 34.88/30.60/42.19 percent of sampled CPU. The fixed symbols do not separate Raft, RPC or channel traffic.",
+    "Pebble WAL flushLoop is visible at 60/90/90ms cumulative; syncWithLatency -> File.Sync is 20/20/30ms on the same chain. These generic symbols do not distinguish message, metadata or raftlog stores.",
+    "Slot Multi-Raft stack unions account for 40/20/30ms, mostly apply/metadata/snapshot paths. Metadata Apply/Commit stack unions account for 40/20/30ms. Neither is the dominant sampled CPU chain.",
+    "No CPU samples match the fixed explicit ReadBarrier/ReadIndex frame expression. Inbound quorum processing can execute in shared Raft Step code without these frames."
+  ],
+  "not_supported_or_narrowly_excluded": [
+    "These samples do not support claiming sustained two-P CPU saturation, a ReadIndex busy-spin dominating CPU, or a WAL/fsync dominant on-CPU workload. They do not statistically exclude short bursts outside or inside the sampled interval.",
+    "A large percentage attributed to writev does not prove full CPU utilization, socket congestion, kernel wait duration, host contention or a permission critical-path bottleneck.",
+    "A small fsync CPU count cannot rule out long disk latency, serialized commit waits, or queueing behind other store commits."
+  ],
+  "unknowns": [
+    "Breakdown of barrier elapsed time among waiting for the Slot worker/control turn, safe quorum confirmation, transport delay, durable apply, commit coordination and runnable scheduling.",
+    "Exact overlap between active origin cohorts, directory projector work, store-specific writes and a particular rejected SEND.",
+    "Whether Ready requeue fairness, directory completion head-of-line blocking, projector write amplification or host I/O/runnable contention is the material cause. CPU-only data cannot choose among these."
+  ],
+  "source_evidence": [
+    {
+      "file": "pkg/slot/proxy/send_permission_cohort.go",
+      "line": 99,
+      "symbol": "ReadSendPermissionMetadataBatch",
+      "fact": "Active cohorts are bounded at 64; ownership stays through synchronous fresh read/RPC work. Busy origin admission therefore can be amplified by elapsed I/O waiting without heavy permission CPU.",
+      "absolute_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/slot/proxy/send_permission_cohort.go"
+    },
+    {
+      "file": "pkg/slot/proxy/send_permission_rpc.go",
+      "line": 594,
+      "symbol": "readSendPermissionSlot",
+      "fact": "Fresh barrier precedes the permission snapshot; envelope and maintenance ownership remain held.",
+      "absolute_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/slot/proxy/send_permission_rpc.go"
+    },
+    {
+      "file": "pkg/slot/multiraft/read_barrier.go",
+      "line": 91,
+      "symbol": "Runtime.readBarrier",
+      "fact": "Barrier queues controlReadBarrier and then waits on a response or ctx, which CPU profiles do not measure as elapsed waiting.",
+      "absolute_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/slot/multiraft/read_barrier.go"
+    },
+    {
+      "file": "pkg/slot/multiraft/read_barrier.go",
+      "line": 214,
+      "symbol": "completeReadBarriersLocked",
+      "fact": "A confirmed read still waits for durableAppliedIndex >= ReadIndex.",
+      "absolute_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/slot/multiraft/read_barrier.go"
+    },
+    {
+      "file": "pkg/slot/multiraft/runtime.go",
+      "line": 144,
+      "symbol": "Runtime.processSlot",
+      "fact": "Ready processing can requeue before controls; this is a possible scheduling mechanism, not proof that it caused this run.",
+      "absolute_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/slot/multiraft/runtime.go"
+    },
+    {
+      "file": "pkg/slot/multiraft/slot.go",
+      "line": 885,
+      "symbol": "slot.processReady",
+      "fact": "Ready persistence precedes transport sends and acceptReadStates; durable apply occurs on the ordered apply path.",
+      "absolute_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/slot/multiraft/slot.go"
+    },
+    {
+      "file": "pkg/slot/multiraft/ready.go",
+      "line": 99,
+      "symbol": "storageAdapter.persistReadyDurable",
+      "fact": "Ready with HardState, entries or snapshot synchronously calls Storage.Save.",
+      "absolute_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/slot/multiraft/ready.go"
+    },
+    {
+      "file": "pkg/db/meta/batch.go",
+      "line": 377,
+      "symbol": "Batch.Commit",
+      "fact": "Metadata commits retain hash-slot locks through one durable terminal outcome; after locking they submit without caller cancellation and finalize by unlocking.",
+      "absolute_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/db/meta/batch.go"
+    },
+    {
+      "file": "pkg/db/internal/commit/coordinator.go",
+      "line": 222,
+      "symbol": "Coordinator default commitFunc",
+      "fact": "Commit coordinator uses engine Batch.Commit(true). This establishes a synchronous durability mechanism, not its measured wait time.",
+      "absolute_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/db/internal/commit/coordinator.go"
+    },
+    {
+      "file": "pkg/db/internal/engine/batch.go",
+      "line": 65,
+      "symbol": "Batch.Commit",
+      "fact": "sync=true selects pebble.Sync.",
+      "absolute_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/db/internal/engine/batch.go"
+    },
+    {
+      "file": "pkg/transport/internal/conn/conn.go",
+      "line": 364,
+      "symbol": "Conn.writeOutboundBatch",
+      "fact": "Generic outgoing frames are written through writeFramesInto using the raw connection.",
+      "absolute_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/transport/internal/conn/conn.go"
+    },
+    {
+      "file": "pkg/transport/wire/writer.go",
+      "line": 63,
+      "symbol": "WriteFramesInto",
+      "fact": "net.Buffers.WriteTo is the sampled writev ancestor.",
+      "absolute_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/transport/wire/writer.go"
+    }
+  ],
+  "next_evidence": "Correlate the already captured bounded goroutine state classification and existing per-store/stage counters before selecting a source change. Do not alter permission limits, deadlines or fail-fast semantics based on CPU absence.",
+  "read_context_freeze": {
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/slot/FLOW.md": "ae0f99b28ea52be22ddb95c785574819a4e4c31614435bff9250e5b10b8ecff2",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/cluster/FLOW.md": "2a2dc2f47f1b1fad812ca115ecb8ad3eb6a7abb662f8391ba08e3afdd6a9a971",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/db/FLOW.md": "57578a266e60e804ee46f71205b92c7d64df00e0df6e6f9120cc0e1937334017",
+    "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-width16-candidate/pkg/db/meta/FLOW.md": "2fc1c3f670d8cd6a60e4e132c99ee71908c64f771c55bbce853eaa10fe0eaeac"
+  }
+}

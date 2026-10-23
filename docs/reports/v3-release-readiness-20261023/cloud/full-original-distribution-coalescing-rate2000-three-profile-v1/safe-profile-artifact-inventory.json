@@ -1,0 +1,72 @@
+{
+  "schema": "wukongim/profile2k-private-profile-inventory/v1",
+  "raw_profile_or_stack_public": false,
+  "complete_files": 9,
+  "complete_total_bytes": 39892648,
+  "files": [
+    {
+      "path": "profiles-three-node/node-1/profiles/node-1-cpu.pb.gz",
+      "bytes": 24776,
+      "sha256": "1e5ed9dde9012dccec3348b2649761af1dd488229eb9e66c07731dc74ba1e13d",
+      "mtime_ns": 1792737119467411198,
+      "private": true
+    },
+    {
+      "path": "profiles-three-node/node-1/profiles/node-1-goroutine-early.txt",
+      "bytes": 6896736,
+      "sha256": "3b7f5ea9d02009528fd3cf0c9880d6914f9376d5d38016aa2cfc1a0963472d1b",
+      "mtime_ns": 1792737115442360685,
+      "private": true
+    },
+    {
+      "path": "profiles-three-node/node-1/profiles/node-1-goroutine-late.txt",
+      "bytes": 6568172,
+      "sha256": "6f770f8e9ce9595dc54d6d0d91534fabba74952c5205a5bd9dd459ad0ff6db48",
+      "mtime_ns": 1792737120834376467,
+      "private": true
+    },
+    {
+      "path": "profiles-three-node/node-2/profiles/node-2-cpu.pb.gz",
+      "bytes": 30487,
+      "sha256": "8d84838e614a90af5eb6095d679859ed90e231f085445dbe9fd4bc80e5360946",
+      "mtime_ns": 1792737119467357031,
+      "private": true
+    },
+    {
+      "path": "profiles-three-node/node-2/profiles/node-2-goroutine-early.txt",
+      "bytes": 6537338,
+      "sha256": "938dfb78be652c7e1c06853e6128b7f3560a5cff3d4fe951e8ab9cf52ec95f46",
+      "mtime_ns": 1792737115442317102,
+      "private": true
+    },
+    {
+      "path": "profiles-three-node/node-2/profiles/node-2-goroutine-late.txt",
+      "bytes": 6933397,
+      "sha256": "7305ad7038ca26778364e072ff239caad5dc3d409afa1629e4f0e17c0fb82bd6",
+      "mtime_ns": 1792737120972526517,
+      "private": true
+    },
+    {
+      "path": "profiles-three-node/node-3/profiles/node-3-cpu.pb.gz",
+      "bytes": 27321,
+      "sha256": "25ecebbeec02c78828fb88ac4841d0f635b1a25357bed6658b1799d1ba174960",
+      "mtime_ns": 1792737119467430573,
+      "private": true
+    },
+    {
+      "path": "profiles-three-node/node-3/profiles/node-3-goroutine-early.txt",
+      "bytes": 6639154,
+      "sha256": "8c2bb3443df851c9b55316b5ab977931464b8aa5f8e50e077d5036bfdf6ab592",
+      "mtime_ns": 1792737115434392174,
+      "private": true
+    },
+    {
+      "path": "profiles-three-node/node-3/profiles/node-3-goroutine-late.txt",
+      "bytes": 6235267,
+      "sha256": "89f2dd6cf2b1ec3474dd4a0b4b15391b955055021e954df9f5a1cf81d1f2642b",
+      "mtime_ns": 1792737120822361929,
+      "private": true
+    }
+  ],
+  "no_decode_or_DB_queries": true
+}

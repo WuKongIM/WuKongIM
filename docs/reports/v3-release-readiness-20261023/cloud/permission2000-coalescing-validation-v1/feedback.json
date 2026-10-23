@@ -1,0 +1,68 @@
+{
+  "schema": "permission_paced_coalescing_feedback_v1",
+  "base": "d08031d576c3497c56b0dfba60e4db8370224c04",
+  "seam": "Store.ReadSendPermissionMetadataBatch controlled slow fresh barriers; not three-node qualification",
+  "failure_ways": [
+    "paced small cohorts exhaust 64 positions despite calls/bytes fitting",
+    "aligned duplicate facts lose send-ban state",
+    "owned calls or cohorts do not drain"
+  ],
+  "focused_command": "go test -tags=integration ./pkg/slot/proxy -run ^TestSendPermissionPacedCallsShareSlowFreshBarriers$ -count=1 -timeout=45s -v",
+  "red": {
+    "window_ms": 1,
+    "exit_code": 1,
+    "calls": 400,
+    "failed_calls": 143,
+    "fresh_barriers": 65,
+    "test_seconds": 0.26,
+    "package_seconds": 0.565
+  },
+  "green": {
+    "window_ms": 5,
+    "exit_code": 0,
+    "calls": 400,
+    "failed_calls": 0,
+    "fresh_barriers": 34,
+    "test_seconds": 0.25,
+    "package_seconds": 0.569
+  },
+  "related": [
+    {
+      "command": "go test -tags=integration ./pkg/slot/proxy -run ^TestSendPermission -count=1 -timeout=90s",
+      "environment": {
+        "GOMAXPROCS": "2",
+        "GOWORK": "off",
+        "GOTOOLCHAIN": "local",
+        "GOPROXY": "off"
+      },
+      "exit_code": 0,
+      "package_seconds": 9.028
+    },
+    {
+      "command": "go test -race -tags=integration ./pkg/slot/proxy -run ^TestSendPermission -count=1 -timeout=90s",
+      "exit_code": 0,
+      "package_seconds": 10.581,
+      "note": "Darwin linker malformed LC_DYSYMTAB warning; test passed"
+    }
+  ],
+  "flow_doc_contracts": {
+    "command": "GOWORK=off go run ./scripts/flowcheck --mode check",
+    "exit_code": 0,
+    "compliant": 88,
+    "invalid": 0,
+    "existing_warnings": 20
+  },
+  "toolchain": {
+    "path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "sha256": "b65655bf3d496007755bd132e9611f9e5e64c46e33d89fcafdef916e299587fd"
+  },
+  "preserved": [
+    "idle one/two-fact fast path",
+    "sealed fresh read fences",
+    "64 cohorts",
+    "1024 owned calls",
+    "16 MiB credits",
+    "original deadlines/cancellation",
+    "all workload and acceptance gates"
+  ]
+}

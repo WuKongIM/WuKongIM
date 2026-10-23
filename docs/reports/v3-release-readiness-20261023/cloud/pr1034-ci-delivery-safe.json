@@ -1,0 +1,3178 @@
+{
+  "schema": "wukongim.pr_ci_delivery_readonly/v1",
+  "created_at": "2026-10-23T05:50:11.914623+00:00",
+  "pr": 1034,
+  "repository": "WuKongIM/WuKongIM",
+  "source": {
+    "head": "d08031d576c3497c56b0dfba60e4db8370224c04",
+    "base": "966ec67df1435ad07bbb82724cd940f550755179",
+    "tree": "e084b653ba2aea7e549c6421eaf203a16820d294",
+    "tested_merge_commit": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+    "tested_merge_parents": [
+      "966ec67df1435ad07bbb82724cd940f550755179",
+      "d08031d576c3497c56b0dfba60e4db8370224c04"
+    ],
+    "tested_tree_equals_head": true,
+    "unchanged_source_contracts": {
+      ".github/review-agent/policy.json": {
+        "bytes": 14492,
+        "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "unchanged_from_base": true
+      },
+      ".github/workflows/README.md": {
+        "bytes": 85960,
+        "sha256": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+        "unchanged_from_base": true
+      },
+      ".github/workflows/manager-browser-smoke.yml": {
+        "bytes": 2865,
+        "sha256": "ba776b1959289d862443e077e85cf13a87df46f6d1620dd3fb25d6ab52451a7b",
+        "unchanged_from_base": true
+      },
+      ".github/workflows/native-package-preview.yml": {
+        "bytes": 6230,
+        "sha256": "a620e3d2345f670f701d6661869a33fe1673e32a66d02b1d1caf587cf343ccf2",
+        "unchanged_from_base": true
+      },
+      ".github/workflows/three-node-chat-lifecycle-regression.yml": {
+        "bytes": 13037,
+        "sha256": "1622183cfa0c8e45e2f9792697a394d0e86b263042453c0614bc1a740a814d71",
+        "unchanged_from_base": true
+      },
+      ".github/workflows/v3-candidate-regression.yml": {
+        "bytes": 13951,
+        "sha256": "724b18f84630b6558721e196772423b7d92fececf3ca705e8d8a4177cde53a3f",
+        "unchanged_from_base": true
+      },
+      "AGENTS.md": {
+        "bytes": 13284,
+        "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+        "unchanged_from_base": true
+      },
+      "scripts/native_package_lifecycle_integration_test.go": {
+        "bytes": 1181,
+        "sha256": "57f008589f2c6b7811e01a3b68b42d54ae9b8de2a4397e07e3927d229e315cfd",
+        "unchanged_from_base": true
+      },
+      "scripts/run-v3-candidate-check.py": {
+        "bytes": 10569,
+        "sha256": "c650a3c828e074197520defe79b386b160f2465debc487acc1172f7216be05dc",
+        "unchanged_from_base": true
+      },
+      "scripts/validate-native-package-lifecycle-container.sh": {
+        "bytes": 15701,
+        "sha256": "1238e68e5f0a774a7184f6b6cfa42a7f9b083288a0569cf8260863b6ec7f0d72",
+        "unchanged_from_base": true
+      }
+    }
+  },
+  "merge_preconditions_snapshot": {
+    "open": true,
+    "draft": false,
+    "mergeable": true,
+    "mergeable_state": "clean",
+    "actor_permission": "admin",
+    "author_permission": "admin",
+    "human_changes_requested_count": 0,
+    "review_count": 0,
+    "review_agent_workflows": [
+      {
+        "id": 324186999,
+        "path": ".github/workflows/review-agent-pr-signal.yml",
+        "state": "disabled_manually"
+      },
+      {
+        "id": 324187004,
+        "path": ".github/workflows/review-agent.yml",
+        "state": "disabled_manually"
+      },
+      {
+        "id": 324187001,
+        "path": ".github/workflows/review-agent-run.yml",
+        "state": "disabled_manually"
+      },
+      {
+        "id": 324248914,
+        "path": ".github/workflows/review-agent-userns-diagnostic.yaml",
+        "state": "disabled_manually"
+      }
+    ],
+    "checks": [
+      {
+        "id": 120259175206,
+        "name": "Candidate migration and messaging E2E",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120258907281,
+        "name": "Exercise Debian 12 package lifecycle",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120258907203,
+        "name": "Exercise AlmaLinux 9 package lifecycle",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120258907071,
+        "name": "Exercise Rocky Linux 9 package lifecycle",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120258907056,
+        "name": "Exercise Ubuntu 24.04 package lifecycle",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120258777938,
+        "name": "PR three-node regression",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257208815,
+        "name": "PR 500 QPS / mixed-send",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257208671,
+        "name": "PR 500 QPS / tcp-sendack",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257208612,
+        "name": "PR 500 QPS / channel-append",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257198092,
+        "name": "Emit credential-free wake-up",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257118453,
+        "name": "Nightly direct 500 QPS qualification",
+        "status": "completed",
+        "conclusion": "skipped",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257117999,
+        "name": "Fixed Linux SEND diagnosis",
+        "status": "completed",
+        "conclusion": "skipped",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257117315,
+        "name": "PR messaging unit and race",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257117234,
+        "name": "PR performance baseline evidence",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257117163,
+        "name": "PR three-node correctness",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257116220,
+        "name": "Candidate scripts integration",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257116059,
+        "name": "Candidate default suite (go-unit)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257115738,
+        "name": "Real three-node Manager Chromium smoke",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257115240,
+        "name": "Build and install deb/rpm preview",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      },
+      {
+        "id": 120257114944,
+        "name": "Emit credential-free wake-up",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04"
+      }
+    ]
+  },
+  "workflows": [
+    {
+      "id": 39905724199,
+      "name": "V3 Candidate Regression pull_request 1034 attempt 1",
+      "path": ".github/workflows/v3-candidate-regression.yml",
+      "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "run_attempt": 1,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T05:26:01Z",
+      "updated_at": "2026-10-23T05:38:31Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39905724199",
+      "jobs": [
+        {
+          "id": 120257116059,
+          "name": "Candidate default suite (go-unit)",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:26:04Z",
+          "completed_at": "2026-10-23T05:33:01Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Freeze source and named-check authority",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate workflow static contracts",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run frozen go-unit named check once",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 86459,
+          "log_sha256": "9dc5938bd9ca894e3038cfa7b172ae275abef277d3014c6058c01eb2d488d108",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true
+        },
+        {
+          "id": 120257116220,
+          "name": "Candidate scripts integration",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:26:04Z",
+          "completed_at": "2026-10-23T05:34:27Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Freeze source and named-check authority",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate workflow static contracts",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run frozen scripts-integration named check once",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 86642,
+          "log_sha256": "59b0af3079ce6f640c772e1fd7c1f27c6ec5ee5df76d4ba328c24b85cf9f6ead",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true
+        },
+        {
+          "id": 120259175206,
+          "name": "Candidate migration and messaging E2E",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:33:03Z",
+          "completed_at": "2026-10-23T05:38:30Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Record exact source and initial case state",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Build once and run migration, cross-node delivery, and self-chat serially",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 86739,
+          "log_sha256": "7073fd147f97a8e9fc60a48e8ce384e0303f7209fae768a242e08fc5aec98703",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true
+        }
+      ]
+    },
+    {
+      "id": 39905724412,
+      "name": "Three-Node Chat Lifecycle Regression pull_request 1034 attempt 1",
+      "path": ".github/workflows/three-node-chat-lifecycle-regression.yml",
+      "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "run_attempt": 1,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T05:26:02Z",
+      "updated_at": "2026-10-23T05:31:46Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39905724412",
+      "jobs": [
+        {
+          "id": 120257117163,
+          "name": "PR three-node correctness",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:26:04Z",
+          "completed_at": "2026-10-23T05:30:40Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Checkout candidate",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up Go",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Prepare isolated PR evidence root",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run bounded three-node 500 QPS correctness smoke",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload PR regression evidence",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Set up Go",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Checkout candidate",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 87508,
+          "log_sha256": "fc067a963641e9479b53876b406657ad041771aa4ade8c792555faa459eb8ea9",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true,
+          "terminal_summary": {
+            "outcome": "operator_stop",
+            "cause": "operator_requested",
+            "hot_sendack_p99_limit_ms": 1000,
+            "hot_sendack_count": 31465,
+            "hot_sendack_mean_ms": 17.11640311749563,
+            "sent": 75502,
+            "acknowledged": 75502
+          },
+          "full_correctness_artifact_downloaded": false
+        },
+        {
+          "id": 120257117234,
+          "name": "PR performance baseline evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:26:04Z",
+          "completed_at": "2026-10-23T05:26:20Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Checkout exact candidate without credentials",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check identical-input successful main baseline",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Checkout exact candidate without credentials",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 72352,
+          "log_sha256": "16aaeb188890268e8360d52d2c60bdc2b3b83b81ddbe2b48455d114375221027",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": false
+        },
+        {
+          "id": 120257117315,
+          "name": "PR messaging unit and race",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:26:04Z",
+          "completed_at": "2026-10-23T05:28:58Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Checkout candidate",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up Go",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run focused unit and race gates",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Exercise bounded arrival saturation under race detection",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Set up Go",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Checkout candidate",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 81657,
+          "log_sha256": "7e027852331b4ee44ccdaa60f1be680d99eb130fb75309f7ae62bdd63c087da4",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true
+        },
+        {
+          "id": 120257117999,
+          "name": "Fixed Linux SEND diagnosis",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-23T05:26:02Z",
+          "completed_at": "2026-10-23T05:26:02Z",
+          "steps": []
+        },
+        {
+          "id": 120257118453,
+          "name": "Nightly direct 500 QPS qualification",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-23T05:26:03Z",
+          "completed_at": "2026-10-23T05:26:02Z",
+          "steps": []
+        },
+        {
+          "id": 120257208612,
+          "name": "PR 500 QPS / channel-append",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:26:22Z",
+          "completed_at": "2026-10-23T05:31:12Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Checkout candidate",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up Go",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run fixed sustained 500 QPS profile",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload every performance result",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Set up Go",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Checkout candidate",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 84081,
+          "log_sha256": "f3a48a778a5d2d5dde899f4718543993b792cce13e9e2037154bf0c9fb1c9d6f",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true
+        },
+        {
+          "id": 120257208671,
+          "name": "PR 500 QPS / tcp-sendack",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:26:22Z",
+          "completed_at": "2026-10-23T05:31:09Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Checkout candidate",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up Go",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run fixed sustained 500 QPS profile",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload every performance result",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Set up Go",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Checkout candidate",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 84929,
+          "log_sha256": "d696723dfd910e57b33bae92dea00eea2d235f6a9b879cbe38493e7b32e51830",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true
+        },
+        {
+          "id": 120257208815,
+          "name": "PR 500 QPS / mixed-send",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:26:22Z",
+          "completed_at": "2026-10-23T05:31:41Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Checkout candidate",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up Go",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run fixed sustained 500 QPS profile",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload every performance result",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Set up Go",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Checkout candidate",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 86910,
+          "log_sha256": "c4c7fcf7a1c419367c7af039fd9c7ec1c9ef7643d22b13279452cb78b8044d4a",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true
+        },
+        {
+          "id": 120258777938,
+          "name": "PR three-node regression",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:31:43Z",
+          "completed_at": "2026-10-23T05:31:46Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Require every independent check",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 2674,
+          "log_sha256": "c3aba1505ba8c2d65c163828151dcde6871c8baf3c2adc4aa26c1adc3bc5d153",
+          "actual_checkout_sha": null,
+          "tracked_tree_mutation_gate_passed": false
+        }
+      ]
+    },
+    {
+      "id": 39905724092,
+      "name": "Manager Browser Smoke pull_request 1034 attempt 1",
+      "path": ".github/workflows/manager-browser-smoke.yml",
+      "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "run_attempt": 1,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T05:26:01Z",
+      "updated_at": "2026-10-23T05:28:06Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39905724092",
+      "jobs": [
+        {
+          "id": 120257115738,
+          "name": "Real three-node Manager Chromium smoke",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:26:04Z",
+          "completed_at": "2026-10-23T05:28:06Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Checkout candidate",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up Go",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up Bun",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up Node.js",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Install Chromium and build the production Manager bundle",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run the real three-node browser matrix",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload browser failure evidence",
+              "status": "completed",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Set up Node.js",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Set up Bun",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Set up Go",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Checkout candidate",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 65958,
+          "log_sha256": "32249f84cb9478b9c7e4c209a475a3602699ba6387b59ee41b632e51aedb10c8",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true,
+          "actual_manager_e2e": {
+            "passed": true,
+            "package_seconds": 21.083
+          }
+        }
+      ]
+    },
+    {
+      "id": 39905724127,
+      "name": "Safety Automation - Validate Native Package Preview",
+      "path": ".github/workflows/native-package-preview.yml",
+      "head_sha": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "run_attempt": 1,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T05:26:01Z",
+      "updated_at": "2026-10-23T05:34:06Z",
+      "html_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39905724127",
+      "jobs": [
+        {
+          "id": 120257115240,
+          "name": "Build and install deb/rpm preview",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:26:04Z",
+          "completed_at": "2026-10-23T05:32:06Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run package and CLI contracts",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run single-node cluster SEND integration",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Build deb and rpm preview",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate signed repository metadata closure",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Inspect package metadata",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Install on Ubuntu 24.04",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Install on Debian 12",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Install on Rocky Linux 9",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Install on AlmaLinux 9",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload preview packages",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 231010,
+          "log_sha256": "246f40fccc80df4202f521738afe0297d645cfccf5bc97b41a87f07c2ae196e9",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true,
+          "cosign_tool_verification_skipped": true
+        },
+        {
+          "id": 120258907056,
+          "name": "Exercise Ubuntu 24.04 package lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:32:09Z",
+          "completed_at": "2026-10-23T05:33:53Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Download the exact preview packages",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify the downloaded package set",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Exercise the operator-owned lifecycle",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 83909,
+          "log_sha256": "a568e228e1debc42c65fa800ce25ff433d1fa30fcc0ccc05e072f9ab2efb6d2d",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true,
+          "enabled_actual_native_lifecycle": {
+            "passed": true,
+            "package_seconds": 42.765,
+            "systemd": true,
+            "downloaded_package_digest_verification_passed": true,
+            "independent_final_container_inventory_available": false
+          }
+        },
+        {
+          "id": 120258907071,
+          "name": "Exercise Rocky Linux 9 package lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:32:08Z",
+          "completed_at": "2026-10-23T05:34:05Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Download the exact preview packages",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify the downloaded package set",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Exercise the operator-owned lifecycle",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 83829,
+          "log_sha256": "9b81cc6d00acc9a676e9e5aee0507a4370490759c67844d265a021f23af2bacd",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true,
+          "enabled_actual_native_lifecycle": {
+            "passed": true,
+            "package_seconds": 51.943,
+            "systemd": true,
+            "downloaded_package_digest_verification_passed": true,
+            "independent_final_container_inventory_available": false
+          }
+        },
+        {
+          "id": 120258907203,
+          "name": "Exercise AlmaLinux 9 package lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:32:09Z",
+          "completed_at": "2026-10-23T05:34:03Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Download the exact preview packages",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify the downloaded package set",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Exercise the operator-owned lifecycle",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 83737,
+          "log_sha256": "bc7e219c8c178b857341b34e1e7e9b157bed97e1128aa5ad05ea60a5e5950f68",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true,
+          "enabled_actual_native_lifecycle": {
+            "passed": true,
+            "package_seconds": 49.433,
+            "systemd": true,
+            "downloaded_package_digest_verification_passed": true,
+            "independent_final_container_inventory_available": false
+          }
+        },
+        {
+          "id": 120258907281,
+          "name": "Exercise Debian 12 package lifecycle",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T05:32:09Z",
+          "completed_at": "2026-10-23T05:33:56Z",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Download the exact preview packages",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify the downloaded package set",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Exercise the operator-owned lifecycle",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Reject tracked-tree mutation",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Set up repository Go toolchain",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Check out exact source",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ],
+          "log_bytes": 83889,
+          "log_sha256": "a70dcb8236822c46fa240a1e9df8e873b85587c9d9c9b7a6660c5e3d7a52c59b",
+          "actual_checkout_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+          "tracked_tree_mutation_gate_passed": true,
+          "enabled_actual_native_lifecycle": {
+            "passed": true,
+            "package_seconds": 41.188,
+            "systemd": true,
+            "downloaded_package_digest_verification_passed": true,
+            "independent_final_container_inventory_available": false
+          }
+        }
+      ]
+    }
+  ],
+  "named_checks": {
+    "scripts-integration": {
+      "artifact_id": 12481027534,
+      "identity": {
+        "source_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+        "policy_sha": "966ec67df1435ad07bbb82724cd940f550755179",
+        "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "event": "pull_request",
+        "run_id": "39905724199",
+        "run_attempt": "1"
+      },
+      "command": {
+        "arguments": [
+          "go",
+          "test",
+          "-tags=integration",
+          "./scripts/...",
+          "-count=1",
+          "-timeout=9m",
+          "-parallel=2"
+        ],
+        "working_dir": ".",
+        "timeout_seconds": 600,
+        "max_output_bytes": 8388608,
+        "named_check": "scripts-integration",
+        "environment": {
+          "GOWORK": "off",
+          "GOFLAGS": "-p=2 -json"
+        }
+      },
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 481.069,
+        "output_bytes": 1506946,
+        "output_truncated": false,
+        "owned_session_cleanup": {
+          "session_id": 2296,
+          "verified": true,
+          "complete": true,
+          "initial_process_count": 0,
+          "remaining_process_count": 0
+        }
+      },
+      "stdout_stderr_sha256": "791884cd3cfe21a09e63d61e2990a21a702318b66883646b24087fcf6fe37acb",
+      "summary": {
+        "root_terminal_counts": {
+          "pass": 651,
+          "skip": 6
+        },
+        "all_test_terminal_counts": {
+          "pass": 1317,
+          "skip": 6
+        },
+        "unfinished_count": 0,
+        "skips": [
+          "TestDockerImageRuntimeContract",
+          "TestDockerImageEmbeddedPrometheus",
+          "TestEasySDKReadinessSerialDelayFixture",
+          "TestNativePackageLifecycle",
+          "TestNativePackageSignedRepository",
+          "TestNativePackageRepositoryDeadlineFixture"
+        ],
+        "selected_regressions": [
+          {
+            "Action": "pass",
+            "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node0_HUP",
+            "Elapsed": 0.03
+          },
+          {
+            "Action": "pass",
+            "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node0_INT",
+            "Elapsed": 0.03
+          },
+          {
+            "Action": "pass",
+            "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node0_TERM",
+            "Elapsed": 0.03
+          },
+          {
+            "Action": "pass",
+            "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node1_HUP",
+            "Elapsed": 0.05
+          },
+          {
+            "Action": "pass",
+            "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node1_INT",
+            "Elapsed": 0.04
+          },
+          {
+            "Action": "pass",
+            "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node1_TERM",
+            "Elapsed": 0.04
+          },
+          {
+            "Action": "pass",
+            "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node2_HUP",
+            "Elapsed": 0.05
+          },
+          {
+            "Action": "pass",
+            "Test": "TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata",
+            "Elapsed": 0.04
+          },
+          {
+            "Action": "pass",
+            "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node2_INT",
+            "Elapsed": 0.06
+          },
+          {
+            "Action": "pass",
+            "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration/node2_TERM",
+            "Elapsed": 0.07
+          },
+          {
+            "Action": "pass",
+            "Test": "TestLocalThresholdPprofInterruptDuringRequestRegistration",
+            "Elapsed": 0.4
+          },
+          {
+            "Action": "pass",
+            "Test": "TestChatLifecycleTerminalEvidenceRetention",
+            "Elapsed": 16.28
+          },
+          {
+            "Action": "pass",
+            "Test": "TestChatLifecycleDirectLabStartBuildsAndQuotesBeforePaidAcquire",
+            "Elapsed": 0.09
+          }
+        ],
+        "retention_79_inner_case_individual_artifacts_not_uploaded": true
+      }
+    },
+    "go-unit": {
+      "artifact_id": 12480559249,
+      "identity": {
+        "source_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+        "policy_sha": "966ec67df1435ad07bbb82724cd940f550755179",
+        "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+        "event": "pull_request",
+        "run_id": "39905724199",
+        "run_attempt": "1"
+      },
+      "command": {
+        "arguments": [
+          "go",
+          "test",
+          "./cmd/...",
+          "./internal/...",
+          "./pkg/...",
+          "./scripts/...",
+          "./docker/...",
+          "-count=1"
+        ],
+        "working_dir": ".",
+        "timeout_seconds": 1800,
+        "max_output_bytes": 8388608,
+        "named_check": "go-unit",
+        "environment": {
+          "GOWORK": "off",
+          "GOFLAGS": "-p=2"
+        }
+      },
+      "result": {
+        "status": "passed",
+        "exit_code": 0,
+        "wrapper_exit_code": 0,
+        "elapsed_seconds": 390.805,
+        "output_bytes": 22029,
+        "output_truncated": false,
+        "owned_session_cleanup": {
+          "session_id": 2537,
+          "verified": true,
+          "complete": true,
+          "initial_process_count": 0,
+          "remaining_process_count": 0
+        }
+      },
+      "stdout_stderr_sha256": "8eb2f0c91ff9c1f348a97aea878aef75580bf3732342c8a8c6d48b9a28968f79",
+      "summary": {
+        "passed_packages": 219,
+        "no_test_file_packages": 15,
+        "individual_test_counts_unavailable_nonverbose": true
+      }
+    }
+  },
+  "performance": {
+    "channel-append": {
+      "artifact_id": 12481270942,
+      "source_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+      "binary_sha256": "14c3988f02c45ad7d2e3fcd351e0847c01b841e2af91bbd4675c765fa4eb81f2",
+      "go_version": "go1.25.11 linux/amd64",
+      "visible_cpus": 4,
+      "measurement_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 5.870819,
+          "scheduled_to_start_p99_ms": 1.098316,
+          "service_p99_ms": 4.700966
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 6.314902,
+          "scheduled_to_start_p99_ms": 1.09308,
+          "service_p99_ms": 5.175287
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 8.571324,
+          "scheduled_to_start_p99_ms": 1.260459,
+          "service_p99_ms": 6.17959
+        }
+      ],
+      "warmup_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 19.531003,
+          "scheduled_to_start_p99_ms": 1.094952,
+          "service_p99_ms": 18.827815
+        }
+      ],
+      "measurement_seconds": 180,
+      "warmup_seconds": 60,
+      "passed": true,
+      "counter_window": {
+        "schema": "channel-append-counters/v1",
+        "operations": 90000,
+        "offered_qps": 500,
+        "handlers_completed": true,
+        "gomaxprocs": 4,
+        "started_at": "2026-10-23T05:28:08.8098658Z",
+        "ended_at": "2026-10-23T05:31:08.812902939Z"
+      }
+    },
+    "tcp-sendack": {
+      "artifact_id": 12481270934,
+      "source_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+      "binary_sha256": "4eb851d9f34fd345afc1168453f92b0671d58df995a547c0fb7da2258e0feda6",
+      "go_version": "go1.25.11 linux/amd64",
+      "visible_cpus": 4,
+      "measurement_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.24503,
+          "scheduled_to_start_p99_ms": 0.959085,
+          "service_p99_ms": 177.554783
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.21686,
+          "scheduled_to_start_p99_ms": 0.955564,
+          "service_p99_ms": 177.533399
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.208276,
+          "scheduled_to_start_p99_ms": 0.955211,
+          "service_p99_ms": 177.530705
+        }
+      ],
+      "warmup_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 178.211751,
+          "scheduled_to_start_p99_ms": 1.07161,
+          "service_p99_ms": 177.537236
+        }
+      ],
+      "measurement_seconds": 180,
+      "warmup_seconds": 60,
+      "passed": true
+    },
+    "mixed-send": {
+      "artifact_id": 12480074311,
+      "source_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+      "binary_sha256": "91c642ad154608c6493c0f8eb761ce64cbce6644e6428842401f715d83fdfde9",
+      "go_version": "go1.25.11 linux/amd64",
+      "visible_cpus": 4,
+      "measurement_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 13.332093,
+          "scheduled_to_start_p99_ms": 1.178673,
+          "service_p99_ms": 12.530087
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 14.556439,
+          "scheduled_to_start_p99_ms": 1.518102,
+          "service_p99_ms": 13.703359
+        },
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 500,
+          "scheduled_to_completion_p99_ms": 16.030061,
+          "scheduled_to_start_p99_ms": 2.139545,
+          "service_p99_ms": 15.203209
+        }
+      ],
+      "warmup_windows": [
+        {
+          "planned": 30000,
+          "started": 30000,
+          "completed": 30000,
+          "errors": 0,
+          "dropped": 0,
+          "target_per_second": 500,
+          "started_per_second": 499.9959244082212,
+          "scheduled_to_completion_p99_ms": 12.565267,
+          "scheduled_to_start_p99_ms": 1.162657,
+          "service_p99_ms": 11.817356
+        }
+      ],
+      "measurement_seconds": 180,
+      "warmup_seconds": 60,
+      "passed": true,
+      "counter_window": {
+        "schema": "mixed-send-counters/v1",
+        "operations": 90000,
+        "offered_qps": 500,
+        "handlers_completed": true,
+        "gomaxprocs": 4,
+        "started_at": "2026-10-23T05:28:36.774123871Z",
+        "ended_at": "2026-10-23T05:31:36.805740584Z"
+      }
+    }
+  },
+  "artifact_verification": {
+    "small_whole_zip_verified": [
+      {
+        "id": 12481570433,
+        "name": "v3-candidate-e2e-39905724199-1",
+        "zip_bytes": 16551,
+        "zip_sha256": "84c939a9bc0721e29b3e1f7dad556a3a99f61789ed398f376f7c4acdfd085f2d",
+        "full_size_sha_crc_verified": true,
+        "members": [
+          {
+            "path": "binary-build-info.txt",
+            "bytes": 8955,
+            "sha256": "cf07164c8214c48457d953a0e9afa316f05020fc3b05a64dfe0cd03b4f834dbe",
+            "crc32": "3d8c5c39",
+            "utf8_text": true
+          },
+          {
+            "path": "build/command.json",
+            "bytes": 285,
+            "sha256": "bebd3e7da2af1e6267d5db3aec1b7d0d54b8a8731c827e18a91a85de2d433352",
+            "crc32": "55e08153",
+            "utf8_text": true
+          },
+          {
+            "path": "binary.sha256",
+            "bytes": 134,
+            "sha256": "222f3bace5923b7a660ef7bfa2a18591dd3ede1c63d11c37ee81f7e0af7b8823",
+            "crc32": "8714d263",
+            "utf8_text": true
+          },
+          {
+            "path": "build/result.json",
+            "bytes": 368,
+            "sha256": "824887e51ef670faf12aed6335b82deb2ad8b15e9a80f245de1ee992871b90a2",
+            "crc32": "70683f25",
+            "utf8_text": true
+          },
+          {
+            "path": "build/stderr.log",
+            "bytes": 5051,
+            "sha256": "e68ae1d190140b386314d774eb488a2185dbb8f03fc283bd81bc754dae96dbe8",
+            "crc32": "5ad9dfd1",
+            "utf8_text": true
+          },
+          {
+            "path": "build/stdout.jsonl",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "crc32": "00000000",
+            "utf8_text": true
+          },
+          {
+            "path": "cross_node_delivery/command.json",
+            "bytes": 283,
+            "sha256": "cd7d2b139b98210a11ee5ef3fe41ca69914269a99bccaeffb8426f9995811eab",
+            "crc32": "6042e90b",
+            "utf8_text": true
+          },
+          {
+            "path": "cross_node_delivery/result.json",
+            "bytes": 370,
+            "sha256": "6dfd524975d0ad94d1da17b843ec5ae1659dd5482621c355bf6c13a9f7eac24c",
+            "crc32": "0267d9aa",
+            "utf8_text": true
+          },
+          {
+            "path": "cross_node_delivery/stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "crc32": "00000000",
+            "utf8_text": true
+          },
+          {
+            "path": "cross_node_delivery/stdout.jsonl",
+            "bytes": 8449,
+            "sha256": "323165b531b4adcda7cdb284a6a6599a71285817f2e585ec256e2b0f1580f9b5",
+            "crc32": "9e9d2ede",
+            "utf8_text": true
+          },
+          {
+            "path": "go-version.txt",
+            "bytes": 33,
+            "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+            "crc32": "dd48af92",
+            "utf8_text": true
+          },
+          {
+            "path": "identity.json",
+            "bytes": 172,
+            "sha256": "2d7de2e17e0ee0117e74596911f18d8fbd60977c851ae2404171e3a972238d8b",
+            "crc32": "273455ef",
+            "utf8_text": true
+          },
+          {
+            "path": "ordinary_history/command.json",
+            "bytes": 302,
+            "sha256": "ed22c31c4d2a4b3de5ca70e3da7cd45e85c15a06c5b0ad825af6b256e6fbd1c9",
+            "crc32": "11e8a94e",
+            "utf8_text": true
+          },
+          {
+            "path": "ordinary_history/result.json",
+            "bytes": 370,
+            "sha256": "35f4729977dc347d093e11dd8f08df4c9d91dc392ce67d29231b7a62e9f34575",
+            "crc32": "03ba1100",
+            "utf8_text": true
+          },
+          {
+            "path": "ordinary_history/stderr.log",
+            "bytes": 262,
+            "sha256": "f7dd913964261c3ba2ef4af097ec9bc69ed4030b3f4518d76e2bf4780580196b",
+            "crc32": "6115e3f1",
+            "utf8_text": true
+          },
+          {
+            "path": "ordinary_history/stdout.jsonl",
+            "bytes": 27302,
+            "sha256": "c40ca22da4774e922d8511daade8655710f0320116d90025b806bdb871592181",
+            "crc32": "2894d441",
+            "utf8_text": true
+          },
+          {
+            "path": "self_chat/command.json",
+            "bytes": 273,
+            "sha256": "2c43b9ab69c4a6aa8798aea284f8c701219f8faef97fd15a61bb75324835a0e6",
+            "crc32": "fffc10bb",
+            "utf8_text": true
+          },
+          {
+            "path": "self_chat/report.json",
+            "bytes": 47381,
+            "sha256": "097b1afd94946413c402a07c783dc1b0574c9b346645cd844f19b5e889dc55d8",
+            "crc32": "4ef91cdc",
+            "utf8_text": true
+          },
+          {
+            "path": "self_chat/result.json",
+            "bytes": 370,
+            "sha256": "bbdd069fbfd8442d810a25296301cb26bc68300ed1303d5425c5889398ee7c53",
+            "crc32": "56f60a11",
+            "utf8_text": true
+          },
+          {
+            "path": "self_chat/stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "crc32": "00000000",
+            "utf8_text": true
+          },
+          {
+            "path": "self_chat/stdout.jsonl",
+            "bytes": 3700,
+            "sha256": "6e3b9084663345bc8ad005c748bd3d35a05a2e7233863a472ef79fc5ae532bef",
+            "crc32": "bea61049",
+            "utf8_text": true
+          }
+        ]
+      },
+      {
+        "id": 12481027534,
+        "name": "v3-candidate-scripts-39905724199-1",
+        "zip_bytes": 117599,
+        "zip_sha256": "d7a21cd2c4a930cf7a9b4d3379f4de63ffa957304274e8ded3aa1859aa087ebd",
+        "full_size_sha_crc_verified": true,
+        "members": [
+          {
+            "path": "go-version.txt",
+            "bytes": 33,
+            "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+            "crc32": "dd48af92",
+            "utf8_text": true
+          },
+          {
+            "path": "identity.json",
+            "bytes": 286,
+            "sha256": "dcf4b5a8b0a4c85d108da6018ecdaed6070ffd55df8d5998cdadc0925dd71eff",
+            "crc32": "bcee4393",
+            "utf8_text": true
+          },
+          {
+            "path": "policy.json",
+            "bytes": 14492,
+            "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+            "crc32": "4b2851e1",
+            "utf8_text": true
+          },
+          {
+            "path": "command.json",
+            "bytes": 338,
+            "sha256": "d75afa8dcac0e56685c0d3dd8613d8f5690b8cd27e383b8beead00a883303e27",
+            "crc32": "a3648e4d",
+            "utf8_text": true
+          },
+          {
+            "path": "result.json",
+            "bytes": 372,
+            "sha256": "87805c93e0fa1160788ac481e1bacab10dc1485f231921de33d95e49bfdf619a",
+            "crc32": "8613a1c8",
+            "utf8_text": true
+          },
+          {
+            "path": "stdout-stderr.log",
+            "bytes": 1506946,
+            "sha256": "791884cd3cfe21a09e63d61e2990a21a702318b66883646b24087fcf6fe37acb",
+            "crc32": "247a7797",
+            "utf8_text": true
+          }
+        ]
+      },
+      {
+        "id": 12480559249,
+        "name": "v3-candidate-default-39905724199-1",
+        "zip_bytes": 8241,
+        "zip_sha256": "14e5909ea8b19f33ab275312713167b4373cf2de6de0b3048552428744a8863d",
+        "full_size_sha_crc_verified": true,
+        "members": [
+          {
+            "path": "command.json",
+            "bytes": 334,
+            "sha256": "0cb6625e3ac51b84b8154054b2295ed766dcd7cb0cb0967da00310244dffa3d9",
+            "crc32": "c797ebb8",
+            "utf8_text": true
+          },
+          {
+            "path": "identity.json",
+            "bytes": 286,
+            "sha256": "dcf4b5a8b0a4c85d108da6018ecdaed6070ffd55df8d5998cdadc0925dd71eff",
+            "crc32": "bcee4393",
+            "utf8_text": true
+          },
+          {
+            "path": "go-version.txt",
+            "bytes": 33,
+            "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+            "crc32": "dd48af92",
+            "utf8_text": true
+          },
+          {
+            "path": "policy.json",
+            "bytes": 14492,
+            "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+            "crc32": "4b2851e1",
+            "utf8_text": true
+          },
+          {
+            "path": "result.json",
+            "bytes": 370,
+            "sha256": "e4f013e43518e64832ffa645173eb79cd17e30a50da7b6182318ee40d711635e",
+            "crc32": "2bb5dd9a",
+            "utf8_text": true
+          },
+          {
+            "path": "stdout-stderr.log",
+            "bytes": 22029,
+            "sha256": "8eb2f0c91ff9c1f348a97aea878aef75580bf3732342c8a8c6d48b9a28968f79",
+            "crc32": "1ad8d11c",
+            "utf8_text": true
+          }
+        ]
+      },
+      {
+        "id": 12481270942,
+        "name": "500qps-channel-append-adccd48c474b01c75ae6c9ca9e30087248c706f1-1",
+        "zip_bytes": 25456,
+        "zip_sha256": "f39828a765a38fde0797332c22f73986738e25b4c765b7d7ad1d1dd323ce96e2",
+        "full_size_sha_crc_verified": true,
+        "members": [
+          {
+            "path": "arrival.json",
+            "bytes": 57410,
+            "sha256": "9935294eca5d43615d64d15312937efd01290747e90800af4e6fd6212257db13",
+            "crc32": "82518be2",
+            "utf8_text": true
+          },
+          {
+            "path": "arrival.warmup.json",
+            "bytes": 19223,
+            "sha256": "7713326008c59a4f0fd1a39adbd91ac95f1282ad8c3d1f30912cd703300b97b2",
+            "crc32": "e1729c08",
+            "utf8_text": true
+          },
+          {
+            "path": "benchmark.txt",
+            "bytes": 2357,
+            "sha256": "77dbc51dba6f9baee0c8f54fb4dc0c4ef245d9a81f933f0e3c8be30e0b998a6b",
+            "crc32": "c90ed5b1",
+            "utf8_text": true
+          },
+          {
+            "path": "binary.sha256",
+            "bytes": 127,
+            "sha256": "74977a8cd41fd5f8b51348f4f3376af2ce3ea03a92ef0be0e28828ead0f2f0c9",
+            "crc32": "f5a4b5fa",
+            "utf8_text": true
+          },
+          {
+            "path": "counters/after.json",
+            "bytes": 50626,
+            "sha256": "fa5ab10f548c9132da7d439dd5af64a56723af0abdf35a3ac61e485839b9fabf",
+            "crc32": "7a736f0e",
+            "utf8_text": true
+          },
+          {
+            "path": "counters/before.json",
+            "bytes": 50395,
+            "sha256": "b39a5a06400497d0f3e8f7a36aac487dfa9b59b3e4e259c1d177fc754582a6c5",
+            "crc32": "533eab50",
+            "utf8_text": true
+          },
+          {
+            "path": "counters/window.json",
+            "bytes": 574,
+            "sha256": "745e15f3f7721ff46c4fab8d913c97105dc057dab1a2171046a40d999dd5a091",
+            "crc32": "f805a6e8",
+            "utf8_text": true
+          },
+          {
+            "path": "counters.warmup/after.json",
+            "bytes": 50396,
+            "sha256": "eb8762a55e8931c51d8c8bcff4b5229f239dd11646b3606ae3690af84d29b3de",
+            "crc32": "21abfcb5",
+            "utf8_text": true
+          },
+          {
+            "path": "counters.warmup/before.json",
+            "bytes": 21551,
+            "sha256": "02af29df377dc018d6657bad68f13b35d00c8e5b8ecc65daf3d011c58c32be26",
+            "crc32": "3dcca9fc",
+            "utf8_text": true
+          },
+          {
+            "path": "counters.warmup/window.json",
+            "bytes": 503,
+            "sha256": "74a856e30c83700f57aad5844f7c0eec2c11afbfaf69d07d803448f0ab760ce7",
+            "crc32": "1b2a2abb",
+            "utf8_text": true
+          },
+          {
+            "path": "data-filesystem.json",
+            "bytes": 244,
+            "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb",
+            "crc32": "77ec143c",
+            "utf8_text": true
+          },
+          {
+            "path": "filesystem-preflight.txt",
+            "bytes": 123,
+            "sha256": "e6f508c4545d1d5bd6ad51480acbd0b44a2b5a984c1159487a357974f1126779",
+            "crc32": "6c7e8556",
+            "utf8_text": true
+          },
+          {
+            "path": "go-version.txt",
+            "bytes": 33,
+            "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+            "crc32": "dd48af92",
+            "utf8_text": true
+          },
+          {
+            "path": "host.json",
+            "bytes": 4483,
+            "sha256": "61dcffad00ce53e335d409d1803c82792f62ab6a364ed2b2e11b8c45d1941490",
+            "crc32": "f38c7b89",
+            "utf8_text": true
+          },
+          {
+            "path": "kernel.txt",
+            "bytes": 113,
+            "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5",
+            "crc32": "5f528912",
+            "utf8_text": true
+          },
+          {
+            "path": "result.json",
+            "bytes": 18,
+            "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28",
+            "crc32": "81529131",
+            "utf8_text": true
+          },
+          {
+            "path": "source.sha",
+            "bytes": 41,
+            "sha256": "5b37901f73339cf0b9eb987893fc05e8577f2d796e75768a34a598e1caf97b38",
+            "crc32": "56884d71",
+            "utf8_text": true
+          }
+        ]
+      },
+      {
+        "id": 12481270934,
+        "name": "500qps-tcp-sendack-adccd48c474b01c75ae6c9ca9e30087248c706f1-1",
+        "zip_bytes": 8208,
+        "zip_sha256": "4fc7a82eadebe6b59fbf7191d25178b19405005e7aa09202f6d33d5bb48ee99f",
+        "full_size_sha_crc_verified": true,
+        "members": [
+          {
+            "path": "arrival.json",
+            "bytes": 58130,
+            "sha256": "5f97740f36ef1be8d4f701e39b06823210097825aa87665b1f9ebadfb76aa135",
+            "crc32": "15f837ea",
+            "utf8_text": true
+          },
+          {
+            "path": "benchmark.txt",
+            "bytes": 2954,
+            "sha256": "f68ec3243f86913af67fce163b1fe410427ada0db914ac15a68245561af2547b",
+            "crc32": "6b5090a0",
+            "utf8_text": true
+          },
+          {
+            "path": "arrival.warmup.json",
+            "bytes": 19440,
+            "sha256": "a479f1954cb45ed57d3608d493d0cd57816d23dc5429dbefb6e52260e6f7a55b",
+            "crc32": "f40cc83e",
+            "utf8_text": true
+          },
+          {
+            "path": "binary.sha256",
+            "bytes": 124,
+            "sha256": "b9ccb5a6499cd5778266322581d348f7c3d984e436052f561e29addd60cfae0b",
+            "crc32": "7dfab605",
+            "utf8_text": true
+          },
+          {
+            "path": "data-filesystem.json",
+            "bytes": 244,
+            "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb",
+            "crc32": "77ec143c",
+            "utf8_text": true
+          },
+          {
+            "path": "filesystem-preflight.txt",
+            "bytes": 123,
+            "sha256": "63f2cfe9b0f2c5bda3154cb8ec019e2f196891181719638e56832ef08c455fb9",
+            "crc32": "8336eed2",
+            "utf8_text": true
+          },
+          {
+            "path": "go-version.txt",
+            "bytes": 33,
+            "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+            "crc32": "dd48af92",
+            "utf8_text": true
+          },
+          {
+            "path": "host.json",
+            "bytes": 4484,
+            "sha256": "b32d7c6141d16e97a1ab1f49e2d48d8d02dae0525fd7d8d8ee4466aed7d9f31b",
+            "crc32": "f95548f2",
+            "utf8_text": true
+          },
+          {
+            "path": "kernel.txt",
+            "bytes": 113,
+            "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5",
+            "crc32": "5f528912",
+            "utf8_text": true
+          },
+          {
+            "path": "result.json",
+            "bytes": 18,
+            "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28",
+            "crc32": "81529131",
+            "utf8_text": true
+          },
+          {
+            "path": "source.sha",
+            "bytes": 41,
+            "sha256": "5b37901f73339cf0b9eb987893fc05e8577f2d796e75768a34a598e1caf97b38",
+            "crc32": "56884d71",
+            "utf8_text": true
+          }
+        ]
+      },
+      {
+        "id": 12480074311,
+        "name": "500qps-mixed-send-adccd48c474b01c75ae6c9ca9e30087248c706f1-1",
+        "zip_bytes": 228119,
+        "zip_sha256": "a4a8048e8bda0e9691b6abf32860b63838dc4e32a38a5828cf8672b8b3a0d512",
+        "full_size_sha_crc_verified": true,
+        "members": [
+          {
+            "path": "arrival.json",
+            "bytes": 57719,
+            "sha256": "797ede55f9863ecdb90f65e56eecb69b4989b0ec92fb7926bd8abd42d6a81e5c",
+            "crc32": "97e28c20",
+            "utf8_text": true
+          },
+          {
+            "path": "arrival.warmup.json",
+            "bytes": 19328,
+            "sha256": "c92936deaf42619659d03de618ba1e16e87378c0a3dc3b24c3f9083e702d3c70",
+            "crc32": "085b7c26",
+            "utf8_text": true
+          },
+          {
+            "path": "benchmark.txt",
+            "bytes": 4032,
+            "sha256": "77f9bd8a2fb97d1490118a33b7f84d97c9a087da36f45730e5d4610fde342789",
+            "crc32": "88e4565d",
+            "utf8_text": true
+          },
+          {
+            "path": "binary.sha256",
+            "bytes": 123,
+            "sha256": "3a8cb70e6881c1705a74a3f422b6cd88d3e8d68b94d24e66a697031d88640944",
+            "crc32": "77685916",
+            "utf8_text": true
+          },
+          {
+            "path": "counters/after.json",
+            "bytes": 314091,
+            "sha256": "49743a9e5d8b3a9f990f23fdd15714000ea0e007e18f2b782ad3350bcd4685a4",
+            "crc32": "2137cae2",
+            "utf8_text": true
+          },
+          {
+            "path": "counters/before.json",
+            "bytes": 313346,
+            "sha256": "41d71fa66da564326a853437f47c65e895415382b7b025d2e6788501bba6c203",
+            "crc32": "68779550",
+            "utf8_text": true
+          },
+          {
+            "path": "counters/window.json",
+            "bytes": 534,
+            "sha256": "bfb42d5319dadd1932a82e15f5df0600319c289a36a78b65a921470e81da0443",
+            "crc32": "d1fd04eb",
+            "utf8_text": true
+          },
+          {
+            "path": "counters.warmup/after.json",
+            "bytes": 313353,
+            "sha256": "573e804d82005ac213e3dd7b8af9957d606daa8c97a7a1a5aba3e98cd94a9401",
+            "crc32": "e3c2cd5b",
+            "utf8_text": true
+          },
+          {
+            "path": "counters.warmup/before.json",
+            "bytes": 310895,
+            "sha256": "6007c0c778bf3af5bd5138da23c3629ae02c54315f7ac32bc75fb9e323c9a8d1",
+            "crc32": "618e560d",
+            "utf8_text": true
+          },
+          {
+            "path": "counters.warmup/window.json",
+            "bytes": 477,
+            "sha256": "ecbb7beacc9f6946fd08654e81ebc1574cd48f6f97ae2c0dff62931713958552",
+            "crc32": "a46bd690",
+            "utf8_text": true
+          },
+          {
+            "path": "data-filesystem.json",
+            "bytes": 244,
+            "sha256": "10dd53272597335b063d2d98901d620a61ca20c0b777595a3529c1a5b032a2eb",
+            "crc32": "77ec143c",
+            "utf8_text": true
+          },
+          {
+            "path": "filesystem-preflight.txt",
+            "bytes": 123,
+            "sha256": "7cb83b4b2f01d2f6d6c04897d7df9ccfa85ca94c3ff2d826e6d8d22c3093ddf0",
+            "crc32": "a8871fc0",
+            "utf8_text": true
+          },
+          {
+            "path": "flight/retention-status.txt",
+            "bytes": 28,
+            "sha256": "fe914d9861d4c6f558854c355a1422208df73e3235e7e7061ec8948c58874fed",
+            "crc32": "1785ba98",
+            "utf8_text": true
+          },
+          {
+            "path": "flight/window.json",
+            "bytes": 2088838,
+            "sha256": "b61ca69185e6990a6db25acc04d51212bbb98151e38baf32ee2e15dfe7d2ebf4",
+            "crc32": "271a6c71",
+            "utf8_text": true
+          },
+          {
+            "path": "go-version.txt",
+            "bytes": 33,
+            "sha256": "1914ac529e42dcdc17b3ad636b97bedcd41fc011920a7aff2bcba112153d98fd",
+            "crc32": "dd48af92",
+            "utf8_text": true
+          },
+          {
+            "path": "kernel.txt",
+            "bytes": 113,
+            "sha256": "cd8e31ad3f05d597238a1403bb5c2d25c975d53959c3d48af034216515712dc5",
+            "crc32": "5f528912",
+            "utf8_text": true
+          },
+          {
+            "path": "host.json",
+            "bytes": 4483,
+            "sha256": "eda047d6a2a8a735ae06c3c4b5fe8cf2f09af8a2646057a1a5bcab415d0b6401",
+            "crc32": "86213588",
+            "utf8_text": true
+          },
+          {
+            "path": "result.json",
+            "bytes": 18,
+            "sha256": "613d51f866da11c7f6a4166577dd2dd266188c406ff1c5ebb6fe6e66cc484d28",
+            "crc32": "81529131",
+            "utf8_text": true
+          },
+          {
+            "path": "source.sha",
+            "bytes": 41,
+            "sha256": "5b37901f73339cf0b9eb987893fc05e8577f2d796e75768a34a598e1caf97b38",
+            "crc32": "56884d71",
+            "utf8_text": true
+          }
+        ]
+      }
+    ],
+    "small_zip_total_bytes": 404174,
+    "large_metadata_only": [
+      {
+        "id": 12480981240,
+        "name": "three-node-pr-1034-adccd48c474b01c75ae6c9ca9e30087248c706f1-1",
+        "size_in_bytes": 229288672,
+        "api_declared_digest": "sha256:4228cdf1f0c7e0be8867b065c8668e3fdd372693f3cc477fdf6469e56436c582",
+        "downloaded": false
+      },
+      {
+        "id": 12481086899,
+        "name": "wukongim-native-package-preview-39905724127",
+        "size_in_bytes": 77909961,
+        "api_declared_digest": "sha256:5fc352c46857e1e25a5fecb842d3136639f9ceefdb24316020c5d95621589697",
+        "downloaded": false
+      }
+    ]
+  },
+  "limits": [
+    "Read-only evidence review; no merge, dispatch, retry, workflow enable, cloud, test, build or product execution was performed.",
+    "The local 2000 SEND/s original gates are not passed by this CI result. Latest local outer verdict was harness_invalid/invalid_observation, with a separately observed product_failure/overall_first_attempt_rate and no final.json.",
+    "These checks validate two bounded changes, not a complete solution of permission admission failures or release readiness.",
+    "Large correctness and native artifact bodies were not downloaded. API-declared digests are not independently recomputed digests.",
+    "Raw ZIPs, job logs and self-chat identity reports remain private; only closed projections are public.",
+    "Four native lifecycle tests executed, but their successful inner output is consumed by CombinedOutput; no independent final Docker zero-inventory receipt is invented.",
+    "Native preview/TEST ONLY closure is not stable publication. Optional skipped workflows/tests are not counted as passed."
+  ],
+  "e2e": {
+    "artifact_id": 12481570433,
+    "identity": {
+      "source_sha": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+      "policy_sha": "966ec67df1435ad07bbb82724cd940f550755179",
+      "run_id": "39905724199",
+      "run_attempt": "1"
+    },
+    "binary_sha256": "1f1454cd487071e42ef43fe2b4ee97130bea064106af87e7fbbdc8fb060a33a6",
+    "binary_embedded_vcs_revision": "adccd48c474b01c75ae6c9ca9e30087248c706f1",
+    "binary_embedded_vcs_modified": false,
+    "cases": {
+      "build": {
+        "command": {
+          "arguments": [
+            "go",
+            "build",
+            "-tags=e2e",
+            "-o",
+            "/home/runner/work/_temp/v3-candidate-39905724199-1/e2e/wukongim-e2e",
+            "./cmd/wukongim"
+          ],
+          "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+          "timeout_seconds": 720,
+          "max_output_bytes": 67108864
+        },
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 99.106,
+          "output_bytes": 5051,
+          "output_truncated": false,
+          "owned_session_cleanup": {
+            "session_id": 2500,
+            "verified": true,
+            "complete": true,
+            "initial_process_count": 0,
+            "remaining_process_count": 0
+          }
+        },
+        "passed_tests": [],
+        "skipped_tests": []
+      },
+      "ordinary_history": {
+        "command": {
+          "arguments": [
+            "go",
+            "test",
+            "-tags=e2e",
+            "./test/e2e/migration/ordinary_history",
+            "-count=1",
+            "-timeout=12m",
+            "-p=1",
+            "-parallel=1",
+            "-json"
+          ],
+          "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+          "timeout_seconds": 780,
+          "max_output_bytes": 67108864
+        },
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 108.309,
+          "output_bytes": 27564,
+          "output_truncated": false,
+          "owned_session_cleanup": {
+            "session_id": 7971,
+            "verified": true,
+            "complete": true,
+            "initial_process_count": 0,
+            "remaining_process_count": 0
+          }
+        },
+        "passed_tests": [
+          {
+            "Action": "pass",
+            "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes",
+            "Elapsed": 21.79
+          },
+          {
+            "Action": "pass",
+            "Test": "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes",
+            "Elapsed": 17.88
+          },
+          {
+            "Action": "pass",
+            "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes",
+            "Elapsed": 11.96
+          },
+          {
+            "Action": "pass",
+            "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes",
+            "Elapsed": 17.06
+          },
+          {
+            "Action": "pass",
+            "Test": "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes",
+            "Elapsed": 20
+          },
+          {
+            "Action": "pass",
+            "Test": "TestOriginalOrdinaryHistoryTopology",
+            "Elapsed": 88.69
+          }
+        ],
+        "skipped_tests": []
+      },
+      "cross_node_delivery": {
+        "command": {
+          "arguments": [
+            "go",
+            "test",
+            "-tags=e2e",
+            "./test/e2e/message/cross_node_delivery",
+            "-count=1",
+            "-timeout=2m",
+            "-p=1",
+            "-json"
+          ],
+          "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+          "timeout_seconds": 180,
+          "max_output_bytes": 67108864
+        },
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 52.856,
+          "output_bytes": 8449,
+          "output_truncated": false,
+          "owned_session_cleanup": {
+            "session_id": 13859,
+            "verified": true,
+            "complete": true,
+            "initial_process_count": 0,
+            "remaining_process_count": 0
+          }
+        },
+        "passed_tests": [
+          {
+            "Action": "pass",
+            "Test": "TestThreeNodeClusterCrossNodeUsersExchangeMessages",
+            "Elapsed": 11.96
+          },
+          {
+            "Action": "pass",
+            "Test": "TestThreeNodeReplicaTwoClusterConvergesSlotTopology",
+            "Elapsed": 13.09
+          },
+          {
+            "Action": "pass",
+            "Test": "TestThreeNodeReplicaThreeClusterConvergesSlotTopology",
+            "Elapsed": 9.41
+          },
+          {
+            "Action": "pass",
+            "Test": "TestThreeNodeReplicaTwoClusterCrossNodeMessagesUseTwoReplicaChannel",
+            "Elapsed": 16.42
+          }
+        ],
+        "skipped_tests": [
+          {
+            "Action": "skip",
+            "Test": "TestThreeNodeReplicaLoadComparisonAtTwoThousandQPS",
+            "Elapsed": 0
+          }
+        ]
+      },
+      "self_chat": {
+        "command": {
+          "arguments": [
+            "go",
+            "test",
+            "-tags=e2e",
+            "./test/e2e/message/self_chat",
+            "-count=1",
+            "-timeout=4m",
+            "-p=1",
+            "-json"
+          ],
+          "working_dir": "/home/runner/work/WuKongIM/WuKongIM",
+          "timeout_seconds": 300,
+          "max_output_bytes": 67108864
+        },
+        "result": {
+          "status": "passed",
+          "exit_code": 0,
+          "wrapper_exit_code": 0,
+          "elapsed_seconds": 41.796,
+          "output_bytes": 3700,
+          "output_truncated": false,
+          "owned_session_cleanup": {
+            "session_id": 14174,
+            "verified": true,
+            "complete": true,
+            "initial_process_count": 0,
+            "remaining_process_count": 0
+          }
+        },
+        "passed_tests": [
+          {
+            "Action": "pass",
+            "Test": "TestSelfChatPersistsAcrossClusterRestart/1-node-cluster",
+            "Elapsed": 13.59
+          },
+          {
+            "Action": "pass",
+            "Test": "TestSelfChatPersistsAcrossClusterRestart/3-node-cluster",
+            "Elapsed": 26.48
+          },
+          {
+            "Action": "pass",
+            "Test": "TestSelfChatPersistsAcrossClusterRestart",
+            "Elapsed": 40.07
+          }
+        ],
+        "skipped_tests": []
+      }
+    },
+    "migration_history": {
+      "verified_observations": 55,
+      "topology_count": 5,
+      "phase_counts": {
+        "after-import": 13,
+        "after-protocol-append": 13,
+        "after-full-restart": 13,
+        "final": 13,
+        "after-leader-stop": 3
+      },
+      "temporary_retries_total": 0,
+      "temporary_retries_max": 0,
+      "per_topology": {
+        "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_1_target_nodes": 4,
+        "TestOriginalOrdinaryHistoryTopology/1_source_nodes_to_3_target_nodes": 13,
+        "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_1_target_nodes": 4,
+        "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_3_target_nodes": 13,
+        "TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes": 21
+      }
+    },
+    "self_chat": {
+      "passed": true,
+      "hash_slots": 256,
+      "token_authentication": "production_default",
+      "suppression_window_ms": 1000,
+      "cases": [
+        {
+          "nodes": 1,
+          "passed": true,
+          "binary_sha256": "1f1454cd487071e42ef43fe2b4ee97130bea064106af87e7fbbdc8fb060a33a6",
+          "invalid_auth_refused": true,
+          "whole_cluster_restarts": 1,
+          "sender_suppression_windows": 4,
+          "acknowledged_count": 6,
+          "receive_count": 16,
+          "history_count": 3
+        },
+        {
+          "nodes": 3,
+          "passed": true,
+          "binary_sha256": "1f1454cd487071e42ef43fe2b4ee97130bea064106af87e7fbbdc8fb060a33a6",
+          "invalid_auth_refused": true,
+          "whole_cluster_restarts": 1,
+          "sender_suppression_windows": 4,
+          "acknowledged_count": 6,
+          "receive_count": 16,
+          "history_count": 9
+        }
+      ]
+    },
+    "same_binary_sha_checks_passed": 4
+  },
+  "conclusion": {
+    "merge_blocker_count": 0,
+    "blocking_findings": [],
+    "all_four_required_workflows_first_attempt_success": true,
+    "check_run_counts": {
+      "success": 18,
+      "skipped": 2
+    },
+    "performance_measurement_planned_started_completed_each": 270000,
+    "performance_measurement_errors": 0,
+    "performance_measurement_dropped": 0,
+    "runtime_2000_gate_passed": false,
+    "release_ready": false
+  },
+  "private_evidence_bindings": {
+    "metadata": [
+      {
+        "filename": "actor-permission.json",
+        "bytes": 1096,
+        "sha256": "5e9f414d4809706f540713c117879aba65362578cdaca19ad45a20cb52c17755"
+      },
+      {
+        "filename": "actor-permission.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "actor.json",
+        "bytes": 1229,
+        "sha256": "4ed11a2818be8adb3412d15fdbf64da9f7cdfa9613c373d9469ce9689b4790c1"
+      },
+      {
+        "filename": "actor.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "artifacts-39905724092.json",
+        "bytes": 32,
+        "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+      },
+      {
+        "filename": "artifacts-39905724092.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "artifacts-39905724127.json",
+        "bytes": 762,
+        "sha256": "d3a6b6c22c5cec14572e0ac1c18785456ea4473cb1e363fabb65323f7bc0ba52"
+      },
+      {
+        "filename": "artifacts-39905724127.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "artifacts-39905724199.json",
+        "bytes": 2184,
+        "sha256": "450668eace49fa198e7fa7a38d8062c0a3922d071278d46e86e152d041e28ae6"
+      },
+      {
+        "filename": "artifacts-39905724199.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "artifacts-39905724412.json",
+        "bytes": 3021,
+        "sha256": "5415169cde20d783d5ecc921c92ac11e499b85d869c69f041e2300fb66cf9978"
+      },
+      {
+        "filename": "artifacts-39905724412.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "author-permission.json",
+        "bytes": 1096,
+        "sha256": "5e9f414d4809706f540713c117879aba65362578cdaca19ad45a20cb52c17755"
+      },
+      {
+        "filename": "author-permission.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "checks.json",
+        "bytes": 70595,
+        "sha256": "402914581f200f16353415e7412dc048c6b8c9d0f61deff4c5c08a56bc117750"
+      },
+      {
+        "filename": "checks.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "head.json",
+        "bytes": 17150,
+        "sha256": "54d15ffd1688469d4a2cd5b7cfe8fb9e80474ca9f76595c4fccf4c44b1371b23"
+      },
+      {
+        "filename": "head.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "jobs-39905724092.json",
+        "bytes": 3271,
+        "sha256": "8ee5654f03f1f9b7a3cdf8b08049b02c53b8cc5b8b7ac0d7d8e6d8bdc407a07e"
+      },
+      {
+        "filename": "jobs-39905724092.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "jobs-39905724127.json",
+        "bytes": 14447,
+        "sha256": "a83d5515ac98fe274828b756ed0b31b10b3a72642000dae6b8d56b9470d2a12f"
+      },
+      {
+        "filename": "jobs-39905724127.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "jobs-39905724199.json",
+        "bytes": 8904,
+        "sha256": "30e72debfb760413c7438d418d123c9531f2b125fbdd83de6305c9fabb289ac6"
+      },
+      {
+        "filename": "jobs-39905724199.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "jobs-39905724412.json",
+        "bytes": 17517,
+        "sha256": "924bc8a616b3da87a9bd57a095300a45bb87dcb459a82ec440fefad19ebd899d"
+      },
+      {
+        "filename": "jobs-39905724412.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "merge.json",
+        "bytes": 28914,
+        "sha256": "f2cf67686552a26c99200219ce69b109e426a1950425b19ebdb5104a88e9831e"
+      },
+      {
+        "filename": "merge.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "pr.json",
+        "bytes": 16970,
+        "sha256": "7fc154ad58e413302d833d7cb1a5c74df000d13e2862f561a36678fdcc3faab2"
+      },
+      {
+        "filename": "pr.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "reviews.json",
+        "bytes": 2,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      {
+        "filename": "reviews.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "run-39905724092.json",
+        "bytes": 12470,
+        "sha256": "9029d8b71ef18fe11c9732b7a784a9c94746eb840c73229372e297d57ce01b49"
+      },
+      {
+        "filename": "run-39905724092.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "run-39905724127.json",
+        "bytes": 12494,
+        "sha256": "3b0cdbe745657e9762155628a9e7833c51deb686bf1f98111701b3f117d495c5"
+      },
+      {
+        "filename": "run-39905724127.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "run-39905724199.json",
+        "bytes": 12475,
+        "sha256": "eb1d256f63148e85666c0491b1f1affe71e7854ec71f2c0aea10352814c5f703"
+      },
+      {
+        "filename": "run-39905724199.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "run-39905724412.json",
+        "bytes": 12515,
+        "sha256": "caa265090946e214c3781684526be022a769079b16e10939a5ef0d939fbbd62d"
+      },
+      {
+        "filename": "run-39905724412.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "workflow-review-agent-pr-signal.yml.json",
+        "bytes": 585,
+        "sha256": "ffd3857ca3b30174e046984fb77b37c51908bacf63f71f01d9f6e2103da4fc9a"
+      },
+      {
+        "filename": "workflow-review-agent-pr-signal.yml.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "workflow-review-agent-run.yml.json",
+        "bytes": 551,
+        "sha256": "6c7decf216bd016cdd8b5b10f9f31188d9741877edba1dcfb8ca3d73fcfe1202"
+      },
+      {
+        "filename": "workflow-review-agent-run.yml.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "workflow-review-agent-userns-diagnostic.yaml.json",
+        "bytes": 613,
+        "sha256": "d6b4999f38be4bbcc304b7750ff722dcc8c29f0f2cace26321c675bcd645a574"
+      },
+      {
+        "filename": "workflow-review-agent-userns-diagnostic.yaml.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "workflow-review-agent.yml.json",
+        "bytes": 565,
+        "sha256": "fbfed0c16d7be70359ffde24c441ef62665b6576d1612267f1114fd012ed582a"
+      },
+      {
+        "filename": "workflow-review-agent.yml.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "get-receipts": [
+      {
+        "filename": "artifact-12480074311.json",
+        "bytes": 393,
+        "sha256": "2ec03b452452318121e279c3593c762064ebb42d24965eb3331b5f85af4261c3"
+      },
+      {
+        "filename": "artifact-12480074311.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "artifact-12480559249.json",
+        "bytes": 390,
+        "sha256": "ea53c34eec164ce2f6da048795ce84d853a74c93dd16333fac8b5a38aabc4f59"
+      },
+      {
+        "filename": "artifact-12480559249.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "artifact-12481027534.json",
+        "bytes": 393,
+        "sha256": "03dd29b4e900fa25e9401cc3ebd28cda9ce7936a17feb167c5d63367ef4a25e9"
+      },
+      {
+        "filename": "artifact-12481027534.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "artifact-12481270934.json",
+        "bytes": 391,
+        "sha256": "305c9c629b600569c053ac160d14de8d8ecbe27dd381c3c344d924a91bcbd227"
+      },
+      {
+        "filename": "artifact-12481270934.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "artifact-12481270942.json",
+        "bytes": 392,
+        "sha256": "94c1562c757190b046a716b60890285d5a2f85906fdf1b8717dce0db57dd3a31"
+      },
+      {
+        "filename": "artifact-12481270942.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "artifact-12481570433.json",
+        "bytes": 391,
+        "sha256": "073dee4c0c964a4cdae132d8cee33e6a60eabfc30c08f2f39ce5baf3cf4df21f"
+      },
+      {
+        "filename": "artifact-12481570433.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120257115240.json",
+        "bytes": 390,
+        "sha256": "66a2e01b138c7f50a239ed2c9a9c14637fef77e8237438e25a5d3970d42cec38"
+      },
+      {
+        "filename": "job-120257115240.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120257115738.json",
+        "bytes": 388,
+        "sha256": "f26ab85b226816e49545e8014c46ff5a68a2cdfcd2aece87fc88fbc11656ff68"
+      },
+      {
+        "filename": "job-120257115738.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120257116059.json",
+        "bytes": 389,
+        "sha256": "5a948c9915c4807a86b2a1013b75cb2c20ab8a41ce1de5a1f8a8d1787dc70036"
+      },
+      {
+        "filename": "job-120257116059.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120257116220.json",
+        "bytes": 388,
+        "sha256": "ff9621495bfeb2c8c8ca22e16395cb0fd831d5f43cd2188ed0088b55ec5301ab"
+      },
+      {
+        "filename": "job-120257116220.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120257117163.json",
+        "bytes": 389,
+        "sha256": "56b6efa285620f8925ea69fcf1981cc5b71efc5b90af77b4a5dc5d4bb75b96f1"
+      },
+      {
+        "filename": "job-120257117163.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120257117234.json",
+        "bytes": 389,
+        "sha256": "6f3495dcb9e72f1c85968bb7c0b4816474068640aeedb79b0891eb7907b20b7a"
+      },
+      {
+        "filename": "job-120257117234.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120257117315.json",
+        "bytes": 389,
+        "sha256": "9d43f2faf0ae807064d320d71bab41e29195bb8197d1602de335875497178b4a"
+      },
+      {
+        "filename": "job-120257117315.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120257208612.json",
+        "bytes": 389,
+        "sha256": "22631b50549a53c58fb6eab282f3ff760d9ad266e80490d6460b70030137aa1c"
+      },
+      {
+        "filename": "job-120257208612.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120257208671.json",
+        "bytes": 388,
+        "sha256": "a697cbb3d41345b96fea7cbae82c2522dc2c61c6a37aae9a1ae92d7616766cf3"
+      },
+      {
+        "filename": "job-120257208671.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120257208815.json",
+        "bytes": 388,
+        "sha256": "534270ff9d7528ad7d3948c98f65d7796c31b7d3dcf9be61b75bebefbb77f3f0"
+      },
+      {
+        "filename": "job-120257208815.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120258777938.json",
+        "bytes": 387,
+        "sha256": "7d0f9c7e72fecfd609e23d3981fb1ce85c3fdd39df36d8aa005b5399acb7c49b"
+      },
+      {
+        "filename": "job-120258777938.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120258907056.json",
+        "bytes": 388,
+        "sha256": "8454d2dfbc444e187f34c88f952a191c72ab80f144e3787cd965a774e159545a"
+      },
+      {
+        "filename": "job-120258907056.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120258907071.json",
+        "bytes": 387,
+        "sha256": "90f0ca39daa8db3cdc0638346655464c31f5d54c73a8a4803c818ddc400ad42c"
+      },
+      {
+        "filename": "job-120258907071.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120258907203.json",
+        "bytes": 388,
+        "sha256": "dd3a11819053c25e4e9e9a37b4f4103b4f6e660721f4e7e774f874ebde35cefa"
+      },
+      {
+        "filename": "job-120258907203.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120258907281.json",
+        "bytes": 389,
+        "sha256": "5ae13472add5c48813d0655482ac24b0211d52628561dcd1c9fa3a2be3fdd565"
+      },
+      {
+        "filename": "job-120258907281.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "filename": "job-120259175206.json",
+        "bytes": 389,
+        "sha256": "bc1b20b707644059ddfb01998a37f4c6a5cd6d52ebd1663665af5a68fb59593e"
+      },
+      {
+        "filename": "job-120259175206.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "artifact-inventory.json": {
+      "bytes": 19065,
+      "sha256": "5f34bf95956ab2725c44c017568c3218625b41ea6ae18e0410492eeaf9b2a325"
+    },
+    "log-inventory.json": {
+      "bytes": 3167,
+      "sha256": "3a3da222b30e37e28335e0f8dd9ad3b3ff5309255496d28331e8e4b4cdd9cab7"
+    },
+    "verify-and-project.py": {
+      "bytes": 18327,
+      "sha256": "f672bb04e3108f39728032efa5ab0d49f504d59146ec7f96df4e72d75583e271"
+    }
+  }
+}

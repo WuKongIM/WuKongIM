@@ -1,0 +1,16 @@
+{
+  "schema": "wukongim.finite-evidence-copy.v1",
+  "batch": 21,
+  "completed_at_utc": "2026-10-23T08:49:00.366076+00:00",
+  "files": [
+    {
+      "source": "/tmp/wukongim-v3-readiness-20261023/cloud/rpc-capacity-system-design-review-permission-v1.md",
+      "destination": "cloud/rpc-capacity-system-design-review-permission-v1.md",
+      "bytes": 2650,
+      "sha256": "c6dba0f406b3fe5679f5b2d86ae7d8b6d98a9d84427db800dae673cff4ef6786",
+      "action": "copied_after_finite_review"
+    }
+  ],
+  "scope": "One independent design review only; no product implementation or acceptance claim",
+  "reviewed_design_sha256": "3578e20fbe01694791126cddbb5f5683d00727729b976b11dd01054a26ee556e"
+}

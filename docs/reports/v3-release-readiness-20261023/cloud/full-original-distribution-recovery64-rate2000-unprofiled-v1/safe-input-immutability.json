@@ -1,0 +1,24 @@
+{
+  "actual_binary_sha256": {
+    "wkcli": "d8ca630646d4e4c5d39c2663c4b5f566b7c70c0fae10d64fb532e20f0656adfb",
+    "wukongim": "68ba94ea0ae808e82d290152b9111cf384006d90a615c95f2eacbe1342d02364"
+  },
+  "all_equal_approved": true,
+  "build_manifest_sha256": "6b2de65c2762425d1505b20dbc37f93beaf02cc523c057f406781218ab6eca7c",
+  "config_87db_unchanged": true,
+  "no_profile_no_repeat_no_newbuild": true,
+  "original11_supervisor_functions_AST_equal": true,
+  "prepared_receipt_sha256": "bce33c0b6128843b15258a00ebcffb856dc4922303a96251b9aa20b4388fe2e4",
+  "root_decision_sha256": "386264d63693921f727600f7089ffe43ffbd8bd0d26ea786fe9ce0bc9a29f9b0",
+  "runtime_static_pins": {
+    "exact_build_guard.py": "41221b9dc9841cd4215c44913f106aa2d29a9f77b131af56a6d6522b10eba2ff",
+    "launcher.sh": "cfa52830df0af3582db1142e80b538428caa01d6855e69d4d802ed6306820465",
+    "original-distribution-local.yaml": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+    "supervise.py": "4ab75a1142121ef849ce435d884ce45bccd3d8f303d000550800b4d4c8106c44",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415"
+  },
+  "schema": "wukongim/local2k-safe-input-immutability/v1",
+  "source_revision": "103292a9e141414b6d1b876ea519cc90da11ecdf",
+  "source_tree": "fde4d44192f4b1c73129b544cd249a0e24f9b57e"
+}

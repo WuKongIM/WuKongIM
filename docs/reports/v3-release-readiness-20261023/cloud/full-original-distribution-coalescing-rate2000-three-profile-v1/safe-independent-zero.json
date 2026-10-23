@@ -1,0 +1,29 @@
+{
+  "schema": "wukongim/local-diagnostic-independent-terminal-review/v1",
+  "observed_at_utc": "2026-10-23T06:34:43.588834+00:00",
+  "reviewer": "ci_audit",
+  "read_only_commands": [
+    "ps pid,pgid,comm",
+    "lsof exact TCP LISTEN range"
+  ],
+  "service_probes": 0,
+  "signals_or_process_mutations": 0,
+  "tests_builds_or_product_starts": 0,
+  "owned_pgid": 65451,
+  "independent_inventory": {
+    "owned_pgid_process_count": 0,
+    "all_wukongim_wkcli_process_count": 0,
+    "listening_count": 0,
+    "port_range": [
+      25000,
+      25063
+    ],
+    "port_count": 64,
+    "ps_exit": 0,
+    "lsof_exit": 1,
+    "zero_verified": true
+  },
+  "executor_cleanup_receipt_sha256": "23c58d24d60d93a208351f463abe6eb9cbbaf2dd46e12c9e75b84a5ec1504dbf",
+  "final_report_present": true,
+  "interpretation": "Independent terminal inventory only; no runtime/profile reads or new probes."
+}

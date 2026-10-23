@@ -1,0 +1,10 @@
+{
+  "first_at": "2026-10-23T08:14:44.325869+00:00",
+  "last_at": "2026-10-23T08:21:06.906315+00:00",
+  "limitation": "Maximum of existing periodic process samples, not a continuous peak. CPU is ps sampled process percent sum, not reserved cores. Native shared Mac arm64; not Linux/cloud acceptance.",
+  "maximum_owned_RSS_sum_bytes": 7838859264,
+  "maximum_owned_process_CPU_percent_sum": 446.6,
+  "other_WK_seen": false,
+  "sample_count": 76,
+  "schema": "wukongim/local2k-safe-host-resources/v1"
+}

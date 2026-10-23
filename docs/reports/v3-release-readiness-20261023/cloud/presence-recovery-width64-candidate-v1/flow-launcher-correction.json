@@ -1,0 +1,9 @@
+{
+  "stage": "before_check_execution",
+  "error": "KeyError",
+  "key": "flow-doc-contracts",
+  "cause": "local launcher used checks instead of existing trusted_checks policy key",
+  "original_normal_and_race_pass_preserved": true,
+  "flow_check_initial_invocations": 0,
+  "correction": "read trusted_checks; same original argv and limits"
+}

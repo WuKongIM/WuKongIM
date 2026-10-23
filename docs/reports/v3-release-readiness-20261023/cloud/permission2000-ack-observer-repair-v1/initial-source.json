@@ -1,0 +1,15 @@
+{
+  "head": "7f36a7cce79641f1704be9841c3c470527f67231",
+  "clean": true,
+  "files": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    "internal/app/FLOW.md": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+    "internal/runtime/delivery/FLOW.md": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704",
+    "internal/contracts/onlinedelivery/FLOW.md": "2cc41f85c4c704d69cd888115356a44ef9aab3265a1c72dd0abaef1f62c7b8de",
+    ".github/review-agent/policy.json": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+    "internal/app/top_collector.go": "b0f9a26215250435e75b9eefb402faff7e1cb93ec8cb1848547f3f562eed3bce",
+    "internal/app/online_delivery.go": "d5e799fd95f18307e8c9c43b4851aeac6a6ef59fe8e8277a283a8375e0be5d7a",
+    "internal/runtime/delivery/runtime.go": "717dda5709513d40ca5bbd3164359c438b8ed80a852b5a573c993a24f5f0c561"
+  }
+}

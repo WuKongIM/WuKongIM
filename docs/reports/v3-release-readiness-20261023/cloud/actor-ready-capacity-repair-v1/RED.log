@@ -1,0 +1,16 @@
+--- FAIL: TestActorShardReportsReadyPressure (0.00s)
+    actor_test.go:56: first pressure capacity = 1024, want no fixed item bound
+--- FAIL: TestActorReadyPressureHasNoFixedItemCapacity (0.00s)
+    --- FAIL: TestActorReadyPressureHasNoFixedItemCapacity/above_preallocation (0.00s)
+        actor_test.go:203: capacity = 1024, want no fixed item bound
+    --- FAIL: TestActorReadyPressureHasNoFixedItemCapacity/duplicate (0.00s)
+        actor_test.go:203: capacity = 1024, want no fixed item bound
+    --- FAIL: TestActorReadyPressureHasNoFixedItemCapacity/two_shards (0.00s)
+        actor_test.go:203: capacity = 2048, want no fixed item bound
+    --- FAIL: TestActorReadyPressureHasNoFixedItemCapacity/drained (0.00s)
+        actor_test.go:203: capacity = 1024, want no fixed item bound
+    --- FAIL: TestActorReadyPressureHasNoFixedItemCapacity/late_revision (0.00s)
+        actor_test.go:203: capacity = 1024, want no fixed item bound
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet	0.394s
+FAIL

@@ -1,0 +1,17 @@
+=== RUN   TestTopAckGaugeSnapshotCloneAndZero
+--- PASS: TestTopAckGaugeSnapshotCloneAndZero (0.00s)
+=== RUN   TestTopAckObserverProgressWhileCollectorIngestionLocked
+=== RUN   TestTopAckObserverProgressWhileCollectorIngestionLocked/recvack
+    top_ack_observer_integration_test.go:122: Recvack blocked on Top ingestion mutex
+=== RUN   TestTopAckObserverProgressWhileCollectorIngestionLocked/push_reservation_and_recvack
+    top_ack_observer_integration_test.go:106: PushOwner ACK reservation blocked on Top ingestion mutex before session write
+--- FAIL: TestTopAckObserverProgressWhileCollectorIngestionLocked (0.40s)
+    --- FAIL: TestTopAckObserverProgressWhileCollectorIngestionLocked/recvack (0.20s)
+    --- FAIL: TestTopAckObserverProgressWhileCollectorIngestionLocked/push_reservation_and_recvack (0.20s)
+=== RUN   TestTopAckObserverRuntimeResetAndRestart
+--- PASS: TestTopAckObserverRuntimeResetAndRestart (0.00s)
+=== RUN   TestTopAckGaugeConcurrentSamplingAndClone
+--- PASS: TestTopAckGaugeConcurrentSamplingAndClone (0.01s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/internal/app	0.993s
+FAIL

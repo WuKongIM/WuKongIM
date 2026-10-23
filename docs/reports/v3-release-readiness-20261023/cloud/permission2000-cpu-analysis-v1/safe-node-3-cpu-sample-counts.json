@@ -1,0 +1,432 @@
+{
+  "node": 3,
+  "headers": [
+    "Type: samples",
+    "Duration: 3.20s, Total samples = 128 ",
+    "Showing nodes accounting for 128, 100% of 128 total"
+  ],
+  "node_limit": 60,
+  "rows": [
+    {
+      "symbol": "syscall.syscallX",
+      "flat_samples": 54,
+      "flat_percent": 42.19,
+      "cumulative_samples": 54,
+      "cumulative_percent": 42.19
+    },
+    {
+      "symbol": "syscall.syscall",
+      "flat_samples": 16,
+      "flat_percent": 12.5,
+      "cumulative_samples": 16,
+      "cumulative_percent": 12.5
+    },
+    {
+      "symbol": "syscall.syscall6",
+      "flat_samples": 8,
+      "flat_percent": 6.25,
+      "cumulative_samples": 8,
+      "cumulative_percent": 6.25
+    },
+    {
+      "symbol": "runtime.memclrNoHeapPointers",
+      "flat_samples": 7,
+      "flat_percent": 5.47,
+      "cumulative_samples": 7,
+      "cumulative_percent": 5.47
+    },
+    {
+      "symbol": "runtime.memmove",
+      "flat_samples": 5,
+      "flat_percent": 3.91,
+      "cumulative_samples": 5,
+      "cumulative_percent": 3.91
+    },
+    {
+      "symbol": "github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel",
+      "flat_samples": 4,
+      "flat_percent": 3.12,
+      "cumulative_samples": 5,
+      "cumulative_percent": 3.91
+    },
+    {
+      "symbol": "runtime.(*mspan).init",
+      "flat_samples": 3,
+      "flat_percent": 2.34,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "runtime.fcntl",
+      "flat_samples": 3,
+      "flat_percent": 2.34,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "runtime.madvise",
+      "flat_samples": 3,
+      "flat_percent": 2.34,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "aeshashbody",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "cmpbody",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).idleExpired",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/cockroachdb/pebble/v2.(*mergingIter).isNextEntryDeleted",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/cockroachdb/pebble/v2/sstable/rowblk.(*IndexIter).SeekGE",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/prometheus/client_golang/prometheus.(*metricMap).getMetricWithHashAndLabelValues",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.(*gcControllerState).memoryLimitHeapGoal",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.(*itabTableType).find",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.(*mspan).typePointersOfUnchecked",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.(*pallocBits).summarize",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.(*timer).stop",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.getempty",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.greyobject",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.growslice",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 2,
+      "cumulative_percent": 1.56
+    },
+    {
+      "symbol": "runtime.kevent",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.nanotime1",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.releaseSudog",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.scanobject",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 4,
+      "cumulative_percent": 3.12
+    },
+    {
+      "symbol": "runtime.spanClass.sizeclass (inline)",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.stackfree",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.typePointers.nextFast (inline)",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.usleep",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "runtime.wbBufFlush1",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "sort.Search (inline)",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "sync/atomic.(*Uint32).CompareAndSwap",
+      "flat_samples": 1,
+      "flat_percent": 0.78,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "bytes.Compare",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "context.(*timerCtx).cancel",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "context.WithDeadlineCause.func3",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "encoding/binary.bigEndian.AppendUint16",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/api.(*Server).requireBenchToken",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).debugBearerMiddleware.func2",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/api.New.(*Server).restoreMaintenanceMiddleware.func3",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/api.New.openCORSMiddleware.func1",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/api.handlePProf",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/gateway.(*Handler).OnFrame",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/gateway.(*Handler).writeSendack",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func1",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func1.1",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred.func2",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/gateway.gatewayPresenceSession.WriteDelivery",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/gateway.writeSendack",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).HandleDeliveryPushRPC",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).HandlePresenceAuthorityRPC",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/node.(*Adapter).handlePresenceEndpointsByTargets",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/node.(*ChannelAppendAdapter).HandleChannelAppendRPC",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/access/node.(*onlineDeliveryOwnerPushAdapter).Push",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/app.(*topCollector).setGauge",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/app.channelAppendAuthorityLocal.SubmitForAuthority",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/app.channelAppendSubscriberSource.NextSubscriberPage",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.34
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/app.deliveryMessageObserver.ObserveChannelAppendAntsPool",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/app.deliveryMessageObserver.ObserveChannelAppendEffect",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.78
+    }
+  ],
+  "semantics": "CPU sampled occurrences, not function invocation counts."
+}

@@ -1,0 +1,194 @@
+{
+  "source_revision": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+  "source_tree": "061aa8b1f18c4cae4c16454b602f799fc9ac7b44",
+  "base_revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+  "commits": [
+    "83c0be9304331638931c4e09e1d2608bd7c6762d",
+    "8100d7fd7a9455029e8de4f6370f140ff07612bc",
+    "7f36a7cce79641f1704be9841c3c470527f67231",
+    "4bab5500a422435696c854d5e5ece6ad8e833fb9",
+    "5f679978307aa1a5d57ec18a4ed548de79be0da8"
+  ],
+  "changed_files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 195593,
+      "sha256": "aa95bbc28c4401f447784e1ecb2ec99d3681a2d354dfce17672d4ca4ec9a0565"
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "bytes": 19368,
+      "sha256": "19e28edbbac7f20b19a6ca6f53b0f065118ef87fc1610a40a5a0ed7aaccc1556"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 152164,
+      "sha256": "d7e7d476d56038fce7ec9400edbbba1c4790f4ecfd00a72be8c679c09684e61c"
+    },
+    {
+      "path": "docs/specs/user-channel-send-ban.md",
+      "bytes": 32294,
+      "sha256": "3a0b92e71e56ab71d5aa3bc5a5a3d7972e69e40a4448dc8973fd18421c514b0a"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "bytes": 12652,
+      "sha256": "97552ae0d95e4957c4005b6c6af0a961414eb9f9dec93faf7e15d5a89b28405b"
+    },
+    {
+      "path": "internal/app/top_ack_gauge_test.go",
+      "bytes": 1547,
+      "sha256": "5075bab1a0f06777df0b5ebd538952b787296b68adeb08ea9e3164393677a8b2"
+    },
+    {
+      "path": "internal/app/top_ack_observer_integration_test.go",
+      "bytes": 6203,
+      "sha256": "295413316164d053d9e788a4f2aced02de1d4577318156da1cf46751341da0de"
+    },
+    {
+      "path": "internal/app/top_collector.go",
+      "bytes": 55765,
+      "sha256": "eddce24f342c10788f036e766f456f506f8731588f9f54f7dc8bf02edba66a69"
+    },
+    {
+      "path": "internal/bench/target/client.go",
+      "bytes": 53307,
+      "sha256": "d255173e8a719cf9b938c64170d296f263ac4cbc3cd3f45db671e05ccf13659e"
+    },
+    {
+      "path": "internal/bench/target/metrics_parse_diagnostics_test.go",
+      "bytes": 13958,
+      "sha256": "5ac9e69cb6977105e0678991a1c1767e019659e027c3b02cf71ab2fd46edd49b"
+    },
+    {
+      "path": "internal/bench/target/metrics_parse_failure.go",
+      "bytes": 3546,
+      "sha256": "070d62a09ea054a3ccf3c9829b828576dda03b6f80bb1af455e7c054778ebdbe"
+    },
+    {
+      "path": "pkg/gateway/FLOW.md",
+      "bytes": 7161,
+      "sha256": "f416ef00d5f739c06eabff2577feb409361c4756ba1d848f5c0158ec8d4a8c6a"
+    },
+    {
+      "path": "pkg/gateway/transport/gnet/actor.go",
+      "bytes": 4145,
+      "sha256": "0eb4ef115fb977428f220bf0f61c80636abbda73d93db0da903777fa80008716"
+    },
+    {
+      "path": "pkg/gateway/transport/gnet/actor_test.go",
+      "bytes": 6347,
+      "sha256": "d8ee1f64b9e244fcc27e24d12209ac9b9cdb3512d26812b639e872ef2f030f0d"
+    },
+    {
+      "path": "pkg/gateway/types/observer.go",
+      "bytes": 5786,
+      "sha256": "06b3af8bd516275b4ab453d82c4c0cddda05796f170c2ab462c5e2d95808edd1"
+    },
+    {
+      "path": "pkg/metrics/runtime_pressure.go",
+      "bytes": 17356,
+      "sha256": "1a3326518d60564a6049bd9bf0b06c9dd9e542d598b1794fb2138367606fd252"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "bytes": 11140,
+      "sha256": "4b1f17c5f088e5d3454ba707eec9fc4f70ec830062a0bc830f117f298679ac07"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_cohort.go",
+      "bytes": 10742,
+      "sha256": "1a4b27692b25c3380893ca35b43f400994bda72bd6e510b214bee4c6445b019b"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_paced_capacity_integration_test.go",
+      "bytes": 2724,
+      "sha256": "1f61a1ea50ba43b6353311e72d75fcd623b9f5bab1302765ba334af27db542ba"
+    },
+    {
+      "path": "scripts/chat-lifecycle/capture-local-storage-overlap.sh",
+      "bytes": 8803,
+      "sha256": "780d2e97dc4d954b425bd31a27b89bf9dce0144554c4325640050af1ec63fa06"
+    },
+    {
+      "path": "scripts/local_storage_overlap_script_integration_test.go",
+      "bytes": 14284,
+      "sha256": "4d48617049f97b75e0ab542b984bf41fd07f17f6b3294514485a5d2be1e39466"
+    }
+  ],
+  "instructions": [
+    {
+      "path": "AGENTS.md",
+      "revision": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "CONTEXT.md",
+      "revision": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "revision": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+      "bytes": 12652,
+      "sha256": "97552ae0d95e4957c4005b6c6af0a961414eb9f9dec93faf7e15d5a89b28405b"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "revision": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+      "bytes": 6925,
+      "sha256": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73"
+    },
+    {
+      "path": "pkg/gateway/FLOW.md",
+      "revision": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+      "bytes": 7161,
+      "sha256": "f416ef00d5f739c06eabff2577feb409361c4756ba1d848f5c0158ec8d4a8c6a"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "revision": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+      "bytes": 11140,
+      "sha256": "4b1f17c5f088e5d3454ba707eec9fc4f70ec830062a0bc830f117f298679ac07"
+    },
+    {
+      "path": "internal/runtime/delivery/FLOW.md",
+      "revision": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+      "bytes": 3273,
+      "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "revision": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    }
+  ],
+  "discovery": "Root AGENTS only for changed paths. App FLOW is package; bench/gateway/slot FLOWs are subtree. Delivery FLOW is package and applies to runtime call-chain verification. No scripts or pkg/metrics applicable FLOW. scripts/cloud-deployment FLOW does not apply. No E2E source was changed or executed. FLOW_INDEX is generated discovery only.",
+  "reused_context_exact_no_diff": {
+    "8100d7fd7a9455029e8de4f6370f140ff07612bc": [
+      "AGENTS.md",
+      "CONTEXT.md",
+      "internal/bench/FLOW.md",
+      "internal/runtime/delivery/FLOW.md",
+      "internal/runtime/delivery/runtime.go",
+      "internal/app/online_delivery.go",
+      "pkg/slot/proxy/send_permission_cohort.go",
+      ".github/review-agent/policy.json"
+    ],
+    "7f36a7cce79641f1704be9841c3c470527f67231": [
+      "pkg/gateway/FLOW.md",
+      "pkg/gateway/transport/gnet/actor.go",
+      "pkg/gateway/transport/gnet/actor_test.go",
+      "pkg/gateway/types/observer.go",
+      "pkg/metrics/runtime_pressure.go",
+      "internal/bench/target/client.go",
+      "internal/bench/target/metrics_parse_failure.go",
+      "internal/bench/target/metrics_parse_diagnostics_test.go"
+    ]
+  },
+  "review_mode": "read_only_spec_no_build_tests_product_http_db",
+  "author_overlap": "Reviewer previously authored the three target diagnostics files; that slice is explicitly not claimed as a separate-author review. ACK, storage script, actor and coalescing are source-reviewed independently; no Standards report was read."
+}

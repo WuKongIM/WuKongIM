@@ -1,0 +1,176 @@
+{
+  "active_rate": {
+    "delta_primary_SEND": 60022,
+    "delta_seconds": 30.000125,
+    "excludes_retries_and_final_drain_average": true,
+    "first_at": "2026-10-23T16:19:00.649826958+08:00",
+    "last_at": "2026-10-23T16:19:30.649951125+08:00",
+    "periodic_count": 7,
+    "primary_SEND_per_second": 2000.7249969791792
+  },
+  "all_original_gates_unchanged": true,
+  "automatic_retry": false,
+  "cleanup_complete": true,
+  "configured_SEND_per_second": 2000,
+  "correlation": {
+    "conflicting_completions": 0,
+    "delivered": 677,
+    "duplicate_completions": 0,
+    "expired": 0,
+    "outstanding": 55,
+    "pending_unfinished": 0,
+    "sampled": 732,
+    "unknown_acknowledgments": 0
+  },
+  "derived_max_global_burst": 4000,
+  "final_at": "2026-10-23T16:19:35.000646+08:00",
+  "final_failure_fraction_includes_stop_drain_not_pure_active": true,
+  "finished_at_utc": "2026-10-23T08:21:07.292874+00:00",
+  "first_attempt_failure_fraction": 0.05045693175189578,
+  "first_failure_periodic_cut": {
+    "at": "2026-10-23T16:19:30.649951125+08:00",
+    "cut": "periodic",
+    "elapsed_from_firstgrant_seconds": 35.036988,
+    "harness": {
+      "command_saturation": 0,
+      "drain_timed_out": false,
+      "failures": 0,
+      "lifecycle_approval_rejections": {
+        "activity_fence": 0,
+        "deadline": 0,
+        "fence_exhausted": 0,
+        "invalid_shape": 0,
+        "invalidated": 0,
+        "missing_timer": 0,
+        "replay_expired": 0,
+        "replay_mismatch": 0,
+        "timer_fence": 0
+      },
+      "offered_underdelivery": 0,
+      "planned_cancellations": 0,
+      "unexpected_exit": false
+    },
+    "hot_latency": {
+      "above_limit": 26383,
+      "count": 26423,
+      "limit_nanos": 400000000
+    },
+    "messages": {
+      "corruptions": 0,
+      "duplicates": 0,
+      "first_attempt_failures": 20,
+      "first_attempts": 70017,
+      "losses": 0,
+      "receive_ack_failures": 0,
+      "receive_acknowledged": 81798,
+      "received": 81798,
+      "retry_attempts": 4477,
+      "send_acknowledged": 64330,
+      "send_attempts": 74494,
+      "send_rejected": 20,
+      "sent": 70017,
+      "sequence_regressions": 0,
+      "terminal": 0,
+      "terminal_reasons": {
+        "non_retriable": 0,
+        "retry_exhausted": {
+          "attempt_timeout": 0,
+          "local_admission": 0,
+          "retryable_sendack": 0,
+          "total": 0,
+          "transport_error": 0,
+          "unclassified": 0
+        },
+        "session_closed": 0
+      }
+    },
+    "totals": {
+      "closing": 0,
+      "online": 10000,
+      "starting": 0,
+      "target": 10000,
+      "traffic_ready": 10000
+    }
+  },
+  "first_periodic_SEND_per_second": 1984.3700334910834,
+  "firstgrant_at": "2026-10-23T16:18:55.612963+08:00",
+  "formal_Linux_cloud_capacity_acceptance": false,
+  "full_target_window_completed": false,
+  "host_resources": {
+    "first_at": "2026-10-23T08:14:44.325869+00:00",
+    "last_at": "2026-10-23T08:21:06.906315+00:00",
+    "limitation": "Maximum of existing periodic process samples, not a continuous peak. CPU is ps sampled process percent sum, not reserved cores. Native shared Mac arm64; not Linux/cloud acceptance.",
+    "maximum_owned_RSS_sum_bytes": 7838859264,
+    "maximum_owned_process_CPU_percent_sum": 446.6,
+    "other_WK_seen": false,
+    "sample_count": 76,
+    "schema": "wukongim/local2k-safe-host-resources/v1"
+  },
+  "launcher_exit_status": 7,
+  "limitations": [
+    "Single native shared Mac arm64 diagnostic; no Linux or formal capacity claim.",
+    "First recorded failing periodic cut is20firstfail/70017sent at35.037s; final3633 includes stopping/drain with3624session_closed terminal results.",
+    "Loss0/expired0 with55outstanding and original first-attempt gate failure is not pass.",
+    "No causal RPC conclusion or merge/release qualification follows this candidate."
+  ],
+  "messages": {
+    "corruptions": 0,
+    "duplicates": 0,
+    "first_attempt_failures": 3633,
+    "first_attempts": 72002,
+    "losses": 0,
+    "receive_ack_failures": 0,
+    "receive_acknowledged": 86907,
+    "received": 86907,
+    "retry_attempts": 6737,
+    "send_acknowledged": 68375,
+    "send_attempts": 78739,
+    "send_rejected": 346,
+    "sent": 72002,
+    "sequence_regressions": 0,
+    "terminal": 3627,
+    "terminal_reasons": {
+      "non_retriable": 0,
+      "retry_exhausted": {
+        "attempt_timeout": 3,
+        "local_admission": 0,
+        "retryable_sendack": 0,
+        "total": 3,
+        "transport_error": 0,
+        "unclassified": 0
+      },
+      "session_closed": 3624
+    }
+  },
+  "original_final_verdict": {
+    "cause": "overall_first_attempt_rate",
+    "cleanup_error_count": 0,
+    "outcome": "product_failure",
+    "terminal": true
+  },
+  "original_final_window_elapsed_nanos": 39387527958,
+  "original_raw_final_sha256": "6b797e4d3e6f6d9736884a2dc6fc54ee26b3bee36e4889339bbd22067326d203",
+  "owned_pgid": 94583,
+  "profile_captures": 0,
+  "runtime_seconds": 383.1271185410442,
+  "same_population_nodes_workers_batch": {
+    "HashSlots": 256,
+    "SEND_per_second": 2000,
+    "batch": 1,
+    "burst": 4000,
+    "expiry_seconds": 10,
+    "groups": 2000,
+    "load_GOMAXPROCS": 1,
+    "nodes": 3,
+    "online": 10000,
+    "origin_active_cohorts": 64,
+    "physical_Slot_Raft_groups": 12,
+    "service_GOMAXPROCS": 2,
+    "workers": 3
+  },
+  "schema": "wukongim/local2k-safe-summary/v1",
+  "source_revision": "103292a9e141414b6d1b876ea519cc90da11ecdf",
+  "source_tree": "fde4d44192f4b1c73129b544cd249a0e24f9b57e",
+  "supervisor_started_at_utc": "2026-10-23T08:14:44.163511+00:00",
+  "target_measured_seconds": 120
+}

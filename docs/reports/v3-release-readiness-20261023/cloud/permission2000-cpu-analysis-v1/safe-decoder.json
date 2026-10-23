@@ -1,0 +1,6 @@
+{
+  "go_binary_sha256": "b65655bf3d496007755bd132e9611f9e5e64c46e33d89fcafdef916e299587fd",
+  "go_path": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+  "go_version": "go version go1.25.11 darwin/arm64",
+  "decoder": "go tool pprof -top -nodecount=60 -nodefraction=0 -edgefraction=0"
+}

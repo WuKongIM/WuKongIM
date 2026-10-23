@@ -1,0 +1,39 @@
+{
+  "source_revision": "7f36a7cce79641f1704be9841c3c470527f67231",
+  "source_tree": "54c9ab59d5bce459ff3cd15286224abbe5c059c5",
+  "base_revision": "8100d7fd7a9455029e8de4f6370f140ff07612bc",
+  "applicable_instructions": [
+    {
+      "path": "AGENTS.md",
+      "revision": "7f36a7cce79641f1704be9841c3c470527f67231",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "path": "CONTEXT.md",
+      "revision": "7f36a7cce79641f1704be9841c3c470527f67231",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "path": "pkg/gateway/FLOW.md",
+      "revision": "7f36a7cce79641f1704be9841c3c470527f67231",
+      "bytes": 7161,
+      "sha256": "f416ef00d5f739c06eabff2577feb409361c4756ba1d848f5c0158ec8d4a8c6a"
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "revision": "7f36a7cce79641f1704be9841c3c470527f67231",
+      "bytes": 6925,
+      "sha256": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73"
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "revision": "7f36a7cce79641f1704be9841c3c470527f67231",
+      "bytes": 14492,
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+    }
+  ],
+  "scope_discovery": "Only root AGENTS applies to the changed code. pkg/gateway/FLOW scope subtree and internal/bench/FLOW scope subtree apply. No pkg/metrics FLOW, nor more specific AGENTS in these code paths. FLOW_INDEX used for navigation only.",
+  "prior_context_reuse": "AGENTS, CONTEXT and bench FLOW unchanged from exact 8100 previously read; changed gateway FLOW read in full at exact 7f. Policy digest frozen; no check invocation performed."
+}

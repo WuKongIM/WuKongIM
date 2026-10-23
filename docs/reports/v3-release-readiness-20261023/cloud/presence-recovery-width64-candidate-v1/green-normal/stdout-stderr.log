@@ -1,0 +1,105 @@
+=== RUN   TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth
+--- PASS: TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth (0.00s)
+=== RUN   TestAuthorityRecoveryProvenLookupDoesNotWaitForColdOwner
+--- PASS: TestAuthorityRecoveryProvenLookupDoesNotWaitForColdOwner (0.00s)
+=== RUN   TestAuthorityRecoveryRequiresCompleteOwnersAndRejectsOldCompletion
+--- PASS: TestAuthorityRecoveryRequiresCompleteOwnersAndRejectsOldCompletion (0.00s)
+=== RUN   TestAuthorityRecoveryCancellationDoesNotQueryOwner
+--- PASS: TestAuthorityRecoveryCancellationDoesNotQueryOwner (0.00s)
+=== RUN   TestAuthorityRecoveryBatchesColdTargetsAndPreservesSiblingResults
+--- PASS: TestAuthorityRecoveryBatchesColdTargetsAndPreservesSiblingResults (0.00s)
+=== RUN   TestAuthorityRecoveryPagesLargeTargetWithoutDiscardingEarlierResults
+--- PASS: TestAuthorityRecoveryPagesLargeTargetWithoutDiscardingEarlierResults (0.00s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_IndependentUIDWhilePagePaused
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_IndependentUIDWhilePagePaused (0.00s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_NonConflictingTargetProgresses
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_NonConflictingTargetProgresses (0.00s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_SameUIDSharesOwnerProof
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_SameUIDSharesOwnerProof (0.04s)
+=== RUN   TestAuthorityRecoveryColdUIDIsolation_CanceledWaiterDoesNotCancelOwner
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryColdUIDIsolation_CanceledWaiterDoesNotCancelOwner (0.04s)
+=== RUN   TestAuthorityRecoveryWidth64AdmitsCohortsAndFullKeyBudget
+=== RUN   TestAuthorityRecoveryWidth64AdmitsCohortsAndFullKeyBudget/1
+=== RUN   TestAuthorityRecoveryWidth64AdmitsCohortsAndFullKeyBudget/512
+--- PASS: TestAuthorityRecoveryWidth64AdmitsCohortsAndFullKeyBudget (0.01s)
+    --- PASS: TestAuthorityRecoveryWidth64AdmitsCohortsAndFullKeyBudget/1 (0.00s)
+    --- PASS: TestAuthorityRecoveryWidth64AdmitsCohortsAndFullKeyBudget/512 (0.01s)
+=== RUN   TestAuthorityRecoveryWidth64Keeps128MiBByteBudgetWithFreeCohorts
+--- PASS: TestAuthorityRecoveryWidth64Keeps128MiBByteBudgetWithFreeCohorts (0.10s)
+=== RUN   TestAuthorityRecoveryUIDFlightPartialOverlapPublishesBeforeJoin
+--- PASS: TestAuthorityRecoveryUIDFlightPartialOverlapPublishesBeforeJoin (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightLeaderCancellationKeepsFollowerRetryable
+--- PASS: TestAuthorityRecoveryUIDFlightLeaderCancellationKeepsFollowerRetryable (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/hash
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/slot
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/leader
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/term
+=== RUN   TestAuthorityRecoveryUIDFlightDistributedIdentity/config
+--- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity/hash (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity/slot (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity/leader (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity/term (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightDistributedIdentity/config (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightLocalMetadataCoalesces
+    cold_uid_isolation_integration_test.go:103: lookup cleanup joined=true
+--- PASS: TestAuthorityRecoveryUIDFlightLocalMetadataCoalesces (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightOwnsUIDBacking
+--- PASS: TestAuthorityRecoveryUIDFlightOwnsUIDBacking (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys
+--- PASS: TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-0
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-511
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-512
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-513
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/uids-1025
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/targets-255
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/targets-256
+=== RUN   TestAuthorityRecoveryUIDFlightPackingBounds/targets-257
+--- PASS: TestAuthorityRecoveryUIDFlightPackingBounds (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-0 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-511 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-512 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-513 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/uids-1025 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/targets-255 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/targets-256 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPackingBounds/targets-257 (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/4096
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/65535
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/byte-bound-33554432
+=== RUN   TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/byte-bound-33554433
+--- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs (0.06s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/4096 (0.00s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/65535 (0.04s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/byte-bound-33554432 (0.02s)
+    --- PASS: TestAuthorityRecoveryUIDFlightPageBytesAndLegalStoredUIDs/byte-bound-33554433 (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightLateWaiterMustRereadEvictedProof
+--- PASS: TestAuthorityRecoveryUIDFlightLateWaiterMustRereadEvictedProof (0.00s)
+=== RUN   TestAuthorityRecoveryUIDFlightMixedGroupsDuplicatesAndTombstone
+--- PASS: TestAuthorityRecoveryUIDFlightMixedGroupsDuplicatesAndTombstone (0.00s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/presence	0.553s
+=== RUN   TestRecoveryColdFanoutFitsDeliveryDeadlineWithUnavailableOwner
+--- PASS: TestRecoveryColdFanoutFitsDeliveryDeadlineWithUnavailableOwner (0.25s)
+=== RUN   TestRecoveryReadsSurvivingIngressAndRejectsStaleOwnerGeneration
+--- PASS: TestRecoveryReadsSurvivingIngressAndRejectsStaleOwnerGeneration (0.00s)
+=== RUN   TestRecoveryOwnerMembershipDoesNotAssumeDataReplicaRole
+--- PASS: TestRecoveryOwnerMembershipDoesNotAssumeDataReplicaRole (0.00s)
+=== RUN   TestRecoveryChildDeadlineRemainsRetryableAndPreservesParentCancellation
+--- PASS: TestRecoveryChildDeadlineRemainsRetryableAndPreservesParentCancellation (0.00s)
+=== RUN   TestPresenceRecoveryOwnerAdmissionAllowsSixtyFourRoundsAndCancelsSixtyFifth
+--- PASS: TestPresenceRecoveryOwnerAdmissionAllowsSixtyFourRoundsAndCancelsSixtyFifth (0.10s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/internal/infra/cluster	0.651s

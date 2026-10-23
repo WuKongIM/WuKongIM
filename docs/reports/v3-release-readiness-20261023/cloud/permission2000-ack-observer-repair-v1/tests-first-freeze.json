@@ -1,0 +1,7 @@
+{
+  "production_sha256": "b0f9a26215250435e75b9eefb402faff7e1cb93ec8cb1848547f3f562eed3bce",
+  "tests": {
+    "internal/app/top_ack_gauge_test.go": "5075bab1a0f06777df0b5ebd538952b787296b68adeb08ea9e3164393677a8b2",
+    "internal/app/top_ack_observer_integration_test.go": "295413316164d053d9e788a4f2aced02de1d4577318156da1cf46751341da0de"
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "schema": "wukongim/bounded-static-diagnosis/v1",
+  "observed_at_utc": "2026-10-23T06:20:46.663349+00:00",
+  "source": "8100d7fd7a9455029e8de4f6370f140ff07612bc",
+  "source_tree": "ff1a0135caa5e933550fa12f9ac601b786af8980",
+  "scope": "Read-only source semantics; no source edits, tests, build, products, network, extra sampling, or raw scrape read.",
+  "source_binding": {
+    "AGENTS.md": {
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "matches_exact_commit_blob": true
+    },
+    "CONTEXT.md": {
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "matches_exact_commit_blob": true
+    },
+    "pkg/gateway/FLOW.md": {
+      "bytes": 6945,
+      "sha256": "f51d6d3c6d00b7be5eaab9e44e6bc84c3274c056bf2b991ccbd08f643243b66c",
+      "matches_exact_commit_blob": true
+    },
+    "internal/app/FLOW.md": {
+      "bytes": 12335,
+      "sha256": "af06b023c233eafae7dfffe1e2c77a88522abbd94f952af591caca0b84f3a289",
+      "matches_exact_commit_blob": true
+    },
+    "internal/bench/FLOW.md": {
+      "bytes": 6925,
+      "sha256": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73",
+      "matches_exact_commit_blob": true
+    },
+    "pkg/gateway/transport/gnet/actor.go": {
+      "bytes": 4146,
+      "sha256": "44d780d4342fbb719a319db992b207be393dd783678f2a830a016f0f10c57438",
+      "matches_exact_commit_blob": true
+    },
+    "pkg/gateway/transport/gnet/conn.go": {
+      "bytes": 31595,
+      "sha256": "97ccba17db1aaba67fdd789d43522e31438c6c26a6447a5547ec4ba18b9f5ddf",
+      "matches_exact_commit_blob": true
+    },
+    "pkg/gateway/transport/gnet/group.go": {
+      "bytes": 16570,
+      "sha256": "59cc78f4b98b35240e3d171f334a4636ea0141cceec8622cd8946b1ada5fc06b",
+      "matches_exact_commit_blob": true
+    },
+    "pkg/gateway/transport/gnet/actor_test.go": {
+      "bytes": 4462,
+      "sha256": "4f39d4b4cf58b510caed4e668dbf8ee78718603315bc45967f2a1e7acfa1624e",
+      "matches_exact_commit_blob": true
+    },
+    "internal/app/observability.go": {
+      "bytes": 93080,
+      "sha256": "27eb7f43fc390a240988e56f92764929aee7432c594ef991d2515203718278b5",
+      "matches_exact_commit_blob": true
+    },
+    "pkg/metrics/runtime_pressure.go": {
+      "bytes": 17268,
+      "sha256": "b5cdd014aff8a54b81d9a02239c8f88d16db370b7aea2ebff152ccdb1ac9feca",
+      "matches_exact_commit_blob": true
+    },
+    "pkg/metrics/runtime_pressure_queue_collector.go": {
+      "bytes": 2374,
+      "sha256": "0e5c8566928c985b2d65fba79b5cc4179e266671368cb85d1a1cbf7eed9c8e80",
+      "matches_exact_commit_blob": true
+    },
+    "internal/bench/target/client.go": {
+      "bytes": 53319,
+      "sha256": "a1c6d02b4ec68550a41d9bcf7b5ec6a9416bdfb1a1b8c6828356195e75ff36e8",
+      "matches_exact_commit_blob": true
+    }
+  },
+  "rule_sha256": {
+    "diagnosing-bugs/SKILL.md": "a6eda810eb46283cae0e969aff9f212a6140f2575d84a77306f4fd01ffb5aa9e"
+  },
+  "reported_field_observation": {
+    "independently_reopened_raw_scrape": false,
+    "basis": "Root supplied retained terminal observation",
+    "component": "gateway",
+    "pool": "actor_ready",
+    "queue": "ready",
+    "priority": "none",
+    "depth": 3268,
+    "capacity": 2048
+  },
+  "findings": [
+    {
+      "classification": "confirmed_static_metric_contract_mismatch",
+      "detail": "actorReadyQueueSize=1024 is slice preallocation, not enforced admission maximum. schedule appends distinct scheduled states with no length/capacity guard but publishes fixed 1024 as configured capacity.",
+      "evidence": [
+        "pkg/gateway/transport/gnet/actor.go:11",
+        "pkg/gateway/transport/gnet/actor.go:105",
+        "pkg/gateway/transport/gnet/actor.go:117",
+        "pkg/gateway/transport/gnet/actor.go:130",
+        "pkg/gateway/transport/gnet/actor.go:145",
+        "pkg/metrics/runtime_pressure.go:16"
+      ]
+    },
+    {
+      "classification": "aggregate_capacity_omission_not_supported",
+      "detail": "Aggregator updates both total depth and total capacity by per-source deltas. 2048 is consistent with two retained actor sources at 1024 each; it is not a lone 1024 capacity paired with summed depth. No cap/depth repair by changing shard summation is justified.",
+      "evidence": [
+        "pkg/gateway/transport/gnet/conn.go:843",
+        "pkg/gateway/transport/gnet/conn.go:869",
+        "pkg/gateway/transport/gnet/conn.go:870"
+      ]
+    },
+    {
+      "classification": "duplicate_or_stale_observation_not_needed_to_explain",
+      "detail": "CAS admits a state only once while scheduled; processReady clears it after no queued event or terminal close. Source revisions reject older gauge updates; metric publication and scrape snapshot serialize all four gauges. This static evidence supplies no proof of duplicate ready entries or a torn scrape in the original run.",
+      "evidence": [
+        "pkg/gateway/transport/gnet/actor.go:117",
+        "pkg/gateway/transport/gnet/conn.go:302",
+        "pkg/gateway/transport/gnet/conn.go:850",
+        "pkg/metrics/runtime_pressure.go:234",
+        "pkg/metrics/runtime_pressure_queue_collector.go:44"
+      ]
+    },
+    {
+      "classification": "parser_rejection_matches_reported_values",
+      "detail": "Positive capacity and depth greater than capacity intentionally yields runtime_queue_over_capacity. Changing or clamping the parser would hide the metric contract mismatch and is not needed to establish this diagnosis.",
+      "evidence": [
+        "internal/app/observability.go:289",
+        "internal/bench/target/client.go:1448"
+      ]
+    }
+  ],
+  "minimal_future_red_seam_not_executed": [
+    "Schedule 1025 distinct connState values on one non-draining real actorShard with its real listener pressure aggregator; observe real depth 1025 vs fixed declared capacity 1024 and same-state re-schedule rejected.",
+    "Add a second shard and verify depth/capacity aggregation independently; drain the real shard and assert zero/one-entry invariants remain.",
+    "Choose and document truthful actor-ready capacity semantics separately from this static proof; do not change the original verdict/parser guards or add an arbitrary hard rejection merely to make the ratio fit."
+  ],
+  "limits": [
+    "No reproduction or repair execution performed.",
+    "This explains why the reported metric pair is representable by the actual source, not a unique causal attribution of the message loss.",
+    "No evidence here proves unbounded memory exhaustion, numerical overflow, or a product admission bound violation."
+  ]
+}

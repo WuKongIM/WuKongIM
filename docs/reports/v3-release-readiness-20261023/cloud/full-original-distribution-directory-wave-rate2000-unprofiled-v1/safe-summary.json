@@ -1,0 +1,98 @@
+{
+  "schema": "wukongim/local2000-directory-wave-result/v1",
+  "source_revision": "161814ce559366847d2b026850ab0afe0e52aed6",
+  "source_tree": "79d83fd62c4e95f2c7468c3730089892c58b475b",
+  "configured_SEND_per_second": 2000,
+  "derived_max_global_burst": 4000,
+  "same_population_nodes_workers_batch": {
+    "online": 10000,
+    "groups": 2000,
+    "nodes": 3,
+    "workers": 3,
+    "batch": 1
+  },
+  "supervisor_started_at_utc": "2026-10-23T05:10:38.860477+00:00",
+  "firstgrant_at": "2026-10-23T13:14:52.445922+08:00",
+  "final_at": "2026-10-23T13:15:07.732222+08:00",
+  "original_final_window_elapsed_nanos": 15286131667,
+  "original_final_verdict": {
+    "outcome": "product_failure",
+    "cause": "overall_first_attempt_rate",
+    "terminal": true,
+    "cleanup_error_count": 0
+  },
+  "launcher_exit_status": 7,
+  "messages": {
+    "sent": 22001,
+    "send_attempts": 24308,
+    "first_attempts": 22001,
+    "first_attempt_failures": 760,
+    "send_acknowledged": 22001,
+    "send_rejected": 829,
+    "received": 27635,
+    "receive_acknowledged": 27635,
+    "receive_ack_failures": 0,
+    "retry_attempts": 2307,
+    "terminal": 0,
+    "losses": 1,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 197,
+    "delivered": 196,
+    "expired": 1,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "active_rate": {
+    "basis": "two original active periodic cuts, terminal/drain excluded",
+    "elapsed_delta_seconds": 5.0000539999999996,
+    "first_attempts_delta": 9998,
+    "offered_SEND_per_second": 1999.578404553231
+  },
+  "first_periodic_SEND_per_second": 1982.4897567731273,
+  "first_attempt_failure_fraction": 0.03454388436889232,
+  "unchanged_gate": {
+    "max_failures": 1,
+    "per_attempts": 10000,
+    "operator": "<"
+  },
+  "target_measured_seconds": 120,
+  "full_target_window_completed": false,
+  "permission_busy_warning_total": 841,
+  "origin_cohort_busy_terminal": [
+    292.0,
+    178.0,
+    371.0
+  ],
+  "host_resources": {
+    "sample_count": 71,
+    "first_at": "2026-10-23T05:10:39.010670+00:00",
+    "last_at": "2026-10-23T05:16:37.867340+00:00",
+    "maximum_owned_RSS_sum_bytes": 4829560832,
+    "maximum_owned_process_CPU_percent_sum": 188.3,
+    "other_WK_seen": false,
+    "limitation": "pspercent may be lifetimeaverage, summedRSS not uniquephysicalmemory; no exclusiveCPU/instantaneousheadroom claim"
+  },
+  "cleanup_complete": true,
+  "owned_pgid": 43106,
+  "runtime_seconds": 360.91396199993324,
+  "original_raw_final_sha256": "2e928cd0bf79ca5905c566e2ac74972e75fc7f64664eeb6adfd4de9a9d347830",
+  "limits_unchanged": true,
+  "profile_captures": 0,
+  "automatic_retry": false,
+  "formal_Linux_cloud_capacity_acceptance": false,
+  "limitations": [
+    "Directorycompletionwavecandidate did not pass unchanged2kgate; no claim thatoverallbottleneckisfixed",
+    "SharedMacnonisolatedsingleattempt, no strictunpairedrelativeperformance/regressionclaim",
+    "Onlytwo activeperiodiccuts beforefirstgate; finalelapsed includesdrain notactiveQPS",
+    "SENDACK22001serveracceptance differs fromsample197/196delivery/1expired and allrecipientcompletion",
+    "Permissionwarning/origincounter aggregates not permessagejoin to829rejections or760firstfailures",
+    "Queue/ownedgauge samples are points, not peaks; missingseries remainunknown"
+  ]
+}

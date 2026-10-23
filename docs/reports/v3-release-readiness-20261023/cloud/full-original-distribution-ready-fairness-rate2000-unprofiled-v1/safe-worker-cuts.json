@@ -1,0 +1,212 @@
+{
+  "schema": "wukongim/local2k-safe-worker-cuts/v1",
+  "raw_coordinator_log_sha256": "3631e7bddf89fe1ce42c55b1a7937858076318f1433f52a983605f3c2c4b4328",
+  "cuts": [
+    {
+      "at": "2026-10-23T13:32:17.569435833+08:00",
+      "cut": "periodic",
+      "totals": {
+        "target": 10000,
+        "online": 10000,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 10000
+      },
+      "messages": {
+        "sent": 9992,
+        "send_attempts": 10570,
+        "first_attempts": 9992,
+        "first_attempt_failures": 117,
+        "send_acknowledged": 8211,
+        "send_rejected": 125,
+        "received": 9749,
+        "receive_acknowledged": 9749,
+        "receive_ack_failures": 0,
+        "retry_attempts": 578,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 3039,
+        "above_limit": 3024
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "elapsed_from_firstgrant_seconds": 5.045111833
+    },
+    {
+      "at": "2026-10-23T13:32:22.569492375+08:00",
+      "cut": "periodic",
+      "totals": {
+        "target": 10000,
+        "online": 10000,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 10000
+      },
+      "messages": {
+        "sent": 20008,
+        "send_attempts": 21254,
+        "first_attempts": 20008,
+        "first_attempt_failures": 253,
+        "send_acknowledged": 18187,
+        "send_rejected": 267,
+        "received": 22363,
+        "receive_acknowledged": 22363,
+        "receive_ack_failures": 0,
+        "retry_attempts": 1246,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 10027,
+        "above_limit": 10009
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "elapsed_from_firstgrant_seconds": 10.045168375
+    },
+    {
+      "at": "2026-10-23T13:32:26.088433+08:00",
+      "cut": "terminal",
+      "totals": {
+        "target": 10000,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "messages": {
+        "sent": 22001,
+        "send_attempts": 23407,
+        "first_attempts": 22001,
+        "first_attempt_failures": 264,
+        "send_acknowledged": 22001,
+        "send_rejected": 278,
+        "received": 27848,
+        "receive_acknowledged": 27848,
+        "receive_ack_failures": 0,
+        "retry_attempts": 1406,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 12163,
+        "above_limit": 12145
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 193805,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "elapsed_from_firstgrant_seconds": 13.564109
+    }
+  ],
+  "active_rate": {
+    "periodic_start_at": "2026-10-23T13:32:17.569435833+08:00",
+    "periodic_end_at": "2026-10-23T13:32:22.569492375+08:00",
+    "elapsed_seconds": 5.000056542,
+    "delta_primary_SEND": 10016,
+    "primary_SEND_per_second": 2003.1773472692862,
+    "retries_excluded": true,
+    "terminal_drain_excluded": true
+  },
+  "terminal_is_worker_cut_not_final_report": true,
+  "terminal_average_is_not_active_QPS": true
+}

@@ -1,0 +1,93 @@
+{
+  "actual_guard_deferred_until_start": "Static12buildmembers/binary/source/instruction checks passed; noGo invocation during preparation. Mandatory launch guard and fresh zero remain required.",
+  "actual_guard_readonly_verified": false,
+  "actual_source_clean": true,
+  "at_utc": "2026-10-23T08:11:46.277687+00:00",
+  "binary_sha256": {
+    "wkcli": "d8ca630646d4e4c5d39c2663c4b5f566b7c70c0fae10d64fb532e20f0656adfb",
+    "wukongim": "68ba94ea0ae808e82d290152b9111cf384006d90a615c95f2eacbe1342d02364"
+  },
+  "bounds_unchanged": {
+    "KILL_after": 5,
+    "TERM": 570,
+    "exit7hold": 90,
+    "first_failure_stop": true,
+    "lateststop": 480,
+    "startup": 360,
+    "total": 600,
+    "traffic_target": 120
+  },
+  "build_manifest_sha256": "6b2de65c2762425d1505b20dbc37f93beaf02cc523c057f406781218ab6eca7c",
+  "build_receipt_sha256": "55a28fe67719eb63ebef55b10559895d75d93c3c0b6d9e86160fef08ed6c0fd8",
+  "build_root": "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-recovery64-native-v1",
+  "candidate_product_change": "Only internal upstream recovery cohort and downstream owner-round admission16to64 on merged3768; retained explicit8192keys/128MiB ownedUID/32MiB page and all fences/deadlines/workload gates. Mechanism candidate, not an established root cause or accepted fix.",
+  "config_sha256": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+  "control_diffs": {
+    "exact_build_guard.py": "--- 5f/exact_build_guard.py\n+++ recovery64/exact_build_guard.py\n@@ -1,12 +1,12 @@\n-\"\"\"Read-only fixed5f construction gate; never builds or executes a product.\"\"\"\n+\"\"\"Read-only fixed-recovery64 construction gate; never builds or executes a product.\"\"\"\n from pathlib import Path\n import hashlib,json,os,subprocess\n-SOURCE = \"5f679978307aa1a5d57ec18a4ed548de79be0da8\"\n-SOURCE_TREE = \"061aa8b1f18c4cae4c16454b602f799fc9ac7b44\"\n-SOURCE_ROOT = Path('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-ack-gauge-candidate')\n-BUILD_ROOT = Path('/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-ack-gauge-native-v1')\n-EXACT_SERVER_SHA = \"921023fefd57d64c99f0f7d2bb10b8a15674d8ac7a0002e9ae7c0e97b27161ec\"\n-EXACT_CLI_SHA = \"b420b567eaf5da74f67643e418beeee1f82e2eb9d06144049982d05d7addf7b6\"\n+SOURCE = \"103292a9e141414b6d1b876ea519cc90da11ecdf\"\n+SOURCE_TREE = \"fde4d44192f4b1c73129b544cd249a0e24f9b57e\"\n+SOURCE_ROOT = Path('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-recovery64-candidate')\n+BUILD_ROOT = Path('/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-recovery64-native-v1')\n+EXACT_SERVER_SHA = \"68ba94ea0ae808e82d290152b9111cf384006d90a615c95f2eacbe1342d02364\"\n+EXACT_CLI_SHA = \"d8ca630646d4e4c5d39c2663c4b5f566b7c70c0fae10d64fb532e20f0656adfb\"\n PRODUCT_BINARIES = {name:BUILD_ROOT/'darwin-arm64'/name for name in ['wukongim','wkcli']}\n sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()\n def verify_exact_build():\n@@ -14,7 +14,7 @@\n  assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=SOURCE_ROOT,text=True,timeout=3).strip()==SOURCE,'source_revision_mismatch'\n  assert subprocess.check_output(['git','rev-parse','HEAD^{tree}'],cwd=SOURCE_ROOT,text=True,timeout=3).strip()==SOURCE_TREE,'source_tree_mismatch'\n  assert not subprocess.check_output(['git','status','--porcelain','--untracked-files=all'],cwd=SOURCE_ROOT,text=True,timeout=3),'source_not_clean'\n- for root,digest in [(BUILD_ROOT,'c862c13fa48387d9ca50f404181acd10309a903396cf1546652ee9a627559bd3')]:\n+ for root,digest in [(BUILD_ROOT,'6b2de65c2762425d1505b20dbc37f93beaf02cc523c057f406781218ab6eca7c')]:\n   assert sha(root/'PUBLIC_SHA256SUMS')==digest,'build_receipt_manifest_mismatch'\n   lines=(root/'PUBLIC_SHA256SUMS').read_text().splitlines();assert len(lines)==12,'build_receipt_member_count_mismatch'\n   for line in lines:\n@@ -39,5 +39,5 @@\n   for k,v in {'-trimpath':'true','CGO_ENABLED':'0','GOOS':'darwin','GOARCH':'arm64','vcs.revision':SOURCE,'vcs.modified':'false'}.items():assert settings.get(k)==v,'embedded_setting_mismatch:'+k\n   assert sha(BUILD_ROOT/(name+'-buildinfo.txt'))==hashlib.sha256(info.encode()).hexdigest(),'buildinfo_recheck_mismatch'\n   result[name]={'path':str(binary),'sha256':expected,'compiler':'go1.25.11','build_settings':settings}\n- return {'schema':'wukongim/exact-5f-native-readonly-preflight/v1','verified':True,'product_started':False,'source_root':str(SOURCE_ROOT),'source_revision':SOURCE,'source_clean':True,'real_git_directory':True,'binaries':result,'build_receipt_manifest_sha256':sha(BUILD_ROOT/'PUBLIC_SHA256SUMS'),'cloud_binary_byte_equality_claimed':False,'runtime_limit':'native shared Macarm64 diagnosis, not a Linux performance environment'}\n+ return {'schema':'wukongim/exact-recovery64-native-readonly-preflight/v1','verified':True,'product_started':False,'source_root':str(SOURCE_ROOT),'source_revision':SOURCE,'source_clean':True,'real_git_directory':True,'binaries':result,'build_receipt_manifest_sha256':sha(BUILD_ROOT/'PUBLIC_SHA256SUMS'),'cloud_binary_byte_equality_claimed':False,'runtime_limit':'native shared Macarm64 diagnosis, not a Linux performance environment'}\n if __name__=='__main__':print(json.dumps(verify_exact_build(),indent=2))\n",
+    "launcher.sh": "--- 5f/launcher.sh\n+++ recovery64/launcher.sh\n@@ -1,8 +1,8 @@\n #!/bin/bash\n set -euo pipefail\n umask 077\n-ROOT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-ack-gauge-candidate\n-RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-ack-gauge-rate2000-unprofiled-v1'\n+ROOT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-recovery64-candidate\n+RUN_DIR='/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-recovery64-rate2000-unprofiled-v1'\n BASE_PORT=25000\n READY_TIMEOUT=60\n CLEANUP_TIMEOUT=15\n@@ -10,8 +10,8 @@\n PIDS=()\n NAMES=()\n WAIT_CHILD_STATUS=0\n-WUKONGIM_BIN=/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-ack-gauge-native-v1/darwin-arm64/wukongim\n-WK_CLI_BIN=/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-ack-gauge-native-v1/darwin-arm64/wkcli\n+WUKONGIM_BIN=/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-recovery64-native-v1/darwin-arm64/wukongim\n+WK_CLI_BIN=/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-recovery64-native-v1/darwin-arm64/wkcli\n CONFIG_DIR=\"$RUN_DIR/config\"\n DATA_DIR=\"$RUN_DIR/data\"\n LOG_DIR=\"$RUN_DIR/logs\"\n",
+    "supervise.py": "--- 5f/supervise.py\n+++ recovery64/supervise.py\n@@ -13,14 +13,14 @@\n import urllib.request\n from exact_build_guard import verify_exact_build, PRODUCT_BINARIES\n \n-ROOT = Path(\"/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-ack-gauge-candidate\")\n+ROOT = Path(\"/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-recovery64-candidate\")\n OUT = Path(__file__).resolve().parent\n-SOURCE = \"5f679978307aa1a5d57ec18a4ed548de79be0da8\"\n+SOURCE = \"103292a9e141414b6d1b876ea519cc90da11ecdf\"\n RUN_ID = \"chat-20261021T214505Z-00299e37-rehearsal-1\"\n BASE = 25000\n TOTAL_SECONDS = 600\n TRAFFIC_SECONDS = 120\n-INPUT_HASHES = {'launcher.sh': 'd71e7f564ea9d15944d06f28326bb1c34d47a76c632f8b060f7f202d6df4a238', 'original-distribution-local.yaml': '87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825', 'watchdog.py': 'cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415', 'verify-slots.py': '220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe'}\n+INPUT_HASHES = {'launcher.sh': 'cfa52830df0af3582db1142e80b538428caa01d6855e69d4d802ed6306820465', 'original-distribution-local.yaml': '87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825', 'watchdog.py': 'cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415', 'verify-slots.py': '220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe'}\n owned = None\n started_mono = time.monotonic()\n started_wall = datetime.datetime.now(datetime.timezone.utc)\n"
+  },
+  "fixed_three_inputs_byte_equal": true,
+  "launcher_all_after_bindings_line14_byte_equal": true,
+  "old5f_result_manifest_sha256_unchanged": "0db419660656ac55b28b45141f190ecd8cbcb66b78c4bb9c9cf3ea12df42b0b1",
+  "old8100_result_manifest_sha256_unchanged": "840d7ddee7c24a0e05bd241c4ed297ad03044cd453561bf69385bb7687d7d268",
+  "only_changes": "source/build/binary/outputbindings, including truthful source schema labels; no harness/gate/config changes",
+  "original_workload_unchanged": {
+    "HashSlots": 256,
+    "SEND_per_second": 2000,
+    "batch": 1,
+    "burst": 4000,
+    "expiry_seconds": 10,
+    "groups": 2000,
+    "load_GOMAXPROCS": 1,
+    "nodes": 3,
+    "online": 10000,
+    "origin_active_cohorts": 64,
+    "physical_Slot_Raft_groups": 12,
+    "service_GOMAXPROCS": 2,
+    "workers": 3
+  },
+  "planner_config_model_source_files_equal": [
+    "internal/bench/chatlifecycle/io.go",
+    "internal/bench/chatlifecycle/config.go",
+    "internal/bench/chatlifecycle/types.go",
+    "internal/bench/chatlifecycle/report.go",
+    "internal/bench/chatlifecycle/coordinator.go",
+    "internal/bench/chatlifecycle/identity.go",
+    "scripts/wukongim/wukongim-node1.toml",
+    "scripts/wukongim/wukongim-node2.toml",
+    "scripts/wukongim/wukongim-node3.toml"
+  ],
+  "prepared_only": true,
+  "product_CLI_function_HTTP_DB_newbuild_operations": 0,
+  "readonly_Go_version_m": 0,
+  "requires_root_single_start": true,
+  "retained_real_plan_identity": {
+    "assignment_hash": "sha256:f9814da7618b2c867b9e8b7e82745b2a5dd3de6cd0b04cf696f96bcc80bfcd8c",
+    "assignments": 3,
+    "generation": 1,
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52"
+  },
+  "runtime_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-recovery64-rate2000-unprofiled-v1",
+  "schema": "wukongim/local2k-prepared-inputs/v1",
+  "service_worker_functions_byte_equal": true,
+  "six_runtime_pins": {
+    "exact_build_guard.py": "41221b9dc9841cd4215c44913f106aa2d29a9f77b131af56a6d6522b10eba2ff",
+    "launcher.sh": "cfa52830df0af3582db1142e80b538428caa01d6855e69d4d802ed6306820465",
+    "original-distribution-local.yaml": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+    "supervise.py": "4ab75a1142121ef849ce435d884ce45bccd3d8f303d000550800b4d4c8106c44",
+    "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+    "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415"
+  },
+  "source_instruction_freeze_actual_members_match": true,
+  "source_instruction_freeze_sha256": "d96d6ff699a710645f622486f123af90ab4ed35ab628f5d2803e244a2e89499c",
+  "source_instruction_member_count": 12,
+  "source_revision": "103292a9e141414b6d1b876ea519cc90da11ecdf",
+  "source_root": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-recovery64-candidate",
+  "source_tree": "fde4d44192f4b1c73129b544cd249a0e24f9b57e",
+  "standards_review_path": "/tmp/wukongim-v3-readiness-20261023/cloud/permission2000-recovery64-standards-v1.md",
+  "standards_review_sha256": "69db5a1a8d069ec5e515e7fa486cde446429565e3a28db2956c5f043b3ba7e01",
+  "start_command": "python3 /tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-recovery64-rate2000-unprofiled-v1/supervise.py",
+  "supervisor11_functions_AST_equal_prior": true,
+  "zero_admission": "Fresh launch guard deferred; no product or portscan invoked during this preparation."
+}

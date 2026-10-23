@@ -1,0 +1,120 @@
+{
+  "schema": "wukongim/local2k-safe-summary/v1",
+  "source_revision": "8100d7fd7a9455029e8de4f6370f140ff07612bc",
+  "source_tree": "ff1a0135caa5e933550fa12f9ac601b786af8980",
+  "configured_SEND_per_second": 2000,
+  "derived_max_global_burst": 4000,
+  "same_population_nodes_workers_batch": true,
+  "candidate_product_collect_ms": 5,
+  "supervisor_started_at_utc": "2026-10-23T06:12:18.019025+00:00",
+  "firstgrant_at": "2026-10-23T14:16:31.77667+08:00",
+  "finished_at_utc": "2026-10-23T06:17:03.619752+00:00",
+  "outer_controller_result": {
+    "outcome": "harness_invalid",
+    "cause": "invalid_observation",
+    "coordinator_code": "finalize",
+    "finalization_stage": "meta_checkpoint",
+    "finalization_reason": "metrics_fetch",
+    "launcher_exit_status": 8,
+    "coordinator_exit_status": 8
+  },
+  "original_controller_failure": {
+    "event": "wkbench.chat_lifecycle.controller_failure",
+    "at": "2026-10-23T14:16:57.135303+08:00",
+    "cut": "terminal",
+    "phase": "finalize",
+    "stage": "meta_checkpoint",
+    "reason": "metrics_fetch",
+    "metrics_fetch": {
+      "source_mask": 2,
+      "kinds": [
+        "",
+        "parse",
+        ""
+      ],
+      "parse_reasons": [
+        "",
+        "runtime_queue_over_capacity",
+        ""
+      ]
+    },
+    "observed_outcome": "product_failure",
+    "observed_cause": "message_loss",
+    "observed_terminal": true
+  },
+  "original_final_report_present": false,
+  "original_final_verdict": null,
+  "messages": null,
+  "correlation": null,
+  "observed_terminal_worker_cut_messages": {
+    "sent": 42002,
+    "send_attempts": 43525,
+    "first_attempts": 42002,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 42002,
+    "send_rejected": 0,
+    "received": 52896,
+    "receive_acknowledged": 52896,
+    "receive_ack_failures": 0,
+    "retry_attempts": 1523,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 2,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "prior_observed_product_decision": {
+    "observed_outcome": "product_failure",
+    "observed_cause": "message_loss",
+    "observed_terminal": true
+  },
+  "active_rate": {
+    "periodic_start_at": "2026-10-23T14:16:36.832889333+08:00",
+    "periodic_end_at": "2026-10-23T14:16:51.832973167+08:00",
+    "elapsed_seconds": 15.000083834,
+    "delta_primary_SEND": 30000,
+    "primary_SEND_per_second": 1999.9888221958054,
+    "retries_excluded": true,
+    "terminal_drain_excluded": true
+  },
+  "first_periodic_SEND_per_second": 1978.1578569427936,
+  "observed_terminal_first_attempt_failure_fraction": 0.0,
+  "unchanged_gate": "Original first-attempt and message-loss gates unchanged; firstfailurestops. Zero first-attemptfailures is not complete acceptance.",
+  "target_measured_seconds": 120,
+  "full_target_window_completed": false,
+  "host_resources": {
+    "schema": "wukongim/local2k-safe-host-resources/v1",
+    "sample_count": 56,
+    "first_at": "2026-10-23T06:12:18.201153+00:00",
+    "last_at": "2026-10-23T06:17:02.248495+00:00",
+    "maximum_owned_RSS_sum_bytes": 5883346944,
+    "maximum_owned_process_CPU_percent_sum": 220.0,
+    "other_WK_seen": false,
+    "limitation": "Owned RSS sampled aggregate not continuous peak; ps CPU lifetime average not host headroom. SharedMac/disk, no formal Linux capacity inference."
+  },
+  "cleanup_complete": true,
+  "owned_pgid": 59720,
+  "runtime_seconds": 285.598737750086,
+  "limits_unchanged": true,
+  "profile_captures": 0,
+  "automatic_retry": false,
+  "formal_Linux_cloud_capacity_acceptance": false,
+  "limitations": [
+    "Outer harness invalid and prior observed productfailure/message_loss are separate; no originalfinal/correlation/percentiles exists.",
+    "Retained adjacent terminalnode2 has actual gateway.actor_ready depth3268/capacity2048; exact coordinator failedresponse body unretained.",
+    "Terminal cut includes drain; active QPS uses only periodiccutdifference.",
+    "One bounded sharednativeMac diagnostic; original120s target notcompleted."
+  ]
+}

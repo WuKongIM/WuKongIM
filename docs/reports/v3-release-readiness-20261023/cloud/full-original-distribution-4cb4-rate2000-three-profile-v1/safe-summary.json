@@ -1,0 +1,81 @@
+{
+  "schema": "wukongim/profiled2000-diagnostic-result/v1",
+  "source_revision": "4cb45b3409b155ca6a0eeb3d72d1b05bbee817ac",
+  "source_tree": "1f2826553a264053e954229ac2581bcf48afe6ad",
+  "supervisor_started_at_utc": "2026-10-23T04:45:54.061237+00:00",
+  "firstgrant_at": "2026-10-23T12:50:04.969243+08:00",
+  "final_at": "2026-10-23T12:50:23.102189+08:00",
+  "final_window_elapsed_nanos": 18132746042,
+  "first_periodic_active_rate": 1982.9261994198362,
+  "periodic_to_periodic_rate": {
+    "first_periodic_seconds": 5.049608,
+    "second_periodic_seconds": 10.049663,
+    "first_attempts_delta": 9977,
+    "elapsed_delta_seconds": 5.000055000000001,
+    "active_offered_SEND_per_second": 1995.3780508414404,
+    "semantics": "periodic-to-periodic firstattempt delta; terminal/drain average excluded; profiled diagnostic only"
+  },
+  "original_verdict": {
+    "outcome": "product_failure",
+    "cause": "overall_first_attempt_rate",
+    "terminal": true,
+    "cleanup_error_count": 0
+  },
+  "launcher_exit_status": 7,
+  "messages": {
+    "sent": 22001,
+    "send_attempts": 23689,
+    "first_attempts": 22001,
+    "first_attempt_failures": 379,
+    "send_acknowledged": 22001,
+    "send_rejected": 396,
+    "received": 27522,
+    "receive_acknowledged": 27522,
+    "receive_ack_failures": 0,
+    "retry_attempts": 1688,
+    "terminal": 0,
+    "losses": 2,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 197,
+    "delivered": 195,
+    "expired": 2,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "first_attempt_failure_fraction": 0.01722648970501341,
+  "unchanged_first_attempt_gate": {
+    "max_failures": 1,
+    "per_attempts": 10000,
+    "operator": "<"
+  },
+  "requested_traffic_seconds": 120,
+  "full_target_window_completed": false,
+  "profile_status": "partial",
+  "successful_private_CPU_files": 3,
+  "successful_private_GOR_debug2_files": 5,
+  "failed_deleted_GOR_late_node": 3,
+  "successful_private_profile_bytes": 27318690,
+  "profile_perturbation": true,
+  "profile_CPU_GOR_decoded": false,
+  "cleanup_complete": true,
+  "owned_pgid": 33388,
+  "total_runtime_seconds": 361.24158341705333,
+  "raw_final_sha256": "d1e6f21e68b933e7b65bc694106b2d28eb3a84364be40f2f801ed25dd16b9b0b",
+  "no_rerun": true,
+  "formal_Linux_performance_cloud_acceptance": false,
+  "limitations": [
+    "Profiled run is diagnostic perturbation, not no-profile2k acceptance or controlled relative performance comparison",
+    "Original first-attempt gate terminated workload; later final messages include drain and losses2",
+    "Sample197/195delivered/2expired are bounded sampled proof, not all22001recipient completion",
+    "Eight profiles complete; node3 lateGOR exceeded8MiB and body was deleted under preservedV3 behavior; metadata retains failure, no retries",
+    "Local request timestamp/measurement label is not exact server capture time nor continuous activeSEND proof",
+    "RawCPU/GOR/stacks have not been decoded; diagnosis beyond already-observed gate is pending bounded offline analysis"
+  ]
+}

@@ -1,0 +1,1048 @@
+{
+  "schema": "wukongim/local2000-existing-pressure-projection/v1",
+  "original_report_queues": {
+    "work_current": 0,
+    "deferred_group_routes": 0,
+    "work_peak": 219526,
+    "work_capacity": 458000,
+    "retry_current": 0,
+    "retry_peak": 158,
+    "retry_capacity": 27072,
+    "inflight_current": 0,
+    "inflight_peak": 2788,
+    "inflight_capacity": 27072,
+    "transport_current": 0,
+    "transport_capacity": 0,
+    "transport_rejected": 0
+  },
+  "original_report_harness": {
+    "classification": "product_failure",
+    "failures": 0,
+    "command_saturation": 0,
+    "offered_underdelivery": 0,
+    "planned_cancellations": 193806,
+    "lifecycle_approval_rejections": {
+      "missing_timer": 0,
+      "invalid_shape": 0,
+      "timer_fence": 0,
+      "activity_fence": 0,
+      "invalidated": 0,
+      "fence_exhausted": 0,
+      "deadline": 0,
+      "replay_expired": 0,
+      "replay_mismatch": 0
+    },
+    "drain_timed_out": false,
+    "unexpected_exit": false
+  },
+  "input_cut_SHA_size_mtime": [
+    {
+      "node": 1,
+      "cut": "first-measured",
+      "sha256": "281eeb158f31cc1622e07de1ccc67480a4889c17dd774dea8dc646f5878edbd3",
+      "bytes": 1038669,
+      "mtime_ns": 1792732497657817184
+    },
+    {
+      "node": 2,
+      "cut": "first-measured",
+      "sha256": "1136b6ffffe0951c253a6a22b3044e927a1d0a1c2b78ddd0ab2633a3b7bc30ec",
+      "bytes": 1019249,
+      "mtime_ns": 1792732497711946365
+    },
+    {
+      "node": 3,
+      "cut": "first-measured",
+      "sha256": "a0fd93e35842ca201765ed714b1434ea04db09302b6fab50f52ca945a1b771ef",
+      "bytes": 998405,
+      "mtime_ns": 1792732497741653735
+    },
+    {
+      "node": 1,
+      "cut": "terminal",
+      "sha256": "7518d16c6623f4b6924e67bbf5f5f12bae8e210caff0e01277aa4c68600249b5",
+      "bytes": 1093025,
+      "mtime_ns": 1792732508112192219
+    },
+    {
+      "node": 2,
+      "cut": "terminal",
+      "sha256": "c0a4fa7ce87aee336b61999f20fea4b0f6cf7265282bdbbc18d279f788da4ded",
+      "bytes": 1067202,
+      "mtime_ns": 1792732508129588953
+    },
+    {
+      "node": 3,
+      "cut": "terminal",
+      "sha256": "bd6c1a2ef33bd868ee01287d58af2427541497c6c4675f3fe217c13bbf1548c8",
+      "bytes": 1055466,
+      "mtime_ns": 1792732508142635180
+    }
+  ],
+  "existing_metric_cuts": [
+    {
+      "node": 1,
+      "cut": "first-measured",
+      "origin_cohort_owned": {
+        "cohorts": 51.0,
+        "calls": 285.0,
+        "budget_bytes": 1215318.0
+      },
+      "origin_cohort_busy_count": 59.0,
+      "serving_permission_inflight": 93.0,
+      "permission_stage_histogram_count_sum": [
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "admission"
+          },
+          "count": 1398.0,
+          "sum_seconds": 2.12268119999999,
+          "mean_seconds": 0.0015183699570815378
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "barrier"
+          },
+          "count": 3547.0,
+          "sum_seconds": 775.4913083310006,
+          "mean_seconds": 0.21863301616323672
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "evaluate"
+          },
+          "count": 3364.0,
+          "sum_seconds": 0.018539609999999977,
+          "mean_seconds": 5.511180142687271e-06
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "plan"
+          },
+          "count": 3653.0,
+          "sum_seconds": 0.0073791980000000035,
+          "mean_seconds": 2.020037777169451e-06
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "route"
+          },
+          "count": 495.0,
+          "sum_seconds": 0.009104370999999995,
+          "mean_seconds": 1.8392668686868677e-05
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "rpc"
+          },
+          "count": 819.0,
+          "sum_seconds": 269.724356045,
+          "mean_seconds": 0.32933376806471304
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "snapshot"
+          },
+          "count": 3547.0,
+          "sum_seconds": 0.05311738299999997,
+          "mean_seconds": 1.4975298280236812e-05
+        }
+      ],
+      "serving_admission_busy_series_observed": false,
+      "person_directory_known_task_window_gauges": [
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 249.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 249.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 8.0
+        }
+      ]
+    },
+    {
+      "node": 2,
+      "cut": "first-measured",
+      "origin_cohort_owned": {
+        "cohorts": 38.0,
+        "calls": 268.0,
+        "budget_bytes": 1122244.0
+      },
+      "origin_cohort_busy_count": 51.0,
+      "serving_permission_inflight": 113.0,
+      "permission_stage_histogram_count_sum": [
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "admission"
+          },
+          "count": 1436.0,
+          "sum_seconds": 2.984099390999985,
+          "mean_seconds": 0.00207806364275765
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "barrier"
+          },
+          "count": 3706.0,
+          "sum_seconds": 856.0620871159992,
+          "mean_seconds": 0.23099354752185625
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "evaluate"
+          },
+          "count": 3388.0,
+          "sum_seconds": 0.005274779000000001,
+          "mean_seconds": 1.5569005312868953e-06
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "plan"
+          },
+          "count": 3654.0,
+          "sum_seconds": 0.007397204000000017,
+          "mean_seconds": 2.024412698412703e-06
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "route"
+          },
+          "count": 520.0,
+          "sum_seconds": 0.010097292999999995,
+          "mean_seconds": 1.9417871153846143e-05
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "rpc"
+          },
+          "count": 886.0,
+          "sum_seconds": 288.0009585960005,
+          "mean_seconds": 0.325057515345373
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "snapshot"
+          },
+          "count": 3706.0,
+          "sum_seconds": 0.05136482200000012,
+          "mean_seconds": 1.3859908796546175e-05
+        }
+      ],
+      "serving_admission_busy_series_observed": false,
+      "person_directory_known_task_window_gauges": [
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 281.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 281.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 8.0
+        }
+      ]
+    },
+    {
+      "node": 3,
+      "cut": "first-measured",
+      "origin_cohort_owned": {
+        "cohorts": 55.0,
+        "calls": 335.0,
+        "budget_bytes": 1439038.0
+      },
+      "origin_cohort_busy_count": 90.0,
+      "serving_permission_inflight": 128.0,
+      "permission_stage_histogram_count_sum": [
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "admission"
+          },
+          "count": 1430.0,
+          "sum_seconds": 1.8116964539999907,
+          "mean_seconds": 0.0012669205972027906
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "barrier"
+          },
+          "count": 3501.0,
+          "sum_seconds": 775.4463438839996,
+          "mean_seconds": 0.22149281459125952
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "evaluate"
+          },
+          "count": 3389.0,
+          "sum_seconds": 0.04584185699999988,
+          "mean_seconds": 1.3526661847152518e-05
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "plan"
+          },
+          "count": 3724.0,
+          "sum_seconds": 0.007347713000000007,
+          "mean_seconds": 1.9730700859291105e-06
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "route"
+          },
+          "count": 547.0,
+          "sum_seconds": 0.00949282799999999,
+          "mean_seconds": 1.735434734917731e-05
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "rpc"
+          },
+          "count": 915.0,
+          "sum_seconds": 300.9317804549999,
+          "mean_seconds": 0.32888719175409825
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "snapshot"
+          },
+          "count": 3501.0,
+          "sum_seconds": 0.04995553199999987,
+          "mean_seconds": 1.4268932305055662e-05
+        }
+      ],
+      "serving_admission_busy_series_observed": false,
+      "person_directory_known_task_window_gauges": [
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 281.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 281.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 8.0
+        }
+      ]
+    },
+    {
+      "node": 1,
+      "cut": "terminal",
+      "origin_cohort_owned": {
+        "cohorts": 0.0,
+        "calls": 0.0,
+        "budget_bytes": 0.0
+      },
+      "origin_cohort_busy_count": 292.0,
+      "serving_permission_inflight": 0.0,
+      "permission_stage_histogram_count_sum": [
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "admission"
+          },
+          "count": 3297.0,
+          "sum_seconds": 11.752640550999857,
+          "mean_seconds": 0.0035646468155898867
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "barrier"
+          },
+          "count": 8662.0,
+          "sum_seconds": 2223.8182155330023,
+          "mean_seconds": 0.25673265014234614
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "evaluate"
+          },
+          "count": 8107.0,
+          "sum_seconds": 0.025118268999999943,
+          "mean_seconds": 3.0983432835820824e-06
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "plan"
+          },
+          "count": 8107.0,
+          "sum_seconds": 0.015092198999999785,
+          "mean_seconds": 1.8616256321697034e-06
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "route"
+          },
+          "count": 1159.0,
+          "sum_seconds": 0.02002482399999997,
+          "mean_seconds": 1.7277673856773052e-05
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "rpc"
+          },
+          "count": 2126.0,
+          "sum_seconds": 768.4874954249995,
+          "mean_seconds": 0.3614710702845717
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "snapshot"
+          },
+          "count": 8662.0,
+          "sum_seconds": 0.12227118300000006,
+          "mean_seconds": 1.411581424613254e-05
+        }
+      ],
+      "serving_admission_busy_series_observed": false,
+      "person_directory_known_task_window_gauges": [
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 8.0
+        }
+      ]
+    },
+    {
+      "node": 2,
+      "cut": "terminal",
+      "origin_cohort_owned": {
+        "cohorts": 0.0,
+        "calls": 0.0,
+        "budget_bytes": 0.0
+      },
+      "origin_cohort_busy_count": 178.0,
+      "serving_permission_inflight": 0.0,
+      "permission_stage_histogram_count_sum": [
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "admission"
+          },
+          "count": 3350.0,
+          "sum_seconds": 9.834785341999845,
+          "mean_seconds": 0.0029357568185074167
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "barrier"
+          },
+          "count": 8941.0,
+          "sum_seconds": 2325.2113333159946,
+          "mean_seconds": 0.26006166349580523
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "evaluate"
+          },
+          "count": 7994.0,
+          "sum_seconds": 0.011448562999999858,
+          "mean_seconds": 1.4321444833625042e-06
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "plan"
+          },
+          "count": 7994.0,
+          "sum_seconds": 0.015120282999999785,
+          "mean_seconds": 1.8914539654740786e-06
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "route"
+          },
+          "count": 1220.0,
+          "sum_seconds": 0.020950238999999978,
+          "mean_seconds": 1.717232704918031e-05
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "rpc"
+          },
+          "count": 2218.0,
+          "sum_seconds": 800.1265250550022,
+          "mean_seconds": 0.3607423467335447
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "snapshot"
+          },
+          "count": 8941.0,
+          "sum_seconds": 0.11991122400000027,
+          "mean_seconds": 1.3411388435298096e-05
+        }
+      ],
+      "serving_admission_busy_series_observed": false,
+      "person_directory_known_task_window_gauges": [
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 8.0
+        }
+      ]
+    },
+    {
+      "node": 3,
+      "cut": "terminal",
+      "origin_cohort_owned": {
+        "cohorts": 0.0,
+        "calls": 0.0,
+        "budget_bytes": 0.0
+      },
+      "origin_cohort_busy_count": 371.0,
+      "serving_permission_inflight": 0.0,
+      "permission_stage_histogram_count_sum": [
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "admission"
+          },
+          "count": 3298.0,
+          "sum_seconds": 5.381793173999872,
+          "mean_seconds": 0.0016318354075196702
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "barrier"
+          },
+          "count": 8736.0,
+          "sum_seconds": 2144.548888810002,
+          "mean_seconds": 0.24548407610004602
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "evaluate"
+          },
+          "count": 8207.0,
+          "sum_seconds": 0.05209790099999984,
+          "mean_seconds": 6.347983550627494e-06
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "plan"
+          },
+          "count": 8207.0,
+          "sum_seconds": 0.015336044999999769,
+          "mean_seconds": 1.8686541976361361e-06
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "route"
+          },
+          "count": 1252.0,
+          "sum_seconds": 0.020022369999999953,
+          "mean_seconds": 1.599230830670923e-05
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "rpc"
+          },
+          "count": 2326.0,
+          "sum_seconds": 853.5111548570018,
+          "mean_seconds": 0.36694374671410224
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "snapshot"
+          },
+          "count": 8736.0,
+          "sum_seconds": 0.1299005259999992,
+          "mean_seconds": 1.4869565705128115e-05
+        }
+      ],
+      "serving_admission_busy_series_observed": false,
+      "person_directory_known_task_window_gauges": [
+        {
+          "metric": "wukongim_runtime_pool_inflight",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_capacity",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 512.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_queue_depth",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory",
+            "priority": "none",
+            "queue": "task"
+          },
+          "value": 0.0
+        },
+        {
+          "metric": "wukongim_runtime_pool_workers",
+          "labels": {
+            "component": "message",
+            "pool": "person_directory"
+          },
+          "value": 8.0
+        }
+      ]
+    }
+  ],
+  "point_or_interval_semantics": "six sequential alreadycapturedscrapes, not simultaneous/continuouspeaks; histcount/sum subtract only bothobservedmonotone series; missing=nullnotzero; overlappingstagesums not walltime",
+  "interval_permission_stages": [
+    {
+      "node": 1,
+      "permission_stage_histograms": [
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "admission"
+          },
+          "count": 1899.0,
+          "sum_seconds": 9.629959350999867,
+          "mean_seconds": 0.005071068641916728,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "barrier"
+          },
+          "count": 5115.0,
+          "sum_seconds": 1448.3269072020016,
+          "mean_seconds": 0.2831528655331381,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "evaluate"
+          },
+          "count": 4743.0,
+          "sum_seconds": 0.006578658999999966,
+          "mean_seconds": 1.3870248787687047e-06,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "plan"
+          },
+          "count": 4454.0,
+          "sum_seconds": 0.007713000999999782,
+          "mean_seconds": 1.731702065558999e-06,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "route"
+          },
+          "count": 664.0,
+          "sum_seconds": 0.010920452999999974,
+          "mean_seconds": 1.6446465361445743e-05,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "rpc"
+          },
+          "count": 1307.0,
+          "sum_seconds": 498.7631393799995,
+          "mean_seconds": 0.3816091349502674,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "snapshot"
+          },
+          "count": 5115.0,
+          "sum_seconds": 0.0691538000000001,
+          "mean_seconds": 1.351980449657871e-05,
+          "status": "both_observed_monotone"
+        }
+      ]
+    },
+    {
+      "node": 2,
+      "permission_stage_histograms": [
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "admission"
+          },
+          "count": 1914.0,
+          "sum_seconds": 6.8506859509998606,
+          "mean_seconds": 0.0035792507580981506,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "barrier"
+          },
+          "count": 5235.0,
+          "sum_seconds": 1469.1492461999953,
+          "mean_seconds": 0.280639779598853,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "evaluate"
+          },
+          "count": 4606.0,
+          "sum_seconds": 0.006173783999999857,
+          "mean_seconds": 1.3403786365609763e-06,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "plan"
+          },
+          "count": 4340.0,
+          "sum_seconds": 0.007723078999999768,
+          "mean_seconds": 1.7795112903225272e-06,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "route"
+          },
+          "count": 700.0,
+          "sum_seconds": 0.010852945999999983,
+          "mean_seconds": 1.5504208571428547e-05,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "rpc"
+          },
+          "count": 1332.0,
+          "sum_seconds": 512.1255664590017,
+          "mean_seconds": 0.384478653497749,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "snapshot"
+          },
+          "count": 5235.0,
+          "sum_seconds": 0.06854640200000015,
+          "mean_seconds": 1.309386857688637e-05,
+          "status": "both_observed_monotone"
+        }
+      ]
+    },
+    {
+      "node": 3,
+      "permission_stage_histograms": [
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "admission"
+          },
+          "count": 1868.0,
+          "sum_seconds": 3.5700967199998814,
+          "mean_seconds": 0.0019111866809421207,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "barrier"
+          },
+          "count": 5235.0,
+          "sum_seconds": 1369.1025449260026,
+          "mean_seconds": 0.2615286618769823,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "evaluate"
+          },
+          "count": 4818.0,
+          "sum_seconds": 0.006256043999999961,
+          "mean_seconds": 1.298473225404724e-06,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "plan"
+          },
+          "count": 4483.0,
+          "sum_seconds": 0.007988331999999761,
+          "mean_seconds": 1.7819165737229002e-06,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "route"
+          },
+          "count": 705.0,
+          "sum_seconds": 0.010529541999999963,
+          "mean_seconds": 1.4935520567375834e-05,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "rpc"
+          },
+          "count": 1411.0,
+          "sum_seconds": 552.5793744020018,
+          "mean_seconds": 0.391622519065912,
+          "status": "both_observed_monotone"
+        },
+        {
+          "labels": {
+            "result": "ok",
+            "stage": "snapshot"
+          },
+          "count": 5235.0,
+          "sum_seconds": 0.07994499399999934,
+          "mean_seconds": 1.5271250047755366e-05,
+          "status": "both_observed_monotone"
+        }
+      ]
+    }
+  ],
+  "origin_admission_limits": {
+    "active_cohorts": 64,
+    "owned_calls": 1024,
+    "owned_credits_bytes": 16777216
+  },
+  "serving_independent_limits": {
+    "executing_envelopes": 128,
+    "waiting_envelopes": 1024,
+    "waiting_bytes": 16777216,
+    "wait_seconds": 2,
+    "waiter_gauge": null
+  },
+  "person_directory_gauge_semantics": "512known/task window includes queued+executingbatches, not512workers; workers8",
+  "service_warning_aggregates": [
+    {
+      "node": 1,
+      "private_log_sha256": "5dbb857c881b4e0bbe06e7ca0449652d3d8add35a0e364fc410c02ce9a660a62",
+      "permission_read_admission_busy": 292,
+      "other_private_warning": 54,
+      "unparsed_warning": 0
+    },
+    {
+      "node": 2,
+      "private_log_sha256": "4ed37dd9a24542c8838619939c59db317bdcf1c115442cc9b8fa0bf8c3123d10",
+      "permission_read_admission_busy": 178,
+      "other_private_warning": 66,
+      "unparsed_warning": 0
+    },
+    {
+      "node": 3,
+      "private_log_sha256": "ae5bde17d6a50ee2e6a3146e59f57ddcdddab2d52177491a79725b53bd364bcd",
+      "permission_read_admission_busy": 371,
+      "other_private_warning": 73,
+      "unparsed_warning": 0
+    }
+  ],
+  "busy_warning_count": 841,
+  "fixed_busy_tuple": {
+    "event": "internal.access.gateway.send_failed",
+    "errorClass": "route_not_ready",
+    "source": "batch_result_error",
+    "sourceModule": "message.send"
+  },
+  "warns_not_one_to_one_joined_to_rejections_or_firstfailures": true,
+  "source_metric_definitions": "exact1618 pkg/metrics/send_permission.go, slot/proxy/send_permission_cohort.go, internal/app/wiring.go; metric definitions unchanged vs4cb",
+  "no_new_metrics_or_service_requests": true
+}

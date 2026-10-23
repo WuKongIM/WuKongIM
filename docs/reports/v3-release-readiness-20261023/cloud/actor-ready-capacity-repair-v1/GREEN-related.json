@@ -1,0 +1,15 @@
+{
+  "named_check": "GREEN-related",
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "./pkg/gateway/transport/gnet",
+    "./pkg/metrics",
+    "-count=1",
+    "-timeout=30s"
+  ],
+  "exit": 0,
+  "elapsed_seconds": 2.768305083969608,
+  "log_sha256": "966e3e32ca9ab483fee693333fe6c62bfb000cf4c9c43882dc9a516fa3f654b0",
+  "policy_sha256": null
+}

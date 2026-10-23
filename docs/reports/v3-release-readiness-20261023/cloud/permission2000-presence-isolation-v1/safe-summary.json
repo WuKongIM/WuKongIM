@@ -1,0 +1,318 @@
+{
+  "source": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+  "test_sha256": "8a50954c99b465fac27bc22b0bb72ec3f82b7eb14c39df9751df3754d591213c",
+  "stage": "single_execution_complete",
+  "log_sha256": "c678260bde34a3b26a1cebac859fc440dc6b2f6512f0b7487e47e196abae91f5",
+  "raw_log_public": false,
+  "arms": [
+    {
+      "active_observed": 0,
+      "arm": "independent_32_by_2",
+      "callers": 32,
+      "failed": 0,
+      "joined": true,
+      "no_delay_injection": true,
+      "stats": {
+        "stages": {
+          "caller": {
+            "count": 32,
+            "active": 0,
+            "peak": 32,
+            "sum_ns": 61199458,
+            "max_ns": 2778750
+          },
+          "caller_to_cohort_residual": {
+            "count": 32,
+            "active": 0,
+            "peak": 0,
+            "sum_ns": 25161957,
+            "max_ns": 2052500
+          },
+          "cohort": {
+            "count": 32,
+            "active": 0,
+            "peak": 16,
+            "sum_ns": 35059126,
+            "max_ns": 1872542
+          },
+          "local_owner": {
+            "count": 32,
+            "active": 0,
+            "peak": 2,
+            "sum_ns": 302289,
+            "max_ns": 21375
+          },
+          "membership_snapshot": {
+            "count": 64,
+            "active": 0,
+            "peak": 11,
+            "sum_ns": 6065545,
+            "max_ns": 517875
+          },
+          "remote_rpc": {
+            "count": 64,
+            "active": 0,
+            "peak": 16,
+            "sum_ns": 27363872,
+            "max_ns": 841833
+          },
+          "server_owner": {
+            "count": 64,
+            "active": 0,
+            "peak": 3,
+            "sum_ns": 483208,
+            "max_ns": 29625
+          }
+        },
+        "uids_per_round": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "targets_per_round": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ]
+      },
+      "succeeded": 32,
+      "wall_ns": 2879542
+    },
+    {
+      "active_observed": 0,
+      "arm": "same_uid_32",
+      "callers": 32,
+      "failed": 0,
+      "joined": true,
+      "no_delay_injection": true,
+      "stats": {
+        "stages": {
+          "caller": {
+            "count": 32,
+            "active": 0,
+            "peak": 32,
+            "sum_ns": 13433036,
+            "max_ns": 478083
+          },
+          "caller_to_cohort_residual": {
+            "count": 1,
+            "active": 0,
+            "peak": 0,
+            "sum_ns": 15542,
+            "max_ns": 15542
+          },
+          "cohort": {
+            "count": 1,
+            "active": 0,
+            "peak": 1,
+            "sum_ns": 417416,
+            "max_ns": 417416
+          },
+          "local_owner": {
+            "count": 1,
+            "active": 0,
+            "peak": 1,
+            "sum_ns": 3375,
+            "max_ns": 3375
+          },
+          "membership_snapshot": {
+            "count": 2,
+            "active": 0,
+            "peak": 1,
+            "sum_ns": 65833,
+            "max_ns": 34000
+          },
+          "remote_rpc": {
+            "count": 2,
+            "active": 0,
+            "peak": 1,
+            "sum_ns": 330208,
+            "max_ns": 194750
+          },
+          "server_owner": {
+            "count": 2,
+            "active": 0,
+            "peak": 1,
+            "sum_ns": 8375,
+            "max_ns": 4375
+          }
+        },
+        "uids_per_round": [
+          1
+        ],
+        "targets_per_round": [
+          1
+        ]
+      },
+      "succeeded": 32,
+      "wall_ns": 555917
+    },
+    {
+      "active_observed": 0,
+      "arm": "packed_64",
+      "callers": 1,
+      "failed": 0,
+      "joined": true,
+      "no_delay_injection": true,
+      "stats": {
+        "stages": {
+          "caller": {
+            "count": 1,
+            "active": 0,
+            "peak": 1,
+            "sum_ns": 1023625,
+            "max_ns": 1023625
+          },
+          "caller_to_cohort_residual": {
+            "count": 1,
+            "active": 0,
+            "peak": 0,
+            "sum_ns": 158209,
+            "max_ns": 158209
+          },
+          "cohort": {
+            "count": 1,
+            "active": 0,
+            "peak": 1,
+            "sum_ns": 688875,
+            "max_ns": 688875
+          },
+          "local_owner": {
+            "count": 1,
+            "active": 0,
+            "peak": 1,
+            "sum_ns": 140916,
+            "max_ns": 140916
+          },
+          "membership_snapshot": {
+            "count": 2,
+            "active": 0,
+            "peak": 1,
+            "sum_ns": 49709,
+            "max_ns": 32584
+          },
+          "remote_rpc": {
+            "count": 2,
+            "active": 0,
+            "peak": 1,
+            "sum_ns": 396542,
+            "max_ns": 227500
+          },
+          "server_owner": {
+            "count": 2,
+            "active": 0,
+            "peak": 1,
+            "sum_ns": 191208,
+            "max_ns": 97167
+          }
+        },
+        "uids_per_round": [
+          64
+        ],
+        "targets_per_round": [
+          64
+        ]
+      },
+      "succeeded": 1,
+      "wall_ns": 1034500
+    }
+  ],
+  "node_cleanup": {
+    "nodes": 3,
+    "joined": true,
+    "stop_failures": 0
+  },
+  "runner": {
+    "status": "passed",
+    "exit_code": 0,
+    "session_id": 91404,
+    "output_bytes": 7341,
+    "output_truncated": false,
+    "passed": true,
+    "cleanup": {
+      "session_id": 91404,
+      "verified": true,
+      "complete": true,
+      "initial_processes": [],
+      "remaining_processes": []
+    },
+    "command_status": "passed",
+    "wrapper_exit_code": 0,
+    "elapsed_seconds": 19.821
+  },
+  "interpretation": [
+    "No five-second reproduction under these three isolated arms.",
+    "Caller-to-cohort residual includes directory and scheduler time; it is not direct quota lock timing.",
+    "Server owner duration is the real OwnerRecovery port, excluding service queue and codec. Remote RPC includes network/service queue/codec.",
+    "Same-UID arm may include warm proof readers; one owner round does not prove all other callers were simultaneous waiters.",
+    "Prepacked arm uses existing per-caller page support; this does not establish safe cross-caller batching or historical causality."
+  ],
+  "post_source_check": {
+    "head": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+    "tracked_diff_empty": true,
+    "new_files": [
+      "internal/app/presence_cold_rpc_isolation_integration_test.go"
+    ],
+    "test_sha256": "8a50954c99b465fac27bc22b0bb72ec3f82b7eb14c39df9751df3754d591213c",
+    "online_flow_sha256": "c7233cdcec9976b5f237194ad7fd211c96e961702ce7621d7e759250a5dbf246",
+    "runner_import_pyc_removed_sha256": "92803fa66d1c3b8c7828a06cfd268203f137bf6d42c20915d8d5fd8d8b10d8e3"
+  }
+}

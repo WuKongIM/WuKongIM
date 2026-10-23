@@ -1,0 +1,26 @@
+{
+  "named_check": "flow-doc-contracts-concise",
+  "argv": [
+    "go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "check"
+  ],
+  "exit": 1,
+  "elapsed_seconds": 0.0748013328993693,
+  "log_sha256": "3715e14853f288ab1851b6a3c126544a2cfd8c8c0418a58e7a290ca5b0bafb1b",
+  "policy_sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+  "policy": {
+    "arguments": [
+      "go",
+      "run",
+      "./scripts/flowcheck",
+      "--mode",
+      "check"
+    ],
+    "working_dir": ".",
+    "timeout_seconds": 60,
+    "max_output_bytes": 1048576
+  }
+}

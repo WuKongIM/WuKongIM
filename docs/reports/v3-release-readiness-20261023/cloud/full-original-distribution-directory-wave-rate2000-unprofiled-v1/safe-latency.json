@@ -1,0 +1,87 @@
+{
+  "schema": "wukongim/local2000-original-latency-bounds/v1",
+  "histogram_semantics": "original noncumulative buckets, rankceil(N*q), no interpolation/exactpercentile",
+  "latency": {
+    "hot_sendack": {
+      "count": 12103,
+      "sum_nanos": 10849580060691,
+      "max_nanos": 2485983042,
+      "p99_bound": {
+        "lower_exclusive_nanos": 1000000000,
+        "upper_inclusive_nanos": 2000000000,
+        "rank": 11982,
+        "bucket_bound_only": true
+      },
+      "p999_bound": {
+        "lower_exclusive_nanos": 2000000000,
+        "upper_inclusive_nanos": 5000000000,
+        "rank": 12091,
+        "bucket_bound_only": true
+      }
+    },
+    "cold_first_create_sendack": {
+      "count": 9898,
+      "sum_nanos": 12620253598243,
+      "max_nanos": 3830724459,
+      "p99_bound": {
+        "lower_exclusive_nanos": 2000000000,
+        "upper_inclusive_nanos": 5000000000,
+        "rank": 9800,
+        "bucket_bound_only": true
+      },
+      "p999_bound": {
+        "lower_exclusive_nanos": 2000000000,
+        "upper_inclusive_nanos": 5000000000,
+        "rank": 9889,
+        "bucket_bound_only": true
+      }
+    },
+    "worker_lifecycle_reheat_sendack": {
+      "count": 0,
+      "sum_nanos": 0,
+      "max_nanos": 0,
+      "p99_bound": null,
+      "p999_bound": null
+    },
+    "send_pending_to_write": {
+      "count": 24308,
+      "sum_nanos": 41128147283,
+      "max_nanos": 31375916,
+      "p99_bound": {
+        "lower_exclusive_nanos": 5000000,
+        "upper_inclusive_nanos": 10000000,
+        "rank": 24065,
+        "bucket_bound_only": true
+      },
+      "p999_bound": {
+        "lower_exclusive_nanos": 10000000,
+        "upper_inclusive_nanos": 20000000,
+        "rank": 24284,
+        "bucket_bound_only": true
+      }
+    },
+    "send_write_to_ack": {
+      "count": 24308,
+      "sum_nanos": 24589164247740,
+      "max_nanos": 2698865500,
+      "p99_bound": {
+        "lower_exclusive_nanos": 2000000000,
+        "upper_inclusive_nanos": 5000000000,
+        "rank": 24065,
+        "bucket_bound_only": true
+      },
+      "p999_bound": {
+        "lower_exclusive_nanos": 2000000000,
+        "upper_inclusive_nanos": 5000000000,
+        "rank": 24284,
+        "bucket_bound_only": true
+      }
+    }
+  },
+  "raw_warning_counts": {
+    "hot": 0,
+    "cold": 0,
+    "sync": 0
+  },
+  "zero_warning_counts_do_not_override_first_attempt_failure": true
+}

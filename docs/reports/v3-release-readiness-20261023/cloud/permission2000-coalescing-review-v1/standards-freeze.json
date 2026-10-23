@@ -1,0 +1,108 @@
+{
+  "schema": "wukongim.readonly_standards_review/v1",
+  "observed_at": "2026-10-23T06:01:03.533216+00:00",
+  "base": "d08031d576c3497c56b0dfba60e4db8370224c04",
+  "head": "8100d7fd7a9455029e8de4f6370f140ff07612bc",
+  "tree": "ff1a0135caa5e933550fa12f9ac601b786af8980",
+  "initial_scope": "git diff HEAD + untracked full content; author committed during review",
+  "final_scope": "git diff d08031d576c3497c56b0dfba60e4db8370224c04 8100d7fd7a9455029e8de4f6370f140ff07612bc",
+  "commit_list": [
+    "83c0be9304331638931c4e09e1d2608bd7c6762d",
+    "8100d7fd7a9455029e8de4f6370f140ff07612bc"
+  ],
+  "source_files": {
+    "CHANGELOG.md": {
+      "sha256": "b519885a9e689475fc9f1990216f1a645b9dd948b08ae5a0d087fab0e34a98ac",
+      "bytes": 195077
+    },
+    "docs/development/PROJECT_KNOWLEDGE.md": {
+      "sha256": "5d34d593e9c3957f5e4bf72c4c7304927da542881a3c97efc2c9d3bf83058611",
+      "bytes": 151119
+    },
+    "docs/specs/user-channel-send-ban.md": {
+      "sha256": "3a0b92e71e56ab71d5aa3bc5a5a3d7972e69e40a4448dc8973fd18421c514b0a",
+      "bytes": 32294
+    },
+    "internal/bench/target/client.go": {
+      "sha256": "a1c6d02b4ec68550a41d9bcf7b5ec6a9416bdfb1a1b8c6828356195e75ff36e8",
+      "bytes": 53319
+    },
+    "internal/bench/target/metrics_parse_diagnostics_test.go": {
+      "sha256": "5ac9e69cb6977105e0678991a1c1767e019659e027c3b02cf71ab2fd46edd49b",
+      "bytes": 13958
+    },
+    "internal/bench/target/metrics_parse_failure.go": {
+      "sha256": "070d62a09ea054a3ccf3c9829b828576dda03b6f80bb1af455e7c054778ebdbe",
+      "bytes": 3546
+    },
+    "pkg/slot/FLOW.md": {
+      "sha256": "4b1f17c5f088e5d3454ba707eec9fc4f70ec830062a0bc830f117f298679ac07",
+      "bytes": 11140
+    },
+    "pkg/slot/proxy/send_permission_cohort.go": {
+      "sha256": "1a4b27692b25c3380893ca35b43f400994bda72bd6e510b214bee4c6445b019b",
+      "bytes": 10742
+    },
+    "pkg/slot/proxy/send_permission_paced_capacity_integration_test.go": {
+      "sha256": "1f61a1ea50ba43b6353311e72d75fcd623b9f5bab1302765ba334af27db542ba",
+      "bytes": 2724
+    }
+  },
+  "applicable_rules": {
+    "AGENTS.md": {
+      "working_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "base_sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "scope": null
+    },
+    "CONTEXT.md": {
+      "working_sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "base_sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "scope": null
+    },
+    "internal/bench/FLOW.md": {
+      "working_sha256": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73",
+      "base_sha256": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73",
+      "scope": "subtree"
+    },
+    "pkg/slot/FLOW.md": {
+      "working_sha256": "4b1f17c5f088e5d3454ba707eec9fc4f70ec830062a0bc830f117f298679ac07",
+      "base_sha256": "6a86881b38b156b05f6098226a1d8290150ce50921794a55f7585a9b493e77ba",
+      "scope": "subtree"
+    },
+    "docs/agents/issue-tracker.md": {
+      "working_sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+      "base_sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+      "scope": null
+    }
+  },
+  "skill_sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143",
+  "evidence_receipts": {
+    "permission2000-coalescing-validation-v1/feedback.json": {
+      "sha256": "90dc236a85c81e693fe488f8316417fd0df1c9aeb32589b45c970301f416a37f",
+      "bytes": 2137
+    },
+    "permission2000-queue-parse-diagnostics-v1/feedback.json": {
+      "sha256": "c1afded5d87307f9e034a576b47f55298ff5a88d90b75b8e42ef54fa04585c84",
+      "bytes": 5208
+    }
+  },
+  "static_diff_check_exit": 0,
+  "protected_paths_changed": false,
+  "reviewer_ran_go_tests_build_or_product": false,
+  "findings": {
+    "hard": 0,
+    "heuristic": 0
+  },
+  "binding_observer_note": "First final-binding attempt stopped on concurrent author head/status change before writing output; re-bound final head8100 after documentation-only commit. No unchanged-before claim is made for that transition.",
+  "final_source_recheck": {
+    "CHANGELOG.md": true,
+    "docs/development/PROJECT_KNOWLEDGE.md": true,
+    "docs/specs/user-channel-send-ban.md": true,
+    "internal/bench/target/client.go": true,
+    "internal/bench/target/metrics_parse_diagnostics_test.go": true,
+    "internal/bench/target/metrics_parse_failure.go": true,
+    "pkg/slot/FLOW.md": true,
+    "pkg/slot/proxy/send_permission_cohort.go": true,
+    "pkg/slot/proxy/send_permission_paced_capacity_integration_test.go": true
+  }
+}

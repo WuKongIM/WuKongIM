@@ -1,0 +1,134 @@
+=== RUN   TestNewWiresTopAPIWithoutMetrics
+--- PASS: TestNewWiresTopAPIWithoutMetrics (0.00s)
+=== RUN   TestConfigureObservabilityWiresTopObserversWhenMetricsDisabled
+--- PASS: TestConfigureObservabilityWiresTopObserversWhenMetricsDisabled (0.00s)
+=== RUN   TestNewWiresTopMessageAppendWhenMetricsDisabled
+WuKongIM · Starting node 3...
+
+WuKongIM
+
+Node       3 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+--- PASS: TestNewWiresTopMessageAppendWhenMetricsDisabled (0.00s)
+=== RUN   TestDeliveryEnabledPersonSendWritesRecvAndRecvackClearsPending
+WuKongIM · Starting node 1...
+
+WuKongIM
+
+Node       1 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+--- PASS: TestDeliveryEnabledPersonSendWritesRecvAndRecvackClearsPending (0.01s)
+=== RUN   TestOnlineDeliveryObserverMapsRuntimeMetrics
+--- PASS: TestOnlineDeliveryObserverMapsRuntimeMetrics (0.00s)
+=== RUN   TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity
+=== RUN   TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity/presence
+=== RUN   TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity/owner_push
+=== RUN   TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity/canceled
+=== RUN   TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity/panic
+=== RUN   TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity/transient_zero_sequence
+=== RUN   TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity/success_remains_quiet
+--- PASS: TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity (0.00s)
+    --- PASS: TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity/presence (0.00s)
+    --- PASS: TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity/owner_push (0.00s)
+    --- PASS: TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity/canceled (0.00s)
+    --- PASS: TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity/panic (0.00s)
+    --- PASS: TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity/transient_zero_sequence (0.00s)
+    --- PASS: TestOnlineDeliveryIncompleteLogPreservesExactBodyFreeIdentity/success_remains_quiet (0.00s)
+=== RUN   TestOnlineDeliveryTerminalIdentitiesDoNotCreateMetricSeries
+--- PASS: TestOnlineDeliveryTerminalIdentitiesDoNotCreateMetricSeries (0.00s)
+=== RUN   TestOnlineDeliveryOfflineObserverPreservesOrdinaryCommitEligibility
+=== RUN   TestOnlineDeliveryOfflineObserverPreservesOrdinaryCommitEligibility/ordinary_durable
+=== RUN   TestOnlineDeliveryOfflineObserverPreservesOrdinaryCommitEligibility/transient
+=== RUN   TestOnlineDeliveryOfflineObserverPreservesOrdinaryCommitEligibility/sync_once
+=== RUN   TestOnlineDeliveryOfflineObserverPreservesOrdinaryCommitEligibility/request_scoped
+--- PASS: TestOnlineDeliveryOfflineObserverPreservesOrdinaryCommitEligibility (0.00s)
+    --- PASS: TestOnlineDeliveryOfflineObserverPreservesOrdinaryCommitEligibility/ordinary_durable (0.00s)
+    --- PASS: TestOnlineDeliveryOfflineObserverPreservesOrdinaryCommitEligibility/transient (0.00s)
+    --- PASS: TestOnlineDeliveryOfflineObserverPreservesOrdinaryCommitEligibility/sync_once (0.00s)
+    --- PASS: TestOnlineDeliveryOfflineObserverPreservesOrdinaryCommitEligibility/request_scoped (0.00s)
+=== RUN   TestOnlineDeliveryObserverRecordsRemotePushAndNormalizedError
+--- PASS: TestOnlineDeliveryObserverRecordsRemotePushAndNormalizedError (0.00s)
+=== RUN   TestTopAckGaugeSnapshotCloneAndZero
+--- PASS: TestTopAckGaugeSnapshotCloneAndZero (0.00s)
+=== RUN   TestTopAckObserverProgressWhileCollectorIngestionLocked
+=== RUN   TestTopAckObserverProgressWhileCollectorIngestionLocked/recvack
+=== RUN   TestTopAckObserverProgressWhileCollectorIngestionLocked/push_reservation_and_recvack
+--- PASS: TestTopAckObserverProgressWhileCollectorIngestionLocked (0.00s)
+    --- PASS: TestTopAckObserverProgressWhileCollectorIngestionLocked/recvack (0.00s)
+    --- PASS: TestTopAckObserverProgressWhileCollectorIngestionLocked/push_reservation_and_recvack (0.00s)
+=== RUN   TestTopAckObserverRuntimeResetAndRestart
+--- PASS: TestTopAckObserverRuntimeResetAndRestart (0.00s)
+=== RUN   TestTopAckGaugeConcurrentSamplingAndClone
+--- PASS: TestTopAckGaugeConcurrentSamplingAndClone (0.01s)
+=== RUN   TestTopCollectorSnapshotDoesNotRequireMetrics
+--- PASS: TestTopCollectorSnapshotDoesNotRequireMetrics (0.00s)
+=== RUN   TestTopCollectorSnapshotIncludesProcessResources
+--- PASS: TestTopCollectorSnapshotIncludesProcessResources (0.00s)
+=== RUN   TestTopCollectorRecordsResourceMetrics
+--- PASS: TestTopCollectorRecordsResourceMetrics (0.00s)
+=== RUN   TestTopCollectorRecordsStoragePebbleMetrics
+--- PASS: TestTopCollectorRecordsStoragePebbleMetrics (0.00s)
+=== RUN   TestTopCollectorInstallsStableDefaultResourceSamplerForCPUPercent
+--- PASS: TestTopCollectorInstallsStableDefaultResourceSamplerForCPUPercent (0.00s)
+=== RUN   TestTopCollectorKeepsResolvedReadinessAlertVisible
+--- PASS: TestTopCollectorKeepsResolvedReadinessAlertVisible (0.00s)
+=== RUN   TestTopCollectorPressureAlertIncludesEvidence
+--- PASS: TestTopCollectorPressureAlertIncludesEvidence (0.00s)
+=== RUN   TestTopCollectorGatewaySessionErrorAlertIncludesEvidence
+--- PASS: TestTopCollectorGatewaySessionErrorAlertIncludesEvidence (0.00s)
+=== RUN   TestTopGopsutilResourceSamplerMapsProcessStats
+--- PASS: TestTopGopsutilResourceSamplerMapsProcessStats (0.00s)
+=== RUN   TestTopCollectorTrafficUsesTotalGatewaySendCounter
+--- PASS: TestTopCollectorTrafficUsesTotalGatewaySendCounter (0.00s)
+=== RUN   TestTopCollectorClientsUseGatewayCounters
+--- PASS: TestTopCollectorClientsUseGatewayCounters (0.00s)
+=== RUN   TestTopCollectorAllViewIncludesRuntimeSections
+--- PASS: TestTopCollectorAllViewIncludesRuntimeSections (0.00s)
+=== RUN   TestTopCollectorSpecificViewsIncludeOnlyRequestedRuntimeSection
+--- PASS: TestTopCollectorSpecificViewsIncludeOnlyRequestedRuntimeSection (0.00s)
+=== RUN   TestTopCollectorWarmingUp
+--- PASS: TestTopCollectorWarmingUp (0.00s)
+=== RUN   TestTopCollectorPressureVerdict
+--- PASS: TestTopCollectorPressureVerdict (0.00s)
+=== RUN   TestTopCollectorPressureSortsPriorityDeterministically
+--- PASS: TestTopCollectorPressureSortsPriorityDeterministically (0.00s)
+=== RUN   TestTopCollectorPressureIncludesWaitTaskAndAdmissionErrors
+--- PASS: TestTopCollectorPressureIncludesWaitTaskAndAdmissionErrors (0.00s)
+=== RUN   TestTopSlotObserverDoesNotCountSchedulerCoalescingAsAdmissionErrors
+--- PASS: TestTopSlotObserverDoesNotCountSchedulerCoalescingAsAdmissionErrors (0.00s)
+=== RUN   TestTopCollectorPressureUsesInflightWhenHigherThanQueueDepth
+--- PASS: TestTopCollectorPressureUsesInflightWhenHigherThanQueueDepth (0.00s)
+=== RUN   TestTopTransportObserverUsesServiceAliasForInflightPool
+--- PASS: TestTopTransportObserverUsesServiceAliasForInflightPool (0.00s)
+=== RUN   TestTopCollectorUnknownInflightCapacityDoesNotCreateCriticalPressure
+--- PASS: TestTopCollectorUnknownInflightCapacityDoesNotCreateCriticalPressure (0.00s)
+=== RUN   TestTopCollectorVerdictStrings
+--- PASS: TestTopCollectorVerdictStrings (0.00s)
+=== RUN   TestTopCollectorEmptyViewDoesNotIncludeOptionalSections
+--- PASS: TestTopCollectorEmptyViewDoesNotIncludeOptionalSections (0.00s)
+=== RUN   TestTopCollectorRingWindowIteratesOldestToNewest
+--- PASS: TestTopCollectorRingWindowIteratesOldestToNewest (0.00s)
+=== RUN   TestTopCollectorHistogramSamplesAreBoundedAndReset
+--- PASS: TestTopCollectorHistogramSamplesAreBoundedAndReset (0.00s)
+=== RUN   TestTopCollectorStopHonorsContextWhenSnapshotBlocks
+--- PASS: TestTopCollectorStopHonorsContextWhenSnapshotBlocks (0.02s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/internal/app	0.618s

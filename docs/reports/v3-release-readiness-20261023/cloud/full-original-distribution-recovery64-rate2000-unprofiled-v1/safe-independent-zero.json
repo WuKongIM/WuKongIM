@@ -1,0 +1,50 @@
+{
+  "schema": "wukongim/local-diagnostic-independent-terminal-review/v1",
+  "observed_at_utc": "2026-10-23T08:24:08.741859+00:00",
+  "reviewer": "ci_audit",
+  "read_only_commands": [
+    "ps pid,pgid,comm",
+    "lsof exact TCP LISTEN range"
+  ],
+  "service_probes": 0,
+  "signals_or_process_mutations": 0,
+  "tests_builds_or_product_starts": 0,
+  "owned_pgid": 94583,
+  "independent_inventory": {
+    "owned_pgid_process_count": 0,
+    "all_wukongim_wkcli_process_count": 0,
+    "listening_count": 0,
+    "port_range": [
+      25000,
+      25063
+    ],
+    "port_count": 64,
+    "ps_exit": 0,
+    "lsof_exit": 1,
+    "zero_verified": true
+  },
+  "executor_cleanup_receipt_sha256": "1e4d1d294b680a7ad78912540f7b5c8148e78385d0d9f69a32a08702e9a80288",
+  "final_report_present": true,
+  "final_report_sha256": "6b797e4d3e6f6d9736884a2dc6fc54ee26b3bee36e4889339bbd22067326d203",
+  "original_verdict": {
+    "outcome": "product_failure",
+    "cause": "overall_first_attempt_rate",
+    "terminal": true
+  },
+  "messages": {
+    "sent": 72002,
+    "send_acknowledged": 68375,
+    "first_attempt_failures": 3633,
+    "send_rejected": 346,
+    "retry_attempts": 6737,
+    "losses": 0
+  },
+  "sampled_delivery": {
+    "sampled": 732,
+    "delivered": 677,
+    "expired": 0,
+    "pending_unfinished": 0,
+    "outstanding": 55
+  },
+  "interpretation": "Independent terminal inventory and original closed verdict only. Zero expired with 55 outstanding does not establish successful delivery. No service probes or new sampling."
+}

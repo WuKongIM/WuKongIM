@@ -1,0 +1,80 @@
+{
+  "all_test_files_match_preproduction_freeze": true,
+  "applicable_instruction_files": [
+    {
+      "bytes": 13284,
+      "path": "AGENTS.md",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746"
+    },
+    {
+      "bytes": 12160,
+      "path": "CONTEXT.md",
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c"
+    },
+    {
+      "bytes": 8680,
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "3ac522a7c276f2b5769df1fddd34d5785f02cb589500f3b9b38b219b821a2ed0"
+    },
+    {
+      "bytes": 3198,
+      "path": "internal/usecase/presence/FLOW.md",
+      "sha256": "f488255eef3f39a79ff2fd1afff662091fb7f8a59174f6c9fcaf941d1fe9b841"
+    }
+  ],
+  "base": "3768ad3ed914767632c41daeead042118a978488",
+  "changed_files": [
+    "CHANGELOG.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "internal/infra/cluster/FLOW.md",
+    "internal/infra/cluster/presence_recovery.go",
+    "internal/infra/cluster/presence_recovery_width64_integration_test.go",
+    "internal/usecase/presence/FLOW.md",
+    "internal/usecase/presence/recovery_byte_budget_contract_test.go",
+    "internal/usecase/presence/recovery_flights.go",
+    "internal/usecase/presence/recovery_width64_integration_test.go",
+    "internal/usecase/presence/uid_flight_integration_test.go"
+  ],
+  "created_at_utc": "2026-10-23T08:09:57.441243+00:00",
+  "diff_sha256": "43af85d7c923908c27d8018e67e948d88c5e22796a36e1442fc2f296fb1b1570",
+  "existing_feedback": {
+    "flow-doc-contracts": {
+      "all_PASS_events": 0,
+      "exit": 0,
+      "log_sha256": "c118df0e2430f0f8640ad44d48179c62cb26afff53988af3696baf1daff46a7a",
+      "result_sha256": "3d643b78b2d318c0e42b07b768daaaa6919997e6f93f36040011398fd5da180f",
+      "root_PASS_events": 0
+    },
+    "green-normal": {
+      "all_PASS_events": 46,
+      "exit": 0,
+      "log_sha256": "f44544e9b8374706eff382cfe75620743e12f861d22b04d1a1fc872f2e2a387d",
+      "result_sha256": "1ee6570ce0804d4b21a5ea0c5e60a468176cf6ff8aaf9490184198ecfdce00c2",
+      "root_PASS_events": 27
+    },
+    "green-race": {
+      "all_PASS_events": 46,
+      "exit": 0,
+      "log_sha256": "4bfab2f332157af245a2e847ce285d09490e15fa57b20fdbae76500d2d2a7726",
+      "result_sha256": "11264619696f6205a61a2ca317791d813f0195cb73f16b111abf6999e4bc72a8",
+      "root_PASS_events": 27
+    },
+    "red": {
+      "all_PASS_events": 3,
+      "exit": 1,
+      "log_sha256": "afc55d80db4606057999c86fa0f518a976b99595802658735457eb7aed33d77c",
+      "result_sha256": "3c712a50cf66e14f29b684194074564ae87da65b40a147dd7aaca8be190d0e64",
+      "root_PASS_events": 2
+    }
+  },
+  "failure_matrix_sha256": "ee6389bf9e7b699a74f0a14aeb925c606da176b25081d32e56187ec02abfeb73",
+  "head": "103292a9e141414b6d1b876ea519cc90da11ecdf",
+  "merge_base": "3768ad3ed914767632c41daeead042118a978488",
+  "no_more_specific_AGENTS_or_ancestor_FLOW": true,
+  "production_full_files_equal_after_only_declared_constant_replacements": true,
+  "reviewer_new_Go_tests_build_product_HTTP_DB_operations": 0,
+  "schema": "recovery64_standards_exact_source_v1",
+  "tests_first_freeze_sha256": "9d18c2757ba2e7c7b03ecab7a16817b44b571406cab198faad64ad10334ba262",
+  "tree": "fde4d44192f4b1c73129b544cd249a0e24f9b57e",
+  "worktree_clean": true
+}

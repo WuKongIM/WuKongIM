@@ -1,0 +1,10 @@
+{
+  "phase": "all_tests_frozen_before_red_and_production_edit",
+  "files": {
+    "internal/usecase/presence/recovery_width64_integration_test.go": "27b14ea240a14ff0bfc3821d36bab076ffca44673ba00f2279ca30a9b40f7fc7",
+    "internal/usecase/presence/recovery_byte_budget_contract_test.go": "2811dd25b9f78b0a094027aead236a0b80924ad3717a3993c1ee569a1d256dc4",
+    "internal/usecase/presence/uid_flight_integration_test.go": "3bcded27c4e8844656afb1d4b46805df23dc26dcebbc41acba48a671250e89a1",
+    "internal/infra/cluster/presence_recovery_width64_integration_test.go": "f6045bd1843a0f0e3488cdbb8c71255eadc53b115de42cafda89c71edfb1282c"
+  },
+  "production_unchanged": true
+}

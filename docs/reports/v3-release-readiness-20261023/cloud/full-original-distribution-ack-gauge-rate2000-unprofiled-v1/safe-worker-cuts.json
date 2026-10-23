@@ -1,0 +1,342 @@
+{
+  "schema": "wukongim/local2k-safe-worker-cuts/v1",
+  "raw_coordinator_log_sha256": "220c7d9d117658c258758f5dc01b856a3386c1031c16378f89f34257aaf4d12d",
+  "cuts": [
+    {
+      "at": "2026-10-23T15:30:03.57764325+08:00",
+      "cut": "periodic",
+      "totals": {
+        "target": 10000,
+        "online": 10000,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 10000
+      },
+      "messages": {
+        "sent": 10025,
+        "send_attempts": 10480,
+        "first_attempts": 10025,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 8240,
+        "send_rejected": 0,
+        "received": 9547,
+        "receive_acknowledged": 9547,
+        "receive_ack_failures": 0,
+        "retry_attempts": 455,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 2999,
+        "above_limit": 2978
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "elapsed_from_firstgrant_seconds": 5.05155625
+    },
+    {
+      "at": "2026-10-23T15:30:08.577591959+08:00",
+      "cut": "periodic",
+      "totals": {
+        "target": 10000,
+        "online": 10000,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 10000
+      },
+      "messages": {
+        "sent": 20009,
+        "send_attempts": 20976,
+        "first_attempts": 20009,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 18618,
+        "send_rejected": 0,
+        "received": 22768,
+        "receive_acknowledged": 22768,
+        "receive_ack_failures": 0,
+        "retry_attempts": 967,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 10226,
+        "above_limit": 10194
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "elapsed_from_firstgrant_seconds": 10.051504959
+    },
+    {
+      "at": "2026-10-23T15:30:13.577540542+08:00",
+      "cut": "periodic",
+      "totals": {
+        "target": 10000,
+        "online": 10000,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 10000
+      },
+      "messages": {
+        "sent": 30007,
+        "send_attempts": 31254,
+        "first_attempts": 30007,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 28271,
+        "send_rejected": 0,
+        "received": 33613,
+        "receive_acknowledged": 33613,
+        "receive_ack_failures": 0,
+        "retry_attempts": 1247,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 0,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 15380,
+        "above_limit": 15338
+      },
+      "harness": {
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "elapsed_from_firstgrant_seconds": 15.051453542
+    },
+    {
+      "at": "2026-10-23T15:30:18.577491084+08:00",
+      "cut": "periodic",
+      "totals": {
+        "target": 10000,
+        "online": 10000,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 10000
+      },
+      "messages": {
+        "sent": 40012,
+        "send_attempts": 41484,
+        "first_attempts": 40012,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 38402,
+        "send_rejected": 0,
+        "received": 39898,
+        "receive_acknowledged": 39898,
+        "receive_ack_failures": 0,
+        "retry_attempts": 1472,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 1,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 19372,
+        "above_limit": 19329
+      },
+      "harness": {
+        "classification": "product_failure",
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 0,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "elapsed_from_firstgrant_seconds": 20.051404084
+    },
+    {
+      "at": "2026-10-23T15:30:23.281964+08:00",
+      "cut": "terminal",
+      "totals": {
+        "target": 10000,
+        "online": 0,
+        "starting": 0,
+        "closing": 0,
+        "traffic_ready": 0
+      },
+      "messages": {
+        "sent": 42002,
+        "send_attempts": 43521,
+        "first_attempts": 42002,
+        "first_attempt_failures": 0,
+        "send_acknowledged": 42002,
+        "send_rejected": 0,
+        "received": 52861,
+        "receive_acknowledged": 52861,
+        "receive_ack_failures": 0,
+        "retry_attempts": 1519,
+        "terminal": 0,
+        "terminal_reasons": {
+          "retry_exhausted": {
+            "total": 0,
+            "attempt_timeout": 0,
+            "local_admission": 0,
+            "transport_error": 0,
+            "retryable_sendack": 0,
+            "unclassified": 0
+          },
+          "non_retriable": 0,
+          "session_closed": 0
+        },
+        "losses": 3,
+        "duplicates": 0,
+        "corruptions": 0,
+        "sequence_regressions": 0
+      },
+      "hot_latency": {
+        "limit_nanos": 400000000,
+        "count": 20431,
+        "above_limit": 20388
+      },
+      "harness": {
+        "classification": "product_failure",
+        "failures": 0,
+        "command_saturation": 0,
+        "offered_underdelivery": 0,
+        "planned_cancellations": 180286,
+        "lifecycle_approval_rejections": {
+          "missing_timer": 0,
+          "invalid_shape": 0,
+          "timer_fence": 0,
+          "activity_fence": 0,
+          "invalidated": 0,
+          "fence_exhausted": 0,
+          "deadline": 0,
+          "replay_expired": 0,
+          "replay_mismatch": 0
+        },
+        "drain_timed_out": false,
+        "unexpected_exit": false
+      },
+      "elapsed_from_firstgrant_seconds": 24.755877
+    }
+  ],
+  "active_rate": {
+    "first_periodic_at": "2026-10-23T15:30:03.57764325+08:00",
+    "last_periodic_at": "2026-10-23T15:30:18.577491084+08:00",
+    "delta_seconds": 14.999847834,
+    "delta_primary_SEND": 29987,
+    "primary_SEND_per_second": 1999.1536135472506,
+    "retries_and_terminal_drain_excluded": true
+  },
+  "terminal_average_is_not_active_QPS": true
+}

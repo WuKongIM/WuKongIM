@@ -1,0 +1,22 @@
+{
+  "schema": "wukongim/root-single-local2k-decision/v1",
+  "at_utc": "2026-10-23T08:12:38.055695+00:00",
+  "source_revision": "103292a9e141414b6d1b876ea519cc90da11ecdf",
+  "source_tree": "fde4d44192f4b1c73129b544cd249a0e24f9b57e",
+  "prepared_input_sha256": "bce33c0b6128843b15258a00ebcffb856dc4922303a96251b9aa20b4388fe2e4",
+  "root_verified_12buildmembers_2binaries_12instructions": true,
+  "root_verified_6pins_11functionASTs_launcher_tail_fixed3": true,
+  "standards_findings": 0,
+  "spec_findings": 0,
+  "fresh_wukongim_process_count": 0,
+  "fresh_port_listener_count": 0,
+  "single_start_authorized": true,
+  "candidate_is_unproven_hypothesis": true,
+  "all_previous_failures_retained": true,
+  "original_configuration_gates_time_limits_unchanged": true,
+  "only_product_change": "presence upstream/downstream concurrency16to64; retained key budget fixed8192; all other bounds and code unchanged",
+  "extra_RPC_response_memory_and_128_service_capacity_risks_retained": true,
+  "no_profiles_no_automatic_retry": true,
+  "runtime_directory": "/tmp/wukongim-v3-readiness-20261023/cloud/full-original-distribution-recovery64-rate2000-unprofiled-v1",
+  "native_Mac_diagnosis_not_Linux_acceptance": true
+}

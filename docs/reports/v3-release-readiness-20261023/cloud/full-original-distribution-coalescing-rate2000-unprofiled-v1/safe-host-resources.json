@@ -1,0 +1,10 @@
+{
+  "schema": "wukongim/local2k-safe-host-resources/v1",
+  "sample_count": 56,
+  "first_at": "2026-10-23T06:12:18.201153+00:00",
+  "last_at": "2026-10-23T06:17:02.248495+00:00",
+  "maximum_owned_RSS_sum_bytes": 5883346944,
+  "maximum_owned_process_CPU_percent_sum": 220.0,
+  "other_WK_seen": false,
+  "limitation": "Owned RSS sampled aggregate not continuous peak; ps CPU lifetime average not host headroom. SharedMac/disk, no formal Linux capacity inference."
+}

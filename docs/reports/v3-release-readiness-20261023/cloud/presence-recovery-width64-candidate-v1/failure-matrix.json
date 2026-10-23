@@ -1,0 +1,37 @@
+{
+  "base": "3768ad3ed914767632c41daeead042118a978488",
+  "rules": {
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "CONTEXT.md": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+    "internal/usecase/presence/FLOW.md": "bf5dc014ecbb61f951e11d0576189ed3cfadf5d319ffb312fbe9cc84f2742a49",
+    "internal/infra/cluster/FLOW.md": "534e7fce0d3e53d1cef322c0529f779b9dba5453643e1a5e8a3396f228f2abdc",
+    ".github/review-agent/policy.json": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9"
+  },
+  "cases": [
+    {
+      "case": "64 distinct one-UID cohorts enter; 65th waits and cancels without reservation; release permits a later call",
+      "old_expected": "fails at cohort17"
+    },
+    {
+      "case": "16 full 512-UID cohorts fill exactly8192keys; 17th small request cannot enter despite free cohort capacity; release permits it",
+      "old_expected": "passes; protects against width-derived32768key regression"
+    },
+    {
+      "case": "same UID follows existing flight, canceled follower never cancels leader; proof recheck avoids a new owner round",
+      "old_expected": "updated64 quota test fails at17; existing independent joining/fence cases remain green"
+    },
+    {
+      "case": "128MiB aggregate bytes and32MiB page bound remain independent; real full-ledger fixture with free cohorts blocks one extra byte",
+      "old_expected": "passes"
+    },
+    {
+      "case": "downstream64 owner rounds enter; 65th cancels without reader entry; every active round joins; future complete empty proof succeeds",
+      "old_expected": "only16 enter, fails"
+    },
+    {
+      "case": "existing packing512/256, source cloning, distributed fences, cancellation/late completion and4096wire limits",
+      "old_expected": "unchanged regressions"
+    }
+  ],
+  "scope": "Internal concurrency candidate only; original2k workload, deadlines, gates and server service limit untouched; no cross-caller batch framework; not accepted as a fix until same-scale qualification."
+}

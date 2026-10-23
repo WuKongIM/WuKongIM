@@ -1,0 +1,35 @@
+{
+  "schema": "wukongim/profiled2000-original-control/v1",
+  "actual_fixed_PID_names": [
+    "coordinator",
+    "host-metrics-1",
+    "host-metrics-2",
+    "host-metrics-3",
+    "host-metrics-load",
+    "launcher",
+    "process-metrics-collector",
+    "profile-driver",
+    "service-1",
+    "service-2",
+    "service-3",
+    "watchdog",
+    "worker-1",
+    "worker-2",
+    "worker-3"
+  ],
+  "coordinator_exit_status": 7,
+  "sampler_exit_status": 0,
+  "same_original_total_TERM_KILL_startup_traffic_lateststop_hold": [
+    600,
+    570,
+    5,
+    360,
+    120,
+    480,
+    90
+  ],
+  "first_failure_stopped_workload": true,
+  "profile_capture_HTTP_count": 9,
+  "no_heap_trace_or_extra_probe": true,
+  "final_verdict_preserved": true
+}

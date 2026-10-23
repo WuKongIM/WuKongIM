@@ -1,0 +1,124 @@
+{
+  "schema": "coalescing_spec_review_context_v1",
+  "axis": "Spec",
+  "base": "d08031d576c3497c56b0dfba60e4db8370224c04",
+  "head": "8100d7fd7a9455029e8de4f6370f140ff07612bc",
+  "head_tree": "ff1a0135caa5e933550fa12f9ac601b786af8980",
+  "diff_command": [
+    "git",
+    "diff",
+    "d08031d576c3497c56b0dfba60e4db8370224c04",
+    "8100d7fd7a9455029e8de4f6370f140ff07612bc"
+  ],
+  "diff_sha256": "a116cba99c58e3c6368749b61a53593736fea85c29edb4fb167539e616637657",
+  "commits": [
+    "83c0be9304331638931c4e09e1d2608bd7c6762d",
+    "8100d7fd7a9455029e8de4f6370f140ff07612bc"
+  ],
+  "instruction_records": [
+    {
+      "path": "AGENTS.md",
+      "role": "root governing instructions",
+      "source_revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "bytes": 13284
+    },
+    {
+      "path": "CONTEXT.md",
+      "role": "root domain context",
+      "source_revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "bytes": 12160
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "role": "applicable scope subtree",
+      "source_revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "sha256": "6a86881b38b156b05f6098226a1d8290150ce50921794a55f7585a9b493e77ba",
+      "bytes": 11140
+    },
+    {
+      "path": "internal/bench/FLOW.md",
+      "role": "applicable scope subtree",
+      "source_revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "sha256": "e43555b18ed6de239f2a7521f3ef63c63e438d5f9fa9d7638a4d8f0a3dfe4e73",
+      "bytes": 6925
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "role": "requested unchanged E2E reference",
+      "source_revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "sha256": "d748b2df46e5214b5735aec2f0cd53eaa68fad8deff735ad19193d026af93603",
+      "bytes": 30711
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "role": "requested unchanged suite reference, scope package",
+      "source_revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "sha256": "df0e9c970f6ee56d573407fb99d80b9ca620b6387a619bbadc66c82ef8222887",
+      "bytes": 6248
+    },
+    {
+      "path": ".github/review-agent/policy.json",
+      "role": "requested machine check authority",
+      "source_revision": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "sha256": "2ee1b3162b431d77bec8cf68acc5b8aec0eede735f03c9f89d6c42e1d86cb0f9",
+      "bytes": 14492
+    }
+  ],
+  "absent_more_specific_agents_at_base": [
+    "internal/AGENTS.md",
+    "internal/bench/AGENTS.md",
+    "internal/bench/target/AGENTS.md",
+    "pkg/AGENTS.md",
+    "pkg/slot/AGENTS.md",
+    "pkg/slot/proxy/AGENTS.md",
+    "docs/AGENTS.md",
+    "docs/development/AGENTS.md",
+    "docs/specs/AGENTS.md"
+  ],
+  "changed_files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "b519885a9e689475fc9f1990216f1a645b9dd948b08ae5a0d087fab0e34a98ac"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "5d34d593e9c3957f5e4bf72c4c7304927da542881a3c97efc2c9d3bf83058611"
+    },
+    {
+      "path": "docs/specs/user-channel-send-ban.md",
+      "sha256": "3a0b92e71e56ab71d5aa3bc5a5a3d7972e69e40a4448dc8973fd18421c514b0a"
+    },
+    {
+      "path": "internal/bench/target/client.go",
+      "sha256": "a1c6d02b4ec68550a41d9bcf7b5ec6a9416bdfb1a1b8c6828356195e75ff36e8"
+    },
+    {
+      "path": "internal/bench/target/metrics_parse_diagnostics_test.go",
+      "sha256": "5ac9e69cb6977105e0678991a1c1767e019659e027c3b02cf71ab2fd46edd49b"
+    },
+    {
+      "path": "internal/bench/target/metrics_parse_failure.go",
+      "sha256": "070d62a09ea054a3ccf3c9829b828576dda03b6f80bb1af455e7c054778ebdbe"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "4b1f17c5f088e5d3454ba707eec9fc4f70ec830062a0bc830f117f298679ac07"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_cohort.go",
+      "sha256": "1a4b27692b25c3380893ca35b43f400994bda72bd6e510b214bee4c6445b019b"
+    },
+    {
+      "path": "pkg/slot/proxy/send_permission_paced_capacity_integration_test.go",
+      "sha256": "1f61a1ea50ba43b6353311e72d75fcd623b9f5bab1302765ba334af27db542ba"
+    }
+  ],
+  "reviewer_prior_contribution": [
+    "internal/bench/target/client.go",
+    "internal/bench/target/metrics_parse_failure.go",
+    "internal/bench/target/metrics_parse_diagnostics_test.go"
+  ],
+  "reviewer_validation": "Static review only; no tests, builds, product processes, HTTP, or profiles started during this review."
+}

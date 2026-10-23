@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "build",
+    "-p=1",
+    "-trimpath",
+    "-buildvcs=true",
+    "-mod=readonly",
+    "-ldflags=-s -w -buildid=",
+    "-o",
+    "/tmp/wukongim-v3-readiness-20261023/cloud/exact-source-build-recovery64-native-v1/darwin-arm64/wukongim",
+    "./cmd/wukongim"
+  ],
+  "cwd": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-rc-exact-source-recovery64-candidate",
+  "started_at": "2026-10-23T08:06:52.519991+00:00",
+  "finished_at": "2026-10-23T08:07:00.630582+00:00",
+  "elapsed_seconds": 8.11061916698236,
+  "exit_code": 0,
+  "timeout_seconds": 60,
+  "combined_output_cap": 1048576,
+  "output_cap_checked_after_completion": true,
+  "stdout_bytes": 0,
+  "stderr_bytes": 0
+}

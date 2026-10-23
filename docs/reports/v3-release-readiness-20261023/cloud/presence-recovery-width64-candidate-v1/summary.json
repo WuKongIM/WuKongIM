@@ -1,0 +1,84 @@
+{
+  "source": "103292a9e141414b6d1b876ea519cc90da11ecdf",
+  "tree": "fde4d44192f4b1c73129b544cd249a0e24f9b57e",
+  "base": "3768ad3ed914767632c41daeead042118a978488",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-presence-recovery-width64",
+  "clean": true,
+  "tests": {
+    "red": {
+      "status": "failed",
+      "exit": 1,
+      "elapsed_seconds": 11.433,
+      "root_pass_events": 2,
+      "all_pass_events": 3,
+      "all_fail_events": 4,
+      "cleanup": {
+        "session_id": 92990,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      }
+    },
+    "green-normal": {
+      "status": "passed",
+      "exit": 0,
+      "elapsed_seconds": 3.159,
+      "root_pass_events": 27,
+      "all_pass_events": 46,
+      "all_fail_events": 0,
+      "cleanup": {
+        "session_id": 93270,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      }
+    },
+    "green-race": {
+      "status": "passed",
+      "exit": 0,
+      "elapsed_seconds": 14.483,
+      "root_pass_events": 27,
+      "all_pass_events": 46,
+      "all_fail_events": 0,
+      "cleanup": {
+        "session_id": 93324,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      }
+    },
+    "flow-doc-contracts": {
+      "status": "passed",
+      "exit": 0,
+      "elapsed_seconds": 0.61,
+      "root_pass_events": 0,
+      "all_pass_events": 0,
+      "all_fail_events": 0,
+      "cleanup": {
+        "session_id": 93663,
+        "verified": true,
+        "complete": true,
+        "initial_processes": [],
+        "remaining_processes": []
+      }
+    }
+  },
+  "test_source_unchanged_since_first_red": true,
+  "candidate_only": true,
+  "same_scale_2000_qualification": "not_run",
+  "risks": [
+    "Up to four times more simultaneous owner RPCs and response heap; the128MiB budget covers owned UID clones, not total RSS or RPC response memory.",
+    "Two peers each using64 rounds may concentrate at one owner and meet its unchanged128 service concurrency; no other gate is raised.",
+    "Broadcast wakeup fairness is unchanged.",
+    "No cross-caller batching, RPC deadline, worker,512UID/256target page,4096route response,32MiB page,128MiB retained bytes or workload acceptance change."
+  ],
+  "red_details": [
+    "Old upstream rejects seventeenth independent cohort, so64 expectation fails.",
+    "Old downstream observes only16 admitted owner rounds, so64 expectation fails.",
+    "8192 full-key and128MiB full-byte controls passed before production change and after."
+  ],
+  "validation_limit": "Mechanism tests and race do not prove original message loss or five-second presence timeout is repaired."
+}

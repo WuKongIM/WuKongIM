@@ -1,0 +1,19 @@
+{
+  "arguments": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "-tags=integration",
+    "./internal/usecase/presence",
+    "./internal/infra/cluster",
+    "-run",
+    "Test(AuthorityRecoveryWidth64|AuthorityRecoveryUIDFlightQuota|RecoveryOwnedUIDByte|PresenceRecoveryOwnerAdmissionAllowsSixtyFour)",
+    "-count=1",
+    "-timeout=90s",
+    "-parallel=2",
+    "-p=2",
+    "-v"
+  ],
+  "working_dir": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-presence-recovery-width64",
+  "timeout_seconds": 110,
+  "max_output_bytes": 1048576
+}

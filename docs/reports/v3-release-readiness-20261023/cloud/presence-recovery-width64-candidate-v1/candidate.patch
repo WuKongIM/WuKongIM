@@ -1,0 +1,471 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 8fab724f1..90e2bf2f8 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -42,9 +42,9 @@ move those entries into a version section named for that exact tag.
+   existing ten-proposal bound, so a slow Slot does not serialize a projection page.
+   / 私聊目录的独立源 Slot 在现有十路提案上限内并行完成，避免慢 Slot 串行阻塞整页投影。
+ 
+-- Allow up to 16 independent cold presence recovery rounds while retaining the
+-  128 MiB owned UID byte budget and existing owner-read deadlines.
+-  / 在线路由冷恢复允许最多 16 个独立恢复组并行，保持 128 MiB 自有 UID 字节预算及原有 owner 读取时限。
++- Allow up to 64 independent cold presence recovery rounds while retaining the
++  independent 8,192-key and 128 MiB owned UID budgets and existing owner-read deadlines.
++  / 在线路由冷恢复允许最多 64 个独立恢复组并行，保持独立的 8,192 键和 128 MiB 自有 UID 字节预算及原有 owner 读取时限。
+ 
+ - Keep runtime queue depth, capacity and byte gauges coherent within each
+   metrics scrape when queue observations change concurrently.
+diff --git a/docs/development/PROJECT_KNOWLEDGE.md b/docs/development/PROJECT_KNOWLEDGE.md
+index 1ea88ca5f..310befeed 100644
+--- a/docs/development/PROJECT_KNOWLEDGE.md
++++ b/docs/development/PROJECT_KNOWLEDGE.md
+@@ -1106,9 +1106,9 @@ specification, runbook, report, or module documentation; link to them when neede
+   owner-local. Authority changes require bounded reconstruction before an empty
+   route can be treated as offline, never a scan of every session.
+ - Cold presence recovery coalesces UID proofs by the five-field distributed
+-  identity, excluding local revision/AuthorityEpoch counters. Sixteen caller-owned
+-  cohorts bound retained keys to 8,192 and owned UID clones to an independent
+-  128 MiB (32 MiB per new subset), matching the node-wide 16-round owner-read
++  identity, excluding local revision/AuthorityEpoch counters. Sixty-four caller-owned
++  cohorts retain an independent maximum of 8,192 keys and owned UID clones to an independent
++  128 MiB (32 MiB per new subset), matching the node-wide 64-round owner-read
+   gate; these byte budgets do not describe all presence/RPC heap.
+   The original 512-UID/256-target page fits maximum 65,535-byte stored identities.
+   Larger arbitrary lookup strings can now remain explicitly not ready. Quota
+diff --git a/internal/infra/cluster/FLOW.md b/internal/infra/cluster/FLOW.md
+index d1042c148..2f44a2114 100644
+--- a/internal/infra/cluster/FLOW.md
++++ b/internal/infra/cluster/FLOW.md
+@@ -42,7 +42,7 @@ management, plugins, diagnostics, and bounded operations observations.
+ 2. Presence reconstruction coalesces target groups into one bounded read per
+    active owner instead of repeating unavailable-owner timeouts per Hash Slot. It validates each
+    owner boot identity, and rechecks current membership and Slot authority before
+-   publishing a complete result. One node-wide gate admits at most 16 recovery
++   publishing a complete result. One node-wide gate admits at most 64 recovery
+    owner-read rounds. Unknown or unavailable proof remains explicit.
+ 3. Presence and recipient adapters resolve exact fenced targets, group work by
+    owner, and choose the local authority or one typed RPC envelope per owner.
+diff --git a/internal/infra/cluster/presence_recovery.go b/internal/infra/cluster/presence_recovery.go
+index fb4b2f0b5..f4684c773 100644
+--- a/internal/infra/cluster/presence_recovery.go
++++ b/internal/infra/cluster/presence_recovery.go
+@@ -30,7 +30,7 @@ type PresenceRecoveryOwners struct {
+ 
+ // NewPresenceRecoveryOwners shares bounded owner-read admission across UID authorities.
+ func NewPresenceRecoveryOwners(node PresenceRecoveryNode, local presence.OwnerRouteReader) *PresenceRecoveryOwners {
+-	return &PresenceRecoveryOwners{node: node, local: local, remote: accessnode.NewClient(node), admission: make(chan struct{}, 16)}
++	return &PresenceRecoveryOwners{node: node, local: local, remote: accessnode.NewClient(node), admission: make(chan struct{}, 64)}
+ }
+ 
+ // ValidatePresenceTarget checks the distributed identity; local diagnostic
+diff --git a/internal/infra/cluster/presence_recovery_width16_integration_test.go b/internal/infra/cluster/presence_recovery_width64_integration_test.go
+similarity index 87%
+rename from internal/infra/cluster/presence_recovery_width16_integration_test.go
+rename to internal/infra/cluster/presence_recovery_width64_integration_test.go
+index 19f06fbc3..625ca9ac6 100644
+--- a/internal/infra/cluster/presence_recovery_width16_integration_test.go
++++ b/internal/infra/cluster/presence_recovery_width64_integration_test.go
+@@ -18,12 +18,12 @@ import (
+ 
+ // Independent recovery rounds share one node-wide admission bound. A canceled
+ // waiter must not read an owner or retain a permit after the active rounds exit.
+-func TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth(t *testing.T) {
++func TestPresenceRecoveryOwnerAdmissionAllowsSixtyFourRoundsAndCancelsSixtyFifth(t *testing.T) {
+ 	target := presence.RouteTarget{HashSlot: 101, SlotID: 5, LeaderNodeID: 1, LeaderTerm: 4, ConfigEpoch: 1}
+ 	node := &recoveryCluster{fakePresenceCluster: &fakePresenceCluster{nodeID: 1, route: cluster.Route{HashSlot: 101, SlotID: 5, Leader: 1, LeaderTerm: 4, ConfigEpoch: 1}}}
+ 	node.snapshot.Nodes = []control.Node{{NodeID: 1, JoinState: control.NodeJoinStateActive}}
+ 	activeCtx, cancelActive := context.WithCancel(context.Background())
+-	entered := make(chan string, 16)
++	entered := make(chan string, 64)
+ 	release := make(chan struct{})
+ 	var releaseOnce sync.Once
+ 	var waitingReads atomic.Int32
+@@ -54,9 +54,9 @@ func TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth(
+ 		}
+ 	})
+ 	source := NewPresenceRecoveryOwners(node, reader)
+-	completed := make(chan error, 16)
++	completed := make(chan error, 64)
+ 	var rounds sync.WaitGroup
+-	for i := range 16 {
++	for i := range 64 {
+ 		rounds.Add(1)
+ 		go func(uid string) {
+ 			defer rounds.Done()
+@@ -81,8 +81,8 @@ func TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth(
+ 
+ 	admissionDeadline := time.NewTimer(2 * time.Second)
+ 	defer admissionDeadline.Stop()
+-	seen := make(map[string]struct{}, 16)
+-	for len(seen) < 16 {
++	seen := make(map[string]struct{}, 64)
++	for len(seen) < 64 {
+ 		select {
+ 		case uid := <-entered:
+ 			if _, duplicate := seen[uid]; duplicate {
+@@ -92,11 +92,11 @@ func TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth(
+ 		case err := <-completed:
+ 			t.Fatalf("an active recovery round exited before release: %v", err)
+ 		case <-admissionDeadline.C:
+-			t.Fatalf("only %d independent recovery rounds entered owner reads, want 16", len(seen))
++			t.Fatalf("only %d independent recovery rounds entered owner reads, want 64", len(seen))
+ 		}
+ 	}
+ 
+-	// All sixteen reads remain held. The next public call must wait for
++	// All sixty-four reads remain held. The next public call must wait for
+ 	// admission and return its own cancellation without invoking the reader.
+ 	waitingCtx, cancelWaiting := context.WithTimeout(context.Background(), 100*time.Millisecond)
+ 	waitingDone := make(chan error, 1)
+@@ -111,24 +111,24 @@ func TestPresenceRecoveryOwnerAdmissionAllowsSixteenRoundsAndCancelsSeventeenth(
+ 		select {
+ 		case <-waitingJoined:
+ 		case <-time.After(2 * time.Second):
+-			t.Error("canceled seventeenth recovery round did not join")
++			t.Error("canceled sixty-fifth recovery round did not join")
+ 		}
+ 	}()
+ 	select {
+ 	case err := <-waitingDone:
+ 		if !errors.Is(err, context.DeadlineExceeded) {
+-			t.Fatalf("seventeenth recovery round = %v, want its admission deadline", err)
++			t.Fatalf("sixty-fifth recovery round = %v, want its admission deadline", err)
+ 		}
+ 	case <-time.After(2 * time.Second):
+-		t.Fatal("seventeenth recovery round did not return after cancellation")
++		t.Fatal("sixty-fifth recovery round did not return after cancellation")
+ 	}
+ 	if got := waitingReads.Load(); got != 0 {
+-		t.Fatalf("canceled seventeenth recovery round read an owner %d times", got)
++		t.Fatalf("canceled sixty-fifth recovery round read an owner %d times", got)
+ 	}
+ 
+ 	cancelActive()
+ 	releaseOnce.Do(func() { close(release) })
+-	for range 16 {
++	for range 64 {
+ 		select {
+ 		case err := <-completed:
+ 			if !errors.Is(err, context.Canceled) {
+diff --git a/internal/usecase/presence/FLOW.md b/internal/usecase/presence/FLOW.md
+index a57132aba..71fe9d65a 100644
+--- a/internal/usecase/presence/FLOW.md
++++ b/internal/usecase/presence/FLOW.md
+@@ -31,7 +31,7 @@ It does not own gateway frames, concrete cluster routing, or session storage.
+ 3. Authority recovery packs up to 512 UIDs across 256 targets per owner page.
+    Bounded flights coalesce the same UID and distributed authority identity;
+    newly owned proofs install and release before joining older flights.
+-   Sixteen leader cohorts retain at most 8,192 keys and 128 MiB of owned UID bytes,
++   Sixty-four leader cohorts retain at most 8,192 keys and 128 MiB of owned UID bytes,
+    with 32 MiB per new subset. Proven lookups bypass admission; quota waits
+    reserve no partial keys and recheck proofs after waking. Complete results
+    retain exact fences and failed groups preserve successful siblings.
+diff --git a/internal/usecase/presence/recovery_byte_budget_contract_test.go b/internal/usecase/presence/recovery_byte_budget_contract_test.go
+index e1ee1a667..7709ef0ae 100644
+--- a/internal/usecase/presence/recovery_byte_budget_contract_test.go
++++ b/internal/usecase/presence/recovery_byte_budget_contract_test.go
+@@ -5,6 +5,9 @@ import "testing"
+ // This fast resource-admission guard supplements the exported integration test
+ // that fills the real owned-byte ledger with free cohort and key capacity.
+ func TestRecoveryOwnedUIDByteBudgetRemainsIndependentOfWidth(t *testing.T) {
++	if recoveryMaxKeys != 8192 {
++		t.Fatalf("owned key budget=%d, want fixed8192", recoveryMaxKeys)
++	}
+ 	if recoveryMaxUIDBytes != 128<<20 {
+ 		t.Fatalf("owned UID byte budget=%d, want fixed 128 MiB", recoveryMaxUIDBytes)
+ 	}
+diff --git a/internal/usecase/presence/recovery_flights.go b/internal/usecase/presence/recovery_flights.go
+index ae022efdb..2323eb9ba 100644
+--- a/internal/usecase/presence/recovery_flights.go
++++ b/internal/usecase/presence/recovery_flights.go
+@@ -9,10 +9,10 @@ import (
+ )
+ 
+ const (
+-	// Sixteen leaders match the production node-wide owner-read admission. Keys
++	// Sixty-four leaders match the production node-wide owner-read admission. Keys
+ 	// and bytes bound only registry-owned UID clones, not caller/Directory/RPC heap.
+-	recoveryMaxCohorts = 16
+-	recoveryMaxKeys    = recoveryMaxCohorts * authority.RecoveryBatchSize
++	recoveryMaxCohorts = 64
++	recoveryMaxKeys    = 8192 // Independent of cohort concurrency.
+ 	// A full page of 512 maximum-length stored UIDs (65535 bytes each) fits.
+ 	// This is a new internal admission budget, not an RPC string-size contract.
+ 	recoveryPageUIDBytes = 32 << 20
+diff --git a/internal/usecase/presence/recovery_width16_integration_test.go b/internal/usecase/presence/recovery_width64_integration_test.go
+similarity index 61%
+rename from internal/usecase/presence/recovery_width16_integration_test.go
+rename to internal/usecase/presence/recovery_width64_integration_test.go
+index 849234fff..140b3e92f 100644
+--- a/internal/usecase/presence/recovery_width16_integration_test.go
++++ b/internal/usecase/presence/recovery_width64_integration_test.go
+@@ -14,9 +14,9 @@ import (
+ 	presence "github.com/WuKongIM/WuKongIM/internal/usecase/presence"
+ )
+ 
+-// width16Lookup has a longer fixed watchdog than the small legacy fixtures so
++// width64Lookup has a longer fixed watchdog than the small legacy fixtures so
+ // a real 128-MiB owned-byte boundary never relies on the three-second helper.
+-func width16Lookup(t *testing.T, recovery *presence.AuthorityRecovery, groups []presence.EndpointLookupGroup) *flightCall {
++func width64Lookup(t *testing.T, recovery *presence.AuthorityRecovery, groups []presence.EndpointLookupGroup) *flightCall {
+ 	t.Helper()
+ 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+ 	observed := &waitObservedContext{Context: ctx, waiting: make(chan struct{})}
+@@ -29,27 +29,27 @@ func width16Lookup(t *testing.T, recovery *presence.AuthorityRecovery, groups []
+ 			case call.result = <-call.done:
+ 				call.joined = true
+ 			case <-time.After(5 * time.Second):
+-				t.Error("width16 lookup cleanup did not join")
++				t.Error("width64 lookup cleanup did not join")
+ 			}
+ 		}
+ 	})
+ 	return call
+ }
+ 
+-func width16Await(t *testing.T, call *flightCall) []presence.EndpointLookupResult {
++func width64Await(t *testing.T, call *flightCall) []presence.EndpointLookupResult {
+ 	t.Helper()
+ 	if !call.joined {
+ 		select {
+ 		case call.result = <-call.done:
+ 			call.joined = true
+ 		case <-time.After(5 * time.Second):
+-			t.Fatal("width16 lookup did not finish within watchdog")
++			t.Fatal("width64 lookup did not finish within watchdog")
+ 		}
+ 	}
+ 	return call.result
+ }
+ 
+-func width16Entry(t *testing.T, entered <-chan uint16, want uint16, watchdog time.Duration) {
++func width64Entry(t *testing.T, entered <-chan uint16, want uint16, watchdog time.Duration) {
+ 	t.Helper()
+ 	select {
+ 	case got := <-entered:
+@@ -61,12 +61,13 @@ func width16Entry(t *testing.T, entered <-chan uint16, want uint16, watchdog tim
+ 	}
+ }
+ 
+-func TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget(t *testing.T) {
+-	for _, pageSize := range []int{1, 512} {
+-		t.Run(fmt.Sprint(pageSize), func(t *testing.T) {
++func TestAuthorityRecoveryWidth64AdmitsCohortsAndFullKeyBudget(t *testing.T) {
++	for _, budget := range []struct{ pageSize, cohorts int }{{1, 64}, {512, 16}} {
++		t.Run(fmt.Sprint(budget.pageSize), func(t *testing.T) {
++			pageSize, cohorts := budget.pageSize, budget.cohorts
+ 			directory := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
+-			entered := make(chan uint16, 32)
+-			releases := make([]chan struct{}, 16)
++			entered := make(chan uint16, 65)
++			releases := make([]chan struct{}, cohorts)
+ 			for i := range releases {
+ 				releases[i] = make(chan struct{})
+ 			}
+@@ -79,7 +80,7 @@ func TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget(t *testing.T) {
+ 				}
+ 				index := groups[0].Target.HashSlot
+ 				entered <- index
+-				if index < 16 {
++				if int(index) < cohorts {
+ 					select {
+ 					case <-releases[index]:
+ 					case <-ctx.Done():
+@@ -88,44 +89,44 @@ func TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget(t *testing.T) {
+ 				}
+ 				return completeFlightRoutes(groups)
+ 			}))
+-			calls := make([]*flightCall, 16)
+-			groups := make([][]presence.EndpointLookupGroup, 16)
+-			for i := 0; i <= 16; i++ {
++			calls := make([]*flightCall, cohorts)
++			groups := make([][]presence.EndpointLookupGroup, cohorts)
++			for i := 0; i <= cohorts; i++ {
+ 				directory.BecomeAuthority(flightTarget(uint16(i)))
+ 			}
+ 			for i := range calls {
+ 				uids := make([]string, pageSize)
+ 				for j := range uids {
+-					uids[j] = fmt.Sprintf("width16-%02d-%03d", i, j)
++					uids[j] = fmt.Sprintf("width64-%02d-%03d", i, j)
+ 				}
+ 				groups[i] = flightGroups(flightTarget(uint16(i)), uids...)
+-				calls[i] = width16Lookup(t, recovery, groups[i])
+-				width16Entry(t, entered, uint16(i), 2*time.Second)
++				calls[i] = width64Lookup(t, recovery, groups[i])
++				width64Entry(t, entered, uint16(i), 2*time.Second)
+ 			}
+-			blocked := width16Lookup(t, recovery, flightGroups(flightTarget(16), "not-reserved-a", "not-reserved-b"))
++			blocked := width64Lookup(t, recovery, flightGroups(flightTarget(uint16(cohorts)), "not-reserved-a", "not-reserved-b"))
+ 			awaitFlightGate(t, blocked.waiting)
+-			if got := reads.Load(); got != 16 {
+-				t.Fatalf("17th round entered despite full width/key quota: reads=%d", got)
++			if got := reads.Load(); got != int32(cohorts) {
++				t.Fatalf("next round entered despite full width/key quota: reads=%d", got)
+ 			}
+ 			blocked.cancel()
+-			requireFlightError(t, width16Await(t, blocked), context.Canceled)
+-			follower := width16Lookup(t, recovery, groups[0])
++			requireFlightError(t, width64Await(t, blocked), context.Canceled)
++			follower := width64Lookup(t, recovery, groups[0])
+ 			awaitFlightGate(t, follower.waiting)
+ 			follower.cancel()
+-			requireFlightError(t, width16Await(t, follower), context.Canceled)
++			requireFlightError(t, width64Await(t, follower), context.Canceled)
+ 			close(releases[0])
+-			requireColdRoutes(t, width16Await(t, calls[0]), groups[0])
+-			retryGroups := flightGroups(flightTarget(16), "not-reserved-a", "not-reserved-b")
+-			retry := width16Lookup(t, recovery, retryGroups)
+-			width16Entry(t, entered, 16, 2*time.Second)
+-			requireColdRoutes(t, width16Await(t, retry), retryGroups)
+-			for i := 1; i < 16; i++ {
++			requireColdRoutes(t, width64Await(t, calls[0]), groups[0])
++			retryGroups := flightGroups(flightTarget(uint16(cohorts)), "not-reserved-a", "not-reserved-b")
++			retry := width64Lookup(t, recovery, retryGroups)
++			width64Entry(t, entered, uint16(cohorts), 2*time.Second)
++			requireColdRoutes(t, width64Await(t, retry), retryGroups)
++			for i := 1; i < cohorts; i++ {
+ 				close(releases[i])
+ 			}
+ 			for i, call := range calls {
+-				requireColdRoutes(t, width16Await(t, call), groups[i])
++				requireColdRoutes(t, width64Await(t, call), groups[i])
+ 			}
+-			if got := reads.Load(); got != 17 {
++			if got := reads.Load(); got != int32(cohorts+1) {
+ 				t.Fatalf("unexpected owner reads=%d after canceled follower and waiter", got)
+ 			}
+ 		})
+@@ -135,7 +136,7 @@ func TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget(t *testing.T) {
+ // This integration fixture allocates over 128 MiB for caller input alone and
+ // another 128 MiB for owned clones. The operator must admit memory headroom
+ // before execution; the owned-byte ledger is not a process RSS guarantee.
+-func TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts(t *testing.T) {
++func TestAuthorityRecoveryWidth64Keeps128MiBByteBudgetWithFreeCohorts(t *testing.T) {
+ 	directory := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
+ 	entered := make(chan uint16, 16)
+ 	var reads atomic.Int32
+@@ -155,35 +156,35 @@ func TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts(t *testing
+ 		}
+ 		pages[page] = flightGroups(target, uids...)
+ 	}
+-	// 4*512*65535 = 128 MiB - 2048, independently of the 16-cohort limit.
++	// 4*512*65535 = 128 MiB - 2048, independently of the 64-cohort limit.
+ 	held := make([]*flightCall, 4)
+ 	for i := range held {
+-		held[i] = width16Lookup(t, recovery, pages[i])
+-		width16Entry(t, entered, uint16(100+i), 10*time.Second)
++		held[i] = width64Lookup(t, recovery, pages[i])
++		width64Entry(t, entered, uint16(100+i), 10*time.Second)
+ 	}
+ 	fillTarget := flightTarget(104)
+ 	directory.BecomeAuthority(fillTarget)
+-	fill := width16Lookup(t, recovery, flightGroups(fillTarget, strings.Repeat("y", 2048)))
+-	width16Entry(t, entered, 104, 10*time.Second)
++	fill := width64Lookup(t, recovery, flightGroups(fillTarget, strings.Repeat("y", 2048)))
++	width64Entry(t, entered, 104, 10*time.Second)
+ 	byteTarget := flightTarget(105)
+ 	directory.BecomeAuthority(byteTarget)
+-	oneByte := width16Lookup(t, recovery, flightGroups(byteTarget, "z"))
++	oneByte := width64Lookup(t, recovery, flightGroups(byteTarget, "z"))
+ 	awaitFlightGate(t, oneByte.waiting)
+ 	if got := reads.Load(); got != 5 {
+ 		t.Fatalf("byte quota admitted one extra byte with free cohorts; possible 512-MiB derived regression: reads=%d", got)
+ 	}
+ 	oneByte.cancel()
+-	requireFlightError(t, width16Await(t, oneByte), context.Canceled)
++	requireFlightError(t, width64Await(t, oneByte), context.Canceled)
+ 	held[0].cancel()
+-	requireFlightError(t, width16Await(t, held[0]), context.Canceled)
+-	afterRelease := width16Lookup(t, recovery, flightGroups(byteTarget, "z"))
+-	width16Entry(t, entered, 105, 10*time.Second)
++	requireFlightError(t, width64Await(t, held[0]), context.Canceled)
++	afterRelease := width64Lookup(t, recovery, flightGroups(byteTarget, "z"))
++	width64Entry(t, entered, 105, 10*time.Second)
+ 	afterRelease.cancel()
+-	requireFlightError(t, width16Await(t, afterRelease), context.Canceled)
++	requireFlightError(t, width64Await(t, afterRelease), context.Canceled)
+ 	fill.cancel()
+-	requireFlightError(t, width16Await(t, fill), context.Canceled)
++	requireFlightError(t, width64Await(t, fill), context.Canceled)
+ 	for i := 1; i < len(held); i++ {
+ 		held[i].cancel()
+-		requireFlightError(t, width16Await(t, held[i]), context.Canceled)
++		requireFlightError(t, width64Await(t, held[i]), context.Canceled)
+ 	}
+ }
+diff --git a/internal/usecase/presence/uid_flight_integration_test.go b/internal/usecase/presence/uid_flight_integration_test.go
+index 9b50eeaf9..c97ee8438 100644
+--- a/internal/usecase/presence/uid_flight_integration_test.go
++++ b/internal/usecase/presence/uid_flight_integration_test.go
+@@ -309,8 +309,8 @@ func TestAuthorityRecoveryUIDFlightOwnsUIDBacking(t *testing.T) {
+ 
+ func TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys(t *testing.T) {
+ 	d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
+-	entered := make(chan int, 32)
+-	releases := make([]chan struct{}, 16)
++	entered := make(chan int, 65)
++	releases := make([]chan struct{}, 64)
+ 	for i := range releases {
+ 		releases[i] = make(chan struct{})
+ 	}
+@@ -323,7 +323,7 @@ func TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKey
+ 		}
+ 		i := int(groups[0].Target.HashSlot)
+ 		entered <- i
+-		if i < 16 {
++		if i < 64 {
+ 			select {
+ 			case <-releases[i]:
+ 			case <-ctx.Done():
+@@ -332,8 +332,8 @@ func TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKey
+ 		}
+ 		return completeFlightRoutes(groups)
+ 	}))
+-	as := make([]*flightCall, 16)
+-	for i := 0; i < 17; i++ {
++	as := make([]*flightCall, 64)
++	for i := 0; i < 65; i++ {
+ 		d.BecomeAuthority(flightTarget(uint16(i)))
+ 	}
+ 	for i := range as {
+@@ -356,31 +356,31 @@ func TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKey
+ 			}
+ 		}
+ 	})
+-	canceled := startFlightCall(t, r, flightGroups(flightTarget(16), "canceled-1", "canceled-2"))
++	canceled := startFlightCall(t, r, flightGroups(flightTarget(64), "canceled-1", "canceled-2"))
+ 	awaitFlightGate(t, canceled.waiting)
+ 	canceled.cancel()
+ 	requireFlightError(t, canceled.await(t), context.Canceled)
+-	b := startFlightCall(t, r, flightGroups(flightTarget(16), "new-1", "new-2"))
++	b := startFlightCall(t, r, flightGroups(flightTarget(64), "new-1", "new-2"))
+ 	awaitFlightGate(t, b.waiting)
+-	if peak.Load() != 16 {
+-		t.Fatalf("leader cohort exceeded sixteen: peak=%d", peak.Load())
++	if peak.Load() != 64 {
++		t.Fatalf("leader cohort exceeded sixty-four: peak=%d", peak.Load())
+ 	}
+ 	follower := startFlightCall(t, r, flightGroups(flightTarget(0), "0"))
+ 	awaitFlightGate(t, follower.waiting)
+ 	follower.cancel()
+ 	requireFlightError(t, follower.await(t), context.Canceled)
+-	if err := d.InstallRecoveredRoutes(flightTarget(16), []string{"new-1", "new-2"}, completeFlightRoutes(flightGroups(flightTarget(16), "new-1", "new-2"))[0].Routes); err != nil {
++	if err := d.InstallRecoveredRoutes(flightTarget(64), []string{"new-1", "new-2"}, completeFlightRoutes(flightGroups(flightTarget(64), "new-1", "new-2"))[0].Routes); err != nil {
+ 		t.Fatal(err)
+ 	}
+ 	close(releases[0])
+-	requireColdRoutes(t, b.await(t), flightGroups(flightTarget(16), "new-1", "new-2"))
+-	for i := 1; i < 16; i++ {
++	requireColdRoutes(t, b.await(t), flightGroups(flightTarget(64), "new-1", "new-2"))
++	for i := 1; i < 64; i++ {
+ 		close(releases[i])
+ 	}
+ 	for i, a := range as {
+ 		requireColdRoutes(t, a.await(t), flightGroups(flightTarget(uint16(i)), fmt.Sprint(i)))
+ 	}
+-	if reads.Load() != 16 {
++	if reads.Load() != 64 {
+ 		t.Fatalf("quota wake requeried installed proof: reads=%d", reads.Load())
+ 	}
+ }

@@ -1,0 +1,98 @@
+{
+  "schema": "wukongim.independent_spec_review/v1",
+  "observed_at": "2026-10-23T05:07:53.212510+00:00",
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-permission-admission",
+  "base": "966ec67df1435ad07bbb82724cd940f550755179",
+  "head": "161814ce559366847d2b026850ab0afe0e52aed6",
+  "tree": "79d83fd62c4e95f2c7468c3730089892c58b475b",
+  "merge_base": "966ec67df1435ad07bbb82724cd940f550755179",
+  "commits": [
+    "a30aab78c8fa89ac4de23d4646681bbd1fa191d6",
+    "161814ce559366847d2b026850ab0afe0e52aed6"
+  ],
+  "diff_command": [
+    "git",
+    "diff",
+    "966ec67df1435ad07bbb82724cd940f550755179",
+    "161814ce559366847d2b026850ab0afe0e52aed6"
+  ],
+  "diff_sha256": "c0bd41d98633683f9df8aad1141e5cf2c0869a188a6dae3f3bdb5fea795836f9",
+  "clean_before": true,
+  "clean_after": true,
+  "staged_diff_empty": true,
+  "untracked_empty": true,
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 194112,
+      "sha256": "14f77ec69d1574db46110900f71cd931f2607e7087933ca50a061c067b1d034e",
+      "exact_head_blob_and_review_after_equal": true
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 150555,
+      "sha256": "3c74372def97cfcf15d53f0a8bb919739652b0ac8d645688f2f2d8c9fa315501",
+      "exact_head_blob_and_review_after_equal": true
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "bytes": 14488,
+      "sha256": "0a7ba4b4094ba483f4b7bdc17a654496e7e1a3560349c3ddb4ae401f19633d36",
+      "exact_head_blob_and_review_after_equal": true
+    },
+    {
+      "path": "pkg/cluster/node_channel_migration_worker.go",
+      "bytes": 15738,
+      "sha256": "3d4d6be988452c20baac9ac42103364122ead8b7909c32cdc6e744d7030f629d",
+      "exact_head_blob_and_review_after_equal": true
+    },
+    {
+      "path": "pkg/cluster/node_person_directory_completion_integration_test.go",
+      "bytes": 3405,
+      "sha256": "101b3bd5e1d67c1af1453ce81021a48f596625a127013fbd687321dced0520dd",
+      "exact_head_blob_and_review_after_equal": true
+    },
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "exact_head_blob_and_review_after_equal": true
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "exact_head_blob_and_review_after_equal": true
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "bytes": 1615,
+      "sha256": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529",
+      "exact_head_blob_and_review_after_equal": true
+    },
+    {
+      "path": "pkg/cluster/node_meta.go",
+      "bytes": 42572,
+      "sha256": "bd355dcd1120019b74d720ca4a31565dd97ad98ea593b9a9679f710dc735fdbf",
+      "exact_head_blob_and_review_after_equal": true
+    },
+    {
+      "path": "pkg/cluster/node_meta_membership_test.go",
+      "bytes": 18967,
+      "sha256": "c1ffb5df44248e3d09a4b2c46b6c3f979602cc2ee21b4dbef715f47b4ed62652",
+      "exact_head_blob_and_review_after_equal": true
+    }
+  ],
+  "rules_paths": [
+    "AGENTS.md",
+    "CONTEXT.md",
+    "pkg/cluster/FLOW.md",
+    "docs/agents/issue-tracker.md"
+  ],
+  "skill_sha256": "a005dbfdd505e23ed4d96d7629076511a05a33e98d97cf13c528a229b7917143",
+  "spec_user_request": "继续定位 permission read admission busy 和 person_directory 队列积压的根因，修复后按相同规模重新跑本地2,000条/秒测试，保持原门禁不变",
+  "accepted_slice": "Only overlap independent source completion Slots within the existing ten-proposal wave. Runtime validation remains a separate required step.",
+  "findings": [],
+  "standards_report_read": false,
+  "tests_or_runtime_executed": false
+}

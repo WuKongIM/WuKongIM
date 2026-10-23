@@ -1,0 +1,217 @@
+{
+  "cleanup": {
+    "all_other_worktrees_entries_preserved": true,
+    "branch_absent": true,
+    "cleanup_utc": "2026-10-23T07:56:01.031761+00:00",
+    "only_removed_worktrees_entry": [
+      "v3-permission-coalescing"
+    ],
+    "ordinary_branch_delete_exit": 0,
+    "ordinary_branch_delete_stderr": "warning: deleting branch 'codex/v3-permission-coalescing' that has been merged to\n         'refs/remotes/origin/codex/v3-permission-coalescing', but not yet merged to HEAD.",
+    "ordinary_branch_delete_stdout": "Deleted branch codex/v3-permission-coalescing (was 5f6799783).",
+    "origin_main_after": "3768ad3ed914767632c41daeead042118a978488",
+    "origin_main_tree_after": "061aa8b1f18c4cae4c16454b602f799fc9ac7b44",
+    "primary_branch_after": "main",
+    "primary_head_after": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+    "registered_task_worktree_absent": true,
+    "task_path_absent": true,
+    "uncommitted_before_remove": false,
+    "worktree_remove_exit": 0,
+    "worktree_remove_stderr": ""
+  },
+  "expected_tree": "061aa8b1f18c4cae4c16454b602f799fc9ac7b44",
+  "instruction_hashes": {
+    ".github/workflows/README.md": "13a3047dd953273ed0a599917be206a59727904181c3e72acde4b2a9e5a301f4",
+    "AGENTS.md": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+    "docs/agents/issue-tracker.md": "9848d912e7b3d8ca6866bf33d0ddaaa9f541e36358c311583cc0dc8554cce529"
+  },
+  "limits": {
+    "CI_or_ReviewAgent_reruns": 0,
+    "admin_bypass_used": false,
+    "local_2k_qualification": "failed_message_loss_3_expired",
+    "native_first_artifact_failure_and_one_Rocky_rerun_retained": true,
+    "only_fetch": "refs/heads/main:refs/remotes/origin/main --no-tags --no-recurse-submodules",
+    "primary_main_advanced": false,
+    "protected_source_and_evidence_clones_deleted": 0,
+    "release_qualification": "incomplete",
+    "squash_used": false
+  },
+  "merge_commit": "3768ad3ed914767632c41daeead042118a978488",
+  "merged_at_utc": "2026-10-23T07:54:28Z",
+  "pr": "https://github.com/WuKongIM/WuKongIM/pull/1035",
+  "preflight": {
+    "body_equal_ignoring_final_LF": true,
+    "body_sha256": "c19e49c92fdf4716939987fdda155f291cb310ea0cd5b492d0c7dec2b08abd61",
+    "check_count": {
+      "SKIPPED": 2,
+      "SUCCESS": 19
+    },
+    "checks": [
+      {
+        "conclusion": "SUCCESS",
+        "name": "Emit credential-free wake-up",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326447/job/120290592560",
+        "workflow": "Safety Automation - Issue Agent PR Signal"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "Emit credential-free wake-up",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916328968/job/120290598992",
+        "workflow": "Safety Automation - Issue Agent PR Signal"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "Emit credential-free wake-up",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39919840554/job/120302145276",
+        "workflow": "Safety Automation - Issue Agent PR Signal"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "Real three-node Manager Chromium smoke",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326430/job/120290592974",
+        "workflow": "Safety Automation - Manager Browser Smoke"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "PR performance baseline evidence",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290594069",
+        "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "Candidate default suite (go-unit)",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326508/job/120290593354",
+        "workflow": "Safety Automation - V3 Candidate Regression"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "Build and install deb/rpm preview",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297714992",
+        "workflow": "Safety Automation - Validate Native Package Preview"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "PR three-node correctness",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290594272",
+        "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "Candidate scripts integration",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326508/job/120290593673",
+        "workflow": "Safety Automation - V3 Candidate Regression"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "Exercise Ubuntu 24.04 package lifecycle",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297758783",
+        "workflow": "Safety Automation - Validate Native Package Preview"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "Exercise Debian 12 package lifecycle",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297716136",
+        "workflow": "Safety Automation - Validate Native Package Preview"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "Exercise Rocky Linux 9 package lifecycle",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297714596",
+        "workflow": "Safety Automation - Validate Native Package Preview"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "Exercise AlmaLinux 9 package lifecycle",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326388/job/120297716971",
+        "workflow": "Safety Automation - Validate Native Package Preview"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "PR messaging unit and race",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290594428",
+        "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "Candidate migration and messaging E2E",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326508/job/120292205018",
+        "workflow": "Safety Automation - V3 Candidate Regression"
+      },
+      {
+        "conclusion": "SKIPPED",
+        "name": "Nightly direct 500 QPS qualification",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290954499",
+        "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+      },
+      {
+        "conclusion": "SKIPPED",
+        "name": "Fixed Linux SEND diagnosis",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120291681658",
+        "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "PR 500 QPS / channel-append",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290679091",
+        "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "PR 500 QPS / mixed-send",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290679062",
+        "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "PR 500 QPS / tcp-sendack",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120290679098",
+        "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+      },
+      {
+        "conclusion": "SUCCESS",
+        "name": "PR three-node regression",
+        "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39916326765/job/120292313618",
+        "workflow": "Safety Automation - Three-Node Chat Lifecycle Regression"
+      }
+    ],
+    "current_admin": true,
+    "expected_body_sha256": "c19e49c92fdf4716939987fdda155f291cb310ea0cd5b492d0c7dec2b08abd61",
+    "head": "5f679978307aa1a5d57ec18a4ed548de79be0da8",
+    "merge_command": [
+      "gh",
+      "pr",
+      "merge",
+      "1035",
+      "--repo",
+      "WuKongIM/WuKongIM",
+      "--merge",
+      "--match-head-commit",
+      "5f679978307aa1a5d57ec18a4ed548de79be0da8"
+    ],
+    "merge_command_end_utc": "2026-10-23T07:54:29.458803+00:00",
+    "merge_exit_code": 0,
+    "merge_stderr": "",
+    "merge_stdout": "",
+    "no_changes_requested_review": true,
+    "preflight_utc": "2026-10-23T07:54:24.878685+00:00",
+    "pure_issue_signal_success_delta_authorized_by_root": true,
+    "review_agent_state": "disabled_manually",
+    "task_clean_before_merge": true
+  },
+  "review_agent_workflows": {
+    ".github/workflows/review-agent-pr-signal.yml": "disabled_manually",
+    ".github/workflows/review-agent-run.yml": "disabled_manually",
+    ".github/workflows/review-agent.yml": "disabled_manually"
+  },
+  "review_evidence": {
+    "author_overlap_disclosed": true,
+    "author_slices_independently_checked_by_root": "trusted parent task confirmation",
+    "spec_file": "permission2000-candidate5f-spec.md",
+    "spec_findings": 0,
+    "spec_sha256": "4b24d36e5443c03f4f625e266624a8c506486d3e2e4d54647ef6293d8fac5a1e",
+    "standards_file": "permission2000-candidate5f-standards.md",
+    "standards_findings": 0,
+    "standards_sha256": "e449e2faaf8240a43b5e7487fe9d84c0072f69b6fe5dc6bb46eb5b434e12bcd6"
+  },
+  "schema": "pr1035_exact_merge_cleanup_v1"
+}

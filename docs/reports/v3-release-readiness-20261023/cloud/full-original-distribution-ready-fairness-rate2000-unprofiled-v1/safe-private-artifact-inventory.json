@@ -1,0 +1,118 @@
+{
+  "schema": "wukongim/local2k-safe-private-inventory/v1",
+  "raw_inputs_not_public": true,
+  "missing_original_final_report": true,
+  "original_final_path": "report/final.json",
+  "artifacts": [
+    {
+      "path": "diagnostic-result.json",
+      "bytes": 1946,
+      "sha256": "4f5d46f71bd8b20d21f11cbc1368e00e18da470a0acfa0ceb71430c31e5ac767"
+    },
+    {
+      "path": "diagnostic-cuts.jsonl",
+      "bytes": 14728,
+      "sha256": "506fa812e077171c0c5859262e02d470cd2e43bee6a5024c40bc14ed820a489d"
+    },
+    {
+      "path": "host-process-samples.jsonl",
+      "bytes": 67360,
+      "sha256": "3a94be7729393184d6ad9abdcd05666c063652b66f22df6c4e0892767e23207f"
+    },
+    {
+      "path": "cleanup-receipt.json",
+      "bytes": 920,
+      "sha256": "e190641cb7e8cb539563d09fe3198922b27e004470fcaf7010a005651c43d208"
+    },
+    {
+      "path": "logs/coordinator.log",
+      "bytes": 4822,
+      "sha256": "3631e7bddf89fe1ce42c55b1a7937858076318f1433f52a983605f3c2c4b4328"
+    },
+    {
+      "path": "logs/launcher.log",
+      "bytes": 4111,
+      "sha256": "e540bd1ad59983421f6447ad77eab50277b75055bfdaad67043fc73a94b6104a"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/ready-fairness-rate2000-prepared-inputs-v1.json",
+      "bytes": 10747,
+      "sha256": "efb7bdd729502a7aa901bb8d3fae4502f3e224f7de47edad8f6d453132326dd2"
+    },
+    {
+      "path": "/tmp/wukongim-v3-readiness-20261023/cloud/ready-fairness-rate2000-root-decision-v1.json",
+      "bytes": 553,
+      "sha256": "c6d377572f1243004a1e88c9651edeebf7caf63d2e59db5b07deaa4d458cea2f"
+    },
+    {
+      "path": "logs/service-1.log",
+      "bytes": 59961,
+      "sha256": "52ad8f1de0aa6ce322a635e9fafb15d0adc66ad7906befda748f319007b92e6c"
+    },
+    {
+      "path": "logs/service-2.log",
+      "bytes": 99566,
+      "sha256": "7fb273dfd58dbeaa10af584a0c06d1ff8c0c844d4ee1abd44f92c09b5f057bd6"
+    },
+    {
+      "path": "logs/service-3.log",
+      "bytes": 62209,
+      "sha256": "f88e7ed93912ec5ddbcf413de28722c033849f38b9ec3f17ec643ae4dff36665"
+    },
+    {
+      "path": "report/diagnostic-status.json",
+      "bytes": 8886,
+      "sha256": "cc1e25189df8ef09501ad0ebe5a62172a313a741dd4a6399d5a98ddc09c14210"
+    },
+    {
+      "path": "report/run-start.json",
+      "bytes": 391,
+      "sha256": "f4f2744580a7a380707cb9092b1d784b4b49ce30ecd46658dd023bcc5bf0ab08"
+    },
+    {
+      "path": "report/worker-evidence.json",
+      "bytes": 596,
+      "sha256": "c02e8fc9f4a49f9f897b7658b4a05bcbe3496adecb25ef04e6dab5245bdd8318"
+    },
+    {
+      "path": "evidence/metrics-first-measured-node1.prom",
+      "bytes": 1038723,
+      "sha256": "1ede62b36c17231f1fb41e29b726c3073239e3466fada733be45eb3a85d91629"
+    },
+    {
+      "path": "evidence/metrics-first-measured-node2.prom",
+      "bytes": 1019186,
+      "sha256": "984171c6aa44e0d91d55d79ab00c62dafca89cf3cde4ee660f0dcc759c2276a0"
+    },
+    {
+      "path": "evidence/metrics-first-measured-node3.prom",
+      "bytes": 1016398,
+      "sha256": "e102fb0a652df646f07bd711a0b3fd4a760e49705e6bfeaebf4aa2a28ea61fe7"
+    },
+    {
+      "path": "evidence/metrics-first-measured-receipt.json",
+      "bytes": 450,
+      "sha256": "686c242112a37417fc47a87bb0c9c9ece4c59349901e7b8bbcf4dbf27ce5b2c9"
+    },
+    {
+      "path": "evidence/metrics-terminal-node1.prom",
+      "bytes": 1086140,
+      "sha256": "b244fbb7a1fb2ce02c7816876c77a268db79224e1cbc350141ef101e1cd8ca93"
+    },
+    {
+      "path": "evidence/metrics-terminal-node2.prom",
+      "bytes": 1065890,
+      "sha256": "e1d7fc9ed3c0a00822f2b0d907ba73882e5504b733e349d1627ac3f0cc170347"
+    },
+    {
+      "path": "evidence/metrics-terminal-node3.prom",
+      "bytes": 1063039,
+      "sha256": "1c6efac0e84a201048cedf36803831aa448c8858baf471631d12aab2b3bf0e9f"
+    },
+    {
+      "path": "evidence/metrics-terminal-receipt.json",
+      "bytes": 450,
+      "sha256": "0459d817284ffd993f78aeb1430bd8c29853300f0df2402b1b8568c4d9944de5"
+    }
+  ]
+}

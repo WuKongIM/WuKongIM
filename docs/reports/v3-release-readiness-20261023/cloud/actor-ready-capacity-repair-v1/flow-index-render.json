@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "render",
+    "--write-index"
+  ],
+  "exit": 0,
+  "elapsed_seconds": 0.06774558406323195,
+  "log_sha256": "5ca49956b23d02062de121518c2742d33bfb3768463081d8e438c87de41d5854"
+}

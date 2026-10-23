@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "-tags=integration",
+    "./internal/app",
+    "-run",
+    "^Test(Top|OnlineDelivery|DeliveryEnabledPerson|ConfigureObservabilityWiresTop|NewWiresTop)",
+    "-count=1",
+    "-timeout=60s",
+    "-v"
+  ],
+  "exit": 0,
+  "elapsed_seconds": 5.795894791954197,
+  "log_sha256": "bc8e2a08140c3b64943f8d8123c1b5b6a8a5362a6c0d274fd2dfe87a24ddcc45"
+}

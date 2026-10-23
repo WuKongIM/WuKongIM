@@ -1,0 +1,357 @@
+{
+  "schema": "wukongim/local-diagnostic-closed-failure-window/v1",
+  "observed_at_utc": "2026-10-23T08:26:19.946127+00:00",
+  "source_revision": "103292a9e141414b6d1b876ea519cc90da11ecdf",
+  "input_pins": {
+    "report/final.json": {
+      "size": 23759,
+      "mtime_ns": 1792743575573124481,
+      "sha256": "6b797e4d3e6f6d9736884a2dc6fc54ee26b3bee36e4889339bbd22067326d203"
+    },
+    "diagnostic-result.json": {
+      "size": 3472,
+      "mtime_ns": 1792743667292995195,
+      "sha256": "f892b11128384ae3604ecb1e5b1108437bd24f549f1ac1ed3bb4060550f55260"
+    },
+    "diagnostic-cuts.jsonl": {
+      "size": 35767,
+      "mtime_ns": 1792743575193889319,
+      "sha256": "840de81c005e9433115bb4fbc0eb2d9068cf78b0d2ac7c23d8e13684380306a8"
+    },
+    "logs/coordinator.log": {
+      "size": 10845,
+      "mtime_ns": 1792743575616876904,
+      "sha256": "926a8e03911c7fbd7f5d61d433269d74387c736ed88bd3dc0ac6009850dcd20d"
+    },
+    "logs/service-1.log": {
+      "size": 251070,
+      "mtime_ns": 1792743584002801578,
+      "sha256": "39017b324e608ff8770119811bd0ec045df732324e140dff5806a12214cae5b5"
+    },
+    "logs/service-2.log": {
+      "size": 311373,
+      "mtime_ns": 1792743583092455569,
+      "sha256": "e7d88eb3030eed5adb7e7d097d7891f2e7a34e58e68826ae612caa11d426195f"
+    },
+    "logs/service-3.log": {
+      "size": 197579,
+      "mtime_ns": 1792743583930682918,
+      "sha256": "6662ec0c1fa74ecbc7f70b92294cb8cc1feb6e2feccc1f8d34672d58985fd94f"
+    }
+  },
+  "input_sha_size_mtime_unchanged": true,
+  "source_sha256": {
+    "internal/access/gateway/handler.go": "08620f1fa8fcb80166d01e95fdd43d54f76ade4b4518f5114dbcefe8709e818b",
+    "internal/access/gateway/error_map.go": "548e034c0079507095617e2a5c7ce83c6955a8cd29bc53402e6b407eb1cc98e4",
+    "internal/app/online_delivery.go": "d5e799fd95f18307e8c9c43b4851aeac6a6ef59fe8e8277a283a8375e0be5d7a",
+    "internal/app/delivery.go": "b75f577a779f35a430b647aebf60c737f87a1eb1a966cc1c2825b11e584a4097",
+    "pkg/slot/proxy/send_permission_rpc.go": "872417d9cb60df5d12a59f17da5fe17a055f29f166d7e38d8e763eccf9faa781",
+    "internal/app/FLOW.md": "97552ae0d95e4957c4005b6c6af0a961414eb9f9dec93faf7e15d5a89b28405b",
+    "internal/access/gateway/FLOW.md": "617a64aafd4d1e60aef670770f2ac22dd7cdfcd537f1f5cb3a00b98218eefb31",
+    "internal/usecase/message/FLOW.md": "e02fa0e23332e80174eb4ba4ee9cd4ed078a311d8f436ece35fb3b4f1f6f9348",
+    "internal/bench/chatlifecycle/FLOW.md": "ff2b4ae3474dcd49cb81e2365b4c425335bb28e57e1df224a967bf57abf47106"
+  },
+  "scope": {
+    "fixed_original_files": 7,
+    "new_sampling": 0,
+    "products_tests_builds_or_queries": 0,
+    "raw_lines_or_dynamic_identities_exported": 0
+  },
+  "original_verdict": {
+    "outcome": "product_failure",
+    "cause": "overall_first_attempt_rate",
+    "terminal": true
+  },
+  "window": {
+    "first_grant_at_utc": "2026-10-23T08:18:55.612963+00:00",
+    "terminal_at_utc": "2026-10-23T08:19:35.000646+00:00",
+    "elapsed_seconds": 39.387527958,
+    "log_timestamp_precision": "milliseconds; timezone follows explicit +08:00 run window"
+  },
+  "first_failure_cuts": {
+    "previous_zero_cut": {
+      "offset_seconds": 30.036962,
+      "at_utc": "2026-10-23T08:19:25.649925+00:00",
+      "messages": {
+        "sent": 59995,
+        "send_acknowledged": 57189,
+        "first_attempt_failures": 0,
+        "send_rejected": 0,
+        "retry_attempts": 2064,
+        "losses": 0
+      },
+      "connections": {
+        "online": 10000,
+        "traffic_ready": 10000
+      }
+    },
+    "first_nonzero_cut": {
+      "offset_seconds": 35.036988,
+      "at_utc": "2026-10-23T08:19:30.649951+00:00",
+      "messages": {
+        "sent": 70017,
+        "send_acknowledged": 64330,
+        "first_attempt_failures": 20,
+        "send_rejected": 20,
+        "retry_attempts": 4477,
+        "losses": 0
+      },
+      "connections": {
+        "online": 10000,
+        "traffic_ready": 10000
+      }
+    }
+  },
+  "first_cut_adjacent_server_events": [
+    {
+      "node_position": 3,
+      "event": "internal.access.gateway.send_failed",
+      "reason": "permission_admission_busy",
+      "error_class": "route_not_ready",
+      "stage": "absent_or_unknown",
+      "phase": "absent_or_unknown",
+      "result": "absent_or_unknown",
+      "count": 6,
+      "first_offset_seconds": 34.017037,
+      "last_offset_seconds": 34.022037
+    },
+    {
+      "node_position": 3,
+      "event": "internal.access.gateway.send_failed",
+      "reason": "deadline_exceeded",
+      "error_class": "timeout",
+      "stage": "submitter",
+      "phase": "absent_or_unknown",
+      "result": "absent_or_unknown",
+      "count": 2,
+      "first_offset_seconds": 34.390037,
+      "last_offset_seconds": 34.727037
+    },
+    {
+      "node_position": 2,
+      "event": "internal.access.gateway.send_failed",
+      "reason": "permission_admission_busy",
+      "error_class": "route_not_ready",
+      "stage": "absent_or_unknown",
+      "phase": "absent_or_unknown",
+      "result": "absent_or_unknown",
+      "count": 22,
+      "first_offset_seconds": 34.654037,
+      "last_offset_seconds": 34.757037
+    }
+  ],
+  "measured_window_selected_server_events": [
+    {
+      "node_position": 3,
+      "event": "internal.access.gateway.send_failed",
+      "reason": "permission_admission_busy",
+      "error_class": "route_not_ready",
+      "stage": "absent_or_unknown",
+      "phase": "absent_or_unknown",
+      "result": "absent_or_unknown",
+      "count": 6,
+      "first_offset_seconds": 34.017037,
+      "last_offset_seconds": 34.022037
+    },
+    {
+      "node_position": 3,
+      "event": "internal.access.gateway.send_failed",
+      "reason": "deadline_exceeded",
+      "error_class": "timeout",
+      "stage": "submitter",
+      "phase": "absent_or_unknown",
+      "result": "absent_or_unknown",
+      "count": 120,
+      "first_offset_seconds": 34.390037,
+      "last_offset_seconds": 39.322037
+    },
+    {
+      "node_position": 2,
+      "event": "internal.access.gateway.send_failed",
+      "reason": "permission_admission_busy",
+      "error_class": "route_not_ready",
+      "stage": "absent_or_unknown",
+      "phase": "absent_or_unknown",
+      "result": "absent_or_unknown",
+      "count": 186,
+      "first_offset_seconds": 34.654037,
+      "last_offset_seconds": 36.233037
+    },
+    {
+      "node_position": 2,
+      "event": "internal.access.gateway.send_failed",
+      "reason": "deadline_exceeded",
+      "error_class": "timeout",
+      "stage": "submitter",
+      "phase": "absent_or_unknown",
+      "result": "absent_or_unknown",
+      "count": 141,
+      "first_offset_seconds": 35.231037,
+      "last_offset_seconds": 39.357037
+    },
+    {
+      "node_position": 1,
+      "event": "internal.access.gateway.send_failed",
+      "reason": "deadline_exceeded",
+      "error_class": "timeout",
+      "stage": "submitter",
+      "phase": "absent_or_unknown",
+      "result": "absent_or_unknown",
+      "count": 107,
+      "first_offset_seconds": 35.745037,
+      "last_offset_seconds": 39.352037
+    },
+    {
+      "node_position": 1,
+      "event": "internal.access.gateway.send_failed",
+      "reason": "permission_admission_busy",
+      "error_class": "route_not_ready",
+      "stage": "absent_or_unknown",
+      "phase": "absent_or_unknown",
+      "result": "absent_or_unknown",
+      "count": 173,
+      "first_offset_seconds": 35.809037,
+      "last_offset_seconds": 36.279037
+    },
+    {
+      "node_position": 1,
+      "event": "internal.access.gateway.send_failed",
+      "reason": "canceled",
+      "error_class": "canceled",
+      "stage": "absent_or_unknown",
+      "phase": "absent_or_unknown",
+      "result": "absent_or_unknown",
+      "count": 16,
+      "first_offset_seconds": 37.259037,
+      "last_offset_seconds": 39.045037
+    },
+    {
+      "node_position": 1,
+      "event": "internal.app.delivery.plan_incomplete",
+      "reason": "deadline_exceeded",
+      "error_class": "absent_or_unknown",
+      "stage": "absent_or_unknown",
+      "phase": "presence",
+      "result": "timeout",
+      "count": 16,
+      "first_offset_seconds": 37.568037,
+      "last_offset_seconds": 39.328037
+    },
+    {
+      "node_position": 2,
+      "event": "internal.app.delivery.plan_incomplete",
+      "reason": "deadline_exceeded",
+      "error_class": "absent_or_unknown",
+      "stage": "absent_or_unknown",
+      "phase": "owner_push",
+      "result": "timeout",
+      "count": 1,
+      "first_offset_seconds": 37.571037,
+      "last_offset_seconds": 37.571037
+    },
+    {
+      "node_position": 3,
+      "event": "internal.app.delivery.plan_incomplete",
+      "reason": "deadline_exceeded",
+      "error_class": "absent_or_unknown",
+      "stage": "absent_or_unknown",
+      "phase": "presence",
+      "result": "timeout",
+      "count": 11,
+      "first_offset_seconds": 37.606037,
+      "last_offset_seconds": 39.249037
+    },
+    {
+      "node_position": 2,
+      "event": "internal.app.delivery.plan_incomplete",
+      "reason": "deadline_exceeded",
+      "error_class": "absent_or_unknown",
+      "stage": "absent_or_unknown",
+      "phase": "presence",
+      "result": "timeout",
+      "count": 4,
+      "first_offset_seconds": 37.657037,
+      "last_offset_seconds": 39.367037
+    },
+    {
+      "node_position": 2,
+      "event": "internal.access.gateway.send_failed",
+      "reason": "canceled",
+      "error_class": "canceled",
+      "stage": "absent_or_unknown",
+      "phase": "absent_or_unknown",
+      "result": "absent_or_unknown",
+      "count": 22,
+      "first_offset_seconds": 38.151037,
+      "last_offset_seconds": 39.365037
+    },
+    {
+      "node_position": 3,
+      "event": "internal.access.gateway.send_failed",
+      "reason": "canceled",
+      "error_class": "canceled",
+      "stage": "absent_or_unknown",
+      "phase": "absent_or_unknown",
+      "result": "absent_or_unknown",
+      "count": 8,
+      "first_offset_seconds": 39.362037,
+      "last_offset_seconds": 39.364037
+    }
+  ],
+  "parse_boundaries": [
+    {
+      "node_position": 1,
+      "structured_lines": 459,
+      "unstructured_or_non_json_lines_excluded": 30,
+      "selected_event_invalid_time_count": 0
+    },
+    {
+      "node_position": 2,
+      "structured_lines": 554,
+      "unstructured_or_non_json_lines_excluded": 44,
+      "selected_event_invalid_time_count": 0
+    },
+    {
+      "node_position": 3,
+      "structured_lines": 333,
+      "unstructured_or_non_json_lines_excluded": 16,
+      "selected_event_invalid_time_count": 0
+    }
+  ],
+  "final_messages": {
+    "sent": 72002,
+    "send_acknowledged": 68375,
+    "first_attempt_failures": 3633,
+    "send_rejected": 346,
+    "retry_attempts": 6737,
+    "terminal": 3627,
+    "losses": 0
+  },
+  "final_terminal_reasons": {
+    "retry_exhausted": {
+      "total": 3,
+      "attempt_timeout": 3,
+      "local_admission": 0,
+      "transport_error": 0,
+      "retryable_sendack": 0,
+      "unclassified": 0
+    },
+    "non_retriable": 0,
+    "session_closed": 3624
+  },
+  "sampled_delivery": {
+    "sampled": 732,
+    "delivered": 677,
+    "expired": 0,
+    "outstanding": 55,
+    "pending_unfinished": 0
+  },
+  "conclusions": [
+    "The first nonzero worker cut has 20 first-attempt failures and 20 rejections while all 10000 users remain online and traffic-ready.",
+    "The adjacent server window has 28 permission-admission-busy SEND failure records and 2 submitter/deadline-exceeded records. The earliest is permission admission busy on node position 3 at +34.017037s.",
+    "Server attempt records include retries and lack a first-attempt ordinal. They cannot be joined one-to-one to the 20 worker first-attempt failures using these closed aggregates.",
+    "This establishes contemporaneous permission admission pressure and submitter deadline exhaustion. It does not distinguish RPC queue, CPU scheduling, Raft barrier, or storage latency as their underlying cause.",
+    "Final 3633 first-attempt failures must not be treated as the active triggering cohort: the final report also contains 3624 session_closed terminal outcomes during shutdown/drain; no identity mapping between these totals is claimed.",
+    "Zero expired with 55 outstanding is not a delivery pass. The width64 candidate remains unsuccessful and unmerged."
+  ]
+}

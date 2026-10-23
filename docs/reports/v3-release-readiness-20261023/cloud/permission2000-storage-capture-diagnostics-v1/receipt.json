@@ -1,0 +1,106 @@
+{
+  "schema": "wukongim/storage-capture-diagnostics-delivery/v1",
+  "created_at_utc": "2026-10-23T07:06:10.698163+00:00",
+  "source_revision_initial": "7f36a7cce79641f1704be9841c3c470527f67231",
+  "current_HEAD": "7f36a7cce79641f1704be9841c3c470527f67231",
+  "working_directory": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-permission-coalescing",
+  "owned_files": [
+    {
+      "path": "scripts/chat-lifecycle/capture-local-storage-overlap.sh",
+      "bytes": 8803,
+      "sha256": "780d2e97dc4d954b425bd31a27b89bf9dce0144554c4325640050af1ec63fa06"
+    },
+    {
+      "path": "scripts/local_storage_overlap_script_integration_test.go",
+      "bytes": 14284,
+      "sha256": "4d48617049f97b75e0ab542b984bf41fd07f17f6b3294514485a5d2be1e39466"
+    }
+  ],
+  "preimplementation_matrix_and_all_tests_frozen_sha256": "2f4af5e7e1e61f616066889653c111f6683ae02f8a27f600b8011cf563687c47",
+  "all_tests_unchanged_after_RED": true,
+  "RED": {
+    "exit_status": 1,
+    "duration_seconds": 16.681507167057134,
+    "missing_closed_reason_assertions": 17,
+    "missing_own_deadline_reason_assertions": 2,
+    "unexpected_exit_or_row_failures": 0
+  },
+  "GREEN": {
+    "exit_status": 0,
+    "duration_seconds": 10.836685250047594,
+    "test_functions": 4,
+    "new_table_cases": 21,
+    "held_deadline_cases": 2,
+    "signal_exit143_and_join": true
+  },
+  "RACE": {
+    "exit_status": 0,
+    "duration_seconds": 19.522372624953277,
+    "race_report": false
+  },
+  "closed_diagnostic": "storage_overlap_capture reason=<deadline|find|stat|entrylimit|output> node=<node-1|node-2|node-3> phase=<warmup_before|before|after|periodic>",
+  "phase_normalization": "warmup-before/warmup_before\u2192warmup_before; exactbefore/after; allotherperiodic",
+  "deadline_semantics": "OnlySCAn own3s elapsedflag; childexit124remainsfind/stat; signalsretainexisting130/143 traps andjoin",
+  "entrylimit_semantics": "Explicit4096files,1MiBraw,512KiBinventoryrejects; capsnotraised",
+  "output_semantics": "Othermktemp/write/sort/mv/hashfailures preserveoldmissingororiginalexit; diagnosticwritefailurecannotreplaceoutcome",
+  "unchanged_byte_checks": {
+    "all_original_limits": true,
+    "original_missing_row": true,
+    "original_complete_row": true,
+    "original_child_termination_and_cleanup": true,
+    "original_signal_traps": true,
+    "original_CLI_validation": true
+  },
+  "syntax_bash_n": true,
+  "git_diff_check": true,
+  "public_CLI_test_seam_only": true,
+  "OS_boundary_injections": "PATHfind/stat/sort/wc/mktemp/mv/hashcommands; rawbytecounter and largevalidnumericstatmeasurement testcapbranches without extendingdeadlines; nointernalconstantoverride",
+  "historical_CI_missing_branch_still_unknown": true,
+  "CI_reruns": 0,
+  "commits_or_pushes": 0,
+  "product_or_paid_cloud_operations": 0,
+  "shared_docs_changed_by_this_agent": false,
+  "original_inputs_profiles_actor_app_files_changed_by_this_agent": false,
+  "artifacts": [
+    {
+      "path": "preimplementation.json",
+      "bytes": 2291,
+      "sha256": "2f4af5e7e1e61f616066889653c111f6683ae02f8a27f600b8011cf563687c47"
+    },
+    {
+      "path": "red.log",
+      "bytes": 8347,
+      "sha256": "4a23a1da681128a083fc340af057e7b4c750b1e4a5af6928e2203fc4e853ebd0"
+    },
+    {
+      "path": "red-receipt.json",
+      "bytes": 2900,
+      "sha256": "f9d5b73fc75fc40c0cb6c8e24c6fba349b1ab8397617e6314c6523b3e3eb0a7a"
+    },
+    {
+      "path": "green.log",
+      "bytes": 5228,
+      "sha256": "b810df1197691881d7f4ecd44a8347899ffa32e888556266c6f02f81133ae774"
+    },
+    {
+      "path": "green-receipt.json",
+      "bytes": 1163,
+      "sha256": "157e1dcd4d67478a1a2462018bb0c47fe23f4ed2f5695208aacfd208f4557f36"
+    },
+    {
+      "path": "race.log",
+      "bytes": 5502,
+      "sha256": "4d9a3a69b8c518518b8a75af98753b302b4ec5dad2f8a0dd1a18760109f3099a"
+    },
+    {
+      "path": "race-receipt.json",
+      "bytes": 1191,
+      "sha256": "f20ae1443185431b3acda4042ccc727db656fb80dea30dd4f2c6d45aa9efcba3"
+    },
+    {
+      "path": "changes.diff",
+      "bytes": 15840,
+      "sha256": "73e800125d026d7505c6dfdb56aa27359ba91b34fd1ab705cb89232a822c7978"
+    }
+  ]
+}

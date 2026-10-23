@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "./pkg/gateway/transport/gnet",
+    "-run",
+    "^(TestActorReadyPressureHasNoFixedItemCapacity|TestActorShardReportsReadyPressure)$",
+    "-count=1",
+    "-timeout=20s"
+  ],
+  "exit": 1,
+  "elapsed_seconds": 1.4846173750702292,
+  "log_sha256": "9341811b949853f6539ccbf924d2735a156f8b70c45ef4868e6b94403c60fa71"
+}

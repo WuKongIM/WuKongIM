@@ -1,0 +1,57 @@
+{
+  "axis": "Spec",
+  "base": "3768ad3ed914767632c41daeead042118a978488",
+  "head": "103292a9e141414b6d1b876ea519cc90da11ecdf",
+  "tree": "fde4d44192f4b1c73129b544cd249a0e24f9b57e",
+  "findings": [],
+  "blocked": false,
+  "changed_files_reviewed": 10,
+  "executable_delta": "two concurrency widths16to64, independent recoveryMaxKeys8192 only",
+  "invariants_unchanged": [
+    "pageUIDBytes32MiB",
+    "globalUIDBytes128MiB",
+    "512UIDs",
+    "256targets",
+    "4096routes",
+    "all production contexts and deadlines",
+    "original acceptance gates",
+    "fences",
+    "sameUID flights",
+    "cancellation ownership and release"
+  ],
+  "boundary_tests_static_review": {
+    "width": "64 small independent pages, 65th canceled before owner call",
+    "keys": "16*512 fills8192; cohort16<64 and bytes below128MiB",
+    "bytes": "4*512*65535+2048 fills128MiB;5cohorts/2049keys leave other budgets free; next1byte waits",
+    "downstream": "64 held public RecoverRoutes calls;65th cancel invokes no owner; join then successful control call",
+    "sameUID": "canceled follower and waiters preserve leader proof and quota recheck"
+  },
+  "claims": "Candidate still awaits original2k validation; no cause, throughput, message-loss or release qualification proved",
+  "instructions": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13284,
+      "sha256": "2220f49835b8dba20bafbc277854421222765be52e874fc6ee994bcd3ee0d746",
+      "revision": "103292a9e141414b6d1b876ea519cc90da11ecdf"
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 12160,
+      "sha256": "2c6c14ebb838dcfb498b6b6c130f0a500c21dcd3a49343bb467961921bd8168c",
+      "revision": "103292a9e141414b6d1b876ea519cc90da11ecdf"
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "bytes": 3198,
+      "sha256": "f488255eef3f39a79ff2fd1afff662091fb7f8a59174f6c9fcaf941d1fe9b841",
+      "revision": "103292a9e141414b6d1b876ea519cc90da11ecdf"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "bytes": 8680,
+      "sha256": "3ac522a7c276f2b5769df1fddd34d5785f02cb589500f3b9b38b219b821a2ed0",
+      "revision": "103292a9e141414b6d1b876ea519cc90da11ecdf"
+    }
+  ],
+  "executions_performed": []
+}

@@ -1,0 +1,308 @@
+{
+  "schema": "wukongim/profile2k-safe-sampler-status/v1",
+  "status": "complete",
+  "reason": "ok",
+  "receipt": {
+    "sha256": "ef7dcdc807525a109b2a14ffbf635e07bd2f48d6e951b43180837e3f2dae9920",
+    "run_hash": "sha256:81503feb78b892ddf13285b18a68360b12e39bae35d1b3f552adc86f5c20ab52",
+    "assignment_hash": "sha256:f9814da7618b2c867b9e8b7e82745b2a5dd3de6cd0b04cf696f96bcc80bfcd8c",
+    "generation": 1,
+    "started_at": "2026-10-23T14:31:47.953626+08:00",
+    "seen_at": "2026-10-23T06:31:48.031371+00:00",
+    "detection_lag_seconds": 0.077745,
+    "publication_lag_limit": "receipt written after firstgrant and datasetprobe; exact capture at firstgrant impossible"
+  },
+  "driver_completed_at_utc": "2026-10-23T06:32:01.059371+00:00",
+  "nodes": [
+    {
+      "node_id": 1,
+      "status": "complete",
+      "reason": "ok",
+      "capture_joined": true,
+      "helper_exit_status": 0,
+      "kill_escalated": false,
+      "helper_launch_parent_observed_at": "2026-10-23T06:31:53.962548+00:00",
+      "binding": {
+        "node_id": 1,
+        "config_sha256": "ff5fe20ce9fb7942d7a7e59c9e5cc160388b6f4664e40d2da813c8e3a976b25d",
+        "config_node_id": 1,
+        "observed_slot_NodeID": 1,
+        "slot_receipt_sha256": "d79489d0369129eca5b90d63b343931fd9cbfe0c7a222d83432b7dc26162551a",
+        "launcher_sha256": "5c8d28efd328bbf6926c8fdd3dce2dd24a6eec09847f46b6bf6fa02edfea91e3"
+      },
+      "capture": {
+        "status": "complete",
+        "valid": true,
+        "reason": "ok",
+        "start_phase": "measurement",
+        "end_phase": "measurement",
+        "started_at_utc": "2026-10-23T06:31:54Z",
+        "completed_at_utc": "2026-10-23T06:32:00Z",
+        "cpu_seconds": 3
+      },
+      "requests": {
+        "cpu": {
+          "node_id": 1,
+          "kind": "cpu",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "retained_body_bytes": 24776,
+          "max_bytes": 4194304,
+          "started_at_utc": "2026-10-23T06:31:56.202853+00:00",
+          "joined_at_utc": "2026-10-23T06:32:00.362157+00:00",
+          "end_phase": "measurement",
+          "start_offset_from_firstgrant_seconds": 8.249227,
+          "join_offset_from_firstgrant_seconds": 12.408531,
+          "started_before_first_observed_failure_cut": true,
+          "joined_before_first_observed_failure_cut": true
+        },
+        "goroutine-early": {
+          "node_id": 1,
+          "kind": "goroutine-early",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "retained_body_bytes": 6896736,
+          "max_bytes": 8388608,
+          "started_at_utc": "2026-10-23T06:31:54.161129+00:00",
+          "joined_at_utc": "2026-10-23T06:32:00.291816+00:00",
+          "end_phase": "measurement",
+          "start_offset_from_firstgrant_seconds": 6.207503,
+          "join_offset_from_firstgrant_seconds": 12.33819,
+          "started_before_first_observed_failure_cut": true,
+          "joined_before_first_observed_failure_cut": true
+        },
+        "goroutine-late": {
+          "node_id": 1,
+          "kind": "goroutine-late",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "retained_body_bytes": 6568172,
+          "max_bytes": 8388608,
+          "started_at_utc": "2026-10-23T06:32:00.244705+00:00",
+          "joined_at_utc": "2026-10-23T06:32:00.901548+00:00",
+          "end_phase": "measurement",
+          "start_offset_from_firstgrant_seconds": 12.291079,
+          "join_offset_from_firstgrant_seconds": 12.947922,
+          "started_before_first_observed_failure_cut": true,
+          "joined_before_first_observed_failure_cut": true
+        }
+      }
+    },
+    {
+      "node_id": 2,
+      "status": "complete",
+      "reason": "ok",
+      "capture_joined": true,
+      "helper_exit_status": 0,
+      "kill_escalated": false,
+      "helper_launch_parent_observed_at": "2026-10-23T06:31:53.974581+00:00",
+      "binding": {
+        "node_id": 2,
+        "config_sha256": "de5adcfca4ae05293f05402974499e76558b470fee0a9431fa05905381bdde0e",
+        "config_node_id": 2,
+        "observed_slot_NodeID": 2,
+        "slot_receipt_sha256": "d79489d0369129eca5b90d63b343931fd9cbfe0c7a222d83432b7dc26162551a",
+        "launcher_sha256": "5c8d28efd328bbf6926c8fdd3dce2dd24a6eec09847f46b6bf6fa02edfea91e3"
+      },
+      "capture": {
+        "status": "complete",
+        "valid": true,
+        "reason": "ok",
+        "start_phase": "measurement",
+        "end_phase": "measurement",
+        "started_at_utc": "2026-10-23T06:31:54Z",
+        "completed_at_utc": "2026-10-23T06:32:01Z",
+        "cpu_seconds": 3
+      },
+      "requests": {
+        "cpu": {
+          "node_id": 2,
+          "kind": "cpu",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "retained_body_bytes": 30487,
+          "max_bytes": 4194304,
+          "started_at_utc": "2026-10-23T06:31:56.232725+00:00",
+          "joined_at_utc": "2026-10-23T06:32:00.403849+00:00",
+          "end_phase": "measurement",
+          "start_offset_from_firstgrant_seconds": 8.279099,
+          "join_offset_from_firstgrant_seconds": 12.450223,
+          "started_before_first_observed_failure_cut": true,
+          "joined_before_first_observed_failure_cut": true
+        },
+        "goroutine-early": {
+          "node_id": 2,
+          "kind": "goroutine-early",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "retained_body_bytes": 6537338,
+          "max_bytes": 8388608,
+          "started_at_utc": "2026-10-23T06:31:54.184507+00:00",
+          "joined_at_utc": "2026-10-23T06:32:00.330637+00:00",
+          "end_phase": "measurement",
+          "start_offset_from_firstgrant_seconds": 6.230881,
+          "join_offset_from_firstgrant_seconds": 12.377011,
+          "started_before_first_observed_failure_cut": true,
+          "joined_before_first_observed_failure_cut": true
+        },
+        "goroutine-late": {
+          "node_id": 2,
+          "kind": "goroutine-late",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "retained_body_bytes": 6933397,
+          "max_bytes": 8388608,
+          "started_at_utc": "2026-10-23T06:32:00.281114+00:00",
+          "joined_at_utc": "2026-10-23T06:32:01.001250+00:00",
+          "end_phase": "measurement",
+          "start_offset_from_firstgrant_seconds": 12.327488,
+          "join_offset_from_firstgrant_seconds": 13.047624,
+          "started_before_first_observed_failure_cut": true,
+          "joined_before_first_observed_failure_cut": true
+        }
+      }
+    },
+    {
+      "node_id": 3,
+      "status": "complete",
+      "reason": "ok",
+      "capture_joined": true,
+      "helper_exit_status": 0,
+      "kill_escalated": false,
+      "helper_launch_parent_observed_at": "2026-10-23T06:31:53.978213+00:00",
+      "binding": {
+        "node_id": 3,
+        "config_sha256": "0052bc446b21a56ae3eb02eede154b32e1df6c6beb15767c0baa27ff4006b305",
+        "config_node_id": 3,
+        "observed_slot_NodeID": 3,
+        "slot_receipt_sha256": "d79489d0369129eca5b90d63b343931fd9cbfe0c7a222d83432b7dc26162551a",
+        "launcher_sha256": "5c8d28efd328bbf6926c8fdd3dce2dd24a6eec09847f46b6bf6fa02edfea91e3"
+      },
+      "capture": {
+        "status": "complete",
+        "valid": true,
+        "reason": "ok",
+        "start_phase": "measurement",
+        "end_phase": "measurement",
+        "started_at_utc": "2026-10-23T06:31:54Z",
+        "completed_at_utc": "2026-10-23T06:32:00Z",
+        "cpu_seconds": 3
+      },
+      "requests": {
+        "cpu": {
+          "node_id": 3,
+          "kind": "cpu",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "retained_body_bytes": 27321,
+          "max_bytes": 4194304,
+          "started_at_utc": "2026-10-23T06:31:56.202852+00:00",
+          "joined_at_utc": "2026-10-23T06:32:00.361730+00:00",
+          "end_phase": "measurement",
+          "start_offset_from_firstgrant_seconds": 8.249226,
+          "join_offset_from_firstgrant_seconds": 12.408104,
+          "started_before_first_observed_failure_cut": true,
+          "joined_before_first_observed_failure_cut": true
+        },
+        "goroutine-early": {
+          "node_id": 3,
+          "kind": "goroutine-early",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "retained_body_bytes": 6639154,
+          "max_bytes": 8388608,
+          "started_at_utc": "2026-10-23T06:31:54.161023+00:00",
+          "joined_at_utc": "2026-10-23T06:32:00.288967+00:00",
+          "end_phase": "measurement",
+          "start_offset_from_firstgrant_seconds": 6.207397,
+          "join_offset_from_firstgrant_seconds": 12.335341,
+          "started_before_first_observed_failure_cut": true,
+          "joined_before_first_observed_failure_cut": true
+        },
+        "goroutine-late": {
+          "node_id": 3,
+          "kind": "goroutine-late",
+          "curl_exit_code": 0,
+          "http_status": "200",
+          "error_class": "none",
+          "retained_body_bytes": 6235267,
+          "max_bytes": 8388608,
+          "started_at_utc": "2026-10-23T06:32:00.245339+00:00",
+          "joined_at_utc": "2026-10-23T06:32:00.886006+00:00",
+          "end_phase": "measurement",
+          "start_offset_from_firstgrant_seconds": 12.291713,
+          "join_offset_from_firstgrant_seconds": 12.93238,
+          "started_before_first_observed_failure_cut": true,
+          "joined_before_first_observed_failure_cut": true
+        }
+      }
+    }
+  ],
+  "actual_HTTP_requests": 9,
+  "complete_private_profiles": 9,
+  "failed_profile_requests": 0,
+  "observed_body_bytes_including_failed_deleted_body": 39892648,
+  "maximum_body_bytes_all_requests": 62914560,
+  "requested_CPU_seconds_each": 3,
+  "capture_shared_cancel_budget_seconds": 3,
+  "sampler_capture_total_bound_seconds": 25,
+  "cancel_attempted_or_descendant_unconfirmed": null,
+  "direct_helpers_joined_only_not_descendant_proof": true,
+  "final_owned_PGID_zero_required": true,
+  "phase_semantics": "matching firstgrant receipt until observed stop/terminal; does not prove active SEND throughout; profiles may mix active/drain",
+  "request_timestamp_semantics": "startUTC is before curl submission; joinUTC is helper collection/reaping after scheduled waits and may be later than network completion. CPU requested3s is not exact sample start/end proof. Beforefirstobservedfailure is not proof ofcontinuousactiveSEND or noearlierunobservedfailure.",
+  "first_failure_periodic_cut": {
+    "at": "2026-10-23T14:32:08.002920583+08:00",
+    "cut": "periodic",
+    "elapsed_from_firstgrant_seconds": 20.049294583,
+    "messages": {
+      "sent": 40008,
+      "send_attempts": 41668,
+      "first_attempts": 40008,
+      "first_attempt_failures": 0,
+      "send_acknowledged": 38516,
+      "send_rejected": 0,
+      "received": 41114,
+      "receive_acknowledged": 41114,
+      "receive_ack_failures": 0,
+      "retry_attempts": 1660,
+      "terminal": 0,
+      "terminal_reasons": {
+        "retry_exhausted": {
+          "total": 0,
+          "attempt_timeout": 0,
+          "local_admission": 0,
+          "transport_error": 0,
+          "retryable_sendack": 0,
+          "unclassified": 0
+        },
+        "non_retriable": 0,
+        "session_closed": 0
+      },
+      "losses": 1,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    }
+  },
+  "nominal_targets_after_firstgrant": {
+    "CPU_start": 8,
+    "CPU_end": 11,
+    "goroutine": [
+      6,
+      12
+    ]
+  },
+  "raw_profiles_decoded": false,
+  "additional_sampling_disturbance": true,
+  "formal_performance_acceptance": false,
+  "no_retry_or_extra_capture": true
+}

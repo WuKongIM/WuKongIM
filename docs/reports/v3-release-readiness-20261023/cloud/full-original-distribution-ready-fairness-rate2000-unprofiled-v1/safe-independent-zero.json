@@ -1,0 +1,160 @@
+{
+  "schema": "wukongim/local-diagnostic-independent-terminal-review/v1",
+  "observed_at_utc": "2026-10-23T05:35:11.660373+00:00",
+  "reviewer": "ci_audit",
+  "read_only_commands": [
+    "ps pid,pgid,comm",
+    "lsof exact TCP LISTEN range",
+    "git rev-parse/status",
+    "bounded local metadata reads and hashes"
+  ],
+  "service_probes": 0,
+  "signals_or_process_mutations": 0,
+  "tests_builds_or_product_starts": 0,
+  "owned_pgid": 50680,
+  "independent_inventory": {
+    "owned_pgid_process_count": 0,
+    "all_wukongim_wkcli_process_count": 0,
+    "listening_count": 0,
+    "port_range": [
+      25000,
+      25063
+    ],
+    "port_count": 64,
+    "ps_exit": 0,
+    "lsof_exit": 1,
+    "zero_verified": true
+  },
+  "original_outer_result": {
+    "launcher_exit_status": 8,
+    "coordinator_exit_status": 8,
+    "outcome": "harness_invalid",
+    "cause": "invalid_observation",
+    "basis": "original coordinator stderr closed-token match plus exit-status file and supervisor receipt",
+    "coordinator_log_line": 5,
+    "final_report_present": false,
+    "original_final_verdict": null,
+    "final_correlation": null
+  },
+  "controller_failure_observation": {
+    "coordinator_log_line": 4,
+    "event": "wkbench.chat_lifecycle.controller_failure",
+    "phase": "finalize",
+    "stage": "meta_checkpoint",
+    "reason": "metrics_fetch",
+    "metrics_fetch": {
+      "source_mask": 7,
+      "kinds": [
+        "parse",
+        "parse",
+        "parse"
+      ],
+      "parse_reasons": [
+        "invalid_queue_utilization",
+        "invalid_queue_utilization",
+        "invalid_queue_utilization"
+      ]
+    },
+    "observed_outcome": "product_failure",
+    "observed_cause": "overall_first_attempt_rate",
+    "observed_terminal": true,
+    "not_a_validated_final_report": true
+  },
+  "terminal_worker_cut": {
+    "coordinator_log_line": 3,
+    "cut": "terminal",
+    "at_utc": "2026-10-23T05:32:26.088433+00:00",
+    "messages": {
+      "sent": 22001,
+      "send_attempts": 23407,
+      "first_attempts": 22001,
+      "first_attempt_failures": 264,
+      "send_acknowledged": 22001,
+      "send_rejected": 278,
+      "received": 27848,
+      "receive_acknowledged": 27848,
+      "receive_ack_failures": 0,
+      "retry_attempts": 1406,
+      "terminal": 0,
+      "losses": 0,
+      "duplicates": 0,
+      "corruptions": 0,
+      "sequence_regressions": 0
+    },
+    "correlation_not_present_in_cut": true
+  },
+  "executor_cleanup": {
+    "sha256": "e190641cb7e8cb539563d09fe3198922b27e004470fcaf7010a005651c43d208",
+    "at_utc": "2026-10-23T05:32:32.387614+00:00",
+    "elapsed_seconds": 273.9204224169953,
+    "complete": true,
+    "owned_pgid": 50680
+  },
+  "source_repositories": {
+    "source": {
+      "head": "d08031d576c3497c56b0dfba60e4db8370224c04",
+      "tree": "e084b653ba2aea7e549c6421eaf203a16820d294",
+      "tracked_untracked_clean": true
+    },
+    "primary": {
+      "head": "a804f4a57c2b9f1bf6dcfa74382d9cfdc9e34f83",
+      "tree": "d3ae8bec9e277cc0b7a95d51762682224e505be2",
+      "tracked_untracked_clean": true
+    },
+    "qualification": {
+      "head": "8b4c12b1f6722f969b907fdfd2b2d9425dac5aa9",
+      "tree": "42b2e756ef119da3cbaa67eaf51d7d35d2d12cf9",
+      "tracked_untracked_clean": true
+    }
+  },
+  "development_worktree_excluded_from_clean_claim": true,
+  "actual_binaries": {
+    "wukongim": {
+      "sha256": "73a59b307cb4ea60972750ccf18c0333799387dbb8cc3dc363733d79cc6b3a06",
+      "bytes": 64618866
+    },
+    "wkcli": {
+      "sha256": "6ef9ae500f695541abfcba8bcbcdb7cd00660899c1810186eec299c57185f094",
+      "bytes": 41060466
+    }
+  },
+  "immutable_bindings": {
+    "prepared_receipt_sha256": "efb7bdd729502a7aa901bb8d3fae4502f3e224f7de47edad8f6d453132326dd2",
+    "root_decision_sha256": "c6d377572f1243004a1e88c9651edeebf7caf63d2e59db5b07deaa4d458cea2f",
+    "build_manifest_sha256": "3dd4a2690a4cd76d5072b33902484710c4b2bcd3938578296bd9452373decfe2",
+    "build_manifest_members_verified": 12,
+    "runtime_six_pins": {
+      "exact_build_guard.py": "7e561d4d4e7d6150a45039c00c06a24312bc33a6156279cda37a0809e7a76bf8",
+      "launcher.sh": "4eaed153b294111fee6ca65b1d8f8720c17dd3a8bcd5fdce915d6a48d11202d0",
+      "original-distribution-local.yaml": "87db82456fbb4b7a28e4ded58dcc3931bd66d5d0758520944f819343b4af4825",
+      "supervise.py": "d37d5d5fe3bbed75d2ffb6fe9856ad5aec1af1c52632b689e40eed47bf4620c9",
+      "verify-slots.py": "220c30bd92192ec46b80d85409cf03d2e4840a6555ecc1c1995b3743e311f4fe",
+      "watchdog.py": "cbd70aa7d2c9486521fbcf302faaa414709c0608fd6224a66f67484177e27415"
+    }
+  },
+  "evidence_sha256": {
+    "diagnostic-result.json": {
+      "sha256": "4f5d46f71bd8b20d21f11cbc1368e00e18da470a0acfa0ceb71430c31e5ac767",
+      "bytes": 1946
+    },
+    "cleanup-receipt.json": {
+      "sha256": "e190641cb7e8cb539563d09fe3198922b27e004470fcaf7010a005651c43d208",
+      "bytes": 920
+    },
+    "logs/coordinator.log": {
+      "sha256": "3631e7bddf89fe1ce42c55b1a7937858076318f1433f52a983605f3c2c4b4328",
+      "bytes": 4822,
+      "raw_not_copied": true
+    },
+    "report/worker-evidence.json": {
+      "sha256": "c02e8fc9f4a49f9f897b7658b4a05bcbe3496adecb25ef04e6dab5245bdd8318",
+      "bytes": 596,
+      "raw_not_copied": true
+    },
+    "evidence/coordinator-exit-status": {
+      "sha256": "aa67a169b0bba217aa0aa88a65346920c84c42447c36ba5f7ea65f422c1fe5d8",
+      "bytes": 2
+    }
+  },
+  "interpretation": "Outer run is harness_invalid/invalid_observation with no final.json. The controller observed an overall_first_attempt_rate product failure before finalization failed; this is not a validated final product_failure or pass. Missing final correlation is unknown, not zero. No unique cause attribution for the metrics parse failure."
+}

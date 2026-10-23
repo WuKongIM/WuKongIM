@@ -1,0 +1,432 @@
+{
+  "node": 2,
+  "headers": [
+    "Type: samples",
+    "Duration: 3.21s, Total samples = 134 ",
+    "Showing nodes accounting for 134, 100% of 134 total"
+  ],
+  "node_limit": 60,
+  "rows": [
+    {
+      "symbol": "syscall.syscallX",
+      "flat_samples": 41,
+      "flat_percent": 30.6,
+      "cumulative_samples": 41,
+      "cumulative_percent": 30.6
+    },
+    {
+      "symbol": "syscall.syscall",
+      "flat_samples": 28,
+      "flat_percent": 20.9,
+      "cumulative_samples": 28,
+      "cumulative_percent": 20.9
+    },
+    {
+      "symbol": "runtime.madvise",
+      "flat_samples": 10,
+      "flat_percent": 7.46,
+      "cumulative_samples": 10,
+      "cumulative_percent": 7.46
+    },
+    {
+      "symbol": "runtime.memclrNoHeapPointers",
+      "flat_samples": 4,
+      "flat_percent": 2.99,
+      "cumulative_samples": 4,
+      "cumulative_percent": 2.99
+    },
+    {
+      "symbol": "syscall.syscall6",
+      "flat_samples": 4,
+      "flat_percent": 2.99,
+      "cumulative_samples": 4,
+      "cumulative_percent": 2.99
+    },
+    {
+      "symbol": "runtime.(*mspan).typePointersOfUnchecked",
+      "flat_samples": 2,
+      "flat_percent": 1.49,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.24
+    },
+    {
+      "symbol": "runtime.fcntl",
+      "flat_samples": 2,
+      "flat_percent": 1.49,
+      "cumulative_samples": 2,
+      "cumulative_percent": 1.49
+    },
+    {
+      "symbol": "runtime.findObject",
+      "flat_samples": 2,
+      "flat_percent": 1.49,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.24
+    },
+    {
+      "symbol": "runtime.mapassign",
+      "flat_samples": 2,
+      "flat_percent": 1.49,
+      "cumulative_samples": 3,
+      "cumulative_percent": 2.24
+    },
+    {
+      "symbol": "crypto/internal/fips140/sha256.blockSHA2",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "crypto/md5.block",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/presence.(*authoritySlot).recoveryReady",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster.routingSlotStatuses",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster/routing.checksumIEEEString",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer.(*SlabPool).Get",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "github.com/cockroachdb/pebble/v2.(*Batch).Set",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "github.com/cockroachdb/pebble/v2/internal/keyspan.(*InterleavingIter).startKey",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "internal/byteorder.BEPutUint64 (inline)",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "internal/reflectlite.Swapper",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "internal/runtime/atomic.(*Uint8).Load (inline)",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "internal/runtime/maps.(*Iter).Init",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "internal/runtime/maps.(*groupReference).ctrls",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.(*gcBits).bytep (inline)",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.(*itabTableType).find",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.(*mspan).heapBitsSmallForAddr",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.(*mspan).init",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.(*spanSet).push",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.(*unwinder).resolveInternal",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.(*wbBuf).get1",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.gopark",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.greyobject",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 2,
+      "cumulative_percent": 1.49
+    },
+    {
+      "symbol": "runtime.heapSetTypeSmallHeader (inline)",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.interequal",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.mapaccess2",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.mapaccess2_faststr",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.memmove",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.nanotime1",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.newBucket",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.printArgs",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.printstring",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.pthread_cond_timedwait_relative_np",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.scanobject",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 9,
+      "cumulative_percent": 6.72
+    },
+    {
+      "symbol": "runtime.selectgo",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.strhash",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.timerWhen.less",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.unlock2",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "runtime.walltime",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "unicode/utf8.ValidString",
+      "flat_samples": 1,
+      "flat_percent": 0.75,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "context.(*timerCtx).cancel",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "context.WithDeadline (inline)",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "context.WithDeadlineCause",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "context.WithDeadlineCause.func3",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "context.WithTimeout",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "context.removeChild",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "crypto/internal/fips140/sha256.(*Digest).Write",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "crypto/internal/fips140/sha256.block",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "crypto/md5.(*digest).Write",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "crypto/md5.(*digest).checkSum",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "crypto/md5.Sum",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    },
+    {
+      "symbol": "encoding/base64.(*Encoding).Decode",
+      "flat_samples": 0,
+      "flat_percent": 0.0,
+      "cumulative_samples": 1,
+      "cumulative_percent": 0.75
+    }
+  ],
+  "semantics": "CPU sampled occurrences, not function invocation counts."
+}

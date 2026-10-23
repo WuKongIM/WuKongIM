@@ -1,6 +1,6 @@
 # v3 正式版发布复核（2026-10-23）
 
-结论仍为 **NO-GO**。迁移修复及既定 Linux 性能门禁已通过；新增本地 A–B–A 对照支持冷 presence 恢复并发宽度是本地采样过期的关键因素，相应修复已合并。候选的正常 Linux 并发边界回归和三个固定 500 QPS/400 ms 绝对门禁通过，但本地 120 秒主动停止不是正式 RC 通过，也不证明相对旧版本无退化。原云两小时预演仍失败，72 小时长稳未完成；生产 stable 签名包公网交付和精确版本 APT/RPM 客户端验收也未完成。 同一修复候选的本地 2,000 SEND/s 又因首尝试失败率超限停止，120 秒目标未完成。
+结论仍为 **NO-GO**。迁移修复及既定 Linux 性能门禁已通过；新增本地 A–B–A 对照支持冷 presence 恢复并发宽度是本地采样过期的重要因素，相应修复已合并。后续权限收集、ACK 观测和目录调度修复也已合并并通过相关 Linux CI，但原规模本地 2,000 SEND/s 仍未通过。仅提高恢复并发至 64 的诊断候选再次失败，未合并为最终方案。当前转为[系统性 RPC 容量与调度设计](2026-10-23-rpc-capacity-system-design.md)，尚未实施。原云两小时预演仍失败、72 小时长稳未完成，生产 stable 签名包公网交付和精确版本 APT/RPM 客户端验收也未完成。
 
 本报告承接 [10 月 21 日的完整历史记录](2026-10-21-v3-release-readiness.md)。旧报告和原失败证据保持原样；新证据收录在 [本次有限公开归档](v3-release-readiness-20261023/README.md)。
 
@@ -169,6 +169,20 @@ B 的监督器在 first grant 后 **120.109 秒**请求停止，终态关联采�
 
 **新增本地 2,000 SEND/s（未通过）。** 用户授权后，同一 clean `4cb45b34` native 共享 Mac 候选仅将 rate 500→2,000 及两秒 credit 派生 burst 1,000→4,000，保留 10,000 在线/2,000 群和原门禁。唯一完整 periodic 切面为 +5.046341 秒/9,998 次首尝试，约 **1,981.24 SEND/s**，不是整段稳定吞吐。原最终窗口 **8.127061834 秒**（含排空）以 `product_failure/overall_first_attempt_rate`、exit 7 结束，**120 秒目标未完成**。SEND/ACK 均 12,001；首尝试失败 **196/12,001 = 1.633197%**，超过原 `<0.01%` 门禁，拒绝 205、重试 847、RECV 15,155。102 个关联采样全收到、0 过期；不是本轮 `message_loss`，也不证明全部发送端到端完成。harness failures/saturation/underdelivery 均 0。208 条 permission-busy 只是同轮聚合，未与 196/205 逐消息配对。hot/cold P99 均仅桶界 **(1 s, 2 s]**，不是精确值，也不能与 500 轮作严格配对结论。所拥有进程采样 RSS 之和最高约 4.07 GiB，不是唯一物理内存；ps CPU 不能证明全程余量。清理后所属进程组和 64 端口独立核零。此短窗不构成 Linux、两小时/72 小时或容量验收；**NO-GO 不变**。见[本轮封存摘要](v3-release-readiness-20261023/cloud/full-original-distribution-4cb4-rate2000-unprofiled-v1/safe-summary.json)。
 
+## 2,000 SEND/s 后续结论与系统方案
+
+本节补充第十八至二十批有限公开证据，保留之前失败轮次和来源限制。三节点、10,000 在线、2,000 群（含十万成员群）、seed、原 workload、超时、重试及门禁均固定；运行平台仍是共享 Mac，不能当成 Linux 原分布性能资格。
+
+[#1034](https://github.com/WuKongIM/WuKongIM/pull/1034) 交付 person-directory 完成提案的有界并行与 Ready 两轮公平进展，合并为 `830ebbdc`。[#1035](https://github.com/WuKongIM/WuKongIM/pull/1035) 交付权限收集窗口、ACK gauge 原子发布、actor-ready 容量语义和封闭诊断，候选 `5f679978` 普通合并为 `3768ad3e`。两项均完成独立双轴复核、相关测试与 Linux CI，干净原任务工作树和分支已普通清理。#1035 原生包首轮 Rocky 在 artifact 下载阶段失败，验证与生命周期尚未执行；仅该 job 一次显式补跑后两项均通过，不改写成所有 CI 首次成功。合并与精确树绑定见[1034 收据](v3-release-readiness-20261023/cloud/pr1034-merge-cleanup-v1.json)、[1035 收据](v3-release-readiness-20261023/cloud/permission2000-pr1035-merge-cleanup-v1.json)。
+
+精确 5f 的无 profile 原分布诊断活跃区间约 **1,999.15 SEND/s**，SEND/ACK 为 42,002、首次失败 0，最终仍有 **3 个关联样本超期**，终态 `product_failure/message_loss`。因此权限入口改善不等于 Online Delivery 已修复。旧 8100 带 profile 轮次的一个预先固定超期样本，经三个副本唯一一致的消息身份和同轮精确日志关联，定位在提交后的 presence timeout；仅解释这个样本的阶段，不能据此证明全部超期同根因。见[5f 摘要](v3-release-readiness-20261023/cloud/full-original-distribution-ack-gauge-rate2000-unprofiled-v1/safe-summary.json)与[旧样本有界关联](v3-release-readiness-20261023/cloud/full-original-distribution-coalescing-rate2000-three-profile-v1/first-expired-offline-addendum-v1/safe-exact-log-association.json)。
+
+另一次真实三节点空载隔离中，32 个独立双 UID 调用产生 64 RPC、完成 2.880ms；相同 64 UID 预打包产生 2 RPC、完成 1.035ms。这证明特定场景存在小调用放大，**未复现原负载的五秒等待**。旧 8100 带 profile 轮次的六份抓栈都有恢复 quota 等待、各有 16 个 owner RPC 等待，没有采到 owner handler/Registry 锁住的现场；它们不能与 5f 指标拼成同请求因果，不同采样直方图的 client、服务排队和 handler 均值也不能相减为单请求分解。ACK 发布锁等待与容量误报有独立证据，不能统一改写成 RPC 队列故障。
+
+仅将两层恢复并发 **16→64**、保留 8,192 keys、128 MiB UID 字节界限和全部原门禁的候选 `103292a9`，在约 **2,000.72 SEND/s** 时再次失败：+35.037 秒首次坏切面为 **20 次首次失败/70,017 次发送**，超过 `<0.01%` 原上限。最终 3,633 次失败大部分来自停止排空期 `session_closed`，不能全部算运行期 RPC 错误；732 条采样中 677 收到、0 expired、55 outstanding，也不能当作投递通过。相邻窗口 permission-busy/deadline 日志含重试且不能逐条配对首失败，根因仍未闭合。资源和 64 端口已独立核零，候选未推送或合并。见[原终态摘要](v3-release-readiness-20261023/cloud/full-original-distribution-recovery64-rate2000-unprofiled-v1/safe-summary.json)与[首失败窗口分析](v3-release-readiness-20261023/cloud/recovery64-first-failure-analysis-v1.json)。
+
+响应用户“系统设计而非继续小补丁”的要求，已完成三个独立方案和[组合提案](2026-10-23-rpc-capacity-system-design.md)：复用现有 transport，统一 ownership、静态 method policy、公平分派与有限连接归属，补齐同请求阶段观测，再实现保留独立取消、freshness、fences 和 4096 结果上限的领域合批。当前是设计交付，不是实现或性能通过。先闭合运行期 RPC 放大与排队阶段，再冻结容量参数和混合负载验收；不继续将并发数字增大当成最终修复。现有 120 秒诊断不足以覆盖五分钟延迟、十五分钟资源持续门禁，也不替代后续 Linux、长稳、容量与恢复资格。**NO-GO 不变**。
+
 ## 包交付实现
 
 新增 [packages #79](https://github.com/WuKongIM/packages/pull/79) 修复 RPM 验证器把路径文本当作签名状态的问题。相同已签 RPM 和公钥在 `good` 路径通过、在 `bad` 路径失败的独立对照已复现。修复分离精确路径标题与签名状态行，同时保留隔离候选证书、RSA/SHA256、完整签名者指纹及真实密码学校验。
@@ -193,7 +207,7 @@ B 的监督器在 first grant 后 **120.109 秒**请求停止，终态关联采�
 
 ## 继续处理的条件
 
-1. 本地有界修复及上述回归/合并已完成，Linux race 未验证；原云内层原因仍未知。 新增本地 2,000 SEND/s 未通过首尝试失败率门禁，仍需定位发送拒绝与背压。原两小时预演失败、72 小时长稳、容量及恢复阶段尚未完成。后续应对精确修复来源补齐正式 Linux 验收；新的付费云启动须另有明确授权，不复用已释放租约，也不把合并许可当作采购或发布许可。
+1. 本地有界修复及上述回归/合并已完成，先前宽度边界的 Linux race 未验证；原云内层原因仍未知。原规模本地 2,000 SEND/s 在最新已合并源仍有投递超期，64 并发诊断又触发首尝试失败率门禁。接下来按系统提案先闭合阶段归因、实现并验证资源和调度契约，再重跑原规模原门禁。原两小时预演失败、72 小时长稳、容量及恢复阶段尚未完成。后续应对精确修复来源补齐正式 Linux 验收；新的付费云启动须另有明确授权，不复用已释放租约，也不把合并许可当作采购或发布许可。
 2. #80 权限/清理修复及 Linux CI 已完成并合并，生产上传/激活入口仍仅部分实现，继续补齐 SDK 正向编排和真实签名候选的审计链。
 3. 完成实际 OSS/CDN、TLS、精确运行身份与权限接入，以及生产候选来源、签名、审计和公网验收。stable 当前关闭；TEST ONLY、SDK 夹具、构建或合并成功不代表已发布。现有 ECS 授权不扩展为包分发资源采购或正式发布授权。
 4. 满足前述条件后，冻结正式目标版本和 CHANGELOG，执行最终 tag 对应的发布门禁，并完成适用 signed native channel 的公开 APT/RPM 精确版本安装验证；任何一项未完成都不能报告正式发布完成。

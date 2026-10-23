@@ -1,0 +1,198 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index ed5545b57..32d408231 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
+ 
+ ### 🐛 Bug Fixes / 问题修复
+ 
++- Report gateway actor-ready queues without a fixed item capacity instead of
++  treating their initial slice allocation as a hard limit. Queue depth and
++  admission behavior remain unchanged, avoiding false metrics-parse failures.
++
+ - Collect concurrent SEND permission facts for up to 5 ms so paced callers share
+   fresh barriers within the existing cohort, call and byte limits; idle reads
+   of one fact or two distinct facts remain immediate. / 并发发送权限事实最多收集
+diff --git a/docs/development/FLOW_INDEX.md b/docs/development/FLOW_INDEX.md
+index 3852d95b5..2829697db 100644
+--- a/docs/development/FLOW_INDEX.md
++++ b/docs/development/FLOW_INDEX.md
+@@ -88,7 +88,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
+ | [pkg/db/message/FLOW.md](../../pkg/db/message/FLOW.md) | `package` | Stores Channel message logs, indexes, checkpoints, retention state, snapshots, and compatibility leases on the shared DB engine. | 150 | warning |
+ | [pkg/db/meta/FLOW.md](../../pkg/db/meta/FLOW.md) | `package` | Owns Hash-Slot-scoped metadata tables, deterministic batches, membership directories, snapshots, restore, and cache invalidation. | 123 | warning |
+ | [pkg/flowdoc/FLOW.md](../../pkg/flowdoc/FLOW.md) | `package` | Parses the closed metadata and structure of Agent FLOW navigation files. | 49 | ok |
+-| [pkg/gateway/FLOW.md](../../pkg/gateway/FLOW.md) | `subtree` | Provides reusable client listeners, protocol adapters, sessions, authentication, bounded dispatch, transport writes, and connection lifecycle. | 111 | warning |
++| [pkg/gateway/FLOW.md](../../pkg/gateway/FLOW.md) | `subtree` | Provides reusable client listeners, protocol adapters, sessions, authentication, bounded dispatch, transport writes, and connection lifecycle. | 113 | warning |
+ | [pkg/goroutine/FLOW.md](../../pkg/goroutine/FLOW.md) | `package` | Tracks first-party goroutine ownership, fixed task labels, pool pressure, panics, health, metrics, and bounded shutdown evidence. | 77 | ok |
+ | [pkg/hashslot/FLOW.md](../../pkg/hashslot/FLOW.md) | `package` | Provides neutral Hash Slot routing tables, migration encoding, key hashing, and deterministic rebalance planning. | 40 | ok |
+ | [pkg/protocol/publication/FLOW.md](../../pkg/protocol/publication/FLOW.md) | `package` | Defines bounded immutable publication metadata and its versioned durable codec independently of entry packets and storage. | 57 | ok |
+diff --git a/docs/development/PROJECT_KNOWLEDGE.md b/docs/development/PROJECT_KNOWLEDGE.md
+index 73ae3b601..9e3066e78 100644
+--- a/docs/development/PROJECT_KNOWLEDGE.md
++++ b/docs/development/PROJECT_KNOWLEDGE.md
+@@ -1,5 +1,11 @@
+ # Project Knowledge
+ 
++Gateway actor-ready queues deduplicate pending connections but have no fixed
++item-admission limit. Their initial slice capacity is allocation only; publish
++capacity zero and the real depth. Do not clamp depth or relax benchmark parser
++guards to conceal a mismatched metric denominator. This does not prove message
++loss or performance is repaired.
++
+ Person-directory projection must emit one membership for a self-channel and two
+ for distinct participants. Duplicate UID/channel identities reject the complete
+ physical-Slot membership command, leaving MQTT inbox preparation pending and
+diff --git a/pkg/gateway/FLOW.md b/pkg/gateway/FLOW.md
+index 9cb688f61..697508906 100644
+--- a/pkg/gateway/FLOW.md
++++ b/pkg/gateway/FLOW.md
+@@ -67,8 +67,10 @@ Message, presence, Channel, and Controller business policy stays outside gateway
+ - `OnSessionOpen` happens at most once and before `OnFrame` or `OnPacket`; `OnSessionClose`
+   and relevant errors happen only after an in-progress open callback returns.
+ - Inbound bytes, outbound bytes, auth queue, SEND backlog, per-shard mailboxes,
+-  batch records/bytes/wait, idle work, actor work, and shutdown waits are
+-  bounded. Each SEND shard admits at least one record batch, unless the global
++  batch records/bytes/wait, idle work, and shutdown waits are bounded.
++  Actor ready lists retain at most one pending entry per connection; their
++  initial slice allocation is not a fixed item-admission limit. They publish
++  item capacity zero, preserving depth without inventing a utilization bound. Each SEND shard admits at least one record batch, unless the global
+   queue is smaller. Increasing workers cannot reduce that burst capacity.
+   Saturation closes only the affected session with a typed reason.
+ - `DrainSends` is a one-shot SEND-admission fence that waits for accepted
+diff --git a/pkg/gateway/transport/gnet/actor.go b/pkg/gateway/transport/gnet/actor.go
+index 26e1df6f3..cf41db1b6 100644
+--- a/pkg/gateway/transport/gnet/actor.go
++++ b/pkg/gateway/transport/gnet/actor.go
+@@ -8,6 +8,7 @@ import (
+ 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+ )
+ 
++// actorReadyQueueSize is only the initial slice allocation, not an admission limit.
+ const actorReadyQueueSize = 1024
+ 
+ // actorPool owns a fixed set of connection actors for one running gnet engine.
+@@ -123,7 +124,7 @@ func (s *actorShard) schedule(state *connState) bool {
+ 		depth := len(s.ready)
+ 		s.mu.Unlock()
+ 		state.scheduled.Store(false)
+-		state.observeTransportForSource(actorPressureSource(s.id), "actor_ready", "ready", depth, actorReadyQueueSize, 0, 0, "closed")
++		state.observeTransportForSource(actorPressureSource(s.id), "actor_ready", "ready", depth, 0, 0, 0, "closed")
+ 		return false
+ 	}
+ 	wasEmpty := len(s.ready) == 0
+@@ -142,7 +143,6 @@ func (s *actorShard) schedule(state *connState) bool {
+ 		name:     "actor_ready",
+ 		queue:    "ready",
+ 		depth:    depth,
+-		capacity: actorReadyQueueSize,
+ 		result:   "ok",
+ 		revision: revision,
+ 	})
+@@ -189,7 +189,6 @@ func (s *actorShard) drainReady() {
+ 			batch[0].observeTransportSnapshotForSource(actorPressureSource(s.id), transportPressureSnapshot{
+ 				name:     "actor_ready",
+ 				queue:    "ready",
+-				capacity: actorReadyQueueSize,
+ 				revision: revision,
+ 			})
+ 		}
+diff --git a/pkg/gateway/transport/gnet/actor_test.go b/pkg/gateway/transport/gnet/actor_test.go
+index c6061a964..cfe6afe15 100644
+--- a/pkg/gateway/transport/gnet/actor_test.go
++++ b/pkg/gateway/transport/gnet/actor_test.go
+@@ -52,8 +52,8 @@ func TestActorShardReportsReadyPressure(t *testing.T) {
+ 	if got := events[0].Depth; got != 1 {
+ 		t.Fatalf("first pressure depth = %d, want 1", got)
+ 	}
+-	if got := events[0].Capacity; got != actorReadyQueueSize {
+-		t.Fatalf("first pressure capacity = %d, want %d", got, actorReadyQueueSize)
++	if got := events[0].Capacity; got != 0 {
++		t.Fatalf("first pressure capacity = %d, want no fixed item bound", got)
+ 	}
+ 	if got := events[1].Result; got != "closed" {
+ 		t.Fatalf("second pressure result = %q, want closed", got)
+@@ -152,3 +152,56 @@ func TestActorPoolStopsWithEngineGroup(t *testing.T) {
+ 		t.Fatal("actor shard accepted schedule after engine stop")
+ 	}
+ }
++
++// TestActorReadyPressureHasNoFixedItemCapacity exercises actual admission and
++// draining without starting an actor worker or depending on elapsed time.
++func TestActorReadyPressureHasNoFixedItemCapacity(t *testing.T) {
++	for _, scenario := range []string{"above_preallocation", "duplicate", "two_shards", "drained", "late_revision"} {
++		t.Run(scenario, func(t *testing.T) {
++			observer := &recordingTransportPressureObserver{}
++			runtime := &listenerRuntime{opts: transport.ListenerOptions{Observer: observer}}
++			pool := newActorPool(2)
++			first := &connState{runtime: runtime}
++			if !pool.shards[0].schedule(first) {
++				t.Fatal("first schedule rejected")
++			}
++			wantDepth := 1
++			switch scenario {
++			case "above_preallocation":
++				for i := 1; i < 1025; i++ {
++					if !pool.shards[0].schedule(&connState{runtime: runtime}) {
++						t.Fatal("distinct schedule rejected")
++					}
++				}
++				wantDepth = 1025
++			case "duplicate":
++				before := len(observer.snapshot())
++				if pool.shards[0].schedule(first) {
++					t.Fatal("duplicate schedule accepted")
++				}
++				if got := len(observer.snapshot()); got != before {
++					t.Fatalf("duplicate emitted %d observations, want %d", got, before)
++				}
++			case "two_shards":
++				if !pool.shards[1].schedule(&connState{runtime: runtime}) {
++					t.Fatal("second shard rejected")
++				}
++				wantDepth = 2
++			case "drained", "late_revision":
++				pool.shards[0].drainReady()
++				wantDepth = 0
++				if scenario == "late_revision" {
++					first.observeTransportSnapshotForSource(actorPressureSource(0), transportPressureSnapshot{name: "actor_ready", queue: "ready", depth: 1, revision: 1})
++				}
++			}
++			events := observer.snapshot()
++			last := events[len(events)-1]
++			if last.Depth != wantDepth {
++				t.Fatalf("depth = %d, want %d", last.Depth, wantDepth)
++			}
++			if last.Capacity != 0 {
++				t.Fatalf("capacity = %d, want no fixed item bound", last.Capacity)
++			}
++		})
++	}
++}
+diff --git a/pkg/gateway/types/observer.go b/pkg/gateway/types/observer.go
+index b24f18d02..9d6bac84e 100644
+--- a/pkg/gateway/types/observer.go
++++ b/pkg/gateway/types/observer.go
+@@ -145,7 +145,8 @@ type TransportPressureEvent struct {
+ 	Queue string
+ 	// Depth is the current queue item depth when available.
+ 	Depth int
+-	// Capacity is the queue item capacity when available.
++	// Capacity is an enforced queue item limit; zero means no defined item limit.
++	// Slice allocation capacity must not be reported as an admission bound.
+ 	Capacity int
+ 	// Bytes is the current byte pressure when available.
+ 	Bytes int64
+diff --git a/pkg/metrics/runtime_pressure.go b/pkg/metrics/runtime_pressure.go
+index eb6d1c4fd..85b1da0a3 100644
+--- a/pkg/metrics/runtime_pressure.go
++++ b/pkg/metrics/runtime_pressure.go
+@@ -13,7 +13,8 @@ var runtimePressureDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025
+ type RuntimePressureQueueObservation struct {
+ 	// Depth is the current number of queued items.
+ 	Depth int
+-	// Capacity is the configured maximum number of queued items.
++	// Capacity is the enforced maximum number of queued items, or zero when
++	// no item limit is defined. Zero provides no item-utilization denominator.
+ 	Capacity int
+ 	// Bytes is the current number of queued payload bytes.
+ 	Bytes int64

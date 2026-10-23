@@ -1,0 +1,2410 @@
+{
+  "schema": "wukongim/permission2000-bounded-cpu-focus/v1",
+  "node": 1,
+  "focuses": {
+    "slot_multiraft": {
+      "regex": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft",
+      "headers": [
+        "Type: cpu",
+        "Duration: 3.19s, Total samples = 1.29s (40.47%)",
+        "Active filters:",
+        "Showing nodes accounting for 0.02s, 1.55% of 1.29s total"
+      ],
+      "rows": [
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.04s",
+          "cumulative_percent": 3.1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.04s",
+          "cumulative_percent": 3.1
+        },
+        {
+          "symbol": "runtime/pprof.Do",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.04s",
+          "cumulative_percent": 3.1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*applyPipeline).runQueue",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*applyPipeline).runWorker",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).runApplyTask",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.newApplyPipeline.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "crypto/internal/fips140/sha256.(*Digest).Write",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "crypto/internal/fips140/sha256.block",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "crypto/internal/fips140/sha256.blockSHA2",
+          "flat": "0.01s",
+          "flat_percent": 0.78,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "crypto/sha256.Sum256",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "encoding/binary.bigEndian.AppendUint64 (inline)",
+          "flat": "0.01s",
+          "flat_percent": 0.78,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/app.multiSlotObserver.SetSchedulerInflight",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/app.safeTopLabel",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/app.topPressureKey",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/internal/app.topSlotObserver.SetSchedulerInflight",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*DB).Get",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec.AppendInt64Ordered (inline)",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*Batch).CompletePersonDirectoryTask",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*DB).SlotAppliedIndex",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*MetaDB).SlotAppliedIndex",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*MetaDB).get",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*WriteBatch).CompletePersonDirectoryTask",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.encodeChannelRowKey",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/fsm.(*completePersonDirectoryTaskBatchCmd).apply",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        }
+      ],
+      "no_match": false,
+      "flat_order": {
+        "node_limit": 60,
+        "headers": [
+          "Type: cpu",
+          "Duration: 3.19s, Total samples = 1.29s (40.47%)",
+          "Showing nodes accounting for 0.04s, 3.10% of 1.29s total"
+        ],
+        "rows": [
+          {
+            "symbol": "crypto/internal/fips140/sha256.blockSHA2",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "encoding/binary.bigEndian.AppendUint64 (inline)",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "runtime.chanrecv",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "strings.Replace",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "crypto/internal/fips140/sha256.(*Digest).Write",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "crypto/internal/fips140/sha256.block",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "crypto/sha256.Sum256",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/app.multiSlotObserver.SetSchedulerInflight",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/app.safeTopLabel",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/app.topPressureKey",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/app.topSlotObserver.SetSchedulerInflight",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*DB).Get",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec.AppendInt64Ordered (inline)",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*Batch).CompletePersonDirectoryTask",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*DB).SlotAppliedIndex",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*MetaDB).SlotAppliedIndex",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*MetaDB).get",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*WriteBatch).CompletePersonDirectoryTask",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.encodeChannelRowKey",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.04s",
+            "cumulative_percent": 3.1
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.04s",
+            "cumulative_percent": 3.1
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/fsm.(*completePersonDirectoryTaskBatchCmd).apply",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/fsm.(*stateMachine).ApplyBatch",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/fsm.(*stateMachine).DurableAppliedIndex",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).observeSchedulerInflight",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).runWorker",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*Runtime).start.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*applyPipeline).runQueue",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.03s",
+            "cumulative_percent": 2.33
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*applyPipeline).runWorker",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.03s",
+            "cumulative_percent": 2.33
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).applyCommittedEntries",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).applyCommittedEntries.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).compactLog",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).compactLogAt",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).markApplied",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).resetCheckpointAnchor",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).runApplyTask",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.03s",
+            "cumulative_percent": 2.33
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.newApplyPipeline.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.03s",
+            "cumulative_percent": 2.33
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*DB).Get (inline)",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*DB).getInternal",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*Iterator).First",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*Iterator).iterFirstWithinBounds",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*fileCacheHandle).findOrCreateTable",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*fileCacheHandle).newIters",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*getIter).First",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*getIter).Next",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*getIter).getSSTableIterators",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*getIter).initializeNextIterator",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/internal/genericcache.(*Cache[go.shape.struct { github.com/cockroachdb/pebble/v2.handle *github.com/cockroachdb/pebble/v2.fileCacheHandle; github.com/cockroachdb/pebble/v2.fileNum github.com/cockroachdb/pebble/v2/internal/base.DiskFileNum; github.com/cockroachdb/pebble/v2.fileType github.com/cockroachdb/pebble/v2/internal/base.FileType },go.shape.struct { github.com/cockroachdb/pebble/v2.closeHook func(); github.com/cockroachdb/pebble/v2.reader io.Closer; github.com/cockroachdb/pebble/v2.isShared bool; github.com/cockroachdb/pebble/v2.readerProvider github.com/cockroachdb/pebble/v2.tableCacheShardReaderProvider }]).FindOrCreate",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/internal/genericcache.(*shard[go.shape.struct { github.com/cockroachdb/pebble/v2.handle *github.com/cockroachdb/pebble/v2.fileCacheHandle; github.com/cockroachdb/pebble/v2.fileNum github.com/cockroachdb/pebble/v2/internal/base.DiskFileNum; github.com/cockroachdb/pebble/v2.fileType github.com/cockroachdb/pebble/v2/internal/base.FileType },go.shape.struct { github.com/cockroachdb/pebble/v2.closeHook func(); github.com/cockroachdb/pebble/v2.reader io.Closer; github.com/cockroachdb/pebble/v2.isShared bool; github.com/cockroachdb/pebble/v2.readerProvider github.com/cockroachdb/pebble/v2.tableCacheShardReaderProvider }]).findOrCreateValue",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "runtime.chanrecv1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "runtime/pprof.Do",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.04s",
+            "cumulative_percent": 3.1
+          },
+          {
+            "symbol": "strings.ReplaceAll (inline)",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          }
+        ]
+      }
+    },
+    "read_index_barrier": {
+      "regex": "ReadBarrier|readBarrier|ReadIndex|issueReadBarrier|admitReadBarrier|acceptReadStates|completeReadBarriers",
+      "headers": [
+        "Type: cpu",
+        "Duration: 3.19s, Total samples = 1.29s (40.47%)",
+        "Active filters:",
+        "Showing nodes accounting for 0, 0% of 1.29s total"
+      ],
+      "rows": [],
+      "no_match": true,
+      "flat_order": {
+        "node_limit": 60,
+        "headers": [
+          "Type: cpu",
+          "Duration: 3.19s, Total samples = 1.29s (40.47%)",
+          "Showing nodes accounting for 0, 0% of 1.29s total"
+        ],
+        "rows": []
+      }
+    },
+    "metadata_apply_commit": {
+      "regex": "pkg/db/meta\\.\\(\\*(Batch|WriteBatch)\\)\\.Commit|pkg/slot/fsm\\.\\(\\*stateMachine\\)\\.Apply",
+      "headers": [
+        "Type: cpu",
+        "Duration: 3.19s, Total samples = 1.29s (40.47%)",
+        "Showing nodes accounting for 0.02s, 1.55% of 1.29s total"
+      ],
+      "rows": [
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.04s",
+          "cumulative_percent": 3.1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.04s",
+          "cumulative_percent": 3.1
+        },
+        {
+          "symbol": "runtime/pprof.Do",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.04s",
+          "cumulative_percent": 3.1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).commit",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*Batch).Commit.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "encoding/binary.bigEndian.AppendUint64 (inline)",
+          "flat": "0.01s",
+          "flat_percent": 0.78,
+          "cumulative": "0.02s",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*DB).Get",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.02s",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec.AppendInt64Ordered (inline)",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.02s",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*Batch).CreateChannelRuntimeMeta.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.02s",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*MetaDB).get",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.02s",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.loadRuntimeRetirement",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.02s",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.newRuntimeIncarnation",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.02s",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2.(*DB).Get (inline)",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.02s",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2.(*DB).getInternal",
+          "flat": "0.01s",
+          "flat_percent": 0.78,
+          "cumulative": "0.02s",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*Batch).CompletePersonDirectoryTask",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*Batch).CompletePersonDirectoryTask.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*WriteBatch).CompletePersonDirectoryTask",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*batchCommitState).loadChannel",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.Table[go.shape.struct { ChannelID string; ChannelType int64; ChannelEpoch uint64; LeaderEpoch uint64; RouteGeneration uint64; Replicas []uint64; ISR []uint64; Leader uint64; MinISR int64; Status uint8; Features uint64; LeaseUntilMS int64; RetentionThroughSeq uint64; RetentionUpdatedAtMS int64; WriteFenceToken string; WriteFenceVersion uint64; WriteFenceReason uint8; WriteFenceUntilMS int64; DirectoryGeneration uint64 }].loadBatchValue",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.encodeChannelRowKey",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.encodeKeyParts",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.runtimeRetirementKey",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/fsm.(*completePersonDirectoryTaskBatchCmd).apply",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/fsm.(*stateMachine).ApplyBatch",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.01s",
+          "cumulative_percent": 0.78
+        }
+      ],
+      "flat_order": {
+        "node_limit": 60,
+        "headers": [
+          "Type: cpu",
+          "Duration: 3.19s, Total samples = 1.29s (40.47%)",
+          "Showing nodes accounting for 0.04s, 3.10% of 1.29s total"
+        ],
+        "rows": [
+          {
+            "symbol": "encoding/binary.bigEndian.AppendUint64 (inline)",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*DB).getInternal",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/objstorage/objstorageprovider.(*PreallocatedReadHandle).Close",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "runtime.memclrNoHeapPointers",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).commit",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.03s",
+            "cumulative_percent": 2.33
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit.(*Coordinator).run",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.03s",
+            "cumulative_percent": 2.33
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/engine.(*DB).Get",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec.AppendInt64Ordered (inline)",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*Batch).Commit.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.03s",
+            "cumulative_percent": 2.33
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*Batch).CompletePersonDirectoryTask",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*Batch).CompletePersonDirectoryTask.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*Batch).CreateChannelRuntimeMeta.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*MetaDB).get",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*WriteBatch).CompletePersonDirectoryTask",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.(*batchCommitState).loadChannel",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.Table[go.shape.struct { ChannelID string; ChannelType int64; ChannelEpoch uint64; LeaderEpoch uint64; RouteGeneration uint64; Replicas []uint64; ISR []uint64; Leader uint64; MinISR int64; Status uint8; Features uint64; LeaseUntilMS int64; RetentionThroughSeq uint64; RetentionUpdatedAtMS int64; WriteFenceToken string; WriteFenceVersion uint64; WriteFenceReason uint8; WriteFenceUntilMS int64; DirectoryGeneration uint64 }].loadBatchValue",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.encodeChannelRowKey",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.encodeKeyParts",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.loadRuntimeRetirement",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.newRuntimeIncarnation",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/db/meta.runtimeRetirementKey",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.04s",
+            "cumulative_percent": 3.1
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.04s",
+            "cumulative_percent": 3.1
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/fsm.(*completePersonDirectoryTaskBatchCmd).apply",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/fsm.(*stateMachine).ApplyBatch",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*applyPipeline).runQueue",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*applyPipeline).runWorker",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).applyCommittedEntries",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).applyCommittedEntries.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.(*slot).runApplyTask",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft.newApplyPipeline.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*DB).Get (inline)",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*Iterator).First",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*Iterator).iterFirstWithinBounds",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*getIter).First",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*getIter).Next",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/sstable.(*singleLevelIterator[go.shape.struct { github.com/cockroachdb/pebble/v2/sstable/rowblk.iter github.com/cockroachdb/pebble/v2/sstable/rowblk.Iter },go.shape.*github.com/cockroachdb/pebble/v2/sstable/rowblk.IndexIter,go.shape.2d95560dd2a436f029e6e31dd6b50f33cdf7f7fbac770a905f7c097f0b5ec4b0,go.shape.*github.com/cockroachdb/pebble/v2/sstable/rowblk.Iter]).closeInternal",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/sstable.(*twoLevelIterator[go.shape.struct { github.com/cockroachdb/pebble/v2/sstable/rowblk.iter github.com/cockroachdb/pebble/v2/sstable/rowblk.Iter },go.shape.*github.com/cockroachdb/pebble/v2/sstable/rowblk.IndexIter,go.shape.2d95560dd2a436f029e6e31dd6b50f33cdf7f7fbac770a905f7c097f0b5ec4b0,go.shape.*github.com/cockroachdb/pebble/v2/sstable/rowblk.Iter]).Close",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "runtime.growslice",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "runtime/pprof.Do",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.04s",
+            "cumulative_percent": 3.1
+          }
+        ]
+      }
+    },
+    "wal_sync": {
+      "regex": "pebble.*record.*LogWriter|syscall\\.(Fsync|Fdatasync)|pebble.*Sync|fullFsync",
+      "headers": [
+        "Type: cpu",
+        "Duration: 3.19s, Total samples = 1290ms (40.47%)",
+        "Active filters:",
+        "Showing nodes accounting for 50ms, 3.88% of 1290ms total"
+      ],
+      "rows": [
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*diskHealthCheckingFile).timeDiskOp",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "70ms",
+          "cumulative_percent": 5.43
+        },
+        {
+          "symbol": "runtime/pprof.Do",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "70ms",
+          "cumulative_percent": 5.43
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushLoop",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "60ms",
+          "cumulative_percent": 4.65
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushPending",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "60ms",
+          "cumulative_percent": 4.65
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.NewLogWriter.func2",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "60ms",
+          "cumulative_percent": 4.65
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*diskHealthCheckingFile).Write",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "50ms",
+          "cumulative_percent": 3.88
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*diskHealthCheckingFile).Write.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "50ms",
+          "cumulative_percent": 3.88
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*syncingFile).Write",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "50ms",
+          "cumulative_percent": 3.88
+        },
+        {
+          "symbol": "internal/poll.(*FD).Write",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "50ms",
+          "cumulative_percent": 3.88
+        },
+        {
+          "symbol": "internal/poll.ignoringEINTRIO (inline)",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "50ms",
+          "cumulative_percent": 3.88
+        },
+        {
+          "symbol": "os.(*File).Write",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "50ms",
+          "cumulative_percent": 3.88
+        },
+        {
+          "symbol": "os.(*File).write (inline)",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "50ms",
+          "cumulative_percent": 3.88
+        },
+        {
+          "symbol": "syscall.Write (inline)",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "50ms",
+          "cumulative_percent": 3.88
+        },
+        {
+          "symbol": "syscall.syscall",
+          "flat": "50ms",
+          "flat_percent": 3.88,
+          "cumulative": "50ms",
+          "cumulative_percent": 3.88
+        },
+        {
+          "symbol": "syscall.write",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "50ms",
+          "cumulative_percent": 3.88
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).syncWithLatency",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "20ms",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*diskHealthCheckingFile).SyncData",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "20ms",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*diskHealthCheckingFile).SyncData.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "20ms",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*syncingFile).Sync",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "20ms",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*unixFile).SyncData",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "20ms",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "internal/poll.(*FD).Fsync",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "20ms",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "internal/poll.(*FD).Fsync.func1 (inline)",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "20ms",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "internal/poll.ignoringEINTR (inline)",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "20ms",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "internal/syscall/unix.Fcntl",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "20ms",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "os.(*File).Sync",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "20ms",
+          "cumulative_percent": 1.55
+        }
+      ],
+      "no_match": false,
+      "flat_order": {
+        "node_limit": 60,
+        "headers": [
+          "Type: cpu",
+          "Duration: 3.19s, Total samples = 1.29s (40.47%)",
+          "Showing nodes accounting for 0.07s, 5.43% of 1.29s total"
+        ],
+        "rows": [
+          {
+            "symbol": "syscall.syscall",
+            "flat": "0.05s",
+            "flat_percent": 3.88,
+            "cumulative": "0.05s",
+            "cumulative_percent": 3.88
+          },
+          {
+            "symbol": "runtime.fcntl",
+            "flat": "0.02s",
+            "flat_percent": 1.55,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "bufio.(*Writer).Flush",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "bufio.(*Writer).Write",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*DB).compactAndWrite",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*DB).flush",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*DB).flush.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*DB).flush1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2.(*DB).runCompaction",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/internal/compact.(*Runner).WriteTable",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/internal/compact.(*Runner).writeKeysToTable",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/internal/compact.NeverSeparateValues.Add",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/objstorage/objstorageprovider.(*fileBufferedWritable).Write",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushBlock",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushLoop",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.06s",
+            "cumulative_percent": 4.65
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).flushPending",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.06s",
+            "cumulative_percent": 4.65
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/record.(*LogWriter).syncWithLatency",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/record.NewLogWriter.func2",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.06s",
+            "cumulative_percent": 4.65
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/sstable.(*RawRowWriter).Add",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/sstable.(*RawRowWriter).addPoint",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/sstable.(*RawRowWriter).flush",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/sstable.(*RawRowWriter).maybeFlush",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/sstable.(*layoutWriter).WritePrecompressedDataBlock (inline)",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/sstable.(*layoutWriter).writePrecompressedBlock",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/sstable.(*writeQueue).addSync",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/sstable.(*writeQueue).performWrite",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/sstable/block.(*PhysicalBlock).WriteTo",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*diskHealthCheckingFile).SyncData",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*diskHealthCheckingFile).SyncData.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*diskHealthCheckingFile).Write",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.05s",
+            "cumulative_percent": 3.88
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*diskHealthCheckingFile).Write.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.05s",
+            "cumulative_percent": 3.88
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*diskHealthCheckingFile).timeDiskOp",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.07s",
+            "cumulative_percent": 5.43
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*syncingFile).Sync",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*syncingFile).Write",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.05s",
+            "cumulative_percent": 3.88
+          },
+          {
+            "symbol": "github.com/cockroachdb/pebble/v2/vfs.(*unixFile).SyncData",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "internal/poll.(*FD).Fsync",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "internal/poll.(*FD).Fsync.func1 (inline)",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "internal/poll.(*FD).Write",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.05s",
+            "cumulative_percent": 3.88
+          },
+          {
+            "symbol": "internal/poll.ignoringEINTR (inline)",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "internal/poll.ignoringEINTRIO (inline)",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.05s",
+            "cumulative_percent": 3.88
+          },
+          {
+            "symbol": "internal/syscall/unix.Fcntl",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "os.(*File).Sync",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "os.(*File).Write",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.05s",
+            "cumulative_percent": 3.88
+          },
+          {
+            "symbol": "os.(*File).write (inline)",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.05s",
+            "cumulative_percent": 3.88
+          },
+          {
+            "symbol": "runtime/pprof.Do",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.07s",
+            "cumulative_percent": 5.43
+          },
+          {
+            "symbol": "syscall.Write (inline)",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.05s",
+            "cumulative_percent": 3.88
+          },
+          {
+            "symbol": "syscall.write",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.05s",
+            "cumulative_percent": 3.88
+          }
+        ]
+      }
+    },
+    "runtime_gc_scheduler": {
+      "regex": "runtime\\.(gcBgMarkWorker|gcDrain|gcAssistAlloc|mallocgc|schedule|findRunnable|semasleep|kevent|madvise)",
+      "headers": [
+        "Type: cpu",
+        "Duration: 3.19s, Total samples = 1.29s (40.47%)",
+        "Active filters:",
+        "Showing nodes accounting for 0.10s, 7.75% of 1.29s total"
+      ],
+      "rows": [
+        {
+          "symbol": "runtime.systemstack",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.13s",
+          "cumulative_percent": 10.08
+        },
+        {
+          "symbol": "runtime.(*mheap).allocSpan",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.08s",
+          "cumulative_percent": 6.2
+        },
+        {
+          "symbol": "runtime.mallocgc",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.08s",
+          "cumulative_percent": 6.2
+        },
+        {
+          "symbol": "runtime.gcBgMarkWorker.func2",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.07s",
+          "cumulative_percent": 5.43
+        },
+        {
+          "symbol": "runtime.gcDrain",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.07s",
+          "cumulative_percent": 5.43
+        },
+        {
+          "symbol": "runtime.gcDrainMarkWorkerFractional (inline)",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.07s",
+          "cumulative_percent": 5.43
+        },
+        {
+          "symbol": "runtime.madvise",
+          "flat": "0.07s",
+          "flat_percent": 5.43,
+          "cumulative": "0.07s",
+          "cumulative_percent": 5.43
+        },
+        {
+          "symbol": "runtime.sysUsed (inline)",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.07s",
+          "cumulative_percent": 5.43
+        },
+        {
+          "symbol": "runtime.sysUsedOS (inline)",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.07s",
+          "cumulative_percent": 5.43
+        },
+        {
+          "symbol": "runtime.(*mheap).alloc.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.06s",
+          "cumulative_percent": 4.65
+        },
+        {
+          "symbol": "runtime.gcBgMarkWorker",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.06s",
+          "cumulative_percent": 4.65
+        },
+        {
+          "symbol": "runtime.copystack",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.04s",
+          "cumulative_percent": 3.1
+        },
+        {
+          "symbol": "runtime.makeslice",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.04s",
+          "cumulative_percent": 3.1
+        },
+        {
+          "symbol": "runtime.mallocgcSmallScanNoHeader",
+          "flat": "0.01s",
+          "flat_percent": 0.78,
+          "cumulative": "0.04s",
+          "cumulative_percent": 3.1
+        },
+        {
+          "symbol": "runtime.scanobject",
+          "flat": "0.02s",
+          "flat_percent": 1.55,
+          "cumulative": "0.04s",
+          "cumulative_percent": 3.1
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "github.com/panjf2000/ants/v2.(*goWorkerWithFuncGeneric[go.shape.*uint8]).run.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "runtime.markroot",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "runtime.markroot.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "runtime.scanstack",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "runtime.shrinkstack",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "runtime/pprof.Do",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.03s",
+          "cumulative_percent": 2.33
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportServer).Register.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.02s",
+          "cumulative_percent": 1.55
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster/net.HandlerFunc.HandleRPC",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "0.02s",
+          "cumulative_percent": 1.55
+        }
+      ],
+      "no_match": false,
+      "flat_order": {
+        "node_limit": 60,
+        "headers": [
+          "Type: cpu",
+          "Duration: 3.19s, Total samples = 1.29s (40.47%)",
+          "Showing nodes accounting for 0.21s, 16.28% of 1.29s total"
+        ],
+        "rows": [
+          {
+            "symbol": "runtime.madvise",
+            "flat": "0.07s",
+            "flat_percent": 5.43,
+            "cumulative": "0.07s",
+            "cumulative_percent": 5.43
+          },
+          {
+            "symbol": "runtime.acquirem (inline)",
+            "flat": "0.02s",
+            "flat_percent": 1.55,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "runtime.memclrNoHeapPointers",
+            "flat": "0.02s",
+            "flat_percent": 1.55,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "runtime.scanobject",
+            "flat": "0.02s",
+            "flat_percent": 1.55,
+            "cumulative": "0.04s",
+            "cumulative_percent": 3.1
+          },
+          {
+            "symbol": "runtime.(*mspan).heapBitsSmallForAddr",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "runtime.(*mspan).init",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "runtime.findObject",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "runtime.heapSetTypeSmallHeader (inline)",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "runtime.mallocgcSmallNoscan",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "runtime.mallocgcSmallScanNoHeader",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.04s",
+            "cumulative_percent": 3.1
+          },
+          {
+            "symbol": "runtime.memmove",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "runtime.nextFreeFast (inline)",
+            "flat": "0.01s",
+            "flat_percent": 0.78,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/access/gateway.(*deferredHandler).OnSendBatchDeferred",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/access/node.(*ChannelAppendAdapter).HandleChannelAppendRPC",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/app.channelAppendAuthorityLocal.SubmitForAuthority",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/app.multiChannelObserver.SetWorkerQueueDepth",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/app.nodeRPCHandlerFunc.HandleRPC",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/app.topChannelObserver.SetWorkerQueueDepth",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*ChannelMetadataStore).ReadPermissionsBatch",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*Group).SubmitLocal",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).enqueue",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).runCommit.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*channelWriter).runCommit.func1.1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.(*workerPool).submitWithCompletion.func2",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/runtime/channelappend.commitEffect.run",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).SubmitBatchEach",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).checkSendPermissionsBatch",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).readPermissionFacts",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).resolveSendBatchPermissions",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/internal/usecase/message.(*App).sendBatchEach",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/reactor.(*Reactor).handle",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/reactor.(*Reactor).handleAppend",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/reactor.(*Reactor).loop",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/reactor.(*Reactor).submitQuorumCommit",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/reactor.(*Reactor).tryFlushAppend",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*ExchangeServer).Handle",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/replication.(*quorumLog).Install",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/replication.collectRecoveryProbeRound",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/replication.recoverQuorumPrefix",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/worker.(*Pool).Submit",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/worker.(*Pool).observeQueueDepth",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/worker.(*Pool).runQueuedBatch",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/worker.(*Pool).runQueuedGroup",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/worker.(*Pool).runQueuedGroupSafely",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/worker.(*Pool).runTaskGroup",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/worker.(*Pools).Submit",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/worker.Task.Run",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/worker.runQuorumInstall",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/channel/worker.workerWorkqueueObserver.ObserveBoundedPool",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).ensureDefaultRuntime.RegisterQuorumExchangeHandlerOn.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster/channels.(*QuorumExchangeGateway).Handle",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster/net.(*TransportServer).Register.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/cluster/net.HandlerFunc.HandleRPC",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.02s",
+            "cumulative_percent": 1.55
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/gateway/core.(*Server).decodeInboundFrames",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/gateway/core.(*Server).onData",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/gateway/core.(*connHandler).OnData",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/gateway/core.(*sendExecutor).dispatchDeferredBatch",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/gateway/core.(*sendExecutor).dispatchDeferredMailboxBatch",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/gateway/core.(*sendExecutor).handleMailboxBatch",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/wkproto.(*Adapter).Decode",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "0.01s",
+            "cumulative_percent": 0.78
+          }
+        ]
+      }
+    },
+    "transport_write": {
+      "regex": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.*writeLoop",
+      "headers": [
+        "Type: cpu",
+        "Duration: 3.19s, Total samples = 1290ms (40.47%)",
+        "Active filters:",
+        "Showing nodes accounting for 450ms, 34.88% of 1290ms total"
+      ],
+      "rows": [
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch.func1",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        },
+        {
+          "symbol": "github.com/WuKongIM/WuKongIM/pkg/transport/wire.WriteFramesInto",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        },
+        {
+          "symbol": "internal/poll.(*FD).Writev",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        },
+        {
+          "symbol": "net.(*Buffers).WriteTo",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        },
+        {
+          "symbol": "net.(*conn).writeBuffers",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        },
+        {
+          "symbol": "net.(*netFD).writeBuffers",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        },
+        {
+          "symbol": "runtime/pprof.Do",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        },
+        {
+          "symbol": "syscall.syscallX",
+          "flat": "450ms",
+          "flat_percent": 34.88,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        },
+        {
+          "symbol": "syscall.writev",
+          "flat": "0",
+          "flat_percent": 0.0,
+          "cumulative": "450ms",
+          "cumulative_percent": 34.88
+        }
+      ],
+      "no_match": false,
+      "flat_order": {
+        "node_limit": 60,
+        "headers": [
+          "Type: cpu",
+          "Duration: 3.19s, Total samples = 1290ms (40.47%)",
+          "Showing nodes accounting for 450ms, 34.88% of 1290ms total"
+        ],
+        "rows": [
+          {
+            "symbol": "syscall.syscallX",
+            "flat": "450ms",
+            "flat_percent": 34.88,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeOutboundBatch.func1",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          },
+          {
+            "symbol": "github.com/WuKongIM/WuKongIM/pkg/transport/wire.WriteFramesInto",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          },
+          {
+            "symbol": "internal/poll.(*FD).Writev",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          },
+          {
+            "symbol": "net.(*Buffers).WriteTo",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          },
+          {
+            "symbol": "net.(*conn).writeBuffers",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          },
+          {
+            "symbol": "net.(*netFD).writeBuffers",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          },
+          {
+            "symbol": "runtime/pprof.Do",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          },
+          {
+            "symbol": "syscall.writev",
+            "flat": "0",
+            "flat_percent": 0.0,
+            "cumulative": "450ms",
+            "cumulative_percent": 34.88
+          }
+        ]
+      }
+    }
+  },
+  "limits": "Focused cumulative samples overlap; never add across rows/focuses. CPU absence cannot exclude off-CPU waits."
+}

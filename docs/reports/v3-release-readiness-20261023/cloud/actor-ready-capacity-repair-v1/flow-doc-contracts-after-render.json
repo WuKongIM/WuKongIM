@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "go",
+    "run",
+    "./scripts/flowcheck",
+    "--mode",
+    "check"
+  ],
+  "exit": 0,
+  "elapsed_seconds": 0.07469250005669892,
+  "log_sha256": "cb2f0d4e2db4f4dcda208509c8b833c52f30a38f300936e47fc158d42c002c9d"
+}

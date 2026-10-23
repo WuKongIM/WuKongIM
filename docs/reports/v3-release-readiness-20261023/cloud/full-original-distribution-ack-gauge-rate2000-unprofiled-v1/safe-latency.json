@@ -1,0 +1,365 @@
+{
+  "schema": "wukongim/local2k-safe-latency/v1",
+  "histogram_semantics": "Buckets are disjoint counts; percentile bounds derived by cumulative rank, not exact percentiles. SENDACK is not delivery latency.",
+  "original_report_latency": {
+    "hot_sendack": {
+      "count": 20431,
+      "sum_nanos": 15441509883859,
+      "max_nanos": 2343580166,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        42,
+        18364,
+        2005,
+        19,
+        0,
+        0,
+        0
+      ]
+    },
+    "cold_first_create_sendack": {
+      "count": 21571,
+      "sum_nanos": 22280063005975,
+      "max_nanos": 2535824500,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        24,
+        92,
+        11597,
+        9720,
+        138,
+        0,
+        0,
+        0
+      ]
+    },
+    "worker_lifecycle_reheat_sendack": {
+      "count": 0,
+      "sum_nanos": 0,
+      "max_nanos": 0,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "receive_ack": {
+      "count": 52861,
+      "sum_nanos": 899426233,
+      "max_nanos": 3219083,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        52673,
+        77,
+        111,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "send_pending_to_write": {
+      "count": 43521,
+      "sum_nanos": 68409743795,
+      "max_nanos": 35503291,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        22,
+        41124,
+        1203,
+        758,
+        259,
+        155,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "send_write_to_ack": {
+      "count": 43521,
+      "sum_nanos": 38789942310383,
+      "max_nanos": 2534514875,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        34,
+        162,
+        31318,
+        11852,
+        155,
+        0,
+        0,
+        0
+      ]
+    },
+    "full_sync": {
+      "count": 10000,
+      "sum_nanos": 142345771432,
+      "max_nanos": 112461250,
+      "bucket_upper_nanos": [
+        0,
+        1000000,
+        2000000,
+        5000000,
+        10000000,
+        20000000,
+        50000000,
+        100000000,
+        200000000,
+        400000000,
+        1000000000,
+        2000000000,
+        5000000000,
+        10000000000,
+        30000000000,
+        60000000000
+      ],
+      "buckets": [
+        0,
+        2045,
+        1139,
+        972,
+        898,
+        2168,
+        2417,
+        356,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "anomaly_count": 0,
+    "retention": {
+      "minute_samples": 3,
+      "minute_capacity": 16,
+      "latency_samples": [
+        0,
+        0,
+        0
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "P99_bounds": {
+    "hot_sendack": {
+      "count": 20431,
+      "P99_histogram_bound": {
+        "lower_exclusive_nanos": 1000000000,
+        "upper_inclusive_nanos": 2000000000
+      },
+      "max_nanos": 2343580166
+    },
+    "cold_first_create_sendack": {
+      "count": 21571,
+      "P99_histogram_bound": {
+        "lower_exclusive_nanos": 1000000000,
+        "upper_inclusive_nanos": 2000000000
+      },
+      "max_nanos": 2535824500
+    },
+    "receive_ack": {
+      "count": 52861,
+      "P99_histogram_bound": {
+        "lower_exclusive_nanos": 0,
+        "upper_inclusive_nanos": 1000000
+      },
+      "max_nanos": 3219083
+    },
+    "send_pending_to_write": {
+      "count": 43521,
+      "P99_histogram_bound": {
+        "lower_exclusive_nanos": 5000000,
+        "upper_inclusive_nanos": 10000000
+      },
+      "max_nanos": 35503291
+    },
+    "send_write_to_ack": {
+      "count": 43521,
+      "P99_histogram_bound": {
+        "lower_exclusive_nanos": 1000000000,
+        "upper_inclusive_nanos": 2000000000
+      },
+      "max_nanos": 2534514875
+    }
+  },
+  "zero_warning_counts_do_not_override_message_loss": true,
+  "no_paired_500_or_other_run_regression_claim": true
+}

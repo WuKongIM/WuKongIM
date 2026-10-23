@@ -1,0 +1,53 @@
+{
+  "schema": "wukongim/ready-control-fairness-red/v1",
+  "baseline_head": "161814ce559366847d2b026850ab0afe0e52aed6",
+  "test_file": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/v3-permission-admission/pkg/slot/multiraft/ready_control_fairness_integration_test.go",
+  "test_sha256": "a69b482c39a1c11cd76fd559324e74495f56241cc986cb9f962daf72257c70e8",
+  "test_first": true,
+  "focused_command": [
+    "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go",
+    "test",
+    "-tags=integration",
+    "./pkg/slot/multiraft",
+    "-run",
+    "^TestRuntimeProposalControlProgressesDuringFiniteReadyChain$",
+    "-count=1",
+    "-timeout=40s"
+  ],
+  "exit_code": 1,
+  "elapsed_seconds": 2.6087852920172736,
+  "log": "focused-red-attempt2.log",
+  "exact_red": "queued proposal reached Save after 8/8 injected Ready appends; control waited for the entire finite Ready chain",
+  "fixture": {
+    "topology": "single-node cluster",
+    "public_entries": [
+      "Runtime.BootstrapSlot",
+      "Runtime.Propose",
+      "Runtime.Step",
+      "Runtime.ReadBarrier"
+    ],
+    "chain_limit": 8,
+    "control_queue_or_rawnode_mutation": false,
+    "background_payloads": "chain-seed and chain-N only",
+    "probe_match": "full bytes.Equal on proposalString(control-probe)",
+    "advance_mechanism": "etcd raft v3.6.0 RawNode.acceptReady records self msgsAfterAppend plus storage/apply responses in stepsOnAdvance; Advance steps them, permitting another committed Ready. Controlled Save enqueues only the next finite MsgProp through Runtime.Step.",
+    "completion_guard": "The queued and seed futures complete before the public fresh ReadBarrier succeeds; there is no early durability success assertion."
+  },
+  "limits": [
+    "This proves a scheduler control fairness counterexample at the public Runtime seam, not that the profiled or unprofiled 2000 SEND/s input contains this exact incoming MsgProp spectrum.",
+    "The fixture uses existing in-memory storage and a real RawNode; it does not measure disk, quorum RTT or capacity.",
+    "The first attempt had a test-only compile error (Message instead of existing Envelope); attempt2 is the actual executable RED."
+  ],
+  "minimal_fix_for_parent": "After successful processReady with Advance, retain requeue as pending work and allow the bounded tick/control phases before returning it at pass end. Keep current shouldProcess/failure exits, synchronous snapshot/config apply ordering, and fresh-read durable-apply fence. Do not change permission caps/timeouts.",
+  "existing_guards": [
+    "TestReadyPersistenceFailureDoesNotAdvance",
+    "TestSnapshotReadyWaitsForAsyncApplyBeforeMemoryApplySnapshot",
+    "TestSnapshotReadyDoesNotApplyMemoryAfterBarrierPredecessorFails",
+    "TestRuntimeProcessesHeartbeatTickBeforeProposalControls",
+    "TestReadBarrierWaitsForDurableApplyAndRejectsTermChange",
+    "TestReadBarrierCanceledUnconfirmedRequestsKeepRaftBudget",
+    "TestReadBarrierBatchSharesOnlyFreshQuorumConfirmation",
+    "TestReadBarrierBatchCancellationKeepsEachCallerBounded"
+  ],
+  "product_code_changed_by_this_agent": false
+}

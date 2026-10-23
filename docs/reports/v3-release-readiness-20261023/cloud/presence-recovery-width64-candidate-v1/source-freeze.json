@@ -1,0 +1,58 @@
+{
+  "base": "3768ad3ed914767632c41daeead042118a978488",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "size": 195637,
+      "sha256": "676a997e69cc4160e2b620b234765bf91ba7228ae53e72c8037006c4864a262b"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "size": 152182,
+      "sha256": "c47bc31a2f8316f83045717be92a40884b70c0d8672d6fa99331ecc5e59706ea"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "size": 8680,
+      "sha256": "3ac522a7c276f2b5769df1fddd34d5785f02cb589500f3b9b38b219b821a2ed0"
+    },
+    {
+      "path": "internal/infra/cluster/presence_recovery.go",
+      "size": 8455,
+      "sha256": "40046c09238b0688d1cb10c4ea0b6f65dec669524a7c0ebc1f4cd22cce16b720"
+    },
+    {
+      "path": "internal/infra/cluster/presence_recovery_width64_integration_test.go",
+      "size": 5110,
+      "sha256": "f6045bd1843a0f0e3488cdbb8c71255eadc53b115de42cafda89c71edfb1282c"
+    },
+    {
+      "path": "internal/usecase/presence/FLOW.md",
+      "size": 3198,
+      "sha256": "f488255eef3f39a79ff2fd1afff662091fb7f8a59174f6c9fcaf941d1fe9b841"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_byte_budget_contract_test.go",
+      "size": 610,
+      "sha256": "2811dd25b9f78b0a094027aead236a0b80924ad3717a3993c1ee569a1d256dc4"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_flights.go",
+      "size": 8502,
+      "sha256": "2fc92635a1b45e635b85f299be4249b083a3aa7895b9c2cbe58db9b7620cd1e2"
+    },
+    {
+      "path": "internal/usecase/presence/recovery_width64_integration_test.go",
+      "size": 7149,
+      "sha256": "27b14ea240a14ff0bfc3821d36bab076ffca44673ba00f2279ca30a9b40f7fc7"
+    },
+    {
+      "path": "internal/usecase/presence/uid_flight_integration_test.go",
+      "size": 20120,
+      "sha256": "3bcded27c4e8844656afb1d4b46805df23dc26dcebbc41acba48a671250e89a1"
+    }
+  ],
+  "patch_sha256": "43af85d7c923908c27d8018e67e948d88c5e22796a36e1442fc2f296fb1b1570",
+  "tests_frozen_before_production_and_unchanged": true,
+  "staged_bytes_equal": true
+}

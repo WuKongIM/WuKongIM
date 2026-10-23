@@ -1,0 +1,117 @@
+{
+  "schema": "wukongim/profile2k-safe-summary/v1",
+  "source_revision": "8100d7fd7a9455029e8de4f6370f140ff07612bc",
+  "source_tree": "ff1a0135caa5e933550fa12f9ac601b786af8980",
+  "supervisor_started_at_utc": "2026-10-23T06:27:35.454680+00:00",
+  "firstgrant_at": "2026-10-23T14:31:47.953626+08:00",
+  "final_at": "2026-10-23T14:32:15.050118+08:00",
+  "final_window_elapsed_nanos": 27096310875,
+  "first_periodic_active_rate": 1979.5241872155532,
+  "periodic_to_periodic_rate": {
+    "first_periodic_at": "2026-10-23T14:31:53.002819167+08:00",
+    "last_periodic_at": "2026-10-23T14:32:08.002920583+08:00",
+    "delta_seconds": 15.000101416,
+    "delta_primary_SEND": 30013,
+    "primary_SEND_per_second": 2000.8531387652054,
+    "retries_and_terminal_drain_excluded": true
+  },
+  "original_verdict": {
+    "outcome": "product_failure",
+    "cause": "message_loss",
+    "terminal": true,
+    "cleanup_error_count": 0,
+    "latency_warnings": {
+      "hot": 0,
+      "cold": 0,
+      "sync": 0
+    },
+    "latency_anomaly_count": 0,
+    "retention": {
+      "minute_samples": 3,
+      "minute_capacity": 16,
+      "latency_samples": [
+        0,
+        0,
+        0
+      ],
+      "latency_capacity": 64,
+      "heap_samples": [
+        0,
+        0,
+        0
+      ],
+      "heap_capacity": 7,
+      "goroutine_samples": [
+        0,
+        0,
+        0
+      ],
+      "goroutine_capacity": 25
+    }
+  },
+  "launcher_exit_status": 7,
+  "messages": {
+    "sent": 42002,
+    "send_attempts": 43717,
+    "first_attempts": 42002,
+    "first_attempt_failures": 0,
+    "send_acknowledged": 42002,
+    "send_rejected": 0,
+    "received": 53162,
+    "receive_acknowledged": 53162,
+    "receive_ack_failures": 0,
+    "retry_attempts": 1715,
+    "terminal": 0,
+    "terminal_reasons": {
+      "retry_exhausted": {
+        "total": 0,
+        "attempt_timeout": 0,
+        "local_admission": 0,
+        "transport_error": 0,
+        "retryable_sendack": 0,
+        "unclassified": 0
+      },
+      "non_retriable": 0,
+      "session_closed": 0
+    },
+    "losses": 3,
+    "duplicates": 0,
+    "corruptions": 0,
+    "sequence_regressions": 0
+  },
+  "correlation": {
+    "pending_unfinished": 0,
+    "outstanding": 0,
+    "sampled": 404,
+    "delivered": 401,
+    "expired": 3,
+    "duplicate_completions": 0,
+    "conflicting_completions": 0,
+    "unknown_acknowledgments": 0
+  },
+  "first_attempt_failure_fraction": 0.0,
+  "unchanged_first_attempt_and_message_loss_gates": true,
+  "requested_traffic_seconds": 120,
+  "full_target_window_completed": false,
+  "profile_status": "complete",
+  "successful_private_CPU_files": 3,
+  "successful_private_GOR_debug2_files": 6,
+  "failed_deleted_profile_requests": 0,
+  "successful_private_profile_bytes": 39892648,
+  "profile_perturbation": true,
+  "profile_CPU_GOR_decoded": false,
+  "maximum_owned_RSS_sum_bytes_sampled": 5782241280,
+  "cleanup_complete": true,
+  "owned_pgid": 65451,
+  "total_runtime_seconds": 372.1010745000094,
+  "raw_final_sha256": "b76524e233407f72ffd64e237489f6a8163eb5533b065c1be2c9b13a07c745b3",
+  "no_rerun": true,
+  "formal_Linux_performance_cloud_acceptance": false,
+  "limitations": [
+    "Profileperturbation diagnostic only, not unprofiledperformance acceptance or causalcomparison.",
+    "Sampled404/expired3 are correlation proof counts, not all42002messages RECVproof.",
+    "Terminal elapsed includes drain; activeSEND/s from periodiccuts only.",
+    "UTC submission/join and measurement labels do not prove exactlysynchronized CPUstart/end or continuousactiveSEND; captures preceded firstobservedfailurecut.",
+    "SharednativeMac and disk; sampledRSS not continuous peak."
+  ]
+}

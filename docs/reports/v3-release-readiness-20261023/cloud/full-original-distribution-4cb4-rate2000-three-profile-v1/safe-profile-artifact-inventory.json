@@ -1,0 +1,100 @@
+{
+  "schema": "wukongim/profiled2000-private-profile-inventory/v1",
+  "raw_profile_or_stack_public": false,
+  "complete_files": 8,
+  "complete_total_bytes": 27318690,
+  "files": [
+    {
+      "node": 1,
+      "kind": "cpu",
+      "relative_private_path": "profiles-three-node/node-1/profiles/node-1-cpu.pb.gz",
+      "bytes": 29367,
+      "sha256": "dcd6808ca2fa80706adcf387240e717b161aa05602d6ec5096617143e696f4a3",
+      "mtime_ns": 1792731008879601367,
+      "status": "complete_private_retained",
+      "decoded": false
+    },
+    {
+      "node": 1,
+      "kind": "goroutine-early",
+      "relative_private_path": "profiles-three-node/node-1/profiles/node-1-goroutine-early.txt",
+      "bytes": 3667621,
+      "sha256": "29de2913e083405e41b48ecd76fb7c7f32e60101d775043f3914da2527758282",
+      "mtime_ns": 1792731007137640000,
+      "status": "complete_private_retained",
+      "decoded": false
+    },
+    {
+      "node": 1,
+      "kind": "goroutine-late",
+      "relative_private_path": "profiles-three-node/node-1/profiles/node-1-goroutine-late.txt",
+      "bytes": 8218744,
+      "sha256": "37a9539da052198dc1fa79d2bf5c02ead4b1d75c243d1f55b0e9a8e671e6a436",
+      "mtime_ns": 1792731009831894366,
+      "status": "complete_private_retained",
+      "decoded": false
+    },
+    {
+      "node": 2,
+      "kind": "cpu",
+      "relative_private_path": "profiles-three-node/node-2/profiles/node-2-cpu.pb.gz",
+      "bytes": 25632,
+      "sha256": "0d74b047574e8b5197cce03c8f0310892d3be77986133640d174aa34909c7ded",
+      "mtime_ns": 1792731008897857693,
+      "status": "complete_private_retained",
+      "decoded": false
+    },
+    {
+      "node": 2,
+      "kind": "goroutine-early",
+      "relative_private_path": "profiles-three-node/node-2/profiles/node-2-goroutine-early.txt",
+      "bytes": 3546003,
+      "sha256": "77bfbb9b586318a9a2d0e2e857f24ea5294f33af6702a94611116920a6b3cebf",
+      "mtime_ns": 1792731007086715147,
+      "status": "complete_private_retained",
+      "decoded": false
+    },
+    {
+      "node": 2,
+      "kind": "goroutine-late",
+      "relative_private_path": "profiles-three-node/node-2/profiles/node-2-goroutine-late.txt",
+      "bytes": 8177146,
+      "sha256": "a73dd4a8c4e2a26be93c4e04295cefa21e58977bbaa631bb1fdf729708c2da16",
+      "mtime_ns": 1792731009889086413,
+      "status": "complete_private_retained",
+      "decoded": false
+    },
+    {
+      "node": 3,
+      "kind": "cpu",
+      "relative_private_path": "profiles-three-node/node-3/profiles/node-3-cpu.pb.gz",
+      "bytes": 26302,
+      "sha256": "ebaabdcf0e18c47e5aa3ac7c224aab2c251c79d1c301fc7e5fb1e00ee986f6a0",
+      "mtime_ns": 1792731008883805330,
+      "status": "complete_private_retained",
+      "decoded": false
+    },
+    {
+      "node": 3,
+      "kind": "goroutine-early",
+      "relative_private_path": "profiles-three-node/node-3/profiles/node-3-goroutine-early.txt",
+      "bytes": 3627875,
+      "sha256": "4fc59c702d1e590e141896ea1bbe6a4e6ec6a0e74d8384043d7cce43db37d940",
+      "mtime_ns": 1792731007064809489,
+      "status": "complete_private_retained",
+      "decoded": false
+    },
+    {
+      "node": 3,
+      "kind": "goroutine-late",
+      "relative_private_path": "profiles-three-node/node-3/profiles/node-3-goroutine-late.txt",
+      "status": "max_filesize_failed_body_deleted_V3",
+      "retained_file": false,
+      "bytes": null,
+      "sha256": null,
+      "observed_body_bytes_before_delete": 8388608,
+      "decoded": false
+    }
+  ],
+  "no_decode_or_DB_queries": true
+}

@@ -1,0 +1,26 @@
+{
+  "schema": "wukongim/permission-admission-test-feedback/v1",
+  "base": "966ec67df1435ad07bbb82724cd940f550755179",
+  "candidate": "161814ce559366847d2b026850ab0afe0e52aed6",
+  "public_seam": "Node.CompletePersonDirectoryTasks",
+  "RED_before_implementation": {
+    "command": "GOWORK=off go test -tags=integration ./pkg/cluster -run ^TestCompletePersonDirectoryTasks(IndependentSourcesProgressTogether|BoundsAndJoinsCanceledWave)$ -count=1 -timeout=60s",
+    "exit_status": 1,
+    "failed_cases": 2,
+    "failure": "second independent source never entered while first source proposal held"
+  },
+  "GREEN_after": {
+    "focused_normal_exit_status": 0,
+    "related_normal_exit_status": 0,
+    "related_race_exit_status": 0,
+    "flow_doc_contracts_exit_status": 0,
+    "flow_files": 88,
+    "flow_invalid": 0,
+    "flow_existing_length_warnings": 20
+  },
+  "full_original_2k_result_manifest": "49dbb42166d7b56d5307d680b10e6d9053ea9036f3a2dcb4fe7e1fa780eeca93",
+  "full_original_2k_outcome": "product_failure",
+  "full_original_2k_cause": "overall_first_attempt_rate",
+  "full_original_2k_gate_changed": false,
+  "all_permission_failure_root_causes_fixed": false
+}
