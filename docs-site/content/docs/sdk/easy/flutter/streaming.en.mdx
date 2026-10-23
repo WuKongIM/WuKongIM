@@ -1,0 +1,172 @@
+---
+title: Flutter Streaming Messages
+description: Use independent Flutter peers, typed stream settings, live custom events and backend history recovery.
+---
+
+Use **WK_EASYSDK_FLUTTER_VERSION** to update one reply bubble incrementally. Complete the [Flutter quickstart](/en/sdk/easy/flutter/getting-started) first. Your cluster must include online EVENT delivery.
+
+## 1. Install and assign ownership
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  wukong_easy_sdk: WK_EASYSDK_FLUTTER_VERSION
+```
+
+Run `flutter pub get`. The application receives ordinary messages and custom events. A trusted business backend authorizes users, authors and channels, appends events, and exposes history/cancellation endpoints. The Agent backend holds model credentials and writes ordered deltas. Ordinary clients receive their own credentials, never the bot token or HTTP management credentials.
+
+## 2. Receive base messages and live events
+
+Add this helper to your Flutter application. Supply the quickstart's `WuKongConfig` using backend-issued credentials and a device-reachable WebSocket route. An application state container or a screen owns `StreamReader`; await `connect()` once and call `close()` on logout or owner disposal. Its callbacks update your own bounded UI projection.
+
+```dart
+import 'package:wukong_easy_sdk/wukong_easy_sdk.dart';
+
+class StreamReader {
+  final sdk = WuKongEasySDK.createInstance();
+  final WuKongConfig config;
+  bool closed = false;
+
+  StreamReader({
+    required this.config,
+    required String channelId,
+    required void Function() onConnected,
+    required void Function(Message) onBase,
+    required void Function(EventNotification) onStreamEvent,
+  }) {
+    sdk.addEventListener<ConnectResult>(WuKongEvent.connect, (_) {
+      if (!closed) onConnected();
+    });
+    sdk.addEventListener<Message>(WuKongEvent.message, (message) {
+      if (closed || message.channelId != channelId ||
+          message.channelType != WuKongChannelType.group ||
+          message.setting?.stream != true ||
+          (message.clientMsgNo ?? '').isEmpty) return;
+      onBase(message);
+    });
+    sdk.addEventListener<EventNotification>(WuKongEvent.customEvent, (event) {
+      final data = event.data;
+      if (closed || data is! Map || data['channel_id'] != channelId ||
+          data['channel_type'] != 2 || data['client_msg_no'] is! String ||
+          (data['client_msg_no'] as String).isEmpty ||
+          !event.type.startsWith('stream.') ||
+          (data['event_key'] != 'main' && event.type != 'stream.finish')) return;
+      onStreamEvent(event);
+    });
+  }
+
+  Future<void> connect() async {
+    if (closed) throw StateError('StreamReader is closed');
+    try {
+      await sdk.init(config);
+      if (closed) { sdk.dispose(); return; }
+      await sdk.connect().timeout(const Duration(seconds: 20));
+    } catch (_) { sdk.disconnect(); rethrow; }
+  }
+
+  void close() {
+    closed = true;
+    sdk.clearAllEventListeners();
+    sdk.disconnect();
+    sdk.dispose();
+  }
+}
+```
+
+`onConnected` fires after authentication and automatic reconnection: start the history recovery in section 5. Find a bubble by `message.clientMsgNo` or `event.data['client_msg_no']`. Filter the channel and lane before updating the UI; finish uses the reserved `__finish__` lane. Callbacks execute in the Dart event loop, so keep them light. The SDK decodes JSON-string EVENT `data` once; do not Base64-decode it.
+
+`createInstance()` owns an independent connection and listener set. Existing `getInstance()` remains available for an application-owned singleton. The helper owns its peer, so it can clear all listeners and dispose it. With a shared peer, retain and remove only your own callback references.
+
+## 3. Create the stream parent
+
+The producer must already be authenticated **as the author itself**. Normally the Agent backend owns that connection; ordinary Flutter users do not sign in as a bot. Generate and save `clientMsgNo` once per reply and reuse it when reconciling retries.
+
+```dart
+import 'package:wukong_easy_sdk/wukong_easy_sdk.dart';
+
+Future<SendResult> sendStreamParent({
+  required WuKongEasySDK producer,
+  required String channelId,
+  required String clientMsgNo,
+}) async {
+  if (clientMsgNo.trim().isEmpty) throw ArgumentError('Empty parent identity');
+  final ack = await producer.send(
+    channelId: channelId,
+    channelType: WuKongChannelType.group,
+    payload: {'type': 1, 'content': ''},
+    options: SendOptions(
+      clientMsgNo: clientMsgNo,
+      setting: const MessageSetting(stream: true),
+    ),
+  );
+  if (ack.reasonCode.value != 1) throw StateError('Stream parent rejected');
+  return ack;
+}
+```
+
+Append only after `ack.reasonCode.value == 1`. SENDACK accepts the parent; it does not prove recipient delivery. A stream parent must be persisted: do not set `noPersist` or `syncOnce` in the header. `Message.setting?.stream` is the receive flag. Existing individual `send` arguments and legacy settings maps remain compatible; non-null typed options take precedence.
+
+## 4. Append events from the backend
+
+For author `author-42`, group `room-42`, and client message number `reply-42`, the **trusted backend** calls [POST /message/event](/en/api/product-http/messages/appendMessageEvent) sequentially with these three JSON request bodies:
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:1",
+  "event_type": "stream.open", "event_key": "main", "visibility": "public",
+  "payload": { "kind": "text" }
+}
+```
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:2",
+  "event_type": "stream.delta", "event_key": "main", "visibility": "public",
+  "payload": { "kind": "text", "delta": "你好🙂" }
+}
+```
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:3",
+  "event_type": "stream.finish", "visibility": "public",
+  "payload": { "snapshot": { "kind": "text", "text": "你好🙂" } }
+}
+```
+
+Check both HTTP and application results before proceeding. Persist event IDs and payloads before writing; retry the original ID. Reconcile an uncertain write instead of blindly appending with a new ID. The server supplies the UTF-8 byte `text_offset` on online events; producers do not set it. `stream.finish` uses the reserved `__finish__` lane, so receivers must not filter exclusively on `event_key == "main"`.
+
+Keep model requests and event appends on the backend. Model keys never enter the App, messages, logs, or history. See [Agent Streaming Replies](/en/sdk/easy/agent-streaming) for model integration, cancellation endpoints, and SSE handling.
+
+## 5. Projection, terminal states, and recovery
+
+The application projection handles events passed to `onStreamEvent`:
+
+| Event / condition | Application behavior |
+| --- | --- |
+| Base message or `stream.open` | Find the same bubble by `client_msg_no`; allow events to arrive first and retain existing text |
+| `stream.delta` | Deduplicate by Event ID, then merge `payload.delta` using UTF-8 **byte** `text_offset`; `你好🙂` occupies 10 bytes, not its Dart string length |
+| Overlap / gap | Skip bytes already covered by a snapshot; wait for a complete snapshot on a gap instead of appending at the end |
+| `stream.snapshot` / `stream.finish` | Replace text with the complete `kind: "text"`, `text` in `payload.snapshot`; finish marks completion |
+| Cancellation / model failure | The backend aborts the model, writes `stream.cancel` / `stream.error` with a partial snapshot, then `stream.finish`; retain cancelled / failed status |
+| Late events after a terminal state | Do not reopen the reply; finish does not overwrite cancelled or failed status |
+
+Bound projection and buffer sizes, for example 40 messages, 16,384 UTF-16 units per message, 2,048 deduplication IDs per message, and 2,048 buffered events during recovery. The native example's [StreamTimeline](https://github.com/WuKongIM/WuKongEasySDK-Flutter/blob/WK_EASYSDK_FLUTTER_TAG/example/lib/stream/stream_timeline.dart) implements byte merging, terminal states, and bounded projections.
+
+**Online events are best effort, with no RECVACK or offline event queue.** After every successful connection or reconnection, your backend authorizes and performs one [/channel/messagesync](/en/api/product-http/messages/syncQuickstartChannelMessages) read with `event_summary_mode: "full"`. Buffer live events during recovery, apply snapshots and status from history's `event_meta.events`, then replay buffered deltas by byte offset. Sort by message sequence to preserve conversation order. Do not poll history while online or use `/message/eventsync` as the live transport.
+
+EVENT `message_seq` can be a decimal string. Parse it before numeric sorting; keep `client_msg_no` as the bubble identity.
+
+## 6. Run the Flutter demo
+
+The shipped example requires Flutter 3.41+ / Dart 3.11+; the SDK library retains its existing minimum requirements. Use the [official Flutter example](/en/sdk/easy/examples#flutter), then open **流消息**. Enter a writable development HTTP API, connect and send a question. In settings choose a simulated reply or a compatible model SSE endpoint, model name and optional key. Try cancellation, failure, generation while the receiver is offline, and reconnect recovery.
+
+Android emulators reach the development host at `10.0.2.2`; iOS simulators use `127.0.0.1`; physical devices need a reachable LAN address. The `/route` WebSocket address must also be reachable. Browser use additionally requires permitted CORS. Use HTTPS/WSS outside a trusted development network.
+
+The demo creates two accounts and a group, and directly writes development events. It owns two independent SDK instances and an in-memory model key. Screen disposal releases both peers, recovery and model HTTP clients; switching tabs retains the screen and connection. Production generation and uncertain-write reconciliation belong in the backend.
+
+See the [complete streaming guide](https://github.com/WuKongIM/WuKongEasySDK-Flutter/blob/WK_EASYSDK_FLUTTER_TAG/example/STREAMING.md) and [independent 1.2.1 validation record](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-10-23-flutter-easysdk-1.2.1.md). Native iOS runtime acceptance, web compilation and public package resolution are separate checks. They do not certify every platform, device or model provider, and do not replace the historical four-platform matrix.

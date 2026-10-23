@@ -1,0 +1,172 @@
+---
+title: Flutter 流消息
+description: 使用独立 Flutter 连接、类型化流消息设置、自定义事件和业务后端恢复逐段回复。
+---
+
+使用 **WK_EASYSDK_FLUTTER_VERSION** 把一条回复逐段更新到同一个气泡。先完成 [Flutter 快速接入](/zh/sdk/easy/flutter/getting-started)，并确认集群包含在线 EVENT 投递实现。
+
+## 1. 安装与明确职责
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  wukong_easy_sdk: WK_EASYSDK_FLUTTER_VERSION
+```
+
+执行 `flutter pub get`。客户端接收普通消息和自定义事件，维护有限的气泡投影；可信业务后端鉴权用户、作者和频道，追加事件，提供历史与取消接口；Agent 后端持有模型密钥并按顺序写入增量。普通客户端只持有自身凭据，不拿机器人 Token 或 HTTP API 管理凭据。
+
+## 2. 接收基消息和在线事件
+
+将下面的辅助类加入 Flutter 应用。按快速接入构造 `WuKongConfig`，使用业务后端签发的凭据和设备可达的 WebSocket 地址。应用状态容器或页面拥有 `StreamReader`，只调用一次并等待 `connect()`，退出账号或销毁拥有者时调用 `close()`。回调由应用提供，更新自己的有界 UI 投影。
+
+```dart
+import 'package:wukong_easy_sdk/wukong_easy_sdk.dart';
+
+class StreamReader {
+  final sdk = WuKongEasySDK.createInstance();
+  final WuKongConfig config;
+  bool closed = false;
+
+  StreamReader({
+    required this.config,
+    required String channelId,
+    required void Function() onConnected,
+    required void Function(Message) onBase,
+    required void Function(EventNotification) onStreamEvent,
+  }) {
+    sdk.addEventListener<ConnectResult>(WuKongEvent.connect, (_) {
+      if (!closed) onConnected();
+    });
+    sdk.addEventListener<Message>(WuKongEvent.message, (message) {
+      if (closed || message.channelId != channelId ||
+          message.channelType != WuKongChannelType.group ||
+          message.setting?.stream != true ||
+          (message.clientMsgNo ?? '').isEmpty) return;
+      onBase(message);
+    });
+    sdk.addEventListener<EventNotification>(WuKongEvent.customEvent, (event) {
+      final data = event.data;
+      if (closed || data is! Map || data['channel_id'] != channelId ||
+          data['channel_type'] != 2 || data['client_msg_no'] is! String ||
+          (data['client_msg_no'] as String).isEmpty ||
+          !event.type.startsWith('stream.') ||
+          (data['event_key'] != 'main' && event.type != 'stream.finish')) return;
+      onStreamEvent(event);
+    });
+  }
+
+  Future<void> connect() async {
+    if (closed) throw StateError('StreamReader is closed');
+    try {
+      await sdk.init(config);
+      if (closed) { sdk.dispose(); return; }
+      await sdk.connect().timeout(const Duration(seconds: 20));
+    } catch (_) { sdk.disconnect(); rethrow; }
+  }
+
+  void close() {
+    closed = true;
+    sdk.clearAllEventListeners();
+    sdk.disconnect();
+    sdk.dispose();
+  }
+}
+```
+
+`onConnected` 在鉴权成功与自动重连后触发，由应用启动第 5 节的历史恢复。以 `message.clientMsgNo` 或 `event.data['client_msg_no']` 找到同一个气泡。更新 UI 前过滤频道和事件通道；finish 使用保留的 `__finish__` 通道。回调在 Dart 事件循环执行，应保持轻量。SDK 已解码一次 JSON 字符串形式的 EVENT `data`，不要再做 Base64 解码。
+
+`createInstance()` 拥有独立连接和监听器集合。已有 `getInstance()` 继续适用于应用级单例。这个辅助类拥有整个 SDK 实例，因此可以清空监听并销毁；若共享连接，页面只能保存并移除自己的回调引用。
+
+## 3. 创建流消息基消息
+
+生成端必须先**以作者自身身份**完成鉴权。通常由 Agent 后端持有该连接；普通 Flutter 用户不以机器人身份登录。每次回复只生成并保存一次 `clientMsgNo`，核对重试结果时复用。
+
+```dart
+import 'package:wukong_easy_sdk/wukong_easy_sdk.dart';
+
+Future<SendResult> sendStreamParent({
+  required WuKongEasySDK producer,
+  required String channelId,
+  required String clientMsgNo,
+}) async {
+  if (clientMsgNo.trim().isEmpty) throw ArgumentError('Empty parent identity');
+  final ack = await producer.send(
+    channelId: channelId,
+    channelType: WuKongChannelType.group,
+    payload: {'type': 1, 'content': ''},
+    options: SendOptions(
+      clientMsgNo: clientMsgNo,
+      setting: const MessageSetting(stream: true),
+    ),
+  );
+  if (ack.reasonCode.value != 1) throw StateError('Stream parent rejected');
+  return ack;
+}
+```
+
+只有 `ack.reasonCode.value == 1` 后才能追加事件。SENDACK 表示基消息被接受，不能证明收件端已收到。流消息基消息必须持久化，不要在 header 中设置 `noPersist` 或 `syncOnce`。对应的接收标记是 `Message.setting?.stream`。原有独立 `send` 参数和 settings Map 保持兼容；类型化 options 中的非空字段优先。
+
+## 4. 业务后端追加事件
+
+基础消息作者为 `author-42`，群频道为 `room-42`，消息编号为 `reply-42` 时，由**可信后端**顺序调用 [POST /message/event](/zh/api/product-http/messages/appendMessageEvent)，依次提交下列三个 JSON 请求体：
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:1",
+  "event_type": "stream.open", "event_key": "main", "visibility": "public",
+  "payload": { "kind": "text" }
+}
+```
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:2",
+  "event_type": "stream.delta", "event_key": "main", "visibility": "public",
+  "payload": { "kind": "text", "delta": "你好🙂" }
+}
+```
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:3",
+  "event_type": "stream.finish", "visibility": "public",
+  "payload": { "snapshot": { "kind": "text", "text": "你好🙂" } }
+}
+```
+
+检查每次 HTTP 和应用层结果后再继续。写入前持久化事件 ID 与 Payload，重试复用原 ID；写入结果未知时先对账，不改用新 ID 盲目追加。服务端会在在线事件中补充 UTF-8 字节 `text_offset`，生产者不用自己填写它。`stream.finish` 使用保留的 `__finish__` lane；接收端不能只按 `event_key == "main"` 过滤。
+
+模型请求和事件追加放在后端，模型 Key 不进入 App、消息、日志或历史。模型接入、取消接口与 SSE 处理见 [Agent 流式回复](/zh/sdk/easy/agent-streaming)。
+
+## 5. 投影、终态与恢复
+
+`onStreamEvent` 交给应用的投影层处理，最小约定如下：
+
+| 事件 / 场景 | 应用行为 |
+| --- | --- |
+| 基础消息或 `stream.open` | 按 `client_msg_no` 找到同一个气泡；事件先到时也能创建它，不清空已存在文本 |
+| `stream.delta` | 按 Event ID 去重，再用 UTF-8 **字节** `text_offset` 合并 `payload.delta`；`你好🙂` 占 10 字节，不是 Dart 的字符串长度 |
+| 重叠增量 / 缺口 | 跳过快照已覆盖的字节；遇到缺口等待完整快照，不直接拼到末尾 |
+| `stream.snapshot` / `stream.finish` | 以 `payload.snapshot` 的完整 `kind: "text"`、`text` 替换文本；finish 标记完成 |
+| 取消 / 模型失败 | 后端中止模型，写 `stream.cancel` / `stream.error` 携带部分文本快照，再写 `stream.finish`；保留取消 / 失败状态 |
+| 终态后的迟到事件 | 不重新打开回复；finish 不覆盖已取消或失败的状态 |
+
+限制投影和缓冲大小，例如最多 40 条消息、每条 16,384 个 UTF-16 单元、每条 2,048 个去重 ID、恢复期间 2,048 个事件。完整原生示例的 [StreamTimeline](https://github.com/WuKongIM/WuKongEasySDK-Flutter/blob/WK_EASYSDK_FLUTTER_TAG/example/lib/stream/stream_timeline.dart) 展示字节合并、终态和有界投影。
+
+**在线事件为尽力投递，没有 RECVACK 或离线事件队列。** 每次连接或重连成功后，由业务后端鉴权并读取一次 [/channel/messagesync](/zh/api/product-http/messages/syncQuickstartChannelMessages)，传入 `event_summary_mode: "full"`。恢复期间暂存实时事件，先应用历史中的 `event_meta.events` 快照与状态，再按字节偏移回放缓冲增量。使用消息序号排序，保持问答顺序。在线期间不轮询历史，也不以 `/message/eventsync` 代替实时传输。
+
+EVENT 的 `message_seq` 可能是十进制字符串，数值排序前先解析；气泡身份始终使用 `client_msg_no`。
+
+## 6. 运行 Flutter Demo
+
+随版本提供的原生示例需要 Flutter 3.41+ / Dart 3.11+，SDK 库保留原有最低要求。按[官方 Flutter 示例](/zh/sdk/easy/examples#flutter)启动后打开 **流消息**。输入可写开发集群的 HTTP API，连接后发送问题。在设置中选择模拟回复，或配置兼容模型 SSE 地址、模型名称和可选密钥。尝试取消、失败、接收端离线期间继续生成和重连恢复。
+
+Android 模拟器通过 `10.0.2.2` 访问开发机，iOS 模拟器使用 `127.0.0.1`，真机需要可达的局域网地址。`/route` 返回的 WebSocket 地址也必须可达。浏览器还需要允许相应 CORS。离开可信开发网络时使用 HTTPS/WSS。
+
+Demo 创建两个账号和一个群，并直接写入开发流事件，拥有两个独立 SDK 实例。模型密钥仅保留在页面内存；销毁页面会释放两个连接、恢复任务与模型 HTTP 客户端；切换页签会保留页面和连接。生产环境由后端持有生成任务并核对不确定写入结果。
+
+完整操作见 [Flutter 流消息指南](https://github.com/WuKongIM/WuKongEasySDK-Flutter/blob/WK_EASYSDK_FLUTTER_TAG/example/STREAMING.md)。[独立 1.2.1 验证记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-10-23-flutter-easysdk-1.2.1.md)区分原生 iOS 运行、Web 编译和正式包解析，不能推断全部平台、设备和模型供应商，也不替代历史四平台矩阵。

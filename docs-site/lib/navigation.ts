@@ -412,11 +412,25 @@ function publishedEasySDKGroup(): NavigationGroup {
         `Install exactly v${easySdkReleases.ios.version} for person messaging, listener cleanup, and Alice/Bob messaging.`,
       ),
       publishedPage(
+        'ios/streaming',
+        'iOS 流消息',
+        'iOS Streaming Messages',
+        `使用 v${easySdkReleases.ios.version} 接收实时流事件、发送基础消息并恢复历史快照。`,
+        `Use v${easySdkReleases.ios.version} for live stream events, parent messages, and history recovery.`,
+      ),
+      publishedPage(
         'android/getting-started',
         'Android 快速接入',
         'Android quickstart',
-        `精确安装 v${easySdkReleases.android.version}，处理单例、单聊收发、清理和 Alice/Bob 双向消息。`,
-        `Install exactly v${easySdkReleases.android.version} for singleton ownership, person messaging, cleanup, and Alice/Bob messaging.`,
+        `精确安装 v${easySdkReleases.android.version}，选择连接实例，完成单聊收发、清理和 Alice/Bob 双向消息。`,
+        `Install exactly v${easySdkReleases.android.version} for connection ownership, person messaging, cleanup, and Alice/Bob messaging.`,
+      ),
+      publishedPage(
+        'android/streaming',
+        'Android 流消息',
+        'Android Streaming Messages',
+        `使用 v${easySdkReleases.android.version} 接收实时流事件、发送基础消息并恢复历史快照。`,
+        `Use v${easySdkReleases.android.version} for live stream events, parent messages, and history recovery.`,
       ),
       publishedPage(
         'flutter/getting-started',
@@ -424,6 +438,13 @@ function publishedEasySDKGroup(): NavigationGroup {
         'Flutter quickstart',
         `精确安装并运行已验证的 v${easySdkReleases.flutter.version} example，完成单聊收发、dispose 清理和 Alice/Bob 验收。`,
         `Install and run the verified v${easySdkReleases.flutter.version} example for person messaging, dispose cleanup, and Alice/Bob acceptance.`,
+      ),
+      publishedPage(
+        'flutter/streaming',
+        'Flutter 流消息',
+        'Flutter Streaming',
+        `使用 v${easySdkReleases.flutter.version} 的独立连接、流消息设置和自定义事件，完成逐段回复、终态快照与重连恢复。`,
+        `Use v${easySdkReleases.flutter.version} independent peers, stream settings, custom events, terminal snapshots and reconnect recovery.`,
       ),
       publishedPage(
         'javascript/getting-started',

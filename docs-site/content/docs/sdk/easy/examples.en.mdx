@@ -65,6 +65,8 @@ Boot an iOS Simulator, then run:
 
 You can instead start the macOS variant with `./build.sh macos --run`. The iOS ATS cleartext exception in the example exists only for local `ws://` development; do not copy it into a production app.
 
+Select the **流消息** tab, enter a device-reachable HTTP API address, and create a session for live replies, cancellation, failures, and reconnect recovery. Use a writable development cluster; see [iOS Streaming Messages](/en/sdk/easy/ios/streaming).
+
 [iOS quickstart](/en/sdk/easy/ios/getting-started)
 
 ### Android [#android]
@@ -79,9 +81,14 @@ git checkout WK_EASYSDK_ANDROID_SOURCE_REF
 
 Launch the `example` on an API 21+ device or emulator. An Android Emulator reaches the host at `ws://10.0.2.2:5200`, not `localhost`. Use two devices or emulators for two native identities, or use the browser example as the peer.
 
+Select **流式聊天 Demo** in the toolbar, enter a device-reachable HTTP API address, and create/connect a session. Two independent SDK peers in one process demonstrate simulated or real-model replies, cancellation, failures, and reconnect recovery. Use it only in a development environment with writable demo data; see [Android Streaming Messages](/en/sdk/easy/android/streaming).
+
 [Android quickstart](/en/sdk/easy/android/getting-started)
 
-### Flutter [#flutter]
+### Flutter
+
+The example now includes **流消息**: simulated or compatible model SSE replies, cancellation, failure and reconnect recovery. See [Flutter streaming](/en/sdk/easy/flutter/streaming).
+ [#flutter]
 
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-Flutter.git

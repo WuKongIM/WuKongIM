@@ -9,6 +9,8 @@ description: Understand the flow, connect a real model, and update one reply thr
   Use `easyjssdk@WK_EASYSDK_JAVASCRIPT_VERSION` and complete the [Web Quickstart](/en/sdk/easy/javascript/getting-started). The server must include online EVENT delivery; verify support in older released images.
 </Callout>
 
+For native integration, see [Android Streaming Messages](/en/sdk/easy/android/streaming) or [iOS Streaming Messages](/en/sdk/easy/ios/streaming), which shares the parent-message, stream-event, and history-snapshot protocol below.
+
 ## 1. Understand the flow
 
 ```mermaid
@@ -163,3 +165,5 @@ flowchart TD
 Check **normal reply → duplicate event → cancellation → truncated model stream → offline reconnect**. The same bubble must match history each time. After fixtures pass, verify your actual model.
 
 API details: [Message Events](/en/api/product-http/messages/appendMessageEvent) · [History Sync](/en/api/product-http/messages/syncQuickstartChannelMessages) · [JSON-RPC](/en/api/client-protocols/json-rpc)
+
+For native Flutter reception and independent peer ownership, see [Flutter streaming messages](/en/sdk/easy/flutter/streaming).

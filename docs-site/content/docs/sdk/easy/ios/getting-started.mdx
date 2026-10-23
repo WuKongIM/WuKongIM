@@ -9,7 +9,7 @@ description: 安装固定版本 SDK，通过业务后端提供的连接材料完
 
 准备以下条件：
 
-- iOS 部署目标使用 **iOS 15 或更高版本**。包清单声明 iOS 13，但 `v1.1.1` 的公开 `WuKongEasySDK` 类标记为 `@available(iOS 15.0, ...)`，因此本教程采用更保守的真实 API 下限；
+- iOS 部署目标使用 **iOS 15 或更高版本**。包清单声明 iOS 13，历史 `v1.1.1` 与当前 `WK_EASYSDK_IOS_TAG` 的公开 `WuKongEasySDK` 类标记为 `@available(iOS 15.0, ...)`，因此本教程采用更保守的真实 API 下限；
 - 使用支持 Swift 5.7 Package 的 Xcode 工具链；
 - 一个 `/readyz` 正常、WebSocket Gateway 可从设备访问的 WuKongIM 单节点集群或多节点集群；
 - 业务后端能为 Alice 和 Bob 分别返回 `uid`、短期 `token` 与 `websocketUrl`。
@@ -203,4 +203,8 @@ end
 
 ## 下一步
 
+需要逐段回复时，继续阅读 [iOS 流消息](/zh/sdk/easy/ios/streaming)和原生 SwiftUI 演示。
+
 继续阅读[消息收发](/zh/guide/integration/messaging)与[上线检查](/zh/guide/integration/acceptance)。需要离线恢复、会话、未读或推送时，先查看 [SDK 选择](/zh/sdk)。[版本与验证记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#ios)保留各次验证的完整环境和范围。
+
+[iOS 1.2.0 独立验收记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-10-23-ios-easysdk-1.2.0.md)记录正式包解析、Swift 编译和原生流消息验证范围。

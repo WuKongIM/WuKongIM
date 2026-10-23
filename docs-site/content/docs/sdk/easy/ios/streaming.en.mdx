@@ -1,0 +1,177 @@
+---
+title: iOS Streaming Messages
+description: Receive live stream events with the native iOS SDK, create stream parents, and use your backend for appends, terminal snapshots, and reconnect recovery.
+---
+
+Use **WK_EASYSDK_IOS_VERSION** with `SendOptions`, `MessageSetting`, and `onCustomEvent` to update one reply bubble incrementally. Complete the [iOS quickstart](/en/sdk/easy/ios/getting-started) first and confirm that your cluster includes online EVENT delivery.
+
+## 1. Install and assign ownership
+
+```swift
+.package(
+    url: "https://github.com/WuKongIM/WuKongEasySDK-iOS.git",
+    exact: "WK_EASYSDK_IOS_VERSION"
+)
+```
+
+| Owner | Responsibility |
+| --- | --- |
+| iOS client | Authenticate with the current user's credentials; receive base messages and live events; maintain bubble projections |
+| Trusted application backend | Authorize users, authors, and channels; append events; expose history and cancellation endpoints |
+| Agent backend | Hold model keys, read model SSE, and write deltas and terminal states in order |
+
+The examples use a group channel (`channel_type = 2`) already authorized by your backend. The server and SDK do not build your UI projection. Ordinary clients receive no bot token, model key, or WuKongIM HTTP API management credentials.
+
+## 2. Receive base messages and live events
+
+Add this helper to an iOS 15+ application. Build `config` with the quickstart's `WuKongConfig`, using credentials and a device-reachable WebSocket address from your backend. An application connection manager or a SwiftUI `@StateObject` owner retains `StreamReader`; call `connect()` in a Task and `close()` at logout or owner disposal. Connection and request limits come from `config`, for example 15 seconds each.
+
+```swift
+import Foundation
+import WuKongEasySDK
+
+@MainActor
+final class StreamReader {
+    private let sdk: WuKongEasySDK
+    private var listeners: [EventListener] = []
+
+    init(
+        config: WuKongConfig,
+        channelId: String,
+        onConnected: @escaping () -> Void,
+        onBase: @escaping (Message) -> Void,
+        onStreamEvent: @escaping (EventNotification) -> Void
+    ) {
+        sdk = WuKongEasySDK(config: config)
+        // SDK listeners are weak: retain every token for the reader's lifetime.
+        listeners.append(sdk.onConnect { _ in onConnected() })
+        listeners.append(sdk.onMessage { message in
+            guard message.channelId == channelId, message.channelType == 2,
+                  message.setting?.stream == true,
+                  let key = message.clientMsgNo, !key.isEmpty else { return }
+            onBase(message)
+        })
+        listeners.append(sdk.onCustomEvent { event in
+            guard let data = event.data as? [String: Any],
+                  data["channel_id"] as? String == channelId,
+                  (data["channel_type"] as? NSNumber)?.intValue == 2,
+                  let key = data["client_msg_no"] as? String, !key.isEmpty,
+                  event.type.hasPrefix("stream."),
+                  data["event_key"] as? String == "main" || event.type == "stream.finish"
+            else { return }
+            onStreamEvent(event)
+        })
+    }
+
+    func connect() async throws {
+        do { try await sdk.connect() }
+        catch { sdk.disconnect(); throw error }
+    }
+
+    func close() {
+        listeners.forEach { sdk.removeListener($0) }
+        listeners.removeAll()
+        sdk.disconnect()
+    }
+}
+```
+
+`onConnected` fires after initial authentication and automatic reconnection; the application starts the history recovery described in section 5. `onBase` and `onStreamEvent` are application-supplied UI callbacks: the first creates or finds a bubble by `message.clientMsgNo`, and the second merges data by `client_msg_no` in `event.data`. SDK listeners run on the main thread, so callbacks should stay light. Read numeric values in `event.data` as `NSNumber`. The SDK already decodes JSON-string `data`; do not Base64-decode it again.
+
+`WuKongEasySDK(config:)` creates an independent connection. The SDK holds listeners weakly, so retain each returned `EventListener`. Remove listeners before disconnecting. For a new identity or configuration, release the old connection and create a new instance.
+
+## 3. Create the stream parent message
+
+The producer must finish authenticating first. This method sends a base message **as the authenticated producer itself**. An Agent backend normally owns the author connection; ordinary iOS users do not sign in as a bot. The application generates and saves `clientMsgNo` once per reply, then reuses it on retries.
+
+```swift
+import Foundation
+import WuKongEasySDK
+
+func sendStreamParent(
+    producer: WuKongEasySDK,
+    channelId: String,
+    clientMsgNo: String
+) async throws -> SendResult {
+    guard !clientMsgNo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else { throw WuKongError.invalidPayload("clientMsgNo must not be blank") }
+    let ack = try await producer.send(
+        channelId: channelId,
+        channelType: .group,
+        payload: MessagePayload(["type": 1, "content": ""]),
+        options: SendOptions(
+            clientMsgNo: clientMsgNo,
+            setting: MessageSetting(stream: true)
+        )
+    )
+    guard ack.reasonCode == 1 else { throw WuKongError.sendFailed("Stream parent rejected") }
+    return ack
+}
+```
+
+Append events only after `reasonCode == 1`. A successful SENDACK accepts the parent; it does not prove that a recipient received it. `stream: true` requires a persisted base message: do not set `Header(noPersist: true)` or `syncOnce: true`. `Message.setting?.stream` is the corresponding receive flag.
+
+## 4. Append events from the backend
+
+For author `author-42`, group `room-42`, and client message number `reply-42`, the **trusted backend** calls [POST /message/event](/en/api/product-http/messages/appendMessageEvent) sequentially with these three JSON request bodies:
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:1",
+  "event_type": "stream.open", "event_key": "main", "visibility": "public",
+  "payload": { "kind": "text" }
+}
+```
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:2",
+  "event_type": "stream.delta", "event_key": "main", "visibility": "public",
+  "payload": { "kind": "text", "delta": "你好🙂" }
+}
+```
+
+```json
+{
+  "channel_id": "room-42", "channel_type": 2, "from_uid": "author-42",
+  "client_msg_no": "reply-42", "event_id": "reply-42:3",
+  "event_type": "stream.finish", "visibility": "public",
+  "payload": { "snapshot": { "kind": "text", "text": "你好🙂" } }
+}
+```
+
+Check both HTTP and application results before proceeding. Persist event IDs and payloads before writing; retry the original ID. Reconcile an uncertain write instead of blindly appending with a new ID. The server supplies the UTF-8 byte `text_offset` on online events; producers do not set it. `stream.finish` uses the reserved `__finish__` lane, so receivers must not filter exclusively on `event_key == "main"`.
+
+Keep model requests and event appends on the backend. Model keys never enter the App, messages, logs, or history. See [Agent Streaming Replies](/en/sdk/easy/agent-streaming) for model integration, cancellation endpoints, and SSE handling.
+
+## 5. Projection, terminal states, and recovery
+
+The application projection handles events passed to `onStreamEvent`:
+
+| Event / condition | Application behavior |
+| --- | --- |
+| Base message or `stream.open` | Find the same bubble by `client_msg_no`; allow events to arrive first and retain existing text |
+| `stream.delta` | Deduplicate by Event ID, then merge `payload.delta` using UTF-8 **byte** `text_offset`; `你好🙂` occupies 10 bytes, not its Swift string length |
+| Overlap / gap | Skip bytes already covered by a snapshot; wait for a complete snapshot on a gap instead of appending at the end |
+| `stream.snapshot` / `stream.finish` | Replace text with the complete `kind: "text"`, `text` in `payload.snapshot`; finish marks completion |
+| Cancellation / model failure | The backend aborts the model, writes `stream.cancel` / `stream.error` with a partial snapshot, then `stream.finish`; retain cancelled / failed status |
+| Late events after a terminal state | Do not reopen the reply; finish does not overwrite cancelled or failed status |
+
+Bound projection and buffer sizes, for example 40 messages, 16,384 UTF-16 units per message, 2,048 deduplication IDs per message, and 2,048 buffered events during recovery. The native example's [StreamTimeline](https://github.com/WuKongIM/WuKongEasySDK-iOS/blob/WK_EASYSDK_IOS_TAG/Examples/WuKongIMExample-Unified/Sources/WuKongIMExample-Unified/Streaming/StreamTimeline.swift) implements byte merging, terminal states, and bounded projections.
+
+**Online events are best effort, with no RECVACK or offline event queue.** After every successful connection or reconnection, your backend authorizes and performs one [/channel/messagesync](/en/api/product-http/messages/syncQuickstartChannelMessages) read with `event_summary_mode: "full"`. Buffer live events during recovery, apply snapshots and status from history's `event_meta.events`, then replay buffered deltas by byte offset. Sort by message sequence to preserve conversation order. Do not poll history while online or use `/message/eventsync` as the live transport.
+
+## 6. Run the native demo
+
+Build and run the SwiftUI App using the [official iOS example steps](/en/sdk/easy/examples#ios), then select the **流消息** tab.
+
+- HTTP API address: use `http://127.0.0.1:5001` from iOS Simulator, or your development machine's LAN address from a physical device.
+- The WebSocket address returned by `/route` must also be device-reachable. Cleartext and the example's ATS exception are for development; use HTTPS / WSS in production.
+- Create and connect a session, then send a question. In the toolbar settings, edit simulated content or enable a compatible model and enter its URL, model name, and API key.
+- Try cancellation, simulated failure, generation with the receiver disconnected, and reconnection. Check that the bubble and recovered snapshot agree.
+
+The demo uses two independent SDK instances and directly writes demo accounts, channels, and events. Use a writable development cluster. The model key lives only in screen memory; leaving the streaming tab clears it, stops tasks, and disconnects. Production backends own generation tasks and reconcile uncertain terminal writes.
+
+See the complete [native iOS streaming guide](https://github.com/WuKongIM/WuKongEasySDK-iOS/blob/WK_EASYSDK_IOS_TAG/Examples/WuKongIMExample-Unified/STREAMING.md). The [independent 1.2.0 acceptance record](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-10-23-ios-easysdk-1.2.0.md) separates SwiftPM/CocoaPods resolution, literal compilation, and iOS Simulator streaming. It does not replace the historical four-platform matrix or certify all devices and real model providers.
