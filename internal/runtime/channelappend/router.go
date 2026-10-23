@@ -400,7 +400,18 @@ func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID
 		if len(indexes) == 0 {
 			return
 		}
-		target, err := r.resolver.ResolveAppendAuthority(routerItemContext(items[indexes[0]]), channelID)
+		ctx := routerItemContext(items[indexes[0]])
+		if len(indexes) > 1 {
+			// Shared authority lookup survives until every grouped item ends.
+			resolveItems := make([]SendBatchItem, len(indexes))
+			for position, index := range indexes {
+				resolveItems[position] = items[index]
+			}
+			var cancel context.CancelFunc
+			ctx, cancel = routerAllItemsContext(resolveItems)
+			defer cancel()
+		}
+		target, err := r.resolver.ResolveAppendAuthority(ctx, channelID)
 		if err == nil {
 			target, err = normalizeRouterTarget(channelID, target)
 		}
@@ -415,11 +426,19 @@ func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID
 		if err != nil {
 			for _, index := range indexes {
 				item := items[index]
-				if shouldRetryRouterError(err) && canRetryRouterItem(item, attempts[index], r.maxRouteAttempts, time.Now()) {
+				// The shared context is canceled when all items end; retain each
+				// item's deadline error instead of leaking that aggregate cause.
+				result := rewriteTerminalRouterError(item, SendBatchItemResult{Err: err}, time.Now())
+				if errors.Is(err, ErrAppendNotSubmitted) && !errors.Is(result.Err, ErrAppendNotSubmitted) {
+					// Preserve supplied proof through deadline conversion; the
+					// invocation finalizer still removes it after uncertain submission.
+					result.Err = errors.Join(ErrAppendNotSubmitted, result.Err)
+				}
+				if shouldRetryRouterError(result.Err) && canRetryRouterItem(item, attempts[index], r.maxRouteAttempts, time.Now()) {
 					nextPending = append(nextPending, index)
 					continue
 				}
-				results[index] = SendBatchItemResult{Err: err}
+				results[index] = result
 			}
 			continue
 		}

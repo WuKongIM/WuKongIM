@@ -12,7 +12,8 @@ type SubmissionFailureDiagnostics struct {
 	// including waits for overlapping Channel predecessors.
 	Queue time.Duration
 	// Dependency covers admission until the final overlapping Channel predecessor
-	// releases its callback ownership. It is zero for an immediately ready job.
+	// releases callback ownership, or a sealed cohort takes over this job. It is
+	// zero for an immediately ready job; cohort takeover leaves Ready at zero.
 	Dependency time.Duration
 	// Ready covers dependency-ready enqueue until a worker selects this job.
 	// Dependency plus Ready equals Queue; neither includes admission or copying.

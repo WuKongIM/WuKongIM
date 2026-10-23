@@ -33,6 +33,13 @@ type OrderedSubmitterOptions struct {
 	// Bytes count immutable payloads, while record capacity bounds descriptors.
 	BatchMaxRecords int
 	BatchMaxBytes   int
+	// SameChannelMaxRecords and SameChannelMaxBytes opt into sealing a queued
+	// FIFO prefix of durable jobs for one canonical Channel. Both zero preserve
+	// predecessor-by-predecessor execution; positive targets add no admission
+	// credits. The sender must preserve mutation order within its accepted batch.
+	// An original job larger than a target stays intact and admits no successors.
+	SameChannelMaxRecords int
+	SameChannelMaxBytes   int
 	// CommandChannelSuffix must match the wrapped Router's canonical key codec.
 	CommandChannelSuffix string
 	// Goroutines attributes fixed worker lifetimes to the channel append runtime.
@@ -81,9 +88,12 @@ type orderedSubmitJob struct {
 	payloadBytes int
 	// admittedAt starts this original job's queue interval after reservation.
 	admittedAt time.Time
-	// readyAt marks release of the final Channel predecessor; immediately ready
-	// jobs reuse admittedAt so dependency wait is exactly zero.
+	// readyAt marks predecessor release or takeover by a sealed execution cohort;
+	// immediately ready jobs reuse admittedAt so dependency wait is zero.
 	readyAt time.Time
+	// selected prevents a cohort member from being queued again when its
+	// predecessor releases ownership after the shared routing call has joined.
+	selected bool
 	// links contain one FIFO dependency per distinct canonical Channel in this batch.
 	links   []orderedSubmitLink
 	blocked int
@@ -95,6 +105,9 @@ type orderedSubmitJob struct {
 func NewOrderedSubmitter(opts OrderedSubmitterOptions, sender BatchSender) (*OrderedSubmitter, error) {
 	if sender == nil || opts.Workers <= 0 || opts.Capacity <= 0 || opts.PayloadCapacity <= 0 || opts.Workers > opts.Capacity || opts.BatchMaxRecords < 0 || opts.BatchMaxBytes < 0 {
 		return nil, errors.New("channelappend: invalid ordered submitter configuration")
+	}
+	if opts.SameChannelMaxRecords < 0 || opts.SameChannelMaxBytes < 0 || (opts.SameChannelMaxRecords == 0) != (opts.SameChannelMaxBytes == 0) {
+		return nil, errors.New("channelappend: invalid same-channel cohort targets")
 	}
 	s := &OrderedSubmitter{sender: sender, opts: opts, channels: runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix}, lanes: make(map[ChannelID]*orderedSubmitLane), workers: opts.Workers, done: make(chan struct{})}
 	s.idle = make(chan struct{})
@@ -236,9 +249,25 @@ func (s *OrderedSubmitter) run() {
 		}
 		first, last := s.head, s.head
 		records, payloadBytes := len(first.items), first.payloadBytes
+		nextReady := first.next
+		// Seal only an already-admitted same-Channel prefix. Its members keep
+		// their individual callback ownership while sharing one ordered route.
+		if s.opts.SameChannelMaxRecords > 0 && sameChannelCohortEligible(first) {
+			for link := first.links[0].next; link != nil; link = link.next {
+				next := link.job
+				if next.selected || next.blocked != 1 || !sameChannelCohortEligible(next) ||
+					len(next.items) > s.opts.SameChannelMaxRecords-records || next.payloadBytes > s.opts.SameChannelMaxBytes-payloadBytes {
+					break
+				}
+				last.next = next
+				last = next
+				records += len(next.items)
+				payloadBytes += next.payloadBytes
+			}
+		}
 		// Ready jobs have no unresolved Channel predecessor, including one another.
 		// Merge only an already-queued prefix; never wait to fill a batch or split a job.
-		if s.opts.BatchMaxRecords > 0 && s.opts.BatchMaxBytes > 0 {
+		if first == last && s.opts.BatchMaxRecords > 0 && s.opts.BatchMaxBytes > 0 {
 			for next := last.next; next != nil; next = last.next {
 				if len(next.items) > s.opts.BatchMaxRecords-records || next.payloadBytes > s.opts.BatchMaxBytes-payloadBytes {
 					break
@@ -247,8 +276,9 @@ func (s *OrderedSubmitter) run() {
 				payloadBytes += next.payloadBytes
 				last = next
 			}
+			nextReady = last.next
 		}
-		s.head = last.next
+		s.head = nextReady
 		last.next = nil
 		if s.head == nil {
 			s.tail = nil
@@ -256,6 +286,13 @@ func (s *OrderedSubmitter) run() {
 		s.queuedRecords -= records
 		s.busyTasks++
 		selectedAt := time.Now()
+		for job := first; job != nil; job = job.next {
+			job.selected = true
+			if job.readyAt.IsZero() {
+				// A sealed successor never entered the independent ready queue.
+				job.readyAt = selectedAt
+			}
+		}
 		s.mu.Unlock()
 		items := first.items
 		if first != last {
@@ -297,6 +334,20 @@ func (s *OrderedSubmitter) run() {
 	}
 }
 
+// sameChannelCohortEligible excludes multi-key fences and operations whose
+// per-job admission or realtime ordering cannot be moved into a shared call.
+func sameChannelCohortEligible(job *orderedSubmitJob) bool {
+	if len(job.links) != 1 {
+		return false
+	}
+	for _, item := range job.items {
+		if item.AppendAdmission != nil || item.Command.NoPersist {
+			return false
+		}
+	}
+	return true
+}
+
 // orderedSubmissionFailureError adds bounded facts without changing the cause,
 // text or submission-proof classification of a terminal timeout.
 type orderedSubmissionFailureError struct {
@@ -327,7 +378,7 @@ func (s *OrderedSubmitter) finish(job *orderedSubmitJob, batchDone bool) {
 		} else {
 			next := lane.head.job
 			next.blocked--
-			if next.blocked == 0 {
+			if next.blocked == 0 && !next.selected {
 				next.readyAt = time.Now()
 				s.enqueueReady(next)
 			}

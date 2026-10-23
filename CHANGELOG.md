@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Batch already-queued durable sends to the same Channel within bounded execution
+  cohorts, preserving original callback order, caller deadlines and retry order.
+  / 同频道已排队的持久化消息按有界执行批次合并，保留原回调顺序、独立超时和重试顺序。
+
 - Retain waiting permission reads within the existing call and byte budgets
   when execution slots are occupied, and batch already-waiting callers when a
   slot becomes available. Fresh reads, cancellation and execution limits remain.

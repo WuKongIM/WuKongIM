@@ -2154,3 +2154,21 @@ completion, installation and provider-reference release.
   completion includes the future wait, so neither is a pure socket or fsync
   measurement. Multi-item Router calls remain unobserved rather than reporting
   invented per-item intervals. These phases do not partition total SEND time.
+
+- Ordered Channel submissions may seal an already-admitted single-key durable
+  FIFO prefix into one routing call. Product composition targets 32 records
+  (clamped by existing queue capacity) and the existing session batch byte target;
+  larger original jobs stay intact without merging successors. This does not
+  change Gateway ingress batching or admission credits.
+  Multi-key jobs, trusted append-admission callbacks and transient sends are
+  boundaries. Each original callback retains and releases its own record/payload
+  ownership in order; no selected successor re-enters the ready queue. Queue
+  dependency ends at predecessor release or cohort takeover, with zero ready
+  wait for a sealed successor. Shared authority resolution joins until all
+  participating callers end, without allowing the first caller's cancellation
+  to poison live siblings or erasing an existing non-submission proof.
+- Same-Channel idempotency recovery must not replay a later missing item past
+  an earlier live retryable committed-proof lookup failure. Keep positive
+  committed results, replay only an earlier safe prefix, and retain the typed
+  retry reason for unresolved later misses. An unknown prior proposal never
+  acquires non-submission proof merely because a later lookup or retry failed.
