@@ -2035,3 +2035,5 @@ specification, runbook, report, or module documentation; link to them when neede
   embedded assets and binary hashes. Rebuilding candidate `79a71770` this way
   reproduced both original cloud Linux server/CLI ELF files byte for byte; native
   Mac measurements still do not constitute Linux performance acceptance.
+
+- Flutter EasySDK versions are selected in `docs-site/lib/easy-sdk-releases.json`; `/sdk/easy/flutter/streaming` documents independent peers and backend recovery. Keep historical 1.1.0 matrix identities separate from 1.2.1 pub.dev/native evidence.

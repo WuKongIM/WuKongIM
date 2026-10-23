@@ -76,7 +76,7 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
-  final easySDK = WuKongEasySDK.getInstance();
+  final easySDK = WuKongEasySDK.createInstance();
   final messagesById = <String, Message>{};
 
   late final WuKongEventListener<ConnectResult> connectListener;
@@ -245,3 +245,5 @@ Future<void> sendText(String targetUid, String text) async {
 ## 下一步
 
 继续阅读[消息收发](/zh/guide/integration/messaging)与[上线检查](/zh/guide/integration/acceptance)。需要离线恢复、会话、未读或推送时，先查看 [SDK 选择](/zh/sdk)。[版本与验证记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#flutter)保留各次验证的完整环境和范围。
+
+`WuKongEasySDK.getInstance()` 继续适用于应用级单例，上面的页面拥有独立连接。继续阅读 [Flutter 流消息](/zh/sdk/easy/flutter/streaming)。

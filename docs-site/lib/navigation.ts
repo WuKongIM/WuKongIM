@@ -440,6 +440,13 @@ function publishedEasySDKGroup(): NavigationGroup {
         `Install and run the verified v${easySdkReleases.flutter.version} example for person messaging, dispose cleanup, and Alice/Bob acceptance.`,
       ),
       publishedPage(
+        'flutter/streaming',
+        'Flutter 流消息',
+        'Flutter Streaming',
+        `使用 v${easySdkReleases.flutter.version} 的独立连接、流消息设置和自定义事件，完成逐段回复、终态快照与重连恢复。`,
+        `Use v${easySdkReleases.flutter.version} independent peers, stream settings, custom events, terminal snapshots and reconnect recovery.`,
+      ),
+      publishedPage(
         'javascript/getting-started',
         'Web 快速接入',
         'Web quickstart',

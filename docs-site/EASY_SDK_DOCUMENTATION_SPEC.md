@@ -15,7 +15,7 @@ helps choose a platform. `examples` prepares a development single-node cluster,
 credentials with matching device categories, and eight runnable entry points.
 Each platform quickstart follows prepare, install, connect/listen, exchange,
 cleanup, and troubleshooting, in that order. Native streaming follows each
-quickstart at `/sdk/easy/android/streaming` and `/sdk/easy/ios/streaming`, keeping advanced projection and
+quickstart at `/sdk/easy/android/streaming`, `/sdk/easy/ios/streaming` and `/sdk/easy/flutter/streaming`, keeping advanced projection and
 backend event responsibilities out of the first-message path.
 
 Use one default installation path. Put alternative installations after these
@@ -70,3 +70,7 @@ APIs, installs, cleanup, bounded examples, and provenance separation.
 archive prerequisites, and callback constraints. Run the normal documentation
 verification gate for navigation, links, lint, MDX/types, static export and
 machine-readable outputs. Record compilation separately from a live message run.
+
+Flutter 1.2.0 adds independent peers, typed stream settings, JSON-string EVENT decoding and a native streaming demo. Its exact pub.dev consumer, native iOS acceptance and Web build are distinct from historical Flutter 1.1.0 matrix results.
+
+Flutter 1.2.1 repairs the acceptance runner's executable discovery; its SDK and Dart demo code are unchanged from 1.2.0. Current selection requires independent exact 1.2.1 public-package verification.

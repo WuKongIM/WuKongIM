@@ -76,7 +76,7 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
-  final easySDK = WuKongEasySDK.getInstance();
+  final easySDK = WuKongEasySDK.createInstance();
   final messagesById = <String, Message>{};
 
   late final WuKongEventListener<ConnectResult> connectListener;
@@ -245,3 +245,5 @@ Page disposal removes listeners, calls `disconnect()`, and calls `dispose()`. To
 ## Next
 
 Continue with [messaging](/en/guide/integration/messaging) and [production checks](/en/guide/integration/acceptance). For offline recovery, conversations, unread counts, or push, see [SDK selection](/en/sdk). [Versions and validation records](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#flutter) retain the exact environments and scope of past runs.
+
+`WuKongEasySDK.getInstance()` remains available for an application-owned singleton. The screen above owns an independent peer. Continue with [Flutter streaming messages](/en/sdk/easy/flutter/streaming).
