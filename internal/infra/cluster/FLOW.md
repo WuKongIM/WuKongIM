@@ -45,8 +45,11 @@ management, plugins, diagnostics, and bounded operations observations.
    Boot consistency, final membership and target fences precede publication;
    a later timeout rejects unfinished calls without discarding completed proofs.
    Only first-page typed unsupported evidence permits legacy per-call fallback.
-   Domain-owned original-call result credits bound retained results independently
-   of physical rounds; UID-byte admission is not a response-memory guarantee.
+   Controlled-allocation local readers enable the domain-owned nonwaiting result
+   budget: pages, exact string copies and old/new accumulator backing stay charged
+   until references are released. Unknown providers retain original-call credits.
+   Input selector maps retain their fixed item bounds outside this decoded-result
+   ledger; wire buffers, Directory, allocator overhead and RSS are also excluded.
 3. Presence and recipient adapters resolve exact fenced targets, group work by
    owner, and choose the local authority or one typed RPC envelope per owner.
    UID-list endpoint lookup resolves at most 256 inputs per page, groups by the

@@ -328,7 +328,7 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 		}
 	}
 	if m.work != nil {
-		m.work.queuedWait = len(r.queue) > 0 || r.resultCalls == recoveryMaxResultCalls
+		m.work.queuedWait = len(r.queue) > 0 || len(r.active) == recoveryMaxCohorts || (r.boundedOwners == nil && r.resultCalls == recoveryMaxResultCalls)
 		r.queue = append(r.queue, m.work)
 	}
 	r.kickLocked()
@@ -461,13 +461,14 @@ func (r *AuthorityRecovery) kickLocked() {
 	})
 }
 
-// FIFO dispatch never holds partial result credits. Available credits cover
-// every original call in a batch before its provider starts.
+// FIFO dispatch bounds actual execution independently from decoded ownership.
+// Legacy providers retain the sixteen-call guard. Bounded providers reserve
+// before each allocation, without waiting while holding partial resources.
 func (r *AuthorityRecovery) dispatchLocked() {
-	for !r.closed && len(r.queue) > 0 && len(r.active) < recoveryMaxCohorts && r.resultCalls < recoveryMaxResultCalls {
+	for !r.closed && len(r.queue) > 0 && len(r.active) < recoveryMaxCohorts && (r.boundedOwners != nil || r.resultCalls < recoveryMaxResultCalls) {
 		works := make([]*recoveryWork, 0, 16)
 		groups, uids := 0, 0
-		for len(r.queue) > 0 && len(works) < 16 && len(works) < recoveryMaxResultCalls-r.resultCalls {
+		for len(r.queue) > 0 && len(works) < 16 && (r.boundedOwners != nil || len(works) < recoveryMaxResultCalls-r.resultCalls) {
 			w := r.queue[0]
 			if w.finished {
 				r.queue[0] = nil
@@ -542,8 +543,17 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 		}
 	}
 	var recovered [][]EndpointLookupResult
+	var owned OwnedRecoveryResults
+	var providerErr error
 	if len(activeCalls) > 0 {
-		if observed, ok := r.owners.(RecoveryCallBatchOwnersObserved); ok && r.resultCensus {
+		if r.boundedOwners != nil {
+			var observe func(RecoveryResultUsage)
+			if r.resultCensus {
+				observe = func(usage RecoveryResultUsage) { r.observeResultUsage(e, usage) }
+			}
+			owned, providerErr = r.boundedOwners.RecoverRouteCallsBounded(e.ctx, activeCalls, r.resultBudget, observe)
+			recovered = owned.Results
+		} else if observed, ok := r.owners.(RecoveryCallBatchOwnersObserved); ok && r.resultCensus {
 			recovered = observed.RecoverRouteCallsObserved(e.ctx, activeCalls, func(usage RecoveryResultUsage) { r.observeResultUsage(e, usage) })
 		} else if batch, ok := r.owners.(RecoveryCallBatchOwners); ok {
 			recovered = batch.RecoverRouteCalls(e.ctx, activeCalls)
@@ -574,6 +584,9 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 		}
 		for k, g := range c.Groups {
 			err := e.ctx.Err()
+			if err == nil {
+				err = providerErr
+			}
 			if err == nil && (len(recovered) != len(activeCalls) || len(recovered[j]) != len(c.Groups) || routeCount > 4096) {
 				err = authority.ErrRouteNotReady
 			}
@@ -606,11 +619,21 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 			if err == nil {
 				routes := recovered[j][k].Routes
 				if len(live) != len(g.UIDs) {
-					filtered := make([]Route, 0, len(routes))
+					var filtered []Route
+					if r.boundedOwners != nil {
+						// The provider boundary was validated above. Compact already
+						// paid backing instead of creating an uncharged second slice.
+						filtered = routes[:0]
+					} else {
+						filtered = make([]Route, 0, len(routes))
+					}
 					for _, route := range routes {
 						if _, ok := wanted[route.UID]; ok {
 							filtered = append(filtered, route)
 						}
+					}
+					if r.boundedOwners != nil {
+						clear(routes[len(filtered):])
 					}
 					routes = filtered
 				}
@@ -629,6 +652,7 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 	}
 	// Release response references before returning result responsibility credits.
 	recovered = nil
+	owned.Release()
 	activeCalls = nil
 	calls = nil
 	e.cancel()

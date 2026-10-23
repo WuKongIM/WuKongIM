@@ -35,7 +35,7 @@ func TestPresenceRecoveryCensusFollowsReopenedRuntime(t *testing.T) {
 			target := presence.RouteTarget{HashSlot: 1, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 1, ConfigEpoch: 1}
 			a.presenceDirectory.BecomeAuthority(target)
 			_, _ = r.Endpoints(context.Background(), target, []string{"census-user"})
-			if r.Stats().ResultCensusEnabled != tc.enabled || r.Stats().BatchCallsTotal != 1 {
+			if !r.Stats().ResultBudgetEnabled || r.Stats().ResultCensusEnabled != tc.enabled || r.Stats().BatchCallsTotal != 1 {
 				t.Fatalf("runtime census=%+v, result census enabled want=%v", r.Stats(), tc.enabled)
 			}
 			read := func() float64 {
@@ -58,7 +58,7 @@ func TestPresenceRecoveryCensusFollowsReopenedRuntime(t *testing.T) {
 				t.Fatal(err)
 			}
 			a.reopenPresenceRecovery()
-			if a.presenceRecovery == r {
+			if a.presenceRecovery == r || !a.presenceRecovery.(*presence.AuthorityRecovery).Stats().ResultBudgetEnabled {
 				t.Fatal("recovery not reopened")
 			}
 			if got := read(); got != 0 {

@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Schedule presence recovery by prepaid decoded-result ownership while retaining
+  each call's route limit, deadline and authority fences. / 在线路由恢复按结果实际占用的
+  资源调度批次，保留原路由条数、超时和一致性校验，避免少量结果耗尽调用额度。
+
 - Preserve RPC request, connection and dependency ownership when shutdown or
   startup rollback exceeds its caller budget; a later stop joins the same work.
   / 停机或启动回滚超时后继续保留 RPC 请求、连接及其依赖，后续停止操作会等待同一批任务完成清理。

@@ -79,6 +79,11 @@ scheduled backup or restore
   most 4,096 routes. Clients read one page without hidden continuation or retry.
   Only the exact typed remote unknown-operation-11 response proves unsupported;
   timeout, busy, malformed replies and local same-text errors never permit replay.
+- Bounded owner clients scan all v1/v2/v3 reply fields without allocating, then
+  jointly reserve decoded route backing, aligned arrays and copied strings before
+  decoding. Each owned page keeps its lease until released; raw wire is excluded.
+  Bounded readers reject unknown statuses as malformed; existing codecs and bytes
+  remain unchanged. Singleton legacy reads use op9, multi-target reads use op10.
 - Presence read-only classifiers verify the `WKVP` version-2 header, selecting
   authority operations 5/8 and owner operations 9/10/11 only. Full body validation
   remains in handlers; malformed reads never dispatch an owner mutation.

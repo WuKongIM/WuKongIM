@@ -34,10 +34,15 @@ It does not own gateway frames, concrete cluster routing, or session storage.
    any full dimension fails closed without retaining a partial reservation.
    At most sixteen actual owner batches execute. Each takes already queued
    work, up to sixteen independent calls, 256 targets and 512 UIDs, without a
-   collection timer. A separate sixteen-original-call result ledger preserves
-   each call's independent 4,096-route availability and remains owned through
-   actual provider completion, fenced installation and result-reference release.
-   These ledgers are not a process RSS or transport/Directory heap limit.
+   collection timer. Legacy providers retain the sixteen-original-call result
+   guard. Fully bounded local/remote/old-protocol providers instead prepay exact
+   decoded backing and cloned strings against a separate 128 MiB / 196,608 row
+   capacity ledger. Each original call still permits at most 4,096 routes.
+   Page, scratch and old/new accumulator backing coexist under that same ledger;
+   resource denial fails the physical round without waiting for more capacity.
+   Credits remain owned through provider completion, fenced installation and
+   reference release. Neither ledger is a process RSS or transport/Directory
+   heap limit; fixed input selector maps and allocator overhead remain excluded.
    Newly owned proofs publish before callers join older flights, preventing
    overlapping-call worker cycles. Legacy owner ports run each original call
    separately. Proven lookups bypass admission; failed groups preserve siblings.
@@ -76,6 +81,14 @@ It does not own gateway frames, concrete cluster routing, or session storage.
   unfinished shared-flight waits and proof installation. Idle dispatch turns and
   Directory reads are not labeled quota waits. Shared multi-call execution
   invents no first-caller trace parent or cancellation root.
+- The optional bounded provider capability is fixed at construction only after
+  local registry projection, remote decoding and old-protocol fallback all use
+  prepaid allocation. Local pages reuse small growing scratch; remote replies
+  validate shape and count exact backing before decoding. No wire changes,
+  automatic RPC retries, per-page timeout reset or partial offline publication
+  are introduced. Published Directory data owns its own lifetime.
+- Always-on fixed budget gauges report charged row capacity and bytes, peaks
+  and rejected reservations even when diagnostic sampling is disabled.
 - A fixed aggregate census separates FIFO, physical batches, original-call
   result credits and UID admission bytes. When existing RPC diagnostics are
   enabled, partial owner accumulators and transient decoded pages remain

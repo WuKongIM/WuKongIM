@@ -16,6 +16,8 @@ type PresenceRecoverySnapshot struct {
 	BatchCallsHighWater, BatchUIDsHighWater                                                                               int
 	ResultRows, ResultDecodedBytes, PageRows, PageDecodedBytes                                                            uint64
 	ResultRowsHighWater, ResultDecodedBytesHighWater, PageRowsHighWater, PageDecodedBytesHighWater, DecodedBytesHighWater uint64
+	ResultBudgetEnabled                                                                                                   bool
+	OwnedResultRows, OwnedResultBytes, OwnedResultRowsHighWater, OwnedResultBytesHighWater, ResultBudgetRejected          uint64
 }
 
 // SetRecoverySnapshot binds a runtime generation's read-only census. Replacing
@@ -34,7 +36,7 @@ func (m *PresenceMetrics) SetRecoverySnapshot(snapshot func() PresenceRecoverySn
 type presenceRecoveryCollector struct {
 	mu          sync.RWMutex
 	snapshot    func() PresenceRecoverySnapshot
-	descriptors [23]*prometheus.Desc
+	descriptors [29]*prometheus.Desc
 }
 
 func newPresenceRecoveryCollector(labels prometheus.Labels) *presenceRecoveryCollector {
@@ -46,7 +48,7 @@ func newPresenceRecoveryCollector(labels prometheus.Labels) *presenceRecoveryCol
 		{"members", "Waiting and active recovery caller ownership entries."},
 		{"fenced_uids", "Distinct fenced UID keys retained by unfinished recovery work."},
 		{"owned_uid_bytes", "Logical UID clone and scheduler metadata admission bytes; excludes responses and RSS."},
-		{"result_limited", "One when a nonempty FIFO cannot dispatch because original-call result credits are full."},
+		{"result_limited", "One when a nonempty FIFO cannot dispatch because legacy original-call result credits are full."},
 		{"execution_limited", "One when a nonempty FIFO cannot dispatch because physical execution credits are full."},
 		{"batches_total", "Provider execution batches dispatched in this recovery runtime generation."},
 		{"batch_calls_total", "Original work calls dispatched before the provider's fresh proof recheck."},
@@ -63,6 +65,12 @@ func newPresenceRecoveryCollector(labels prometheus.Labels) *presenceRecoveryCol
 		{"page_decoded_bytes_high_water", "Maximum concurrent structural decoded page bytes in this runtime generation."},
 		{"decoded_bytes_high_water", "Maximum concurrent structural accumulator plus page bytes; not a heap/RSS bound."},
 		{"result_census_enabled", "One when opt-in decoded result/page census is enabled; disabled result/page zeros are unobserved, not proof of empty ownership."},
+		{"result_budget_enabled", "One when all provider paths reserve controlled decoded ownership before allocation; independent of diagnostic sampling."},
+		{"owned_result_rows", "Route backing capacity references charged across results, old/new copies, pages and scratch."},
+		{"owned_result_bytes", "Prepaid controlled decoded backing, cloned strings and lease metadata; excludes raw wire, selector maps, Directory, allocator overhead and RSS."},
+		{"owned_result_rows_high_water", "Maximum concurrent charged route backing references in this runtime generation."},
+		{"owned_result_bytes_high_water", "Maximum concurrent controlled decoded ownership bytes in this runtime generation."},
+		{"result_budget_rejected_total", "Result allocation reservations rejected before ownership acquisition in this runtime generation."},
 	}
 	for i, d := range definitions {
 		c.descriptors[i] = prometheus.NewDesc("wukongim_presence_recovery_"+d[0], d[1], nil, labels)
@@ -92,10 +100,10 @@ func (c *presenceRecoveryCollector) Collect(out chan<- prometheus.Metric) {
 	}
 	values := [...]float64{float64(s.QueuedCalls), float64(s.ActiveBatches), float64(s.ResultCalls), float64(s.Members), float64(s.FencedUIDs), float64(s.OwnedUIDBytes), boolean(s.ResultLimited), boolean(s.ExecutionLimited),
 		float64(s.BatchesTotal), float64(s.BatchCallsTotal), float64(s.BatchUIDsTotal), float64(s.BatchCallsHighWater), float64(s.BatchUIDsHighWater),
-		float64(s.ResultRows), float64(s.ResultDecodedBytes), float64(s.PageRows), float64(s.PageDecodedBytes), float64(s.ResultRowsHighWater), float64(s.ResultDecodedBytesHighWater), float64(s.PageRowsHighWater), float64(s.PageDecodedBytesHighWater), float64(s.DecodedBytesHighWater), boolean(s.ResultCensusEnabled)}
+		float64(s.ResultRows), float64(s.ResultDecodedBytes), float64(s.PageRows), float64(s.PageDecodedBytes), float64(s.ResultRowsHighWater), float64(s.ResultDecodedBytesHighWater), float64(s.PageRowsHighWater), float64(s.PageDecodedBytesHighWater), float64(s.DecodedBytesHighWater), boolean(s.ResultCensusEnabled), boolean(s.ResultBudgetEnabled), float64(s.OwnedResultRows), float64(s.OwnedResultBytes), float64(s.OwnedResultRowsHighWater), float64(s.OwnedResultBytesHighWater), float64(s.ResultBudgetRejected)}
 	for i, value := range values {
 		kind := prometheus.GaugeValue
-		if i >= 8 && i <= 10 {
+		if (i >= 8 && i <= 10) || i == 28 {
 			kind = prometheus.CounterValue
 		}
 		out <- prometheus.MustNewConstMetric(c.descriptors[i], kind, value)

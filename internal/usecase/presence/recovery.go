@@ -21,7 +21,7 @@ type RecoveryOwners interface {
 }
 
 // RecoveryOptions controls optional diagnostic accounting without changing
-// proof, admission, deadlines or publication behavior.
+// proof, deadlines or publication behavior.
 type RecoveryOptions struct {
 	// ResultCensus scans decoded result/page structure. Enable only with the
 	// existing opt-in RPC diagnostics; cheap scheduler counts are always retained.
@@ -30,9 +30,14 @@ type RecoveryOptions struct {
 
 // NewAuthorityRecoveryWithOptions fixes diagnostic accounting at construction.
 func NewAuthorityRecoveryWithOptions(directory RecoveryDirectory, owners RecoveryOwners, options RecoveryOptions) *AuthorityRecovery {
-	return &AuthorityRecovery{directory: directory, owners: owners, resultCensus: options.ResultCensus,
+	r := &AuthorityRecovery{directory: directory, owners: owners, resultCensus: options.ResultCensus,
 		inFlight: make(map[recoveryUIDKey]*recoveryUIDFlight), members: make(map[*recoveryMember]struct{}),
 		active: make(map[*recoveryExecution]struct{}), drained: make(chan struct{})}
+	if bounded, ok := owners.(RecoveryCallBatchOwnersBounded); ok && bounded.SupportsBoundedRecoveryResults() {
+		r.boundedOwners = bounded
+		r.resultBudget = NewRecoveryResultBudget(RecoveryResultMaxRows, RecoveryResultMaxBytes)
+	}
+	return r
 }
 
 // AuthorityRecovery reconstructs requested UIDs with bounded owner queries.
@@ -41,6 +46,9 @@ func NewAuthorityRecoveryWithOptions(directory RecoveryDirectory, owners Recover
 type AuthorityRecovery struct {
 	directory RecoveryDirectory
 	owners    RecoveryOwners
+	// boundedOwners is fixed at construction only after all provider paths opt in.
+	boundedOwners RecoveryCallBatchOwnersBounded
+	resultBudget  *RecoveryResultBudget
 	// resultCensus is fixed before admission; disabled operation never scans
 	// decoded pages/results or selects the observed provider capability.
 	resultCensus bool
@@ -57,8 +65,8 @@ type AuthorityRecovery struct {
 	queue []*recoveryWork
 	// active bounds actual batches independently of original-call result credits.
 	active map[*recoveryExecution]struct{}
-	// resultCalls caps retained response responsibility at 16 original calls,
-	// each retaining its independent 4096-route availability.
+	// resultCalls counts original calls through provider completion and install.
+	// Legacy ports cap this at 16; bounded ports separately charge actual results.
 	resultCalls int
 	// census stores fixed aggregate dispatch/result observations under mu.
 	census RecoveryStats

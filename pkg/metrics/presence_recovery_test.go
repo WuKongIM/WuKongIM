@@ -46,3 +46,25 @@ func TestPresenceRecoveryCensusPublishesOneImmutableFixedLabelCut(t *testing.T) 
 		require.Zero(t, f.Metric[0].GetCounter().GetValue())
 	}
 }
+
+// Resource ownership must remain visible when expensive diagnostic census is off.
+func TestPresenceRecoveryBudgetPublishesEnforcedOwnershipWithoutCensus(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := newPresenceMetrics(reg, prometheus.Labels{"node_id": "7", "node_name": "test"})
+	m.SetRecoverySnapshot(func() PresenceRecoverySnapshot {
+		return PresenceRecoverySnapshot{ResultBudgetEnabled: true, OwnedResultRows: 12, OwnedResultBytes: 8192, OwnedResultRowsHighWater: 20, OwnedResultBytesHighWater: 16384, ResultBudgetRejected: 2}
+	})
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	for suffix, want := range map[string]float64{"result_budget_enabled": 1, "owned_result_rows": 12, "owned_result_bytes": 8192, "owned_result_rows_high_water": 20, "owned_result_bytes_high_water": 16384, "result_budget_rejected_total": 2} {
+		f := requirePresenceMetricFamily(t, families, "wukongim_presence_recovery_"+suffix, "node_id", "node_name")
+		require.Len(t, f.Metric, 1)
+		got := f.Metric[0].GetGauge().GetValue()
+		if f.Metric[0].Counter != nil {
+			got = f.Metric[0].GetCounter().GetValue()
+		}
+		require.Equal(t, want, got, suffix)
+	}
+	f := requirePresenceMetricFamily(t, families, "wukongim_presence_recovery_result_census_enabled", "node_id", "node_name")
+	require.Zero(t, f.Metric[0].GetGauge().GetValue())
+}

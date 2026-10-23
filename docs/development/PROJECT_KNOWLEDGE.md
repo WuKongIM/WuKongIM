@@ -2085,3 +2085,25 @@ specification, runbook, report, or module documentation; link to them when neede
   arbitrary noncooperative background adapters or certify throughput.
 
 - Flutter EasySDK versions are selected in `docs-site/lib/easy-sdk-releases.json`; `/sdk/easy/flutter/streaming` documents independent peers and backend recovery. Keep historical 1.1.0 matrix identities separate from 1.2.1 pub.dev/native evidence.
+
+### Recovery result ownership and R3 evidence (2026-10-23)
+
+The exact `3075f849` 2,000-primary-SEND/s diagnostic failed the original
+message-loss gate at +25.0593 seconds. All nine active census points held 16
+original-call result credits while only 1–3 physical batches ran and 82–223
+calls waited. This confirms admission underutilization, not the sole cause of
+message loss. Same-request Slot samples still expose substantial quorum waits.
+
+Fully bounded recovery providers may fill up to 16 physical batches without
+sharing the legacy 16-original-call guard. A separate per-generation 128 MiB /
+196,608 row-capacity ledger prepays decoded backing, exact string clones and
+lease metadata, including transient pages, scratch and overlapping old/new
+accumulators. This resource allocation is 1/64 of the 8 GiB target node, not
+inferred from sparse observed rows. It does not bound raw transport buffers,
+input selector maps, Directory state, allocator overhead or RSS. Reservation
+never waits while holding partial resources; denial fails the complete physical
+round. Local, remote and old-protocol paths must all advertise and enforce the
+same ownership capability; embedding legacy providers retain the old guard.
+Per-call 4,096-row, per-owner 250 ms, FIFO/input/execution limits and exact fences
+remain unchanged. Cancellation cannot return credits before actual provider
+completion, installation and provider-reference release.

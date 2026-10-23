@@ -20,6 +20,9 @@ type RecoveryStats struct {
 	// Result high-water values span concurrently owned batches in this runtime
 	// generation, not a per-request history or heap limit.
 	ResultRowsHighWater, ResultDecodedBytesHighWater, PageRowsHighWater, PageDecodedBytesHighWater, DecodedBytesHighWater uint64
+	// Enforced result ownership is always counted, independent of sampled census.
+	ResultBudgetEnabled                                                                                          bool
+	OwnedResultRows, OwnedResultBytes, OwnedResultRowsHighWater, OwnedResultBytesHighWater, ResultBudgetRejected uint64
 }
 
 // Stats returns one immutable census without retaining callers or results.
@@ -33,8 +36,15 @@ func (r *AuthorityRecovery) Stats() RecoveryStats {
 	s.ResultCensusEnabled = r.resultCensus
 	s.QueuedCalls, s.ActiveBatches, s.ResultCalls = len(r.queue), len(r.active), r.resultCalls
 	s.Members, s.FencedUIDs, s.OwnedUIDBytes = len(r.members), len(r.inFlight), r.ownedUIDBytes
-	s.ResultLimited = len(r.queue) > 0 && r.resultCalls == recoveryMaxResultCalls
+	s.ResultLimited = len(r.queue) > 0 && r.boundedOwners == nil && r.resultCalls == recoveryMaxResultCalls
 	s.ExecutionLimited = len(r.queue) > 0 && len(r.active) == recoveryMaxCohorts
+	if r.resultBudget != nil {
+		b := r.resultBudget.Stats()
+		s.ResultBudgetEnabled = true
+		s.OwnedResultRows, s.OwnedResultBytes = b.Rows, b.Bytes
+		s.OwnedResultRowsHighWater, s.OwnedResultBytesHighWater = b.HighWaterRows, b.HighWaterBytes
+		s.ResultBudgetRejected = b.Rejected
+	}
 	return s
 }
 
