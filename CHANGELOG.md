@@ -8,6 +8,10 @@ move those entries into a version section named for that exact tag.
 
 ### 📚 Documentation / 文档
 
+- Update iOS EasySDK tutorials to 1.2.0 and add bilingual native stream-message
+  examples, including live events, terminal snapshots and backend recovery.
+  / iOS EasySDK 教程升级到 1.2.0，补充实时事件、终态快照和业务后端恢复的原生流消息示例。
+
 - Update Android EasySDK tutorials to 1.1.0 and add bilingual stream-message
   examples for live events, parent messages and reconnect recovery.
   / Android EasySDK 教程升级到 1.1.0，补充实时流事件、基础消息和重连恢复的中英文示例。

@@ -1244,6 +1244,9 @@ specification, runbook, report, or module documentation; link to them when neede
   Publish bilingual routes together and derive current versions from their canonical
   manifests/Changelog. Historical SDK or benchmark receipts do not certify newer
   artifacts. Keep public contracts separate from private interface inventories.
+- iOS EasySDK 1.2.0 provides typed stream options and `onCustomEvent` callbacks;
+  native SwiftUI examples retain listener tokens and use independent peers.
+  Public package consumers and native streaming have separate release receipts.
 - Android EasySDK 1.1.0 tutorials use the shared EasySDK manifest and expose
   `createInstance()`, stream SEND options and custom EVENT callbacks. Each peer
   initializes once; destroy does not reset its identity. Stream projections merge

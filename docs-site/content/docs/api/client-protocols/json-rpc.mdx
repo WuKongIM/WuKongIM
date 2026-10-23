@@ -30,10 +30,10 @@ CONNACK 与 SENDACK 成功时同时输出 camelCase 与 Android snake_case 字�
 
 ## 在线流式事件
 
-服务端 `EVENT` 编码为无 ID 的 `event` notification，参数是 `{id,type,timestamp,data}`；`data` 的有效 JSON 直接输出对象。EasySDK-JS 通过 `WKIMEvent.CustomEvent` 接收公开 `stream.*` 事件；Android `WK_EASYSDK_ANDROID_VERSION` 通过 `WuKongEvent.CUSTOM_EVENT` 接收 `EventNotification`。此能力要求包含在线事件投递实现的服务端，不能归入旧版本的核心消息验收范围。事件尽力投递，无 RECVACK 重放；最终快照通过消息历史恢复。详见 [Agent 流式回复](/zh/sdk/easy/agent-streaming)与 [Android 流消息](/zh/sdk/easy/android/streaming)。
+服务端 `EVENT` 编码为无 ID 的 `event` notification，参数是 `{id,type,timestamp,data}`；`data` 的有效 JSON 直接输出对象。EasySDK-JS 通过 `WKIMEvent.CustomEvent` 接收公开 `stream.*` 事件；Android `WK_EASYSDK_ANDROID_VERSION` 通过 `WuKongEvent.CUSTOM_EVENT` 接收 `EventNotification`，iOS `WK_EASYSDK_IOS_VERSION` 使用 `onCustomEvent`。此能力要求包含在线事件投递实现的服务端，不能归入旧版本的核心消息验收范围。事件尽力投递，无 RECVACK 重放；最终快照通过消息历史恢复。详见 [Agent 流式回复](/zh/sdk/easy/agent-streaming)、[Android 流消息](/zh/sdk/easy/android/streaming)与 [iOS 流消息](/zh/sdk/easy/ios/streaming)。
 
 ## 已验证范围
 
-服务端 fixture 保留历史 iOS `v1.1.1`、Android `v1.0.5`、Flutter `v1.1.0` 与 Web `v2.0.4` 的固定 wire profile；这些记录不作为新版 SDK 的验收结论。真实 `cmd/wukongim` 256 Slot 单节点集群场景使用 iOS 与 Android profile，覆盖 Alice/Bob 双向 CONNECT → SEND → SENDACK → RECV → RECVACK → Ping、断连后的在线状态清理和重连。另一次正式包验收从四个 Registry 解析这些版本，并在 Android 与 iOS Simulator 上完成双向消息。Android `1.1.0` 的独立 Maven 正式包与 API 34 流消息验收另见[发布记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-10-23-android-easysdk-1.1.0.md)。默认 `gateway.token_auth_on=true` 会执行已存设备 Token 精确匹配；生产验收仍需单独证明错误、缺失、撤销和按业务规则过期的 Token 都会被拒绝。
+服务端 fixture 保留历史 iOS `v1.1.1`、Android `v1.0.5`、Flutter `v1.1.0` 与 Web `v2.0.4` 的固定 wire profile；这些记录不作为新版 SDK 的验收结论。真实 `cmd/wukongim` 256 Slot 单节点集群场景使用 iOS 与 Android profile，覆盖 Alice/Bob 双向 CONNECT → SEND → SENDACK → RECV → RECVACK → Ping、断连后的在线状态清理和重连。另一次正式包验收从四个 Registry 解析这些版本，并在 Android 与 iOS Simulator 上完成双向消息。Android `1.1.0` 的独立 Maven 正式包与 API 34 流消息验收另见[发布记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-10-23-android-easysdk-1.1.0.md)。iOS `1.2.0` 的 SwiftPM/CocoaPods 正式包和原生流消息验收另见[独立记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-10-23-ios-easysdk-1.2.0.md)。默认 `gateway.token_auth_on=true` 会执行已存设备 Token 精确匹配；生产验收仍需单独证明错误、缺失、撤销和按业务规则过期的 Token 都会被拒绝。
 
 需要轻量在线消息时可使用 [WuKongEasySDK](/zh/sdk/easy)。需要本地消息库、会话、未读、离线恢复或更完整能力时，选择 WKProto 系列 SDK，并参考 [TCP 二进制协议](/zh/api/client-protocols/tcp-binary)。

@@ -412,6 +412,13 @@ function publishedEasySDKGroup(): NavigationGroup {
         `Install exactly v${easySdkReleases.ios.version} for person messaging, listener cleanup, and Alice/Bob messaging.`,
       ),
       publishedPage(
+        'ios/streaming',
+        'iOS 流消息',
+        'iOS Streaming Messages',
+        `使用 v${easySdkReleases.ios.version} 接收实时流事件、发送基础消息并恢复历史快照。`,
+        `Use v${easySdkReleases.ios.version} for live stream events, parent messages, and history recovery.`,
+      ),
+      publishedPage(
         'android/getting-started',
         'Android 快速接入',
         'Android quickstart',

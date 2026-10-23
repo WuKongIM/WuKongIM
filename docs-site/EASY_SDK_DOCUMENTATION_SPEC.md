@@ -14,8 +14,8 @@ Keep the existing `/sdk/easy` routes and Chinese/English parity. The overview
 helps choose a platform. `examples` prepares a development single-node cluster,
 credentials with matching device categories, and eight runnable entry points.
 Each platform quickstart follows prepare, install, connect/listen, exchange,
-cleanup, and troubleshooting, in that order. Android streaming follows its
-quickstart at `/sdk/easy/android/streaming`, keeping advanced projection and
+cleanup, and troubleshooting, in that order. Native streaming follows each
+quickstart at `/sdk/easy/android/streaming` and `/sdk/easy/ios/streaming`, keeping advanced projection and
 backend event responsibilities out of the first-message path.
 
 Use one default installation path. Put alternative installations after these
@@ -47,7 +47,9 @@ reconnect repair; keep its independent package validation separate from
 historical Web 2.0.4 four-platform results. Android 1.1.0 adds independent peers,
 stream SEND options and custom EVENT callbacks; its Maven artifact and native
 API 34 streaming acceptance are distinct from the historical Android 1.0.5
-four-platform matrix.
+four-platform matrix. iOS 1.2.0 adds typed stream SEND options and custom EVENT
+callbacks; its SwiftPM/CocoaPods consumer and native streaming evidence is
+separate from the historical iOS 1.1.1 matrix.
 
 ## Validation reference
 

@@ -229,6 +229,7 @@ describe('documentation navigation contract', () => {
     const published = getIndexedNavigationEntries('en').map((entry) => entry.url);
     const snapshots = new Map([
       ['ios/getting-started', `v${easySdkReleases.ios.version}`],
+      ['ios/streaming', `v${easySdkReleases.ios.version}`],
       ['android/getting-started', `v${easySdkReleases.android.version}`],
       ['android/streaming', `v${easySdkReleases.android.version}`],
       ['flutter/getting-started', `v${easySdkReleases.flutter.version}`],
@@ -241,6 +242,7 @@ describe('documentation navigation contract', () => {
     expect(easy?.children.map((page) => [page.slug, page.status])).toEqual([
       ['examples', 'published'],
       ['ios/getting-started', 'published'],
+      ['ios/streaming', 'published'],
       ['android/getting-started', 'published'],
       ['android/streaming', 'published'],
       ['flutter/getting-started', 'published'],
@@ -283,6 +285,7 @@ describe('documentation navigation contract', () => {
       '/en/sdk/easy',
       '/en/sdk/easy/examples',
       '/en/sdk/easy/ios/getting-started',
+      '/en/sdk/easy/ios/streaming',
       '/en/sdk/easy/android/getting-started',
       '/en/sdk/easy/android/streaming',
       '/en/sdk/easy/flutter/getting-started',
@@ -569,6 +572,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/easy`,
         `/${locale}/sdk/easy/examples`,
         `/${locale}/sdk/easy/ios/getting-started`,
+        `/${locale}/sdk/easy/ios/streaming`,
         `/${locale}/sdk/easy/android/getting-started`,
         `/${locale}/sdk/easy/android/streaming`,
         `/${locale}/sdk/easy/flutter/getting-started`,

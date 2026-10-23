@@ -45,8 +45,8 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
    validation history linked from each tutorial; they never imply that a newer
    tutorial version passed an older matrix. Public pages retain actionable
    compatibility, lifecycle, and server limitations.
-   `/sdk/easy/android/streaming` teaches native Android parent messages, custom
-   events, independent peer ownership, terminal snapshots and backend recovery.
+   `/sdk/easy/android/streaming` and `/sdk/easy/ios/streaming` teach native parent
+   messages, custom events, peer ownership, terminal snapshots and backend recovery.
    `/sdk/easy/agent-streaming` teaches JS SDK live events, backend model calls,
    cancellation and history recovery; it requires the online EVENT server implementation.
    `lib/easy-sdk-releases.json` owns current versions and independent source/vcpkg pins.
