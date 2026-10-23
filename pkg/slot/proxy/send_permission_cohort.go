@@ -100,9 +100,24 @@ func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []Per
 	}
 	if s.permissionCohortRequests == sendPermissionCohortMaxOwnedCalls || s.permissionCohortBytes+cost > sendPermissionCohortMaxOwnedBytes ||
 		((c == nil || c.inputs+len(reads) > permissionBatchMaxReads) && len(s.permissionCohorts) == sendPermissionCohortMaxActive) {
+		// Capture every satisfied guard under the same ownership lock. The value
+		// must survive later returns without retaining the Store or any identities.
+		snapshot := PermissionAdmissionRejection{
+			ActiveCohorts: len(s.permissionCohorts), OwnedCalls: s.permissionCohortRequests,
+			OwnedBytes: s.permissionCohortBytes, RequestBytes: cost,
+		}
+		if (c == nil || c.inputs+len(reads) > permissionBatchMaxReads) && len(s.permissionCohorts) == sendPermissionCohortMaxActive {
+			snapshot.Reasons |= 1
+		}
+		if s.permissionCohortRequests == sendPermissionCohortMaxOwnedCalls {
+			snapshot.Reasons |= 2
+		}
+		if s.permissionCohortBytes+cost > sendPermissionCohortMaxOwnedBytes {
+			snapshot.Reasons |= 4
+		}
 		s.permissionCohortMu.Unlock()
 		s.permissionCount("cohort_busy", 1)
-		return fail(ErrPermissionBusy)
+		return fail(&permissionAdmissionRejectionError{snapshot: snapshot})
 	}
 	if c != nil && c.inputs+len(reads) > permissionBatchMaxReads {
 		s.sealSendPermissionCohortLocked(c)

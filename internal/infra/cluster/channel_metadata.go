@@ -604,7 +604,15 @@ func mapChannelPermissionReadError(err error) error {
 	switch {
 	case errors.Is(err, slotproxy.ErrPermissionBusy):
 		// Keep the retryable route classification and mark it as admission pressure.
-		return fmt.Errorf("%w: %w: %w", channelappend.ErrRouteNotReady, channelappend.ErrBackpressured, err)
+		mapped := fmt.Errorf("%w: %w: %w", channelappend.ErrRouteNotReady, channelappend.ErrBackpressured, err)
+		if snapshot, ok := slotproxy.PermissionAdmissionRejectionFromError(err); ok {
+			return messageusecase.WithPermissionAdmissionRejection(mapped, messageusecase.PermissionAdmissionRejection{
+				Reasons: snapshot.Reasons, ActiveCohorts: snapshot.ActiveCohorts,
+				OwnedCalls: snapshot.OwnedCalls, OwnedBytes: snapshot.OwnedBytes,
+				RequestBytes: snapshot.RequestBytes,
+			})
+		}
+		return mapped
 	case errors.Is(err, clusterpkg.ErrRouteNotReady),
 		errors.Is(err, slotproxy.ErrReadStaleRoute),
 		errors.Is(err, slotproxy.ErrNoLeader),

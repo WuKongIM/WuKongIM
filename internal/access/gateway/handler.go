@@ -552,6 +552,16 @@ func (h *Handler) logSendFailure(cmd message.SendCommand, source, class string, 
 	if cmd.ClientMsgNo != "" {
 		fields = append(fields, wklog.ClientMsgNo(cmd.ClientMsgNo))
 	}
+	if snapshot, ok := message.PermissionAdmissionRejectionFromError(err); ok {
+		fields = append(fields,
+			wklog.Bool("permissionAdmissionPresent", true),
+			wklog.Int64("permissionAdmissionReasons", int64(snapshot.Reasons)),
+			wklog.Int64("permissionAdmissionActiveCohorts", int64(snapshot.ActiveCohorts)),
+			wklog.Int64("permissionAdmissionOwnedCalls", int64(snapshot.OwnedCalls)),
+			wklog.Int64("permissionAdmissionOwnedBytes", int64(snapshot.OwnedBytes)),
+			wklog.Int64("permissionAdmissionRequestBytes", int64(snapshot.RequestBytes)),
+		)
+	}
 	if diagnostics, ok := message.SendBatchFailureDiagnosticsFromError(err); ok {
 		fields = append(fields,
 			wklog.String("failedStage", diagnostics.FailedStage),

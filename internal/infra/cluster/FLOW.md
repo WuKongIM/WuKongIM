@@ -127,6 +127,9 @@ The append adapter promotes storage non-submission evidence only with `errors.Is
   facts to Slot-owned commands and fresh node-batched reads. User policy results
   omit credentials; message policy remains in the usecase. Both scalar and batch
   reads map stale authority and saturated admission to typed retryable failures.
+  Measured ingress admission rejections copy the Slot snapshot into the message
+  error contract without changing mapped error text or identities. Plain busy
+  and receiver-side errors do not imply measured ingress occupancy.
 
 ## Read First
 - [Append adapter](channel_append.go)

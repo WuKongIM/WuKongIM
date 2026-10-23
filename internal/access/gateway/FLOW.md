@@ -67,6 +67,9 @@ It does not own reusable message, presence, delivery, or storage policy.
   include a presence flag and per-job queue, sender and pre-callback durations;
   missing observations are omitted rather than reported as zero. Planned shutdown fences
   suppress only identity-bearing cancellation warnings, not observations.
+  Measured permission ingress rejections add a presence flag, reason bitmask,
+  active cohorts, owned calls/bytes and rejected request bytes to that existing
+  warning. Missing snapshots omit all six fields; SENDACK reasons stay unchanged.
 
 - Authenticated connections opt into body-free edit hints with `message_updates.enable` EVENT and receive `message_updates.ready`. Capability is connection-scoped; CONNECT and CMD meanings remain unchanged.
 

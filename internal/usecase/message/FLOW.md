@@ -80,6 +80,9 @@ SEND hooks, directory writes or append; delayed publications must authorize agai
   entry adapter's single existing diagnostic record. When supplied by the
   admission owner, copied per-job queue, sender and pre-callback durations
   accompany that record; absent owner observations remain explicitly unavailable.
+  Permission admission errors may also carry an identity-free value snapshot
+  of rejected reservation reasons and occupancy; wrappers preserve original
+  error text and identities, and missing observations remain absent.
 - Terminal source-Channel checks are authoritative and bypass stale permission
   cache state.
 - Page preparation never rewrites a caller start sequence to enforce visibility;

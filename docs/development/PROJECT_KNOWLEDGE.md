@@ -1,5 +1,13 @@
 # Project Knowledge
 
+Permission-read cohort busy errors may carry an immutable rejection-time snapshot
+of satisfied guards (active cohorts=1, owned calls=2, owned bytes=4), retained
+occupancy and the rejected call's conservative byte reservation. Capture all
+satisfied bits under the ownership lock; keep error text, errors.Is and
+SystemBusy replies unchanged. Existing gateway warnings omit these fields when
+unobserved, including receiver busy and oversized inputs rejected before copying.
+The snapshot is not a receiver/RPC queue measurement or allocator/RSS usage.
+
 Ordered submission timeout warnings may expose `submissionTimingsPresent` and
 queue, route and pre-callback durations for the same original job. Queue starts
 after reservation; route covers the joined sender call, and pre-callback includes

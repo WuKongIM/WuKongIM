@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Include permission-read cohort reservation limits and occupancy in existing
+  SEND busy warnings when observed, without changing admission limits or replies.
+  / SEND 权限读取繁忙日志补充触发的批次、调用或字节配额及当时占用，不改变准入限制或响应。
+
 - Include original submission queue, routing and pre-callback durations in
   existing gateway SEND timeout warnings when available, preserving timeout
   and admission behavior. / 网关 SEND 超时日志补充原提交任务的排队、路由及回调前等待
