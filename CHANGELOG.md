@@ -14,6 +14,9 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Identify storage-overlap scan failures with fixed diagnostic reasons while
+  preserving scan limits and missing-evidence decisions.
+
 - Keep Top ACK-count publication independent of the shared metrics ingestion
   lock so storage observations cannot hold up delivery ACK bookkeeping.
 

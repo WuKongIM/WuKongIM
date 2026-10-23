@@ -13,6 +13,8 @@ NODE=""
 TEMP_DIR=""
 ACTIVE_CHILD_PID=""
 SCAN_DEADLINE=0
+# Only this process's scan timer can distinguish expiry from a child exit 124.
+SCAN_DEADLINE_EXHAUSTED=0
 MAX_SNAPSHOT_FILES=4096
 MAX_SCAN_SECONDS=3
 MAX_RAW_OUTPUT_BYTES=1048576
@@ -53,7 +55,11 @@ run_bounded_child() {
   local stdout_path="$1"
   local stderr_path="$2"
   shift 2
-  (( SCAN_DEADLINE > 0 && SECONDS < SCAN_DEADLINE )) || return 124
+  (( SCAN_DEADLINE > 0 )) || return 124
+  if (( SECONDS >= SCAN_DEADLINE )); then
+    SCAN_DEADLINE_EXHAUSTED=1
+    return 124
+  fi
   (
     ulimit -f "$MAX_CHILD_FILE_BLOCKS" || exit 73
     exec "$@"
@@ -62,6 +68,7 @@ run_bounded_child() {
   local fast_polls=0
   while kill -0 "$ACTIVE_CHILD_PID" 2>/dev/null; do
     if (( SECONDS >= SCAN_DEADLINE )); then
+      SCAN_DEADLINE_EXHAUSTED=1
       terminate_active_child
       return 124
     fi
@@ -110,6 +117,31 @@ missing_row() {
   exit 0
 }
 
+# Diagnostics contain only closed fields and cannot change the capture outcome.
+capture_reason() {
+  local reason="$1" phase=periodic
+  case "$reason" in deadline|find|stat|entrylimit|output) ;; *) return 0 ;; esac
+  case "$SAMPLE" in
+    warmup-before|warmup_before) phase=warmup_before ;;
+    before) phase=before ;;
+    after) phase=after ;;
+  esac
+  (printf 'storage_overlap_capture reason=%s node=%s phase=%s\n' "$reason" "$NODE" "$phase") >&2 2>/dev/null || true
+}
+
+scan_missing() {
+  local reason="$1"
+  if (( SCAN_DEADLINE_EXHAUSTED == 1 )); then reason=deadline; fi
+  capture_reason "$reason"
+  missing_row
+}
+
+output_failure() {
+  local status="$1"
+  capture_reason output
+  exit "$status"
+}
+
 [[ -f "$METRICS_FILE" && ! -L "$METRICS_FILE" && -s "$METRICS_FILE" ]] || missing_row
 compaction_values="$(awk '
   function numeric(value) {
@@ -142,65 +174,68 @@ snapshot_parent="$(dirname "$SNAPSHOT_ROOT")"
 [[ -d "$snapshot_parent" && ! -L "$snapshot_parent" ]] || missing_row
 platform="$(uname -s)" || missing_row
 SCAN_DEADLINE=$((SECONDS + MAX_SCAN_SECONDS))
-TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/wk-storage-overlap.XXXXXX")" || exit 73
-: >"$TEMP_DIR/raw"
-: >"$TEMP_DIR/list"
+TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/wk-storage-overlap.XXXXXX")" || output_failure 73
+: >"$TEMP_DIR/raw" || output_failure "$?"
+: >"$TEMP_DIR/list" || output_failure "$?"
 if [[ -e "$SNAPSHOT_ROOT" ]]; then
   [[ -d "$SNAPSHOT_ROOT" && ! -L "$SNAPSHOT_ROOT" ]] || missing_row
-  : >"$TEMP_DIR/find.err"
-  run_bounded_child "$TEMP_DIR/raw" "$TEMP_DIR/find.err" find "$SNAPSHOT_ROOT" -type f -print || missing_row
-  [[ ! -s "$TEMP_DIR/find.err" ]] || missing_row
-  raw_output_bytes="$(wc -c <"$TEMP_DIR/raw" | tr -d '[:space:]')"
-  [[ "$raw_output_bytes" =~ ^[0-9]+$ ]] || missing_row
-  (( raw_output_bytes <= MAX_RAW_OUTPUT_BYTES )) || missing_row
-  (( SECONDS < SCAN_DEADLINE )) || missing_row
-  LC_ALL=C sort "$TEMP_DIR/raw" -o "$TEMP_DIR/raw" || missing_row
+  : >"$TEMP_DIR/find.err" || output_failure "$?"
+  run_bounded_child "$TEMP_DIR/raw" "$TEMP_DIR/find.err" find "$SNAPSHOT_ROOT" -type f -print || scan_missing find
+  [[ ! -s "$TEMP_DIR/find.err" ]] || scan_missing find
+  raw_output_bytes="$(wc -c <"$TEMP_DIR/raw" | tr -d '[:space:]')" || output_failure "$?"
+  [[ "$raw_output_bytes" =~ ^[0-9]+$ ]] || scan_missing output
+  (( raw_output_bytes <= MAX_RAW_OUTPUT_BYTES )) || scan_missing entrylimit
+  if (( SECONDS >= SCAN_DEADLINE )); then
+    SCAN_DEADLINE_EXHAUSTED=1
+    scan_missing deadline
+  fi
+  LC_ALL=C sort "$TEMP_DIR/raw" -o "$TEMP_DIR/raw" || scan_missing output
 fi
 
 snapshot_candidates=0
 while IFS= read -r snapshot_file; do
-  [[ -n "$snapshot_file" ]] || missing_row
+  [[ -n "$snapshot_file" ]] || scan_missing find
   snapshot_candidates=$((snapshot_candidates + 1))
-  (( snapshot_candidates <= MAX_SNAPSHOT_FILES )) || missing_row
+  (( snapshot_candidates <= MAX_SNAPSHOT_FILES )) || scan_missing entrylimit
 done <"$TEMP_DIR/raw"
 
 snapshot_files=0
 snapshot_bytes=0
 inventory_bytes=0
 while IFS= read -r snapshot_file; do
-  [[ -n "$snapshot_file" && -f "$snapshot_file" && ! -L "$snapshot_file" ]] || missing_row
-  : >"$TEMP_DIR/stat.out"
-  : >"$TEMP_DIR/stat.err"
+  [[ -n "$snapshot_file" && -f "$snapshot_file" && ! -L "$snapshot_file" ]] || scan_missing stat
+  : >"$TEMP_DIR/stat.out" || output_failure "$?"
+  : >"$TEMP_DIR/stat.err" || output_failure "$?"
   if [[ "$platform" == Darwin ]]; then
-    run_bounded_child "$TEMP_DIR/stat.out" "$TEMP_DIR/stat.err" stat -f '%z' "$snapshot_file" || missing_row
+    run_bounded_child "$TEMP_DIR/stat.out" "$TEMP_DIR/stat.err" stat -f '%z' "$snapshot_file" || scan_missing stat
   else
-    run_bounded_child "$TEMP_DIR/stat.out" "$TEMP_DIR/stat.err" stat -c '%s' "$snapshot_file" || missing_row
+    run_bounded_child "$TEMP_DIR/stat.out" "$TEMP_DIR/stat.err" stat -c '%s' "$snapshot_file" || scan_missing stat
   fi
-  [[ ! -s "$TEMP_DIR/stat.err" ]] || missing_row
+  [[ ! -s "$TEMP_DIR/stat.err" ]] || scan_missing stat
   size="$(<"$TEMP_DIR/stat.out")"
-  [[ "$size" =~ ^[0-9]+$ ]] || missing_row
+  [[ "$size" =~ ^[0-9]+$ ]] || scan_missing stat
   relative="${snapshot_file#"$SNAPSHOT_ROOT"/}"
-  [[ "$relative" != "$snapshot_file" && -n "$relative" ]] || missing_row
+  [[ "$relative" != "$snapshot_file" && -n "$relative" ]] || scan_missing find
   entry_bytes=$((${#relative} + ${#size} + 2))
-  (( inventory_bytes + entry_bytes <= MAX_INVENTORY_BYTES )) || missing_row
-  printf '%s\t%s\n' "$relative" "$size" >>"$TEMP_DIR/list"
+  (( inventory_bytes + entry_bytes <= MAX_INVENTORY_BYTES )) || scan_missing entrylimit
+  printf '%s\t%s\n' "$relative" "$size" >>"$TEMP_DIR/list" || output_failure "$?"
   inventory_bytes=$((inventory_bytes + entry_bytes))
   snapshot_files=$((snapshot_files + 1))
   snapshot_bytes=$((snapshot_bytes + size))
 done <"$TEMP_DIR/raw"
 
 if ! mv "$TEMP_DIR/list" "$OUTPUT_INVENTORY"; then
-  exit 73
+  output_failure 73
 fi
 
 if command -v sha256sum >/dev/null 2>&1; then
-  snapshot_identity="$(sha256sum "$OUTPUT_INVENTORY" | awk '{print $1}')"
+  snapshot_identity="$(sha256sum "$OUTPUT_INVENTORY" | awk '{print $1}')" || output_failure "$?"
 elif command -v shasum >/dev/null 2>&1; then
-  snapshot_identity="$(shasum -a 256 "$OUTPUT_INVENTORY" | awk '{print $1}')"
+  snapshot_identity="$(shasum -a 256 "$OUTPUT_INVENTORY" | awk '{print $1}')" || output_failure "$?"
 else
-  exit 73
+  output_failure 73
 fi
-[[ "$snapshot_identity" =~ ^[0-9a-f]{64}$ ]] || exit 73
+[[ "$snapshot_identity" =~ ^[0-9a-f]{64}$ ]] || output_failure 73
 
 printf '%s\t%s\t%s\t%s\tcomplete\t%s\t%s\t%s\t%s\t%s\t%s\n' \
   "$OBSERVED_AT" "$RUN_ID" "$SAMPLE" "$NODE" "${compaction_values%%$'\t'*}" "${compaction_values#*$'\t'}" \

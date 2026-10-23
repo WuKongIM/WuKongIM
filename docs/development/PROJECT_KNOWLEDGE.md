@@ -1,5 +1,9 @@
 # Project Knowledge
 
+Local storage-overlap capture emits fixed scan-failure reasons to stderr.
+Missing inventories still invalidate qualification even when metrics are valid;
+scan limits, original exit outcomes and missing-evidence decisions remain authoritative.
+
 Delivery publishes pending ACK counts while holding its ACK mutation lock. The
 Top ACK-count observer must use independent atomic publication instead of the
 shared Top ingestion/control mutex; snapshots and clones must retain the real
