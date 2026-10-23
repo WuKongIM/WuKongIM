@@ -1406,13 +1406,13 @@ func (s *MetricsSnapshot) addQueueSeries(kind uint16, labels map[string]string, 
 func (s *MetricsSnapshot) finalizeQueueUtilization() error {
 	var err error
 	if s.present&(metricRuntimeQueue|metricRuntimeQueueCapacity) == metricRuntimeQueue|metricRuntimeQueueCapacity {
-		s.RuntimeQueueMaxPercent, err = maximumQueueUtilization(s.runtimeQueueDepthBySeries, s.runtimeQueueCapacityBySeries)
+		s.RuntimeQueueMaxPercent, err = maximumQueueUtilization(runtimeQueueFamily, s.runtimeQueueDepthBySeries, s.runtimeQueueCapacityBySeries)
 		if err != nil {
 			return err
 		}
 	}
 	if s.present&(metricChannelWorkerQueue|metricChannelWorkerQueueCapacity) == metricChannelWorkerQueue|metricChannelWorkerQueueCapacity {
-		s.ChannelWorkerQueueMaxPercent, err = maximumQueueUtilization(s.channelQueueDepthBySeries, s.channelQueueCapacityBySeries)
+		s.ChannelWorkerQueueMaxPercent, err = maximumQueueUtilization(channelWorkerQueueFamily, s.channelQueueDepthBySeries, s.channelQueueCapacityBySeries)
 		if err != nil {
 			return err
 		}
@@ -1422,18 +1422,34 @@ func (s *MetricsSnapshot) finalizeQueueUtilization() error {
 	return nil
 }
 
-func maximumQueueUtilization(depths, capacities map[string]float64) (float64, error) {
+type queueUtilizationFamily uint8
+
+const (
+	runtimeQueueFamily queueUtilizationFamily = iota
+	channelWorkerQueueFamily
+)
+
+func maximumQueueUtilization(family queueUtilizationFamily, depths, capacities map[string]float64) (float64, error) {
 	if len(depths) == 0 || len(depths) != len(capacities) {
 		return 0, newMetricsParseError("unpaired_queue_series")
+	}
+	missingCapacityReason := MetricsParseReason("runtime_queue_missing_capacity")
+	overCapacityReason := MetricsParseReason("runtime_queue_over_capacity")
+	if family == channelWorkerQueueFamily {
+		missingCapacityReason = "channel_queue_missing_capacity"
+		overCapacityReason = "channel_queue_over_capacity"
 	}
 	maximum := float64(0)
 	for key, depth := range depths {
 		capacity, ok := capacities[key]
-		if !ok || (capacity > 0 && depth > capacity) {
-			return 0, newMetricsParseError("invalid_queue_utilization")
+		if !ok {
+			return 0, newMetricsParseError(missingCapacityReason)
 		}
-		// A zero item capacity marks either an inactive queue or a queue bounded
-		// only by bytes, so its item utilization has no valid denominator.
+		if capacity > 0 && depth > capacity {
+			return 0, newMetricsParseError(overCapacityReason)
+		}
+		// A zero capacity has no fixed item denominator, including inactive,
+		// bytes-only, or per-connection-deduplicated ready queues.
 		if capacity == 0 {
 			continue
 		}

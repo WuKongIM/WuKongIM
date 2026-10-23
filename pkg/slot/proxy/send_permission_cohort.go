@@ -10,7 +10,9 @@ import (
 )
 
 const (
-	sendPermissionCohortWindow        = time.Millisecond
+	// Collect paced concurrent callers before spending a fresh barrier. The idle
+	// fast path stays immediate; execution and ownership limits stay independent.
+	sendPermissionCohortWindow        = 5 * time.Millisecond
 	sendPermissionCohortMaxCalls      = 64
 	sendPermissionCohortMaxActive     = 64
 	sendPermissionCohortMaxOwnedCalls = 1024

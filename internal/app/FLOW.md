@@ -135,6 +135,8 @@ The app configures aggregate MQTT storage on every product node, including when 
 - Default product Gateway/message composition owns one bounded ordered Channel submitter, using the existing Router and normalized Gateway record/worker/byte settings. Injected handlers/usecases retain their explicit execution behavior. Constructor rollback, Stop and restore maintenance join accepted callbacks before dependencies close or restart; timed-out drains retain their fence.
 - Composition wires UID/source-Channel policy mutations, unified send facts, and bounded permission-stage/RPC/ban-scope and sealed-batch ownership observers through existing ports. Every topology follows the same cluster-authoritative admission path. Policy mutation observers write credential-free structured audits; proposal errors retain an unknown outcome rather than reporting tentative state as durable.
 
+Top ACK-binding counts use independent atomic publication while delivery serializes ACK mutations; publication never acquires the shared Top ingestion/control mutex.
+Sampling and cloning capture the current count, including zero; historical samples remain immutable. Other Top observations keep their existing locks.
 
 ## Read First
 - [app.go](app.go)

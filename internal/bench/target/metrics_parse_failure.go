@@ -81,7 +81,7 @@ func metricsParseText(reason MetricsParseReason) (string, bool) {
 		return "observation metrics contains duplicate or excessive queue series", true
 	case "unpaired_queue_series":
 		return "observation metrics contains unpaired queue series", true
-	case "invalid_queue_utilization":
+	case "invalid_queue_utilization", "runtime_queue_missing_capacity", "runtime_queue_over_capacity", "channel_queue_missing_capacity", "channel_queue_over_capacity":
 		return "observation metrics contains invalid queue utilization", true
 	case "invalid_sample_name":
 		return "observation metrics contains invalid sample name", true

@@ -14,6 +14,26 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Identify storage-overlap scan failures with fixed diagnostic reasons while
+  preserving scan limits and missing-evidence decisions.
+
+- Keep Top ACK-count publication independent of the shared metrics ingestion
+  lock so storage observations cannot hold up delivery ACK bookkeeping.
+
+- Report gateway actor-ready queues without a fixed item capacity instead of
+  treating their initial slice allocation as a hard limit. Queue depth and
+  admission behavior remain unchanged, avoiding false metrics-parse failures.
+
+- Collect concurrent SEND permission facts for up to 5 ms so paced callers share
+  fresh barriers within the existing cohort, call and byte limits; idle reads
+  of one fact or two distinct facts remain immediate. / 并发发送权限事实最多收集
+  5 毫秒，使分批到达的调用在原有批次、调用和字节上限内共享新鲜读取屏障；
+  空闲时单事实或两个不同事实的读取仍立即执行。
+
+- Identify the queue family and missing-capacity or over-capacity guard when
+  acceptance metrics are rejected, retaining the same strict validation.
+  / 验收指标被拒绝时区分队列类型及容量缺失或超限，保留原有严格校验。
+
 - Give queued Slot proposals and permission-read controls a turn while Raft
   continues producing Ready work, retaining persistence and fresh-read fences.
   / Raft 持续产生 Ready 时仍调度已排队的 Slot 提案与权限读取控制，保留持久化及新鲜读取屏障。

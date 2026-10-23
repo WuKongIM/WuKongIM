@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -38,6 +39,10 @@ var parseLeafCatalog = []struct {
 	{"duplicate_or_excess_queue_series", "observation metrics contains duplicate or excessive queue series"},
 	{"unpaired_queue_series", "observation metrics contains unpaired queue series"},
 	{"invalid_queue_utilization", "observation metrics contains invalid queue utilization"},
+	{"runtime_queue_missing_capacity", "observation metrics contains invalid queue utilization"},
+	{"runtime_queue_over_capacity", "observation metrics contains invalid queue utilization"},
+	{"channel_queue_missing_capacity", "observation metrics contains invalid queue utilization"},
+	{"channel_queue_over_capacity", "observation metrics contains invalid queue utilization"},
 	{"invalid_sample_name", "observation metrics contains invalid sample name"},
 	{"label_cardinality_limit", "observation metrics label cardinality limit exceeded"},
 }
@@ -119,8 +124,8 @@ func TestMetricsParseLeavesAtRealParserBoundaries(t *testing.T) {
 		{"queue_duplicate", "duplicate_or_excess_queue_series", "wukongim_runtime_pool_queue_depth{pool=\"p\"} 1\nwukongim_runtime_pool_queue_depth{pool=\"p\"} 2\n", nil},
 		{"queue_count", "duplicate_or_excess_queue_series", parseLeafQueues(129), nil},
 		{"queue_unpaired", "unpaired_queue_series", "wukongim_runtime_pool_queue_depth{pool=\"a\"} 1\nwukongim_runtime_pool_queue_depth{pool=\"b\"} 1\nwukongim_runtime_pool_queue_capacity{pool=\"a\"} 2\n", nil},
-		{"queue_over_capacity", "invalid_queue_utilization", "wukongim_runtime_pool_queue_depth{pool=\"a\"} 2\nwukongim_runtime_pool_queue_capacity{pool=\"a\"} 1\n", nil},
-		{"queue_missing_key_same_count", "invalid_queue_utilization", "wukongim_runtime_pool_queue_depth{pool=\"a\"} 1\nwukongim_runtime_pool_queue_capacity{pool=\"b\"} 2\n", nil},
+		{"queue_over_capacity", "runtime_queue_over_capacity", "wukongim_runtime_pool_queue_depth{pool=\"a\"} 2\nwukongim_runtime_pool_queue_capacity{pool=\"a\"} 1\n", nil},
+		{"queue_missing_key_same_count", "runtime_queue_missing_capacity", "wukongim_runtime_pool_queue_depth{pool=\"a\"} 1\nwukongim_runtime_pool_queue_capacity{pool=\"b\"} 2\n", nil},
 		{"sample_name_helper", "invalid_sample_name", "", func() error { _, _, err := parseObservationMetricToken("}"); return err }},
 		{"label_count", "label_cardinality_limit", "go_goroutines{" + parseLeafLabels(33) + "} 1\n", nil},
 		{"label_duplicate", "label_cardinality_limit", "go_goroutines{l=\"a\",l=\"b\"} 1\n", nil},
@@ -155,6 +160,51 @@ func TestMetricsParseLeavesAtRealParserBoundaries(t *testing.T) {
 	}
 }
 
+func TestMetricsQueueFailureReasonsThroughClient(t *testing.T) {
+	cases := []struct {
+		name   string
+		body   string
+		reason MetricsParseReason
+	}{
+		{"runtime_missing_capacity", "wukongim_runtime_pool_queue_depth{pool=\"a\"} 1\nwukongim_runtime_pool_queue_capacity{pool=\"b\"} 2\n", "runtime_queue_missing_capacity"},
+		{"runtime_over_capacity", "wukongim_runtime_pool_queue_depth{pool=\"a\"} 2\nwukongim_runtime_pool_queue_capacity{pool=\"a\"} 1\n", "runtime_queue_over_capacity"},
+		{"channel_missing_capacity", "wukongim_channelv2_worker_queue_depth{pool=\"a\"} 1\nwukongim_channelv2_worker_queue_capacity{pool=\"b\"} 2\n", "channel_queue_missing_capacity"},
+		{"channel_over_capacity", "wukongim_channelv2_worker_queue_depth{pool=\"a\"} 2\nwukongim_channelv2_worker_queue_capacity{pool=\"a\"} 1\n", "channel_queue_over_capacity"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				if r.Method != http.MethodGet || r.URL.Path != "/metrics" {
+					t.Error("unexpected metrics request")
+					http.Error(w, "unexpected request", http.StatusNotFound)
+					return
+				}
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			defer server.Close()
+			client := NewClient(Config{APIAddrs: []string{server.URL}})
+			_, err := client.Metrics(context.Background())
+			if err == nil {
+				t.Fatal("invalid queue scrape became success")
+			}
+			if got := MetricsParseFailure(err); got != tc.reason {
+				t.Errorf("reason=%q want=%q", got, tc.reason)
+			}
+			if MetricsFailure(err) != "parse" || err.Error() != "observation metrics parse" {
+				t.Errorf("outer parse kind/text changed: %v", err)
+			}
+			if cause := errors.Unwrap(err); cause == nil || cause.Error() != "observation metrics contains invalid queue utilization" {
+				t.Errorf("fixed parser cause text changed: %v", cause)
+			}
+			if got := requests.Load(); got != 1 {
+				t.Errorf("metrics requests=%d want=1", got)
+			}
+		})
+	}
+}
+
 func TestMetricsParseLeafValidAndExistingGuardControls(t *testing.T) {
 	meta := parseLeafMeta("1", "created", "9007199254740992") + parseLeafMeta("12", "already_existing", "0") + parseLeafMeta("12", "error", "0")
 	cases := map[string]string{
@@ -166,6 +216,7 @@ func TestMetricsParseLeafValidAndExistingGuardControls(t *testing.T) {
 		"metadata_limits":               meta,
 		"queue_limit":                   parseLeafQueues(128),
 		"queue_zero_capacity":           "wukongim_runtime_pool_queue_depth{pool=\"p\"} 8\nwukongim_runtime_pool_queue_capacity{pool=\"p\"} 0\n",
+		"channel_queue_zero_capacity":   "wukongim_channelv2_worker_queue_depth{pool=\"p\"} 8\nwukongim_channelv2_worker_queue_capacity{pool=\"p\"} 0\n",
 		"queue_single_family_unchanged": "wukongim_runtime_pool_queue_depth{pool=\"p\"} 1\n",
 		"unknown_family_ignored":        "foreign_family invalid sample is ignored\n",
 		"label_limit":                   "go_goroutines{" + parseLeafLabels(32) + "} 1\n",
@@ -182,6 +233,9 @@ func TestMetricsParseLeafValidAndExistingGuardControls(t *testing.T) {
 			}
 			if name == "queue_zero_capacity" && snapshot.RuntimeQueueMaxPercent != 0 {
 				t.Error("zero-capacity denominator changed")
+			}
+			if name == "channel_queue_zero_capacity" && snapshot.ChannelWorkerQueueMaxPercent != 0 {
+				t.Error("channel zero-capacity denominator changed")
 			}
 		})
 	}

@@ -1,5 +1,22 @@
 # Project Knowledge
 
+Local storage-overlap capture emits fixed scan-failure reasons to stderr.
+Missing inventories still invalidate qualification even when metrics are valid;
+scan limits, original exit outcomes and missing-evidence decisions remain authoritative.
+
+Delivery publishes pending ACK counts while holding its ACK mutation lock. The
+Top ACK-count observer must use independent atomic publication instead of the
+shared Top ingestion/control mutex; snapshots and clones must retain the real
+current count, including reset-to-zero, without rewriting historical samples.
+This observability constraint does not change ACK identity/order or prove that
+message-loss and throughput acceptance gates are satisfied.
+
+Gateway actor-ready queues deduplicate pending connections but have no fixed
+item-admission limit. Their initial slice capacity is allocation only; publish
+capacity zero and the real depth. Do not clamp depth or relax benchmark parser
+guards to conceal a mismatched metric denominator. This does not prove message
+loss or performance is repaired.
+
 Person-directory projection must emit one membership for a self-channel and two
 for distinct participants. Duplicate UID/channel identities reject the complete
 physical-Slot membership command, leaving MQTT inbox preparation pending and
@@ -19,6 +36,10 @@ Slot Ready persistence may expose another Ready on Advance. A scheduler pass
 must still give queued proposal/read controls a turn before requeueing; waiting
 for replication to become idle can delay controls through an entire Ready chain.
 This does not relax persistence, snapshot/configuration or fresh-read apply fences.
+
+Concurrent SEND permission callers collect for at most 5 ms before sealing a
+fresh read. Idle one/two-fact calls remain immediate; 64 cohorts, 1024 owned calls
+and 16 MiB credits remain independent limits, with no reuse of completed facts.
 
 
 Keep only stable, cross-module facts that prevent incorrect designs or unsafe

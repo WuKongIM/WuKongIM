@@ -145,7 +145,8 @@ type TransportPressureEvent struct {
 	Queue string
 	// Depth is the current queue item depth when available.
 	Depth int
-	// Capacity is the queue item capacity when available.
+	// Capacity is an enforced queue item limit; zero means no defined item limit.
+	// Slice allocation capacity must not be reported as an admission bound.
 	Capacity int
 	// Bytes is the current byte pressure when available.
 	Bytes int64

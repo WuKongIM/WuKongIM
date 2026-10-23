@@ -8,6 +8,7 @@ import (
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
+// actorReadyQueueSize is only the initial slice allocation, not an admission limit.
 const actorReadyQueueSize = 1024
 
 // actorPool owns a fixed set of connection actors for one running gnet engine.
@@ -123,7 +124,7 @@ func (s *actorShard) schedule(state *connState) bool {
 		depth := len(s.ready)
 		s.mu.Unlock()
 		state.scheduled.Store(false)
-		state.observeTransportForSource(actorPressureSource(s.id), "actor_ready", "ready", depth, actorReadyQueueSize, 0, 0, "closed")
+		state.observeTransportForSource(actorPressureSource(s.id), "actor_ready", "ready", depth, 0, 0, 0, "closed")
 		return false
 	}
 	wasEmpty := len(s.ready) == 0
@@ -142,7 +143,6 @@ func (s *actorShard) schedule(state *connState) bool {
 		name:     "actor_ready",
 		queue:    "ready",
 		depth:    depth,
-		capacity: actorReadyQueueSize,
 		result:   "ok",
 		revision: revision,
 	})
@@ -189,7 +189,6 @@ func (s *actorShard) drainReady() {
 			batch[0].observeTransportSnapshotForSource(actorPressureSource(s.id), transportPressureSnapshot{
 				name:     "actor_ready",
 				queue:    "ready",
-				capacity: actorReadyQueueSize,
 				revision: revision,
 			})
 		}
