@@ -29,10 +29,9 @@ func TestPermissionAdmissionRejectionSnapshot(t *testing.T) {
 		wantReasons                   uint8
 		ownedCallBytes, rejectedBytes int
 	}{
-		{"active", 64, 1, small, small, 1, 1282, 1282},
 		{"calls", 16, 64, small, small, 2, 1282, 1282},
 		{"bytes", 7, 1, large, large, 4, 2130176, 2130176},
-		{"all-reasons", 64, 16, small, []PermissionMetadataRead{{Kind: PermissionMetadataReadUserSendPolicy, UID: strings.Repeat("y", 15<<19)}}, 7, 1282, 15729920},
+		{"calls-and-bytes", 64, 16, small, []PermissionMetadataRead{{Kind: PermissionMetadataReadUserSendPolicy, UID: strings.Repeat("y", 15<<19)}}, 6, 1282, 15729920},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			db := boundaryDB(t)

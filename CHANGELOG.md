@@ -26,9 +26,15 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
-- Include permission-read cohort reservation limits and occupancy in existing
-  SEND busy warnings when observed, without changing admission limits or replies.
-  / SEND 权限读取繁忙日志补充触发的批次、调用或字节配额及当时占用，不改变准入限制或响应。
+- Retain waiting permission reads within the existing call and byte budgets
+  when execution slots are occupied, and batch already-waiting callers when a
+  slot becomes available. Fresh reads, cancellation and execution limits remain.
+  / 权限读取执行位占满时，在原调用与字节额度内保留等待请求，执行位释放后合并
+  已等待的调用；保留新鲜读取、取消和执行并发上限。
+
+- Include observed permission-read reservation limits and occupancy in existing
+  SEND busy warnings, preserving their error causes and replies.
+  / SEND 权限读取繁忙日志补充触发的配额及当时占用，保留原错误原因和响应。
 
 - Include original submission queue, routing and pre-callback durations in
   existing gateway SEND timeout warnings when available, preserving timeout

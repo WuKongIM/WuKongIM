@@ -1,12 +1,15 @@
 # Project Knowledge
 
 Permission-read cohort busy errors may carry an immutable rejection-time snapshot
-of satisfied guards (active cohorts=1, owned calls=2, owned bytes=4), retained
+of satisfied guards (owned calls=2, owned bytes=4), retained
 occupancy and the rejected call's conservative byte reservation. Capture all
 satisfied bits under the ownership lock; keep error text, errors.Is and
 SystemBusy replies unchanged. Existing gateway warnings omit these fields when
 unobserved, including receiver busy and oversized inputs rejected before copying.
-The snapshot is not a receiver/RPC queue measurement or allocator/RSS usage.
+Active cohort occupancy remains context; saturation alone queues within the
+retained budget instead of rejecting. Bit 1 describes the earlier active-cohort
+rejection and is reserved for reading historical observations. The snapshot is
+not a receiver/RPC queue measurement or allocator/RSS usage.
 
 Ordered submission timeout warnings may expose `submissionTimingsPresent` and
 queue, route and pre-callback durations for the same original job. Queue starts
@@ -57,8 +60,16 @@ for replication to become idle can delay controls through an entire Ready chain.
 This does not relax persistence, snapshot/configuration or fresh-read apply fences.
 
 Concurrent SEND permission callers collect for at most 5 ms before sealing a
-fresh read. Idle one/two-fact calls remain immediate; 64 cohorts, 1024 owned calls
-and 16 MiB credits remain independent limits, with no reuse of completed facts.
+fresh read. Idle one/two-fact calls remain immediate. When all 64 collecting or
+executing cohorts are occupied, original callers wait in FIFO order within the
+same 1024 owned-call and 16 MiB credit limits, without a worker or timer per
+waiting caller. A released execution position seals an already-waiting prefix
+of at most 64 calls/4096 inputs before a new fresh barrier; it does not wait to
+fill or reuse completed facts. Pending cancellation removes its reservation;
+selected callers retain credits until their physical read joins. Close fences
+admission, resolves pending callers, and joins all selected owners before their
+dependencies close. These credits are conservative owned-data reservations, not
+an allocator or RSS bound.
 
 
 Keep only stable, cross-module facts that prevent incorrect designs or unsafe

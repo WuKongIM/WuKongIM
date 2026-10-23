@@ -5,7 +5,8 @@ import "errors"
 // PermissionAdmissionRejection is an immutable, identity-free snapshot of a
 // rejected ingress cohort reservation. It does not describe receiver admission.
 type PermissionAdmissionRejection struct {
-	// Reasons is a bitmask: active cohorts=1, owned calls=2, owned bytes=4.
+	// Reasons uses owned calls=2 and owned bytes=4. Bit 1 is reserved for
+	// historical active-cohort rejections; full execution now queues callers.
 	Reasons uint8
 	// ActiveCohorts includes both collecting and executing cohorts.
 	ActiveCohorts int

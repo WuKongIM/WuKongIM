@@ -5,7 +5,8 @@ import "errors"
 // PermissionAdmissionRejection carries the identity-free reservation snapshot
 // measured when an authoritative permission ingress call was rejected.
 type PermissionAdmissionRejection struct {
-	// Reasons is a bitmask: active cohorts=1, owned calls=2, owned bytes=4.
+	// Reasons is a bitmask: owned calls=2, owned bytes=4. Bit 1 is reserved
+	// for historical active-cohort rejections, before bounded caller queuing.
 	Reasons uint8
 	// ActiveCohorts includes collecting and executing cohorts.
 	ActiveCohorts int

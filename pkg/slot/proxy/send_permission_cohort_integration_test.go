@@ -268,49 +268,38 @@ func TestSendPermissionCohorts(t *testing.T) {
 		t.Fatal("retained memory was not bounded")
 	})
 
-	t.Run("owned-call-and-active-cohort-limits", func(t *testing.T) {
-		for _, callLimit := range []bool{false, true} {
-			t.Run(fmt.Sprintf("calls-%t", callLimit), func(t *testing.T) {
-				db := boundaryDB(t)
-				c := newBoundaryCluster(2)
-				gate := boundaryGate(t)
-				entered := make(chan struct{}, 64)
-				c.barrier = func(ctx context.Context, _ multiraft.SlotID) error {
-					entered <- struct{}{}
-					select {
-					case <-gate:
-						return nil
-					case <-ctx.Done():
-						return ctx.Err()
-					}
-				}
-				s := New(c, db)
-				s.permissionCohortWindow = time.Hour
-				t.Cleanup(s.CloseSendPermissionReads)
-				reads := []PermissionMetadataRead{{Kind: PermissionMetadataReadUserSendPolicy, UID: "u"}}
-				total, width := 64, 1
-				if callLimit {
-					total, width = 1024, 64
-				}
-				pending := make([]<-chan []PermissionMetadataReadResult, 0, total)
-				for i := 0; i < total; i += width {
-					for j := 0; j < width; j++ {
-						pending = append(pending, startBoundaryRead(t, s, reads))
-					}
-					if !callLimit {
-						sealTestCohort(t, s, len(pending))
-					}
-					awaitBoundaryEvent(t, entered)
-				}
-				out := s.ReadSendPermissionMetadataBatch(context.Background(), reads)
-				require.ErrorIs(t, out[0].Err, ErrPermissionBusy)
-				closeBoundaryGate(gate)
-				for _, p := range pending {
-					require.NoError(t, awaitBoundaryResult(t, p)[0].Err)
-				}
-				requireCohortDrained(t, s)
-			})
+	t.Run("owned-call-limit", func(t *testing.T) {
+		db := boundaryDB(t)
+		c := newBoundaryCluster(2)
+		gate := boundaryGate(t)
+		entered := make(chan struct{}, 64)
+		c.barrier = func(ctx context.Context, _ multiraft.SlotID) error {
+			entered <- struct{}{}
+			select {
+			case <-gate:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
+		s := New(c, db)
+		s.permissionCohortWindow = time.Hour
+		t.Cleanup(s.CloseSendPermissionReads)
+		reads := []PermissionMetadataRead{{Kind: PermissionMetadataReadUserSendPolicy, UID: "u"}}
+		pending := make([]<-chan []PermissionMetadataReadResult, 0, 1024)
+		for i := 0; i < 1024; i += 64 {
+			for j := 0; j < 64; j++ {
+				pending = append(pending, startBoundaryRead(t, s, reads))
+			}
+			awaitBoundaryEvent(t, entered)
+		}
+		out := s.ReadSendPermissionMetadataBatch(context.Background(), reads)
+		require.ErrorIs(t, out[0].Err, ErrPermissionBusy)
+		closeBoundaryGate(gate)
+		for _, p := range pending {
+			require.NoError(t, awaitBoundaryResult(t, p)[0].Err)
+		}
+		requireCohortDrained(t, s)
 		cases = append(cases, t.Name())
 	})
 	t.Run("pre-canceled-and-invalid-do-not-own-work", func(t *testing.T) {

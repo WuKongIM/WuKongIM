@@ -17,7 +17,10 @@ import (
 type Store struct {
 	// Cohort ownership is node-local; no facts survive a sealed read. The mutex
 	// serializes collection, cancellation, result transfer and credit release.
-	permissionCohortMu       sync.Mutex
+	permissionCohortMu sync.Mutex
+	// Pending members own prepaid inputs without a worker or collection timer.
+	permissionPendingHead    *sendPermissionCohortMember
+	permissionPendingTail    *sendPermissionCohortMember
 	permissionCollecting     *sendPermissionCohort
 	permissionCohorts        map[*sendPermissionCohort]struct{}
 	permissionCohortRequests int

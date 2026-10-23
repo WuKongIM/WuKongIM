@@ -39,12 +39,18 @@ type sendPermissionCohort struct {
 }
 
 type sendPermissionCohortMember struct {
-	ctx     context.Context
-	reads   []PermissionMetadataRead
-	indexes []int
-	results []PermissionMetadataReadResult
+	// done publishes this member; cohort remains nil while it waits in FIFO.
+	done       chan struct{}
+	cohort     *sendPermissionCohort
+	prev, next *sendPermissionCohortMember
+	ctx        context.Context
+	reads      []PermissionMetadataRead
+	indexes    []int
+	results    []PermissionMetadataReadResult
 	// Credits cover copied inputs, aligned results, indexes/dedup and strings.
-	// A canceled caller keeps them until its already-started worker has joined.
+	// Pending cancellation drops them immediately; selected callers keep them
+	// until their already-started worker joins. Fixed cohort/context overhead,
+	// allocator overhead, borrowed contexts and raw RPC/DB heap are separate.
 	bytes    int
 	live     bool
 	returned bool
@@ -52,7 +58,8 @@ type sendPermissionCohortMember struct {
 }
 
 // ReadSendPermissionMetadataBatch reads an idle one/two-fact request immediately
-// and collects concurrent callers in a bounded short window. Seal always precedes
+// and collects concurrent callers in a bounded short window. Full execution
+// retains ready callers in the same owned-data budget. Seal always precedes
 // fresh barriers; late arrivals cannot consume an already executing result.
 func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []PermissionMetadataRead) []PermissionMetadataReadResult {
 	fail := func(err error) []PermissionMetadataReadResult {
@@ -98,16 +105,12 @@ func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []Per
 		s.sealSendPermissionCohortLocked(c)
 		c = nil
 	}
-	if s.permissionCohortRequests == sendPermissionCohortMaxOwnedCalls || s.permissionCohortBytes+cost > sendPermissionCohortMaxOwnedBytes ||
-		((c == nil || c.inputs+len(reads) > permissionBatchMaxReads) && len(s.permissionCohorts) == sendPermissionCohortMaxActive) {
+	if s.permissionCohortRequests == sendPermissionCohortMaxOwnedCalls || s.permissionCohortBytes+cost > sendPermissionCohortMaxOwnedBytes {
 		// Capture every satisfied guard under the same ownership lock. The value
 		// must survive later returns without retaining the Store or any identities.
 		snapshot := PermissionAdmissionRejection{
 			ActiveCohorts: len(s.permissionCohorts), OwnedCalls: s.permissionCohortRequests,
 			OwnedBytes: s.permissionCohortBytes, RequestBytes: cost,
-		}
-		if (c == nil || c.inputs+len(reads) > permissionBatchMaxReads) && len(s.permissionCohorts) == sendPermissionCohortMaxActive {
-			snapshot.Reasons |= 1
 		}
 		if s.permissionCohortRequests == sendPermissionCohortMaxOwnedCalls {
 			snapshot.Reasons |= 2
@@ -123,7 +126,9 @@ func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []Per
 		s.sealSendPermissionCohortLocked(c)
 		c = nil
 	}
-	fresh := c == nil
+	// A new arrival must not bypass older ready members.
+	queued := s.permissionPendingHead != nil || c == nil && len(s.permissionCohorts) == sendPermissionCohortMaxActive
+	fresh := c == nil && !queued
 	// Ordinary sequential SENDs have two distinct mandatory facts. With no
 	// concurrent work there is nothing to share, so keep bounded ownership but
 	// avoid a timer, worker, copied inputs and result realignment. An explicit
@@ -152,7 +157,9 @@ func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []Per
 			s.permissionCohortOwned("cohorts", -1)
 			s.permissionCohortOwned("calls", -1)
 			s.permissionCohortOwned("budget_bytes", -cost)
+			next := s.dispatchSendPermissionReadyLocked()
 			s.permissionCohortMu.Unlock()
+			s.startSendPermissionCohort(next)
 			s.permissionCohortWG.Done()
 		}()
 		s.permissionCount("cohorts", 1)
@@ -167,15 +174,8 @@ func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []Per
 		return out
 	}
 	if fresh {
-		root, cancel := context.WithCancel(context.Background())
-		c = &sendPermissionCohort{ctx: root, cancel: cancel, seal: make(chan struct{}), done: make(chan struct{}), collectUntil: time.Now().Add(window)}
-		if s.permissionCohorts == nil {
-			s.permissionCohorts = make(map[*sendPermissionCohort]struct{})
-		}
-		s.permissionCohorts[c] = struct{}{}
+		c = s.newSendPermissionCohortLocked(time.Now().Add(window))
 		s.permissionCollecting = c
-		s.permissionCohortWG.Add(1)
-		s.permissionCohortOwned("cohorts", 1)
 	}
 	owned := make([]PermissionMetadataRead, len(reads))
 	for i, r := range reads {
@@ -183,55 +183,155 @@ func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []Per
 		r.ChannelID = strings.Clone(r.ChannelID)
 		owned[i] = r
 	}
-	m := &sendPermissionCohortMember{ctx: ctx, reads: owned, bytes: cost, live: true, charged: true}
-	c.members = append(c.members, m)
-	c.inputs += len(reads)
-	c.live++
+	m := &sendPermissionCohortMember{ctx: ctx, done: make(chan struct{}), reads: owned, bytes: cost, live: true, charged: true}
+	if queued {
+		m.prev = s.permissionPendingTail
+		if m.prev == nil {
+			s.permissionPendingHead = m
+		} else {
+			m.prev.next = m
+		}
+		s.permissionPendingTail = m
+	} else {
+		s.assignSendPermissionMemberLocked(c, m)
+	}
 	s.permissionCohortRequests++
 	s.permissionCohortBytes += cost
 	s.permissionCohortOwned("calls", 1)
 	s.permissionCohortOwned("budget_bytes", cost)
-	if len(c.members) == sendPermissionCohortMaxCalls || c.inputs == permissionBatchMaxReads {
+	if !queued && (len(c.members) == sendPermissionCohortMaxCalls || c.inputs == permissionBatchMaxReads) {
 		s.sealSendPermissionCohortLocked(c)
 	}
 	s.permissionCohortMu.Unlock()
 	if fresh {
-		goruntimeregistry.SafeGo(goruntimeregistry.Default(), goruntimeregistry.TaskSlotPermissionBatch, func() {
-			defer s.permissionCohortWG.Done()
-			s.runSendPermissionCohort(c)
-		})
+		s.startSendPermissionCohort(c)
 	}
 	select {
-	case <-c.done:
+	case <-m.done:
 	case <-ctx.Done():
 	}
 	s.permissionCohortMu.Lock()
 	m.returned = true
-	if m.live {
-		m.live = false
-		c.live--
+	c = m.cohort
+	last := false
+	if c == nil {
+		// Pending work has never borrowed its inputs; drop them before refund.
+		if m.charged {
+			s.removeSendPermissionPendingLocked(m)
+			s.dropSendPermissionPendingLocked(m)
+		}
+	} else {
+		if m.live {
+			m.live = false
+			c.live--
+		}
+		last = c.live == 0 && !c.finished
+		if last {
+			c.cancel()
+			s.sealSendPermissionCohortLocked(c)
+		}
 	}
-	last := c.live == 0 && !c.finished
-	if last {
-		c.cancel()
-		s.sealSendPermissionCohortLocked(c)
-	}
-	if c.finished {
+	results := m.results
+	if c != nil && c.finished {
+		m.results = nil // transfer to the returning caller before releasing credits
 		s.releaseSendPermissionCohortMemberLocked(m)
 	}
 	s.permissionCohortMu.Unlock()
-	// The final cancellation owns the join. Other callers may return promptly
-	// while the still-live members keep the shared read and its credits alive.
+	// The last canceled member owns the real execution join, even if its
+	// provider ignores cancellation. Other live members keep that owner alive.
 	if last {
 		<-c.done
 	}
 	if err := ctx.Err(); err != nil {
 		return fail(err)
 	}
-	if len(m.results) == 0 {
+	if len(results) == 0 {
 		return fail(context.Canceled)
 	}
-	return m.results
+	return results
+}
+
+// newSendPermissionCohortLocked registers ownership before any launch or Close.
+// A zero cutoff is an already-ready batch and never creates a collection timer.
+func (s *Store) newSendPermissionCohortLocked(cutoff time.Time) *sendPermissionCohort {
+	root, cancel := context.WithCancel(context.Background())
+	c := &sendPermissionCohort{ctx: root, cancel: cancel, seal: make(chan struct{}), done: make(chan struct{}), collectUntil: cutoff}
+	if s.permissionCohorts == nil {
+		s.permissionCohorts = make(map[*sendPermissionCohort]struct{})
+	}
+	s.permissionCohorts[c] = struct{}{}
+	s.permissionCohortWG.Add(1)
+	s.permissionCohortOwned("cohorts", 1)
+	return c
+}
+
+func (s *Store) startSendPermissionCohort(c *sendPermissionCohort) {
+	if c == nil {
+		return
+	}
+	goruntimeregistry.SafeGo(goruntimeregistry.Default(), goruntimeregistry.TaskSlotPermissionBatch, func() {
+		defer s.permissionCohortWG.Done()
+		s.runSendPermissionCohort(c)
+	})
+}
+
+func (s *Store) assignSendPermissionMemberLocked(c *sendPermissionCohort, m *sendPermissionCohortMember) {
+	m.cohort = c
+	c.members = append(c.members, m)
+	c.inputs += len(m.reads)
+	c.live++
+}
+
+// removeSendPermissionPendingLocked unlinks a caller without scanning or keeping
+// canceled history. The caller still owns its reservation until references drop.
+func (s *Store) removeSendPermissionPendingLocked(m *sendPermissionCohortMember) {
+	if m.prev == nil {
+		s.permissionPendingHead = m.next
+	} else {
+		m.prev.next = m.next
+	}
+	if m.next == nil {
+		s.permissionPendingTail = m.prev
+	} else {
+		m.next.prev = m.prev
+	}
+	m.prev, m.next = nil, nil
+}
+
+func (s *Store) dropSendPermissionPendingLocked(m *sendPermissionCohortMember) {
+	m.live = false
+	m.reads = nil
+	s.releaseSendPermissionCohortMemberLocked(m)
+	close(m.done)
+}
+
+// dispatchSendPermissionReadyLocked fills one newly freed physical owner with
+// the FIFO prefix. Ready callers never wait for another collection timer and
+// deduplication cannot weaken the original-input limit or skip a large head.
+func (s *Store) dispatchSendPermissionReadyLocked() *sendPermissionCohort {
+	if s.permissionCohortClosed || len(s.permissionCohorts) >= sendPermissionCohortMaxActive {
+		return nil
+	}
+	var c *sendPermissionCohort
+	for m := s.permissionPendingHead; m != nil; m = s.permissionPendingHead {
+		if m.ctx.Err() != nil {
+			s.removeSendPermissionPendingLocked(m)
+			s.dropSendPermissionPendingLocked(m)
+			continue
+		}
+		if c != nil && (len(c.members) == sendPermissionCohortMaxCalls || c.inputs+len(m.reads) > permissionBatchMaxReads) {
+			break
+		}
+		s.removeSendPermissionPendingLocked(m)
+		if c == nil {
+			c = s.newSendPermissionCohortLocked(time.Time{})
+		}
+		s.assignSendPermissionMemberLocked(c, m)
+	}
+	if c != nil {
+		s.sealSendPermissionCohortLocked(c)
+	}
+	return c
 }
 
 // sealSendPermissionCohortLocked closes membership before any authority read.
@@ -247,13 +347,15 @@ func (s *Store) sealSendPermissionCohortLocked(c *sendPermissionCohort) {
 }
 
 func (s *Store) runSendPermissionCohort(c *sendPermissionCohort) {
-	timer := time.NewTimer(time.Until(c.collectUntil))
-	select {
-	case <-timer.C:
-	case <-c.seal:
-	case <-c.ctx.Done():
+	if !c.collectUntil.IsZero() {
+		timer := time.NewTimer(time.Until(c.collectUntil))
+		select {
+		case <-timer.C:
+		case <-c.seal:
+		case <-c.ctx.Done():
+		}
+		timer.Stop()
 	}
-	timer.Stop()
 	s.permissionCohortMu.Lock()
 	s.sealSendPermissionCohortLocked(c)
 	members := c.members
@@ -311,9 +413,17 @@ func (s *Store) runSendPermissionCohort(c *sendPermissionCohort) {
 		}
 		m.reads = nil
 		m.indexes = nil
+	}
+	// The reader is joined. Clear shared DTO aliases before any returned
+	// member gives its owned-data reservation back.
+	facts, unique, indexes = nil, nil, nil
+	for _, m := range members {
+		m.ctx = nil
 		if m.returned {
+			m.results = nil
 			s.releaseSendPermissionCohortMemberLocked(m)
 		}
+		close(m.done)
 	}
 	c.finished = true
 	c.members = nil
@@ -321,7 +431,9 @@ func (s *Store) runSendPermissionCohort(c *sendPermissionCohort) {
 	s.permissionCohortOwned("cohorts", -1)
 	c.cancel()
 	close(c.done)
+	next := s.dispatchSendPermissionReadyLocked()
 	s.permissionCohortMu.Unlock()
+	s.startSendPermissionCohort(next)
 }
 
 func (s *Store) releaseSendPermissionCohortMemberLocked(m *sendPermissionCohortMember) {
@@ -329,14 +441,16 @@ func (s *Store) releaseSendPermissionCohortMemberLocked(m *sendPermissionCohortM
 		return
 	}
 	m.charged = false
+	m.ctx = nil
+	m.cohort = nil
 	s.permissionCohortRequests--
 	s.permissionCohortBytes -= m.bytes
 	s.permissionCohortOwned("calls", -1)
 	s.permissionCohortOwned("budget_bytes", -m.bytes)
 }
 
-// CloseSendPermissionReads closes cohort admission, cancels every collecting or
-// executing read, and joins workers before their transport/storage dependencies
+// CloseSendPermissionReads closes admission, drops pending members, cancels
+// every collecting or executing read, and joins workers before their transport/storage dependencies
 // close. Repeated calls are safe; a Node restart creates a fresh Store.
 func (s *Store) CloseSendPermissionReads() {
 	if s == nil {
@@ -344,6 +458,10 @@ func (s *Store) CloseSendPermissionReads() {
 	}
 	s.permissionCohortMu.Lock()
 	s.permissionCohortClosed = true
+	for m := s.permissionPendingHead; m != nil; m = s.permissionPendingHead {
+		s.removeSendPermissionPendingLocked(m)
+		s.dropSendPermissionPendingLocked(m)
+	}
 	for c := range s.permissionCohorts {
 		c.cancel()
 		s.sealSendPermissionCohortLocked(c)
