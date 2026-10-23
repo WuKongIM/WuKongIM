@@ -1862,7 +1862,7 @@ specification, runbook, report, or module documentation; link to them when neede
   when the caller never enters decoding. Keep 128 executing envelopes (at most 512 Slot workers), the
   waiting count/byte/time bounds, and fresh barriers unchanged together.
 
-- Ingress SEND facts collect concurrent callers for at most 1 ms, then seal
+- Ingress SEND facts collect concurrent callers for at most 5 ms, then seal
   membership before routing and fresh quorum/snapshot reads. Idle one/two-fact
   calls execute immediately. Late arrivals require a new sealed batch; completed
   facts never cache. Limits are 64 calls / 4096 inputs per batch, 64 active batches,
@@ -2137,3 +2137,20 @@ same ownership capability; embedding legacy providers retain the old guard.
 Per-call 4,096-row, per-owner 250 ms, FIFO/input/execution limits and exact fences
 remain unchanged. Cancellation cannot return credits before actual provider
 completion, installation and provider-reference release.
+
+- The exact `0fbbd27c` local 2,000-SEND/s run still failed the unchanged
+  first-attempt gate at 13/70,033 sends (0.01856%) after 35.06 seconds. In the
+  fully contained pre-failure log window, all 20 SEND warnings were submitter
+  timeouts, with no observed permission-admission rejection. Ten had less than
+  1 ms submitter queue wait and 3.832–4.191 s in the joined sender; ten spent
+  2.227–3.616 s queued. Warnings are not the worker's 13-error population.
+  No snapshot means unknown occupancy; this result neither passes acceptance
+  nor attributes the remaining wait to RPC, disk or CPU alone.
+- Original-job submission queue timing separates the last canonical-Channel
+  predecessor's callback release from waiting ready for a worker. Their sum is
+  the existing queue interval; copied immutable failure diagnostics preserve
+  missing versus zero. Router single-item timeout observations accumulate actual
+  attempts across retries. Forwarding includes its downstream call and local
+  completion includes the future wait, so neither is a pure socket or fsync
+  measurement. Multi-item Router calls remain unobserved rather than reporting
+  invented per-item intervals. These phases do not partition total SEND time.

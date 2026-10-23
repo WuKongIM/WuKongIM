@@ -574,8 +574,25 @@ func (h *Handler) logSendFailure(cmd message.SendCommand, source, class string, 
 			fields = append(fields,
 				wklog.Bool("submissionTimingsPresent", true),
 				wklog.Duration("submissionQueueDuration", diagnostics.Submission.Queue),
+				wklog.Duration("submissionDependencyDuration", diagnostics.Submission.Dependency),
+				wklog.Duration("submissionReadyDuration", diagnostics.Submission.Ready),
 				wklog.Duration("submissionRouteDuration", diagnostics.Submission.Route),
 				wklog.Duration("submissionPreCallbackDuration", diagnostics.Submission.PreCallback),
+			)
+		}
+		if diagnostics.HasRouting {
+			fields = append(fields,
+				wklog.Bool("routingTimingsPresent", true),
+				wklog.Duration("routingResolveDuration", diagnostics.Routing.Resolve),
+				wklog.Duration("routingGroupAdmissionDuration", diagnostics.Routing.GroupAdmission),
+				wklog.Duration("routingAppendAdmissionDuration", diagnostics.Routing.AppendAdmission),
+				wklog.Duration("routingLocalSubmitDuration", diagnostics.Routing.LocalSubmit),
+				wklog.Duration("routingLocalWaitDuration", diagnostics.Routing.LocalWait),
+				wklog.Duration("routingForwardDuration", diagnostics.Routing.Forward),
+				wklog.Duration("routingRetryDelayDuration", diagnostics.Routing.RetryDelay),
+				wklog.Int64("routingAttempts", int64(diagnostics.Routing.Attempts)),
+				wklog.Int64("routingLocalAttempts", int64(diagnostics.Routing.LocalAttempts)),
+				wklog.Int64("routingRemoteAttempts", int64(diagnostics.Routing.RemoteAttempts)),
 			)
 		}
 	}

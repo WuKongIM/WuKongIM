@@ -55,7 +55,7 @@ func TestOrderedSubmitterTimeoutTimingsRemainPerJobThroughCallback(t *testing.T)
 		close(releaseBlocker)
 		<-firstCallback
 		firstBefore, present := contract.SubmissionFailureDiagnosticsFromError(first.Err)
-		if !present || firstBefore != (contract.SubmissionFailureDiagnostics{Queue: 5 * time.Millisecond, Route: 7 * time.Millisecond}) {
+		if !present || firstBefore != (contract.SubmissionFailureDiagnostics{Queue: 5 * time.Millisecond, Ready: 5 * time.Millisecond, Route: 7 * time.Millisecond}) {
 			t.Fatalf("first job timings = %+v, present %v", firstBefore, present)
 		}
 		if err := owner.Submit([]SendBatchItem{orderedItem("c", "c"), orderedItem("d", "d")}, func([]SendBatchItemResult) { t.Error("rejected work completed") }); !errors.Is(err, ErrBackpressured) {
@@ -76,7 +76,7 @@ func TestOrderedSubmitterTimeoutTimingsRemainPerJobThroughCallback(t *testing.T)
 			t.Fatalf("later callback changed first snapshot: before %+v, after %+v", firstBefore, firstAfter)
 		}
 		secondTiming, present := contract.SubmissionFailureDiagnosticsFromError(second.Err)
-		if !present || secondTiming != (contract.SubmissionFailureDiagnostics{Queue: 3 * time.Millisecond, Route: 7 * time.Millisecond, PreCallback: 11 * time.Millisecond}) {
+		if !present || secondTiming != (contract.SubmissionFailureDiagnostics{Queue: 3 * time.Millisecond, Ready: 3 * time.Millisecond, Route: 7 * time.Millisecond, PreCallback: 11 * time.Millisecond}) {
 			t.Fatalf("second job timings = %+v, present %v", secondTiming, present)
 		}
 		for i, result := range []SendBatchItemResult{first, second} {
@@ -129,4 +129,67 @@ func TestOrderedSubmitterDiagnosticsDoNotInventTimeouts(t *testing.T) {
 			})
 		})
 	}
+}
+
+// One admitted job can first wait for its Channel predecessor, then for a
+// worker. These intervals are observed through the original public completion.
+func TestOrderedSubmitterTimeoutSeparatesDependencyAndReadyWait(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		entered, release := make(chan struct{}), make(chan struct{})
+		callback, releaseCallback := make(chan struct{}), make(chan struct{})
+		owner, err := NewOrderedSubmitter(OrderedSubmitterOptions{Workers: 1, Capacity: 3, PayloadCapacity: 3}, orderedSenderFunc(func(items []SendBatchItem) []SendBatchItemResult {
+			switch items[0].Command.ClientMsgNo {
+			case "first":
+				close(entered)
+				<-release
+				return []SendBatchItemResult{{}}
+			case "independent":
+				time.Sleep(7 * time.Millisecond)
+			case "successor":
+				time.Sleep(11 * time.Millisecond)
+			default:
+				t.Error("unexpected original job")
+			}
+			return []SendBatchItemResult{{Err: context.DeadlineExceeded}}
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := owner.Submit([]SendBatchItem{orderedItem("a", "first")}, func([]SendBatchItemResult) { close(callback); <-releaseCallback }); err != nil {
+			t.Fatal(err)
+		}
+		<-entered
+		var successor, independent contract.SubmissionFailureDiagnostics
+		observe := func(dst *contract.SubmissionFailureDiagnostics) func([]SendBatchItemResult) {
+			return func(results []SendBatchItemResult) {
+				var present bool
+				*dst, present = contract.SubmissionFailureDiagnosticsFromError(results[0].Err)
+				if !present || !errors.Is(results[0].Err, context.DeadlineExceeded) {
+					t.Error("missing immutable timeout diagnostics")
+				}
+			}
+		}
+		if err := owner.Submit([]SendBatchItem{orderedItem("a", "successor")}, observe(&successor)); err != nil {
+			t.Fatal(err)
+		}
+		if err := owner.Submit([]SendBatchItem{orderedItem("b", "independent")}, observe(&independent)); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(3 * time.Millisecond)
+		close(release)
+		<-callback
+		time.Sleep(5 * time.Millisecond)
+		close(releaseCallback)
+		if err := owner.Close(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		wantIndependent := contract.SubmissionFailureDiagnostics{Queue: 8 * time.Millisecond, Ready: 8 * time.Millisecond, Route: 7 * time.Millisecond}
+		wantSuccessor := contract.SubmissionFailureDiagnostics{Queue: 15 * time.Millisecond, Dependency: 8 * time.Millisecond, Ready: 7 * time.Millisecond, Route: 11 * time.Millisecond}
+		if independent != wantIndependent {
+			t.Errorf("independent phases = %+v, want %+v", independent, wantIndependent)
+		}
+		if successor != wantSuccessor {
+			t.Errorf("successor phases = %+v, want %+v", successor, wantSuccessor)
+		}
+	})
 }

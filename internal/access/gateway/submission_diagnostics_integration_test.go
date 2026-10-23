@@ -95,6 +95,8 @@ func TestDeferredGatewayTimeoutReportsOriginalSubmissionPhases(t *testing.T) {
 		}
 		for key, want := range map[string]time.Duration{
 			"submissionQueueDuration":       3 * time.Millisecond,
+			"submissionDependencyDuration":  0,
+			"submissionReadyDuration":       3 * time.Millisecond,
 			"submissionRouteDuration":       5 * time.Millisecond,
 			"submissionPreCallbackDuration": 0,
 			"submitterDuration":             8 * time.Millisecond,
@@ -135,7 +137,7 @@ func TestDeferredGatewayTimeoutWithoutSubmissionOwnerDoesNotReportZeroPhases(t *
 	entryLog := requireLogEntry(t, logger, "WARN", "internal.access.gateway.frame", "internal.access.gateway.send_failed")
 	for _, field := range entryLog.fields {
 		switch field.Key {
-		case "submissionTimingsPresent", "submissionQueueDuration", "submissionRouteDuration", "submissionPreCallbackDuration":
+		case "submissionTimingsPresent", "submissionQueueDuration", "submissionDependencyDuration", "submissionReadyDuration", "submissionRouteDuration", "submissionPreCallbackDuration":
 			t.Errorf("unobserved submission phase reported as a measurement: %s", field.Key)
 		}
 	}

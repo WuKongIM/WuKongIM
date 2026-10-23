@@ -36,10 +36,12 @@ move those entries into a version section named for that exact tag.
   SEND busy warnings, preserving their error causes and replies.
   / SEND 权限读取繁忙日志补充触发的配额及当时占用，保留原错误原因和响应。
 
-- Include original submission queue, routing and pre-callback durations in
-  existing gateway SEND timeout warnings when available, preserving timeout
-  and admission behavior. / 网关 SEND 超时日志补充原提交任务的排队、路由及回调前等待
-  耗时，便于定位等待来源，不改变超时或准入行为。
+- Include observed SEND timeout stages in existing gateway warnings: Channel
+  predecessor and ready-worker waits, routing, and pre-callback delay. Single-item
+  routes also distinguish authority resolution, admission, local completion,
+  remote forwarding and retry waits without changing deadlines or replies.
+  / 网关 SEND 超时日志区分同频道前序、就绪任务、路由及回调前等待；单条路由进一步
+  区分归属解析、准入、本地完成、远端转发和重试等待，保留原超时与响应。
 
 - Schedule presence recovery by prepaid decoded-result ownership while retaining
   each call's route limit, deadline and authority fences. / 在线路由恢复按结果实际占用的

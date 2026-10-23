@@ -47,6 +47,9 @@ It does not perform permission checks, durable append, routing, or delivery.
 - Optional submission failure diagnostics are copied immutable durations without
   identities. Extraction distinguishes missing observations from measured zero
   and preserves the wrapped error's classification and submission proof.
+  Original-job queue observations separate Channel dependency from ready-worker
+  wait. Single-item routing observations aggregate actual attempts across retry;
+  unobserved multi-item paths do not supply zero intervals.
 
 `ErrAppendNotSubmitted` proves this complete origin invocation dispatched no new original mutation. It grants no positive publication receipt and must be suppressed after any prior ambiguous submission; error text and deadlines cannot supply it.
 

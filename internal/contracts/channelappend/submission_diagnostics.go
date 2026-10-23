@@ -11,6 +11,12 @@ type SubmissionFailureDiagnostics struct {
 	// Queue covers accepted ownership until a worker selects the original job,
 	// including waits for overlapping Channel predecessors.
 	Queue time.Duration
+	// Dependency covers admission until the final overlapping Channel predecessor
+	// releases its callback ownership. It is zero for an immediately ready job.
+	Dependency time.Duration
+	// Ready covers dependency-ready enqueue until a worker selects this job.
+	// Dependency plus Ready equals Queue; neither includes admission or copying.
+	Ready time.Duration
 	// Route covers the joined sender call, including sibling work in its batch.
 	// It is not a measurement of RPC, storage or CPU time alone.
 	Route time.Duration

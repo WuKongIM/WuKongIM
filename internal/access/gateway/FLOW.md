@@ -64,7 +64,9 @@ It does not own reusable message, presence, delivery, or storage policy.
   gateway session before sealing.
 - Deadline failures may add bounded permission, pre-append, submitter, and
   pre-submit budget timings to the existing warning. Owned submissions also
-  include a presence flag and per-job queue, sender and pre-callback durations;
+  include a presence flag and per-job dependency/ready queue, sender and
+  pre-callback durations. Available single-item routing snapshots have a separate
+  presence flag, attempt counts and resolution/admission/local/remote/retry phases;
   missing observations are omitted rather than reported as zero. Planned shutdown fences
   suppress only identity-bearing cancellation warnings, not observations.
   Measured permission ingress rejections add a presence flag, reason bitmask,

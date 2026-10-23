@@ -87,7 +87,12 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   Its fixed workers use the existing Channel
   append pool identity with distinct busy-batch and queued-record observations.
   Timeout errors carry immutable per-original-job queue, joined sender and
-  pre-callback timings. Admission/copy work, selected-to-sender assembly and
+  pre-callback timings. Queue is split at the final canonical-Channel predecessor
+  release into dependency and ready-worker waits. Single-item Router timeout
+  snapshots accumulate authority resolution, admission, local submission/future,
+  forwarding and retry waits across actual attempts; multi-item paths remain
+  absent. Forwarding and future waits include downstream work, not pure network
+  or storage time. Admission/copy work, selected-to-sender assembly and
   attaching diagnostics after the snapshot are outside these intervals;
   they are not a complete division of caller elapsed time.
   Timestamp capture is bounded per job/batch; only timeout results allocate wrappers.

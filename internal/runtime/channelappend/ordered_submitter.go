@@ -81,6 +81,9 @@ type orderedSubmitJob struct {
 	payloadBytes int
 	// admittedAt starts this original job's queue interval after reservation.
 	admittedAt time.Time
+	// readyAt marks release of the final Channel predecessor; immediately ready
+	// jobs reuse admittedAt so dependency wait is exactly zero.
+	readyAt time.Time
 	// links contain one FIFO dependency per distinct canonical Channel in this batch.
 	links   []orderedSubmitLink
 	blocked int
@@ -176,6 +179,7 @@ func (s *OrderedSubmitter) Submit(items []SendBatchItem, complete func([]SendBat
 	s.payloadBytes += payloadBytes
 	job.admittedAt = time.Now()
 	if job.blocked == 0 {
+		job.readyAt = job.admittedAt
 		s.enqueueReady(job)
 	}
 	return nil
@@ -273,6 +277,7 @@ func (s *OrderedSubmitter) run() {
 			// callbacks cannot mutate previously published timing or release ownership.
 			diagnostics := contract.SubmissionFailureDiagnostics{
 				Queue: selectedAt.Sub(job.admittedAt), Route: routeReturnedAt.Sub(routeStartedAt),
+				Dependency: job.readyAt.Sub(job.admittedAt), Ready: selectedAt.Sub(job.readyAt),
 				PreCallback: time.Since(routeReturnedAt),
 			}
 			for i := offset; i < offset+count; i++ {
@@ -323,6 +328,7 @@ func (s *OrderedSubmitter) finish(job *orderedSubmitJob, batchDone bool) {
 			next := lane.head.job
 			next.blocked--
 			if next.blocked == 0 {
+				next.readyAt = time.Now()
 				s.enqueueReady(next)
 			}
 		}

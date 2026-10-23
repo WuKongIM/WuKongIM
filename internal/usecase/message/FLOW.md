@@ -78,8 +78,10 @@ SEND hooks, directory writes or append; delayed publications must authorize agai
   Submitter deadline errors preserve the original cause while attaching only
   permission, pre-append, submitter, and pre-submit-budget timings for the
   entry adapter's single existing diagnostic record. When supplied by the
-  admission owner, copied per-job queue, sender and pre-callback durations
-  accompany that record; absent owner observations remain explicitly unavailable.
+  admission owner, copied per-job queue (Channel dependency and ready-worker),
+  sender and pre-callback durations accompany that record. Single-item Router
+  phases may separately describe resolution, admission and local/remote
+  completion across retries; absent observations remain explicitly unavailable.
   Permission admission errors may also carry an identity-free value snapshot
   of rejected reservation reasons and occupancy; wrappers preserve original
   error text and identities, and missing observations remain absent.

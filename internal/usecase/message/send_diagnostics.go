@@ -27,6 +27,11 @@ type SendBatchFailureDiagnostics struct {
 	Submission channelappend.SubmissionFailureDiagnostics
 	// HasSubmission distinguishes unavailable observations from measured zero.
 	HasSubmission bool
+	// Routing copies the optional single-item Router observation before the
+	// lower result is handed to the entry adapter.
+	Routing channelappend.RoutingFailureDiagnostics
+	// HasRouting distinguishes unobserved routing from a measured zero interval.
+	HasRouting bool
 }
 
 type sendBatchFailureError struct {
@@ -63,5 +68,6 @@ func annotateSendBatchTimeout(err error, diagnostics SendBatchFailureDiagnostics
 		return err
 	}
 	diagnostics.Submission, diagnostics.HasSubmission = channelappend.SubmissionFailureDiagnosticsFromError(err)
+	diagnostics.Routing, diagnostics.HasRouting = channelappend.RoutingFailureDiagnosticsFromError(err)
 	return &sendBatchFailureError{cause: err, diagnostics: diagnostics}
 }
