@@ -26,6 +26,12 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Retry a complete acceptance snapshot inventory when a published or reclaimed
+  snapshot disappears during measurement, within the original collection budget.
+  Missing or invalid evidence still fails validation.
+  / 验收采集遇到快照发布或回收导致文件消失时，在原时间预算内重新完整扫描；
+  缺失或无效证据仍拒绝通过。
+
 - Batch already-queued durable sends to the same Channel within bounded execution
   cohorts, preserving original callback order, caller deadlines and retry order.
   / 同频道已排队的持久化消息按有界执行批次合并，保留原回调顺序、独立超时和重试顺序。

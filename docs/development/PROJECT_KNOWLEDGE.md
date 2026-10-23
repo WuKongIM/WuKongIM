@@ -2172,3 +2172,10 @@ completion, installation and provider-reference release.
   committed results, replay only an earlier safe prefix, and retain the typed
   retry reason for unresolved later misses. An unknown prior proposal never
   acquires non-submission proof merely because a later lookup or retry failed.
+
+- Acceptance snapshot inventories race with normal external Raft snapshot
+  publication and GC. A successful file enumeration followed by native stat's
+  confirmed ENOENT may restart the entire inventory under the original absolute
+  scan deadline and observed-at cut. Discard partial inventories; never skip
+  vanished paths, reset the budget, or promote incomplete evidence. Find errors,
+  other stat failures, invalid types/sizes and sustained churn still fail closed.
