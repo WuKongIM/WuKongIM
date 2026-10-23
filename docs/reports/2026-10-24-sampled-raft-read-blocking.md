@@ -125,6 +125,49 @@ new protocol, overlapping Save time can represent useful parallel progress;
 coverage alone must no longer be interpreted as owner blocking. Runtime
 regressions and the unchanged workload must establish the resulting behavior.
 
+## Async candidate read-admission regression
+
+Candidate `411272ab` passes the controlled storage and restart correctness
+checks but fails its first Linux mixed-send prewarm (22 NodeNotMatch SENDACKs)
+and lifecycle script (325 first-attempt failures out of 3,000 messages).
+Its unchanged local 2,000-primary-SEND/s run, R17b, also fails the original
+first-attempt gate. The first saved active cut at 5.039 seconds already has
+128 first-attempt failures out of 10,012 messages; there is no earlier healthy
+cut. Final draining totals are 355 failures out of 22,001, all eventually
+acknowledged, with zero terminal/loss/duplicate/corruption/sequence counters.
+Eventual acknowledgment does not satisfy the first-attempt gate.
+
+The sole diagnostic scrape starts after that first saved failing cut. It
+contains 56 Slot read-busy results and 56 permission-barrier unavailable
+results across the three nodes, with approximately 0.236 seconds cumulative
+duration for each. These cumulative aggregates include setup and do not bind
+all failed messages to a specific request or establish pre-failure timing.
+
+A public Runtime regression separately reproduces a concrete compatibility
+defect: in three voters, two remote durable acknowledgments can advance quorum
+commit while the leader's next local Save remains held. An established durable
+current-term committed prefix still exists, but asking durable memory for the
+latest quorum commit's term returns unavailable and incorrectly rejects a fresh
+read as Slot busy. One withheld remote acknowledgment prevents that advancement,
+providing a control for the same test.
+
+Admission now proves the term at the lesser of actual quorum commit and local
+durable last index. The subsequent ReadIndex remains fresh and its returned
+index is never lowered to that older admission witness: the read and proposal
+remain incomplete until the newer entry is durably applied. Current-term,
+leadership, cancellation and pending-count fences remain unchanged. This fixes
+the reproduced admission defect; unchanged full-workload and Linux gates must
+still determine its contribution to the observed failures and any remaining
+performance limits.
+
+R17b's independently verified cleanup receipt is
+`4198c14a3c8630d8f2db813d0b157a442effc3ad539549f68b7a04b19f4f7aaf`;
+its first-failure timeline is
+`3828c5e16aa3509e3e37b8a126979c3b9572acf95fddd7fa5553ad0fe3ae4a1b`.
+The first Linux CI audit for `411272ab` is
+`3821721299d894504a1009aa5f671d07aec3d41c1744842ba25988756c9e5bf5`.
+Those failures remain retained independently of subsequent validation.
+
 ## Retained evidence
 
 Private local receipts retain raw samples without committing identities or

@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Avoid transient Slot read-busy errors when a majority has committed newer logs
+  while local asynchronous storage catches up; fresh reads still wait for durable
+  application of their required index. / 多数副本已提交新日志而本节点异步写盘尚未完成时，
+  避免错误拒绝 Slot 读取；读取仍等待所需位置持久应用。
+
 - Process Slot Raft storage through bounded asynchronous lanes to allow safe
   heartbeat and fresh-read progress during asynchronous writes, while retaining
   durable acknowledgments, application ordering and shutdown/recovery fences.

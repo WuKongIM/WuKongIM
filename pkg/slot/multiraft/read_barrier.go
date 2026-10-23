@@ -196,8 +196,12 @@ func (g *slot) admitReadBarrier(request *readBarrierRequest) string {
 	// etcd queues pre-current-term reads separately and does not clear that
 	// queue on every term reset. Admit only after a durable current-term commit,
 	// so the bounded requests live exclusively in Raft's resettable readOnly queue.
-	committedTerm, termErr := g.storageView.memory.Term(st.Commit)
-	if termErr != nil || committedTerm != st.Term {
+	// A remote majority can advance Commit beyond the local append in flight.
+	// Its earlier durable committed prefix proves eligibility; ReadIndex still
+	// selects the fresh index whose durable application gates completion.
+	durableLast, lastErr := g.storageView.memory.LastIndex()
+	committedTerm, termErr := g.storageView.memory.Term(min(st.Commit, durableLast))
+	if lastErr != nil || termErr != nil || committedTerm != st.Term {
 		request.finish(ErrSlotBusy)
 		return ""
 	}

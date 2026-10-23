@@ -1876,6 +1876,10 @@ specification, runbook, report, or module documentation; link to them when neede
   later arrivals or an intervening control require another proof. Each caller
   retains its own cancellation, 256-per-Slot pending position, term fence and
   durable-apply wait, including canceled requests not yet quorum-confirmed.
+  Admission proves a durable committed current-term prefix at the lesser of
+  RawNode commit and the local durable last index. A remote majority may commit
+  newer entries before local Save completes; that gap does not invalidate the
+  prefix or permit returning before the fresh read index is durable-applied.
 
 - Runtime Channel metadata creation collects for at most 20 ms, with the same
   32-item early dispatch, 64-item batch, 256-identity per-Slot queue and two
