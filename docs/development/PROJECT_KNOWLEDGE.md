@@ -20,6 +20,10 @@ must still give queued proposal/read controls a turn before requeueing; waiting
 for replication to become idle can delay controls through an entire Ready chain.
 This does not relax persistence, snapshot/configuration or fresh-read apply fences.
 
+Concurrent SEND permission callers collect for at most 5 ms before sealing a
+fresh read. Idle one/two-fact calls remain immediate; 64 cohorts, 1024 owned calls
+and 16 MiB credits remain independent limits, with no reuse of completed facts.
+
 
 Keep only stable, cross-module facts that prevent incorrect designs or unsafe
 operations. Repository rules belong in [AGENTS.md](../../AGENTS.md), domain terms
