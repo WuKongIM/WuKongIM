@@ -450,7 +450,7 @@ func (r *AuthorityRecovery) kickLocked() {
 		return
 	}
 	r.dispatchPending = true
-	goroutine.Default().Go(goroutine.TaskPresenceRecoveryScheduler, func() {
+	goroutine.SafeGo(nil, goroutine.TaskPresenceRecoveryScheduler, func() {
 		r.mu.Lock()
 		r.dispatchPending = false
 		r.dispatchLocked()
@@ -501,7 +501,7 @@ func (r *AuthorityRecovery) dispatchLocked() {
 		}
 		r.active[e] = struct{}{}
 		r.resultCalls += len(works)
-		goroutine.Default().Go(goroutine.TaskPresenceRecoveryScheduler, func() { r.execute(e) })
+		goroutine.SafeGo(nil, goroutine.TaskPresenceRecoveryScheduler, func() { r.execute(e) })
 	}
 }
 
