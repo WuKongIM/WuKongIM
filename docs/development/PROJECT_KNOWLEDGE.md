@@ -1970,6 +1970,13 @@ specification, runbook, report, or module documentation; link to them when neede
   retaining the three source causes privately, so child context/product errors
   cannot change the existing classification. Address fallback success clears
   prior failure kinds; HTTP/parser limits, joining and settle policy are unchanged.
+  Parser guards retain their original fixed error text in private typed causes;
+  diagnostics use `errors.As` to project only one of 20 fixed parser reasons.
+  Optional `parse_reasons` contains exactly three positions, only at parse kinds;
+  older reports keep it absent. Wrong-type, oversized or malformed optional
+  vectors are dropped without changing mask/kinds, while invalid JSON and old
+  field errors remain rejected. No metric lines, labels or arbitrary errors are
+  retained, and parser guards and report validity remain unchanged.
 
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
