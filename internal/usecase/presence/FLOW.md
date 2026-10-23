@@ -31,7 +31,7 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 3. Authority recovery packs up to 512 UIDs across 256 targets per owner page.
    Bounded flights coalesce the same UID and distributed authority identity;
    newly owned proofs install and release before joining older flights.
-   Four leader cohorts retain at most 2,048 keys and 128 MiB of owned UID bytes,
+   Sixteen leader cohorts retain at most 8,192 keys and 128 MiB of owned UID bytes,
    with 32 MiB per new subset. Proven lookups bypass admission; quota waits
    reserve no partial keys and recheck proofs after waking. Complete results
    retain exact fences and failed groups preserve successful siblings.

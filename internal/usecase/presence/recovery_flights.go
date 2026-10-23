@@ -9,14 +9,15 @@ import (
 )
 
 const (
-	// Four leaders match the production node-wide owner-read admission. Keys and
-	// bytes bound only registry-owned UID clones, not caller/Directory/RPC heap.
-	recoveryMaxCohorts = 4
+	// Sixteen leaders match the production node-wide owner-read admission. Keys
+	// and bytes bound only registry-owned UID clones, not caller/Directory/RPC heap.
+	recoveryMaxCohorts = 16
 	recoveryMaxKeys    = recoveryMaxCohorts * authority.RecoveryBatchSize
 	// A full page of 512 maximum-length stored UIDs (65535 bytes each) fits.
 	// This is a new internal admission budget, not an RPC string-size contract.
 	recoveryPageUIDBytes = 32 << 20
-	recoveryMaxUIDBytes  = recoveryMaxCohorts * recoveryPageUIDBytes
+	// The byte budget is independent of cohort width.
+	recoveryMaxUIDBytes = 128 << 20
 )
 
 // recoveryUIDKey uses the distributed authority identity. Local routing revision

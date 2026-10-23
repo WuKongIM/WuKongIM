@@ -309,8 +309,11 @@ func TestAuthorityRecoveryUIDFlightOwnsUIDBacking(t *testing.T) {
 
 func TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKeys(t *testing.T) {
 	d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
-	entered := make(chan int, 8)
-	releases := []chan struct{}{make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})}
+	entered := make(chan int, 32)
+	releases := make([]chan struct{}, 16)
+	for i := range releases {
+		releases[i] = make(chan struct{})
+	}
 	var active, peak, reads atomic.Int32
 	r := presence.NewAuthorityRecovery(d, flightOwnersFunc(func(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
 		n := active.Add(1)
@@ -320,7 +323,7 @@ func TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKey
 		}
 		i := int(groups[0].Target.HashSlot)
 		entered <- i
-		if i < 4 {
+		if i < 16 {
 			select {
 			case <-releases[i]:
 			case <-ctx.Done():
@@ -329,8 +332,8 @@ func TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKey
 		}
 		return completeFlightRoutes(groups)
 	}))
-	as := make([]*flightCall, 4)
-	for i := 0; i < 5; i++ {
+	as := make([]*flightCall, 16)
+	for i := 0; i < 17; i++ {
 		d.BecomeAuthority(flightTarget(uint16(i)))
 	}
 	for i := range as {
@@ -353,31 +356,31 @@ func TestAuthorityRecoveryUIDFlightQuotaRechecksProofAndDoesNotReservePartialKey
 			}
 		}
 	})
-	canceled := startFlightCall(t, r, flightGroups(flightTarget(4), "canceled-1", "canceled-2"))
+	canceled := startFlightCall(t, r, flightGroups(flightTarget(16), "canceled-1", "canceled-2"))
 	awaitFlightGate(t, canceled.waiting)
 	canceled.cancel()
 	requireFlightError(t, canceled.await(t), context.Canceled)
-	b := startFlightCall(t, r, flightGroups(flightTarget(4), "new-1", "new-2"))
+	b := startFlightCall(t, r, flightGroups(flightTarget(16), "new-1", "new-2"))
 	awaitFlightGate(t, b.waiting)
-	if peak.Load() != 4 {
-		t.Fatalf("leader cohort exceeded four: peak=%d", peak.Load())
+	if peak.Load() != 16 {
+		t.Fatalf("leader cohort exceeded sixteen: peak=%d", peak.Load())
 	}
 	follower := startFlightCall(t, r, flightGroups(flightTarget(0), "0"))
 	awaitFlightGate(t, follower.waiting)
 	follower.cancel()
 	requireFlightError(t, follower.await(t), context.Canceled)
-	if err := d.InstallRecoveredRoutes(flightTarget(4), []string{"new-1", "new-2"}, completeFlightRoutes(flightGroups(flightTarget(4), "new-1", "new-2"))[0].Routes); err != nil {
+	if err := d.InstallRecoveredRoutes(flightTarget(16), []string{"new-1", "new-2"}, completeFlightRoutes(flightGroups(flightTarget(16), "new-1", "new-2"))[0].Routes); err != nil {
 		t.Fatal(err)
 	}
 	close(releases[0])
-	requireColdRoutes(t, b.await(t), flightGroups(flightTarget(4), "new-1", "new-2"))
-	for i := 1; i < 4; i++ {
+	requireColdRoutes(t, b.await(t), flightGroups(flightTarget(16), "new-1", "new-2"))
+	for i := 1; i < 16; i++ {
 		close(releases[i])
 	}
 	for i, a := range as {
 		requireColdRoutes(t, a.await(t), flightGroups(flightTarget(uint16(i)), fmt.Sprint(i)))
 	}
-	if reads.Load() != 4 {
+	if reads.Load() != 16 {
 		t.Fatalf("quota wake requeried installed proof: reads=%d", reads.Load())
 	}
 }
