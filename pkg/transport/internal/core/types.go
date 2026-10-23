@@ -221,7 +221,8 @@ type ServiceOptions struct {
 	// It borrows payload read-only and must not retain it. True follows the original
 	// request context; false (including unknown payloads) preserves independent work.
 	// Nil preserves CancelRunning. Both policies must not be configured together.
-	CancelRunningFor func([]byte) bool
+	// The executable policy is excluded from diagnostic configuration encoding.
+	CancelRunningFor func([]byte) bool `json:"-"`
 	// MaxPayload bounds accepted payload bytes for this service; zero means use the transport frame limit.
 	MaxPayload int
 }
