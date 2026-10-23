@@ -7,6 +7,14 @@ blocking unrelated person channels in that batch. Keep completion results aligne
 with each task's distinct participant range; retained pending tasks recover through
 the existing projector after an upgrade.
 
+Person-directory UID projection and source completion both use at most ten
+supervised proposals per call. Independent physical Slots overlap; each call
+joins all submitted proposal calls and preserves aligned per-task failures.
+Success requires durable completion; cancellation retains the existing possibly
+unknown durable outcome and must not be described as rollback or a durable join.
+The projector's 512-task pressure gauge includes queued and executing tasks;
+it is not the complete durable backlog or the number of executing workers.
+
 
 Keep only stable, cross-module facts that prevent incorrect designs or unsafe
 operations. Repository rules belong in [AGENTS.md](../../AGENTS.md), domain terms

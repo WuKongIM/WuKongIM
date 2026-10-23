@@ -226,22 +226,31 @@ func (n *Node) CompletePersonDirectoryTasks(ctx context.Context, tasks []metadb.
 		slotIDs = append(slotIDs, slotID)
 	}
 	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	proposals := make([]personDirectoryProposal, 0, len(slotIDs))
 	for _, slotID := range slotIDs {
 		group := groups[slotID]
 		items := make([]metafsm.PersonDirectoryCompletionBatchItem, len(group))
+		indices := make([]int, len(group))
 		for i := range group {
 			items[i] = group[i].item
+			indices[i] = group[i].index
 		}
 		command, err := metafsm.EncodeCompletePersonDirectoryTaskBatchCommandChecked(items)
-		if err == nil {
-			err = n.Propose(ctx, ProposeRequest{Command: command, Target: ProposeTarget{
-				HashSlot: items[0].HashSlot, HasHashSlot: true, SlotID: slotID, HasSlotID: true,
-			}})
+		if err != nil {
+			for _, index := range indices {
+				results[index] = err
+			}
+			continue
 		}
-		for _, grouped := range group {
-			results[grouped.index] = err
-		}
+		proposals = append(proposals, personDirectoryProposal{
+			slotID: slotID, hashSlot: items[0].HashSlot, command: command, indices: indices,
+		})
 	}
+	// Source Slots are independent. Reuse the membership wave's bounded owners
+	// and joined proposal calls so one slow completion cannot serialize the page.
+	n.submitPersonDirectoryProposalWaves(ctx, proposals, func(index int, err error) {
+		results[index] = err
+	})
 	return results
 }
 

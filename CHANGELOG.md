@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Complete independent person-directory source Slots concurrently within the
+  existing ten-proposal bound, so a slow Slot does not serialize a projection page.
+  / 私聊目录的独立源 Slot 在现有十路提案上限内并行完成，避免慢 Slot 串行阻塞整页投影。
+
 - Allow up to 16 independent cold presence recovery rounds while retaining the
   128 MiB owned UID byte budget and existing owner-read deadlines.
   / 在线路由冷恢复允许最多 16 个独立恢复组并行，保持 128 MiB 自有 UID 字节预算及原有 owner 读取时限。
