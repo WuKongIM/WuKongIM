@@ -63,7 +63,9 @@ It does not own reusable message, presence, delivery, or storage policy.
   exposed or logged. The usecase session identity must equal the authenticated
   gateway session before sealing.
 - Deadline failures may add bounded permission, pre-append, submitter, and
-  pre-submit budget timings to the existing warning. Planned shutdown fences
+  pre-submit budget timings to the existing warning. Owned submissions also
+  include a presence flag and per-job queue, sender and pre-callback durations;
+  missing observations are omitted rather than reported as zero. Planned shutdown fences
   suppress only identity-bearing cancellation warnings, not observations.
 
 - Authenticated connections opt into body-free edit hints with `message_updates.enable` EVENT and receive `message_updates.ready`. Capability is connection-scoped; CONNECT and CMD meanings remain unchanged.

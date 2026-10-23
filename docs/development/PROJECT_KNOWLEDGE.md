@@ -1,5 +1,16 @@
 # Project Knowledge
 
+Ordered submission timeout warnings may expose `submissionTimingsPresent` and
+queue, route and pre-callback durations for the same original job. Queue starts
+after reservation; route covers the joined sender call, and pre-callback includes
+earlier callbacks in that execution batch. Admission/copy work before reservation,
+selected-to-sender assembly, diagnostic attachment after the pre-callback snapshot
+and the callback itself remain outside these phases;
+their sum is not the entire submitter duration or a CPU/storage measurement.
+Absent observations are not zero. Timestamp capture adds bounded per-job work,
+while only timeout results allocate error wrappers; original errors and ownership
+through callback return remain authoritative.
+
 Local storage-overlap capture emits fixed scan-failure reasons to stderr.
 Missing inventories still invalidate qualification even when metrics are valid;
 scan limits, original exit outcomes and missing-evidence decisions remain authoritative.

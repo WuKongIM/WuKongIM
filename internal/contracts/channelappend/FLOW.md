@@ -44,6 +44,9 @@ It does not perform permission checks, durable append, routing, or delivery.
   Nonzero routes require complete epochs and quorum commit; adapters cannot rewrite intent.
 - Server-allocated message-ID proof applies to every item and skips only
   existing-ID reads; sender/client idempotency remains mandatory.
+- Optional submission failure diagnostics are copied immutable durations without
+  identities. Extraction distinguishes missing observations from measured zero
+  and preserves the wrapped error's classification and submission proof.
 
 `ErrAppendNotSubmitted` proves this complete origin invocation dispatched no new original mutation. It grants no positive publication receipt and must be suppressed after any prior ambiguous submission; error text and deadlines cannot supply it.
 

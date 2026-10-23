@@ -5,7 +5,9 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	contract "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
@@ -77,6 +79,8 @@ type orderedSubmitJob struct {
 	items        []SendBatchItem
 	complete     func([]SendBatchItemResult)
 	payloadBytes int
+	// admittedAt starts this original job's queue interval after reservation.
+	admittedAt time.Time
 	// links contain one FIFO dependency per distinct canonical Channel in this batch.
 	links   []orderedSubmitLink
 	blocked int
@@ -170,6 +174,7 @@ func (s *OrderedSubmitter) Submit(items []SendBatchItem, complete func([]SendBat
 	s.records += len(items)
 	s.queuedRecords += len(items)
 	s.payloadBytes += payloadBytes
+	job.admittedAt = time.Now()
 	if job.blocked == 0 {
 		s.enqueueReady(job)
 	}
@@ -246,6 +251,7 @@ func (s *OrderedSubmitter) run() {
 		}
 		s.queuedRecords -= records
 		s.busyTasks++
+		selectedAt := time.Now()
 		s.mu.Unlock()
 		items := first.items
 		if first != last {
@@ -256,10 +262,24 @@ func (s *OrderedSubmitter) run() {
 		}
 		// Preserve the registry's critical Router panic policy. Never invent successful
 		// results or a completed drain after a routing or publication panic.
-		results := normalizeRouterGroupResults(records, s.sender.SendBatch(items))
+		routeStartedAt := time.Now()
+		routed := s.sender.SendBatch(items)
+		routeReturnedAt := time.Now()
+		results := normalizeRouterGroupResults(records, routed)
 		offset := 0
 		for job := first; job != nil; {
 			next, count := job.next, len(job.items)
+			// Freeze one value per original job before its callback. Later sibling
+			// callbacks cannot mutate previously published timing or release ownership.
+			diagnostics := contract.SubmissionFailureDiagnostics{
+				Queue: selectedAt.Sub(job.admittedAt), Route: routeReturnedAt.Sub(routeStartedAt),
+				PreCallback: time.Since(routeReturnedAt),
+			}
+			for i := offset; i < offset+count; i++ {
+				if errors.Is(results[i].Err, context.DeadlineExceeded) {
+					results[i].Err = &orderedSubmissionFailureError{cause: results[i].Err, diagnostics: diagnostics}
+				}
+			}
 			job.complete(results[offset : offset+count : offset+count])
 			// Release borrowed payload references before returning this job's budget,
 			// even if a later callback in the merged execution blocks.
@@ -270,6 +290,19 @@ func (s *OrderedSubmitter) run() {
 			job = next
 		}
 	}
+}
+
+// orderedSubmissionFailureError adds bounded facts without changing the cause,
+// text or submission-proof classification of a terminal timeout.
+type orderedSubmissionFailureError struct {
+	cause       error
+	diagnostics contract.SubmissionFailureDiagnostics
+}
+
+func (e *orderedSubmissionFailureError) Error() string { return e.cause.Error() }
+func (e *orderedSubmissionFailureError) Unwrap() error { return e.cause }
+func (e *orderedSubmissionFailureError) SubmissionFailureDiagnostics() contract.SubmissionFailureDiagnostics {
+	return e.diagnostics
 }
 
 // finish releases exactly this job's ownership and wakes each newly ready successor.

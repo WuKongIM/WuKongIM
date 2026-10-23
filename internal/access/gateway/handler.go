@@ -560,6 +560,14 @@ func (h *Handler) logSendFailure(cmd message.SendCommand, source, class string, 
 			wklog.Duration("submitterDuration", diagnostics.Submitter),
 			wklog.Duration("deadlineBudgetBeforeSubmit", diagnostics.DeadlineBudgetBeforeSubmit),
 		)
+		if diagnostics.HasSubmission {
+			fields = append(fields,
+				wklog.Bool("submissionTimingsPresent", true),
+				wklog.Duration("submissionQueueDuration", diagnostics.Submission.Queue),
+				wklog.Duration("submissionRouteDuration", diagnostics.Submission.Route),
+				wklog.Duration("submissionPreCallbackDuration", diagnostics.Submission.PreCallback),
+			)
+		}
 	}
 	h.frameLogger().Warn("gateway send failed", fields...)
 }

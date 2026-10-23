@@ -77,7 +77,9 @@ SEND hooks, directory writes or append; delayed publications must authorize agai
   enrichment, and observer data are bounded. No identity enters metric labels.
   Submitter deadline errors preserve the original cause while attaching only
   permission, pre-append, submitter, and pre-submit-budget timings for the
-  entry adapter's single existing diagnostic record.
+  entry adapter's single existing diagnostic record. When supplied by the
+  admission owner, copied per-job queue, sender and pre-callback durations
+  accompany that record; absent owner observations remain explicitly unavailable.
 - Terminal source-Channel checks are authoritative and bypass stale permission
   cache state.
 - Page preparation never rewrites a caller start sequence to enforce visibility;

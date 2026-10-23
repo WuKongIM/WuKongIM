@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Include original submission queue, routing and pre-callback durations in
+  existing gateway SEND timeout warnings when available, preserving timeout
+  and admission behavior. / 网关 SEND 超时日志补充原提交任务的排队、路由及回调前等待
+  耗时，便于定位等待来源，不改变超时或准入行为。
+
 - Schedule presence recovery by prepaid decoded-result ownership while retaining
   each call's route limit, deadline and authority fences. / 在线路由恢复按结果实际占用的
   资源调度批次，保留原路由条数、超时和一致性校验，避免少量结果耗尽调用额度。

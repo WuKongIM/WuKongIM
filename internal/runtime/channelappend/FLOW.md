@@ -86,6 +86,11 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   completed payload references are cleared before returning that budget.
   Its fixed workers use the existing Channel
   append pool identity with distinct busy-batch and queued-record observations.
+  Timeout errors carry immutable per-original-job queue, joined sender and
+  pre-callback timings. Admission/copy work, selected-to-sender assembly and
+  attaching diagnostics after the snapshot are outside these intervals;
+  they are not a complete division of caller elapsed time.
+  Timestamp capture is bounded per job/batch; only timeout results allocate wrappers.
 - Idempotency recovery observes only batch counts for recovered, unresolved,
   and lookup-error items. Recovered items are not errors; every fresh item that
   fails its bounded retry remains unresolved with its original aligned result.
