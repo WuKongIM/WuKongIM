@@ -33,7 +33,7 @@ func TestReadBarrierBatchSharesOnlyFreshQuorumConfirmation(t *testing.T) {
 	if len(heartbeats) != 2 {
 		t.Fatalf("%d queued readers emitted %d quorum heartbeats, want one round to two peers", readers, len(heartbeats))
 	}
-	g.rawNode.Advance(ready)
+	finishReadBarrierFixtureReady(t, g.rawNode, g.storageView.memory.MemoryStorage, ready)
 	// A later batch must issue its own proof even while the earlier one waits.
 	later := &readBarrierRequest{ctx: context.Background(), resp: make(chan error, 1)}
 	g.enqueueControl(controlAction{kind: controlReadBarrier, readBarrier: later})
@@ -48,7 +48,7 @@ func TestReadBarrierBatchSharesOnlyFreshQuorumConfirmation(t *testing.T) {
 	if len(laterKey) == 0 || string(laterKey) == string(heartbeats[0].Context) {
 		t.Fatal("later batch reused an earlier quorum proof")
 	}
-	g.rawNode.Advance(laterReady)
+	finishReadBarrierFixtureReady(t, g.rawNode, g.storageView.memory.MemoryStorage, laterReady)
 	if err := g.rawNode.Step(raftpb.Message{Type: raftpb.MsgHeartbeatResp, From: 2, To: 1, Term: g.status.Term, Context: heartbeats[0].Context}); err != nil {
 		t.Fatal(err)
 	}
@@ -144,20 +144,14 @@ func newReadBarrierBatchLeader(t *testing.T) *slot {
 		t.Fatal(err)
 	}
 	memory.SetHardState(raftpb.HardState{Term: 1, Commit: 1})
-	raw, err := raft.NewRawNode(&raft.Config{ID: 1, ElectionTick: 10, HeartbeatTick: 1, Storage: memory, Applied: 1, MaxInflightMsgs: 256, ReadOnlyOption: raft.ReadOnlySafe})
+	raw, err := raft.NewRawNode(&raft.Config{ID: 1, ElectionTick: 10, HeartbeatTick: 1, Storage: memory, Applied: 1, MaxSizePerMsg: ^uint64(0), MaxInflightMsgs: 256, ReadOnlyOption: raft.ReadOnlySafe, AsyncStorageWrites: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	persist := func() {
 		t.Helper()
 		ready := raw.Ready()
-		if err := memory.Append(ready.Entries); err != nil {
-			t.Fatal(err)
-		}
-		if !raft.IsEmptyHardState(ready.HardState) {
-			memory.SetHardState(ready.HardState)
-		}
-		raw.Advance(ready)
+		finishReadBarrierFixtureReady(t, raw, memory, ready)
 	}
 	if err := raw.Campaign(); err != nil {
 		t.Fatal(err)
@@ -176,4 +170,45 @@ func newReadBarrierBatchLeader(t *testing.T) *slot {
 		t.Fatal("fixture has no current-term commit")
 	}
 	return &slot{rawNode: raw, storageView: &storageAdapter{memory: &loadedMemoryStorage{MemoryStorage: memory}}, status: Status{Role: RoleLeader, Term: term}, durableAppliedIndex: 2}
+}
+
+// finishReadBarrierFixtureReady uses the same local storage message protocol as
+// production. The fixture has no application commands or mutable configuration;
+// it durably installs each append before delivering any dependent self-response.
+func finishReadBarrierFixtureReady(t *testing.T, raw *raft.RawNode, memory *raft.MemoryStorage, ready raft.Ready) {
+	t.Helper()
+	for _, message := range ready.Messages {
+		switch message.Type {
+		case raftpb.MsgStorageAppend:
+			if message.Snapshot != nil {
+				if err := memory.ApplySnapshot(*message.Snapshot); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := memory.Append(message.Entries); err != nil {
+				t.Fatal(err)
+			}
+			state := raftpb.HardState{Term: message.Term, Vote: message.Vote, Commit: message.Commit}
+			if !raft.IsEmptyHardState(state) {
+				if err := memory.SetHardState(state); err != nil {
+					t.Fatal(err)
+				}
+			}
+		case raftpb.MsgStorageApply:
+			for _, entry := range message.Entries {
+				if entry.Type != raftpb.EntryNormal || len(entry.Data) != 0 {
+					t.Fatal("read-only RawNode fixture unexpectedly applied a business/configuration command")
+				}
+			}
+		default:
+			continue
+		}
+		for _, response := range message.Responses {
+			if response.To == raw.BasicStatus().ID {
+				if err := raw.Step(response); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
 }

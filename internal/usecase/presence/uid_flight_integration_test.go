@@ -191,11 +191,13 @@ func TestAuthorityRecoveryUIDFlightPartialOverlapPublishesBeforeJoin(t *testing.
 	}
 }
 
-func TestAuthorityRecoveryUIDFlightLeaderCancellationKeepsFollowerRetryable(t *testing.T) {
+func TestAuthorityRecoveryUIDFlightLeaderCancellationKeepsFollowerOwned(t *testing.T) {
 	d := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
 	target := flightTarget(0)
 	d.BecomeAuthority(target)
 	entered := make(chan struct{})
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
 	var once sync.Once
 	var reads atomic.Int32
 	r := presence.NewAuthorityRecovery(d, flightOwnersFunc(func(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
@@ -203,8 +205,12 @@ func TestAuthorityRecoveryUIDFlightLeaderCancellationKeepsFollowerRetryable(t *t
 			return completeFlightRoutes(groups)
 		}
 		once.Do(func() { close(entered) })
-		<-ctx.Done()
-		return flightError(groups, ctx.Err())
+		select {
+		case <-release:
+			return completeFlightRoutes(groups)
+		case <-ctx.Done():
+			return flightError(groups, ctx.Err())
+		}
 	}))
 	a := startFlightCall(t, r, flightGroups(target, "same"))
 	awaitFlightGate(t, entered)
@@ -212,12 +218,20 @@ func TestAuthorityRecoveryUIDFlightLeaderCancellationKeepsFollowerRetryable(t *t
 	awaitFlightGate(t, b.waiting)
 	a.cancel()
 	requireFlightError(t, a.await(t), context.Canceled)
-	requireFlightError(t, b.await(t), authority.ErrRouteNotReady)
+	select {
+	case <-b.done:
+		t.Fatal("creator cancellation canceled a live follower's owned work")
+	default:
+	}
+	release <- struct{}{}
+	if result := b.await(t); len(result) != 1 || result[0].Err != nil || len(result[0].Routes) != 1 {
+		t.Fatal("live follower did not reread successful owned completion")
+	}
 	if reads.Load() != 1 {
 		t.Fatalf("follower retried owner: reads=%d", reads.Load())
 	}
-	if _, err := d.EndpointsByUIDs(target, []string{"same"}); !errors.Is(err, authority.ErrRouteNotReady) {
-		t.Fatalf("canceled work installed proof: %v", err)
+	if _, err := d.EndpointsByUIDs(target, []string{"same"}); err != nil {
+		t.Fatalf("live follower's complete work did not install proof: %v", err)
 	}
 }
 

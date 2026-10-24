@@ -24,6 +24,8 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   forwarding attempts have an independent deadline. Ambiguous timeouts refresh
   the exact failed route and retry only persistent sends with an unchanged
   idempotency key; caller cancellation remains terminal.
+  A shared canonical-Channel resolve lives until every participating caller ends;
+  each result still obeys its own cancellation/deadline and submission proof.
 - Product permission and Channel business policy remain in usecases. Concrete
   routing, durable storage, presence, and owner push are injected ports.
 - The runtime owns scheduling and handoff state, not subscriber metadata or
@@ -82,13 +84,33 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   links occupy at most one entry per distinct admitted Channel key; completed
   keys leave no historical cache. Fixed workers may merge an already-ready prefix
   within record/payload targets, without splitting original jobs or waiting to
-  fill a batch. Each callback retains its own aligned results and reservation;
+  fill a batch. An optional same-Channel mode seals an already-admitted durable
+  FIFO prefix into one routing call, bounded by separate record/payload targets.
+  Multi-key jobs, trusted append-admission callbacks and transient sends fence
+  that prefix. Selected successors never re-enter the ready queue; their original
+  callbacks release ownership in order before outside successors may run.
+  Each callback retains its own aligned results and reservation;
   completed payload references are cleared before returning that budget.
   Its fixed workers use the existing Channel
   append pool identity with distinct busy-batch and queued-record observations.
+  Timeout errors carry immutable per-original-job queue, joined sender and
+  pre-callback timings. Queue is split at the final canonical-Channel predecessor
+  release or sealed-cohort takeover into dependency and ready-worker waits.
+  A sealed successor has no independent ready-worker wait. Single-item Router timeout
+  snapshots accumulate authority resolution, admission, local submission/future,
+  forwarding and retry waits across actual attempts; multi-item paths remain
+  absent. Forwarding and future waits include downstream work, not pure network
+  or storage time. Admission/copy work, selected-to-sender assembly and
+  attaching diagnostics after the snapshot are outside these intervals;
+  they are not a complete division of caller elapsed time.
+  Timestamp capture is bounded per job/batch; only timeout results allocate wrappers.
 - Idempotency recovery observes only batch counts for recovered, unresolved,
   and lookup-error items. Recovered items are not errors; every fresh item that
   fails its bounded retry remains unresolved with its original aligned result.
+  A live retryable committed-proof lookup failure fences replay of later misses
+  in the same Channel batch. Positive committed proofs remain recoverable, and
+  earlier misses may replay as a prefix; no unknown prior submission gains a
+  non-submission capability.
 - Command IDs use the configured per-instance suffix. Person validation and
   recipient derivation strip it before parsing UIDs; event and authority IDs
   retain it. Router and local preparation must produce the same canonical ID.

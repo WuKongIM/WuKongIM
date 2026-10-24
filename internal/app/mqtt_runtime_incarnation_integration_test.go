@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,7 +47,25 @@ func TestMQTTPreparedAppendRejectsPhysicalRuntimeRecreationSingleNodeCluster(t *
 	first, err := node.GetChannelRuntimeMetaFresh(ctx, id.ID, int64(id.Type))
 	require.NoError(t, err)
 	sourceQuery := meta.MQTTRead{Kind: meta.MQTTReadChannelRuntime, RuntimeChannel: meta.ChannelKey{ChannelID: id.ID, ChannelType: int64(id.Type)}}
-	firstSource, err := node.ReadMQTT(ctx, sourceQuery)
+	// Background slot-table convergence can invalidate a read fence even when
+	// this channel keeps its leader. Repeat only that read with a fresh barrier;
+	// all attempts share the original test deadline and mutations are not retried.
+	readSource := func() (meta.MQTTReadResult, error) {
+		for {
+			result, err := node.ReadMQTT(ctx, sourceQuery)
+			if !errors.Is(err, slotproxy.ErrReadStaleRoute) {
+				return result, err
+			}
+			timer := time.NewTimer(10 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return meta.MQTTReadResult{}, ctx.Err()
+			case <-timer.C:
+			}
+		}
+	}
+	firstSource, err := readSource()
 	require.NoError(t, err)
 	require.NotNil(t, firstSource.Runtime)
 	require.Equal(t, first, *firstSource.Runtime.Meta)
@@ -60,7 +80,7 @@ func TestMQTTPreparedAppendRejectsPhysicalRuntimeRecreationSingleNodeCluster(t *
 	require.NoError(t, node.Propose(ctx, cluster.ProposeRequest{Key: id.ID, Command: fsm.EncodeDeleteChannelRuntimeMetaCommand(id.ID, int64(id.Type))}))
 	_, err = node.GetChannelRuntimeMetaFresh(ctx, id.ID, int64(id.Type))
 	require.ErrorIs(t, err, meta.ErrNotFound)
-	deletedSource, err := node.ReadMQTT(ctx, sourceQuery)
+	deletedSource, err := readSource()
 	require.NoError(t, err)
 	require.Nil(t, deletedSource.Runtime.Meta)
 	require.Greater(t, deletedSource.Runtime.RetiredThrough, firstSource.Runtime.RetiredThrough)
@@ -69,7 +89,7 @@ func TestMQTTPreparedAppendRejectsPhysicalRuntimeRecreationSingleNodeCluster(t *
 	require.NoError(t, err)
 	require.Greater(t, fresh.ChannelEpoch, first.ChannelEpoch)
 	require.Greater(t, fresh.RouteGeneration, first.RouteGeneration)
-	freshSource, err := node.ReadMQTT(ctx, sourceQuery)
+	freshSource, err := readSource()
 	require.NoError(t, err)
 	require.Equal(t, deletedSource.Runtime.RetiredThrough, freshSource.Runtime.RetiredThrough)
 	require.Equal(t, fresh, *freshSource.Runtime.Meta)

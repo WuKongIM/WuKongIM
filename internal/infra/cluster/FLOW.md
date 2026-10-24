@@ -39,11 +39,17 @@ management, plugins, diagnostics, and bounded operations observations.
    reread from the Slot leader per routed batch; only person metadata is cached.
    First person SENDs commit coalesced Channel directory tasks/runtime metadata;
    the asynchronous projector later ensures UID memberships and publishes ready.
-2. Presence reconstruction coalesces target groups into one bounded read per
-   active owner instead of repeating unavailable-owner timeouts per Hash Slot. It validates each
-   owner boot identity, and rechecks current membership and Slot authority before
-   publishing a complete result. One node-wide gate admits at most 16 recovery
-   owner-read rounds. Unknown or unavailable proof remains explicit.
+2. Presence reconstruction packs up to 16 original calls into complete-call pages
+   under one 250 ms budget per owner and the existing 16 owner-round gate.
+   Each page and each original call across owners retain separate 4096-row bounds.
+   Boot consistency, final membership and target fences precede publication;
+   a later timeout rejects unfinished calls without discarding completed proofs.
+   Only first-page typed unsupported evidence permits legacy per-call fallback.
+   Controlled-allocation local readers enable the domain-owned nonwaiting result
+   budget: pages, exact string copies and old/new accumulator backing stay charged
+   until references are released. Unknown providers retain original-call credits.
+   Input selector maps retain their fixed item bounds outside this decoded-result
+   ledger; wire buffers, Directory, allocator overhead and RSS are also excluded.
 3. Presence and recipient adapters resolve exact fenced targets, group work by
    owner, and choose the local authority or one typed RPC envelope per owner.
    UID-list endpoint lookup resolves at most 256 inputs per page, groups by the
@@ -110,6 +116,9 @@ management, plugins, diagnostics, and bounded operations observations.
 - Fanout and diagnostic work must remain concurrency-, deadline-, and result-
   bounded and must not place user, Channel, Slot, or node identities in metric
   labels.
+- Optional request-local RPC phases distinguish presence owner-round admission
+  from each serial owner read. Child contexts retain observation metadata under
+  the original 250 ms bound; tracing changes no membership or authority proof.
 
 - Message-update storage maps a narrow usecase port to authoritative Slot operations. Read adapters preserve edit version/time and byte-limited continuation after content growth; committed history and persisted previews retain separate base-read semantics.
 
@@ -118,6 +127,9 @@ The append adapter promotes storage non-submission evidence only with `errors.Is
   facts to Slot-owned commands and fresh node-batched reads. User policy results
   omit credentials; message policy remains in the usecase. Both scalar and batch
   reads map stale authority and saturated admission to typed retryable failures.
+  Measured ingress admission rejections copy the Slot snapshot into the message
+  error contract without changing mapped error text or identities. Plain busy
+  and receiver-side errors do not imply measured ingress occupancy.
 
 ## Read First
 - [Append adapter](channel_append.go)

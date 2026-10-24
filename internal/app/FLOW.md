@@ -47,7 +47,7 @@ Stop or startup rollback
   -> close entry admission
   -> drain Gateway deferred publications, then close ordered submissions
   -> drain Channel append and accepted post-commit work
-  -> stop side-effect, presence, and cluster dependencies in reverse order
+  -> stop side-effect, presence, and cluster dependencies in reverse order; incomplete cluster Stop/startup rollback retains audit dependencies and remains reachable for retry
 ```
 
 ## Invariants and Failure Semantics
@@ -56,12 +56,12 @@ Stop or startup rollback
   must not introduce a local business bypass.
   Real single-node SEND/SENDACK smoke coverage lives in the integration tier and
   uses the production-default send deadline; native-package preview runs it explicitly.
-- Synchronous before-send Webhook admission is wired independently of asynchronous
-  Webhook workers and plugin enablement; configuration errors fail startup.
-- Gateway feedback uses the existing Online Delivery FeedbackHandler directly;
-  disabled delivery leaves that optional port absent.
-- Optional features are wired only when all required ports exist; unavailable
-  capabilities stay explicit instead of receiving partial implementations.
+- Synchronous before-send Webhook admission is independent of Webhook workers and plugin enablement; configuration errors fail startup.
+- Gateway feedback uses Online Delivery FeedbackHandler directly; disabled delivery leaves that optional port absent.
+- Optional features require all their ports; unavailable capabilities remain explicit.
+- RPC phase samples require diagnostics enabled and nonzero `diagnostics.rpc_sample_every`.
+  Both transport endpoints feed detached samples through the bounded observer drain, independently of metrics.
+  Existing queries return `rpc.client`/`rpc.server`; missing samples do not prove absence of waits.
 - Manager Channel inventory and its node RPC share the non-activating Channel
   observer; lifecycle metadata and Leader residency remain separate evidence.
 - Opt-in MQTT composition shares the existing Gateway and device-token verifier,
@@ -115,7 +115,7 @@ Stop or startup rollback
 - Startup failure rolls back completed components in reverse order. Constructor
   failure releases constructor-owned pools, sinks, and audit resources.
 - Presence wiring shares one owner boot identity between session activation and
-  recovery replies, and installs bounded UID reconstruction before lookups.
+  recovery replies and owns bounded UID recovery; Stop/rollback joins it before cluster close, and retry rebuilds a drained cohort.
 - Gateway admission opens only after cluster write routing and required runtime
   readiness. Joining nodes remain fenced until observed membership permits it.
 - Backup RPC binds one target-local Controller repository resolver to all four
@@ -132,7 +132,7 @@ Stop or startup rollback
 The app configures aggregate MQTT storage on every product node, including when the MQTT listener is disabled. It composes fixed capacity metrics with any injected observer. Cluster factory reopen rebuilds canonical capacity before restore admission resumes. Will publications promote only the typed whole-invocation non-submission capability to same-boot journal sealing.
 - Stream EVENT dispatch is wired only with the complete base reader, event store, authoritative subscribers, presence, owner registry and peer RPC. Fanouts are synchronous request-owned work with bounded admission; entry shutdown joins them without a separate token worker or queue.
 
-- Default product Gateway/message composition owns one bounded ordered Channel submitter, using the existing Router and normalized Gateway record/worker/byte settings. Injected handlers/usecases retain their explicit execution behavior. Constructor rollback, Stop and restore maintenance join accepted callbacks before dependencies close or restart; timed-out drains retain their fence.
+- Default product Gateway/message composition owns one bounded ordered Channel submitter, using the existing Router and normalized Gateway record/worker/byte settings. Injected handlers/usecases retain their explicit execution behavior. Constructor rollback, Stop and restore maintenance join accepted callbacks before dependencies close or restart; timed-out drains retain their fence. Same-Channel durable execution cohorts target 32 records (clamped by queue capacity) and the existing session batch bytes; larger original jobs stay intact. Ingress batching, workers, admission capacity and original callback boundaries remain unchanged.
 - Composition wires UID/source-Channel policy mutations, unified send facts, and bounded permission-stage/RPC/ban-scope and sealed-batch ownership observers through existing ports. Every topology follows the same cluster-authoritative admission path. Policy mutation observers write credential-free structured audits; proposal errors retain an unknown outcome rather than reporting tentative state as durable.
 
 Top ACK-binding counts use independent atomic publication while delivery serializes ACK mutations; publication never acquires the shared Top ingestion/control mutex.

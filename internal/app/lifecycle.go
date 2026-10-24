@@ -62,6 +62,9 @@ func (a *App) Start(ctx context.Context) error {
 	if a.started {
 		return ErrAlreadyStarted
 	}
+	if a.presenceRecovery == nil && a.reopenPresenceRecovery != nil {
+		a.reopenPresenceRecovery()
+	}
 	startedAt := time.Now()
 	startingSnapshot := a.startupSnapshot()
 	a.startupConsole.starting(startingSnapshot)
@@ -70,6 +73,11 @@ func (a *App) Start(ctx context.Context) error {
 		wklog.Event("internal.app.starting"),
 	)...)
 	if err := a.cluster.Start(ctx); err != nil {
+		if stopRetainsDependencies(err) {
+			// Startup can accept RPC work before a later component fails.
+			// Keep its partial generation reachable from the unstarted Stop path.
+			a.clusterStarted = true
+		}
 		a.logLifecycleError("cluster", "start", err)
 		return err
 	}
@@ -81,6 +89,10 @@ func (a *App) Start(ctx context.Context) error {
 	if a.seedJoinLoop != nil {
 		if err := a.seedJoinLoop.Start(ctx); err != nil {
 			a.logLifecycleError("seed_join", "start", err)
+			if closeErr := a.closePresenceRecovery(ctx); closeErr != nil {
+				a.logLifecycleWarn("presence_recovery", "rollback_stop", closeErr)
+				return errors.Join(err, closeErr)
+			}
 			stopErr := a.cluster.Stop(ctx)
 			if stopErr != nil {
 				a.logLifecycleWarn("cluster", "rollback_stop", stopErr)
@@ -386,6 +398,9 @@ func (a *App) Stop(ctx context.Context) error {
 			return err
 		}
 		var err error
+		if stopErr := a.closePresenceRecovery(ctx); stopErr != nil {
+			return stopErr
+		}
 		if stopErr := a.closeChannelSubmissions(ctx); stopErr != nil {
 			return stopErr
 		}
@@ -399,6 +414,17 @@ func (a *App) Stop(ctx context.Context) error {
 			if stopErr := a.channelAppends.Stop(ctx); stopErr != nil {
 				a.logLifecycleWarn("channel_append", "stop_before_start", stopErr)
 				err = errors.Join(err, stopErr)
+			}
+		}
+		if a.clusterStarted && a.cluster != nil {
+			if stopErr := a.cluster.Stop(ctx); stopErr != nil {
+				a.logLifecycleWarn("cluster", "stop_before_start", stopErr)
+				err = errors.Join(err, stopErr)
+				if stopRetainsDependencies(stopErr) {
+					return err
+				}
+			} else {
+				a.clusterStarted = false
 			}
 		}
 		if stopErr := a.closeControllerTaskAudit(); stopErr != nil {
@@ -559,10 +585,16 @@ func (a *App) Stop(ctx context.Context) error {
 			a.seedJoinStarted = false
 		}
 	}
+	if stopErr := a.closePresenceRecovery(ctx); stopErr != nil {
+		return errors.Join(err, stopErr)
+	}
 	if a.clusterStarted && a.cluster != nil {
 		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("cluster", "stop", stopErr)
 			err = errors.Join(err, stopErr)
+			if stopRetainsDependencies(stopErr) {
+				return err
+			}
 		} else {
 			a.clusterStarted = false
 		}
@@ -766,10 +798,16 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			a.seedJoinStarted = false
 		}
 	}
+	if stopErr := a.closePresenceRecovery(ctx); stopErr != nil {
+		return errors.Join(err, stopErr)
+	}
 	if a.clusterStarted && a.cluster != nil {
 		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("cluster", "rollback_stop", stopErr)
 			err = errors.Join(err, stopErr)
+			if stopRetainsDependencies(stopErr) {
+				return err
+			}
 		} else {
 			a.clusterStarted = false
 		}
@@ -782,6 +820,26 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 		a.started = false
 	}
 	return err
+}
+
+// stopRetainsDependencies distinguishes active shutdown ownership from an
+// ordinary cleanup diagnostic, which must not block unrelated cleanup.
+func stopRetainsDependencies(err error) bool {
+	var incomplete interface{ StopIncomplete() bool }
+	return errors.As(err, &incomplete) && incomplete.StopIncomplete()
+}
+
+// closePresenceRecovery retains the cohort and its cluster dependency until
+// every executing owner has joined. A later lifecycle call may retry the drain.
+func (a *App) closePresenceRecovery(ctx context.Context) error {
+	if a.presenceRecovery == nil {
+		return nil
+	}
+	if err := a.presenceRecovery.Close(ctx); err != nil {
+		return err
+	}
+	a.presenceRecovery = nil
+	return nil
 }
 
 func (a *App) logLifecycleError(component, phase string, err error) {

@@ -10,6 +10,7 @@ import (
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
@@ -67,9 +68,12 @@ func (r *PresenceRecoveryOwners) RecoverRoutesByTargets(ctx context.Context, gro
 	if r == nil || r.node == nil || r.local == nil || !presence.ValidOwnerRecoveryPage(groups) {
 		return fail(authority.ErrRouteNotReady)
 	}
+	admission := rpctrace.Begin(ctx, rpctrace.StageRecoveryOwners)
 	select {
 	case r.admission <- struct{}{}:
+		admission.End(rpctrace.ResultOK)
 	case <-ctx.Done():
+		admission.End(rpctrace.ResultFor(ctx.Err()))
 		return fail(ctx.Err())
 	}
 	defer func() { <-r.admission }()
@@ -103,7 +107,23 @@ func (r *PresenceRecoveryOwners) RecoverRoutesByTargets(ctx context.Context, gro
 	total := 0
 	for _, node := range nodes {
 		readCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+		ownerRead := rpctrace.Begin(readCtx, rpctrace.StageRecoveryOwner)
 		snapshots, readErr := r.readOwnerPage(readCtx, node.NodeID, active)
+		if rpctrace.From(readCtx) != nil {
+			observedErr := readErr
+			if observedErr == nil {
+				for _, read := range snapshots {
+					if read.Err != nil {
+						observedErr = read.Err
+						break
+					}
+				}
+			}
+			if err := ctx.Err(); err != nil {
+				observedErr = err
+			}
+			ownerRead.End(rpctrace.ResultFor(observedErr))
+		}
 		cancel()
 		if err := ctx.Err(); err != nil {
 			return fail(err)

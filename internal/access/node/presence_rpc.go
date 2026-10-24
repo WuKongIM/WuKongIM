@@ -40,6 +40,7 @@ const (
 	presenceOpApplyRouteAction         = "apply_route_action"
 	presenceOpReadOwnerRoutes          = "read_owner_routes"
 	presenceOpReadOwnerRoutesByTargets = "read_owner_routes_by_targets"
+	presenceOpReadOwnerRouteCalls      = "read_owner_route_calls"
 )
 
 // PresenceAuthorityRPCServiceID is the cluster RPC service for UID route authority calls.
@@ -543,6 +544,9 @@ func (a *Adapter) HandlePresenceOwnerRPC(ctx context.Context, payload []byte) ([
 			wklog.Error(err),
 		)
 		return nil, err
+	}
+	if req.Op == presenceOpReadOwnerRouteCalls {
+		return a.handleOwnerRouteCalls(ctx, req)
 	}
 	if req.Op == presenceOpReadOwnerRoutesByTargets {
 		return a.handleOwnerRoutesByTargets(ctx, req)

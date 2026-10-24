@@ -3,6 +3,7 @@ package rpc
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const defaultPendingShards = 16
@@ -14,6 +15,17 @@ type Response struct {
 	Payload []byte
 	// Err is the terminal failure reported for the pending request.
 	Err error
+	// ReceiveTiming is immutable after response notification. Nil means unknown;
+	// it does not change PendingTable ownership or the response's business result.
+	ReceiveTiming *ReceiveTiming
+}
+
+// ReceiveTiming follows an existing sampled response or inbound frame owner.
+// FrameReady is captured after full frame decoding and trace identity validation.
+// Notified precedes the buffered response send; server requests leave it zero.
+type ReceiveTiming struct {
+	ServiceID                          uint16
+	FrameReady, ObserverDone, Notified time.Time
 }
 
 // PendingTable tracks in-flight RPC requests using sharded maps to reduce lock contention.

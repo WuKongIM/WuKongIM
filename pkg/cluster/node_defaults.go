@@ -206,13 +206,15 @@ func (n *Node) ensureDefaultTransport() error {
 		n.discovery.Update(n.defaultBootstrapDiscoveryNodes())
 	}
 	n.transportServer = clusternet.NewTransportServer(clusternet.TransportServerConfig{
-		NodeID:   n.cfg.NodeID,
-		Observer: n.cfg.Transport.Observer,
+		NodeID:     n.cfg.NodeID,
+		Observer:   n.cfg.Transport.Observer,
+		RPCTracing: n.cfg.Transport.RPCTraceEvery != 0,
 	})
 	n.transportClient = clusternet.NewTransportClient(clusternet.TransportClientConfig{
-		NodeID:    n.cfg.NodeID,
-		Discovery: n.discovery,
-		Observer:  n.cfg.Transport.Observer,
+		NodeID:        n.cfg.NodeID,
+		Discovery:     n.discovery,
+		Observer:      n.cfg.Transport.Observer,
+		RPCTraceEvery: n.cfg.Transport.RPCTraceEvery,
 	})
 	n.slotStatusCaller = n.transportClient
 	n.defaultTransport = true

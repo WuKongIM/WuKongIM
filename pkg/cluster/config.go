@@ -301,6 +301,9 @@ type StorageConfig struct {
 
 // TransportConfig contains default cluster node-to-node transport observation.
 type TransportConfig struct {
+	// RPCTraceEvery selects one in N outbound RPC timings and permits inbound
+	// negotiated timings. Zero disables both without changing metric sampling.
+	RPCTraceEvery uint32
 	// Observer receives transport queue, peer, service, and pending-RPC pressure observations for the default node RPC transport.
 	Observer transport.Observer
 }

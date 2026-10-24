@@ -51,6 +51,12 @@ It does not own product policy or expose Pebble-specific APIs to callers.
   lane fairness and synchronous durability remain in force. Metadata can opt into
   one isolated rebuild after a neighboring request rejects a group before any
   physical commit. Ambiguous physical commit errors are never retried.
+  Optional same-request RPC traces separate queue-credit admission, physical-batch
+  queue residence, each caller's remaining collection interval, shared group build,
+  synchronous commit and group publication callbacks (excluding Finalize). Owner
+  buffers remain queue time; closing queued work never invents a physical phase.
+  Group reconstruction retains repeated build intervals, not extra fsync claims;
+  caller cancellation and early trace completion cannot cancel admitted storage work.
 - Each writable engine keeps one baseline compaction slot and may open three
   more only as L0 depth or compaction debt crosses configured pressure steps.
 

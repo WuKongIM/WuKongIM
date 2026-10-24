@@ -175,54 +175,85 @@ snapshot_parent="$(dirname "$SNAPSHOT_ROOT")"
 platform="$(uname -s)" || missing_row
 SCAN_DEADLINE=$((SECONDS + MAX_SCAN_SECONDS))
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/wk-storage-overlap.XXXXXX")" || output_failure 73
-: >"$TEMP_DIR/raw" || output_failure "$?"
-: >"$TEMP_DIR/list" || output_failure "$?"
-if [[ -e "$SNAPSHOT_ROOT" ]]; then
-  [[ -d "$SNAPSHOT_ROOT" && ! -L "$SNAPSHOT_ROOT" ]] || missing_row
-  : >"$TEMP_DIR/find.err" || output_failure "$?"
-  run_bounded_child "$TEMP_DIR/raw" "$TEMP_DIR/find.err" find "$SNAPSHOT_ROOT" -type f -print || scan_missing find
-  [[ ! -s "$TEMP_DIR/find.err" ]] || scan_missing find
-  raw_output_bytes="$(wc -c <"$TEMP_DIR/raw" | tr -d '[:space:]')" || output_failure "$?"
-  [[ "$raw_output_bytes" =~ ^[0-9]+$ ]] || scan_missing output
-  (( raw_output_bytes <= MAX_RAW_OUTPUT_BYTES )) || scan_missing entrylimit
+# A snapshot directory can be renamed at publication or removed by GC after
+# find has listed its chunks. Discard the entire attempted inventory only on a
+# proved disappearance, then enumerate again within the original scan deadline.
+# Every retry still belongs to the original observed-at cut; it does not move
+# that cut or reset SCAN_DEADLINE. All size/count limits remain unchanged.
+scan_snapshot_inventory() {
+  : >"$TEMP_DIR/raw" || output_failure "$?"
+  : >"$TEMP_DIR/list" || output_failure "$?"
+  if [[ -e "$SNAPSHOT_ROOT" ]]; then
+    [[ -d "$SNAPSHOT_ROOT" && ! -L "$SNAPSHOT_ROOT" ]] || missing_row
+    : >"$TEMP_DIR/find.err" || output_failure "$?"
+    run_bounded_child "$TEMP_DIR/raw" "$TEMP_DIR/find.err" find "$SNAPSHOT_ROOT" -type f -print || scan_missing find
+    [[ ! -s "$TEMP_DIR/find.err" ]] || scan_missing find
+    raw_output_bytes="$(wc -c <"$TEMP_DIR/raw" | tr -d '[:space:]')" || output_failure "$?"
+    [[ "$raw_output_bytes" =~ ^[0-9]+$ ]] || scan_missing output
+    (( raw_output_bytes <= MAX_RAW_OUTPUT_BYTES )) || scan_missing entrylimit
+    if (( SECONDS >= SCAN_DEADLINE )); then
+      SCAN_DEADLINE_EXHAUSTED=1
+      scan_missing deadline
+    fi
+    LC_ALL=C sort "$TEMP_DIR/raw" -o "$TEMP_DIR/raw" || scan_missing output
+  fi
+
+  snapshot_candidates=0
+  while IFS= read -r snapshot_file; do
+    [[ -n "$snapshot_file" ]] || scan_missing find
+    snapshot_candidates=$((snapshot_candidates + 1))
+    (( snapshot_candidates <= MAX_SNAPSHOT_FILES )) || scan_missing entrylimit
+  done <"$TEMP_DIR/raw"
+
+  snapshot_files=0
+  snapshot_bytes=0
+  inventory_bytes=0
+  while IFS= read -r snapshot_file; do
+    [[ -n "$snapshot_file" && ! -L "$snapshot_file" ]] || scan_missing stat
+    local regular_before_stat=0 stat_status=0 stat_error
+    [[ -f "$snapshot_file" ]] && regular_before_stat=1
+    : >"$TEMP_DIR/stat.out" || output_failure "$?"
+    : >"$TEMP_DIR/stat.err" || output_failure "$?"
+    if [[ "$platform" == Darwin ]]; then
+      run_bounded_child "$TEMP_DIR/stat.out" "$TEMP_DIR/stat.err" stat -f '%z' "$snapshot_file" || stat_status=$?
+    else
+      run_bounded_child "$TEMP_DIR/stat.out" "$TEMP_DIR/stat.err" stat -c '%s' "$snapshot_file" || stat_status=$?
+    fi
+    if (( stat_status != 0 )); then
+      stat_error="$(<"$TEMP_DIR/stat.err")"
+      # GNU and BSD stat report ENOENT with this suffix under the fixed C locale.
+      # A shell -f failure alone also covers permission errors and is not proof.
+      if (( stat_status == 1 )) && [[ ! -s "$TEMP_DIR/stat.out" && ! -e "$snapshot_file" && ! -L "$snapshot_file" &&
+        "$stat_error" == *": No such file or directory" && "$stat_error" != *$'\n'* ]]; then
+        return 1
+      fi
+      scan_missing stat
+    fi
+    (( regular_before_stat == 1 )) || scan_missing stat
+    [[ ! -s "$TEMP_DIR/stat.err" ]] || scan_missing stat
+    size="$(<"$TEMP_DIR/stat.out")"
+    [[ "$size" =~ ^[0-9]+$ ]] || scan_missing stat
+    relative="${snapshot_file#"$SNAPSHOT_ROOT"/}"
+    [[ "$relative" != "$snapshot_file" && -n "$relative" ]] || scan_missing find
+    entry_bytes=$((${#relative} + ${#size} + 2))
+    (( inventory_bytes + entry_bytes <= MAX_INVENTORY_BYTES )) || scan_missing entrylimit
+    printf '%s\t%s\n' "$relative" "$size" >>"$TEMP_DIR/list" || output_failure "$?"
+    inventory_bytes=$((inventory_bytes + entry_bytes))
+    snapshot_files=$((snapshot_files + 1))
+    snapshot_bytes=$((snapshot_bytes + size))
+  done <"$TEMP_DIR/raw"
+  return 0
+}
+
+while true; do
   if (( SECONDS >= SCAN_DEADLINE )); then
     SCAN_DEADLINE_EXHAUSTED=1
     scan_missing deadline
   fi
-  LC_ALL=C sort "$TEMP_DIR/raw" -o "$TEMP_DIR/raw" || scan_missing output
-fi
-
-snapshot_candidates=0
-while IFS= read -r snapshot_file; do
-  [[ -n "$snapshot_file" ]] || scan_missing find
-  snapshot_candidates=$((snapshot_candidates + 1))
-  (( snapshot_candidates <= MAX_SNAPSHOT_FILES )) || scan_missing entrylimit
-done <"$TEMP_DIR/raw"
-
-snapshot_files=0
-snapshot_bytes=0
-inventory_bytes=0
-while IFS= read -r snapshot_file; do
-  [[ -n "$snapshot_file" && -f "$snapshot_file" && ! -L "$snapshot_file" ]] || scan_missing stat
-  : >"$TEMP_DIR/stat.out" || output_failure "$?"
-  : >"$TEMP_DIR/stat.err" || output_failure "$?"
-  if [[ "$platform" == Darwin ]]; then
-    run_bounded_child "$TEMP_DIR/stat.out" "$TEMP_DIR/stat.err" stat -f '%z' "$snapshot_file" || scan_missing stat
-  else
-    run_bounded_child "$TEMP_DIR/stat.out" "$TEMP_DIR/stat.err" stat -c '%s' "$snapshot_file" || scan_missing stat
+  if scan_snapshot_inventory; then
+    break
   fi
-  [[ ! -s "$TEMP_DIR/stat.err" ]] || scan_missing stat
-  size="$(<"$TEMP_DIR/stat.out")"
-  [[ "$size" =~ ^[0-9]+$ ]] || scan_missing stat
-  relative="${snapshot_file#"$SNAPSHOT_ROOT"/}"
-  [[ "$relative" != "$snapshot_file" && -n "$relative" ]] || scan_missing find
-  entry_bytes=$((${#relative} + ${#size} + 2))
-  (( inventory_bytes + entry_bytes <= MAX_INVENTORY_BYTES )) || scan_missing entrylimit
-  printf '%s\t%s\n' "$relative" "$size" >>"$TEMP_DIR/list" || output_failure "$?"
-  inventory_bytes=$((inventory_bytes + entry_bytes))
-  snapshot_files=$((snapshot_files + 1))
-  snapshot_bytes=$((snapshot_bytes + size))
-done <"$TEMP_DIR/raw"
+done
 
 if ! mv "$TEMP_DIR/list" "$OUTPUT_INVENTORY"; then
   output_failure 73

@@ -21,6 +21,8 @@ const defaultTransportServiceMaxQueueBytes = 64 << 20
 
 // TransportServerConfig configures a transport-backed cluster RPC server.
 type TransportServerConfig struct {
+	// RPCTracing accepts negotiated request-local timings without changing handlers.
+	RPCTracing bool
 	// NodeID is the local cluster node ID reported by transport observations.
 	NodeID uint64
 	// MaxPayload rejects inbound RPC payloads larger than this many bytes when positive.
@@ -59,9 +61,10 @@ type TransportServer struct {
 func NewTransportServer(cfg TransportServerConfig) *TransportServer {
 	limits := normalizeTransportLimits(cfg.Limits, 0)
 	server, err := transport.NewServer(transport.ServerConfig{
-		NodeID:   transport.NodeID(cfg.NodeID),
-		Limits:   limits,
-		Observer: cfg.Observer,
+		NodeID:     transport.NodeID(cfg.NodeID),
+		Limits:     limits,
+		Observer:   cfg.Observer,
+		RPCTracing: cfg.RPCTracing,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("cluster/net: create transport server: %v", err))
@@ -74,12 +77,18 @@ func (s *TransportServer) Register(serviceID uint8, handler Handler) {
 	if s == nil || s.server == nil {
 		panic("cluster/net: nil transport server")
 	}
+	opts := s.serviceOptions(serviceID)
+	if policy, ok := handler.(interface{ CancelRunningFor([]byte) bool }); ok {
+		// The trusted entry adapter classifies mixed read/mutation services;
+		// this does not create another service or increase its worker budget.
+		opts.CancelRunningFor = policy.CancelRunningFor
+	}
 	err := s.server.Handle(uint16(serviceID), func(ctx context.Context, payload []byte) ([]byte, error) {
 		if s.cfg.MaxPayload > 0 && len(payload) > s.cfg.MaxPayload {
 			return nil, fmt.Errorf("%w: payload too large", ErrInvalidFrame)
 		}
 		return handler.HandleRPC(ctx, payload)
-	}, s.serviceOptions(serviceID))
+	}, opts)
 	if err != nil {
 		panic(fmt.Sprintf("cluster/net: register service %d: %v", serviceID, err))
 	}
@@ -91,6 +100,15 @@ func (s *TransportServer) Start(addr string) error { return s.server.ListenAndSe
 // Stop stops the underlying transport server.
 func (s *TransportServer) Stop() { s.server.Stop() }
 
+// StopContext joins accepted RPC owners before callers dispose dependencies.
+// An incomplete stop retains the same generation for a later join attempt.
+func (s *TransportServer) StopContext(ctx context.Context) error {
+	if s == nil || s.server == nil {
+		return nil
+	}
+	return s.server.StopContext(ctx)
+}
+
 // Addr returns the bound listener address.
 func (s *TransportServer) Addr() string {
 	if s == nil || s.server == nil {
@@ -101,6 +119,8 @@ func (s *TransportServer) Addr() string {
 
 // TransportClientConfig configures a transport-backed cluster RPC client.
 type TransportClientConfig struct {
+	// RPCTraceEvery selects one in N complete outbound RPCs; zero disables timing.
+	RPCTraceEvery uint32
 	// Discovery resolves node IDs to addresses.
 	Discovery transport.Discovery
 	// NodeID is the local cluster node ID reported by transport observations.
@@ -151,6 +171,7 @@ func NewTransportClient(cfg TransportClientConfig) *TransportClient {
 		DialTimeout:    cfg.DialTimeout,
 		Limits:         limits,
 		Observer:       observer,
+		RPCTraceEvery:  cfg.RPCTraceEvery,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("cluster/net: create transport client: %v", err))
@@ -238,6 +259,14 @@ func (c *TransportClient) Stop() {
 	if c != nil && c.client != nil {
 		c.client.Stop()
 	}
+}
+
+// StopContext joins outbound calls, late dials and observations before disposal.
+func (c *TransportClient) StopContext(ctx context.Context) error {
+	if c == nil || c.client == nil {
+		return nil
+	}
+	return c.client.StopContext(ctx)
 }
 
 func translateTransportCallError(nodeID uint64, serviceID uint8, err error) error {

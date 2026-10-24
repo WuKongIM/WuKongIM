@@ -446,7 +446,9 @@ func appendBatchErrorCompletionsOrRecoveries(ctx context.Context, items []prepar
 
 // appendBatchErrorCompletionsOrRecoveriesAndRetry retries only durable lookup
 // misses when at least one sibling proves that the failed batch contained an
-// already committed send. The retry is bounded to one storage attempt.
+// already committed send. A retryable, unresolved predecessor fences later
+// misses in this same-Channel batch; positive committed receipts remain final.
+// The retry is bounded to one storage attempt.
 func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 	ctx context.Context,
 	target AuthorityTarget,
@@ -465,6 +467,7 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 	misses := make([]preparedSend, 0, len(items))
 	missIndexes := make([]int, 0, len(items))
 	recovered := false
+	var replayFence error
 	recovery := IdempotencyRecoveryObservation{}
 	for index, item := range items {
 		result, ok, lookupErr := lookupIdempotentSend(ctx, item.Command, preparePorts{idempotency: ports.idempotency})
@@ -472,6 +475,11 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 		case lookupErr != nil:
 			recovery.LookupErrorItems++
 			out[index] = appendItemErrorCompletion(item, lookupErr)
+			if replayFence == nil && shouldRetryRouterError(lookupErr) && appendItemError(item) == nil {
+				// The lookup did not settle this send. Replaying a later miss
+				// would overtake the predecessor when Router refreshes authority.
+				replayFence = suppressNonSubmission(lookupErr)
+			}
 		case ok:
 			recovered = true
 			recovery.RecoveredItems++
@@ -480,6 +488,17 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 				result: SendBatchItemResult{Result: result},
 			}
 		default:
+			if replayFence != nil {
+				itemErr := appendItemError(item)
+				if itemErr == nil {
+					// A miss is not proof that the original proposal was never
+					// submitted. Keep the suffix retryable without that claim.
+					itemErr = replayFence
+				}
+				out[index] = appendItemErrorCompletion(item, itemErr)
+				recovery.UnresolvedItems++
+				continue
+			}
 			misses = append(misses, item)
 			missIndexes = append(missIndexes, index)
 		}

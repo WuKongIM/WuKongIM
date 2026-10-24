@@ -16,6 +16,7 @@ import (
 	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
@@ -37,24 +38,49 @@ type slot struct {
 	status                       Status
 	storageView                  *storageAdapter
 	apply                        *applyPipeline
-	closed                       bool
-	fatalErr                     error
-	cond                         *sync.Cond
-	processing                   bool
+	// storageCountPaused is owner-only scheduling state, not physical ownership.
+	// Close/fatal need not clear it; a replacement generation starts unpaused.
+	storageCountPaused bool
+	// storagePipeline owns bounded append work; only the Raft owner consumes completions.
+	storagePipeline    *storagePipeline
+	storageTasks       int
+	storageCompletions []storageCompletion
+	storageWake        chan struct{}
+	storageNotify      func()
+	compactionPending  bool
+	compactionRefresh  bool
+	closed             bool
+	fatalErr           error
+	cond               *sync.Cond
+	processing         bool
 	// applying counts async apply tasks that have been accepted for this Slot.
-	applying           int
-	rawNode            *raft.RawNode
-	requests           []raftpb.Message
-	requestWorkBuf     []raftpb.Message
-	requestCount       int
-	controls           []controlAction
-	controlWorkBuf     []controlAction
+	applying       int
+	rawNode        *raft.RawNode
+	requests       []raftpb.Message
+	requestWorkBuf []raftpb.Message
+	requestCount   int
+	controls       []controlAction
+	controlWorkBuf []controlAction
+	// activeControls borrows the owner's immutable batch until release. Under
+	// mu, terminal paths can resolve Futures across the queue/submitted handoff.
+	activeControls     []controlAction
 	submittedProposals []*future
 	submittedConfigs   []*future
 	pendingProposals   map[uint64]trackedFuture
 	// pendingReads and readSequence are guarded by mu; only the Raft worker issues requests.
-	pendingReads                map[string]*readBarrierRequest
-	readSequence                uint64
+	pendingReads map[string]*readBarrierRequest
+	readSequence uint64
+	// readBarrierTracing is fixed before publication; false bypasses Ready timing work.
+	readBarrierTracing bool
+	// readTimings is a fixed observation-only registry, guarded by mu. Active
+	// Ready windows let a newly queued caller observe a preceding blocked Save.
+	readTimings                      [maxObservedReadBarriers]*readBarrierTiming
+	readSaveStarted, readSendStarted time.Time
+	// readCountPausedStarted mirrors only the observed scheduling transition;
+	// mu protects registration against pause/resume, independent of IO ownership.
+	readCountPausedStarted      time.Time
+	readSaveStage               rpctrace.Stage
+	readOwnerStorage            *ownerStorageToken // guarded by mu; ordinary async Save never owns this scope.
 	pendingConfigs              map[uint64]trackedFuture
 	pendingProposalCap          int
 	pendingConfigCap            int
@@ -86,6 +112,10 @@ type slot struct {
 	basicStatusRefreshCount int
 	// fullStatusRefreshCount counts full RawNode.Status refreshes for regression tests.
 	fullStatusRefreshCount int
+	// These owner-only fields avoid repeating an unchanged status publication
+	// after a configuration Future required an earlier refresh in the same pass.
+	statusRefreshedInPass bool
+	lastRefreshedBasic    raft.BasicStatus
 }
 
 type trackedFuture struct {
@@ -372,17 +402,18 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		configAppliedIndex = checkpoint.ConfigAppliedIndex
 	}
 	rawNode, err := raft.NewRawNode(&raft.Config{
-		ID:              uint64(nodeID),
-		ElectionTick:    raftOpts.ElectionTick,
-		HeartbeatTick:   raftOpts.HeartbeatTick,
-		Storage:         memory,
-		Applied:         appliedIndex,
-		MaxSizePerMsg:   maxSizePerMsg(raftOpts.MaxSizePerMsg),
-		MaxInflightMsgs: maxInflight(raftOpts.MaxInflight),
-		CheckQuorum:     raftOpts.CheckQuorum,
-		ReadOnlyOption:  raft.ReadOnlySafe,
-		PreVote:         raftOpts.PreVote,
-		Logger:          newEtcdRaftLogger(logger, nodeID, opts.ID),
+		ID:                 uint64(nodeID),
+		AsyncStorageWrites: true,
+		ElectionTick:       raftOpts.ElectionTick,
+		HeartbeatTick:      raftOpts.HeartbeatTick,
+		Storage:            memory,
+		Applied:            appliedIndex,
+		MaxSizePerMsg:      maxSizePerMsg(raftOpts.MaxSizePerMsg),
+		MaxInflightMsgs:    maxInflight(raftOpts.MaxInflight),
+		CheckQuorum:        raftOpts.CheckQuorum,
+		ReadOnlyOption:     raft.ReadOnlySafe,
+		PreVote:            raftOpts.PreVote,
+		Logger:             newEtcdRaftLogger(logger, nodeID, opts.ID),
 	})
 	if err != nil {
 		return nil, err
@@ -407,6 +438,7 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		logger:                      logger,
 		storageView:                 newStorageAdapter(opts.Storage),
 		apply:                       apply,
+		storageWake:                 make(chan struct{}, 1),
 		rawNode:                     rawNode,
 		durableAppliedIndex:         appliedIndex,
 		durableConfigAppliedIndex:   configAppliedIndex,
@@ -475,8 +507,18 @@ func (g *slot) processRequests() bool {
 	requests := g.takeRequestBatch()
 	defer g.releaseRequestBatch(requests)
 
+	before := g.rawNode.BasicStatus()
 	for _, msg := range requests {
 		_ = g.rawNode.Step(msg)
+	}
+	after := g.rawNode.BasicStatus()
+	// Queue admission updates the cached status before the owner sees a higher
+	// term. Compare actual owner states so that hint cannot hide leadership loss.
+	if before.RaftState == raft.StateLeader && (after.RaftState != raft.StateLeader || after.Term != before.Term) {
+		g.mu.Lock()
+		completions := g.failLeadershipDependentLocked(ErrNotLeader)
+		g.mu.Unlock()
+		dispatchFutureCompletions(completions)
 	}
 	return len(requests) > 0
 }
@@ -543,7 +585,14 @@ func (g *slot) processControls(ctx context.Context) bool {
 			g.issueReadBarrierBatch(controls[i:end])
 			i = end - 1
 		case controlPropose:
+			if action.future == nil {
+				continue
+			}
 			action.future.observeStageSince("meta_create_slot_control_wait", nil, action.future.createdAt)
+			if err := g.currentErr(); err != nil {
+				action.future.resolveAndDispatch(Result{}, err)
+				continue
+			}
 			// Temporary-copy controls select opaque command bytes without adding
 			// product command knowledge or changing ordinary proposal admission.
 			pauseMatch := ""
@@ -557,10 +606,15 @@ func (g *slot) processControls(ctx context.Context) bool {
 				action.future.resolveAndDispatch(Result{}, classifyRawProposalError(err, g.rawNode.BasicStatus()))
 				continue
 			}
-			g.mu.Lock()
-			g.submittedProposals = append(g.submittedProposals, action.future)
-			g.mu.Unlock()
+			g.publishSubmittedFuture(action.future, false)
 		case controlConfigChange:
+			if action.future == nil {
+				continue
+			}
+			if err := g.currentErr(); err != nil {
+				action.future.resolveAndDispatch(Result{}, err)
+				continue
+			}
 			cc, err := toRaftConfChange(action.change)
 			if err != nil {
 				action.future.resolveAndDispatch(Result{}, err)
@@ -570,9 +624,7 @@ func (g *slot) processControls(ctx context.Context) bool {
 				action.future.resolveAndDispatch(Result{}, err)
 				continue
 			}
-			g.mu.Lock()
-			g.submittedConfigs = append(g.submittedConfigs, action.future)
-			g.mu.Unlock()
+			g.publishSubmittedFuture(action.future, true)
 		case controlCampaign:
 			_ = g.rawNode.Campaign()
 		case controlTransferLeader:
@@ -617,104 +669,112 @@ func (g *slot) processControls(ctx context.Context) bool {
 				g.rawNode.TransferLeader(uint64(target))
 			}
 		case controlCompactLog:
-			if action.compact == nil {
-				continue
-			}
-			if err := action.compact.ctx.Err(); err != nil {
-				action.compact.resp <- logCompactionResponse{err: err}
-				continue
-			}
-			if err := g.waitApplyIdle(action.compact.ctx); err != nil {
-				action.compact.resp <- logCompactionResponse{err: err}
-				continue
-			}
-			if err := g.currentErr(); err != nil {
-				action.compact.resp <- logCompactionResponse{err: err}
-				continue
-			}
-			applied := g.appliedIndex()
-			var result LogCompactionResult
-			var err error
-			if action.compact.external {
-				result = LogCompactionResult{
-					NodeID:       g.nodeID(),
-					SlotID:       g.id,
-					AppliedIndex: applied,
+			func() {
+				if action.compact == nil {
+					return
 				}
-				if applied == 0 {
-					err = ErrHashSlotSnapshotUnavailable
-				} else {
-					err = g.compactLogAt(action.compact.ctx, applied, true)
-					if err == nil {
-						result.Compacted = true
-						result.AfterSnapshotIndex = applied
-						g.compactor.recordSnapshot(applied)
+				if err := action.compact.ctx.Err(); err != nil {
+					action.compact.resp <- logCompactionResponse{err: err}
+					return
+				}
+				owner := g.beginOwnerStorage(0, ownerOtherCompaction)
+				defer owner.end()
+				if err := g.waitStorageIdle(action.compact.ctx, owner); err != nil {
+					action.compact.resp <- logCompactionResponse{err: err}
+					return
+				}
+				if err := g.currentErr(); err != nil {
+					action.compact.resp <- logCompactionResponse{err: err}
+					return
+				}
+				applied := g.appliedIndex()
+				var result LogCompactionResult
+				var err error
+				if action.compact.external {
+					result = LogCompactionResult{
+						NodeID:       g.nodeID(),
+						SlotID:       g.id,
+						AppliedIndex: applied,
 					}
+					if applied == 0 {
+						err = ErrHashSlotSnapshotUnavailable
+					} else {
+						err = g.compactLogAt(action.compact.ctx, applied, true)
+						if err == nil {
+							result.Compacted = true
+							result.AfterSnapshotIndex = applied
+							g.compactor.recordSnapshot(applied)
+						}
+					}
+				} else {
+					result, err = g.compactLogManually(action.compact.ctx, applied)
 				}
-			} else {
-				result, err = g.compactLogManually(action.compact.ctx, applied)
-			}
-			action.compact.resp <- logCompactionResponse{result: result, err: err}
+				action.compact.resp <- logCompactionResponse{result: result, err: err}
+			}()
 		case controlCaptureHashSlotSnapshot:
-			request := action.backupSnapshot
-			if request == nil || request.done.Load() {
-				continue
-			}
-			if err := request.ctx.Err(); err != nil {
-				request.finish(hashSlotSnapshotResponse{err: err})
-				continue
-			}
-			if err := g.waitApplyIdle(request.ctx); err != nil {
-				request.finish(hashSlotSnapshotResponse{err: err})
-				continue
-			}
-			if err := g.currentErr(); err != nil {
-				request.finish(hashSlotSnapshotResponse{err: err})
-				continue
-			}
-			status := g.rawNode.Status()
-			if status.ID != uint64(g.nodeID()) ||
-				status.Lead != uint64(g.nodeID()) ||
-				status.Term != request.expectedLeaderTerm ||
-				status.RaftState != raft.StateLeader {
-				request.finish(hashSlotSnapshotResponse{err: ErrNotLeader})
-				continue
-			}
-			snapshotter, ok := g.stateMachine.(HashSlotSnapshotter)
-			if !ok {
-				request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnsupported})
-				continue
-			}
-			applied := g.appliedIndex()
-			if applied == 0 {
-				request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnavailable})
-				continue
-			}
-			commit := g.rawNode.Status().Commit
-			if commit == 0 || commit != applied {
-				request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnavailable})
-				continue
-			}
-			appliedTerm, err := g.storageView.memory.Term(applied)
-			if err != nil {
-				request.finish(hashSlotSnapshotResponse{err: err})
-				continue
-			}
-			reader, err := snapshotter.OpenHashSlotSnapshot(request.ctx, request.hashSlot)
-			if err != nil {
-				request.finish(hashSlotSnapshotResponse{err: err})
-				continue
-			}
-			request.finish(hashSlotSnapshotResponse{result: CapturedHashSlotSnapshot{
-				SlotID:               g.id,
-				HashSlot:             request.hashSlot,
-				AppliedIndex:         applied,
-				CommitIndex:          commit,
-				AppliedTerm:          appliedTerm,
-				LeaderTerm:           status.Term,
-				CapturedAtUnixMillis: time.Now().UTC().UnixMilli(),
-				Reader:               reader,
-			}})
+			func() {
+				request := action.backupSnapshot
+				if request == nil || request.done.Load() {
+					return
+				}
+				if err := request.ctx.Err(); err != nil {
+					request.finish(hashSlotSnapshotResponse{err: err})
+					return
+				}
+				owner := g.beginOwnerStorage(0, ownerOtherCapture)
+				defer owner.end()
+				if err := g.waitStorageIdle(request.ctx, owner); err != nil {
+					request.finish(hashSlotSnapshotResponse{err: err})
+					return
+				}
+				if err := g.currentErr(); err != nil {
+					request.finish(hashSlotSnapshotResponse{err: err})
+					return
+				}
+				status := g.rawNode.Status()
+				if status.ID != uint64(g.nodeID()) ||
+					status.Lead != uint64(g.nodeID()) ||
+					status.Term != request.expectedLeaderTerm ||
+					status.RaftState != raft.StateLeader {
+					request.finish(hashSlotSnapshotResponse{err: ErrNotLeader})
+					return
+				}
+				snapshotter, ok := g.stateMachine.(HashSlotSnapshotter)
+				if !ok {
+					request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnsupported})
+					return
+				}
+				applied := g.appliedIndex()
+				if applied == 0 {
+					request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnavailable})
+					return
+				}
+				commit := g.rawNode.Status().Commit
+				if commit == 0 || commit != applied {
+					request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnavailable})
+					return
+				}
+				appliedTerm, err := g.storageView.memory.Term(applied)
+				if err != nil {
+					request.finish(hashSlotSnapshotResponse{err: err})
+					return
+				}
+				reader, err := snapshotter.OpenHashSlotSnapshot(request.ctx, request.hashSlot)
+				if err != nil {
+					request.finish(hashSlotSnapshotResponse{err: err})
+					return
+				}
+				request.finish(hashSlotSnapshotResponse{result: CapturedHashSlotSnapshot{
+					SlotID:               g.id,
+					HashSlot:             request.hashSlot,
+					AppliedIndex:         applied,
+					CommitIndex:          commit,
+					AppliedTerm:          appliedTerm,
+					LeaderTerm:           status.Term,
+					CapturedAtUnixMillis: time.Now().UTC().UnixMilli(),
+					Reader:               reader,
+				}})
+			}()
 		case controlFreshStatus:
 			request := action.freshStatus
 			if request == nil || request.done.Load() {
@@ -793,6 +853,25 @@ func (g *slot) executeStrictLeaderTransfer(request *strictLeaderTransferRequest,
 	request.finish(strictLeaderTransferResponse{result: result})
 }
 
+// publishSubmittedFuture transfers a selected control to the tracked FIFO under
+// the terminal fence. The borrowed active batch preserves the exact close cause;
+// completion callbacks are dispatched only after releasing mu.
+func (g *slot) publishSubmittedFuture(fut *future, config bool) {
+	g.mu.Lock()
+	err := g.admissionErrLocked()
+	if err == nil {
+		if config {
+			g.submittedConfigs = append(g.submittedConfigs, fut)
+		} else {
+			g.submittedProposals = append(g.submittedProposals, fut)
+		}
+	}
+	g.mu.Unlock()
+	if err != nil {
+		fut.resolveAndDispatch(Result{}, err)
+	}
+}
+
 func (g *slot) takeRequestBatch() []raftpb.Message {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -819,12 +898,14 @@ func (g *slot) takeControlBatch() []controlAction {
 	g.queuedBackgroundControls = 0
 	g.controls = g.controlWorkBuf[:0]
 	g.controlWorkBuf = nil
+	g.activeControls = batch
 	return batch
 }
 
 func (g *slot) releaseControlBatch(batch []controlAction) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.activeControls = nil
 	clear(batch)
 	g.controlWorkBuf = batch[:0]
 }
@@ -877,63 +958,159 @@ func (g *slot) processTick() bool {
 }
 
 func (g *slot) processReady(ctx context.Context, transport Transport) (bool, bool) {
+	completed := g.drainStorageCompletions()
+	if !g.shouldProcess() {
+		return completed, false
+	}
 	if !g.rawNode.HasReady() {
-		return false, false
+		g.compactAfterStorage()
+		return completed, false
 	}
-
+	// A full per-Slot count can be checked without accepting or retaining Ready.
+	// Node/byte limits and legal oversized work keep their existing fallback.
+	if g.storagePipeline != nil && g.storagePipeline.budget.slotCountFull(g) {
+		g.setStorageCountPaused(true)
+		return completed, false
+	}
 	ready := g.rawNode.Ready()
-	persist, err := g.storageView.persistReadyDurable(ctx, ready)
-	if err != nil {
-		g.failPending(err)
-		return true, false
-	}
-	// A reached temporary marker proves persistence before quorum commit; it
-	// deliberately does not fire for already-committed single-node entries.
-	persistMatch := ""
-	// gofail: var wkSlotPersistedCommandMatch string
-	// persistMatch = wkSlotPersistedCommandMatch
-	if persistMatch != "" {
-		for _, entry := range ready.Entries {
-			if matchesSlotFaultCommand(entry.Data, persistMatch) && entry.Index > g.rawNode.BasicStatus().Commit {
-				// gofail: var wkSlotPersistedUncommitted bool
-				// _ = wkSlotPersistedUncommitted
-			}
-		}
-	}
-	requiresSyncApply := readyRequiresSynchronousApply(ready)
-	if requiresSyncApply {
-		if err := g.waitApplyIdle(ctx); err != nil {
-			return true, false
-		}
-		if err := g.currentErr(); err != nil {
-			return true, false
-		}
-	}
-	if err := g.storageView.applyReadyToMemory(persist); err != nil {
-		g.failPending(err)
-		return true, false
-	}
-	proposalCount, configCount := countTrackedReadyEntries(ready.Entries)
-	g.ensurePendingProposalCapacity(proposalCount)
-	g.ensurePendingConfigCapacity(configCount)
+	// Bind the submitted FIFO now: a later term change may admit different
+	// Futures before this Ready's physical write completes.
+	proposals, configs := countTrackedReadyEntries(ready.Entries)
+	g.ensurePendingProposalCapacity(proposals)
+	g.ensurePendingConfigCapacity(configs)
 	g.trackReadyEntries(ready.Entries)
-
-	if len(ready.Messages) > 0 {
-		g.transportBuf = wrapMessagesIntoForTransport(g.transportBuf[:0], g.id, ready.Messages, transport)
-		_ = transport.Send(ctx, g.transportBuf)
-		clear(g.transportBuf)
-		g.transportBuf = g.transportBuf[:0]
+	if g.readBarrierTracing {
+		g.observeReadStatesProduced(ready.ReadStates)
 	}
-
-	g.acceptReadStates(ready.ReadStates)
-	if requiresSyncApply {
-		return g.processReadySynchronously(ctx, ready)
+	// A fresh proof for already durable-applied history need not wait for an
+	// unrelated newer append. Refresh actual owner state before accepting it.
+	if len(ready.ReadStates) > 0 {
+		g.refreshStatus()
+		g.acceptReadStates(ready.ReadStates)
 	}
-	return g.processReadyAsyncNormal(ctx, ready)
+	accepted := g.rawNode.BasicStatus()
+	work := &storageWork{slot: g, transport: transport, commitBefore: accepted.Commit, acceptedTerm: accepted.Term}
+	charge := storageReadyCharge(ready)
+	network := ready.Messages[:0]
+	for _, m := range ready.Messages {
+		switch m.Type {
+		case raftpb.MsgStorageAppend:
+			work.append = m
+			work.hasAppend = true
+		case raftpb.MsgStorageApply:
+			work.apply = m
+			work.hasApply = true
+		default:
+			network = append(network, m)
+		}
+	}
+	g.sendReadyMessages(ctx, network, transport)
+	if !work.hasAppend && !work.hasApply {
+		return true, g.rawNode.HasReady()
+	}
+	synchronous := readyRequiresSynchronousApply(ready)
+	var rejectMask, otherMask uint8
+	var rejectOut *uint8
+	if g.readBarrierTracing {
+		rejectOut = &rejectMask
+		if charge > storageSlotBytes {
+			otherMask |= ownerOtherOversize
+		}
+		if !raft.IsEmptySnap(ready.Snapshot) {
+			otherMask |= ownerOtherSnapshot
+			otherMask &^= ownerOtherOversize
+		}
+		if synchronous && raft.IsEmptySnap(ready.Snapshot) {
+			otherMask |= ownerOtherConfig
+		}
+		if g.storagePipeline == nil || g.apply == nil {
+			otherMask |= ownerOtherEmbedding
+		}
+	}
+	for _, entry := range ready.Entries {
+		if entry.Type != raftpb.EntryNormal {
+			synchronous = true
+			if g.readBarrierTracing {
+				otherMask |= ownerOtherConfig
+			}
+			break
+		}
+	}
+	if !synchronous && g.storagePipeline != nil && g.apply != nil {
+		parts := storageAppendPart
+		if work.hasApply {
+			parts |= storageApplyPart
+		}
+		if lease, ok := g.storagePipeline.budget.reserveWithReason(g, charge, parts, rejectOut); ok {
+			work.lease = lease
+			if work.hasAppend {
+				work.append = cloneStorageMessage(work.append)
+			}
+			if work.hasApply {
+				work.apply = cloneStorageMessage(work.apply)
+			}
+			if err := g.storagePipeline.enqueue(work); err != nil {
+				lease.retire()
+				g.fail(err)
+				return true, false
+			}
+			return true, g.rawNode.HasReady()
+		}
+	}
+	owner := g.beginOwnerStorage(rejectMask, otherMask)
+	defer owner.end()
+	// Ready has already been accepted upstream. Borrow exactly this Ready while
+	// joining prior work; neither clone an oversized payload nor accept another.
+	if err := g.waitStorageIdle(ctx, owner); err != nil {
+		g.fail(err)
+		return true, false
+	}
+	if !g.shouldProcess() {
+		return true, false
+	}
+	owner.setStage(ownerStageWork)
+	persist, err := g.runStorageAppend(ctx, work, owner)
+	if err != nil {
+		g.fail(err)
+		return true, false
+	}
+	if err = g.storageView.applyReadyToMemory(persist); err != nil {
+		g.fail(err)
+		return true, false
+	}
+	applied := raft.Ready{}
+	if work.hasAppend && work.append.Snapshot != nil {
+		applied.Snapshot = *work.append.Snapshot
+	}
+	if work.hasApply {
+		applied.CommittedEntries = work.apply.Entries
+	}
+	if !raft.IsEmptySnap(applied.Snapshot) || len(applied.CommittedEntries) > 0 {
+		g.processReadySynchronously(ctx, applied, owner)
+	}
+	if !g.shouldProcess() {
+		return true, false
+	}
+	owner.setStage(ownerStageNone)
+	if work.hasAppend {
+		g.deliverStorageResponses(ctx, work.append.Responses, transport)
+	}
+	if work.hasApply {
+		g.deliverStorageResponses(ctx, work.apply.Responses, transport)
+	}
+	owner.end()
+	g.compactAfterStorage()
+	if !g.rawNode.HasReady() && g.takeCampaignAfterReady() {
+		_ = g.rawNode.Campaign()
+	}
+	return true, g.rawNode.HasReady()
 }
 
-func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) (bool, bool) {
-	if err := g.waitApplyIdle(ctx); err != nil {
+func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready, owner *ownerStorageToken) (bool, bool) {
+	prior := owner.setStage(ownerStageDrain)
+	err := g.waitApplyIdle(ctx)
+	owner.setStage(prior)
+	if err != nil {
 		return true, false
 	}
 	if !g.shouldProcess() {
@@ -990,25 +1167,19 @@ func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) 
 		g.setDurableAppliedIndex(lastApplied)
 	}
 
-	g.rawNode.Advance(ready)
-	g.refreshStatus()
+	if configChanged {
+		// A successful configuration Future publishes the new membership too.
+		// Ordinary Ready work still shares the owner pass's basic refresh.
+		g.refreshFullStatus()
+	}
 	g.completeResolutions(resolutions)
 	requeue := g.rawNode.HasReady()
-	if g.takeCampaignAfterReady() {
-		_ = g.rawNode.Campaign()
-		requeue = true
-	}
-	// Refresh snapshots after membership changes so future learners can restore
-	// a snapshot whose ConfState includes the latest peer set.
-	if g.compactor.shouldCompact(lastApplied) ||
-		(configChanged && g.compactor.shouldRefreshAfterConfigChange(lastApplied)) {
-		compacted, err := g.compactLog(ctx, lastApplied)
-		if err != nil {
-			g.logCompactionWarning(err, lastApplied)
-		} else if compacted {
-			g.compactor.recordSnapshot(lastApplied)
-		}
-	}
+	// Snapshot compaction belongs to the owner only after local storage
+	// responses are consumed; applying entries alone is not the whole fence.
+	g.mu.Lock()
+	g.compactionPending = true
+	g.compactionRefresh = g.compactionRefresh || configChanged
+	g.mu.Unlock()
 	return true, requeue || g.rawNode.HasReady()
 }
 
@@ -1026,33 +1197,6 @@ func (g *slot) markApplied(ctx context.Context, index uint64) error {
 		}
 	}
 	return g.storage.MarkApplied(ctx, index)
-}
-
-func (g *slot) processReadyAsyncNormal(ctx context.Context, ready raft.Ready) (bool, bool) {
-	if len(ready.CommittedEntries) == 0 {
-		g.rawNode.Advance(ready)
-		g.refreshStatus()
-		return true, g.rawNode.HasReady()
-	}
-	if g.apply == nil {
-		return g.processReadySynchronously(ctx, ready)
-	}
-
-	task := applyTask{
-		slot:          g,
-		entries:       cloneEntries(ready.CommittedEntries),
-		appliedBefore: g.appliedIndex(),
-	}
-	if err := g.apply.enqueue(task); err != nil {
-		if errors.Is(err, ErrSlotBusy) {
-			return g.processReadySynchronously(ctx, ready)
-		}
-		g.fail(err)
-		return true, false
-	}
-	g.rawNode.Advance(ready)
-	g.refreshStatus()
-	return true, g.rawNode.HasReady()
 }
 
 func (g *slot) logCompactionWarning(err error, applied uint64) {
@@ -1387,6 +1531,19 @@ func (g *slot) refreshStatus() {
 	g.refreshBasicStatus()
 }
 
+// refreshStatusAfterPass preserves a refresh for tick-only work, but does not
+// repeat an earlier publication when its projected fields are still current.
+// It is owner-only; upstream Applied is excluded because public applied status
+// is published separately from the durable FSM watermark.
+func (g *slot) refreshStatusAfterPass() {
+	st := g.rawNode.BasicStatus()
+	last := g.lastRefreshedBasic
+	if !g.statusRefreshedInPass || g.needsFullStatusRefresh() ||
+		st.Term != last.Term || st.Commit != last.Commit || st.Lead != last.Lead || st.RaftState != last.RaftState {
+		g.refreshStatus()
+	}
+}
+
 func (g *slot) needsFullStatusRefresh() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -1396,6 +1553,7 @@ func (g *slot) needsFullStatusRefresh() bool {
 // refreshBasicStatus updates volatile Raft status without cloning tracker progress.
 func (g *slot) refreshBasicStatus() {
 	st := g.rawNode.BasicStatus()
+	g.lastRefreshedBasic, g.statusRefreshedInPass = st, true
 	g.mu.Lock()
 	g.basicStatusRefreshCount++
 	leaderEvent, applyEvent, completions := g.applyBasicStatusLocked(st)
@@ -1408,6 +1566,7 @@ func (g *slot) refreshBasicStatus() {
 // refreshFullStatus updates voter membership and basic status from RawNode.Status.
 func (g *slot) refreshFullStatus() {
 	st := g.rawNode.Status()
+	g.lastRefreshedBasic, g.statusRefreshedInPass = st.BasicStatus, true
 	g.mu.Lock()
 	g.fullStatusRefreshCount++
 	g.votersInitialized = true
@@ -1970,7 +2129,7 @@ func (g *slot) finishApply() {
 }
 
 func (g *slot) waitIdleLocked() {
-	for g.processing || g.applying > 0 {
+	for g.processing || g.applying > 0 || g.storageTasks > 0 {
 		g.cond.Wait()
 	}
 }
@@ -2045,6 +2204,7 @@ func (g *slot) fail(err error) {
 		return
 	}
 	g.fatalErr = err
+	g.retireStorageCompletionsLocked()
 	completions := g.failPendingLocked(err)
 	g.mu.Unlock()
 	dispatchFutureCompletions(completions)
@@ -2211,7 +2371,27 @@ func (g *slot) failPendingLocked(err error) []futureCompletion {
 		g.failUnconfirmedReadCallersLocked(err)
 	}
 	completions := make([]futureCompletion, 0, len(g.submittedProposals)+len(g.submittedConfigs)+len(g.pendingProposals)+len(g.pendingConfigs))
+	terminal := g.closed || g.fatalErr != nil
+	if terminal {
+		for _, action := range g.activeControls {
+			if action.future != nil {
+				if completion := action.future.resolve(Result{}, err); completion.future != nil {
+					completions = append(completions, completion)
+				}
+			}
+		}
+	}
 	for i := range g.controls {
+		if terminal && g.controls[i].future != nil {
+			if completion := g.controls[i].future.resolve(Result{}, err); completion.future != nil {
+				completions = append(completions, completion)
+			}
+			// Terminal proposal controls cannot enter RawNode. Release queued
+			// references without clearing the concurrently borrowed batch.
+			g.controls[i].future = nil
+			g.controls[i].data = nil
+			g.controls[i].change.Context = nil
+		}
 		if g.controls[i].readBarrier != nil {
 			g.controls[i].readBarrier.finish(err)
 		}

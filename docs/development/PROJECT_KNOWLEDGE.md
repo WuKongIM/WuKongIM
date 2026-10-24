@@ -1,5 +1,27 @@
 # Project Knowledge
 
+Permission-read cohort busy errors may carry an immutable rejection-time snapshot
+of satisfied guards (owned calls=2, owned bytes=4), retained
+occupancy and the rejected call's conservative byte reservation. Capture all
+satisfied bits under the ownership lock; keep error text, errors.Is and
+SystemBusy replies unchanged. Existing gateway warnings omit these fields when
+unobserved, including receiver busy and oversized inputs rejected before copying.
+Active cohort occupancy remains context; saturation alone queues within the
+retained budget instead of rejecting. Bit 1 describes the earlier active-cohort
+rejection and is reserved for reading historical observations. The snapshot is
+not a receiver/RPC queue measurement or allocator/RSS usage.
+
+Ordered submission timeout warnings may expose `submissionTimingsPresent` and
+queue, route and pre-callback durations for the same original job. Queue starts
+after reservation; route covers the joined sender call, and pre-callback includes
+earlier callbacks in that execution batch. Admission/copy work before reservation,
+selected-to-sender assembly, diagnostic attachment after the pre-callback snapshot
+and the callback itself remain outside these phases;
+their sum is not the entire submitter duration or a CPU/storage measurement.
+Absent observations are not zero. Timestamp capture adds bounded per-job work,
+while only timeout results allocate error wrappers; original errors and ownership
+through callback return remain authoritative.
+
 Local storage-overlap capture emits fixed scan-failure reasons to stderr.
 Missing inventories still invalidate qualification even when metrics are valid;
 scan limits, original exit outcomes and missing-evidence decisions remain authoritative.
@@ -38,8 +60,16 @@ for replication to become idle can delay controls through an entire Ready chain.
 This does not relax persistence, snapshot/configuration or fresh-read apply fences.
 
 Concurrent SEND permission callers collect for at most 5 ms before sealing a
-fresh read. Idle one/two-fact calls remain immediate; 64 cohorts, 1024 owned calls
-and 16 MiB credits remain independent limits, with no reuse of completed facts.
+fresh read. Idle one/two-fact calls remain immediate. When all 64 collecting or
+executing cohorts are occupied, original callers wait in FIFO order within the
+same 1024 owned-call and 16 MiB credit limits, without a worker or timer per
+waiting caller. A released execution position seals an already-waiting prefix
+of at most 64 calls/4096 inputs before a new fresh barrier; it does not wait to
+fill or reuse completed facts. Pending cancellation removes its reservation;
+selected callers retain credits until their physical read joins. Close fences
+admission, resolves pending callers, and joins all selected owners before their
+dependencies close. These credits are conservative owned-data reservations, not
+an allocator or RSS bound.
 
 
 Keep only stable, cross-module facts that prevent incorrect designs or unsafe
@@ -1832,7 +1862,7 @@ specification, runbook, report, or module documentation; link to them when neede
   when the caller never enters decoding. Keep 128 executing envelopes (at most 512 Slot workers), the
   waiting count/byte/time bounds, and fresh barriers unchanged together.
 
-- Ingress SEND facts collect concurrent callers for at most 1 ms, then seal
+- Ingress SEND facts collect concurrent callers for at most 5 ms, then seal
   membership before routing and fresh quorum/snapshot reads. Idle one/two-fact
   calls execute immediately. Late arrivals require a new sealed batch; completed
   facts never cache. Limits are 64 calls / 4096 inputs per batch, 64 active batches,
@@ -1846,6 +1876,10 @@ specification, runbook, report, or module documentation; link to them when neede
   later arrivals or an intervening control require another proof. Each caller
   retains its own cancellation, 256-per-Slot pending position, term fence and
   durable-apply wait, including canceled requests not yet quorum-confirmed.
+  Admission proves a durable committed current-term prefix at the lesser of
+  RawNode commit and the local durable last index. A remote majority may commit
+  newer entries before local Save completes; that gap does not invalidate the
+  prefix or permit returning before the fresh read index is durable-applied.
 
 - Runtime Channel metadata creation collects for at most 20 ms, with the same
   32-item early dispatch, 64-item batch, 256-identity per-Slot queue and two
@@ -2028,6 +2062,122 @@ specification, runbook, report, or module documentation; link to them when neede
   labels, parser bounds and release gates stay unchanged. This coherence repair
   does not establish the cause of an unretained scrape or a presence timeout.
 
+- RPC phase diagnostics are opt-in through `diagnostics.rpc_sample_every` and
+  require the existing diagnostics store to be enabled. A negotiated connection
+  generation token and full RequestID join caller/receiver samples; ordinary
+  per-connection RequestIDs alone cannot. Samples use the existing bounded
+  observer drain and store, with at most 128 active observations per endpoint and
+  32 intervals per RPC. Local durations may overlap; independent endpoint clocks
+  cannot establish one-way network delay. Missing/unfinished intervals, bounded
+  query retention and observer drops remain incomplete evidence. Shared permission
+  and presence cohorts do not claim one caller as their parent, and tracing does not grant
+  cancellation authority over started mutations.
+  Negotiated sampled frames retain a fixed optional server receive prefix before
+  the original server Trace.At and three client response receive intervals inside
+  the existing 32-span budget. The initial receive identity validation precedes
+  their first clock and remains unknown; the server's existing dispatch-time
+  revalidation is inside the total prefix. The observer interval includes synchronous observation and
+  scheduling; dispatch ends immediately before the buffered response send, and
+  resume includes that send and caller scheduling. These intervals overlap
+  response_wait and cannot be added to it or interpreted as network latency.
+  Omitted, late, unbound, mismatched-service or recorder-dropped evidence remains
+  unknown. Disabled capture adds no receive clocks, identity locks or dynamic
+  timing object, but its optional carrier still enlarges the response element.
+  Trace capability failures fail the current call without replay; a later caller
+  may retry negotiation with the same connection token, including when an earlier
+  reply arrived too late. Only success or explicit unsupported is cached.
+  A sampled Slot read retains only its longest caller-visible barrier group,
+  separating control wait, ReadIndex eligibility, raw quorum confirmation,
+  Ready-to-accept processing, and durable-apply wait. Bounded Save/Send
+  overlays overlap these phases and must not be added to them. Raw ReadStates
+  observation records proof production, not read completion. Fresh proof for
+  an already durable-applied index may pass an unrelated newer append only
+  after the owner validates its actual current leader and term.
+  Fixed per-phase Save/Send coverage accumulates all observed intersections
+  independently of the two-per-kind detailed-overlay cap. Coverage belongs to
+  the same retained longest group, includes only the caller's observed window,
+  and distinguishes unreached phases from measured zero. Save includes backend
+  writer admission and persistence preparation, not only fsync; neither coverage nor
+  raw-quorum duration alone identifies network or disk latency. Asynchronous
+  Save overlap can represent concurrent progress rather than owner blocking.
+  Commit observations follow each logical request from queue-credit admission
+  through physical-batch entry, collection, build, durable commit and publication;
+  shared physical phases overlap across requests and publication excludes Finalize.
+  Commit intervals require a propagated trace: the Channel leader's asynchronous
+  reactor/durability contexts do not yet carry it. Follower exchange RPC commit
+  samples describe that exchange, not the original SEND's full storage path.
+  Absent commit intervals cannot establish absent storage waiting.
+  Presence census distinguishes actual execution batches and original-call
+  result responsibility. Decoded result/page bytes are diagnostic structural
+  estimates (visible slice capacity plus live strings), not heap or RSS bounds;
+  their enabled signal distinguishes unmeasured values from measured zero.
+
+  Optional owner-storage coverage uses the same five phase boundaries: budget
+  fallback scope with disjoint drain, Save-admission and synchronous-work subsets,
+  plus a separate non-budget fence scope. Explicit owner tokens exclude ordinary
+  async Save. Admission masks are captured under the original budget lock; disabled
+  tracing adds no timing locks/clocks/scans. Scope/subset totals are not additive,
+  waits measure the original synchronization/select interval rather than kernel
+  parking, and absent fields/unreached phases remain unknown. Caller termination
+  clips all open scope/subset intervals together; late work cannot mutate samples.
+  A separate optional storage-count pause record follows those same five phases
+  and longest-group ownership. It measures the interval from owner pause before
+  Ready until a later owner pass consumes sufficient completions to resume;
+  newly registered reads inherit an already open pause. Cancellation clips it
+  without changing scheduling. It is neither occupied-worker time nor a split
+  of append/apply/completion causes; overlapping Save and owner records must not
+  be added. Missing fields are unknown, while present zero is measured zero.
+- Slot Raft uses upstream asynchronous storage messages with one RawNode owner.
+  Append completion publishes durable memory and dependent replies through a
+  private completion path; external Step cannot inject storage messages or
+  address reserved storage threads. Apply remains behind its append prefix,
+  including HardState.Commit. Futures bind at Ready acceptance, so a delayed
+  older-term Save cannot consume a new term's submitted FIFO.
+  An append turn freezes at most four already queued records and merges only
+  a compatible same-generation/actual-term prefix. Ordinary entries stay
+  contiguous without replacement across members; whole HardState values retain
+  the last compatible Term/Vote and monotonic Commit. Configuration, snapshots,
+  apply-only and response-only work remain boundaries. One physical Save keeps
+  every original response, apply fence and lease; later arrivals wait for another
+  turn, and a failed group seals the generation before any successor Save.
+  A Ready owns at most two completion records, charged until consumed or joined
+  and retired. Limits are `min(4, normalized MaxApplyingTasks)` Ready owners / 8 MiB
+  per Slot and `4 * Workers` Ready owners / `8 MiB * Workers` per Runtime. They bound
+  new queue ownership, not upstream inputs, allocator overhead or total RSS.
+  A full per-Slot owner count pauses before accepting another Ready and returns
+  the shared worker. A paused pass drains private completions before new inputs;
+  the first fully retired lease resumes the existing FIFO. No accepted Ready,
+  extra payload queue or waiting goroutine is parked. Same-Slot message-only
+  work may wait, while other Slots retain worker turns. Node/byte saturation
+  and oversized legal entries still use one borrowed synchronous Ready;
+  snapshots, configuration and compaction also join both lanes. Async and
+  synchronous Save share `Workers` physical I/O permits. Close/reload join the
+  retiring generation before its identity or storage can be reused. Close skips
+  queued append work that has not entered Save; entered calls must return before
+  reuse, while already accepted apply work drains. A Save failure seals its
+  generation before any successor Save starts,
+  even when the Raft owner has not yet consumed the failure completion. Fatal
+  retirement clears completed mailbox records; unfinished Save/apply work stays
+  charged until its physical completion.
+  Terminal shutdown/failure resolves proposals still queued or borrowed by the
+  current control batch before their submitted-Future handoff. The borrowed
+  batch remains visible under the Slot lock without copying its payload;
+  callbacks dispatch outside that lock and retain the exact terminal cause.
+  Ordinary leadership loss keeps its separate submitted/pending semantics.
+  The [same-request diagnosis](../reports/2026-10-24-sampled-raft-read-blocking.md)
+  retains the failed 2,000-SEND/s gates and public held-Save regressions. R19
+  identifies per-Slot count fallback in sampled owner occupancy. R20 removes
+  that measured fallback but still fails the original gate; its main sampled
+  wait remains raw quorum. R21 independently measures same-Slot count pause:
+  its 112 successful permission samples from active cuts spend a mean 81.6%
+  of their longest read barrier paused, with measured owner occupancy zero.
+  The original 2,000-SEND/s gate still fails. This supports improving the
+  existing storage FIFO, but does not trace the 47 failed SENDs or distinguish
+  append, apply and completion consumption within a pause. Paused time is not
+  owner occupancy and cannot be added to overlapping Save time. The
+  20-worker/12-Slot R20 topology also limits extrapolation from the controlled
+  single-worker progress test.
+
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
   does not establish compiled-source provenance. Exact reproduction uses a clean
@@ -2036,4 +2186,86 @@ specification, runbook, report, or module documentation; link to them when neede
   reproduced both original cloud Linux server/CLI ELF files byte for byte; native
   Mac measurements still do not constitute Linux performance acceptance.
 
+- Mixed presence RPC services retain their original service/executor budgets.
+  Trusted entry opcode classifiers choose request cancellation only for reads;
+  started mutations retain independent execution and unknown caller outcomes.
+  Recovery batches preserve original call boundaries: each call may return up
+  to 4096 routes, while each versioned response page also caps total routes at
+  4096. A continuation shares one original owner deadline, validates membership
+  and owner boot across pages, and never converts incomplete proof into offline.
+
+- Transport `StopContext` fences new admission and joins actual request, late
+  dial, connection reader/writer and observer completion. `ErrStopIncomplete`
+  retains that generation for a later join; compatibility `Stop()` has only a
+  bounded grace. A connection's `Done` means shutdown began, not that transferred
+  payloads were released; reconnect cannot forget a retiring writer. Cluster
+  lifecycle joins inbound handlers before outbound calls and their dependencies.
+  Startup rollback retains unfinished owners, while ordinary cleanup errors
+  still allow unrelated cleanup. This does not promise bounded termination of
+  arbitrary noncooperative background adapters or certify throughput.
+
 - Flutter EasySDK versions are selected in `docs-site/lib/easy-sdk-releases.json`; `/sdk/easy/flutter/streaming` documents independent peers and backend recovery. Keep historical 1.1.0 matrix identities separate from 1.2.1 pub.dev/native evidence.
+
+### Recovery result ownership and R3 evidence (2026-10-23)
+
+The exact `3075f849` 2,000-primary-SEND/s diagnostic failed the original
+message-loss gate at +25.0593 seconds. All nine active census points held 16
+original-call result credits while only 1–3 physical batches ran and 82–223
+calls waited. This confirms admission underutilization, not the sole cause of
+message loss. Same-request Slot samples still expose substantial quorum waits.
+
+Fully bounded recovery providers may fill up to 16 physical batches without
+sharing the legacy 16-original-call guard. A separate per-generation 128 MiB /
+196,608 row-capacity ledger prepays decoded backing, exact string clones and
+lease metadata, including transient pages, scratch and overlapping old/new
+accumulators. This resource allocation is 1/64 of the 8 GiB target node, not
+inferred from sparse observed rows. It does not bound raw transport buffers,
+input selector maps, Directory state, allocator overhead or RSS. Reservation
+never waits while holding partial resources; denial fails the complete physical
+round. Local, remote and old-protocol paths must all advertise and enforce the
+same ownership capability; embedding legacy providers retain the old guard.
+Per-call 4,096-row, per-owner 250 ms, FIFO/input/execution limits and exact fences
+remain unchanged. Cancellation cannot return credits before actual provider
+completion, installation and provider-reference release.
+
+- The exact `0fbbd27c` local 2,000-SEND/s run still failed the unchanged
+  first-attempt gate at 13/70,033 sends (0.01856%) after 35.06 seconds. In the
+  fully contained pre-failure log window, all 20 SEND warnings were submitter
+  timeouts, with no observed permission-admission rejection. Ten had less than
+  1 ms submitter queue wait and 3.832–4.191 s in the joined sender; ten spent
+  2.227–3.616 s queued. Warnings are not the worker's 13-error population.
+  No snapshot means unknown occupancy; this result neither passes acceptance
+  nor attributes the remaining wait to RPC, disk or CPU alone.
+- Original-job submission queue timing separates the last canonical-Channel
+  predecessor's callback release from waiting ready for a worker. Their sum is
+  the existing queue interval; copied immutable failure diagnostics preserve
+  missing versus zero. Router single-item timeout observations accumulate actual
+  attempts across retries. Forwarding includes its downstream call and local
+  completion includes the future wait, so neither is a pure socket or fsync
+  measurement. Multi-item Router calls remain unobserved rather than reporting
+  invented per-item intervals. These phases do not partition total SEND time.
+
+- Ordered Channel submissions may seal an already-admitted single-key durable
+  FIFO prefix into one routing call. Product composition targets 32 records
+  (clamped by existing queue capacity) and the existing session batch byte target;
+  larger original jobs stay intact without merging successors. This does not
+  change Gateway ingress batching or admission credits.
+  Multi-key jobs, trusted append-admission callbacks and transient sends are
+  boundaries. Each original callback retains and releases its own record/payload
+  ownership in order; no selected successor re-enters the ready queue. Queue
+  dependency ends at predecessor release or cohort takeover, with zero ready
+  wait for a sealed successor. Shared authority resolution joins until all
+  participating callers end, without allowing the first caller's cancellation
+  to poison live siblings or erasing an existing non-submission proof.
+- Same-Channel idempotency recovery must not replay a later missing item past
+  an earlier live retryable committed-proof lookup failure. Keep positive
+  committed results, replay only an earlier safe prefix, and retain the typed
+  retry reason for unresolved later misses. An unknown prior proposal never
+  acquires non-submission proof merely because a later lookup or retry failed.
+
+- Acceptance snapshot inventories race with normal external Raft snapshot
+  publication and GC. A successful file enumeration followed by native stat's
+  confirmed ENOENT may restart the entire inventory under the original absolute
+  scan deadline and observed-at cut. Discard partial inventories; never skip
+  vanished paths, reset the budget, or promote incomplete evidence. Find errors,
+  other stat failures, invalid types/sizes and sustained churn still fail closed.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -20,6 +21,8 @@ const (
 
 // Request is one service invocation owned by the service after a successful Enqueue.
 type Request struct {
+	// TraceQueue spans admission through actual handler entry, including executor wait.
+	TraceQueue rpctrace.Span
 	// Context carries the connection lifetime and negotiated caller budget. Nil
 	// uses the service lifetime. Running cancellation is opt-in per service.
 	Context context.Context
@@ -214,6 +217,38 @@ func (s *Service) Enqueue(req Request) error {
 	return nil
 }
 
+// CloseAdmission fences enqueue and pump ownership without waiting for handlers
+// or terminal callbacks. The server calls it before exposing an incomplete Stop.
+func (s *Service) CloseAdmission() {
+	s.mu.Lock()
+	s.stopped = true
+	s.cancel()
+	s.armQueueTimerLocked()
+	s.mu.Unlock()
+}
+
+// Wait joins all admitted owners. Expiry never means their resources are free.
+func (s *Service) Wait(ctx context.Context) error {
+	select {
+	case <-s.done:
+		return nil
+	default:
+	}
+	select {
+	case <-s.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Ownership reports payload responsibility through terminal callback completion.
+func (s *Service) Ownership() (int, int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.retainedItems, s.retainedBytes
+}
+
 // Stop rejects admission and releases queued owners before joining active work.
 func (s *Service) Stop() {
 	s.stopOnce.Do(func() {
@@ -331,20 +366,27 @@ func (s *Service) handle(req Request) error {
 		deliver(req, Response{Err: err})
 		return err
 	}
+	// Classification borrows the still-owned request only after queue checks.
+	// Keep cancellation detached for every request not explicitly declared read-only.
+	cancelRunning := s.opts.CancelRunning
+	if s.opts.CancelRunningFor != nil {
+		cancelRunning = s.opts.CancelRunningFor(req.Payload.Bytes())
+	}
 	ctx := s.ctx
-	if s.opts.CancelRunning {
+	if cancelRunning {
 		ctx = req.Context
 	}
+	ctx = rpctrace.Copy(ctx, req.Context)
 	cancel := func() {}
 	if s.opts.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, s.opts.Timeout)
-	} else if s.opts.CancelRunning && req.Context != s.ctx {
+	} else if cancelRunning && req.Context != s.ctx {
 		ctx, cancel = context.WithCancel(ctx)
 	}
 	defer cancel()
 	// The execution context already has a cancel function. Reuse it to link
 	// service shutdown instead of adding a second cancellation context.
-	if s.opts.CancelRunning && req.Context != s.ctx {
+	if cancelRunning && req.Context != s.ctx {
 		stopService := context.AfterFunc(s.ctx, cancel)
 		defer stopService()
 	}
@@ -352,10 +394,16 @@ func (s *Service) handle(req Request) error {
 	if req.entry != nil {
 		s.observe(core.Event{Name: "service_wait", ServiceID: s.ID, ServiceAlias: s.opts.Alias, Result: "ok", Duration: nonNegativeSince(req.entry.enqueuedAt)})
 	}
+	req.TraceQueue.End(rpctrace.ResultOK)
+	handlerSpan := rpctrace.Begin(ctx, rpctrace.StageHandler)
+	handlerResult := rpctrace.ResultError
+	defer func() { handlerSpan.End(handlerResult) }()
 	resp, err := s.handler(ctx, req.Payload.Bytes())
 	if ctx.Err() != nil {
 		err = requestError(ctx.Err())
 	}
+	handlerResult = core.RPCTraceResult(err)
+	handlerSpan.End(handlerResult)
 	if req.Reply == nil && req.RespondBorrowed == nil {
 		return err
 	}
@@ -526,6 +574,7 @@ func trySendResponse(ch chan Response, resp Response) {
 }
 
 func deliver(req Request, resp Response) {
+	req.TraceQueue.End(core.RPCTraceResult(resp.Err))
 	if req.RespondBorrowed != nil {
 		req.RespondBorrowed(resp)
 		return

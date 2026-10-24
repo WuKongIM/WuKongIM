@@ -1,7 +1,15 @@
 package raftlog
 
+import (
+	"time"
+
+	dto "github.com/prometheus/client_model/go"
+)
+
 // MetricsSnapshot is a stable view of the raft log engine's local storage state.
 type MetricsSnapshot struct {
+	// Available distinguishes a live engine snapshot from nil or closing storage.
+	Available bool
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -20,6 +28,30 @@ type MetricsSnapshot struct {
 	WALBytesIn uint64
 	// WALBytesWritten is the physical bytes written to the WAL.
 	WALBytesWritten uint64
+	// WALFsyncCount is the number of actual WAL fsyncs since this engine opened.
+	WALFsyncCount uint64
+	// WALFsyncSumNanos is cumulative actual WAL fsync time, not Save queue time.
+	WALFsyncSumNanos int64
+	// WALFsyncOver100ms, WALFsyncOver1s and WALFsyncOver5s count fsyncs above
+	// the nearest lower native histogram bucket boundary for each threshold.
+	WALFsyncOver100ms uint64
+	WALFsyncOver1s    uint64
+	WALFsyncOver5s    uint64
+	// WriteStall counts are Pebble write-stop reports, separated by reason.
+	WriteStallMemTableCount int64
+	WriteStallL0Count       int64
+	WriteStallOtherCount    int64
+	// WriteStallTotalNanos and WriteStallMaxNanos include an active stall.
+	WriteStallTotalNanos int64
+	WriteStallMaxNanos   int64
+	// WriteStallActive reports whether Pebble is currently delaying writes.
+	WriteStallActive bool
+	// DiskSlow events count reports, including repeated reports of one slow
+	// operation. WAL files and other files retain separate counts and maxima.
+	DiskSlowWALEvents     int64
+	DiskSlowWALMaxNanos   int64
+	DiskSlowOtherEvents   int64
+	DiskSlowOtherMaxNanos int64
 	// SSTableSizeBytes is the current physical size of live SSTables across all levels.
 	SSTableSizeBytes uint64
 	// FlushBytesWritten is the cumulative bytes written to SSTables by flushes.
@@ -44,7 +76,14 @@ type MetricsSnapshot struct {
 
 // MetricsSnapshot returns the raft log engine's current storage metrics.
 func (db *DB) MetricsSnapshot() MetricsSnapshot {
-	if db == nil || db.db == nil {
+	if db == nil {
+		return MetricsSnapshot{}
+	}
+	// Use the existing close fence: no snapshot may outlive the point where
+	// Close permits the Pebble handle to be destroyed.
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if db.closing || db.db == nil {
 		return MetricsSnapshot{}
 	}
 	pdb := db.db
@@ -65,7 +104,8 @@ func (db *DB) MetricsSnapshot() MetricsSnapshot {
 		compactionBytesRead += level.TableBytesRead
 		compactionBytesWritten += level.TableBytesCompacted
 	}
-	return MetricsSnapshot{
+	snapshot := MetricsSnapshot{
+		Available:                    true,
 		DiskSpaceUsageBytes:          metrics.DiskSpaceUsage(),
 		ReadAmplification:            metrics.ReadAmp(),
 		MemTableSizeBytes:            metrics.MemTable.Size,
@@ -86,4 +126,31 @@ func (db *DB) MetricsSnapshot() MetricsSnapshot {
 		CompactionInProgressBytes:    metrics.Compact.InProgressBytes,
 		CompactionsInProgress:        metrics.Compact.NumInProgress,
 	}
+	// Pebble installs this histogram unconditionally during Open, including
+	// before the first write. Its observations and bucket bounds are nanoseconds.
+	var histogram dto.Metric
+	if err := metrics.LogWriter.FsyncLatency.Write(&histogram); err == nil {
+		populateWALFsync(&snapshot, histogram.GetHistogram())
+	}
+	db.storageEvents.populate(&snapshot)
+	return snapshot
+}
+
+// populateWALFsync preserves the native histogram's cumulative population.
+func populateWALFsync(snapshot *MetricsSnapshot, histogram *dto.Histogram) {
+	snapshot.WALFsyncCount = histogram.GetSampleCount()
+	snapshot.WALFsyncSumNanos = int64(histogram.GetSampleSum())
+	atMost := func(limit time.Duration) uint64 {
+		var count uint64
+		for _, bucket := range histogram.GetBucket() {
+			if bucket.GetUpperBound() > float64(limit) {
+				break
+			}
+			count = bucket.GetCumulativeCount()
+		}
+		return count
+	}
+	snapshot.WALFsyncOver100ms = snapshot.WALFsyncCount - atMost(100*time.Millisecond)
+	snapshot.WALFsyncOver1s = snapshot.WALFsyncCount - atMost(time.Second)
+	snapshot.WALFsyncOver5s = snapshot.WALFsyncCount - atMost(5*time.Second)
 }

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync/atomic"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 // NodeID identifies a cluster node in transport routing.
@@ -75,6 +77,8 @@ type DurationSamples struct {
 
 // Event describes a transport lifecycle, scheduling, or service observation.
 type Event struct {
+	// RPCTrace is one detached request sample, delivered without latency aggregation.
+	RPCTrace *rpctrace.Sample
 	// Count is the number of counter events represented; zero means one legacy event.
 	Count uint64
 	// Samples is non-nil for aggregated duration events, including empty samples.
@@ -211,12 +215,23 @@ type ServiceOptions struct {
 	// CancelRunning permits a caller deadline, cancellation or disconnect to stop
 	// an executing handler. Keep false for mutations that must finish once started.
 	CancelRunning bool
+	// CancelRunningFor classifies one request immediately before handler execution.
+	// Only trusted registration code may supply this bounded, non-blocking callback.
+	// It must support concurrent calls up to the configured service concurrency.
+	// It borrows payload read-only and must not retain it. True follows the original
+	// request context; false (including unknown payloads) preserves independent work.
+	// Nil preserves CancelRunning. Both policies must not be configured together.
+	// The executable policy is excluded from diagnostic configuration encoding.
+	CancelRunningFor func([]byte) bool `json:"-"`
 	// MaxPayload bounds accepted payload bytes for this service; zero means use the transport frame limit.
 	MaxPayload int
 }
 
 // Validate rejects service settings that would create unbounded or unusable work queues.
 func (o ServiceOptions) Validate() error {
+	if o.CancelRunning && o.CancelRunningFor != nil {
+		return fmt.Errorf("%w: service cancellation policies are mutually exclusive", ErrInvalidConfig)
+	}
 	if o.Concurrency <= 0 {
 		return fmt.Errorf("%w: service concurrency must be positive", ErrInvalidConfig)
 	}

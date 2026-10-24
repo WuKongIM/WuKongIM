@@ -52,13 +52,14 @@ func (n *Node) ensureDefaultSlots() error {
 		return err
 	}
 	runtime, err := multiraft.New(multiraft.Options{
-		NodeID:       multiraft.NodeID(n.cfg.NodeID),
-		TickInterval: n.cfg.Slots.TickInterval,
-		Workers:      defaultSlotRuntimeWorkerCount,
-		Transport:    n.defaultSlotTransport(),
-		Observer:     n.cfg.Slots.Observer,
-		Goroutines:   n.cfg.Goroutines,
-		Logger:       namedLogger(n.cfg.Logger, "slot"),
+		NodeID:             multiraft.NodeID(n.cfg.NodeID),
+		TickInterval:       n.cfg.Slots.TickInterval,
+		Workers:            defaultSlotRuntimeWorkerCount,
+		Transport:          n.defaultSlotTransport(),
+		Observer:           n.cfg.Slots.Observer,
+		ReadBarrierTracing: n.cfg.Transport.RPCTraceEvery != 0,
+		Goroutines:         n.cfg.Goroutines,
+		Logger:             namedLogger(n.cfg.Logger, "slot"),
 		Raft: multiraft.RaftOptions{
 			ElectionTick:  n.cfg.Slots.ElectionTick,
 			HeartbeatTick: n.cfg.Slots.HeartbeatTick,

@@ -103,12 +103,18 @@ func TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget(t *testing.T) {
 				width16Entry(t, entered, uint16(i), 2*time.Second)
 			}
 			blocked := width16Lookup(t, recovery, flightGroups(flightTarget(16), "not-reserved-a", "not-reserved-b"))
-			awaitFlightGate(t, blocked.waiting)
+			if pageSize == 512 {
+				// Waiting callers now own bounded indices/keys. The full 8192-key
+				// ledger fails closed instead of borrowing an unbounded waiter.
+				requireFlightError(t, width16Await(t, blocked), authority.ErrRouteNotReady)
+			} else {
+				awaitFlightGate(t, blocked.waiting)
+				blocked.cancel()
+				requireFlightError(t, width16Await(t, blocked), context.Canceled)
+			}
 			if got := reads.Load(); got != 16 {
 				t.Fatalf("17th round entered despite full width/key quota: reads=%d", got)
 			}
-			blocked.cancel()
-			requireFlightError(t, width16Await(t, blocked), context.Canceled)
 			follower := width16Lookup(t, recovery, groups[0])
 			awaitFlightGate(t, follower.waiting)
 			follower.cancel()
@@ -132,9 +138,9 @@ func TestAuthorityRecoveryWidth16AdmitsCohortsAndFullKeyBudget(t *testing.T) {
 	}
 }
 
-// This integration fixture allocates over 128 MiB for caller input alone and
-// another 128 MiB for owned clones. The operator must admit memory headroom
-// before execution; the owned-byte ledger is not a process RSS guarantee.
+// This integration fixture retains three maximum-length pages and their owned
+// clones. A fourth page exceeds the unchanged 128-MiB UID-plus-metadata ledger
+// while cohort, caller and key capacities are still free; this is not an RSS cap.
 func TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts(t *testing.T) {
 	directory := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
 	entered := make(chan uint16, 16)
@@ -145,45 +151,33 @@ func TestAuthorityRecoveryWidth16Keeps128MiBByteBudgetWithFreeCohorts(t *testing
 		<-ctx.Done()
 		return flightError(groups, ctx.Err())
 	}))
-	pages := make([][]presence.EndpointLookupGroup, 4)
-	for page := range pages {
+	held := make([]*flightCall, 3)
+	for page := 0; page < 4; page++ {
 		target := flightTarget(uint16(100 + page))
 		directory.BecomeAuthority(target)
 		uids := make([]string, 512)
 		for index := range uids {
 			uids[index] = fmt.Sprintf("%04x", page*512+index) + strings.Repeat("x", 65531)
 		}
-		pages[page] = flightGroups(target, uids...)
+		groups := flightGroups(target, uids...)
+		call := width16Lookup(t, recovery, groups)
+		if page < 3 {
+			held[page] = call
+			width16Entry(t, entered, uint16(100+page), 10*time.Second)
+		} else {
+			requireFlightError(t, width16Await(t, call), authority.ErrRouteNotReady)
+		}
 	}
-	// 4*512*65535 = 128 MiB - 2048, independently of the 16-cohort limit.
-	held := make([]*flightCall, 4)
-	for i := range held {
-		held[i] = width16Lookup(t, recovery, pages[i])
-		width16Entry(t, entered, uint16(100+i), 10*time.Second)
+	if reads.Load() != 3 {
+		t.Fatal("metadata-inclusive byte limit admitted a fourth full page")
 	}
-	fillTarget := flightTarget(104)
-	directory.BecomeAuthority(fillTarget)
-	fill := width16Lookup(t, recovery, flightGroups(fillTarget, strings.Repeat("y", 2048)))
-	width16Entry(t, entered, 104, 10*time.Second)
-	byteTarget := flightTarget(105)
-	directory.BecomeAuthority(byteTarget)
-	oneByte := width16Lookup(t, recovery, flightGroups(byteTarget, "z"))
-	awaitFlightGate(t, oneByte.waiting)
-	if got := reads.Load(); got != 5 {
-		t.Fatalf("byte quota admitted one extra byte with free cohorts; possible 512-MiB derived regression: reads=%d", got)
+	for _, call := range held {
+		call.cancel()
+		requireFlightError(t, width16Await(t, call), context.Canceled)
 	}
-	oneByte.cancel()
-	requireFlightError(t, width16Await(t, oneByte), context.Canceled)
-	held[0].cancel()
-	requireFlightError(t, width16Await(t, held[0]), context.Canceled)
-	afterRelease := width16Lookup(t, recovery, flightGroups(byteTarget, "z"))
-	width16Entry(t, entered, 105, 10*time.Second)
-	afterRelease.cancel()
-	requireFlightError(t, width16Await(t, afterRelease), context.Canceled)
-	fill.cancel()
-	requireFlightError(t, width16Await(t, fill), context.Canceled)
-	for i := 1; i < len(held); i++ {
-		held[i].cancel()
-		requireFlightError(t, width16Await(t, held[i]), context.Canceled)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := recovery.Close(ctx); err != nil {
+		t.Fatalf("byte-budget fixture failed to join: %v", err)
 	}
 }

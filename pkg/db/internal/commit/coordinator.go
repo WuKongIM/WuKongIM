@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 const (
@@ -188,6 +189,8 @@ type pendingRequest struct {
 	finalizeOnce     *sync.Once
 	queueSlotOnce    *sync.Once
 	releaseQueueSlot func()
+	// trace is optional fixed observation state shared by every copy of this receipt.
+	trace *requestTrace
 }
 
 type coordinatorShard struct {
@@ -249,6 +252,7 @@ func (c *Coordinator) Submit(ctx context.Context, req Request) (err error) {
 // known before physical commit admission or became ambiguous afterward.
 func (c *Coordinator) SubmitWithOutcome(ctx context.Context, req Request) (result SubmitResult) {
 	pending := newPendingRequest(req)
+	pending.trace = newRequestTrace(ctx)
 	if c == nil || c.db == nil || req.Build == nil {
 		result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: dberrors.ErrInvalidArgument}
 		pending.complete(result)
@@ -310,6 +314,9 @@ func (c *Coordinator) submitResult(ctx context.Context, pending pendingRequest) 
 		pending.complete(result)
 		return result
 	}
+	// Admission measures queue-credit acquisition; queue time includes reserved
+	// credit before intake handoff and all owner-local priority-buffer residence.
+	pending.trace.advance(rpctrace.StageCommitQueue, rpctrace.ResultOK)
 	select {
 	case c.requests <- pending:
 		c.acceptMu.RUnlock()
@@ -353,6 +360,7 @@ func newPendingRequest(req Request) pendingRequest {
 
 func (r pendingRequest) complete(result SubmitResult) {
 	r.finalizeOnce.Do(func() {
+		r.trace.finish(commitTraceResult(result.Err))
 		r.releaseQueued()
 		if r.Finalize != nil {
 			r.Finalize()
@@ -423,7 +431,7 @@ func (c *Coordinator) nextRequest() (pendingRequest, bool) {
 	}
 	c.drainIncoming()
 	if req, ok := c.popPending(true); ok {
-		req.releaseQueued()
+		req.enterBatch()
 		c.observeQueueDepth()
 		return req, true
 	}
@@ -439,7 +447,7 @@ func (c *Coordinator) nextRequest() (pendingRequest, bool) {
 		if !ok {
 			return pendingRequest{}, false
 		}
-		req.releaseQueued()
+		req.enterBatch()
 		c.observeQueueDepth()
 		return req, true
 	}
@@ -466,7 +474,7 @@ func (c *Coordinator) collect(first pendingRequest) requestBatch {
 				c.requeueFront(req)
 				return batch
 			}
-			req.releaseQueued()
+			req.enterBatch()
 			batch.requests = append(batch.requests, req)
 			if c.limitReached(batch) {
 				return batch
@@ -491,7 +499,7 @@ func (c *Coordinator) collect(first pendingRequest) requestBatch {
 				c.requeueFront(req)
 				return batch
 			}
-			req.releaseQueued()
+			req.enterBatch()
 			batch.requests = append(batch.requests, req)
 			if c.limitReached(batch) {
 				return batch
@@ -538,7 +546,7 @@ func (c *Coordinator) collectQueuedSnapshot(batch requestBatch) requestBatch {
 			c.requeueFront(req)
 			return batch
 		}
-		req.releaseQueued()
+		req.enterBatch()
 		batch.requests = append(batch.requests, req)
 		if c.limitReached(batch) {
 			return batch
@@ -561,12 +569,14 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 		reqs.completeAll(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed})
 		return
 	}
+	reqs.traceStage(rpctrace.StageCommitBuild, rpctrace.ResultOK)
 	batch := c.db.NewBatch()
 	defer batch.Close()
 	buildStarted := time.Now()
 	for index, req := range reqs.requests {
 		if err := req.Build(batch); err != nil {
 			buildDuration := time.Since(buildStarted)
+			reqs.finishTrace(commitTraceResult(err))
 			c.observeBatch(BatchEvent{
 				Requests:        requests,
 				Records:         records,
@@ -595,8 +605,10 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 	commitFunc := c.commitFunc
 	c.mu.Unlock()
 	commitStarted := time.Now()
+	reqs.traceStage(rpctrace.StageCommitDurable, rpctrace.ResultOK)
 	if err := commitFunc(batch); err != nil {
 		commitDuration := time.Since(commitStarted)
+		reqs.finishTrace(commitTraceResult(err))
 		c.observeBatch(BatchEvent{
 			Requests:        requests,
 			Records:         records,
@@ -611,6 +623,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 		return
 	}
 	commitDuration := time.Since(commitStarted)
+	reqs.traceStage(rpctrace.StageCommitPublish, rpctrace.ResultOK)
 	publishStarted := time.Now()
 	var publishErr error
 	publishResults := make([]error, len(reqs.requests))
@@ -625,6 +638,11 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 		}
 	}
 	publishDuration := time.Since(publishStarted)
+	// Publication spans cover every group callback, excluding the later Finalize
+	// resource release and observer callbacks; their results stay request-aligned.
+	for i, req := range reqs.requests {
+		req.trace.finish(commitTraceResult(publishResults[i]))
+	}
 	c.observeBatch(BatchEvent{
 		Requests:        requests,
 		Records:         records,

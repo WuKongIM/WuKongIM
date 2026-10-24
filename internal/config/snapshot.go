@@ -94,6 +94,10 @@ func effectiveCriticalSnapshotValues(values sourceValues, cfg app.Config) map[st
 		recipientDerived = configuredAsZero(values, "WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY")
 	}
 	return map[string]effectiveSnapshotValue{
+		"WK_DIAGNOSTICS_RPC_SAMPLE_EVERY": {
+			value:  strconv.FormatUint(uint64(cfg.Observability.Diagnostics.RPCSampleEvery), 10),
+			source: effectiveValueSource(values, "WK_DIAGNOSTICS_RPC_SAMPLE_EVERY", false),
+		},
 		"WK_CLUSTER_INITIAL_SLOT_COUNT":                effectiveInteger(values, "WK_CLUSTER_INITIAL_SLOT_COUNT", initialSlotCount, initialDerived),
 		"WK_CLUSTER_HASH_SLOT_COUNT":                   effectiveInteger(values, "WK_CLUSTER_HASH_SLOT_COUNT", hashSlotCount, hashDerived),
 		"WK_CLUSTER_SLOT_REPLICA_N":                    effectiveInteger(values, "WK_CLUSTER_SLOT_REPLICA_N", slotReplicaCount, slotReplicaDerived),

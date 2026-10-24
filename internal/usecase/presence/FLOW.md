@@ -28,13 +28,24 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 2. Deactivate snapshots active state, removes local indexes first, observes
    offline only for the last active owner-local session, then queues the exact
    authority unregister tombstone.
-3. Authority recovery packs up to 512 UIDs across 256 targets per owner page.
-   Bounded flights coalesce the same UID and distributed authority identity;
-   newly owned proofs install and release before joining older flights.
-   Sixteen leader cohorts retain at most 8,192 keys and 128 MiB of owned UID bytes,
-   with 32 MiB per new subset. Proven lookups bypass admission; quota waits
-   reserve no partial keys and recheck proofs after waking. Complete results
-   retain exact fences and failed groups preserve successful siblings.
+3. Authority recovery owns a FIFO of at most 512 waiting-plus-active caller
+   entries. Joint admission bounds 8,192 distinct fenced UID keys, 128 MiB of
+   cloned UIDs plus scheduler/caller metadata, and 32 MiB per new UID subset;
+   any full dimension fails closed without retaining a partial reservation.
+   At most sixteen actual owner batches execute. Each takes already queued
+   work, up to sixteen independent calls, 256 targets and 512 UIDs, without a
+   collection timer. Legacy providers retain the sixteen-original-call result
+   guard. Fully bounded local/remote/old-protocol providers instead prepay exact
+   decoded backing and cloned strings against a separate 128 MiB / 196,608 row
+   capacity ledger. Each original call still permits at most 4,096 routes.
+   Page, scratch and old/new accumulator backing coexist under that same ledger;
+   resource denial fails the physical round without waiting for more capacity.
+   Credits remain owned through provider completion, fenced installation and
+   reference release. Neither ledger is a process RSS or transport/Directory
+   heap limit; fixed input selector maps and allocator overhead remain excluded.
+   Newly owned proofs publish before callers join older flights, preventing
+   overlapping-call worker cycles. Legacy owner ports run each original call
+   separately. Proven lookups bypass admission; failed groups preserve siblings.
 4. Lookup delegates one UID, a batch, or aligned exact-target groups to optional
    authority batch ports; group errors do not abort successful siblings.
 
@@ -48,18 +59,52 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 - Production target-aware lookup preserves the complete fence and returns
   aligned results. The per-UID fallback exists only for limited compatibility
   implementations and cannot provide that target fence.
-- Flights store no routes. After successful completion, callers reread current
-  Directory proof, including after FIFO eviction; failed completions may propagate
-  their typed failure. Canceling a follower does not cancel its leader;
-  a canceled leader leaves live followers retryable without adding a retry.
+- Flights store no routes. Successful callers reread current Directory proof,
+  including after eviction. Shared execution has its own cancel root: one
+  caller's cancellation/deadline does not cancel live UID followers or other
+  batch members, and every caller still returns on its own original context.
+  Only all-member cancellation or Close cancels actual execution. UID proofs
+  with no live owner are not installed; exact authority fences still govern all
+  installation. Old and new peer compatibility never merges per-call route caps.
+- Canceled queued work leaves the physical FIFO before releasing its ledger.
+  Active ownership and result credits survive caller cancellation until the
+  real provider returns. Close stops admission, cancels queued/active work and
+  joins actual ownership; timeout reports incomplete cleanup and permits a
+  later Close to join again. Workers and dispatchers start on demand and exit
+  when their currently ready work ends.
+- Caller/index metadata remains charged while a caller waits on old flights.
+  Completed flights drop keys, user maps and execution/creator references;
+  their minimal retired status/channel/work is covered by caller reference charges.
+  Remaining user maps shrink with live ownership rather than retaining historic
+  follower peaks. Cancellation checks each affected execution once.
+- Optional RPC phase tracing measures actual FIFO/capacity admission waiting,
+  unfinished shared-flight waits and proof installation. Idle dispatch turns and
+  Directory reads are not labeled quota waits. Shared multi-call execution
+  invents no first-caller trace parent or cancellation root.
+- The optional bounded provider capability is fixed at construction only after
+  local registry projection, remote decoding and old-protocol fallback all use
+  prepaid allocation. Local pages reuse small growing scratch; remote replies
+  validate shape and count exact backing before decoding. No wire changes,
+  automatic RPC retries, per-page timeout reset or partial offline publication
+  are introduced. Published Directory data owns its own lifetime.
+- Always-on fixed budget gauges report charged row capacity and bytes, peaks
+  and rejected reservations even when diagnostic sampling is disabled.
+- A fixed aggregate census separates FIFO, physical batches, original-call
+  result credits and UID admission bytes. When existing RPC diagnostics are
+  enabled, partial owner accumulators and transient decoded pages remain
+  observed until real ownership returns; an explicit enabled gauge distinguishes
+  unobserved zeros when this additional accounting is disabled.
+  Structural decoded bytes count visible slice capacity and live route strings,
+  charging aliases per reference; they exclude wire buffers, maps, errors,
+  hidden backing prefixes, allocator overhead and RSS and cannot set a heap limit.
 - Import-boundary tests reject concrete entry, protocol, cluster, and app imports.
 
 ## Read First
 
 - [Activation](activate.go)
-- [Deactivation](deactivate.go)
 - [Lookup](lookup.go)
 - [Recovery admission](recovery_flights.go)
+- [Independent owner call pages](owner_recovery_calls.go)
 - [Ports](ports.go)
 
 ## Update Triggers

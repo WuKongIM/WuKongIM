@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"reflect"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -402,7 +403,7 @@ func newBenchmarkHarness(b *testing.B, cfg benchmarkHarnessConfig) *testkit.Harn
 			}
 		}
 		opts := service.opts
-		if opts == (transport.ServiceOptions{}) {
+		if reflect.ValueOf(opts).IsZero() {
 			opts = benchmarkServiceOptions(4)
 		}
 		if err := server.Handle(service.serviceID, handler, opts); err != nil {

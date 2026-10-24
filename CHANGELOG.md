@@ -26,6 +26,92 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Distinguish sampled RPC receive-observer, response-dispatch and caller-resume
+  delays, retaining the server's pre-dispatch interval without moving existing
+  timing boundaries. / RPC 采样区分接收观测、响应分派及调用恢复等待，补充服务端
+  分派前区间，保留原有计时边界。
+
+- Coalesce compatible queued Slot Raft writes into one durable Save while
+  preserving each task's replication acknowledgment, apply order and resource
+  limits. / 合并 Slot Raft 队列中兼容的写入，减少串行落盘轮次，同时保留每份任务的
+  复制确认、应用顺序和资源上限。
+
+- Report sampled same-Slot storage-count pauses separately from Raft worker
+  occupancy and asynchronous Save overlap, preserving cancellation boundaries.
+  / Slot 读取采样单独记录存储额度暂停，与 Raft worker 占用、异步 Save 重叠区分，
+  并按调用取消边界裁剪。
+
+- Return shared Raft workers when a Slot's storage task limit is full, resuming
+  its FIFO when capacity is returned; finish queued proposals when their
+  Slot closes or fails. / Slot 存储任务达到上限时让出共享 Raft worker，额度归还后
+  恢复原队列；关闭或故障时正确结束仍在排队的提案。
+
+- Distinguish sampled Slot owner storage fallback, drain and Save-admission time
+  from ordinary asynchronous Save overlap, with fixed-size per-read observations.
+  / Slot 读取采样区分 owner 存储回退、排空和写盘准入时间，与普通异步 Save 重叠分开记录。
+
+- Avoid transient Slot read-busy errors when a majority has committed newer logs
+  while local asynchronous storage catches up; fresh reads still wait for durable
+  application of their required index. / 多数副本已提交新日志而本节点异步写盘尚未完成时，
+  避免错误拒绝 Slot 读取；读取仍等待所需位置持久应用。
+
+- Process Slot Raft storage through bounded asynchronous lanes to allow safe
+  heartbeat and fresh-read progress during asynchronous writes, while retaining
+  durable acknowledgments, application ordering and shutdown/recovery fences.
+  / Slot Raft 使用有界异步存储队列，让安全的心跳和新鲜读取在异步写盘时继续推进，
+  保留落盘确认、应用顺序及关闭和恢复屏障。
+
+- Retain bounded cumulative Save/Send coverage for sampled Slot read phases
+  and expose the Raft engine's real WAL fsync, write-stall and slow-disk metrics.
+  / Slot 读取采样补充有界的 Save/Send 分阶段累计覆盖，并接入 Raft 存储实际的
+  WAL fsync、写停顿和慢磁盘指标，避免把缺失观测当作零等待。
+
+- Retry a complete acceptance snapshot inventory when a published or reclaimed
+  snapshot disappears during measurement, within the original collection budget.
+  Missing or invalid evidence still fails validation.
+  / 验收采集遇到快照发布或回收导致文件消失时，在原时间预算内重新完整扫描；
+  缺失或无效证据仍拒绝通过。
+
+- Batch already-queued durable sends to the same Channel within bounded execution
+  cohorts, preserving original callback order, caller deadlines and retry order.
+  / 同频道已排队的持久化消息按有界执行批次合并，保留原回调顺序、独立超时和重试顺序。
+
+- Retain waiting permission reads within the existing call and byte budgets
+  when execution slots are occupied, and batch already-waiting callers when a
+  slot becomes available. Fresh reads, cancellation and execution limits remain.
+  / 权限读取执行位占满时，在原调用与字节额度内保留等待请求，执行位释放后合并
+  已等待的调用；保留新鲜读取、取消和执行并发上限。
+
+- Include observed permission-read reservation limits and occupancy in existing
+  SEND busy warnings, preserving their error causes and replies.
+  / SEND 权限读取繁忙日志补充触发的配额及当时占用，保留原错误原因和响应。
+
+- Include observed SEND timeout stages in existing gateway warnings: Channel
+  predecessor and ready-worker waits, routing, and pre-callback delay. Single-item
+  routes also distinguish authority resolution, admission, local completion,
+  remote forwarding and retry waits without changing deadlines or replies.
+  / 网关 SEND 超时日志区分同频道前序、就绪任务、路由及回调前等待；单条路由进一步
+  区分归属解析、准入、本地完成、远端转发和重试等待，保留原超时与响应。
+
+- Schedule presence recovery by prepaid decoded-result ownership while retaining
+  each call's route limit, deadline and authority fences. / 在线路由恢复按结果实际占用的
+  资源调度批次，保留原路由条数、超时和一致性校验，避免少量结果耗尽调用额度。
+
+- Preserve RPC request, connection and dependency ownership when shutdown or
+  startup rollback exceeds its caller budget; a later stop joins the same work.
+  / 停机或启动回滚超时后继续保留 RPC 请求、连接及其依赖，后续停止操作会等待同一批任务完成清理。
+
+- Batch concurrent cold presence recovery through bounded fair admission, retain
+  independent caller route limits, and cancel timed-out read-only presence RPCs.
+  / 在线路由冷恢复通过有界公平调度合并并发读取，保留各请求独立路由上限，
+  并及时取消已超时的只读 presence RPC。
+
+- Add opt-in bounded RPC phase samples to the existing diagnostics interface,
+  correlating caller and receiver queue, handler, Slot read barrier, storage
+  commit and response-write intervals, with bounded presence recovery capacity metrics.
+  / 现有诊断接口新增默认关闭的有界 RPC 分段观测，可关联调用端与接收端的
+  排队、处理、Slot 读屏障、存储提交和响应写回阶段，并提供有界的在线路由恢复容量指标。
+
 - Identify storage-overlap scan failures with fixed diagnostic reasons while
   preserving scan limits and missing-evidence decisions.
 
