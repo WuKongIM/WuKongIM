@@ -33,6 +33,9 @@ type Config struct {
 	NodeID core.NodeID
 	// SourceID identifies this connection for aggregate metrics; zero assigns a process-local ID.
 	SourceID uint64
+	// ReceiveTracing enables bounded timing only for negotiated sampled frames.
+	// False avoids additional receive clocks, identity locks and timing objects.
+	ReceiveTracing bool
 }
 
 // Outbound is one caller-owned frame queued for connection writes.
@@ -66,6 +69,8 @@ type Outbound struct {
 type Inbound struct {
 	// Trace is attached by the server only after negotiated identity validation.
 	Trace *rpctrace.Trace
+	// ReceiveTiming is a verified frame's fixed pre-dispatch observation, if any.
+	ReceiveTiming *rpc.ReceiveTiming
 	// BudgetMillis is the remaining receiver budget of a negotiated request.
 	BudgetMillis uint32
 	// Kind identifies the inbound frame behavior.
@@ -258,6 +263,7 @@ func (c *Conn) Call(ctx context.Context, outbound Outbound) (_ []byte, err error
 
 	select {
 	case resp := <-respCh:
+		recordResponseReceive(&outbound, &resp)
 		return resp.Payload, resp.Err
 	case <-ctx.Done():
 		if outbound.Kind == core.FrameKindRPCBudgetRequest {
@@ -274,6 +280,7 @@ func (c *Conn) Call(ctx context.Context, outbound Outbound) (_ []byte, err error
 	case <-c.ctx.Done():
 		select {
 		case resp := <-respCh:
+			recordResponseReceive(&outbound, &resp)
 			return resp.Payload, resp.Err
 		default:
 			return nil, core.ErrStopped
@@ -319,9 +326,13 @@ func (c *Conn) readLoop() {
 			c.shutdown(err)
 			return
 		}
+		timing := c.startReceiveTiming(frame.Header)
 		c.observeBytes("received_bytes", frame.Header.Kind, frame.Header.Priority, frame.Body.Len())
+		if timing != nil {
+			timing.ObserverDone = time.Now()
+		}
 		if frame.Header.Kind == core.FrameKindRPCResponse {
-			c.handleRPCResponse(frame)
+			c.handleRPCResponseWithTiming(frame, timing)
 			continue
 		}
 		if c.dispatch == nil {
@@ -329,13 +340,14 @@ func (c *Conn) readLoop() {
 			continue
 		}
 		c.dispatch.Dispatch(c.ctx, Inbound{
-			BudgetMillis: frame.Header.BudgetMillis,
-			Kind:         frame.Header.Kind,
-			Priority:     frame.Header.Priority,
-			ServiceID:    frame.Header.ServiceID,
-			RequestID:    frame.Header.RequestID,
-			Payload:      frame.Body,
-			Conn:         c,
+			ReceiveTiming: timing,
+			BudgetMillis:  frame.Header.BudgetMillis,
+			Kind:          frame.Header.Kind,
+			Priority:      frame.Header.Priority,
+			ServiceID:     frame.Header.ServiceID,
+			RequestID:     frame.Header.RequestID,
+			Payload:       frame.Body,
+			Conn:          c,
 		})
 	}
 }
@@ -517,6 +529,12 @@ func (c *Conn) shutdown(err error) {
 }
 
 func (c *Conn) handleRPCResponse(frame wire.Frame) {
+	c.handleRPCResponseWithTiming(frame, nil)
+}
+
+// handleRPCResponseWithTiming transfers an optional completed receive interval
+// through the existing pending response channel. Late frames retain no owner.
+func (c *Conn) handleRPCResponseWithTiming(frame wire.Frame, timing *rpc.ReceiveTiming) {
 	defer frame.Body.Release()
 
 	responseChannel, pending := c.pending.Take(frame.Header.RequestID)
@@ -546,6 +564,10 @@ func (c *Conn) handleRPCResponse(frame wire.Frame) {
 		} else {
 			response.Payload = append([]byte(nil), body[1:]...)
 		}
+	}
+	if timing != nil {
+		timing.Notified = time.Now()
+		response.ReceiveTiming = timing
 	}
 	select {
 	case responseChannel <- response:

@@ -23,6 +23,8 @@ type Config struct {
 	Limits core.Limits
 	// Observer receives peer pool and connection pressure events; nil disables observation callbacks.
 	Observer core.Observer
+	// ReceiveTracing carries the client's immutable sampled-receive enablement.
+	ReceiveTracing bool
 	// Dial creates a raw network connection to a resolved address.
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
 }
@@ -286,7 +288,7 @@ func (m *Manager) dialConn(ctx context.Context, nodeID core.NodeID) (*conn.Conn,
 		}
 		return nil, fmt.Errorf("%w: %v", core.ErrDialFailed, err)
 	}
-	c := conn.New(raw, conn.Config{Limits: m.cfg.Limits, Observer: m.cfg.Observer, NodeID: nodeID}, nil)
+	c := conn.New(raw, conn.Config{Limits: m.cfg.Limits, Observer: m.cfg.Observer, NodeID: nodeID, ReceiveTracing: m.cfg.ReceiveTracing}, nil)
 	c.Start()
 	return c, nil
 }

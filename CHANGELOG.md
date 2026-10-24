@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Distinguish sampled RPC receive-observer, response-dispatch and caller-resume
+  delays, retaining the server's pre-dispatch interval without moving existing
+  timing boundaries. / RPC 采样区分接收观测、响应分派及调用恢复等待，补充服务端
+  分派前区间，保留原有计时边界。
+
 - Coalesce compatible queued Slot Raft writes into one durable Save while
   preserving each task's replication acknowledgment, apply order and resource
   limits. / 合并 Slot Raft 队列中兼容的写入，减少串行落盘轮次，同时保留每份任务的

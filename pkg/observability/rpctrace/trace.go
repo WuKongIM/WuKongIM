@@ -36,41 +36,44 @@ const (
 type Stage string
 
 const (
-	StagePeerAcquire         Stage = "peer_acquire"
-	StageCapability          Stage = "capability"
-	StageClientQueue         Stage = "client_queue"
-	StageRequestWrite        Stage = "request_write"
-	StageResponseWait        Stage = "response_wait"
-	StageServiceQueue        Stage = "service_queue"
-	StageHandler             Stage = "handler"
-	StageResponseEncode      Stage = "response_encode"
-	StageResponseQueue       Stage = "response_queue"
-	StageResponseWrite       Stage = "response_write"
-	StageRecoveryAdmission   Stage = "recovery_admission"
-	StageRecoveryFlight      Stage = "recovery_flight_wait"
-	StageRecoveryOwners      Stage = "recovery_owners_admission"
-	StageRecoveryOwner       Stage = "recovery_owner_read"
-	StageRecoveryInstall     Stage = "recovery_install"
-	StagePermissionAdmission Stage = "permission_admission"
-	StagePermissionBarrier   Stage = "permission_barrier"
-	StagePermissionSnapshot  Stage = "permission_snapshot"
-	StagePermissionAuthority Stage = "permission_authority"
-	StageSlotControlWait     Stage = "slot_control_wait"
-	StageSlotReadEligibility Stage = "slot_read_eligibility"
-	StageSlotRawQuorum       Stage = "slot_raw_quorum"
-	StageSlotReadyToAccept   Stage = "slot_ready_to_accept"
-	StageSlotApplyWait       Stage = "slot_apply_wait"
-	StageSlotSaveEntries     Stage = "slot_ready_save_entries"
-	StageSlotSaveHardState   Stage = "slot_ready_save_hardstate"
-	StageSlotSaveSnapshot    Stage = "slot_ready_save_snapshot"
-	StageSlotSaveMixed       Stage = "slot_ready_save_mixed"
-	StageSlotRaftSend        Stage = "slot_raft_send"
-	StageCommitAdmission     Stage = "commit_admission"
-	StageCommitQueue         Stage = "commit_queue"
-	StageCommitCollect       Stage = "commit_collect"
-	StageCommitBuild         Stage = "commit_build"
-	StageCommitDurable       Stage = "commit_durable"
-	StageCommitPublish       Stage = "commit_publish"
+	StagePeerAcquire             Stage = "peer_acquire"
+	StageCapability              Stage = "capability"
+	StageClientQueue             Stage = "client_queue"
+	StageRequestWrite            Stage = "request_write"
+	StageResponseWait            Stage = "response_wait"
+	StageServiceQueue            Stage = "service_queue"
+	StageHandler                 Stage = "handler"
+	StageResponseEncode          Stage = "response_encode"
+	StageResponseQueue           Stage = "response_queue"
+	StageResponseWrite           Stage = "response_write"
+	StageResponseReceiveObserver Stage = "response_receive_observer"
+	StageResponseDispatch        Stage = "response_dispatch"
+	StageResponseResume          Stage = "response_resume"
+	StageRecoveryAdmission       Stage = "recovery_admission"
+	StageRecoveryFlight          Stage = "recovery_flight_wait"
+	StageRecoveryOwners          Stage = "recovery_owners_admission"
+	StageRecoveryOwner           Stage = "recovery_owner_read"
+	StageRecoveryInstall         Stage = "recovery_install"
+	StagePermissionAdmission     Stage = "permission_admission"
+	StagePermissionBarrier       Stage = "permission_barrier"
+	StagePermissionSnapshot      Stage = "permission_snapshot"
+	StagePermissionAuthority     Stage = "permission_authority"
+	StageSlotControlWait         Stage = "slot_control_wait"
+	StageSlotReadEligibility     Stage = "slot_read_eligibility"
+	StageSlotRawQuorum           Stage = "slot_raw_quorum"
+	StageSlotReadyToAccept       Stage = "slot_ready_to_accept"
+	StageSlotApplyWait           Stage = "slot_apply_wait"
+	StageSlotSaveEntries         Stage = "slot_ready_save_entries"
+	StageSlotSaveHardState       Stage = "slot_ready_save_hardstate"
+	StageSlotSaveSnapshot        Stage = "slot_ready_save_snapshot"
+	StageSlotSaveMixed           Stage = "slot_ready_save_mixed"
+	StageSlotRaftSend            Stage = "slot_raft_send"
+	StageCommitAdmission         Stage = "commit_admission"
+	StageCommitQueue             Stage = "commit_queue"
+	StageCommitCollect           Stage = "commit_collect"
+	StageCommitBuild             Stage = "commit_build"
+	StageCommitDurable           Stage = "commit_durable"
+	StageCommitPublish           Stage = "commit_publish"
 )
 
 // Result is a closed observation outcome; errors and payloads are never stored.
@@ -230,11 +233,17 @@ type Sample struct {
 	DroppedBarrierGroups uint64 `json:"dropped_barrier_groups,omitempty"`
 	// BarrierCoverage is absent when unavailable or when the whole group is dropped.
 	BarrierCoverage *BarrierCoverage `json:"barrier_coverage,omitempty"`
+	// ReceivePrefix precedes the existing server window; absence means unknown.
+	ReceivePrefix *ReceivePrefix `json:"receive_prefix,omitempty"`
 }
 
 // Clone detaches mutable data before crossing a store/query boundary.
 func (s Sample) Clone() Sample {
 	s.Spans = append([]SpanSample(nil), s.Spans...)
+	if s.ReceivePrefix != nil {
+		prefix := *s.ReceivePrefix
+		s.ReceivePrefix = &prefix
+	}
 	if s.BarrierCoverage != nil {
 		coverage := s.BarrierCoverage.clone()
 		s.BarrierCoverage = &coverage
@@ -307,15 +316,19 @@ func (r *Recorder) Start(ctx context.Context, side Side, serviceID uint16) *Trac
 // Its fixed historical candidate never expands the publication limit.
 // Its mutex protects only fixed-size observation data, never business work.
 type Trace struct {
-	mu                   sync.Mutex
-	owner                *Recorder
-	at                   time.Time
-	id                   string
-	parentID             string
-	unbound              bool
-	side                 Side
-	serviceID            uint16
-	closed               bool
+	mu        sync.Mutex
+	owner     *Recorder
+	at        time.Time
+	id        string
+	parentID  string
+	unbound   bool
+	side      Side
+	serviceID uint16
+	closed    bool
+	// Receive evidence is fixed-size and never changes the original trace clock.
+	receivePrefix        ReceivePrefix
+	hasReceivePrefix     bool
+	hasResponseReceive   bool
 	spans                [MaxSpans]SpanSample
 	count                int
 	dropped              uint64
@@ -601,6 +614,10 @@ func (t *Trace) Finish(result Result) *Sample {
 		t.dropped += uint64(t.barrierCount)
 	}
 	s := &Sample{TraceID: t.id, ParentTraceID: t.parentID, Unbound: t.unbound, Side: t.side, ServiceID: t.serviceID, At: t.at, Duration: elapsed, Result: normalizeResult(result), Spans: spans, DroppedSpans: t.dropped, RecorderDropped: t.owner.dropped.Load(), BarrierGroups: t.barrierGroups, DroppedBarrierGroups: t.droppedBarrierGroups, BarrierCoverage: coverage}
+	if t.hasReceivePrefix {
+		prefix := t.receivePrefix
+		s.ReceivePrefix = &prefix
+	}
 	t.owner.active.Add(-1)
 	return s
 }
@@ -630,6 +647,7 @@ func validStage(stage Stage) bool {
 	switch stage {
 	case StagePeerAcquire, StageCapability, StageClientQueue, StageRequestWrite, StageResponseWait,
 		StageServiceQueue, StageHandler, StageResponseEncode, StageResponseQueue, StageResponseWrite,
+		StageResponseReceiveObserver, StageResponseDispatch, StageResponseResume,
 		StageRecoveryAdmission, StageRecoveryFlight, StageRecoveryOwners, StageRecoveryOwner, StageRecoveryInstall,
 		StagePermissionAdmission, StagePermissionBarrier, StagePermissionSnapshot, StagePermissionAuthority,
 		StageCommitAdmission, StageCommitQueue, StageCommitCollect, StageCommitBuild, StageCommitDurable, StageCommitPublish:

@@ -278,9 +278,10 @@ func (s *Server) acceptLoop(listener net.Listener) {
 			return
 		}
 		c := conn.New(raw, conn.Config{
-			Limits:   s.cfg.Limits,
-			Observer: s.cfg.Observer,
-			NodeID:   s.cfg.NodeID,
+			Limits:         s.cfg.Limits,
+			Observer:       s.cfg.Observer,
+			NodeID:         s.cfg.NodeID,
+			ReceiveTracing: s.cfg.RPCTracing,
 		}, conn.DispatchFunc(s.dispatch))
 		if !s.trackConn(c) {
 			continue
@@ -363,6 +364,9 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 			inbound.Trace = s.traceRecorder.Start(ctx, rpctrace.SideServer, inbound.ServiceID)
 			if inbound.Trace != nil {
 				inbound.Trace.Bind(token, inbound.RequestID)
+				if timing := inbound.ReceiveTiming; timing != nil && timing.ServiceID == inbound.ServiceID {
+					inbound.Trace.RecordReceivePrefix(timing.FrameReady, timing.ObserverDone)
+				}
 			}
 		}
 	}

@@ -2072,6 +2072,17 @@ specification, runbook, report, or module documentation; link to them when neede
   query retention and observer drops remain incomplete evidence. Shared permission
   and presence cohorts do not claim one caller as their parent, and tracing does not grant
   cancellation authority over started mutations.
+  Negotiated sampled frames retain a fixed optional server receive prefix before
+  the original server Trace.At and three client response receive intervals inside
+  the existing 32-span budget. The initial receive identity validation precedes
+  their first clock and remains unknown; the server's existing dispatch-time
+  revalidation is inside the total prefix. The observer interval includes synchronous observation and
+  scheduling; dispatch ends immediately before the buffered response send, and
+  resume includes that send and caller scheduling. These intervals overlap
+  response_wait and cannot be added to it or interpreted as network latency.
+  Omitted, late, unbound, mismatched-service or recorder-dropped evidence remains
+  unknown. Disabled capture adds no receive clocks, identity locks or dynamic
+  timing object, but its optional carrier still enlarges the response element.
   Trace capability failures fail the current call without replay; a later caller
   may retry negotiation with the same connection token, including when an earlier
   reply arrived too late. Only success or explicit unsupported is cached.

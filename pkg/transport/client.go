@@ -58,11 +58,12 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		traceRecorder: recorder,
 		observer:      observer,
 		peers: peer.NewManager(peer.Config{
-			Discovery: normalized.Discovery,
-			PoolSize:  normalized.PoolSize,
-			Limits:    normalized.Limits,
-			Observer:  normalized.Observer,
-			Dial:      clientDialFunc(normalized),
+			Discovery:      normalized.Discovery,
+			PoolSize:       normalized.PoolSize,
+			Limits:         normalized.Limits,
+			Observer:       normalized.Observer,
+			ReceiveTracing: normalized.RPCTraceEvery > 0,
+			Dial:           clientDialFunc(normalized),
 		}),
 	}, nil
 }

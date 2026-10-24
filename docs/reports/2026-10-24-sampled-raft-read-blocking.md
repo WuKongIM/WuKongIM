@@ -1,12 +1,13 @@
 # Sampled Slot read blocking at 2,000 SEND/s
 
-The unchanged local workload still fails on candidate `c5d12fc6`. Earlier
+The unchanged local workload still fails on candidate `e0205a54`. Earlier
 same-request observations identified per-Slot storage-count fallback occupying
-the Raft owner. Yielding before Ready removes that measured fallback. The new
-independent observation now measures same-Slot scheduling pause across 81.6%
-of the read barrier on average in the active successful permission samples.
-This supports improving the existing per-Slot storage FIFO; it neither traces
-every failed SEND nor separates append, apply and completion consumption within
+the Raft owner. Yielding before Ready removes that measured fallback. R21's
+independent observation measured same-Slot scheduling pause across 81.6%
+of the read barrier on average in its active successful permission samples.
+Bounded compatible-prefix coalescing subsequently reduces that measured pause,
+but the original workload still fails. These successful samples neither trace
+every failed SEND nor separate append, apply and completion consumption within
 the pause. Earlier observations, controlled regressions and failed runs remain
 below; none establishes a capacity pass or qualifies v3 for release.
 
@@ -452,7 +453,150 @@ and `4c7f454972cef1f17c90f0a51d2d37d0bf2f7a609a2d9bfa17a0ce332a5eba31`.
 The named `flow-doc-contracts` check passes. Independent protocol and performance
 reviews retain the original durability, memory ownership, fairness and queue
 bounds. These controlled regressions establish the mechanism and correctness;
-the exact candidate's original-scale 2,000-SEND/s rerun is still required.
+the following exact candidate rerun establishes its separate workload result.
+
+## Coalescing at the original workload
+
+R22 uses exact candidate `e0205a54859453d1b4e044bd0f1f25b0fb0eeb82` and
+tracked tree `083ff45710d51353c5976c111c68ce562881706c`. Both native binaries
+come from that clean source with the same compiler, embedded assets and build
+settings. Workload, gates, 32-request sample interval and runtime bounds remain
+unchanged. Its true first grant is `2026-10-24T07:44:57.976305+08:00`.
+
+The +35.055253209-second cut has one first-attempt failure among 70,012 sends,
+64,379 ACKs and no terminal result; it has not yet breached the original gate.
+The first saved gate failure is +40.0552975 seconds: 80,016 sends, 71,012 ACKs,
+261 first-attempt failures and four terminal retry-exhausted attempt timeouts.
+Loss, duplicate, corruption and sequence-regression counts are zero at that cut.
+The last five seconds sustain 2,000.782 primary SEND/s but 1,326.588 ACK/s,
+with 9,000 logical outstanding messages after subtracting ACKs and terminal
+results. Both terminal-send and first-attempt-rate gates are violated; the
+original verdict gives terminal-send priority. The final 9,240 terminal results
+comprise eight exhausted attempt timeouts and 9,232 stop-induced closures;
+the additional four timeouts also occur after the first saved failing cut.
+Independent cleanup again confirms zero product/Go/test processes and zero
+listeners across all 64 reserved ports.
+
+Strict joining retains 2,893 same-RPC pairs, including 150 successful permission
+requests with complete five-phase observations. Active cuts contain 115. Their
+longest barrier averages 151.443 ms, compared with 238.595 ms in R21's active
+112; same-Slot pause averages 74.606 ms versus 200.732 ms, and its per-request
+mean barrier fraction falls from 81.616% to 45.192%. Mean control/raw-quorum/
+durable-apply phases are 21.044/93.497/36.899 ms. Budget and other owner occupancy
+are measured zero in these active samples. Save and pause coverage of raw-quorum
+time are 88.289% and 37.281%; these overlapping quantities cannot be added or
+subtracted to assign causes. The two runs describe different sampled requests
+on a shared host, not a controlled causal estimate of overall throughput.
+
+The 35 final-acquisition permission pairs remain a separate successful
+population, with client ends between +31.984 and +35.824 seconds. They do not
+cover the last roughly 4.23 seconds before the gate failure and cannot directly
+explain the 261 failed SENDs. No missing interval is filled with zero. The
+paired non-OK observations are nine presence-owner calls whose client timed
+out while the server completed successfully; they are not linked to SEND
+identity. Further same-candidate profiling is needed before another execution
+change; the original-scale capacity result remains **FAIL**.
+
+The R22 timeline and independent timeline review are bound by
+`3d1bfb3eb783fa54badba88de585a4138035333e8d21ba35cc66e4e8e4116cf4`
+and `a1339b0c813148d682289485298885d05967d7099fcf2f57fbd0d06909797dcb`.
+The strict analysis findings receipt is
+`70be0a645827c352f72bfed7cc796f1b668480604fe13322e396f25eae40a8b8`;
+its R21/R22 same-category comparison is
+`01a28ce24c68833aea5e8d944a3427e7faed9bb99588fa5cd2abbd4ee7ecc0f9`.
+The independent strict-aggregate review is
+`8695b48cab9a859e25dac3977d8990089db3fa98209e3b6ff23eca1341e55027`.
+Independent cleanup is
+`6c21c5f0360fb16e696237be6f5133f57ebe148e2b33df00951edd5f1bbe51fb`.
+
+## Same-candidate profile diagnostic
+
+R23 reuses R22's exact binaries, original workload, gates and bounded runtime.
+Its only observation change adds one 15-second CPU capture and one goroutine
+snapshot per server, using six bounded HTTP requests. This profile overhead
+makes R22/R23 descriptive observations, not a controlled performance comparison.
+The true first grant is `2026-10-24T08:03:48.155793+08:00`.
+
+The first saved failing cut is +40.032781625 seconds: 80,022 primary sends,
+70,009 ACKs, 587 first-attempt failures and 31 exhausted attempt timeouts.
+The previous cut has four first-attempt failures but no terminal result and
+still passes the original correctness gate. During the final five seconds,
+primary SEND remains 2,000.773/s while ACK falls to 1,245.183/s. Loss,
+duplication, corruption and sequence regression remain zero at that cut.
+The final 10,077 terminal results comprise 34 exhausted timeouts and 10,043
+stop-induced closures. The latter and the three additional timeouts must not
+be attributed to the earlier first-failure population. Independent cleanup
+again confirms zero owned processes and all 64 reserved ports clear.
+
+Strict endpoint joining retains 2,896 pairs. All 134 permission pairs succeed;
+93 belong to active acquisitions and 41 to the final acquisition. Active
+longest-barrier mean is 158.899 ms, with control/raw-quorum/durable-apply means
+20.971/96.282/41.643 ms. Same-Slot pause averages 99.249 ms and its per-request
+barrier fraction averages 57.600%; measured budget/other owner occupancy is zero.
+Final permission client endpoints end no later than +35.970580916 seconds,
+leaving 4.062200709 seconds before the first saved failing cut unobserved by
+those pairs. These successful requests do not trace the 587 failed SENDs.
+Five presence-owner pairs have client timeout with server success and remain
+separate from successful pairs.
+
+All six profile files pass bounded gzip/protobuf validation and reconcile with
+the cached pprof reader. CPU windows run approximately +15 to +30.264 seconds;
+goroutine snapshots occur around +30.294 to +30.387 seconds. They precede the
+gate-passing +35.033-second cut but extend past the last saved zero-first-failure
+cut, so they cannot be called entirely failure-free. Sampled CPU averages
+0.562/0.582/0.576 cores per server; this does not support sustained saturation
+of each server's two execution threads, and does not measure whole-host
+availability or exclude short spikes. Transport writeLoop accounts for
+34.1%–38.4% of sampled CPU, almost entirely writev; it is the largest CPU path,
+not evidence that writing caused every delay.
+
+At those snapshots all 60 Slot owners await a scheduler task. Fourteen append
+workers await Raft-log submit results and fifteen apply workers await metadata
+commit results; other workers in these cohorts await work. RPC pumps include
+208 waiting for new requests and two waiting for service tokens. This does not
+show an exhausted global RPC executor, but neither does it measure queue lengths
+or the duration of those waits. Count-paused Slots and queued per-key work have
+no dedicated goroutine. Connection writers all await queued frames at the
+snapshot; most readers are in network polling and two readers await observer
+locks. No snapshot alone explains the stable 80–91 ms client/server duration
+residual of several short-handler RPC services.
+
+Further offline extraction keeps the same 2,896 strict pairs. Across services
+14, 15, 80 and 84, request-write means are only 0.036–0.229 ms while response-wait
+means are 93.547–106.567 ms. The active-cut client/server duration residual is
+62.124–66.169 ms, rising to 146.911–175.628 ms in the final acquisition. Those
+duration differences are not one-way network measurements. The old server
+window begins after full-frame receipt and synchronous byte observation, and
+the old client window does not separate response receipt, notification and
+caller resumption. Offline extraction and its independent review are bound by
+`65857e30bc3f719ffacbd126aed395cd246569bdf26d5e554c8faf7db2e7db0f`
+and `f3de98c209db5958f81664c4161de9ad7c431cec60bf54ae1ff50b0919c852be`.
+
+The next candidate adds bounded receive evidence on those existing sampled
+requests: a server prefix before its unchanged Trace.At, plus three client
+intervals for synchronous receive observation, response dispatch and caller
+resumption. Initial receive identity validation remains outside the new window;
+the server's existing dispatch revalidation is inside its total prefix. The
+notification point is immediately before the existing buffered send, so resume
+includes that send and scheduling rather than measuring only scheduler delay.
+These observations neither change admission nor extend business deadlines.
+The original-scale result for this candidate remains pending.
+
+R23's timeline, independent timeline review and independent aggregate review
+are bound by
+`8c20ca32d52c06c6cf73817d1bfb58b065a8a68b7d2d59d595740a6e4c01dec0`,
+`43c3561405b81a0a1af904377c901676ff3e0b0b457d75d42fc398b6e3e62528`
+and `73dae398a1299b20fea6dd972e30a47edae485ff1affec00b54db53dceaf55ef`.
+Profile findings and current-source idle-site validation are
+`2126323451d24844b715df69950fac636e7c1e76f9ec129125e3a7816ead0823`
+and `5a9a3ea85485d6bf0fc1efef3c71d919454264ffac6166fc69fcd80d0827dc82`.
+
+All four first-attempt Linux workflows pass for `e0205a54`: 16 jobs succeed and
+two conditionally skip. The actual merge checkout's tracked tree equals the
+candidate, and all nine 500-SEND/s windows pass their original gates. CI audit
+`26e748a8e2708760fbc3438608e07e0f1948bf7da319ed8c2402fcbc8033423b`
+preserves those results separately from R22/R23's failed original-scale gates.
+PR #1038 remains Draft; this candidate does not qualify v3 for release.
 
 ## Retained evidence
 
