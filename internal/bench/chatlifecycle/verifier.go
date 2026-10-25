@@ -352,6 +352,15 @@ func (s *pendingSend) attempt(clientSeq uint64) *sendAttemptIdentity {
 	return nil
 }
 
+// verifiedSendCompletion is an immutable proof copied from an exact registered
+// positive ACK under sendMu. The Engine owner consumes it through its ordinary
+// ACK settlement and ReleaseSendAt; it is never inferred from missing state.
+type verifiedSendCompletion struct {
+	clientSeq  uint64
+	messageID  int64
+	messageSeq uint64
+}
+
 type releasedAttemptKey struct {
 	clientSeq   uint64
 	clientMsgNo string
@@ -597,10 +606,48 @@ func (v *Verifier) ObserveAttempt(logical LogicalSend, attempt RetryAttempt, cli
 func (v *Verifier) ObserveAttemptWithDeadline(logical LogicalSend, attempt RetryAttempt, clientSeq uint64, deadline time.Time) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
+	return v.observeAttemptLocked(v.pending[logical.ClientMsgNo], logical, attempt, clientSeq, deadline)
+}
+
+// admitEngineAttemptWithDeadline linearizes retry registration with direct
+// transport ACK verification. A completed original may still await its Engine
+// callback; only an exact registered positive ACK can transfer its proof to the
+// owner instead of registering a retry. Pending state remains owned until the
+// owner's normal ACK settlement releases it. This adds no history or wire work.
+func (v *Verifier) admitEngineAttemptWithDeadline(logical LogicalSend, attempt RetryAttempt, clientSeq uint64, deadline time.Time) (*verifiedSendCompletion, error) {
+	v.sendMu.Lock()
+	defer v.sendMu.Unlock()
 	pending := v.pending[logical.ClientMsgNo]
-	if pending == nil || pending.logical != logical || pending.completion != sendIncomplete ||
-		attempt.ClientMsgNo != logical.ClientMsgNo || attempt.Attempt > 3 || clientSeq == 0 ||
-		pending.attemptCount >= uint8(maxSendAttemptIdentities) || pending.attempt(clientSeq) != nil {
+	if validSendAttemptIdentity(pending, logical, attempt, clientSeq) && attempt.Attempt > 0 {
+		if completion := verifiedSendCompletionFor(pending, logical); completion != nil {
+			return completion, nil
+		}
+	}
+	return nil, v.observeAttemptLocked(pending, logical, attempt, clientSeq, deadline)
+}
+
+// verifiedSendCompletionFor reads only a retained, positive, registered ACK.
+// Callers must hold sendMu through their competing registration/terminal change.
+func verifiedSendCompletionFor(pending *pendingSend, logical LogicalSend) *verifiedSendCompletion {
+	if pending == nil || pending.logical != logical || pending.completion != sendAcknowledged || pending.messageID <= 0 || pending.messageSeq == 0 {
+		return nil
+	}
+	completedAttempt := pending.attempt(pending.completionClientSeq)
+	if completedAttempt == nil || completedAttempt.outstanding {
+		return nil
+	}
+	return &verifiedSendCompletion{clientSeq: pending.completionClientSeq, messageID: pending.messageID, messageSeq: pending.messageSeq}
+}
+
+// validSendAttemptIdentity keeps every original identity and fixed-capacity
+// guard shared by strict public registration and Engine retry admission.
+func validSendAttemptIdentity(pending *pendingSend, logical LogicalSend, attempt RetryAttempt, clientSeq uint64) bool {
+	return pending != nil && pending.logical == logical && attempt.ClientMsgNo == logical.ClientMsgNo &&
+		attempt.Attempt <= 3 && clientSeq != 0 && pending.attemptCount < uint8(maxSendAttemptIdentities) && pending.attempt(clientSeq) == nil
+}
+
+func (v *Verifier) observeAttemptLocked(pending *pendingSend, logical LogicalSend, attempt RetryAttempt, clientSeq uint64, deadline time.Time) error {
+	if !validSendAttemptIdentity(pending, logical, attempt, clientSeq) || pending.completion != sendIncomplete {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, uint64(attempt.Attempt))
 	}
 	pending.attempts[pending.attemptCount] = sendAttemptIdentity{clientSeq: clientSeq, attempt: attempt.Attempt, outstanding: true}
@@ -1123,13 +1170,36 @@ func (v *Verifier) completeRetryExhausted(logical LogicalSend, cause retryExhaus
 	return v.completeTerminal(logical, TerminalSendRetryExhausted, cause)
 }
 
+// completeEngineTerminalOrAcknowledged linearizes every live Engine terminal
+// decision with direct ACK verification. The public terminal seam remains
+// strict; only an exact positive completion can be handed back to the owner
+// instead of recording a new terminal result. Existing failure evidence stays.
+func (v *Verifier) completeEngineTerminalOrAcknowledged(logical LogicalSend, code TerminalSendCode, cause retryExhaustedCause) (*verifiedSendCompletion, error) {
+	v.sendMu.Lock()
+	defer v.sendMu.Unlock()
+	if validTerminalSendCause(code, cause) {
+		if completion := verifiedSendCompletionFor(v.pending[logical.ClientMsgNo], logical); completion != nil {
+			return completion, nil
+		}
+	}
+	return nil, v.completeTerminalLocked(logical, code, cause)
+}
+
+func validTerminalSendCause(code TerminalSendCode, cause retryExhaustedCause) bool {
+	return code >= TerminalSendRetryExhausted && code <= TerminalSendSessionClosed &&
+		((code == TerminalSendRetryExhausted && cause >= retryExhaustedUnclassified && cause <= retryExhaustedRetriableSendack) ||
+			(code != TerminalSendRetryExhausted && cause == 0))
+}
+
 func (v *Verifier) completeTerminal(logical LogicalSend, code TerminalSendCode, cause retryExhaustedCause) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
+	return v.completeTerminalLocked(logical, code, cause)
+}
+
+func (v *Verifier) completeTerminalLocked(logical LogicalSend, code TerminalSendCode, cause retryExhaustedCause) error {
 	pending := v.pending[logical.ClientMsgNo]
-	validCause := (code == TerminalSendRetryExhausted && cause >= retryExhaustedUnclassified && cause <= retryExhaustedRetriableSendack) ||
-		(code != TerminalSendRetryExhausted && cause == 0)
-	if pending == nil || pending.logical != logical || code < TerminalSendRetryExhausted || code > TerminalSendSessionClosed || !validCause {
+	if pending == nil || pending.logical != logical || !validTerminalSendCause(code, cause) {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, uint64(code))
 	}
 	if pending.completion != sendIncomplete {

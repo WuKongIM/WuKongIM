@@ -3438,8 +3438,12 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	e.nextClientSeq++
 	clientSeq := e.nextClientSeq
 	deadline := attemptAt.Add(e.attemptTimeoutFor(intent))
-	if err := e.verifier.ObserveAttemptWithDeadline(logical, attemptPlan, clientSeq, deadline); err != nil {
+	completion, err := e.verifier.admitEngineAttemptWithDeadline(logical, attemptPlan, clientSeq, deadline)
+	if err != nil {
 		return e.abortHarness(inflight, err)
+	}
+	if completion != nil {
+		return e.settleVerifiedSendCompletion(inflight, completion)
 	}
 	if !inflight.registerClientSeq(clientSeq, attemptAt) {
 		return e.abortHarness(inflight, errEngineConfig)
@@ -3528,8 +3532,11 @@ func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time, cause re
 			return e.abortHarness(inflight, e.recordRuntimeFailure(RuntimeFailureTransportAdmissionSaturated, 1))
 		}
 		logical := inflight.intent.Logical
+		completion, terminalErr := e.verifier.completeEngineTerminalOrAcknowledged(logical, TerminalSendRetryExhausted, cause)
+		if completion != nil {
+			return e.settleVerifiedSendCompletion(inflight, completion)
+		}
 		e.completeMetaCreate(inflight.intent, false)
-		terminalErr := e.verifier.completeRetryExhausted(logical, cause)
 		_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
 		e.releaseCorrelationLease(inflight.intent)
 		removeErr := e.removeInflight(inflight)
@@ -3541,6 +3548,19 @@ func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time, cause re
 		return e.abortHarness(inflight, err)
 	}
 	return e.abortHarness(inflight, err)
+}
+
+// settleVerifiedSendCompletion runs only owner bookkeeping for an ACK already
+// verified on its transport clock. No verifier evidence is replayed, and the
+// queued callback later observes that this exact inflight owner was released.
+func (e *Engine) settleVerifiedSendCompletion(inflight *engineInflight, completion *verifiedSendCompletion) error {
+	if inflight == nil || completion == nil || !inflight.hasClientSeq(completion.clientSeq) || completion.messageID <= 0 || completion.messageSeq == 0 {
+		return e.abortHarness(inflight, errEngineConfig)
+	}
+	return e.observeSendack(&frame.SendackPacket{
+		ClientSeq: completion.clientSeq, ClientMsgNo: inflight.intent.Logical.ClientMsgNo,
+		MessageID: completion.messageID, MessageSeq: completion.messageSeq, ReasonCode: frame.ReasonSuccess,
+	}, nil)
 }
 
 func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error) error {
@@ -3563,8 +3583,11 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 			logical := inflight.intent.Logical
 			e.cancelAttemptTimeout(inflight)
 			e.retries.cancel(ack.ClientMsgNo)
+			completion, terminalErr := e.verifier.completeEngineTerminalOrAcknowledged(logical, TerminalSendNonRetriable, 0)
+			if completion != nil {
+				return e.settleVerifiedSendCompletion(inflight, completion)
+			}
 			e.completeMetaCreate(inflight.intent, false)
-			terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendNonRetriable)
 			_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
 			e.releaseCorrelationLease(inflight.intent)
 			removeErr := e.removeInflight(inflight)
@@ -3629,8 +3652,11 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	}
 	e.cancelAttemptTimeout(inflight)
 	e.retries.cancel(ack.ClientMsgNo)
+	completion, terminalErr := e.verifier.completeEngineTerminalOrAcknowledged(logical, TerminalSendNonRetriable, 0)
+	if completion != nil {
+		return errors.Join(verificationErr, e.settleVerifiedSendCompletion(inflight, completion))
+	}
 	e.completeMetaCreate(inflight.intent, false)
-	terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendNonRetriable)
 	releaseErr := e.verifier.ReleaseSendAt(logical, e.clock.Now())
 	e.releaseCorrelationLease(inflight.intent)
 	removeErr := e.removeInflight(inflight)
@@ -4386,6 +4412,8 @@ func (e *Engine) recordGroupUnderDelivery(intent TrafficIntent) error {
 	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(group.MemberCount))
 }
 
+// cleanupInflight runs after Stop joined all session drains and drained owner
+// callbacks, so strict session-closed completion cannot race a new ACK here.
 func (e *Engine) cleanupInflight() {
 	for _, inflight := range e.inflight {
 		logical := inflight.intent.Logical

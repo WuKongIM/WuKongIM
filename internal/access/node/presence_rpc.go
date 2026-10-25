@@ -593,7 +593,26 @@ func (a *Adapter) rpcLogger() wklog.Logger {
 }
 
 func (a *Adapter) logPresenceAuthorityError(req presenceRPCRequest, status string, err error) {
-	if err == nil || status != rpcStatusRejected {
+	if err == nil {
+		return
+	}
+	// Activation failures retain their closed authority-side phase because the
+	// compatible RPC status intentionally omits source errors. Exclude lookups,
+	// identities and cause text so recipient fanout cannot amplify these logs.
+	if status == rpcStatusRouteNotReady && (req.Op == presenceOpRegisterRoute || req.Op == presenceOpCommitRoute) {
+		phase := presence.ActivationFailurePhase(err).String()
+		if phase == "" {
+			phase = "unknown"
+		}
+		a.rpcLogger().Warn("presence activation authority not ready",
+			wklog.Event("internal.access.node.presence_activation_not_ready"),
+			wklog.String("op", req.Op), wklog.String("status", status),
+			wklog.String("activation_phase", phase),
+			wklog.Int("hashSlot", int(req.Target.HashSlot)),
+			wklog.Uint64("slotID", uint64(req.Target.SlotID)), wklog.LeaderNodeID(req.Target.LeaderNodeID))
+		return
+	}
+	if status != rpcStatusRejected {
 		return
 	}
 	fields := []wklog.Field{

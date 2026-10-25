@@ -31,6 +31,19 @@ gap does not prove all first attempts met their deadline. Retry counts and
 explicit failures cannot substitute for or be summed with this lower bound.
 No new timeout-rate gate is introduced. Fixed attempt slots and bounded late
 receipts retain evidence without an unbounded message history.
+Direct transport ACK verification can precede its Engine-owner callback. Retry
+registration and owner terminal decisions must therefore share the Verifier
+send lock with completion. Only its retained exact registered positive ACK may
+be reconciled through the existing owner ACK settlement; missing pending state
+or an invalid receipt cannot skip a failure. The eventual queued ACK must not
+repeat verification, latency counts, correlations or lease release.
+
+Presence activation errors expose fixed phases while preserving `errors.Is/As`,
+RPC status, rollback and retries. Remote RPC status does not carry source phase;
+registration/commit authority logs therefore emit a closed phase and numeric
+fence target without raw errors, UID/session identities or tokens. Endpoint
+lookups do not emit this event. A generic benchmark CONNECT failure alone cannot
+distinguish rejected CONNACK from EOF; correlate preserved server auth evidence.
 
 Storage wait metric names require source interpretation. RuntimePressure's
 `message_commit` queue-wait observation currently includes the whole Submit,

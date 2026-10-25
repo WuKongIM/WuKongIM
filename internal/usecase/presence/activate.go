@@ -8,25 +8,25 @@ func (a *App) Activate(ctx context.Context, cmd ActivateCommand) error {
 		ctx = context.Background()
 	}
 	if a.local == nil {
-		return ErrLocalRegistryUnavailable
+		return WrapActivationPhase(ActivationPhaseLocalRegister, ErrLocalRegistryUnavailable)
 	}
 	if a.authority == nil {
-		return ErrAuthorityUnavailable
+		return WrapActivationPhase(ActivationPhaseRegister, ErrAuthorityUnavailable)
 	}
 
 	routeProjection, err := a.ownerRoute(cmd)
 	if err != nil {
-		return err
+		return WrapActivationPhase(ActivationPhaseTarget, err)
 	}
 	route := routeFromOwnerRoute(routeProjection)
 	if err := a.local.RegisterPending(LocalSession{Route: routeProjection, Session: cmd.Session}); err != nil {
-		return err
+		return WrapActivationPhase(ActivationPhaseLocalRegister, err)
 	}
 
 	result, err := a.authority.RegisterRoute(ctx, route)
 	if err != nil {
 		a.rollbackLocal(cmd.SessionID)
-		return err
+		return WrapActivationPhase(ActivationPhaseRegister, err)
 	}
 	if err := a.finishPendingRoute(ctx, result); err != nil {
 		a.rollbackLocal(cmd.SessionID)
@@ -35,7 +35,7 @@ func (a *App) Activate(ctx context.Context, cmd ActivateCommand) error {
 	if err := a.local.MarkActive(cmd.SessionID); err != nil {
 		a.authority.EnqueueUnregister(ctx, route.Identity(), route.OwnerSeq)
 		a.rollbackLocal(cmd.SessionID)
-		return err
+		return WrapActivationPhase(ActivationPhaseLocalRecheck, err)
 	}
 	a.observeOnlineStatus(ctx, routeProjection)
 	return nil
@@ -51,7 +51,7 @@ func (a *App) finishPendingRoute(ctx context.Context, result RegisterResult) err
 	}
 	if err := a.authority.CommitRoute(ctx, result.PendingToken); err != nil {
 		_ = a.authority.AbortRoute(ctx, result.PendingToken)
-		return err
+		return WrapActivationPhase(ActivationPhaseCommit, err)
 	}
 	return nil
 }
@@ -61,11 +61,11 @@ func (a *App) applyRouteActions(ctx context.Context, actions []RouteAction) erro
 		return nil
 	}
 	if a.ownerAction == nil {
-		return ErrOwnerActionUnavailable
+		return WrapActivationPhase(ActivationPhaseAction, ErrOwnerActionUnavailable)
 	}
 	for _, action := range actions {
 		if err := a.ownerAction.ApplyRouteAction(ctx, action); err != nil {
-			return err
+			return WrapActivationPhase(ActivationPhaseAction, err)
 		}
 	}
 	return nil

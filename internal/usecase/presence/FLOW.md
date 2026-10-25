@@ -51,6 +51,8 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 
 ## Invariants and Failure Semantics
 
+- Activation failures retain their original error family through fixed phase
+  wrappers. Diagnostic extraction returns the innermost known phase, never request data.
 - Failed authority registration removes the pending local session. Failed final
   activation queues exact unregister and removes local state.
 - Status observation is best effort, never adds authority traffic, counts only

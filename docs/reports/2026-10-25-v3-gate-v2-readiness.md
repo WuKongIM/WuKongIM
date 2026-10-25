@@ -67,3 +67,83 @@ that production stable publication is enabled or complete. See
 No new paid Lease, production package publication, or release tag is started by
 this evidence-contract change. Their existing explicit authorization and
 protected publication requirements remain in force.
+
+## First gate-v2 candidate observation
+
+Commit `3e539c6db4c9082e4f0339bb9133c5bab034fcdf` passed the complete local bench
+suite, related CLI/materializer suites, focused race, FLOW contracts and the
+terminal collector's 24 process-fixture cases. Its Linux candidate
+[default/scripts/migration and messaging run](https://github.com/WuKongIM/WuKongIM/actions/runs/40188426079)
+passed. The three fixed Linux 500-SEND/s performance cases, Manager and native
+package preview passed; the independent three-node correctness smoke failed and
+is retained in [its original run](https://github.com/WuKongIM/WuKongIM/actions/runs/40188425986).
+That launcher's exact-line time replacement still matched the old YAML, so the
+new latency-warmup field prevented its requested 60-second timeline from being
+materialized. It waited for the default 20-minute checkpoint. This integration
+regression requires a config-artifact regression and repair; the original
+failure is not a passing result or a reason to loosen thresholds.
+Its worker evidence separately retains two same-logical-SEND generator-invariant
+observations (worker1, SEND stage, values 1 then 0). The script timing mismatch
+does not establish the cause of those runtime observations; that boundary still
+requires a deterministic reproduction rather than ignoring it after shortening
+the smoke back to its original contract.
+
+A fresh native Mac original-scale diagnosis requested 1,220 measured seconds
+with 10,000 target online users, three service/worker processes, 2,000 groups
+including the 100,000-member group, original seed, payloads and numerical gates.
+Its 58 complete periodic intervals covered 290.0032235 seconds at 2,000.019148
+logical SEND/s. The driver terminated early with the native
+`harness_invalid / worker_harness_invalid`, before the ten-minute latency
+baseline; latency remained `not_evaluated`, not pass or a formal Linux failure.
+
+Final drain completed all 592,006 logical SEND/ACKs and all 5,329 sampled delivery
+correlations. Terminal/loss/duplicate/corruption/sequence and explicit product
+first-attempt failures were zero. All 592,006 first deadlines were resolved;
+19,691 original results were confirmed late and unknown coverage was zero.
+These deadlines are hot P99.9=1s / cold P99.9=5s, not the 400ms hot P99 limit.
+The 12,060 registered retries are a different quantity; do not replace the
+explicit-failure gate's numerator or sum these overlapping counters.
+
+Worker0 retained one CONNECT failure. Node1's sole pre-stop auth failure matched
+its device and time, with `activation_route_not_ready` and 790.33825ms duration.
+The UID maps to HashSlot 193 / physical Slot 10; sealed inventories report
+node2 leadership without a measured leader change, strongly supporting a
+remote-authority path. The failing request's exact target and source phase were
+not recorded. The underlying recovery/register/commit cause and any RPC-queue
+causal claim remain unconfirmed. No token-check failure or ordinary five-second
+CONNECT timeout is established by this evidence. Post-stop cancellation/refused
+connections are cleanup events and cannot explain the earlier rejection.
+
+The run's recorded cleanup and an independent fresh process/listener census
+both confirmed zero retained workload processes and zero listeners on all 64
+reserved ports. The original failed output remains archived; phase observation
+is added before the next deliberate candidate diagnosis, without retrying or
+ignoring this CONNECT failure.
+
+## Repairs before the next diagnosis
+
+The smoke fixture now renders the real repository template and compares the
+complete typed output configuration for the default 60s/90s and custom 30s/45s
+windows. A missing expanded timeline fails explicitly. Its original failure-rate
+handling, numerical limits and zero-tolerance correctness gates are unchanged.
+
+A real SessionPool/Engine interleaving reproduced the Linux evidence sequence:
+a positive ACK is directly verified while the Engine owner is paused before its
+completion callback. Retrying then emitted the same two generator-invariant
+observations. Related final-timeout, async-error, non-retry NACK and invalid-ACK
+interleavings also reproduced incorrect terminal decisions. Retry registration
+and all live owner terminal decisions now atomically select an exact retained,
+registered positive completion receipt or record the original terminal outcome
+under the same verifier lock. The receipt uses ordinary owner ACK settlement;
+it does not verify the ACK again, replay latency/correlation counters or send an
+extra retry. Missing state and malformed proofs remain strict errors, and real
+rejection/invalid-frame/admission evidence remains visible. Joined Stop cleanup
+retains its existing strict public path. Full Verifier/Engine/Session tests and
+20 focused race iterations passed; these regressions do not qualify Linux load.
+
+Fixed presence activation phases preserve error-family mapping, protocol status,
+retry policy and rollback. The authority emits an identity-free phase event only
+for route-not-ready Register/Commit failures; endpoint lookup fanout adds no such
+event. Remote wire status stays unchanged. This supplies the missing recovery /
+directory registration / commit boundary for a subsequent deliberate run rather
+than guessing the first run's underlying cause.

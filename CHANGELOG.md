@@ -26,6 +26,17 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Reconcile already verified SENDACK completion before benchmark retry
+  registration or terminal decisions can misclassify it, and preserve the requested
+  short Linux smoke timeline when rendering the expanded lifecycle configuration.
+  / 修复 SENDACK 已验证完成但驱动尚未消费通知时的重试误判，并修复新增延迟字段后
+  Linux 短测时间参数未正确派生的问题；真实失败和正确性门禁保留。
+
+- Record fixed presence-activation failure stages, including redacted authority
+  stages for failed remote registration/commit, while preserving protocol reasons
+  and retry decisions. / 在线激活失败补充固定阶段，远端注册/提交失败仅记录脱敏阶段，
+  保留原协议错误码和重试决策。
+
 - Separate chat-lifecycle latency qualification from resource warmup, label local
   diagnostics and formal-protocol evidence explicitly, and expose confirmed
   first-attempt deadline misses with their observation coverage. Correctness and

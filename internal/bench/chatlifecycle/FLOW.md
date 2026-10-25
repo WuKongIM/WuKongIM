@@ -59,6 +59,10 @@ passing 72-hour formal generation -> same aged dataset and process proof
   Session expiry transfers to one generation-owned bounded cleanup queue;
   closing tombstones and per-SEND expiry leases prevent replacement or socket
   teardown from racing admitted retry work.
+- Retry admission and owner terminal decisions linearize with direct ACK verification.
+  Only an exact registered positive completion receipt may transfer to the Engine's
+  existing ACK settlement while its callback is queued. Missing state proves nothing;
+  strict public registration, real terminal errors and correctness budgets remain.
 - Initial SENDs settle a timer-local pending count before revisit leasing, so
   late successful ACKs advance the fence before cohort selection.
 - The first measured grant reserves distinct senders across person, group, and
