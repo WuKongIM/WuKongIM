@@ -8,6 +8,12 @@ and incomplete evidence instead of converting raw short-run latency into a
 formal pass/failure. The 400ms contract has historical calibration, not a
 topology-independent hardware promise; see the
 [gate reassessment](../reports/2026-10-25-performance-gate-applicability.md).
+Chat-lifecycle `RetryAttempts` counts registered retry attempts, not distinct
+retried messages. Timer expiry schedules retry without settling the explicit
+first-attempt failure counter; a later registered success may finish the logical
+SEND. The product counter also subtracts driver-local admission failures.
+Zero first-attempt failures therefore does not prove every first attempt met its
+retry deadline. Do not substitute retry-attempt rate for that gate's numerator.
 
 Storage wait metric names require source interpretation. RuntimePressure's
 `message_commit` queue-wait observation currently includes the whole Submit,

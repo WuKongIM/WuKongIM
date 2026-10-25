@@ -1,10 +1,10 @@
 # Original-scale SEND latency diagnosis
 
-The latest short runs through `08ecdfdac` complete the planned
+The latest short runs through `cf0618791` complete the planned
 120-second window without observed correctness failures after correcting
 storage cache budgeting. They remain unqualified: hot SENDACK P99 is in the
 (1,2]-second bucket, above the original 400 ms target, and the official latency
-window has not started. R28/R30 same-request observations locate most slow
+window has not started. R28–R31 same-request observations locate most slow
 Channel-authority handler time inside the executing append effect, with little
 waiting in that effect's worker pool. R30's native physical-batch statistics
 locate the dominant native interval in combined publication/WAL-sync completion;
@@ -1069,6 +1069,74 @@ process topology and workload. No original gate or product concurrency changes.
 The complete observation and independent raw-statistics review are bound by
 `a0748ab5f2b61ada1a970e79962ae2c04f0d57cda5bcbcedb7fe74ee061ff8fa`
 and `bab4168322f5adeb124d4b1a0762179a97a137923aa2fc1f49277cfae78aa258`.
+
+### R31 distinguishes admission from waiting after runtime submission
+
+Candidate `cf061879133c847f2e356b2cbfb52dbec85716da` adds six bounded backend
+phases. An independent context observer maps active original items through
+idempotency deduplication to every selected sampled owner; retries project that
+map to the actual retried storage indexes. It never installs the first caller's
+Trace or cancellation context. Aligned results retain individual outcomes,
+missing cardinality remains unfinished, and MaxSpans stays 32. Tests-first
+integration and race checks cover shared callers, deduplication, retry subsets,
+runtime cancellation, original-caller completion and immutable finished samples.
+The related full default suite and named FLOW check pass. Exact-source Linux CI
+also passes all 16 validation checks plus its signal check, with two planned
+skips; the tested merge tree equals the candidate tree.
+
+First grant is `2026-10-25T18:27:43.728802+08:00`; the strict window ends 120
+seconds later, before TERM at +120.127087 wall seconds. Twenty-two complete
+periodic intervals cover 110.001842 seconds at 2,000.139 primary SEND/s and
+1,995.376 ACK/s. Final drain settles all 242,003 sends, with 9,906 registered
+retry attempts and zero recorded explicit first-attempt, terminal or correctness
+failures. All 2,586 sampled deliveries complete. Retry attempts are not distinct
+retried messages or a substitute first-attempt-failure numerator.
+
+Raw hot mean is 854.632 ms and P99 remains in (1,2] seconds; cold mean is
+1,033.295 ms. The source/shared-host comparison with R30 is descriptive, not an
+attributable improvement or regression. The original verdict is `operator_stop`,
+with no post-two-hour latency samples: the formal latency gate is not evaluated.
+Independent cleanup confirms zero owned processes and all 64 reserved listeners.
+
+Strict pairing retains 490 service-21 RPCs with complete old/new phases and zero
+span drops in this cohort. The new backend phases occur once in 489 calls and
+twice in one legitimate repeated invocation. Across individual RPC interval
+unions, Future wait exceeds metadata apply in 464 cases; metadata apply is longer
+in 26. The median of each call's Future-wait/first-append ratio is 94.073%, and
+Future-wait/runtime-append is 99.998%. Mean reserve and submission intervals are
+0.039/0.004 ms; first-effect pool wait is 0.247 ms. This prioritizes waiting
+after runtime submission, not increasing those admission pools.
+
+The descriptive first-append-over-400ms subset contains 67 calls: 55 are
+Future-wait-dominated and 12 metadata-apply-dominated. Metadata apply still has a
+793.104-ms maximum in this sample. These are sampled RPC distributions, not
+traffic percentiles. Runtime append contains reserve, submit and Future wait;
+repeated intervals are unioned before comparison, and only complete contained
+intervals produce ratios. Nested phases and independently calculated medians
+must not be summed. Future wait still includes reactor, local/peer quorum
+durability and completion work; this bridge does not separate those contributors.
+
+All 490 final RPC outcomes are OK, while runtime append/Future wait each retain
+38 internal error observations among 491 invocations. One repeated call visibly
+has error followed by OK. Closed phase outcomes do not identify the error cause
+or prove a particular recovery mechanism; the other errors cannot be classified
+as final client failures or message loss from timing data alone.
+
+Independent physical-batch context uses 464/422 successful message batches at
++5-to-12/+12-to-19 seconds. Native total means are 40.861/42.133 ms and combined
+publication/WAL-completion waits 40.126/41.420 ms, with matching seven-stage
+counts. Their same-population fractions are 98.200%/98.306%. These physical
+statistics cannot be assigned to the RPCs above. In particular,
+RuntimePressure's `message_commit` wait measures the complete logical Submit,
+and asynchronously published WAL fsync histograms have another population;
+neither yields a pure queue/device residual by subtraction.
+
+Timeline, paired RPC, native storage and independent native/RPC reviews are bound by
+`12a167616e25eff756511b4926408675a974837b29533edbd8f2ba66170a2f6e`,
+`fcf045afaff4ab9498b08526780097536864b5fc3d395e5c22e3d0f8d089e94a`,
+`7a84ef4fcadedf542a7253fe7c873043630ed2ced77e06d69c418d8138cc38ae`,
+`9acab363f9b990243846779ab9b708c737b7ed46cd15988be201fc63979ed9ad`
+and `53c40da42f34a8cf3e01eb57c0f36f42a27ac68c397d684c12ede84a618a3728`.
 
 Private local receipts retain raw samples without committing identities or
 credentials. Their SHA-256 bindings are:
