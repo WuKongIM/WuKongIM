@@ -604,8 +604,9 @@ race×20 pass. Original RED records remain unchanged.
 
 Full `Conn.Call` microbenchmarks measure +80 B/request in both unobserved modes:
 713→793 B/request without a deadline and 712→792 with a reused future deadline;
-both retain 16 allocations/request. Terminal transitions allocate no objects.
-This does not certify performance. A fresh exact candidate, independent review
+both retain 16 allocations/request. The owner is 128 bytes before allocator
+and notification costs; terminal transitions allocate no objects and add no
+per-request timer or goroutine. This does not certify performance. A fresh exact candidate, independent review
 and original-scale local rerun are still required; original gates, outer
 provider budgets and formal Linux/signed-package release requirements remain.
 
@@ -737,3 +738,32 @@ intended capture coverage. The native verdict and release conditions remain
 unchanged. Preserve this result before selecting a fixed Linux experiment;
 neither an additional blind Mac rerun nor a speculative pool/deadline increase
 is justified as a repair by these observations.
+
+## Earlier recovery, submission and source-provenance observations
+
+These historical observations retain their original source identities. Their
+earlier RPC diagnostic labels are separate from the gate-v2 rerun numbering
+above. They were previously recorded in Project Knowledge and are retained
+here as individual-run evidence; none supplies current qualification.
+
+The `3075f849` 2,000-primary-SEND/s diagnostic on 2026-10-23, originally labelled
+R3, failed the original message-loss gate at +25.0593 seconds. All nine active
+census points held 16 original-call result credits while only 1–3 physical
+batches ran and 82–223 calls waited. This confirms admission underutilization,
+not the sole cause of message loss. Same-request Slot samples still expose
+substantial quorum waits.
+
+The `0fbbd27c` local 2,000-SEND/s run failed the unchanged first-attempt gate
+at 13/70,033 sends (0.01856%) after 35.06 seconds. In the fully contained
+pre-failure log window, all 20 SEND warnings were submitter timeouts, with no
+observed permission-admission rejection. Ten had less than 1ms submitter queue
+wait and 3.832–4.191s in the joined sender; ten spent 2.227–3.616s queued.
+Warnings are not the worker's 13-error population. No snapshot means unknown
+occupancy; this result neither passes acceptance nor attributes the remaining
+wait to RPC, disk or CPU alone.
+
+Rebuilding source `79a71770` from a clean independent Git clone with a real
+`.git` directory, the exact compiler, flags and embedded assets reproduced
+both original cloud Linux server/CLI ELF files byte for byte. This establishes
+that reproduction's provenance; native Mac measurements still do not constitute
+Linux performance acceptance.

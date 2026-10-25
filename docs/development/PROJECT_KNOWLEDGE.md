@@ -111,11 +111,10 @@ old pre-buffered-channel-send point; earlier trace samples keep their original
 meaning. Local completed receipt is not proof of remote business success.
 This consistency contract does not establish the cause of an unsampled provider
 failure or renew an enclosing decode/usecase budget.
-A pinned full `Conn.Call` lifecycle fixture measures 713→793 B/request without
-a deadline and 712→792 B/request with a reused future deadline, both retaining
-16 allocations/request. This is an 80-byte observation for that fixture, not
-a throughput claim. The owner is 128 bytes before allocator/notification cost;
-terminal transitions allocate no objects and add no timer or goroutine.
+Allocation counts alone do not describe the owner's byte cost; account for
+notification storage and allocator classes on unsampled paths. The
+[assessment](../reports/2026-10-25-v3-gate-v2-readiness.md) retains the measured
+fixture costs separately from throughput and capacity claims.
 
 Bound, declared server RPC observations may add one fixed 16-point dispatch
 sidecar outside the 32-span budget. Its mask distinguishes measured zero from
@@ -126,9 +125,9 @@ effective queue deadline is separate, can precede the origin or exceed a healthy
 sample's duration, and is not an observed wait. A handler terminal path means
 dispatcher exit into the handler, not business success. Nil/unbound/client,
 unselected and unknown-operation paths do not allocate a dispatch recorder.
-The nullable pointer still enlarges unsampled request owners. A pinned N0
-queue-to-worker microbenchmark measured 176→192 B/request with one object in
-both versions; the struct's 8-byte growth is not its allocator-class cost.
+The nullable pointer still enlarges unsampled request owners; struct growth is
+not its allocator-class cost. Measured fixture results belong in the linked
+assessment, not a throughput or RSS guarantee.
 
 For the pinned Go 1.25.11 execution-trace profiles, scheduler samples use the
 entering event's `Event.Stack`. For unblock/create entries this is the waker or
@@ -2374,27 +2373,21 @@ specification, runbook, report, or module documentation; link to them when neede
   batch remains visible under the Slot lock without copying its payload;
   callbacks dispatch outside that lock and retain the exact terminal cause.
   Ordinary leadership loss keeps its separate submitted/pending semantics.
-  The [same-request diagnosis](../reports/2026-10-24-sampled-raft-read-blocking.md)
-  retains the failed 2,000-SEND/s gates and public held-Save regressions. R19
-  identifies per-Slot count fallback in sampled owner occupancy. R20 removes
-  that measured fallback but still fails the original gate; its main sampled
-  wait remains raw quorum. R21 independently measures same-Slot count pause:
-  its 112 successful permission samples from active cuts spend a mean 81.6%
-  of their longest read barrier paused, with measured owner occupancy zero.
-  The original 2,000-SEND/s gate still fails. This supports improving the
-  existing storage FIFO, but does not trace the 47 failed SENDs or distinguish
-  append, apply and completion consumption within a pause. Paused time is not
-  owner occupancy and cannot be added to overlapping Save time. The
-  20-worker/12-Slot R20 topology also limits extrapolation from the controlled
-  single-worker progress test.
+  Same-Slot scheduling pause can include append, apply and completion
+  consumption; it is not owner occupancy and cannot be added to overlapping
+  Save time. Successful sampled reads do not identify every failed SEND.
+  Controlled single-worker progress and a many-worker workload cover different
+  scheduling populations. The
+  [same-request diagnosis](../reports/2026-10-24-sampled-raft-read-blocking.md)
+  retains the original workload results and public held-Save regressions.
 
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
   does not establish compiled-source provenance. Exact reproduction uses a clean
   independent clone with a real `.git` directory and binds compiler, flags,
-  embedded assets and binary hashes. Rebuilding candidate `79a71770` this way
-  reproduced both original cloud Linux server/CLI ELF files byte for byte; native
-  Mac measurements still do not constitute Linux performance acceptance.
+  embedded assets and binary hashes. Native Mac measurements do not constitute
+  Linux performance acceptance; the linked assessment retains the reproduction
+  result separately.
 
 - Mixed presence RPC services retain their original service/executor budgets.
   Trusted entry opcode classifiers choose request cancellation only for reads;
@@ -2414,15 +2407,11 @@ specification, runbook, report, or module documentation; link to them when neede
   still allow unrelated cleanup. This does not promise bounded termination of
   arbitrary noncooperative background adapters or certify throughput.
 
-- Flutter EasySDK versions are selected in `docs-site/lib/easy-sdk-releases.json`; `/sdk/easy/flutter/streaming` documents independent peers and backend recovery. Keep historical 1.1.0 matrix identities separate from 1.2.1 pub.dev/native evidence.
+- Flutter EasySDK versions are selected in `docs-site/lib/easy-sdk-releases.json`;
+  `/sdk/easy/flutter/streaming` documents independent peers and backend recovery.
+  Preserve independent acceptance evidence for each pinned release.
 
-### Recovery result ownership and R3 evidence (2026-10-23)
-
-The exact `3075f849` 2,000-primary-SEND/s diagnostic failed the original
-message-loss gate at +25.0593 seconds. All nine active census points held 16
-original-call result credits while only 1–3 physical batches ran and 82–223
-calls waited. This confirms admission underutilization, not the sole cause of
-message loss. Same-request Slot samples still expose substantial quorum waits.
+### Recovery result ownership
 
 Fully bounded recovery providers may fill up to 16 physical batches without
 sharing the legacy 16-original-call guard. A separate per-generation 128 MiB /
@@ -2438,14 +2427,10 @@ Per-call 4,096-row, per-owner 250 ms, FIFO/input/execution limits and exact fenc
 remain unchanged. Cancellation cannot return credits before actual provider
 completion, installation and provider-reference release.
 
-- The exact `0fbbd27c` local 2,000-SEND/s run still failed the unchanged
-  first-attempt gate at 13/70,033 sends (0.01856%) after 35.06 seconds. In the
-  fully contained pre-failure log window, all 20 SEND warnings were submitter
-  timeouts, with no observed permission-admission rejection. Ten had less than
-  1 ms submitter queue wait and 3.832–4.191 s in the joined sender; ten spent
-  2.227–3.616 s queued. Warnings are not the worker's 13-error population.
-  No snapshot means unknown occupancy; this result neither passes acceptance
-  nor attributes the remaining wait to RPC, disk or CPU alone.
+- No occupancy snapshot means unknown occupancy. Submitter warnings and worker
+  first-attempt errors are different populations; neither alone attributes the
+  remaining wait to RPC, disk or CPU. Historical recovery and submission results
+  remain in the [assessment](../reports/2026-10-25-v3-gate-v2-readiness.md).
 - Original-job submission queue timing separates the last canonical-Channel
   predecessor's callback release from waiting ready for a worker. Their sum is
   the existing queue interval; copied immutable failure diagnostics preserve
