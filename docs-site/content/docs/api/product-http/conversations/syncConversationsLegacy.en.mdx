@@ -36,11 +36,13 @@ _openapi:
 
           ConversationSyncLegacyRequest
 
-          Legacy sync parameters. Retry the original request on failure. List
-          and sync share 16 active requests and a five-second deadline; at most
-          1,000 candidates, 200 Channels per batch, 10,000 requested recents and
-          32 MiB of base/stream payloads. Budget exhaustion fails the whole
-          request.
+          Legacy sync parameters. Retry the original request on read failure.
+          List and sync share 16 active requests and a five-second deadline; at
+          most 1,000 candidates and 200 Channels per batch. After pagination and
+          unread/type filters, msg_count is automatically reduced for every
+          selected Conversation to keep requested recents within 10,000 records
+          without dropping selected Conversations. Base/stream payloads
+          exceeding 32 MiB still fail the whole request.
 
           additionalProperties true
 
@@ -54,9 +56,11 @@ _openapi:
           channel_id:channel_type:message_seq cursors; malformed entries are
           skipped.
 
-          msg_count `integer` default: `0` Recent messages read per
-          Conversation; values at or below 0 return an empty array and positive
-          values are capped at 10000.
+          msg_count `integer` default: `0` Requested recent messages per
+          Conversation; values at or below 0 return an empty array. Positive
+          values are capped at 10000; with N>0 Channels selected after
+          pagination and unread/type filters, the effective per-Channel limit is
+          min(msg_count, floor(10000/N)).
 
           only_unread `integer:uint8` 0–255; default: `0` Unread-filter
           compatibility flag; exactly 1 selects unread Conversations only.
@@ -100,10 +104,11 @@ _openapi:
 
           version `integer:int64` — Legacy Conversation version.
 
-          recents array<`LegacyMessage`> — Recent messages bounded by msg_count.
-          To repair old empty-key collisions, the latest empty-number message or
-          edited tail may be returned again after the client cursor advances;
-          read and delete positions are unchanged.
+          recents array<`LegacyMessage`> — Recent messages are bounded by
+          msg_count and the shared 10,000-record request budget. To repair old
+          empty-key collisions, the latest empty-number message or edited tail
+          may be returned again after the client cursor advances; read and
+          delete positions are unchanged.
 
           LegacyMessage
 
