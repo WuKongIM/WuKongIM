@@ -608,3 +608,132 @@ both retain 16 allocations/request. Terminal transitions allocate no objects.
 This does not certify performance. A fresh exact candidate, independent review
 and original-scale local rerun are still required; original gates, outer
 provider budgets and formal Linux/signed-package release requirements remain.
+
+## Ninth diagnosis: the completion contract passes, original-scale run fails
+
+Exact product `218a2964100ff04e9cc933e5af1d2637c2c8d099`, tree
+`02d31613c72698fbeed5f8119f9c8a104029c932`, retains R8's workload, runtime
+flags, N32 sampling, collector and original gates without profiles. Its
+[candidate](https://github.com/WuKongIM/WuKongIM/actions/runs/40233106841),
+[three-node](https://github.com/WuKongIM/WuKongIM/actions/runs/40233106971),
+[Manager](https://github.com/WuKongIM/WuKongIM/actions/runs/40233106836) and
+[native preview](https://github.com/WuKongIM/WuKongIM/actions/runs/40233106835)
+CI pass on their first attempts. Independent Standards and Spec report no
+findings for the 17-path completion delta.
+
+The local run naturally ends after 332.801321666 monotonic seconds with
+`harness_invalid / worker_harness_invalid`. All 662,007 SENDs receive ACKs and
+all 5,893 sampled deliveries complete. Correctness and terminal fields remain
+zero. All original deadlines resolve, with 27,574 observed-late originals
+(4.165212755%), zero final unknown coverage and 15,255 retries. Sixty-five
+complete periodic intervals average 2,000.011890694 SEND/s over printed wall
+time. This single shared-host run does not establish a regression or throughput
+gain. No valid latency window is reached. Independent cleanup again confirms
+zero owned processes and no listeners on all 64 ports.
+
+Five complete cuts contain 45 requests with verified body sizes and hashes:
+four precede Stop, one follows it and none cross the terminal boundary. Among
+233 exact pre-Stop operation11 pairs, 231 both succeed and two clients time out
+while their servers succeed. Client node1→node2 takes 268.990ms while the server
+finishes in 73.932ms; node3→node2 takes 250.014ms versus 54.734ms. Client queue
+intervals are 34.271ms and 29.683ms. Both handlers take less than 0.5ms. New
+dispatch points place 43.377ms before dequeue in the first server and 26.303ms
+between executor acceptance and worker entry in the second. These are different
+waits, not proof of a continuously full service pool. The clients' three receive
+phases remain absent; neither candidate lateness nor network delay can be filled
+from those missing fields. Successful R9 controls retain up to 58.794ms from
+candidate commit to caller resumption, under the new timing boundary.
+
+Two node1 authority/provider failures retain owner2 remote-call timeouts, each
+in a shared 16-call round. Configured budgets remain 250ms, with approximately
+250ms left at port entry; current owner scopes last 253.819ms and 254.253ms.
+Separate node2/node3 gateway failures have no provider capsule and fixed single
+Auth-duration observations of 668.9445ms and 601.480709ms. Sink copies are
+deduplicated. No exact key links either Auth to either provider or sampled RPC.
+
+The completion consistency fix is validated by its controlled regression; it
+does not close this original-scale failure. The next diagnosis keeps the same
+218a binaries and adds only one bounded two-second runtime execution trace on
+node1. That explicit observation change is diagnostic, not performance
+qualification. No deadline, workload or correctness gate is relaxed.
+
+## Tenth diagnosis: distinguish dispatch waits from trace attribution
+
+The same `218a2964100ff04e9cc933e5af1d2637c2c8d099` source, tree and binary
+bytes run the original 10,000-online, 2,000-SEND/s workload. The additional
+condition is one node1 runtime trace requested for two seconds, beginning
+90.052674125 seconds after the verified first grant. The local run naturally
+ends after 297.595592792 monotonic seconds with the original
+`harness_invalid / worker_harness_invalid` verdict. All 592,006 SENDs receive
+ACKs and all 5,329 sampled deliveries complete. There are 18,860 observed-late
+original attempts, zero final unknown deadline coverage and 10,744 retries.
+Fifty-eight complete printed-wall intervals average 2,000.185115243 SEND/s.
+Message correctness and terminal fields remain zero, but one CONNECT fails.
+The worker snapshot retains class/stage/code `4/8/30`, which exact-source enums
+map to `Harness / Connect / SessionConnectFailed`. This partition does not
+establish a generator defect or product health. It supplies neither the
+underlying cause nor an exact join to the separate Auth log. No valid latency
+baseline or positive window is reached. Independent cleanup confirms zero owned
+processes and no listeners on all 64 ports. The inherited raw metadata field
+`product_source_changed=true` is incorrect: prepared evidence and exact hashes
+prove the R9 source and binaries are unchanged. The raw field is preserved and
+qualified, rather than rewritten.
+
+Five complete RPC cuts contain 45 completed requests within the existing
+collector limits; the trace GET is separate. Four cuts precede observed Stop
+and one follows it. Of 239 exact pre-Stop operation11 pairs, 238 both succeed
+and one client times out while its server succeeds. This node3-to-node2 pair
+takes 264.725333ms on the client and 85.801625ms on the server. The server's
+handler takes 3.917 microseconds; 82.830792ms falls between executor acceptance
+and worker entry. Queue locking and submission are sub-microsecond here. This
+locates a handoff wait but does not distinguish executor wakeup from Go or OS
+scheduling, or prove the 128 execution slots were occupied. All three client
+receive phases are missing, with no evidence-quality flags. Their absence
+does not identify response arrival, candidate lateness or network delay.
+Successful controls retain candidate-commit-to-caller delays up to 54.564458ms.
+The four post-Stop timeout pairs remain separate.
+
+One canonical node2 authority failure retains a nine-call physical recovery
+round with three planned owners and no completed owner scan. Its current
+owner1 remote-call scope times out after 283.898834ms, against a configured
+250ms budget and 249.999250ms remaining at port entry. Admission takes 584ns.
+A separate node3 gateway activation failure has no provider capsule. Neither
+failure has an exact key joining it to the sampled RPC timeout or the trace.
+
+The retained trace is 5,652,701 bytes and finishes about 200 seconds before
+observed native terminal. Four official Go 1.25.11 profile exports and pprof
+views parse, with unchanged raw, tool and server hashes. Their totals sum
+intervals across goroutines; they are not CPU time or physical capture time.
+Scheduler profiles use the entering event's `Event.Stack`: unblock/create
+entries carry the waker/creator stack, while initial status-stack events can
+carry the target's stack. These are not uniformly the waiting goroutine's
+stack. Therefore the prominent
+`Completion.notifyLocked` stack does not mean the function itself blocked for
+that aggregate duration. Independent source inspection also finds that this
+pinned profile extractor skips stackless state transitions, including normal
+`GoStart` events. Its scheduler totals cannot certify exact ready-to-running
+delays. Successful exports may use a recoverable trace prefix, so they alone
+do not certify full-reader EOF validation.
+
+A separate bounded reader now processes every state transition, including
+stackless starts, and reaches strict EOF with three Sync events and no
+continuity or cap errors across 565,897 events. Its official reader dependencies
+are copied with only import-prefix changes; synthetic failure cases and an
+independent review precede the single real parse. It measures 83,941 complete
+Runnable-to-Running intervals: 10,511 lie in the 10-100ms bucket and the maximum
+is 76.687296ms. The 180 left-censored and 207 right-censored intervals remain
+separate. Their aggregate 308.215314985 seconds sums many goroutines and is not
+CPU time. Several longest intervals retain a previous Waiting-entry stack in
+`Conn.readLoop`/`FD.Read`; their wake emitter is unknown. This is historical
+target-stack evidence, not a measured network read or RTT. Independent review
+verifies all 47 input hashes and the arithmetic. Parsing takes about 0.109s
+and produces 11,886 bytes, with observed peak RSS about 24MB.
+
+Thus node1 has real tens-of-milliseconds ready-to-run waits in this decoded
+window. Go/OS scheduling and CPU availability are not separated, and the
+node2 RPC timeout has no request-to-goroutine join to this trace. Even full EOF
+does not upgrade the original collector's `complete=false` or prove complete
+intended capture coverage. The native verdict and release conditions remain
+unchanged. Preserve this result before selecting a fixed Linux experiment;
+neither an additional blind Mac rerun nor a speculative pool/deadline increase
+is justified as a repair by these observations.

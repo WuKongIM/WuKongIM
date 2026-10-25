@@ -130,6 +130,18 @@ The nullable pointer still enlarges unsampled request owners. A pinned N0
 queue-to-worker microbenchmark measured 176→192 B/request with one object in
 both versions; the struct's 8-byte growth is not its allocator-class cost.
 
+For the pinned Go 1.25.11 execution-trace profiles, scheduler samples use the
+entering event's `Event.Stack`. For unblock/create entries this is the waker or
+creator's stack, not necessarily the delayed goroutine's; initial status-stack
+events can instead carry the target's stack. The extractor skips stackless
+transitions, including normal `GoStart`, so its aggregates are not exact
+runnable-to-running delays.
+The exporter may also recover to a usable trace prefix. Exact state analysis
+must process all target-goroutine transitions, require reader EOF, and report
+trace-edge censoring and continuity errors. Multi-goroutine wait totals are
+neither CPU time nor a physical capture duration; idle network and worker waits
+do not prove RPC saturation. Preserve original profile outputs and verdicts.
+
 Selected server RPC samples may retain a trusted registration's fixed uint8
 operation declaration before service enqueue, including queue cancellation or
 business admission rejection. This header-only classification is not full-body
