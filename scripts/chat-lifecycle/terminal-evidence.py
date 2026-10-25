@@ -114,9 +114,15 @@ def read_report(path, directory):
         body = source.read(MAX_FILE_BYTES+1)
     require(0 < len(body) <= MAX_FILE_BYTES)
     report = strict_json(body)
-    require(report["schema_version"] == "wukongim/chat-lifecycle-report/v5" and report["kind"] == "final" and report["final"] is True)
+    require(report["schema_version"] == "wukongim/chat-lifecycle-report/v7" and
+            report["threshold_version"] == "wukongim/chat-lifecycle-thresholds/v2" and
+            report["kind"] == "final" and report["final"] is True)
     require(report["stage"] == ("rehearsal" if directory == "rehearsal" else "formal"))
     require(report["mode"] == ("capacity" if directory == "capacity" else "soak") and report["verdict"]["terminal"] is True)
+    qualification = report["qualification"]
+    require(type(qualification) is dict and
+            qualification["scope"] == ("rehearsal" if directory == "rehearsal" else "formal_protocol") and
+            qualification["external_linux_evidence_required"] is True)
     validate_terminal_phase(report)
     start, end = epoch(report["window"]["start"]), epoch(report["window"]["end"])
     require(0 < start <= end <= Decimal(str(time.time())))

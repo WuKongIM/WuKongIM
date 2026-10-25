@@ -1,5 +1,236 @@
 # Project Knowledge
 
+Chat-lifecycle report v7 / threshold contract v2 separates `local_diagnostic`,
+`rehearsal`, and `formal_protocol` scope. A formal-protocol report still requires
+same-source/run/Lease external Linux hardware, independent-host and disk proof;
+configuration names cannot certify the environment. Mac pressure diagnostics do
+not qualify the four-host cloud target. Preserve historical `operator_stop` and
+incomplete evidence without relabeling them under the new contract. The 400ms
+contract has historical calibration, not a hardware-independent promise; see the
+[gate reassessment](../reports/2026-10-25-performance-gate-applicability.md).
+Latency warmup is ten minutes; formal/rehearsal resource warmup stays two hours.
+The first valid cumulative cut is a baseline. Positive latency qualification
+requires a rolling ten-minute interval, at least 1,000 hot/cold/full-sync attempt
+samples each, and a final cut no older than five seconds. This sample floor
+resolves the p99.9 rank, not statistical confidence. Deltas count at their end
+cut; gaps exceeding ten minutes reset positive qualification. Resource-only
+observations cannot refresh it. Numerical limits, the five-minute sustained
+breach rule and correctness gates are unchanged; short local diagnostics may
+run with insufficient evidence, but elapsed rehearsal time alone cannot pass.
+Qualification persists baseline/start/end elapsed positions from one monotonic
+process clock; duration, order and freshness use those positions. Serialized
+wall timestamps are audit fields, not a reconstructed qualification clock.
+Readers reject missing offsets and older schemas without modifying old evidence.
+
+`RetryAttempts` counts registered retry attempts, not distinct retried messages.
+Explicit product first-attempt failures still subtract driver-local admission
+failures. Worker protocol v11 adds known-deadline registrations, resolved first
+results, and confirmed observed-late timeouts, with
+`timeouts <= resolved <= deadlines <= first_attempts`. Only the original
+attempt's first clocked transport ACK/error resolves deadline evidence. Local
+admission errors are excluded from confirmed timeouts; missing responses,
+invalid clocks, cancellation and receipt expiry leave unknown coverage.
+Always expose `deadlines - resolved`; zero confirmed timeouts with a coverage
+gap does not prove all first attempts met their deadline. Retry counts and
+explicit failures cannot substitute for or be summed with this lower bound.
+No new timeout-rate gate is introduced. Fixed attempt slots and bounded late
+receipts retain evidence without an unbounded message history.
+Direct transport ACK verification can precede its Engine-owner callback. Retry
+registration and owner terminal decisions must therefore share the Verifier
+send lock with completion. Only its retained exact registered positive ACK may
+be reconciled through the existing owner ACK settlement; missing pending state
+or an invalid receipt cannot skip a failure. The eventual queued ACK must not
+repeat verification, latency counts, correlations or lease release.
+Strict Verifier terminal recording returns a direct product TerminalSend
+VerificationError after mutation. Stop cleanup must consume exactly that result
+before release; unknown, wrapped or generator errors remain harness failures.
+This distinction cannot erase a product failure observed before Stop.
+
+Channel append eligibility partitions must preserve input cardinality and order
+with disjoint active/inactive ownership. A nil active slice cannot indicate
+whether filtering has begun: a leading invalid item leaves an empty prefix.
+Only the first invalid item copies the preceding valid prefix; items rejected
+at eligibility cannot re-enter Appender or post-commit effects. Future/reservation deduplication
+and a clamped writer-state counter do not prove aggregate ownership is balanced.
+
+Presence activation errors expose fixed phases while preserving `errors.Is/As`,
+RPC status, rollback and retries. Remote RPC status does not carry source phase;
+registration/commit authority logs therefore emit a closed phase and numeric
+fence target without raw errors, UID/session identities or tokens. Endpoint
+lookups do not emit this event. A generic benchmark CONNECT failure alone cannot
+distinguish rejected CONNACK from EOF; correlate preserved server auth evidence.
+Recovery's first Directory read and missing-proof query are separate reads.
+Concurrent installation can make the latter empty: reread the same exact target
+and preserve its error/cancellation rather than returning the stale first error
+or treating an empty set as successful offline proof. Only groups with joined
+flights may have outcomes replaced after work admission/completion; a cold
+sibling cannot retry or overwrite another group's failed readback. Fixed
+recovery admission/provider/validation/install/readback phases preserve existing
+error-family normalization, wire status, deadlines and admission bounds.
+
+The production presence-recovery provider reads Controller-local snapshots and
+owner-local online indexes; it does not itself invoke a Slot/DB read barrier.
+Its owner-call interval includes encoding, RPC and decoding unless separate
+evidence proves a narrower phase. Shared recovery execution has no single
+caller trace parent; a provider failure's physical-round timing cannot be
+reported as the caller's exclusive delay.
+Direct local Register/Commit can bypass node RPC rejection logs. The existing
+gateway activation-error wrapper projects the same immutable provider evidence
+through an optional data-only capability into its original auth-failure log.
+Both adapters share one formatter; plain remote status carries no such evidence.
+Gateway accepts at most 32 extra fields and omits larger groups whole. This does
+not add a second event, alter the error chain, or turn unknown stages into zero.
+
+Node RPC services retain independent FIFO/concurrency budgets; shared executor
+capacity is derived from their sum. The transport label `presence owner action`
+names the whole owner service, including action opcode 7 and reads 9/10/11.
+Its timeout total cannot identify which opcode failed. Service-wait histograms
+are observed at handler entry and omit requests canceled while queued; a low
+mean cannot rule out queue residence for those missing requests.
+
+`service_queue` begins immediately before Enqueue, after TrackInbound. It can
+include admission locking, FIFO/service-token wait, executor handoff, worker
+bookkeeping and cancellation processing. Ending without a handler span does not
+prove the request occupied the FIFO throughout or exhausted the service limit.
+The queue watcher stops at dequeue; later pump/worker checks still reject expired
+work. A caller deadline requests cancellation rather than forcing the diagnostic
+span to end at that instant. Correlate exact physical RPCs and executed subphases;
+sparse zero gauges and unrelated authentication timestamps are insufficient.
+
+RPC completion uses one request-owned candidate/result and send-success gate.
+The reader finishes copying/decoding before committing deadline eligibility;
+an already committed timely candidate survives a delayed caller, while Send
+failure retains its original precedence. Genuine expiry, explicit cancellation,
+remote errors and connection shutdown remain separate outcomes. The pending
+index retains copy-in-progress ownership and removes only the matching owner;
+shutdown fences registration, then settles detached owners outside index locks.
+Normalize deadline arithmetic to a local monotonic reference without renewing
+the caller's budget. No new per-request goroutine or timer is required.
+The receive `Notified` boundary now denotes candidate commit rather than the
+old pre-buffered-channel-send point; earlier trace samples keep their original
+meaning. Local completed receipt is not proof of remote business success.
+This consistency contract does not establish the cause of an unsampled provider
+failure or renew an enclosing decode/usecase budget.
+Allocation counts alone do not describe the owner's byte cost; account for
+notification storage and allocator classes on unsampled paths. The
+[assessment](../reports/2026-10-25-v3-gate-v2-readiness.md) retains the measured
+fixture costs separately from throughput and capacity claims.
+
+Bound, declared server RPC observations may add one fixed 16-point dispatch
+sidecar outside the 32-span budget. Its mask distinguishes measured zero from
+unknown; offsets share that server Trace's monotonic origin. Concurrent enqueue,
+worker and expiry owners form a partial order, not a timeline sorted by point
+index. Finish freezes detached values and late points remain unknown. The planned
+effective queue deadline is separate, can precede the origin or exceed a healthy
+sample's duration, and is not an observed wait. A handler terminal path means
+dispatcher exit into the handler, not business success. Nil/unbound/client,
+unselected and unknown-operation paths do not allocate a dispatch recorder.
+The nullable pointer still enlarges unsampled request owners; struct growth is
+not its allocator-class cost. Measured fixture results belong in the linked
+assessment, not a throughput or RSS guarantee.
+
+For the pinned Go 1.25.11 execution-trace profiles, scheduler samples use the
+entering event's `Event.Stack`. For unblock/create entries this is the waker or
+creator's stack, not necessarily the delayed goroutine's; initial status-stack
+events can instead carry the target's stack. The extractor skips stackless
+transitions, including normal `GoStart`, so its aggregates are not exact
+runnable-to-running delays.
+The exporter may also recover to a usable trace prefix. Exact state analysis
+must process all target-goroutine transitions, require reader EOF, and report
+trace-edge censoring and continuity errors. Multi-goroutine wait totals are
+neither CPU time nor a physical capture duration; idle network and worker waits
+do not prove RPC saturation. Preserve original profile outputs and verdicts.
+
+Selected server RPC samples may retain a trusted registration's fixed uint8
+operation declaration before service enqueue, including queue cancellation or
+business admission rejection. This header-only classification is not full-body
+validation and never changes request cancellation or admission. Zero/absent is
+unknown. Unselected, recorder-dropped and unregistered-service paths do not call
+the classifier. A client sample has no independent operation declaration; only
+its exact connection-generation TraceID/service pair may inherit the matched
+server declaration during analysis. SID14 declarations are restricted to
+7/9/10/11. The optional callback borrows bytes without retaining them and must be
+bounded, nonblocking and concurrency-safe. No operation metric label is added.
+
+Storage wait metric names require source interpretation. RuntimePressure's
+`message_commit` queue-wait observation currently includes the whole Submit,
+not pure coordinator queue residence. Native quorum `store_append_wait` includes
+local/peer completion and reactor publication. Physical batch commit, native WAL
+fsync and independently sampled replication stages have different populations;
+their means cannot be subtracted or added as one request's critical path.
+Commit request `Partition` selects a shard; it is not a complete write set.
+Message batches can span Channels while naming only the first, and checkpoint
+partitions add a suffix. It cannot prove that two physical groups are independent.
+Recovery-seal sequence/epoch publication and ambiguous-error fencing currently
+join synchronous Commit; asynchronous durability needs an explicit design rather
+than simply releasing that lock early. Pebble v2.1.4 marks ApplyNoSyncWait as
+experimental; it is not an established replacement for this contract.
+Native physical-batch CommitWait combines sequence publication and WAL completion;
+NativeTotal excludes the outer engine seal lock and some Apply preprocessing.
+Subtracting those aggregate means cannot isolate seal waiting or pure fsync.
+In Pebble v2.1.4, WALQueueWait is an unpopulated zero field, distinct from an
+absent sample but not proof of no WAL queueing. Message coordinator ownership
+retains Channel locks/pins; it does not by itself prove all global index,
+checkpoint and MQTT dependencies are isolated across physical batches.
+Pebble v2.1.4 treats a native commit-pipeline error as fatal. WAL-sync failure
+tests must retain that logger behavior in an isolated process; a no-op fatal
+logger does not model a recoverable production Commit error. Native visibility
+can precede synchronous completion, so a successful Get is not a durability ACK.
+
+Channel-authority SEND RPC 21 observes submission and Future waiting separately.
+Sampled Futures retain only a trace reference through writer preparation and
+their first selected append effect; shared effects must not copy the first
+caller's trace or outcome onto siblings. The post-first-append interval ends at
+the whole original Future and can include ordered completion or other accepted
+work. It is not pure publication, fsync or scheduler time. Caller cancellation
+and trace completion cannot cancel accepted runtime work; MaxSpans remains 32.
+Backend append phases use an independent context observer, never the first
+caller's Trace or context. Original active items map through idempotency
+deduplication to each unique storage index and every selected sampled owner;
+retry indexes project that map, excluding owners whose items already recovered.
+Aligned item outcomes are consumed synchronously. Missing cardinality stays
+unfinished. Metadata resolve/apply and runtime append are distinct; runtime
+reserve/submit/Future-wait phases nest inside runtime append and are not additive.
+
+Pebble v2.1.4 charges writable and recycled memtable arenas against its block
+cache. A 128 MiB cache with one active and one recycled 64 MiB memtable cannot
+retain ordinary blocks. The DB engine therefore treats CacheSize as read
+headroom and sets combined capacity to R + (T + 2) M, with write-stop threshold
+T = 4 unchanged. The two extra allowances cover mixed-size rotation after the
+stall check and one recycled arena; checked native-int arithmetic rejects
+overflow before opening. ReadOnly uses the same policy because WAL replay can
+retain memtables. This does not bound RSS or guarantee headroom under arbitrary
+iterator pins, large flushable batches or replay. Default message/meta capacities
+are 512/320 MiB (576 MiB more combined capacity per node); measure resident memory
+as well as throughput. Raft's separate Pebble adapter does not use this policy.
+Native `MemTable.ZombieSize` can underflow while a large flushable batch is
+queued. Export arena reservations by adding `Size + ZombieSize` in unsigned
+arithmetic from the same snapshot, reversing Pebble's subtraction exactly.
+This includes active/recycled/reader-pinned arenas, excludes flushable-batch
+backing reservations, and must not be interpreted as total storage memory.
+
+Permission-read cohort busy errors may carry an immutable rejection-time snapshot
+of satisfied guards (owned calls=2, owned bytes=4), retained
+occupancy and the rejected call's conservative byte reservation. Capture all
+satisfied bits under the ownership lock; keep error text, errors.Is and
+SystemBusy replies unchanged. Existing gateway warnings omit these fields when
+unobserved, including receiver busy and oversized inputs rejected before copying.
+Active cohort occupancy remains context; saturation alone queues within the
+retained budget instead of rejecting. Bit 1 describes the earlier active-cohort
+rejection and is reserved for reading historical observations. The snapshot is
+not a receiver/RPC queue measurement or allocator/RSS usage.
+
+Ordered submission timeout warnings may expose `submissionTimingsPresent` and
+queue, route and pre-callback durations for the same original job. Queue starts
+after reservation; route covers the joined sender call, and pre-callback includes
+earlier callbacks in that execution batch. Admission/copy work before reservation,
+selected-to-sender assembly, diagnostic attachment after the pre-callback snapshot
+and the callback itself remain outside these phases;
+their sum is not the entire submitter duration or a CPU/storage measurement.
+Absent observations are not zero. Timestamp capture adds bounded per-job work,
+while only timeout results allocate error wrappers; original errors and ownership
+through callback return remain authoritative.
+
 Local storage-overlap capture emits fixed scan-failure reasons to stderr.
 Missing inventories still invalidate qualification even when metrics are valid;
 scan limits, original exit outcomes and missing-evidence decisions remain authoritative.
@@ -38,8 +269,16 @@ for replication to become idle can delay controls through an entire Ready chain.
 This does not relax persistence, snapshot/configuration or fresh-read apply fences.
 
 Concurrent SEND permission callers collect for at most 5 ms before sealing a
-fresh read. Idle one/two-fact calls remain immediate; 64 cohorts, 1024 owned calls
-and 16 MiB credits remain independent limits, with no reuse of completed facts.
+fresh read. Idle one/two-fact calls remain immediate. When all 64 collecting or
+executing cohorts are occupied, original callers wait in FIFO order within the
+same 1024 owned-call and 16 MiB credit limits, without a worker or timer per
+waiting caller. A released execution position seals an already-waiting prefix
+of at most 64 calls/4096 inputs before a new fresh barrier; it does not wait to
+fill or reuse completed facts. Pending cancellation removes its reservation;
+selected callers retain credits until their physical read joins. Close fences
+admission, resolves pending callers, and joins all selected owners before their
+dependencies close. These credits are conservative owned-data reservations, not
+an allocator or RSS bound.
 
 
 Keep only stable, cross-module facts that prevent incorrect designs or unsafe
@@ -1832,7 +2071,7 @@ specification, runbook, report, or module documentation; link to them when neede
   when the caller never enters decoding. Keep 128 executing envelopes (at most 512 Slot workers), the
   waiting count/byte/time bounds, and fresh barriers unchanged together.
 
-- Ingress SEND facts collect concurrent callers for at most 1 ms, then seal
+- Ingress SEND facts collect concurrent callers for at most 5 ms, then seal
   membership before routing and fresh quorum/snapshot reads. Idle one/two-fact
   calls execute immediately. Late arrivals require a new sealed batch; completed
   facts never cache. Limits are 64 calls / 4096 inputs per batch, 64 active batches,
@@ -1846,6 +2085,10 @@ specification, runbook, report, or module documentation; link to them when neede
   later arrivals or an intervening control require another proof. Each caller
   retains its own cancellation, 256-per-Slot pending position, term fence and
   durable-apply wait, including canceled requests not yet quorum-confirmed.
+  Admission proves a durable committed current-term prefix at the lesser of
+  RawNode commit and the local durable last index. A remote majority may commit
+  newer entries before local Save completes; that gap does not invalidate the
+  prefix or permit returning before the fresh read index is durable-applied.
 
 - Runtime Channel metadata creation collects for at most 20 ms, with the same
   32-item early dispatch, 64-item batch, 256-identity per-Slot queue and two
@@ -2028,12 +2271,196 @@ specification, runbook, report, or module documentation; link to them when neede
   labels, parser bounds and release gates stay unchanged. This coherence repair
   does not establish the cause of an unretained scrape or a presence timeout.
 
+- RPC phase diagnostics are opt-in through `diagnostics.rpc_sample_every` and
+  require the existing diagnostics store to be enabled. A negotiated connection
+  generation token and full RequestID join caller/receiver samples; ordinary
+  per-connection RequestIDs alone cannot. Samples use the existing bounded
+  observer drain and store, with at most 128 active observations per endpoint and
+  32 intervals per RPC. Local durations may overlap; independent endpoint clocks
+  cannot establish one-way network delay. Missing/unfinished intervals, bounded
+  query retention and observer drops remain incomplete evidence. Shared permission
+  and presence cohorts do not claim one caller as their parent, and tracing does not grant
+  cancellation authority over started mutations.
+  Negotiated sampled frames retain a fixed optional server receive prefix before
+  the original server Trace.At and three client response receive intervals inside
+  the existing 32-span budget. The initial receive identity validation precedes
+  their first clock and remains unknown; the server's existing dispatch-time
+  revalidation is inside the total prefix. The observer interval includes synchronous observation and
+  scheduling; dispatch ends immediately before the buffered response send, and
+  resume includes that send and caller scheduling. These intervals overlap
+  response_wait and cannot be added to it or interpreted as network latency.
+  Omitted, late, unbound, mismatched-service or recorder-dropped evidence remains
+  unknown. Disabled capture adds no receive clocks, identity locks or dynamic
+  timing object, but its optional carrier still enlarges the response element.
+  Trace capability failures fail the current call without replay; a later caller
+  may retry negotiation with the same connection token, including when an earlier
+  reply arrived too late. Only success or explicit unsupported is cached.
+  A sampled Slot read retains only its longest caller-visible barrier group,
+  separating control wait, ReadIndex eligibility, raw quorum confirmation,
+  Ready-to-accept processing, and durable-apply wait. Bounded Save/Send
+  overlays overlap these phases and must not be added to them. Raw ReadStates
+  observation records proof production, not read completion. Fresh proof for
+  an already durable-applied index may pass an unrelated newer append only
+  after the owner validates its actual current leader and term.
+  Fixed per-phase Save/Send coverage accumulates all observed intersections
+  independently of the two-per-kind detailed-overlay cap. Coverage belongs to
+  the same retained longest group, includes only the caller's observed window,
+  and distinguishes unreached phases from measured zero. Save includes backend
+  writer admission and persistence preparation, not only fsync; neither coverage nor
+  raw-quorum duration alone identifies network or disk latency. Asynchronous
+  Save overlap can represent concurrent progress rather than owner blocking.
+  Commit observations follow each logical request from queue-credit admission
+  through physical-batch entry, collection, build, durable commit and publication;
+  shared physical phases overlap across requests and publication excludes Finalize.
+  Commit intervals require a propagated trace: the Channel leader's asynchronous
+  reactor/durability contexts do not yet carry it. Follower exchange RPC commit
+  samples describe that exchange, not the original SEND's full storage path.
+  Absent commit intervals cannot establish absent storage waiting.
+  Presence census distinguishes actual execution batches and original-call
+  result responsibility. Decoded result/page bytes are diagnostic structural
+  estimates (visible slice capacity plus live strings), not heap or RSS bounds;
+  their enabled signal distinguishes unmeasured values from measured zero.
+
+  Optional owner-storage coverage uses the same five phase boundaries: budget
+  fallback scope with disjoint drain, Save-admission and synchronous-work subsets,
+  plus a separate non-budget fence scope. Explicit owner tokens exclude ordinary
+  async Save. Admission masks are captured under the original budget lock; disabled
+  tracing adds no timing locks/clocks/scans. Scope/subset totals are not additive,
+  waits measure the original synchronization/select interval rather than kernel
+  parking, and absent fields/unreached phases remain unknown. Caller termination
+  clips all open scope/subset intervals together; late work cannot mutate samples.
+  A separate optional storage-count pause record follows those same five phases
+  and longest-group ownership. It measures the interval from owner pause before
+  Ready until a later owner pass consumes sufficient completions to resume;
+  newly registered reads inherit an already open pause. Cancellation clips it
+  without changing scheduling. It is neither occupied-worker time nor a split
+  of append/apply/completion causes; overlapping Save and owner records must not
+  be added. Missing fields are unknown, while present zero is measured zero.
+- Slot Raft uses upstream asynchronous storage messages with one RawNode owner.
+  Append completion publishes durable memory and dependent replies through a
+  private completion path; external Step cannot inject storage messages or
+  address reserved storage threads. Apply remains behind its append prefix,
+  including HardState.Commit. Futures bind at Ready acceptance, so a delayed
+  older-term Save cannot consume a new term's submitted FIFO.
+  An append turn freezes at most four already queued records and merges only
+  a compatible same-generation/actual-term prefix. Ordinary entries stay
+  contiguous without replacement across members; whole HardState values retain
+  the last compatible Term/Vote and monotonic Commit. Configuration, snapshots,
+  apply-only and response-only work remain boundaries. One physical Save keeps
+  every original response, apply fence and lease; later arrivals wait for another
+  turn, and a failed group seals the generation before any successor Save.
+  A Ready owns at most two completion records, charged until consumed or joined
+  and retired. Limits are `min(4, normalized MaxApplyingTasks)` Ready owners / 8 MiB
+  per Slot and `4 * Workers` Ready owners / `8 MiB * Workers` per Runtime. They bound
+  new queue ownership, not upstream inputs, allocator overhead or total RSS.
+  A full per-Slot owner count pauses before accepting another Ready and returns
+  the shared worker. A paused pass drains private completions before new inputs;
+  the first fully retired lease resumes the existing FIFO. No accepted Ready,
+  extra payload queue or waiting goroutine is parked. Same-Slot message-only
+  work may wait, while other Slots retain worker turns. Node/byte saturation
+  and oversized legal entries still use one borrowed synchronous Ready;
+  snapshots, configuration and compaction also join both lanes. Async and
+  synchronous Save share `Workers` physical I/O permits. Close/reload join the
+  retiring generation before its identity or storage can be reused. Close skips
+  queued append work that has not entered Save; entered calls must return before
+  reuse, while already accepted apply work drains. A Save failure seals its
+  generation before any successor Save starts,
+  even when the Raft owner has not yet consumed the failure completion. Fatal
+  retirement clears completed mailbox records; unfinished Save/apply work stays
+  charged until its physical completion.
+  Terminal shutdown/failure resolves proposals still queued or borrowed by the
+  current control batch before their submitted-Future handoff. The borrowed
+  batch remains visible under the Slot lock without copying its payload;
+  callbacks dispatch outside that lock and retain the exact terminal cause.
+  Ordinary leadership loss keeps its separate submitted/pending semantics.
+  Same-Slot scheduling pause can include append, apply and completion
+  consumption; it is not owner occupancy and cannot be added to overlapping
+  Save time. Successful sampled reads do not identify every failed SEND.
+  Controlled single-worker progress and a many-worker workload cover different
+  scheduling populations. The
+  [same-request diagnosis](../reports/2026-10-24-sampled-raft-read-blocking.md)
+  retains the original workload results and public held-Save regressions.
+
 - Go 1.25.11 Git-root discovery recognizes a `.git` directory; a nested worktree
   `.git` file can therefore pick up an outer checkout's VCS stamp. The stamp alone
   does not establish compiled-source provenance. Exact reproduction uses a clean
   independent clone with a real `.git` directory and binds compiler, flags,
-  embedded assets and binary hashes. Rebuilding candidate `79a71770` this way
-  reproduced both original cloud Linux server/CLI ELF files byte for byte; native
-  Mac measurements still do not constitute Linux performance acceptance.
+  embedded assets and binary hashes. Native Mac measurements do not constitute
+  Linux performance acceptance; the linked assessment retains the reproduction
+  result separately.
 
-- Flutter EasySDK versions are selected in `docs-site/lib/easy-sdk-releases.json`; `/sdk/easy/flutter/streaming` documents independent peers and backend recovery. Keep historical 1.1.0 matrix identities separate from 1.2.1 pub.dev/native evidence.
+- Mixed presence RPC services retain their original service/executor budgets.
+  Trusted entry opcode classifiers choose request cancellation only for reads;
+  started mutations retain independent execution and unknown caller outcomes.
+  Recovery batches preserve original call boundaries: each call may return up
+  to 4096 routes, while each versioned response page also caps total routes at
+  4096. A continuation shares one original owner deadline, validates membership
+  and owner boot across pages, and never converts incomplete proof into offline.
+
+- Transport `StopContext` fences new admission and joins actual request, late
+  dial, connection reader/writer and observer completion. `ErrStopIncomplete`
+  retains that generation for a later join; compatibility `Stop()` has only a
+  bounded grace. A connection's `Done` means shutdown began, not that transferred
+  payloads were released; reconnect cannot forget a retiring writer. Cluster
+  lifecycle joins inbound handlers before outbound calls and their dependencies.
+  Startup rollback retains unfinished owners, while ordinary cleanup errors
+  still allow unrelated cleanup. This does not promise bounded termination of
+  arbitrary noncooperative background adapters or certify throughput.
+
+- Flutter EasySDK versions are selected in `docs-site/lib/easy-sdk-releases.json`;
+  `/sdk/easy/flutter/streaming` documents independent peers and backend recovery.
+  Preserve independent acceptance evidence for each pinned release.
+
+### Recovery result ownership
+
+Fully bounded recovery providers may fill up to 16 physical batches without
+sharing the legacy 16-original-call guard. A separate per-generation 128 MiB /
+196,608 row-capacity ledger prepays decoded backing, exact string clones and
+lease metadata, including transient pages, scratch and overlapping old/new
+accumulators. This resource allocation is 1/64 of the 8 GiB target node, not
+inferred from sparse observed rows. It does not bound raw transport buffers,
+input selector maps, Directory state, allocator overhead or RSS. Reservation
+never waits while holding partial resources; denial fails the complete physical
+round. Local, remote and old-protocol paths must all advertise and enforce the
+same ownership capability; embedding legacy providers retain the old guard.
+Per-call 4,096-row, per-owner 250 ms, FIFO/input/execution limits and exact fences
+remain unchanged. Cancellation cannot return credits before actual provider
+completion, installation and provider-reference release.
+
+- No occupancy snapshot means unknown occupancy. Submitter warnings and worker
+  first-attempt errors are different populations; neither alone attributes the
+  remaining wait to RPC, disk or CPU. Historical recovery and submission results
+  remain in the [assessment](../reports/2026-10-25-v3-gate-v2-readiness.md).
+- Original-job submission queue timing separates the last canonical-Channel
+  predecessor's callback release from waiting ready for a worker. Their sum is
+  the existing queue interval; copied immutable failure diagnostics preserve
+  missing versus zero. Router single-item timeout observations accumulate actual
+  attempts across retries. Forwarding includes its downstream call and local
+  completion includes the future wait, so neither is a pure socket or fsync
+  measurement. Multi-item Router calls remain unobserved rather than reporting
+  invented per-item intervals. These phases do not partition total SEND time.
+
+- Ordered Channel submissions may seal an already-admitted single-key durable
+  FIFO prefix into one routing call. Product composition targets 32 records
+  (clamped by existing queue capacity) and the existing session batch byte target;
+  larger original jobs stay intact without merging successors. This does not
+  change Gateway ingress batching or admission credits.
+  Multi-key jobs, trusted append-admission callbacks and transient sends are
+  boundaries. Each original callback retains and releases its own record/payload
+  ownership in order; no selected successor re-enters the ready queue. Queue
+  dependency ends at predecessor release or cohort takeover, with zero ready
+  wait for a sealed successor. Shared authority resolution joins until all
+  participating callers end, without allowing the first caller's cancellation
+  to poison live siblings or erasing an existing non-submission proof.
+- Same-Channel idempotency recovery must not replay a later missing item past
+  an earlier live retryable committed-proof lookup failure. Keep positive
+  committed results, replay only an earlier safe prefix, and retain the typed
+  retry reason for unresolved later misses. An unknown prior proposal never
+  acquires non-submission proof merely because a later lookup or retry failed.
+
+- Acceptance snapshot inventories race with normal external Raft snapshot
+  publication and GC. A successful file enumeration followed by native stat's
+  confirmed ENOENT may restart the entire inventory under the original absolute
+  scan deadline and observed-at cut. Discard partial inventories; never skip
+  vanished paths, reset the budget, or promote incomplete evidence. Find errors,
+  other stat failures, invalid types/sizes and sustained churn still fail closed.

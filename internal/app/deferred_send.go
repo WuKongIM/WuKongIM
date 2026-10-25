@@ -8,6 +8,11 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 )
 
+// sameChannelSubmissionRecords bounds one sealed FIFO execution cohort. It
+// reduces repeated authority round trips without changing ingress batching,
+// worker count, or admitted record/payload ownership.
+const sameChannelSubmissionRecords = 32
+
 // wireChannelSubmissions derives one bounded gateway append owner from existing
 // dispatch settings. It neither creates another ingress allowance nor changes
 // the shared Router's cluster routing and durability semantics.
@@ -22,7 +27,12 @@ func (a *App) wireChannelSubmissions(router *channelappend.Router) error {
 		return fmt.Errorf("%w: gateway submission payload budget overflow", ErrInvalidConfig)
 	}
 	payloadCapacity := max(workers*session.AsyncSendBatchMaxBytes, session.MaxInboundBytes)
-	owner, err := channelappend.NewOrderedSubmitter(channelappend.OrderedSubmitterOptions{Workers: workers, Capacity: runtime.AsyncSendQueueCapacity, PayloadCapacity: payloadCapacity, BatchMaxRecords: session.AsyncSendBatchMaxRecords, BatchMaxBytes: session.AsyncSendBatchMaxBytes, CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix, Goroutines: a.goroutines}, router)
+	owner, err := channelappend.NewOrderedSubmitter(channelappend.OrderedSubmitterOptions{
+		Workers: workers, Capacity: runtime.AsyncSendQueueCapacity, PayloadCapacity: payloadCapacity,
+		BatchMaxRecords: session.AsyncSendBatchMaxRecords, BatchMaxBytes: session.AsyncSendBatchMaxBytes,
+		SameChannelMaxRecords: min(sameChannelSubmissionRecords, runtime.AsyncSendQueueCapacity), SameChannelMaxBytes: session.AsyncSendBatchMaxBytes,
+		CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix, Goroutines: a.goroutines,
+	}, router)
 	if err != nil {
 		return fmt.Errorf("internal/app: create gateway channel submission owner: %w", err)
 	}

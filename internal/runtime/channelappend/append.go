@@ -100,6 +100,7 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 	}
 
 	batch := newIdempotentAppendBatch(active)
+	phaseObserver := newAppendPhaseObserver(e.seq, batch)
 	req := appendRequest(e.target, batch.items, appendInitialAttempt)
 	// gofail: var wkMQTTWillAcceptedAppendDelay int
 	// if wkMQTTWillAcceptedAppendDelay > 0 {
@@ -111,14 +112,14 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 	//         }
 	//     }
 	// }
-	ctx, cancel := appendBatchContext(runtimeCtx)
+	ctx, cancel := appendBatchContext(phaseObserver.withContext(runtimeCtx))
 	startedAt := time.Now()
 	res, err := ports.appender.AppendBatch(ctx, req)
 	appendDur := sendtrace.Elapsed(startedAt, time.Now())
 	cancel()
 	completion.duration = appendDur
 	if err != nil {
-		unique, retryDur, recovery := appendBatchErrorCompletionsOrRecoveriesAndRetry(runtimeCtx, e.target, batch.items, err, ports)
+		unique, retryDur, recovery := appendBatchErrorCompletionsOrRecoveriesAndRetry(runtimeCtx, e.target, batch.items, err, ports, phaseObserver)
 		completion.duration += retryDur
 		completion.items = append(completion.items, batch.expandCompletions(unique)...)
 		observeIdempotencyRecovery(ports.observer, recovery)
@@ -340,9 +341,11 @@ func activeAppendItems(items []preparedSend) ([]preparedSend, []appendItemComple
 	filtered := false
 	for i, item := range items {
 		if err := appendItemError(item); err != nil {
-			filtered = true
-			if active == nil {
+			if !filtered {
+				// A filtered first item leaves an empty prefix nil; filtered
+				// alone records that the original prefix was already copied.
 				active = append([]preparedSend(nil), items[:i]...)
+				filtered = true
 			}
 			inactive = append(inactive, appendItemErrorCompletion(item, err))
 			continue
@@ -446,13 +449,16 @@ func appendBatchErrorCompletionsOrRecoveries(ctx context.Context, items []prepar
 
 // appendBatchErrorCompletionsOrRecoveriesAndRetry retries only durable lookup
 // misses when at least one sibling proves that the failed batch contained an
-// already committed send. The retry is bounded to one storage attempt.
+// already committed send. A retryable, unresolved predecessor fences later
+// misses in this same-Channel batch; positive committed receipts remain final.
+// The retry is bounded to one storage attempt.
 func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 	ctx context.Context,
 	target AuthorityTarget,
 	items []preparedSend,
 	err error,
 	ports appendPorts,
+	phaseObserver *appendPhaseObserver,
 ) ([]appendItemCompletion, time.Duration, IdempotencyRecoveryObservation) {
 	if (!errors.Is(err, ErrAppendFailed) && !errors.Is(err, ErrAppendNotSubmitted)) || ports.idempotency == nil {
 		return appendBatchErrorCompletions(items, err), 0, IdempotencyRecoveryObservation{}
@@ -465,6 +471,7 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 	misses := make([]preparedSend, 0, len(items))
 	missIndexes := make([]int, 0, len(items))
 	recovered := false
+	var replayFence error
 	recovery := IdempotencyRecoveryObservation{}
 	for index, item := range items {
 		result, ok, lookupErr := lookupIdempotentSend(ctx, item.Command, preparePorts{idempotency: ports.idempotency})
@@ -472,6 +479,11 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 		case lookupErr != nil:
 			recovery.LookupErrorItems++
 			out[index] = appendItemErrorCompletion(item, lookupErr)
+			if replayFence == nil && shouldRetryRouterError(lookupErr) && appendItemError(item) == nil {
+				// The lookup did not settle this send. Replaying a later miss
+				// would overtake the predecessor when Router refreshes authority.
+				replayFence = suppressNonSubmission(lookupErr)
+			}
 		case ok:
 			recovered = true
 			recovery.RecoveredItems++
@@ -480,6 +492,17 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 				result: SendBatchItemResult{Result: result},
 			}
 		default:
+			if replayFence != nil {
+				itemErr := appendItemError(item)
+				if itemErr == nil {
+					// A miss is not proof that the original proposal was never
+					// submitted. Keep the suffix retryable without that claim.
+					itemErr = replayFence
+				}
+				out[index] = appendItemErrorCompletion(item, itemErr)
+				recovery.UnresolvedItems++
+				continue
+			}
 			misses = append(misses, item)
 			missIndexes = append(missIndexes, index)
 		}
@@ -509,7 +532,7 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 	}
 
 	req := appendRequest(target, retryItems, appendIdempotencyRecoveryAttempt)
-	retryCtx, cancel := appendBatchContext(ctx)
+	retryCtx, cancel := appendBatchContext(phaseObserver.project(retryIndexes).withContext(ctx))
 	startedAt := time.Now()
 	res, retryErr := ports.appender.AppendBatch(retryCtx, req)
 	retryDur := sendtrace.Elapsed(startedAt, time.Now())

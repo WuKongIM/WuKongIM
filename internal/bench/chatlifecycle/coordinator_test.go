@@ -775,7 +775,7 @@ func coordinatorSnapshotFixture(fence WorkerFence, sequence uint64, uptime time.
 func configureFastCoordinatorCutoff(cfg *Config) {
 	cfg.Observation.Cadence = 250 * time.Millisecond
 	cfg.Thresholds.Timeline = TimelineThresholds{
-		Warmup: 100 * time.Millisecond, Checkpoint: 500 * time.Millisecond, Final: 750 * time.Millisecond,
+		LatencyWarmup: 100 * time.Millisecond, Warmup: 100 * time.Millisecond, Checkpoint: 500 * time.Millisecond, Final: 750 * time.Millisecond,
 	}
 }
 
@@ -1590,7 +1590,7 @@ func TestCoordinatorHealthyObservationCompletesOnlyAtFinalCutoff(t *testing.T) {
 	cfg.RunID = "coordinator-final-cutoff"
 	cfg.Observation.Cadence = 500 * time.Millisecond
 	cfg.Thresholds.Timeline = TimelineThresholds{
-		Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 2500 * time.Millisecond,
+		LatencyWarmup: 100 * time.Millisecond, Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 2500 * time.Millisecond,
 	}
 	observerFixture := newObserverFixture(cfg)
 	coordinatorClock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
@@ -2201,7 +2201,7 @@ func TestCoordinatorCheckpointRoundUsesOneConcurrentDeadline(t *testing.T) {
 	cfg.RunID = "coordinator-checkpoint-round"
 	cfg.Observation.Cadence = 500 * time.Millisecond
 	cfg.Thresholds.Timeline = TimelineThresholds{
-		Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 1500 * time.Millisecond,
+		LatencyWarmup: 100 * time.Millisecond, Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 1500 * time.Millisecond,
 	}
 	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
 	observerStarted := make(chan struct{})
@@ -2262,7 +2262,7 @@ func TestCoordinatorOuterCancellationDuringControlRoundIsStopped(t *testing.T) {
 			cfg.RunID = "coordinator-cancel-" + string(stage)
 			cfg.Observation.Cadence = 500 * time.Millisecond
 			cfg.Thresholds.Timeline = TimelineThresholds{
-				Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 1500 * time.Millisecond,
+				LatencyWarmup: 100 * time.Millisecond, Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 1500 * time.Millisecond,
 			}
 			gate := newCoordinatorCancellationGate()
 			log := []string{}
@@ -2586,7 +2586,7 @@ func TestCoordinatorStageFailureBeforeOuterCancellationKeepsStageFailure(t *test
 			cfg.RunID = "coordinator-failure-before-cancel-" + string(stage)
 			cfg.Observation.Cadence = 500 * time.Millisecond
 			cfg.Thresholds.Timeline = TimelineThresholds{
-				Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 1500 * time.Millisecond,
+				LatencyWarmup: 100 * time.Millisecond, Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 1500 * time.Millisecond,
 			}
 			gate := newCoordinatorFailureCancellationGate()
 			log := []string{}
@@ -2664,7 +2664,7 @@ func TestCoordinatorStageEvidenceSurvivesCancelBeforeResultSampling(t *testing.T
 				cfg.RunID = "coordinator-cancel-before-sample-" + evidenceName + "-" + string(stage)
 				cfg.Observation.Cadence = 500 * time.Millisecond
 				cfg.Thresholds.Timeline = TimelineThresholds{
-					Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 1500 * time.Millisecond,
+					LatencyWarmup: 100 * time.Millisecond, Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 1500 * time.Millisecond,
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -3214,7 +3214,7 @@ func TestCoordinatorFinalCutoffCannotBypassQueuedStaleGrant(t *testing.T) {
 	cfg.RunID = "coordinator-cutoff-stale-grant"
 	cfg.Observation.Cadence = 500 * time.Millisecond
 	cfg.Thresholds.Timeline = TimelineThresholds{
-		Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 2500 * time.Millisecond,
+		LatencyWarmup: 100 * time.Millisecond, Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 2500 * time.Millisecond,
 	}
 	startedAt := time.Unix(1_700_000_000, 0)
 	clock := newManualCoordinatorClock(startedAt)

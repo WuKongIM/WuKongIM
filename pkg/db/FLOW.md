@@ -42,6 +42,14 @@ It does not own product policy or expose Pebble-specific APIs to callers.
   known disjoint Slot writes invalidate only their own certificate.
 - Engine snapshots provide a pinned bounded-iterator view and must be closed;
   later writes and compactions may proceed while the view streams.
+- The engine's cache option is a read-headroom target. Its Pebble cache capacity
+  also budgets six configured memtables for ordinary writable/recycled arenas,
+  including mixed-size rotation. Default message/meta combined capacities are
+  512/320 MiB; allocation is lazy but may become resident. This is neither an
+  RSS limit nor a read-cache guarantee with long-lived pins, large flushable
+  batches or read-only WAL replay. Invalid arithmetic rejects before opening.
+- Storage snapshots retain block-cache bytes, cumulative hits/misses and arena
+  reservations (active/recycled/pinned); these exclude flushable-batch backing.
 - Metrics must not race root shutdown or a direct message-domain close.
 - Darwin uses 16 MiB `BytesPerSync` to avoid compaction range-sync full-file
   fsync behavior.
@@ -51,6 +59,17 @@ It does not own product policy or expose Pebble-specific APIs to callers.
   lane fairness and synchronous durability remain in force. Metadata can opt into
   one isolated rebuild after a neighboring request rejects a group before any
   physical commit. Ambiguous physical commit errors are never retried.
+  Optional same-request RPC traces separate queue-credit admission, physical-batch
+  queue residence, each caller's remaining collection interval, shared group build,
+  synchronous commit and group publication callbacks (excluding Finalize). Owner
+  buffers remain queue time; closing queued work never invents a physical phase.
+  Group reconstruction retains repeated build intervals, not extra fsync claims;
+  caller cancellation and early trace completion cannot cancel admitted storage work.
+  A completed nonempty native commit also supplies seven owned native timings to
+  that physical batch event. Missing, empty or natively rejected calls supply no
+  sample; later seal/publication errors retain an already completed observation.
+  Native commit wait combines publication ordering and WAL sync completion, not
+  pure fsync. These overlapping timings do not add to coordinator total or RPC spans.
 - Each writable engine keeps one baseline compaction slot and may open three
   more only as L0 depth or compaction debt crosses configured pressure steps.
 

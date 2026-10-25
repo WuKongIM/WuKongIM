@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"syscall"
@@ -157,12 +158,28 @@ cat "$FAKE_PS_FIXTURE"
 }
 
 func TestChatLifecycleShakeoutSealsBuildWindowAndRendersNonAliasingPorts(t *testing.T) {
-	for _, rate := range []int{0, 400} {
-		t.Run(fmt.Sprintf("send_rate_%d", rate), func(t *testing.T) { testShakeoutBuildWindowAndRenderedPorts(t, rate) })
+	// Failure matrix: the complete launcher must render the real repository
+	// template, preserve every other workload/gate, and reject a stale timeline
+	// shape before starting any service rather than silently keeping 20m.
+	for _, test := range []shakeoutConfigRenderCase{
+		{name: "default rate legacy", hotP99ms: 1000},
+		{name: "override rate legacy", rate: 400, hotP99ms: 1000},
+		{name: "CI measured timeline", warmupSeconds: 60, measureSeconds: 90, hotP99ms: 400},
+		{name: "custom measured timeline", rate: 400, warmupSeconds: 30, measureSeconds: 45, hotP99ms: 1000},
+		{name: "stale template fails before service startup", warmupSeconds: 60, measureSeconds: 90, hotP99ms: 400, omitLatencyWarmup: true},
+	} {
+		t.Run(test.name, func(t *testing.T) { testShakeoutBuildWindowAndRenderedPorts(t, test) })
 	}
 }
 
-func testShakeoutBuildWindowAndRenderedPorts(t *testing.T, rate int) {
+type shakeoutConfigRenderCase struct {
+	name                                string
+	rate, warmupSeconds, measureSeconds int
+	hotP99ms                            int
+	omitLatencyWarmup                   bool
+}
+
+func testShakeoutBuildWindowAndRenderedPorts(t *testing.T, test shakeoutConfigRenderCase) {
 	root := repoRoot(t)
 	testRoot := t.TempDir()
 	scriptsDir := filepath.Join(testRoot, "scripts")
@@ -211,17 +228,12 @@ commit_coordinator_shards = 1
 	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(configDir, "local-shakeout.yaml"), []byte(`run_id: local-chat-lifecycle-shakeout
-timeline: {warmup: 10m, checkpoint: 20m, final: 30m}
-workload: {send_rate_per_second: 500, max_global_burst: 1000}
-thresholds:
-  latency:
-    hot_sendack: {p99: 400ms, p999: 1s}
-observation:
-  api_addrs: ["http://127.0.0.1:15001", "http://127.0.0.1:15002", "http://127.0.0.1:15003"]
-  gateway_tcp_addrs: ["127.0.0.1:15101", "127.0.0.1:15102", "127.0.0.1:15103"]
-  metrics_addrs: ["http://127.0.0.1:15011/metrics", "http://127.0.0.1:15012/metrics", "http://127.0.0.1:15013/metrics"]
-`), 0o600); err != nil {
+	templatePath := filepath.Join(root, "configs", "wkbench", "chat-lifecycle", "local-shakeout.yaml")
+	template := readFile(t, templatePath)
+	if test.omitLatencyWarmup {
+		template = strings.Replace(template, "latency_warmup: 10m, ", "", 1)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "local-shakeout.yaml"), []byte(template), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -271,9 +283,12 @@ fi
 		}
 	}
 	runDir := filepath.Join(testRoot, "run")
-	args := []string{shakeoutPath, "--run-dir", runDir, "--runtime-defaults", "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", "1000"}
-	if rate > 0 {
-		args = append(args, "--send-rate", strconv.Itoa(rate))
+	args := []string{shakeoutPath, "--run-dir", runDir, "--runtime-defaults", "--base-port", "15100", "--ready-timeout", "1", "--hot-sendack-p99-ms", strconv.Itoa(test.hotP99ms)}
+	if test.rate > 0 {
+		args = append(args, "--send-rate", strconv.Itoa(test.rate))
+	}
+	if test.measureSeconds > 0 {
+		args = append(args, "--measure-seconds", strconv.Itoa(test.measureSeconds), "--warmup-seconds", strconv.Itoa(test.warmupSeconds))
 	}
 	command := exec.Command("bash", args...)
 	command.Dir = testRoot
@@ -286,6 +301,15 @@ fi
 	output, err := command.CombinedOutput()
 	if err == nil {
 		t.Fatalf("fake service unexpectedly completed shakeout:\n%s", output)
+	}
+	if test.omitLatencyWarmup {
+		if !strings.Contains(string(output), "measured local timeline derivation failed") {
+			t.Fatalf("stale template did not fail at the derivation boundary:\n%s", output)
+		}
+		if _, err := os.Stat(filepath.Join(runDir, "pids", "service-1.pid")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("stale template reached service startup: %v", err)
+		}
+		return
 	}
 	identity := readChatLifecycleIdentity(t, filepath.Join(runDir, "evidence", "identity.tsv"))
 	if identity["source_revision"] != "0123456789abcdef0123456789abcdef01234567" ||
@@ -313,25 +337,44 @@ fi
 		t.Fatalf("runtime-defaults node config removed unrelated setting:\n%s", renderedNode)
 	}
 	rendered := readFile(t, filepath.Join(runDir, "chat-lifecycle.yaml"))
-	expectedRate := rate
+	expectedRate := test.rate
 	if expectedRate == 0 {
 		expectedRate = 500
 	}
 	if identity["offered_send_rate_per_second"] != strconv.Itoa(expectedRate) {
 		t.Fatalf("identity rate=%q; want rendered rate %d", identity["offered_send_rate_per_second"], expectedRate)
 	}
-	if want := fmt.Sprintf("workload: {send_rate_per_second: %d, max_global_burst: %d}", expectedRate, expectedRate*2); !strings.Contains(rendered, want) {
-		t.Fatalf("rendered grant budget missing %q: %s", want, rendered)
+	got, err := chatlifecycle.LoadConfig(filepath.Join(runDir, "chat-lifecycle.yaml"))
+	if err != nil {
+		t.Fatalf("generated lifecycle config is invalid: %v\n%s", err, rendered)
 	}
-	for _, want := range []string{
-		`api_addrs: ["http://127.0.0.1:15101", "http://127.0.0.1:15102", "http://127.0.0.1:15103"]`,
-		`gateway_tcp_addrs: ["127.0.0.1:15121", "127.0.0.1:15122", "127.0.0.1:15123"]`,
-		`metrics_addrs: ["http://127.0.0.1:15101/metrics", "http://127.0.0.1:15102/metrics", "http://127.0.0.1:15103/metrics"]`,
-		`hot_sendack: {p99: 1000ms, p999: 1s}`,
-	} {
-		if !strings.Contains(rendered, want) {
-			t.Fatalf("rendered lifecycle config missing %q:\n%s", want, rendered)
+	want, err := chatlifecycle.LoadConfig(templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want.Workload.SendRatePerSecond, want.Workload.MaxGlobalBurst = expectedRate, expectedRate*2
+	want.Thresholds.Latency.HotSendACK.P99 = time.Duration(test.hotP99ms) * time.Millisecond
+	for i := 0; i < 3; i++ {
+		api := fmt.Sprintf("http://127.0.0.1:%d", 15101+i)
+		want.Observation.ServiceNodes[i].Address, want.Observation.APIAddrs[i] = api, api
+		want.Observation.GatewayTCPAddrs[i] = fmt.Sprintf("127.0.0.1:%d", 15121+i)
+		want.Observation.Workers[i].Address = fmt.Sprintf("http://127.0.0.1:%d", 15151+i)
+		want.Observation.HostMetrics[i].Address = fmt.Sprintf("http://127.0.0.1:%d", 15161+i)
+	}
+	want.Observation.LoadHostMetrics.Address = "http://127.0.0.1:15160"
+	if test.measureSeconds > 0 {
+		warmup := time.Duration(test.warmupSeconds) * time.Second
+		want.Thresholds.Timeline = chatlifecycle.TimelineThresholds{
+			LatencyWarmup: warmup, Warmup: warmup, Checkpoint: warmup + time.Millisecond,
+			Final: time.Duration(test.warmupSeconds+test.measureSeconds+90+60) * time.Second,
 		}
+		// The existing local-step classifier owns recovered-attempt rate gates;
+		// terminal/loss/duplicate/corruption/sequence gates remain zero tolerance.
+		want.Thresholds.Correctness.OverallFirstAttemptFailure = chatlifecycle.FailureRateLimit{MaxFailures: 1, PerAttempts: 1, Operator: chatlifecycle.ComparisonLessOrEqual}
+		want.Thresholds.Correctness.AnyMinuteFirstAttemptFailure = want.Thresholds.Correctness.OverallFirstAttemptFailure
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("generated lifecycle config changed outside the requested derivation:\n got: %+v\nwant: %+v", got, want)
 	}
 }
 

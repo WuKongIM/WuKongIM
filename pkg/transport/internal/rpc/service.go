@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -20,6 +21,10 @@ const (
 
 // Request is one service invocation owned by the service after a successful Enqueue.
 type Request struct {
+	// TraceQueue spans admission through actual handler entry, including executor wait.
+	TraceQueue rpctrace.Span
+	// Dispatch is nil except for selected, bound server header declarations.
+	Dispatch *rpctrace.DispatchRecorder
 	// Context carries the connection lifetime and negotiated caller budget. Nil
 	// uses the service lifetime. Running cancellation is opt-in per service.
 	Context context.Context
@@ -160,20 +165,34 @@ func newService(id uint16, handler core.Handler, opts core.ServiceOptions, obser
 	return s
 }
 
+// TraceOperationFor borrows the narrow registered header classifier. The server
+// calls it only after observation admission and before enqueue, including work
+// later canceled in the queue; it never validates or retains the request body.
+func (s *Service) TraceOperationFor(payload []byte) uint8 {
+	if s.opts.TraceOperationFor == nil {
+		return 0
+	}
+	return s.opts.TraceOperationFor(payload)
+}
+
 // Enqueue transfers payload ownership on success. Failed admission releases the
 // payload but leaves error response and Finish responsibility with the caller.
 func (s *Service) Enqueue(req Request) error {
+	req.Dispatch.Mark(rpctrace.DispatchEnqueueEnter)
 	payloadLen := req.Payload.Len()
 	req.retainedBytes = int64(req.Payload.RetainedBytes())
 	if s.opts.MaxPayload > 0 && payloadLen > s.opts.MaxPayload {
+		req.Dispatch.End(rpctrace.DispatchPathEnqueueRejected)
 		req.Payload.Release()
 		s.observeAdmissionAndQueue("too_large", payloadLen, s.queueSnapshot())
+		req.Dispatch.Mark(rpctrace.DispatchEnqueueObserversDone)
 		return core.ErrMsgTooLarge
 	}
 	if req.Context == nil {
 		req.Context = s.ctx
 	}
 	s.mu.Lock()
+	req.Dispatch.Mark(rpctrace.DispatchEnqueueLocked)
 	var err error
 	result := "ok"
 	switch {
@@ -190,12 +209,25 @@ func (s *Service) Enqueue(req Request) error {
 	if err != nil {
 		snapshot := s.queueSnapshotLocked()
 		s.mu.Unlock()
+		req.Dispatch.Mark(rpctrace.DispatchEnqueueUnlocked)
+		req.Dispatch.End(rpctrace.DispatchPathEnqueueRejected)
 		req.Payload.Release()
 		s.observeAdmissionAndQueue(result, payloadLen, snapshot)
+		req.Dispatch.Mark(rpctrace.DispatchEnqueueObserversDone)
 		return err
 	}
 	entry := &requestEntry{serviceTask: serviceTask{service: s, req: req}, queued: true, enqueuedAt: time.Now()}
 	entry.req.entry = entry
+	if req.Dispatch != nil {
+		var deadline time.Time
+		if s.opts.QueueTimeout > 0 {
+			deadline = entry.enqueuedAt.Add(s.opts.QueueTimeout)
+		}
+		if caller, ok := req.Context.Deadline(); ok && (deadline.IsZero() || caller.Before(deadline)) {
+			deadline = caller
+		}
+		req.Dispatch.SetQueueDeadline(deadline)
+	}
 	s.appendLocked(entry)
 	s.retainedBytes += req.retainedBytes
 	s.retainedItems++
@@ -205,13 +237,48 @@ func (s *Service) Enqueue(req Request) error {
 	snapshot := s.queueSnapshotLocked()
 	retained := s.retainedEventLocked()
 	s.mu.Unlock()
+	req.Dispatch.Mark(rpctrace.DispatchEnqueueUnlocked)
 	s.observe(retained)
 	s.observeAdmissionAndQueue("ok", payloadLen, snapshot)
+	req.Dispatch.Mark(rpctrace.DispatchEnqueueObserversDone)
 	select {
 	case s.queueReady <- struct{}{}:
 	default:
 	}
+	req.Dispatch.Mark(rpctrace.DispatchEnqueueWakeDone)
 	return nil
+}
+
+// CloseAdmission fences enqueue and pump ownership without waiting for handlers
+// or terminal callbacks. The server calls it before exposing an incomplete Stop.
+func (s *Service) CloseAdmission() {
+	s.mu.Lock()
+	s.stopped = true
+	s.cancel()
+	s.armQueueTimerLocked()
+	s.mu.Unlock()
+}
+
+// Wait joins all admitted owners. Expiry never means their resources are free.
+func (s *Service) Wait(ctx context.Context) error {
+	select {
+	case <-s.done:
+		return nil
+	default:
+	}
+	select {
+	case <-s.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Ownership reports payload responsibility through terminal callback completion.
+func (s *Service) Ownership() (int, int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.retainedItems, s.retainedBytes
 }
 
 // Stop rejects admission and releases queued owners before joining active work.
@@ -231,6 +298,7 @@ func (s *Service) Stop() {
 		s.mu.Unlock()
 		s.observe(event)
 		for _, req := range drained {
+			req.Dispatch.End(rpctrace.DispatchPathStopped)
 			deliver(req, Response{Err: core.ErrStopped})
 			s.releaseRequest(req)
 		}
@@ -276,6 +344,7 @@ func (s *Service) pump() {
 			}
 			s.taskWG.Done()
 			s.releaseToken()
+			req.Dispatch.End(rpctrace.DispatchPathSubmitRejected)
 			deliver(req, Response{Err: err})
 			s.releaseRequest(req)
 			s.observeTask(taskResult(err), payloadLen, 0)
@@ -328,23 +397,31 @@ func (s *Service) beforeExecution(req Request) error {
 func (s *Service) handle(req Request) error {
 	// Recheck after executor admission: dispatch can race with caller cancellation.
 	if err := s.beforeExecution(req); err != nil {
+		req.Dispatch.End(rpctrace.DispatchPathWorkerRejected)
 		deliver(req, Response{Err: err})
 		return err
 	}
+	// Classification borrows the still-owned request only after queue checks.
+	// Keep cancellation detached for every request not explicitly declared read-only.
+	cancelRunning := s.opts.CancelRunning
+	if s.opts.CancelRunningFor != nil {
+		cancelRunning = s.opts.CancelRunningFor(req.Payload.Bytes())
+	}
 	ctx := s.ctx
-	if s.opts.CancelRunning {
+	if cancelRunning {
 		ctx = req.Context
 	}
+	ctx = rpctrace.Copy(ctx, req.Context)
 	cancel := func() {}
 	if s.opts.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, s.opts.Timeout)
-	} else if s.opts.CancelRunning && req.Context != s.ctx {
+	} else if cancelRunning && req.Context != s.ctx {
 		ctx, cancel = context.WithCancel(ctx)
 	}
 	defer cancel()
 	// The execution context already has a cancel function. Reuse it to link
 	// service shutdown instead of adding a second cancellation context.
-	if s.opts.CancelRunning && req.Context != s.ctx {
+	if cancelRunning && req.Context != s.ctx {
 		stopService := context.AfterFunc(s.ctx, cancel)
 		defer stopService()
 	}
@@ -352,10 +429,18 @@ func (s *Service) handle(req Request) error {
 	if req.entry != nil {
 		s.observe(core.Event{Name: "service_wait", ServiceID: s.ID, ServiceAlias: s.opts.Alias, Result: "ok", Duration: nonNegativeSince(req.entry.enqueuedAt)})
 	}
+	req.TraceQueue.End(rpctrace.ResultOK)
+	handlerSpan := rpctrace.Begin(ctx, rpctrace.StageHandler)
+	handlerResult := rpctrace.ResultError
+	defer func() { handlerSpan.End(handlerResult) }()
+	req.Dispatch.End(rpctrace.DispatchPathHandler)
+	req.Dispatch.Mark(rpctrace.DispatchHandlerEnter)
 	resp, err := s.handler(ctx, req.Payload.Bytes())
 	if ctx.Err() != nil {
 		err = requestError(ctx.Err())
 	}
+	handlerResult = core.RPCTraceResult(err)
+	handlerSpan.End(handlerResult)
 	if req.Reply == nil && req.RespondBorrowed == nil {
 		return err
 	}
@@ -526,6 +611,10 @@ func trySendResponse(ch chan Response, resp Response) {
 }
 
 func deliver(req Request, resp Response) {
+	if resp.Err != nil {
+		req.Dispatch.Mark(rpctrace.DispatchErrorDeliver)
+	}
+	req.TraceQueue.End(core.RPCTraceResult(resp.Err))
 	if req.RespondBorrowed != nil {
 		req.RespondBorrowed(resp)
 		return
@@ -575,6 +664,7 @@ func (t *serviceTask) run() {
 		s.taskWG.Done()
 	}()
 
+	t.req.Dispatch.Mark(rpctrace.DispatchWorkerBookkeepingDone)
 	err := s.handle(t.req)
 	result = taskResult(err)
 }

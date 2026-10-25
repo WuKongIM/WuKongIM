@@ -75,6 +75,29 @@ type CommitCoordinatorConfig struct {
 	Observer CommitCoordinatorObserver
 }
 
+// NativeCommitStats is an owned, engine-neutral physical commit observation.
+// Durations can overlap or nest; they are not an additive timeline.
+type NativeCommitStats struct {
+	// Available requires non-empty native commit work to have completed successfully.
+	// Later publication or recovery-seal verification failure retains that observation.
+	Available bool
+	// TotalDuration covers native commit work and internal waits.
+	TotalDuration time.Duration
+	// SemaphoreWaitDuration covers native commit admission.
+	SemaphoreWaitDuration time.Duration
+	// WALQueueWaitDuration covers native WAL buffer admission; zero can be an available sample.
+	WALQueueWaitDuration time.Duration
+	// MemTableWriteStallDuration covers memtable pressure stalls.
+	MemTableWriteStallDuration time.Duration
+	// L0ReadAmpWriteStallDuration covers L0 read-amplification stalls.
+	L0ReadAmpWriteStallDuration time.Duration
+	// WALRotationDuration covers replacing the WAL, including old-WAL sync/close.
+	WALRotationDuration time.Duration
+	// CommitWaitDuration combines sequence publication and WAL sync completion,
+	// not pure filesystem sync or device latency.
+	CommitWaitDuration time.Duration
+}
+
 // CommitCoordinatorBatchEvent describes one physical message DB commit attempt.
 type CommitCoordinatorBatchEvent struct {
 	// Requests is the number of logical channel append requests in the commit.
@@ -93,6 +116,8 @@ type CommitCoordinatorBatchEvent struct {
 	PublishDuration time.Duration
 	// TotalDuration is the sum of collect, build, commit, and publish durations.
 	TotalDuration time.Duration
+	// Native carries optional physical-engine timings, separate from coordinator phases.
+	Native NativeCommitStats
 	// Err is set when build, commit, publish, or close failed the batch.
 	Err error
 }
@@ -657,7 +682,17 @@ func (a commitObserverAdapter) ObserveBatch(event commit.BatchEvent) {
 		CommitDuration:  event.CommitDuration,
 		PublishDuration: event.PublishDuration,
 		TotalDuration:   event.TotalDuration,
-		Err:             event.Err,
+		Native: NativeCommitStats{
+			Available:                   event.Native.Available,
+			TotalDuration:               event.Native.TotalDuration,
+			SemaphoreWaitDuration:       event.Native.SemaphoreWaitDuration,
+			WALQueueWaitDuration:        event.Native.WALQueueWaitDuration,
+			MemTableWriteStallDuration:  event.Native.MemTableWriteStallDuration,
+			L0ReadAmpWriteStallDuration: event.Native.L0ReadAmpWriteStallDuration,
+			WALRotationDuration:         event.Native.WALRotationDuration,
+			CommitWaitDuration:          event.Native.CommitWaitDuration,
+		},
+		Err: event.Err,
 	})
 }
 

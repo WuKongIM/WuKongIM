@@ -737,6 +737,8 @@ type engineCompletion struct {
 	verificationErr error
 	clientSeq       uint64
 	clientMsgNo     string
+	// observedAt captures async transport failure before owner-queue delay.
+	observedAt time.Time
 }
 
 type engineLoginResult struct {
@@ -2551,7 +2553,9 @@ func (e *Engine) sessionSendack(_ string, ack *frame.SendackPacket, verification
 }
 
 func (e *Engine) sessionAsyncSendError(_ string, clientSeq uint64, clientMsgNo string) {
-	e.enqueueSessionCompletion(engineCompletion{clientSeq: clientSeq, clientMsgNo: clientMsgNo})
+	observedAt := e.clock.Now()
+	e.verifier.ObserveAttemptErrorAt(clientMsgNo, clientSeq, observedAt)
+	e.enqueueSessionCompletion(engineCompletion{clientSeq: clientSeq, clientMsgNo: clientMsgNo, observedAt: observedAt})
 }
 
 func (e *Engine) enqueueSessionCompletion(completion engineCompletion) {
@@ -2824,7 +2828,7 @@ func (e *Engine) observeCompletion(completion engineCompletion) {
 	case completion.ack != nil:
 		_ = e.observeSendack(completion.ack, completion.verificationErr)
 	case completion.clientMsgNo != "":
-		_ = e.verifier.ResolveAttemptError(completion.clientMsgNo, completion.clientSeq)
+		_ = e.verifier.ResolveAttemptErrorAt(completion.clientMsgNo, completion.clientSeq, completion.observedAt)
 		inflight := e.inflight[completion.clientMsgNo]
 		if inflight != nil && inflight.currentClientSeq == completion.clientSeq {
 			_ = e.scheduleRetry(inflight, e.clock.Now(), retryExhaustedTransportError)
@@ -3433,8 +3437,13 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	}
 	e.nextClientSeq++
 	clientSeq := e.nextClientSeq
-	if err := e.verifier.ObserveAttempt(logical, attemptPlan, clientSeq); err != nil {
+	deadline := attemptAt.Add(e.attemptTimeoutFor(intent))
+	completion, err := e.verifier.admitEngineAttemptWithDeadline(logical, attemptPlan, clientSeq, deadline)
+	if err != nil {
 		return e.abortHarness(inflight, err)
+	}
+	if completion != nil {
+		return e.settleVerifiedSendCompletion(inflight, completion)
 	}
 	if !inflight.registerClientSeq(clientSeq, attemptAt) {
 		return e.abortHarness(inflight, errEngineConfig)
@@ -3450,15 +3459,14 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 		if ctx != nil && ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 			return e.cancelAttempt(inflight)
 		}
-		resolve := e.verifier.ResolveAttemptError
+		resolve := e.verifier.ResolveAttemptErrorAt
 		cause := retryExhaustedTransportError
 		if errors.Is(err, wkclient.ErrSendQueueFull) {
-			resolve = e.verifier.ResolveAttemptLocalAdmissionError
+			resolve = e.verifier.ResolveAttemptLocalAdmissionErrorAt
 			cause = retryExhaustedLocalAdmission
 		}
-		return errors.Join(resolve(logical.ClientMsgNo, clientSeq), e.scheduleRetry(inflight, attemptAt, cause))
+		return errors.Join(resolve(logical.ClientMsgNo, clientSeq, e.clock.Now()), e.scheduleRetry(inflight, attemptAt, cause))
 	}
-	deadline := attemptAt.Add(e.attemptTimeoutFor(intent))
 	if deadline.Before(attemptAt) {
 		return e.abortHarness(inflight, errEngineConfig)
 	}
@@ -3524,8 +3532,11 @@ func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time, cause re
 			return e.abortHarness(inflight, e.recordRuntimeFailure(RuntimeFailureTransportAdmissionSaturated, 1))
 		}
 		logical := inflight.intent.Logical
+		completion, terminalErr := e.verifier.completeEngineTerminalOrAcknowledged(logical, TerminalSendRetryExhausted, cause)
+		if completion != nil {
+			return e.settleVerifiedSendCompletion(inflight, completion)
+		}
 		e.completeMetaCreate(inflight.intent, false)
-		terminalErr := e.verifier.completeRetryExhausted(logical, cause)
 		_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
 		e.releaseCorrelationLease(inflight.intent)
 		removeErr := e.removeInflight(inflight)
@@ -3537,6 +3548,19 @@ func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time, cause re
 		return e.abortHarness(inflight, err)
 	}
 	return e.abortHarness(inflight, err)
+}
+
+// settleVerifiedSendCompletion runs only owner bookkeeping for an ACK already
+// verified on its transport clock. No verifier evidence is replayed, and the
+// queued callback later observes that this exact inflight owner was released.
+func (e *Engine) settleVerifiedSendCompletion(inflight *engineInflight, completion *verifiedSendCompletion) error {
+	if inflight == nil || completion == nil || !inflight.hasClientSeq(completion.clientSeq) || completion.messageID <= 0 || completion.messageSeq == 0 {
+		return e.abortHarness(inflight, errEngineConfig)
+	}
+	return e.observeSendack(&frame.SendackPacket{
+		ClientSeq: completion.clientSeq, ClientMsgNo: inflight.intent.Logical.ClientMsgNo,
+		MessageID: completion.messageID, MessageSeq: completion.messageSeq, ReasonCode: frame.ReasonSuccess,
+	}, nil)
 }
 
 func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error) error {
@@ -3559,8 +3583,11 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 			logical := inflight.intent.Logical
 			e.cancelAttemptTimeout(inflight)
 			e.retries.cancel(ack.ClientMsgNo)
+			completion, terminalErr := e.verifier.completeEngineTerminalOrAcknowledged(logical, TerminalSendNonRetriable, 0)
+			if completion != nil {
+				return e.settleVerifiedSendCompletion(inflight, completion)
+			}
 			e.completeMetaCreate(inflight.intent, false)
-			terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendNonRetriable)
 			_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
 			e.releaseCorrelationLease(inflight.intent)
 			removeErr := e.removeInflight(inflight)
@@ -3625,8 +3652,11 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	}
 	e.cancelAttemptTimeout(inflight)
 	e.retries.cancel(ack.ClientMsgNo)
+	completion, terminalErr := e.verifier.completeEngineTerminalOrAcknowledged(logical, TerminalSendNonRetriable, 0)
+	if completion != nil {
+		return errors.Join(verificationErr, e.settleVerifiedSendCompletion(inflight, completion))
+	}
 	e.completeMetaCreate(inflight.intent, false)
-	terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendNonRetriable)
 	releaseErr := e.verifier.ReleaseSendAt(logical, e.clock.Now())
 	e.releaseCorrelationLease(inflight.intent)
 	removeErr := e.removeInflight(inflight)
@@ -4382,14 +4412,20 @@ func (e *Engine) recordGroupUnderDelivery(intent TrafficIntent) error {
 	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(group.MemberCount))
 }
 
+// cleanupInflight runs after Stop joined all session drains and drained owner
+// callbacks, so strict session-closed completion cannot race a new ACK here.
 func (e *Engine) cleanupInflight() {
 	for _, inflight := range e.inflight {
 		logical := inflight.intent.Logical
 		e.completeMetaCreate(inflight.intent, false)
-		if err := e.verifier.CompleteTerminal(logical, TerminalSendSessionClosed); err != nil {
-			_ = e.verifier.abortSendHarness(logical)
-		} else {
+		terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendSessionClosed)
+		// The strict verifier returns this exact product error after recording
+		// the terminal result. Other errors prove no successful state change.
+		recorded, ok := terminalErr.(*VerificationError)
+		if ok && recorded.Classification() == SyncClassificationProductFailure && recorded.Code() == FailureCodeTerminalSend {
 			_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
+		} else {
+			_ = e.verifier.abortSendHarness(logical)
 		}
 		e.releaseCorrelationLease(inflight.intent)
 		_ = e.removeInflight(inflight)

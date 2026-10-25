@@ -41,6 +41,11 @@ It does not own reusable message, presence, delivery, or storage policy.
 
 - Missing activation UID is an authentication error; the adapter never writes
   CONNACK directly.
+- Activation errors may project the cause's immutable physical-round provider
+  evidence through an optional gateway log-field capability. The shared presence
+  formatter adds no identities; direct local authority calls retain available
+  stages, while plain remote status remains unknown. Error classification,
+  unwrapping, rollback and protocol reasons remain unchanged.
 - Route movement and send-deadline failures map to retryable node-not-match
   SENDACK while observations keep timeout distinct.
 - Unauthenticated SEND becomes a SENDACK result rather than a raw protocol
@@ -63,8 +68,15 @@ It does not own reusable message, presence, delivery, or storage policy.
   exposed or logged. The usecase session identity must equal the authenticated
   gateway session before sealing.
 - Deadline failures may add bounded permission, pre-append, submitter, and
-  pre-submit budget timings to the existing warning. Planned shutdown fences
+  pre-submit budget timings to the existing warning. Owned submissions also
+  include a presence flag and per-job dependency/ready queue, sender and
+  pre-callback durations. Available single-item routing snapshots have a separate
+  presence flag, attempt counts and resolution/admission/local/remote/retry phases;
+  missing observations are omitted rather than reported as zero. Planned shutdown fences
   suppress only identity-bearing cancellation warnings, not observations.
+  Measured permission ingress rejections add a presence flag, reason bitmask,
+  active cohorts, owned calls/bytes and rejected request bytes to that existing
+  warning. Missing snapshots omit all six fields; SENDACK reasons stay unchanged.
 
 - Authenticated connections opt into body-free edit hints with `message_updates.enable` EVENT and receive `message_updates.ready`. Capability is connection-scoped; CONNECT and CMD meanings remain unchanged.
 

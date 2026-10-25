@@ -18,6 +18,15 @@ type StorageEngineMetrics struct {
 	IdempotencyNegativeFilterSkips uint64
 	// IdempotencyPointReads is the number of possible filter hits verified durably.
 	IdempotencyPointReads uint64
+	// BlockCacheSizeBytes is the current retained block-cache bytes, not its capacity.
+	BlockCacheSizeBytes int64
+	// BlockCacheHits counts block reads served from the cache since this store opened.
+	BlockCacheHits int64
+	// BlockCacheMisses counts block reads that missed the cache since this store opened.
+	BlockCacheMisses int64
+	// MemTableReservedSizeBytes is cache accounting for active, recycled and reader-pinned
+	// memtable arenas. It excludes flushable-batch backing and is not total cache reservations or RSS.
+	MemTableReservedSizeBytes uint64
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -141,10 +150,12 @@ func (n *Node) StorageMetricsSnapshot() StorageMetricsSnapshot {
 		})
 	}
 	if n.defaultSlotRaftDB != nil {
-		stores = append(stores, StorageStoreMetricsSnapshot{
-			Store:  "raft",
-			Engine: storageMetricsFromRaftLog(n.defaultSlotRaftDB.MetricsSnapshot()),
-		})
+		if snapshot := n.defaultSlotRaftDB.MetricsSnapshot(); snapshot.Available {
+			stores = append(stores, StorageStoreMetricsSnapshot{
+				Store:  "raft",
+				Engine: storageMetricsFromRaftLog(snapshot),
+			})
+		}
 	}
 	return StorageMetricsSnapshot{Stores: stores}
 }
@@ -167,6 +178,10 @@ func storageMetricsFromChannelStore(snapshot channelstore.MessageDBFactoryMetric
 		DurablePredecessorValidations:  snapshot.DurablePredecessorValidations,
 		IdempotencyNegativeFilterSkips: snapshot.IdempotencyNegativeFilterSkips,
 		IdempotencyPointReads:          snapshot.IdempotencyPointReads,
+		BlockCacheSizeBytes:            snapshot.BlockCacheSizeBytes,
+		BlockCacheHits:                 snapshot.BlockCacheHits,
+		BlockCacheMisses:               snapshot.BlockCacheMisses,
+		MemTableReservedSizeBytes:      snapshot.MemTableReservedSizeBytes,
 		DiskSpaceUsageBytes:            snapshot.DiskSpaceUsageBytes,
 		ReadAmplification:              snapshot.ReadAmplification,
 		MemTableSizeBytes:              snapshot.MemTableSizeBytes,
@@ -206,6 +221,10 @@ func storageMetricsFromChannelStore(snapshot channelstore.MessageDBFactoryMetric
 
 func storageMetricsFromMetaDB(snapshot metadb.EngineMetricsSnapshot) StorageEngineMetrics {
 	return StorageEngineMetrics{
+		BlockCacheSizeBytes:          snapshot.BlockCacheSizeBytes,
+		BlockCacheHits:               snapshot.BlockCacheHits,
+		BlockCacheMisses:             snapshot.BlockCacheMisses,
+		MemTableReservedSizeBytes:    snapshot.MemTableReservedSizeBytes,
 		DiskSpaceUsageBytes:          snapshot.DiskSpaceUsageBytes,
 		ReadAmplification:            snapshot.ReadAmplification,
 		MemTableSizeBytes:            snapshot.MemTableSizeBytes,
@@ -245,6 +264,10 @@ func storageMetricsFromMetaDB(snapshot metadb.EngineMetricsSnapshot) StorageEngi
 
 func storageMetricsFromRaftLog(snapshot raftlog.MetricsSnapshot) StorageEngineMetrics {
 	return StorageEngineMetrics{
+		BlockCacheSizeBytes:          snapshot.BlockCacheSizeBytes,
+		BlockCacheHits:               snapshot.BlockCacheHits,
+		BlockCacheMisses:             snapshot.BlockCacheMisses,
+		MemTableReservedSizeBytes:    snapshot.MemTableReservedSizeBytes,
 		DiskSpaceUsageBytes:          snapshot.DiskSpaceUsageBytes,
 		ReadAmplification:            snapshot.ReadAmplification,
 		MemTableSizeBytes:            snapshot.MemTableSizeBytes,
@@ -254,6 +277,11 @@ func storageMetricsFromRaftLog(snapshot raftlog.MetricsSnapshot) StorageEngineMe
 		WALPhysicalSizeBytes:         snapshot.WALPhysicalSizeBytes,
 		WALBytesIn:                   snapshot.WALBytesIn,
 		WALBytesWritten:              snapshot.WALBytesWritten,
+		WALFsyncCount:                snapshot.WALFsyncCount,
+		WALFsyncSumNanos:             snapshot.WALFsyncSumNanos,
+		WALFsyncOver100ms:            snapshot.WALFsyncOver100ms,
+		WALFsyncOver1s:               snapshot.WALFsyncOver1s,
+		WALFsyncOver5s:               snapshot.WALFsyncOver5s,
 		SSTableSizeBytes:             snapshot.SSTableSizeBytes,
 		FlushBytesWritten:            snapshot.FlushBytesWritten,
 		CompactionBytesRead:          snapshot.CompactionBytesRead,
@@ -264,5 +292,15 @@ func storageMetricsFromRaftLog(snapshot raftlog.MetricsSnapshot) StorageEngineMe
 		CompactionEstimatedDebtBytes: snapshot.CompactionEstimatedDebtBytes,
 		CompactionInProgressBytes:    snapshot.CompactionInProgressBytes,
 		CompactionsInProgress:        snapshot.CompactionsInProgress,
+		WriteStallMemTableCount:      snapshot.WriteStallMemTableCount,
+		WriteStallL0Count:            snapshot.WriteStallL0Count,
+		WriteStallOtherCount:         snapshot.WriteStallOtherCount,
+		WriteStallTotalNanos:         snapshot.WriteStallTotalNanos,
+		WriteStallMaxNanos:           snapshot.WriteStallMaxNanos,
+		WriteStallActive:             snapshot.WriteStallActive,
+		DiskSlowWALEvents:            snapshot.DiskSlowWALEvents,
+		DiskSlowWALMaxNanos:          snapshot.DiskSlowWALMaxNanos,
+		DiskSlowOtherEvents:          snapshot.DiskSlowOtherEvents,
+		DiskSlowOtherMaxNanos:        snapshot.DiskSlowOtherMaxNanos,
 	}
 }

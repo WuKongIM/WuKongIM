@@ -25,6 +25,9 @@ owner-local session handles. It is not a distributed presence directory.
    tombstone is queued and returns only the owner-route projection.
 3. An active UID index serves bounded owner reconstruction pages; pending,
    closing, superseded, and output-saturated snapshots cannot prove online state.
+   Its optional fill-buffer port reuses prepaid caller storage, borrows immutable
+   strings and clears written references on saturation; retained strings need
+   separate caller-owned copies.
 4. `MarkTouched` marks an active route dirty; bounded drains produce one touch
    chunk, and failed routes are requeued only if the same active owner remains.
 

@@ -32,28 +32,35 @@ func (a *PresenceDirectoryAuthority) SetRecovery(r *presenceusecase.AuthorityRec
 // RegisterRoute reserves one exact route in the local authority directory.
 func (a *PresenceDirectoryAuthority) RegisterRoute(ctx context.Context, target presenceusecase.RouteTarget, route presenceusecase.Route) (presenceusecase.RegisterResult, error) {
 	if err := contextError(ctx); err != nil {
-		return presenceusecase.RegisterResult{}, err
+		return presenceusecase.RegisterResult{}, presenceusecase.WrapActivationPhase(presenceusecase.ActivationPhaseDirectoryRegister, err)
 	}
 	if a == nil || a.directory == nil {
-		return presenceusecase.RegisterResult{}, authoritypresence.ErrRouteNotReady
+		return presenceusecase.RegisterResult{}, presenceusecase.WrapActivationPhase(presenceusecase.ActivationPhaseDirectoryRegister, authoritypresence.ErrRouteNotReady)
 	}
 	if a.recovery != nil {
 		if _, err := a.recovery.Endpoints(ctx, target, []string{route.UID}); err != nil {
-			return presenceusecase.RegisterResult{}, err
+			return presenceusecase.RegisterResult{}, presenceusecase.WrapActivationPhase(presenceusecase.ActivationPhaseRecovery, err)
 		}
 	}
-	return a.directory.RegisterRoute(target, route)
+	result, err := a.directory.RegisterRoute(target, route)
+	if err != nil {
+		return result, presenceusecase.WrapActivationPhase(presenceusecase.ActivationPhaseDirectoryRegister, err)
+	}
+	return result, nil
 }
 
 // CommitRoute commits one exact pending route token.
 func (a *PresenceDirectoryAuthority) CommitRoute(ctx context.Context, target presenceusecase.RouteTarget, token string) error {
 	if err := contextError(ctx); err != nil {
-		return err
+		return presenceusecase.WrapActivationPhase(presenceusecase.ActivationPhaseDirectoryCommit, err)
 	}
 	if a == nil || a.directory == nil {
-		return authoritypresence.ErrRouteNotReady
+		return presenceusecase.WrapActivationPhase(presenceusecase.ActivationPhaseDirectoryCommit, authoritypresence.ErrRouteNotReady)
 	}
-	return a.directory.CommitRoute(target, presenceusecase.PendingRouteToken(token))
+	if err := a.directory.CommitRoute(target, presenceusecase.PendingRouteToken(token)); err != nil {
+		return presenceusecase.WrapActivationPhase(presenceusecase.ActivationPhaseDirectoryCommit, err)
+	}
+	return nil
 }
 
 // AbortRoute aborts one exact pending route token.

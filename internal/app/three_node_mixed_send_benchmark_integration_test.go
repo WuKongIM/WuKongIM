@@ -375,7 +375,7 @@ func warmThreeNodeMixedSendChannels(b *testing.B, apps []*App, nodes []*clusterp
 		b.Fatal(firstErr)
 	}
 	if got := sink.failures.Load(); got != 0 {
-		b.Fatalf("warmup non-success SENDACKs = %d reasons=%v", got, sink.failureReasons())
+		b.Fatalf("warmup non-success SENDACKs = %d reasons=%v client_seqs=%v observations=%v stages=%v", got, sink.failureReasons(), sink.failureClientSeqs(), threeNodeMixedSendackFailures(b, apps), snapshotThreeNodeMixedStages(b, apps))
 	}
 	if got := sink.successes.Load(); got != uint64(total) {
 		b.Fatalf("warmup success SENDACKs = %d, want %d", got, total)

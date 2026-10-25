@@ -31,7 +31,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
 
 1. The service reserves a Channel key and submits an append; the reactor fences
    role, epochs, optional exact durable route, write admission and capacity, while workers durably
-   append in order and local or quorum progress completes aligned futures.
+   append in order and local or quorum progress completes aligned futures. Optional first-effect observation separately times reserve, submit and future wait; the wait includes reactor/quorum completion and preserves each original owner's item outcome, never implying pure storage time.
    Borrowed payload and publication-metadata bytes are cloned at admission; an adapter-owned append
    may explicitly transfer immutable payloads that downstream state, quorum,
    and storage submissions share while copying record metadata.

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 // channelAppendAuthorityLocal admits RPC-forwarded sends to the local authority reactor.
@@ -15,11 +16,15 @@ func (l channelAppendAuthorityLocal) SubmitForAuthority(ctx context.Context, tar
 	if l.group == nil {
 		return channelAppendErrorResults(len(items), channelappend.ErrRouteNotReady)
 	}
+	submitSpan := rpctrace.Begin(ctx, rpctrace.StageChannelSubmit)
 	future, err := l.group.SubmitLocal(ctx, target, items)
+	submitSpan.End(rpctrace.ResultFor(err))
 	if err != nil {
 		return channelAppendErrorResults(len(items), err)
 	}
+	waitSpan := rpctrace.Begin(ctx, rpctrace.StageChannelFutureWait)
 	results, err := future.Wait(ctx)
+	waitSpan.End(rpctrace.ResultFor(err))
 	if err != nil {
 		return channelAppendErrorResults(len(items), err)
 	}

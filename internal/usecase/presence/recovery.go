@@ -20,28 +20,67 @@ type RecoveryOwners interface {
 	RecoverRoutes(context.Context, RouteTarget, []string) ([]Route, error)
 }
 
+// RecoveryOptions controls optional diagnostic accounting without changing
+// proof, deadlines or publication behavior.
+type RecoveryOptions struct {
+	// ResultCensus scans decoded result/page structure. Enable only with the
+	// existing opt-in RPC diagnostics; cheap scheduler counts are always retained.
+	ResultCensus bool
+}
+
+// NewAuthorityRecoveryWithOptions fixes diagnostic accounting at construction.
+func NewAuthorityRecoveryWithOptions(directory RecoveryDirectory, owners RecoveryOwners, options RecoveryOptions) *AuthorityRecovery {
+	r := &AuthorityRecovery{directory: directory, owners: owners, resultCensus: options.ResultCensus,
+		inFlight: make(map[recoveryUIDKey]*recoveryUIDFlight), members: make(map[*recoveryMember]struct{}),
+		active: make(map[*recoveryExecution]struct{}), drained: make(chan struct{})}
+	if bounded, ok := owners.(RecoveryCallBatchOwnersBounded); ok && bounded.SupportsBoundedRecoveryResults() {
+		r.boundedOwners = bounded
+		r.resultBudget = NewRecoveryResultBudget(RecoveryResultMaxRows, RecoveryResultMaxBytes)
+	}
+	return r
+}
+
 // AuthorityRecovery reconstructs requested UIDs with bounded owner queries.
 // Bounded UID flights coalesce overlapping proofs without per-UID goroutines.
 // Directory ownership fences every completion.
 type AuthorityRecovery struct {
 	directory RecoveryDirectory
 	owners    RecoveryOwners
-	// mu protects admission accounting only; it never spans owner I/O or waits.
+	// boundedOwners is fixed at construction only after all provider paths opt in.
+	boundedOwners RecoveryCallBatchOwnersBounded
+	resultBudget  *RecoveryResultBudget
+	// resultCensus is fixed before admission; disabled operation never scans
+	// decoded pages/results or selects the observed provider capability.
+	resultCensus bool
+	// mu protects the joint FIFO, identity and ownership budgets; never owner I/O.
 	mu sync.Mutex
-	// inFlight retains only admitted UID identities and completion status.
+	// inFlight owns fenced UID clones until their provider and installation join.
 	inFlight map[recoveryUIDKey]*recoveryUIDFlight
-	// ownedUIDBytes counts exact UID clones retained by admitted leaders only.
+	// ownedUIDBytes covers UID clones and conservative caller/index metadata.
 	ownedUIDBytes int
-	// cohorts bounds caller-executed owner rounds, including downstream admission.
-	cohorts int
-	// changed wakes quota waiters without retaining a per-waiter queue.
-	changed chan struct{}
+	// members charges waiting and active callers together, including canceled
+	// creators whose actual provider still owns their work.
+	members map[*recoveryMember]struct{}
+	// queue is FIFO and contains only accepted, unfinished work.
+	queue []*recoveryWork
+	// active bounds actual batches independently of original-call result credits.
+	active map[*recoveryExecution]struct{}
+	// resultCalls counts original calls through provider completion and install.
+	// Legacy ports cap this at 16; bounded ports separately charge actual results.
+	resultCalls int
+	// census stores fixed aggregate dispatch/result observations under mu.
+	census RecoveryStats
+	// dispatchPending gives ready admissions/completions one temporary dispatcher.
+	dispatchPending bool
+	// closed fences admission; drained closes only after callers and real work join.
+	closed      bool
+	drained     chan struct{}
+	drainClosed bool
 }
 
 // NewAuthorityRecovery creates bounded UID proof admission for owner reconstruction.
 func NewAuthorityRecovery(directory RecoveryDirectory, owners RecoveryOwners) *AuthorityRecovery {
-	return &AuthorityRecovery{directory: directory, owners: owners,
-		inFlight: make(map[recoveryUIDKey]*recoveryUIDFlight), changed: make(chan struct{})}
+	return NewAuthorityRecoveryWithOptions(directory, owners, RecoveryOptions{})
 }
 
 // RecoveryBatchOwners returns aligned proofs while sharing each owner read

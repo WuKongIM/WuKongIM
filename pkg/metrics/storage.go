@@ -23,6 +23,10 @@ type StorageMetrics struct {
 	diskUsageBytes                  *prometheus.GaugeVec
 	pebbleDiskUsageBytes            *prometheus.GaugeVec
 	pebbleReadAmplification         *prometheus.GaugeVec
+	pebbleBlockCacheSizeBytes       *prometheus.GaugeVec
+	pebbleBlockCacheHits            *prometheus.GaugeVec
+	pebbleBlockCacheMisses          *prometheus.GaugeVec
+	pebbleMemTableReservedSizeBytes *prometheus.GaugeVec
 	pebbleMemTableSizeBytes         *prometheus.GaugeVec
 	pebbleMemTableCount             *prometheus.GaugeVec
 	pebbleWALFiles                  *prometheus.GaugeVec
@@ -80,6 +84,22 @@ type storageChannelEntryAtomicSnapshot struct {
 	reclaimTotal      atomic.Uint64
 }
 
+// StorageNativeCommitObservation carries one physical native commit's timings.
+// Availability is independent of duration: missing calls must not appear as zeros.
+// The timings overlap or nest and must not be added to the coordinator total.
+type StorageNativeCommitObservation struct {
+	Available                   bool
+	TotalDuration               time.Duration
+	SemaphoreWaitDuration       time.Duration
+	WALQueueWaitDuration        time.Duration
+	MemTableWriteStallDuration  time.Duration
+	L0ReadAmpWriteStallDuration time.Duration
+	WALRotationDuration         time.Duration
+	// CommitWaitDuration includes publication ordering and WAL sync completion;
+	// it is not a filesystem-fsync measurement.
+	CommitWaitDuration time.Duration
+}
+
 // StorageCommitBatchObservation describes one grouped storage commit attempt.
 type StorageCommitBatchObservation struct {
 	Requests        int
@@ -90,6 +110,8 @@ type StorageCommitBatchObservation struct {
 	CommitDuration  time.Duration
 	PublishDuration time.Duration
 	TotalDuration   time.Duration
+	// Native is observed only when the physical engine supplied a completed sample.
+	Native StorageNativeCommitObservation
 }
 
 // StorageCommitRequestObservation describes one logical storage commit request wait.
@@ -111,6 +133,15 @@ type StoragePebbleObservation struct {
 	IdempotencyNegativeFilterSkips uint64
 	// IdempotencyPointReads is the number of possible filter hits verified durably.
 	IdempotencyPointReads uint64
+	// BlockCacheSizeBytes is the current retained block-cache bytes, not its capacity.
+	BlockCacheSizeBytes int64
+	// BlockCacheHits counts block reads served from the cache since this store opened.
+	BlockCacheHits int64
+	// BlockCacheMisses counts block reads that missed the cache since this store opened.
+	BlockCacheMisses int64
+	// MemTableReservedSizeBytes is cache accounting for active, recycled and reader-pinned
+	// memtable arenas. It excludes flushable-batch backing and is not total cache reservations or RSS.
+	MemTableReservedSizeBytes uint64
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -213,6 +244,26 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		pebbleDiskUsageBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_storage_pebble_disk_usage_bytes",
 			Help:        "Pebble local disk usage by storage subsystem in bytes.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleBlockCacheSizeBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_block_cache_size_bytes",
+			Help:        "Current retained Pebble block-cache bytes by storage subsystem; not cache capacity.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleBlockCacheHits: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_block_cache_hits",
+			Help:        "Pebble block-cache hits since the store opened by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleBlockCacheMisses: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_block_cache_misses",
+			Help:        "Pebble block-cache misses since the store opened by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleMemTableReservedSizeBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_memtable_reserved_size_bytes",
+			Help:        "Pebble memtable arena reservations (active, recycled and reader-pinned) by storage subsystem in bytes; excludes flushable-batch backing and is not RSS.",
 			ConstLabels: labels,
 		}, []string{"store"}),
 		pebbleReadAmplification: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -465,6 +516,10 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		m.diskUsageBytes,
 		m.pebbleDiskUsageBytes,
 		m.pebbleReadAmplification,
+		m.pebbleBlockCacheSizeBytes,
+		m.pebbleBlockCacheHits,
+		m.pebbleBlockCacheMisses,
+		m.pebbleMemTableReservedSizeBytes,
 		m.pebbleMemTableSizeBytes,
 		m.pebbleMemTableCount,
 		m.pebbleWALFiles,
@@ -556,6 +611,10 @@ func (m *StorageMetrics) SetPebbleMetrics(store string, obs StoragePebbleObserva
 	}
 	m.pebbleDiskUsageBytes.WithLabelValues(store).Set(float64(obs.DiskSpaceUsageBytes))
 	m.pebbleReadAmplification.WithLabelValues(store).Set(float64(obs.ReadAmplification))
+	m.pebbleBlockCacheSizeBytes.WithLabelValues(store).Set(float64(obs.BlockCacheSizeBytes))
+	m.pebbleBlockCacheHits.WithLabelValues(store).Set(float64(obs.BlockCacheHits))
+	m.pebbleBlockCacheMisses.WithLabelValues(store).Set(float64(obs.BlockCacheMisses))
+	m.pebbleMemTableReservedSizeBytes.WithLabelValues(store).Set(float64(obs.MemTableReservedSizeBytes))
 	m.pebbleMemTableSizeBytes.WithLabelValues(store).Set(float64(obs.MemTableSizeBytes))
 	m.pebbleMemTableCount.WithLabelValues(store).Set(float64(obs.MemTableCount))
 	m.pebbleWALFiles.WithLabelValues(store).Set(float64(obs.WALFiles))
@@ -629,6 +688,16 @@ func (m *StorageMetrics) ObserveCommitBatch(store string, result string, obs Sto
 	m.commitBatchDuration.WithLabelValues(store, "commit", result).Observe(obs.CommitDuration.Seconds())
 	m.commitBatchDuration.WithLabelValues(store, "publish", result).Observe(obs.PublishDuration.Seconds())
 	m.commitBatchDuration.WithLabelValues(store, "total", result).Observe(obs.TotalDuration.Seconds())
+	// Keep all native and coordinator observations within the existing atomic scrape cut.
+	if obs.Native.Available {
+		m.commitBatchDuration.WithLabelValues(store, "native_total", result).Observe(obs.Native.TotalDuration.Seconds())
+		m.commitBatchDuration.WithLabelValues(store, "native_semaphore_wait", result).Observe(obs.Native.SemaphoreWaitDuration.Seconds())
+		m.commitBatchDuration.WithLabelValues(store, "native_wal_queue_wait", result).Observe(obs.Native.WALQueueWaitDuration.Seconds())
+		m.commitBatchDuration.WithLabelValues(store, "native_memtable_write_stall", result).Observe(obs.Native.MemTableWriteStallDuration.Seconds())
+		m.commitBatchDuration.WithLabelValues(store, "native_l0_read_amp_write_stall", result).Observe(obs.Native.L0ReadAmpWriteStallDuration.Seconds())
+		m.commitBatchDuration.WithLabelValues(store, "native_wal_rotation", result).Observe(obs.Native.WALRotationDuration.Seconds())
+		m.commitBatchDuration.WithLabelValues(store, "native_commit_wait", result).Observe(obs.Native.CommitWaitDuration.Seconds())
+	}
 }
 
 func (m *StorageMetrics) ObserveCommitRequest(store string, lane string, result string, obs StorageCommitRequestObservation) {

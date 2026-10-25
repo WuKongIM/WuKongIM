@@ -850,7 +850,7 @@ func (s *Server) runAuthTask(task asyncAuthTask) {
 				return
 			}
 			failure = authFailureForActivationError(err)
-			s.logAuthFailure(state, connect, failure, err)
+			s.logAuthFailure(state, connect, failure, err, activationFailureLogFields(err)...)
 			if state.isClosed() {
 				suppressObservation = true
 				return
@@ -986,7 +986,21 @@ func authFailureForActivationError(err error) string {
 	return authFailureActivationError
 }
 
-func (s *Server) logAuthFailure(state *sessionState, connect *frame.ConnectPacket, failure string, err error) {
+// activationFailureLogFields bounds optional data from the failed activation
+// error only. An oversized group provides no partial evidence.
+func activationFailureLogFields(err error) []wklog.Field {
+	var metadata gatewaytypes.AuthFailureLogFields
+	if !errors.As(err, &metadata) {
+		return nil
+	}
+	fields := metadata.GatewayAuthFailureLogFields()
+	if len(fields) > 32 {
+		return nil
+	}
+	return fields
+}
+
+func (s *Server) logAuthFailure(state *sessionState, connect *frame.ConnectPacket, failure string, err error, extraFields ...wklog.Field) {
 	if s == nil || s.options.Logger == nil || err == nil {
 		return
 	}
@@ -1006,7 +1020,7 @@ func (s *Server) logAuthFailure(state *sessionState, connect *frame.ConnectPacke
 			wklog.String("device_id", connect.DeviceID),
 		)
 	}
-	s.options.Logger.Warn("gateway auth failed", fields...)
+	s.options.Logger.Warn("gateway auth failed", append(fields, extraFields...)...)
 }
 
 func (s *Server) onClose(listener *listenerRuntime, conn transport.Conn, err error) {

@@ -457,7 +457,12 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	if cut.Kind == CoordinatorCutTerminal && !verdict.Terminal {
 		switch {
 		case c.cfg.Stage == StageRehearsal:
-			verdict.Outcome, verdict.Cause, verdict.Terminal = VerdictRehearsalPass, VerdictCauseRehearsalCompleted, true
+			// Elapsed rehearsal time does not prove a measured latency window.
+			if c.qualifiedLatencyAt(cut.At) {
+				verdict.Outcome, verdict.Cause, verdict.Terminal = VerdictRehearsalPass, VerdictCauseRehearsalCompleted, true
+			} else {
+				verdict.Outcome, verdict.Cause, verdict.Terminal = VerdictHarnessInvalid, VerdictCauseInvalidObservation, true
+			}
 		case c.cfg.Mode == ModeCapacity && cut.Capacity.Terminal:
 			verdict = terminalCapacityVerdict(cut.Capacity)
 		default:
@@ -687,6 +692,12 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 			current = signal
 		}
 	}
+	// Drain and final reconciliation do not create latency samples. A success
+	// whose measured source aged past the fixed cut limit becomes incomplete
+	// evidence; any already observed real product failure retains precedence.
+	if validSuccessfulVerdictPair(current.Outcome, current.Cause) && !c.qualifiedLatencyAt(cut.At) {
+		current = VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation}
+	}
 	if current.Outcome != c.frozen.Outcome || current.Cause != c.frozen.Cause {
 		c.frozen.Outcome, c.frozen.Cause, c.frozen.Terminal = current.Outcome, current.Cause, true
 	}
@@ -757,7 +768,8 @@ func (c *ProductionEvidenceController) checkpointEvidenceLocked(
 		DatasetDigest: c.datasetDigest, TopologyValidated: true,
 		Lifecycle: lifecycle, MetaCreate: c.accounting.Snapshot(),
 		Resources: observation.ResourceEvidence, Cluster: observation.ClusterEvidence,
-		Verdict: verdict, Capacity: capacity.ReportEvidence(), Continuous: c.continuous,
+		LatencyWindow: c.evaluator.LatencyWindowEvidence(),
+		Verdict:       verdict, Capacity: capacity.ReportEvidence(), Continuous: c.continuous,
 	}
 }
 
@@ -822,4 +834,15 @@ func coordinatorOutcomeForVerdict(verdict VerdictSnapshot) CoordinatorOutcome {
 	default:
 		return CoordinatorHarnessInvalid
 	}
+}
+
+// qualifiedLatencyAt evaluates source freshness without moving the reducer's
+// last latency timestamp to a later resource, drain, or report cut.
+func (c *ProductionEvidenceController) qualifiedLatencyAt(at time.Time) bool {
+	if c.evaluator == nil || at.IsZero() {
+		return false
+	}
+	window := c.evaluator.LatencyWindowEvidence()
+	elapsed := at.Sub(c.start.StartedAt)
+	return window.Qualified == ([3]bool{true, true, true}) && window.WindowEndElapsed <= elapsed && elapsed-window.WindowEndElapsed <= window.MaxAge
 }

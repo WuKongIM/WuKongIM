@@ -46,12 +46,13 @@ func TestCheckpointRecorderKeepsFormalQualificationAndFinalOnOneFence(t *testing
 		}
 	}
 
-	finalSnapshots := coordinatorSnapshotFixture(fence, 202, 72*time.Hour, 2_000)
+	finalSnapshots := qualifiedCheckpointSnapshotFixture(fence, 202, 72*time.Hour, 2_000)
 	for index := range finalSnapshots {
 		finalSnapshots[index].Phase = WorkerPhaseFinal
 	}
 	finalEvidence := checkpointEvidenceFixture(true)
 	finalEvidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
+	finalEvidence.LatencyWindow = qualifiedLatencyWindowFixture(start, start.Add(cfg.Thresholds.Timeline.Final))
 	final, err := captureCheckpoint(t, recorder, start.Add(cfg.Thresholds.Timeline.Final), finalSnapshots, finalEvidence)
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +86,8 @@ func TestCheckpointRecorderKeepsDatasetDigestAcrossContinuousCuts(t *testing.T) 
 	final := checkpointEvidenceFixture(false)
 	final.DatasetDigest = hashReportValue("different-live-dataset")
 	final.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
-	snapshots := coordinatorSnapshotFixture(fence, 2, 72*time.Hour, 2)
+	final.LatencyWindow = qualifiedLatencyWindowFixture(start, start.Add(72*time.Hour))
+	snapshots := qualifiedCheckpointSnapshotFixture(fence, 2, 72*time.Hour, 2)
 	for index := range snapshots {
 		snapshots[index].Phase = WorkerPhaseFinal
 	}
@@ -171,7 +173,8 @@ func TestCheckpointFinalPassRequiresQualificationAndContinuousWorkerUptime(t *te
 	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "assignment-4", Generation: 2}
 	passing := checkpointEvidenceFixture(true)
 	passing.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
-	finalSnapshots := coordinatorSnapshotFixture(fence, 2, 72*time.Hour, 2)
+	passing.LatencyWindow = qualifiedLatencyWindowFixture(start, start.Add(72*time.Hour))
+	finalSnapshots := qualifiedCheckpointSnapshotFixture(fence, 2, 72*time.Hour, 2)
 	for index := range finalSnapshots {
 		finalSnapshots[index].Phase = WorkerPhaseFinal
 	}
@@ -225,7 +228,8 @@ func TestCheckpointCapacityPassCanCloseBeforeSoakTimelineFinal(t *testing.T) {
 	}
 	evidence := checkpointEvidenceFixture(true)
 	evidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
-	snapshots := coordinatorSnapshotFixture(fence, 1, 2*time.Hour, 10)
+	evidence.LatencyWindow = qualifiedLatencyWindowFixture(start, start.Add(2*time.Hour))
+	snapshots := qualifiedCheckpointSnapshotFixture(fence, 1, 2*time.Hour, 10)
 	for index := range snapshots {
 		snapshots[index].Phase = WorkerPhaseFinal
 	}
@@ -250,7 +254,8 @@ func TestCheckpointRehearsalPassIsDistinctAndEndsAtTwoHours(t *testing.T) {
 	}
 	evidence := checkpointEvidenceFixture(false)
 	evidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictRehearsalPass, Cause: VerdictCauseRehearsalCompleted}
-	snapshots := coordinatorSnapshotFixture(fence, 1, 2*time.Hour, 10)
+	evidence.LatencyWindow = qualifiedLatencyWindowFixture(start, start.Add(cfg.measuredDuration()))
+	snapshots := qualifiedCheckpointSnapshotFixture(fence, 1, 2*time.Hour, 10)
 	for index := range snapshots {
 		snapshots[index].Phase = WorkerPhaseFinal
 	}
@@ -285,7 +290,8 @@ func TestCheckpointDirectRehearsalUsesTrustedRunDuration(t *testing.T) {
 	}
 	evidence := checkpointEvidenceFixture(false)
 	evidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictRehearsalPass, Cause: VerdictCauseRehearsalCompleted}
-	snapshots := coordinatorSnapshotFixture(fence, 1, cfg.RunDuration, 10)
+	evidence.LatencyWindow = qualifiedLatencyWindowFixture(start, start.Add(cfg.measuredDuration()))
+	snapshots := qualifiedCheckpointSnapshotFixture(fence, 1, cfg.RunDuration, 10)
 	for index := range snapshots {
 		snapshots[index].Phase = WorkerPhaseFinal
 	}
@@ -440,12 +446,13 @@ func TestCheckpointRecorderUsesProcessElapsedForSuccessfulFinalAcrossWallClockSl
 	const backwardsSlew = 200 * time.Microsecond
 	recorder.processStart = recorder.processStart.Add(-backwardsSlew)
 	wallCut := start.Add(cfg.measuredDuration() - backwardsSlew)
-	snapshots := coordinatorSnapshotFixture(fence, 2, cfg.measuredDuration(), 2)
+	snapshots := qualifiedCheckpointSnapshotFixture(fence, 2, cfg.measuredDuration(), 2)
 	for index := range snapshots {
 		snapshots[index].Phase = WorkerPhaseFinal
 	}
 	evidence := checkpointEvidenceFixture(true)
 	evidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
+	evidence.LatencyWindow = qualifiedLatencyWindowFixture(start, wallCut)
 	report, err := captureCheckpoint(t, recorder, wallCut, snapshots, evidence)
 	if err != nil {
 		t.Fatalf("successful final after monotonic deadline: %v", err)

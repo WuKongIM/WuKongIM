@@ -42,6 +42,8 @@ type Options struct {
 
 type DB struct {
 	db *pebble.DB
+	// storageEvents owns fixed-size disk/stall aggregates for this DB lifetime.
+	storageEvents *storageEvents
 
 	options Options
 	// snapshotStore manages external snapshot chunk directories for this DB.
@@ -89,7 +91,8 @@ func Open(path string, opts Options) (*DB, error) {
 		return nil, err
 	}
 
-	pebbleOptions := &pebble.Options{}
+	storageEvents := newStorageEvents(time.Now)
+	pebbleOptions := &pebble.Options{EventListener: storageEvents.listener()}
 	if normalized.Logger != nil {
 		pebbleOptions.Logger = wklog.NewDependencyLogger(normalized.Logger, "pebble")
 	}
@@ -101,6 +104,7 @@ func Open(path string, opts Options) (*DB, error) {
 
 	db := &DB{
 		db:                  pdb,
+		storageEvents:       storageEvents,
 		options:             normalized,
 		snapshotStore:       newSnapshotStore(normalized.SnapshotPath, normalized.SnapshotChunkSize),
 		writeCh:             make(chan *writeRequest, defaultWriteChSize),

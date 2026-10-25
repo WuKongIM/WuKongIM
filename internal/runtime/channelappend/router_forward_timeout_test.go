@@ -86,7 +86,7 @@ func TestRouterCallerDeadlineInvalidatesWithoutRetry(t *testing.T) {
 		item.Context = ctx
 		router := NewRouter(RouterOptions{LocalNodeID: 7, Resolver: resolver, Remote: remote})
 		got := router.SendBatch([]SendBatchItem{item})
-		if got[0].Err != context.DeadlineExceeded || remote.calls != 1 || len(resolver.invalidated) != 1 {
+		if !errors.Is(got[0].Err, context.DeadlineExceeded) || remote.calls != 1 || len(resolver.invalidated) != 1 {
 			t.Fatalf("result=%+v calls=%d invalidations=%d", got, remote.calls, len(resolver.invalidated))
 		}
 	})

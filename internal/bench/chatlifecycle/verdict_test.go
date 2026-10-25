@@ -313,10 +313,10 @@ func TestLatencyWindowHonorsWarmupExactQuantileEdgesAndAnomalies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	warmupEnd := start.Add(thresholds.Timeline.Warmup)
+	warmupEnd := start.Add(thresholds.Timeline.LatencyWarmup)
 	preWarm := LatencyCountersForThresholds(thresholds.Latency)
 	preWarm.Hot.Count, preWarm.Hot.AboveP99, preWarm.Hot.AboveP999, preWarm.Hot.Above10Seconds = 100, 100, 100, 100
-	if err := evaluator.Observe(VerdictObservation{At: warmupEnd.Add(-time.Hour), Latency: &preWarm}); err != nil {
+	if err := evaluator.Observe(VerdictObservation{At: warmupEnd.Add(-time.Minute), Latency: &preWarm}); err != nil {
 		t.Fatal(err)
 	}
 	if got := evaluator.Snapshot(); got.Terminal || got.LatencyWarnings.Hot != 0 {
@@ -368,7 +368,7 @@ func TestLatencyWindowRequiresFiveFullMinutesOfBreach(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	warmupEnd := start.Add(thresholds.Timeline.Warmup)
+	warmupEnd := start.Add(thresholds.Timeline.LatencyWarmup)
 	counters := LatencyCountersForThresholds(thresholds.Latency)
 	if err := evaluator.Observe(VerdictObservation{At: warmupEnd, Latency: &counters}); err != nil {
 		t.Fatal(err)
@@ -421,7 +421,7 @@ func TestLatencyWindowUsesReviewedSoakAttribution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			warmupEnd := start.Add(thresholds.Timeline.Warmup)
+			warmupEnd := start.Add(thresholds.Timeline.LatencyWarmup)
 			counters := LatencyCountersForThresholds(thresholds.Latency)
 			if err := evaluator.Observe(VerdictObservation{
 				At: warmupEnd, Latency: &counters, LatencyAttribution: test.attribution,
@@ -462,7 +462,7 @@ func TestLatencyWindowUsesColdAndSyncThresholdClasses(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			warmupEnd := start.Add(thresholds.Timeline.Warmup)
+			warmupEnd := start.Add(thresholds.Timeline.LatencyWarmup)
 			counters := LatencyCountersForThresholds(thresholds.Latency)
 			if err := evaluator.Observe(VerdictObservation{At: warmupEnd, Latency: &counters}); err != nil {
 				t.Fatal(err)
@@ -487,7 +487,7 @@ func TestLatencyAnomalyRetentionIsBoundedWithoutBecomingTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	warmupEnd := start.Add(thresholds.Timeline.Warmup)
+	warmupEnd := start.Add(thresholds.Timeline.LatencyWarmup)
 	counters := LatencyCountersForThresholds(thresholds.Latency)
 	if err := evaluator.Observe(VerdictObservation{At: warmupEnd, Latency: &counters}); err != nil {
 		t.Fatal(err)
@@ -509,7 +509,7 @@ func TestLatencyAnomalyRetentionIsBoundedWithoutBecomingTerminal(t *testing.T) {
 func TestVerdictLateLatencyBaselineAndInvalidObservationsFreezeHarness(t *testing.T) {
 	start := time.Unix(90_000, 0)
 	thresholds := FormalConfig().Thresholds
-	warmupEnd := start.Add(thresholds.Timeline.Warmup)
+	warmupEnd := start.Add(thresholds.Timeline.LatencyWarmup)
 
 	late, err := NewVerdictEvaluator(start, thresholds)
 	if err != nil {

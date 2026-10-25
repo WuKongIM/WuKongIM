@@ -23,6 +23,8 @@ type Config struct {
 	Limits core.Limits
 	// Observer receives peer pool and connection pressure events; nil disables observation callbacks.
 	Observer core.Observer
+	// ReceiveTracing carries the client's immutable sampled-receive enablement.
+	ReceiveTracing bool
 	// Dial creates a raw network connection to a resolved address.
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
 }
@@ -98,7 +100,20 @@ func (m *Manager) Acquire(ctx context.Context, nodeID core.NodeID, shardKey uint
 		peer, slot := m.slotLocked(nodeID, slotIndex)
 		if slot.conn != nil {
 			if connDone(slot.conn) {
-				slot.conn = nil
+				// Keep the retiring generation discoverable by Stop until its
+				// writer releases all transferred payloads. Reconnect cannot
+				// accumulate hidden generations behind a blocked cleanup.
+				retiring := slot.conn
+				m.mu.Unlock()
+				if err := retiring.WaitContext(ctx); err != nil {
+					return nil, err
+				}
+				m.mu.Lock()
+				if slot.conn == retiring {
+					slot.conn = nil
+				}
+				m.mu.Unlock()
+				continue
 			} else {
 				c := slot.conn
 				m.mu.Unlock()
@@ -273,7 +288,7 @@ func (m *Manager) dialConn(ctx context.Context, nodeID core.NodeID) (*conn.Conn,
 		}
 		return nil, fmt.Errorf("%w: %v", core.ErrDialFailed, err)
 	}
-	c := conn.New(raw, conn.Config{Limits: m.cfg.Limits, Observer: m.cfg.Observer, NodeID: nodeID}, nil)
+	c := conn.New(raw, conn.Config{Limits: m.cfg.Limits, Observer: m.cfg.Observer, NodeID: nodeID, ReceiveTracing: m.cfg.ReceiveTracing}, nil)
 	c.Start()
 	return c, nil
 }

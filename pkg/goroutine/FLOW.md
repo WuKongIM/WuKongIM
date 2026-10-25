@@ -48,6 +48,8 @@ closure, dependency order, and restart policy.
   authority, and capability values remain ordinary data.
 - Permission and runtime-metadata batch fanout use distinct fixed Slot task
   identities and bounded worker cohorts.
+- Transport shutdown has one dynamic owner per client/server; caller deadline expiry retains request, late dial, connection, executor and observer responsibility until a later join succeeds.
+- Presence recovery uses one dynamic re-panic identity for bounded on-demand workers; the usecase closes admission and joins owners before cluster shutdown.
 - Cold conversation reads activate runtime metadata through one bounded Cluster
   burst identity instead of untracked request-scoped workers.
 - MQTT shared-copy confirmation uses a Cluster burst identity, at most four joined
@@ -61,7 +63,6 @@ closure, dependency order, and restart policy.
 - MQTT owner sweeping, deadline, replay, Will, consumer, connection and delivery scheduling each use an optional singleton per
   node, with separate bounded Will/consumer/connection/delivery worker pools. Owners join work before stopping
   dependencies; ClientID/hash Slot never label tasks.
-
 - Message-update reads have a fixed Slot burst identity with at most four workers per request; durable notification/retention repair has one supervised Message singleton. Ready
   and repair dispatch share a separate Message burst identity for at most four
   joined lanes per worker, preserving singleton health accounting.

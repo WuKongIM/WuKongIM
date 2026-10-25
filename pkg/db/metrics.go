@@ -11,6 +11,15 @@ type StorageEngineMetrics struct {
 	IdempotencyNegativeFilterSkips uint64
 	// IdempotencyPointReads is the number of possible filter hits verified durably.
 	IdempotencyPointReads uint64
+	// BlockCacheSizeBytes is the current retained block-cache bytes, not its capacity.
+	BlockCacheSizeBytes int64
+	// BlockCacheHits counts block reads served from the cache since this store opened.
+	BlockCacheHits int64
+	// BlockCacheMisses counts block reads that missed the cache since this store opened.
+	BlockCacheMisses int64
+	// MemTableReservedSizeBytes is cache accounting for active, recycled and reader-pinned
+	// memtable arenas. It excludes flushable-batch backing and is not total cache reservations or RSS.
+	MemTableReservedSizeBytes uint64
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -104,6 +113,10 @@ func storageEngineMetricsFromMessageEngine(snapshot message.EngineMetricsSnapsho
 	return StorageEngineMetrics{
 		IdempotencyNegativeFilterSkips: snapshot.IdempotencyNegativeFilterSkips,
 		IdempotencyPointReads:          snapshot.IdempotencyPointReads,
+		BlockCacheSizeBytes:            snapshot.BlockCacheSizeBytes,
+		BlockCacheHits:                 snapshot.BlockCacheHits,
+		BlockCacheMisses:               snapshot.BlockCacheMisses,
+		MemTableReservedSizeBytes:      snapshot.MemTableReservedSizeBytes,
 		DiskSpaceUsageBytes:            snapshot.DiskSpaceUsageBytes,
 		ReadAmplification:              snapshot.ReadAmplification,
 		MemTableSizeBytes:              snapshot.MemTableSizeBytes,
@@ -139,6 +152,10 @@ func storageEngineMetricsFromMessageEngine(snapshot message.EngineMetricsSnapsho
 
 func storageEngineMetricsFromEngine(snapshot engine.MetricsSnapshot) StorageEngineMetrics {
 	return StorageEngineMetrics{
+		BlockCacheSizeBytes:          snapshot.BlockCacheSizeBytes,
+		BlockCacheHits:               snapshot.BlockCacheHits,
+		BlockCacheMisses:             snapshot.BlockCacheMisses,
+		MemTableReservedSizeBytes:    snapshot.MemTableReservedSizeBytes,
 		DiskSpaceUsageBytes:          snapshot.DiskSpaceUsageBytes,
 		ReadAmplification:            snapshot.ReadAmplification,
 		MemTableSizeBytes:            snapshot.MemTableSizeBytes,

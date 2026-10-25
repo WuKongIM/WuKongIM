@@ -19,7 +19,10 @@ const (
 	// BudgetVersion is used only after a version-1 capability exchange.
 	BudgetVersion uint8 = 2
 	// CapabilityServiceID is reserved by the transport, outside cluster service IDs.
-	CapabilityServiceID      uint16 = 65535
+	CapabilityServiceID uint16 = 65535
+	// TraceCapabilityServiceID negotiates request observation independently of budgets.
+	TraceCapabilityServiceID uint16 = 65534
+	CapabilityRPCTrace              = "wukongim/rpc-trace/1"
 	CapabilityRequestBudgets        = "wukongim/request-budgets/1"
 
 	// ResponseOK marks a successful RPC response payload.

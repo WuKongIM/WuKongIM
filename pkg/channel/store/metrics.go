@@ -16,6 +16,15 @@ type MessageDBFactoryMetricsSnapshot struct {
 	IdempotencyPointReads uint64
 	// ChannelEntries contains aggregate canonical entry ownership for the message store.
 	ChannelEntries messagedb.ChannelEntryMetricsSnapshot
+	// BlockCacheSizeBytes is the current retained block-cache bytes, not its capacity.
+	BlockCacheSizeBytes int64
+	// BlockCacheHits counts block reads served from the cache since this store opened.
+	BlockCacheHits int64
+	// BlockCacheMisses counts block reads that missed the cache since this store opened.
+	BlockCacheMisses int64
+	// MemTableReservedSizeBytes is cache accounting for active, recycled and reader-pinned
+	// memtable arenas. It excludes flushable-batch backing and is not total cache reservations or RSS.
+	MemTableReservedSizeBytes uint64
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -111,6 +120,10 @@ func messageFactoryMetricsFromSnapshot(snapshot messagedb.EngineMetricsSnapshot)
 		DurablePredecessorValidations:  snapshot.DurablePredecessorValidations,
 		IdempotencyNegativeFilterSkips: snapshot.IdempotencyNegativeFilterSkips,
 		IdempotencyPointReads:          snapshot.IdempotencyPointReads,
+		BlockCacheSizeBytes:            snapshot.BlockCacheSizeBytes,
+		BlockCacheHits:                 snapshot.BlockCacheHits,
+		BlockCacheMisses:               snapshot.BlockCacheMisses,
+		MemTableReservedSizeBytes:      snapshot.MemTableReservedSizeBytes,
 		DiskSpaceUsageBytes:            snapshot.DiskSpaceUsageBytes,
 		ReadAmplification:              snapshot.ReadAmplification,
 		MemTableSizeBytes:              snapshot.MemTableSizeBytes,

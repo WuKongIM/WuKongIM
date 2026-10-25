@@ -337,6 +337,7 @@ func (g *Group) SubmitLocal(ctx context.Context, target AuthorityTarget, items [
 
 	copiedItems := copySendBatchItems(items)
 	future := newFuture(len(copiedItems))
+	future.rpcTrace = newSubmissionTrace(ctx, len(copiedItems))
 	future.setOnDone(shard.releaseAdmission)
 	writer := shard.getOrCreate(target)
 	if writer.enqueue(submittedBatch{target: target, items: copiedItems, future: future}) {

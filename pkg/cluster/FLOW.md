@@ -23,8 +23,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    Slots/Channels and exposes readiness. Default metadata enables its sequence seal
    before Slot construction. Only initial Node.Start permits certified FSM reuse or
    bounded installation with admission closed; live placement and maintenance reloads
-   retain atomic restore. Stop and failed-start rollback release owned proposal/task/status
-   references; Start rebuilds them while preserving injected adapters. Quorum gateways register anew per transport server.
+   retain atomic restore. Stop and failed-start rollback join incoming RPCs, then outbound owners before dependency cleanup; incomplete joins retain the same resources for retry.
+   Start joins retained generations before rebuilding owned references, preserving injected adapters. Quorum gateways register anew per transport server.
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    expose bounded exact-key UID membership reads and group Channel- or UID-owned
    work by physical Slot, execute locally or forward, and recheck leadership.
@@ -95,9 +95,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Scalar Slot mapping reads the current foreground table without copying
   placement peers or looking up an unused diagnostic epoch; lifecycle,
   missing-mapping and observed-Leader checks remain the same as full routing.
-- Desired ownership never substitutes for an observed leader. Client and server Will idempotency lookups return local candidates, never committed proof.
-  Missing, stale, incomplete, duplicate, or mismatched authority evidence
-  fails readiness or the foreground operation closed.
+- Desired ownership never substitutes for an observed leader. Client/server Will idempotency lookups return local candidates, never committed proof.
+  Missing, stale, incomplete, duplicate or mismatched authority evidence fails readiness or the foreground operation closed.
 - Slot Raft defaults to a 50 ms local tick, two-tick heartbeat, and 40-tick
   election floor. Heartbeats run every 100 ms and elections start after at
   least two seconds, while proposal replication remains event-driven.
@@ -108,11 +107,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   restart and observed readiness failures invalidate proof. Reuse does not renew
   the proof window or the Channel data-plane lease; Propose-only overrides
   without live Slot status evidence always perform their writes.
-- The data-plane lease expires when the node cannot publish healthy readiness;
-  local Channel leaders then reject new writes without discarding admitted work.
-- Slot and Channel metadata are authoritative at their current owners. Caches,
-  hints, compatibility codecs, and local replicas cannot roll back a newer
-  generation or make migration decisions from stale state.
+- When healthy readiness cannot be published, the data-plane lease expires; local Channel leaders reject new writes without discarding admitted work.
+- Slot and Channel metadata are authoritative at their current owners. Caches, hints, codecs and local replicas
+  cannot roll back newer generations or make migration decisions from stale state.
 - Runtime-meta creation uses one supervised owner per logical Slot: duplicate
   identities coalesce, unique work is bounded and canonical-sorted, placement
   comes from one current revision; every create rereads committed versions, including
@@ -130,17 +127,20 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Maintenance closes business admission before storage replacement and keeps
   only explicitly allowed restore RPC available. Backup and restore retain
   cluster routing and exact authority fences.
-- Node RPC negotiates budget/cancel support through a reserved wire-v1 service;
-  explicit unsupported peers retain v1. Queued work expires under caller budgets
-  or a five-second limit. Execution defaults to 30 seconds (one minute for
-  Operations MCP, five minutes for repository probes, 48 hours for backup/restore).
-  Read-only handlers may follow caller cancellation; started mutations execute
+- Node RPC negotiates budget/cancel via a reserved wire-v1 service; explicit unsupported peers retain v1.
+  Client completion uses one request-owned original-deadline decision; delayed waiters retain timely committed responses, while true expiry remains failed. Queued work expires under caller budgets or five seconds. Execution defaults to 30 seconds
+  (one minute for Operations MCP, five minutes for repository probes, 48 hours for backup/restore).
+  Trusted mixed-service opcode policies preserve read cancellation through Node registration; started mutations execute
   independently. Ready frames batch without an idle coalescing delay.
+- Default-off RPC phase tracing negotiates a connection-generation token before setting a sampled RequestID bit. Trusted registration may classify a fixed operation scalar only for admitted server observations before enqueue; transport retains opaque declarations without business decoding or execution/cancellation changes, and missing observations remain unknown.
+  Both endpoints retain bounded local intervals through the existing observer drain. Selected bound server declarations may retain 16 atomic dispatch points with explicit unknowns and a separate planned queue deadline; concurrent points are not totally ordered. The same runtime enablement controls optional Slot barrier subphases; no separate operator setting or global switch changes the unsampled Ready path.
+  Explicit unsupported peers keep original business frames; other negotiation failures stop dispatch.
+  Observation values never transfer caller cancellation to started mutations. A separate local append observer times actual metadata resolve/apply and the enclosing runtime append, including its nested reserve/submit/future phases; shared owners retain aligned outcomes, remote forwarding invents no local work, and no observer is added to the wire.
 - Routed committed and persisted history and conversation heads hydrate latest payload replacements through Slot authority. Explicit original committed reads omit edits but retain Leader/HW/retention fences for retry proof. Cross-channel chunks preserve batching above 200 recents; replacement growth respects page budgets and continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The request-scoped Slot ReadIndex/apply barrier is separate from readiness proof reuse; serving edit proposals check the restore content epoch, including forwarded commands. Local log/backup reads remain immutable.
 
 Aggregate MQTT capacity uses one hash-Slot escrow row and immutable Controller storage rosters, including joining/leaving data nodes. Startup debt must be registered on every required node before growth. The existing periodic health owner reports health first, then maintains/refunds capacity with a separate bounded context and nonwaiting restore/apply ownership; no per-Channel task is added.
 
-- Send-permission routing seals bounded concurrent caller batches before one immutable authority publication and node-batched Slot queries. Every group holds admission through a fresh Slot barrier, pinned snapshot and final authority check. Stop/rollback closes and joins ingress batches before transport/storage; business evaluation stays in the usecase.
+- Send-permission routing seals bounded concurrent caller batches before one immutable authority publication and node-batched Slot queries. Every group holds admission through a fresh Slot barrier, pinned snapshot and final authority check. Stop/rollback joins transport owners before ingress batches and metadata/storage; business evaluation stays in the usecase.
 
 ## Read First
 - [Public API](api.go), [Node ownership](node.go), [Lifecycle](node_lifecycle.go), [Routing](routing/router.go), [Channels](channels/service.go)

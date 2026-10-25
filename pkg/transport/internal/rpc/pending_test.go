@@ -1,226 +1,134 @@
 package rpc
 
 import (
+	"context"
 	"errors"
+	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 	"sync"
 	"testing"
-	"time"
 )
 
+func newPendingOwner() *Completion {
+	owner := NewCompletion(context.Background())
+	owner.SendResult(nil)
+	return owner
+}
+func completePendingForTest(table *PendingTable, id uint64, response Response) bool {
+	owner := table.Load(id)
+	if owner == nil {
+		return false
+	}
+	accepted := owner.Publish(response)
+	table.DeleteOwner(id, owner)
+	return accepted
+}
 func TestPendingStoreComplete(t *testing.T) {
 	table := NewPendingTable(16)
-	ch := make(chan Response, 1)
-
-	table.Store(42, ch)
-
-	if !table.Complete(42, Response{Payload: []byte("ok")}) {
-		t.Fatal("Complete() = false, want true")
+	owner := newPendingOwner()
+	table.Store(42, owner)
+	if !completePendingForTest(table, 42, Response{Payload: []byte("ok")}) {
+		t.Fatal("existing owner was not completed")
 	}
-	got := <-ch
-	if string(got.Payload) != "ok" {
-		t.Fatalf("Payload = %q, want ok", got.Payload)
-	}
-	if table.Complete(42, Response{Payload: []byte("again")}) {
-		t.Fatal("Complete() = true, want false after completion")
+	got, ready := owner.Resolve(nil)
+	if !ready || string(got.Response.Payload) != "ok" || table.Len() != 0 || completePendingForTest(table, 42, Response{}) {
+		t.Fatal("response/index ownership did not transfer exactly once")
 	}
 }
-
-func TestPendingStoreRequiresBufferedChannel(t *testing.T) {
+func TestPendingStoreRequiresOwner(t *testing.T) {
 	table := NewPendingTable(16)
-
-	mustPanic(t, func() {
-		table.Store(1, nil)
-	})
-	mustPanic(t, func() {
-		table.Store(2, make(chan Response))
-	})
+	mustPanic(t, func() { table.Store(1, nil) })
 }
-
-func TestPendingFailAll(t *testing.T) {
-	table := NewPendingTable(16)
-	errBoom := errors.New("boom")
-	ch1 := make(chan Response, 1)
-	ch2 := make(chan Response, 1)
-
-	table.Store(1, ch1)
-	table.Store(2, ch2)
-	table.FailAll(errBoom)
-
-	if got := table.Len(); got != 0 {
-		t.Fatalf("Len() = %d, want 0", got)
-	}
-	for i, ch := range []chan Response{ch1, ch2} {
-		resp := <-ch
-		if !errors.Is(resp.Err, errBoom) {
-			t.Fatalf("response %d err = %v, want %v", i, resp.Err, errBoom)
-		}
-	}
-}
-
 func TestPendingFailAllRejectsLaterStore(t *testing.T) {
 	table := NewPendingTable(16)
-	errBoom := errors.New("boom")
-	ch := make(chan Response, 1)
-
+	errBoom := errors.New("first shutdown")
+	first := newPendingOwner()
+	table.Store(1, first)
 	table.FailAll(errBoom)
-	table.Store(1, ch)
-
-	if got := table.Len(); got != 0 {
-		t.Fatalf("Len() = %d, want 0", got)
+	table.FailAll(errors.New("later shutdown"))
+	later := newPendingOwner()
+	table.Store(2, later)
+	for _, owner := range []*Completion{first, later} {
+		got, ready := owner.Resolve(nil)
+		if !ready || got.Response.Err != errBoom || got.Response.ReceiveTiming != nil || got.LocalContext {
+			t.Fatal("shutdown error or synthetic receipt ownership changed")
+		}
 	}
-	resp := <-ch
-	if !errors.Is(resp.Err, errBoom) {
-		t.Fatalf("Err = %v, want %v", resp.Err, errBoom)
-	}
-	table.FailAll(errors.New("again"))
-	if got := table.Len(); got != 0 {
-		t.Fatalf("Len() after second FailAll = %d, want 0", got)
+	if table.Len() != 0 || table.Load(1) != nil || table.Load(2) != nil {
+		t.Fatal("closed index retained an entry")
 	}
 }
-
 func TestPendingFailAllConcurrentStoreLeavesNoPending(t *testing.T) {
 	table := NewPendingTable(16)
-	errBoom := errors.New("boom")
+	owners := make([]*Completion, 512)
 	start := make(chan struct{})
-	var wg sync.WaitGroup
-
-	for i := 0; i < 512; i++ {
-		id := uint64(i + 1)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-start
-			table.Store(id, make(chan Response, 1))
-		}()
+	var work sync.WaitGroup
+	for i := range owners {
+		owners[i] = newPendingOwner()
+		work.Add(1)
+		go func(i int) { defer work.Done(); <-start; table.Store(uint64(i+1), owners[i]) }(i)
 	}
-
 	close(start)
-	table.FailAll(errBoom)
-	wg.Wait()
-
-	if got := table.Len(); got != 0 {
-		t.Fatalf("Len() = %d, want 0", got)
+	table.FailAll(core.ErrStopped)
+	work.Wait()
+	if table.Len() != 0 {
+		t.Fatal("close/store race left indexed owners")
+	}
+	for _, owner := range owners {
+		got, ready := owner.Resolve(nil)
+		if !ready || !errors.Is(got.Response.Err, core.ErrStopped) {
+			t.Fatal("close/store race left unsettled owner")
+		}
 	}
 }
-
+func TestPendingCountReplacementAndConditionalRemoval(t *testing.T) {
+	table := NewPendingTable(16)
+	old, current := newPendingOwner(), newPendingOwner()
+	table.Store(1, old)
+	table.Store(1, current)
+	if table.Len() != 1 || table.DeleteOwner(1, old) || table.Load(1) != current {
+		t.Fatal("stale reader removed its replacement")
+	}
+	got, ready := old.Resolve(nil)
+	if !ready || !errors.Is(got.Response.Err, core.ErrStopped) || old.Publish(Response{}) {
+		t.Fatal("replaced owner was not settled")
+	}
+	if !table.DeleteOwner(1, current) || table.DeleteOwner(1, current) || table.Len() != 0 {
+		t.Fatal("conditional removal miscounted owners")
+	}
+	current.Fail(core.ErrStopped)
+}
 func TestPendingConcurrentStoreDelete(t *testing.T) {
 	table := NewPendingTable(16)
-	var wg sync.WaitGroup
-
+	var work sync.WaitGroup
 	for i := 0; i < 256; i++ {
-		id := uint64(i + 1)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			table.Store(id, make(chan Response, 1))
+		work.Add(1)
+		go func(id uint64) {
+			defer work.Done()
+			owner := newPendingOwner()
+			table.Store(id, owner)
 			table.Delete(id)
-		}()
+			owner.Fail(core.ErrCanceled)
+		}(uint64(i + 1))
 	}
-	wg.Wait()
-
-	if got := table.Len(); got != 0 {
-		t.Fatalf("Len() = %d, want 0", got)
-	}
-}
-
-func TestPendingCompleteDoesNotBlockOnFullChannel(t *testing.T) {
-	table := NewPendingTable(16)
-	ch := make(chan Response, 1)
-	ch <- Response{Payload: []byte("already full")}
-
-	table.Store(1, ch)
-	done := make(chan bool, 1)
-	go func() {
-		done <- table.Complete(1, Response{Payload: []byte("ok")})
-	}()
-
-	select {
-	case completed := <-done:
-		if !completed {
-			t.Fatal("Complete() = false, want true for stored id")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Complete() blocked on a full channel")
-	}
-	if got := table.Len(); got != 0 {
-		t.Fatalf("Len() = %d, want 0", got)
+	work.Wait()
+	if table.Len() != 0 {
+		t.Fatal("concurrent removals miscounted")
 	}
 }
-
-func TestPendingCompleteMissReturnsFalse(t *testing.T) {
-	table := NewPendingTable(16)
-
-	if table.Complete(404, Response{Payload: []byte("missing")}) {
-		t.Fatal("Complete() = true, want false for missing id")
-	}
-}
-
-func TestPendingFailAllDoesNotBlockOnFullChannel(t *testing.T) {
-	table := NewPendingTable(16)
-	errBoom := errors.New("boom")
-	ch := make(chan Response, 1)
-	ch <- Response{Payload: []byte("already full")}
-
-	table.Store(1, ch)
-	done := make(chan struct{})
-	go func() {
-		table.FailAll(errBoom)
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("FailAll() blocked on a full channel")
-	}
-	if got := table.Len(); got != 0 {
-		t.Fatalf("Len() = %d, want 0", got)
-	}
-}
-
 func TestPendingDefaultShardCountHandlesInvalidInputs(t *testing.T) {
-	for _, shardCount := range []int{0, 3} {
-		table := NewPendingTable(shardCount)
-		ch := make(chan Response, 1)
-
-		table.Store(1, ch)
-		if !table.Complete(1, Response{Payload: []byte("ok")}) {
-			t.Fatalf("Complete() = false, want true for shard count %d", shardCount)
+	for _, count := range []int{0, 3} {
+		table := NewPendingTable(count)
+		if len(table.shards) != 16 || table.Load(404) != nil {
+			t.Fatal("default shard shape or missing lookup changed")
 		}
 	}
 }
-
 func mustPanic(t *testing.T, fn func()) {
 	t.Helper()
-
 	defer func() {
 		if recover() == nil {
 			t.Fatal("function did not panic")
 		}
 	}()
 	fn()
-}
-
-func TestPendingCountReplacementAndConcurrentRemoval(t *testing.T) {
-	table := NewPendingTable(16)
-	for id := uint64(1); id <= 256; id++ {
-		table.Store(id, make(chan Response, 1))
-		table.Store(id, make(chan Response, 1))
-	}
-	if n := table.Len(); n != 256 {
-		t.Fatalf("replacement count=%d", n)
-	}
-	var wg sync.WaitGroup
-	for id := uint64(1); id <= 256; id++ {
-		wg.Add(2)
-		go func() { defer wg.Done(); table.Delete(id) }()
-		go func() { defer wg.Done(); table.Complete(id, Response{}) }()
-	}
-	wg.Wait()
-	table.FailAll(errors.New("closed"))
-	table.Store(300, make(chan Response, 1))
-	table.Delete(300)
-	if n := table.Len(); n != 0 {
-		t.Fatalf("terminal count=%d", n)
-	}
 }

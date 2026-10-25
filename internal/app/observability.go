@@ -1490,6 +1490,17 @@ func (o storageCommitMetricsObserver) ObserveCommitCoordinatorBatch(event messag
 		CommitDuration:  event.CommitDuration,
 		PublishDuration: event.PublishDuration,
 		TotalDuration:   event.TotalDuration,
+
+		Native: obsmetrics.StorageNativeCommitObservation{
+			Available:                   event.Native.Available,
+			TotalDuration:               event.Native.TotalDuration,
+			SemaphoreWaitDuration:       event.Native.SemaphoreWaitDuration,
+			WALQueueWaitDuration:        event.Native.WALQueueWaitDuration,
+			MemTableWriteStallDuration:  event.Native.MemTableWriteStallDuration,
+			L0ReadAmpWriteStallDuration: event.Native.L0ReadAmpWriteStallDuration,
+			WALRotationDuration:         event.Native.WALRotationDuration,
+			CommitWaitDuration:          event.Native.CommitWaitDuration,
+		},
 	})
 	o.metrics.RuntimePressure.SetPoolWorkers(dbRuntimeComponent, dbMessageCommitPool, o.workerCount())
 	o.metrics.RuntimePressure.ObserveTaskDuration(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, result, event.TotalDuration)

@@ -702,6 +702,13 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Observability.Diagnostics.Enabled = enabled
 	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_RPC_SAMPLE_EVERY"); raw != "" {
+		every, err := strconv.ParseUint(raw, 10, 32)
+		if err != nil {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_RPC_SAMPLE_EVERY: expected 0..4294967295: %w", err)
+		}
+		cfg.Observability.Diagnostics.RPCSampleEvery = uint32(every)
+	}
 	if raw := configValue(values, "WK_DIAGNOSTICS_BUFFER_SIZE"); raw != "" {
 		bufferSize, err := parseInt("WK_DIAGNOSTICS_BUFFER_SIZE", raw)
 		if err != nil {

@@ -181,6 +181,20 @@ type VerifierSnapshot struct {
 	FirstAttempts        uint64
 	FirstAttemptFailures uint64
 
+	// FirstAttemptDeadlines counts first attempts registered with an explicit
+	// deadline. Legacy registrations without a deadline have no coverage.
+	FirstAttemptDeadlines uint64
+	// FirstAttemptDeadlineResolved counts covered first attempts whose own
+	// first result has a trustworthy observation clock. Missing responses,
+	// zero clocks, cancellation and receipt expiry remain coverage gaps.
+	FirstAttemptDeadlineResolved uint64
+	// FirstAttemptTimeouts is the confirmed subset whose own result was
+	// observed at or after its deadline. It is a lower bound, not timer
+	// expirations or a complete first-attempt success rate. Local admission
+	// rejection never counts as a target timeout. This can overlap explicit
+	// FirstAttemptFailures, so the counters must not be added together.
+	FirstAttemptTimeouts uint64
+
 	// FirstAttemptLocalAdmissionFailures is the subset whose first wire
 	// attempt was rejected by the load generator's non-waiting local SEND
 	// admission boundary. It is harness pressure, not target correctness.
@@ -226,10 +240,13 @@ type VerifierSnapshot struct {
 }
 
 type verifierSendCounters struct {
-	sent                 uint64
-	attempts             uint64
-	firstAttempts        uint64
-	firstAttemptFailures uint64
+	sent                         uint64
+	attempts                     uint64
+	firstAttempts                uint64
+	firstAttemptFailures         uint64
+	firstAttemptDeadlines        uint64
+	firstAttemptDeadlineResolved uint64
+	firstAttemptTimeouts         uint64
 
 	firstAttemptLocalAdmissionFailures uint64
 
@@ -309,6 +326,18 @@ type sendAttemptIdentity struct {
 	clientSeq   uint64
 	attempt     uint8
 	outstanding bool
+	// Only attempt zero owns deadline evidence. It moves into the existing
+	// bounded released-attempt receipt when a sibling completes first.
+	firstDeadline firstAttemptDeadline
+}
+
+// firstAttemptDeadline keeps exact first-result coverage in an existing fixed
+// attempt slot. Only an observed result resolves evidence; timer expiry or
+// receipt cleanup alone cannot prove when the first response was observed.
+type firstAttemptDeadline struct {
+	deadline       time.Time
+	registeredAt   time.Time
+	resultObserved bool
 }
 
 func (s *pendingSend) attempt(clientSeq uint64) *sendAttemptIdentity {
@@ -323,15 +352,25 @@ func (s *pendingSend) attempt(clientSeq uint64) *sendAttemptIdentity {
 	return nil
 }
 
+// verifiedSendCompletion is an immutable proof copied from an exact registered
+// positive ACK under sendMu. The Engine owner consumes it through its ordinary
+// ACK settlement and ReleaseSendAt; it is never inferred from missing state.
+type verifiedSendCompletion struct {
+	clientSeq  uint64
+	messageID  int64
+	messageSeq uint64
+}
+
 type releasedAttemptKey struct {
 	clientSeq   uint64
 	clientMsgNo string
 }
 
 type releasedAttempt struct {
-	key       releasedAttemptKey
-	deadline  time.Time
-	heapIndex int
+	key           releasedAttemptKey
+	deadline      time.Time
+	heapIndex     int
+	firstDeadline firstAttemptDeadline
 }
 
 type releasedAttemptDeadlineHeap []*releasedAttempt
@@ -557,12 +596,58 @@ func (v *Verifier) ShouldCorrelate(logical LogicalSend) (bool, error) {
 // ObserveAttempt registers one explicit wire-attempt identity and verifies that
 // a retry did not mint a replacement logical message identity.
 func (v *Verifier) ObserveAttempt(logical LogicalSend, attempt RetryAttempt, clientSeq uint64) error {
+	return v.ObserveAttemptWithDeadline(logical, attempt, clientSeq, time.Time{})
+}
+
+// ObserveAttemptWithDeadline additionally registers the original attempt's
+// deadline before transport admission can synchronously produce a response.
+// Retry deadlines do not create first-attempt coverage. A zero deadline keeps
+// the legacy verification-only seam without guessing a clock or timeout.
+func (v *Verifier) ObserveAttemptWithDeadline(logical LogicalSend, attempt RetryAttempt, clientSeq uint64, deadline time.Time) error {
+	v.sendMu.Lock()
+	defer v.sendMu.Unlock()
+	return v.observeAttemptLocked(v.pending[logical.ClientMsgNo], logical, attempt, clientSeq, deadline)
+}
+
+// admitEngineAttemptWithDeadline linearizes retry registration with direct
+// transport ACK verification. A completed original may still await its Engine
+// callback; only an exact registered positive ACK can transfer its proof to the
+// owner instead of registering a retry. Pending state remains owned until the
+// owner's normal ACK settlement releases it. This adds no history or wire work.
+func (v *Verifier) admitEngineAttemptWithDeadline(logical LogicalSend, attempt RetryAttempt, clientSeq uint64, deadline time.Time) (*verifiedSendCompletion, error) {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	pending := v.pending[logical.ClientMsgNo]
-	if pending == nil || pending.logical != logical || pending.completion != sendIncomplete ||
-		attempt.ClientMsgNo != logical.ClientMsgNo || attempt.Attempt > 3 || clientSeq == 0 ||
-		pending.attemptCount >= uint8(maxSendAttemptIdentities) || pending.attempt(clientSeq) != nil {
+	if validSendAttemptIdentity(pending, logical, attempt, clientSeq) && attempt.Attempt > 0 {
+		if completion := verifiedSendCompletionFor(pending, logical); completion != nil {
+			return completion, nil
+		}
+	}
+	return nil, v.observeAttemptLocked(pending, logical, attempt, clientSeq, deadline)
+}
+
+// verifiedSendCompletionFor reads only a retained, positive, registered ACK.
+// Callers must hold sendMu through their competing registration/terminal change.
+func verifiedSendCompletionFor(pending *pendingSend, logical LogicalSend) *verifiedSendCompletion {
+	if pending == nil || pending.logical != logical || pending.completion != sendAcknowledged || pending.messageID <= 0 || pending.messageSeq == 0 {
+		return nil
+	}
+	completedAttempt := pending.attempt(pending.completionClientSeq)
+	if completedAttempt == nil || completedAttempt.outstanding {
+		return nil
+	}
+	return &verifiedSendCompletion{clientSeq: pending.completionClientSeq, messageID: pending.messageID, messageSeq: pending.messageSeq}
+}
+
+// validSendAttemptIdentity keeps every original identity and fixed-capacity
+// guard shared by strict public registration and Engine retry admission.
+func validSendAttemptIdentity(pending *pendingSend, logical LogicalSend, attempt RetryAttempt, clientSeq uint64) bool {
+	return pending != nil && pending.logical == logical && attempt.ClientMsgNo == logical.ClientMsgNo &&
+		attempt.Attempt <= 3 && clientSeq != 0 && pending.attemptCount < uint8(maxSendAttemptIdentities) && pending.attempt(clientSeq) == nil
+}
+
+func (v *Verifier) observeAttemptLocked(pending *pendingSend, logical LogicalSend, attempt RetryAttempt, clientSeq uint64, deadline time.Time) error {
+	if !validSendAttemptIdentity(pending, logical, attempt, clientSeq) || pending.completion != sendIncomplete {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, uint64(attempt.Attempt))
 	}
 	pending.attempts[pending.attemptCount] = sendAttemptIdentity{clientSeq: clientSeq, attempt: attempt.Attempt, outstanding: true}
@@ -570,10 +655,51 @@ func (v *Verifier) ObserveAttempt(logical LogicalSend, attempt RetryAttempt, cli
 	v.sendCounters.attempts++
 	if attempt.Attempt == 0 {
 		v.sendCounters.firstAttempts++
+		if !deadline.IsZero() {
+			pending.attempts[pending.attemptCount-1].firstDeadline = firstAttemptDeadline{
+				deadline: deadline, registeredAt: pending.registeredAt,
+			}
+			v.sendCounters.firstAttemptDeadlines++
+		}
 	} else {
 		v.sendCounters.retryAttempts++
 	}
 	return nil
+}
+
+// ObserveAttemptErrorAt records only deadline evidence at the session drain's
+// transport-error observation boundary, before an owner completion queue can
+// reorder it behind a later directly verified ACK. The existing explicit
+// failure and outstanding-attempt handling still occurs in ResolveAttemptErrorAt.
+// Unknown or expired identities do not manufacture a new correctness event.
+func (v *Verifier) ObserveAttemptErrorAt(clientMsgNo string, clientSeq uint64, observedAt time.Time) {
+	v.sendMu.Lock()
+	defer v.sendMu.Unlock()
+	key := releasedAttemptKey{clientMsgNo: clientMsgNo, clientSeq: clientSeq}
+	if released := v.releasedAttempts[key]; released != nil {
+		v.observeFirstAttemptResultLocked(&released.firstDeadline, observedAt, false)
+		return
+	}
+	if attempt := v.pending[clientMsgNo].attempt(clientSeq); attempt != nil {
+		v.observeFirstAttemptResultLocked(&attempt.firstDeadline, observedAt, false)
+	}
+}
+
+// observeFirstAttemptResultLocked resolves at most the first exact response.
+// Unknown clocks consume observation coverage without manufacturing an on-time
+// response. No-response receipt expiry deliberately leaves coverage unresolved.
+func (v *Verifier) observeFirstAttemptResultLocked(deadline *firstAttemptDeadline, observedAt time.Time, localAdmission bool) {
+	if deadline == nil || deadline.deadline.IsZero() || deadline.resultObserved {
+		return
+	}
+	deadline.resultObserved = true
+	if observedAt.IsZero() || observedAt.Before(deadline.registeredAt) {
+		return
+	}
+	v.sendCounters.firstAttemptDeadlineResolved++
+	if !localAdmission && !observedAt.Before(deadline.deadline) {
+		v.sendCounters.firstAttemptTimeouts++
+	}
 }
 
 // HandleSendack completes a pending logical send only for an exact successful
@@ -598,7 +724,8 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 	positiveSuccess := ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0
 	if ack.ClientSeq != 0 {
 		key := releasedAttemptKey{clientSeq: ack.ClientSeq, clientMsgNo: ack.ClientMsgNo}
-		if v.releasedAttempts[key] != nil {
+		if released := v.releasedAttempts[key]; released != nil {
+			v.observeFirstAttemptResultLocked(&released.firstDeadline, completedAt, false)
 			var correlationErr error
 			if positiveSuccess {
 				correlationErr = v.observeSendackCorrelationLocked(ack, completedAt)
@@ -621,6 +748,9 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 		if attempt == nil {
 			return v.recordUnknownSendackLocked(pending.logical.LogicalSend, ack)
 		}
+	}
+	if attempt != nil {
+		v.observeFirstAttemptResultLocked(&attempt.firstDeadline, completedAt, false)
 	}
 	var correlationErr error
 	if positiveSuccess {
@@ -1040,13 +1170,36 @@ func (v *Verifier) completeRetryExhausted(logical LogicalSend, cause retryExhaus
 	return v.completeTerminal(logical, TerminalSendRetryExhausted, cause)
 }
 
+// completeEngineTerminalOrAcknowledged linearizes every live Engine terminal
+// decision with direct ACK verification. The public terminal seam remains
+// strict; only an exact positive completion can be handed back to the owner
+// instead of recording a new terminal result. Existing failure evidence stays.
+func (v *Verifier) completeEngineTerminalOrAcknowledged(logical LogicalSend, code TerminalSendCode, cause retryExhaustedCause) (*verifiedSendCompletion, error) {
+	v.sendMu.Lock()
+	defer v.sendMu.Unlock()
+	if validTerminalSendCause(code, cause) {
+		if completion := verifiedSendCompletionFor(v.pending[logical.ClientMsgNo], logical); completion != nil {
+			return completion, nil
+		}
+	}
+	return nil, v.completeTerminalLocked(logical, code, cause)
+}
+
+func validTerminalSendCause(code TerminalSendCode, cause retryExhaustedCause) bool {
+	return code >= TerminalSendRetryExhausted && code <= TerminalSendSessionClosed &&
+		((code == TerminalSendRetryExhausted && cause >= retryExhaustedUnclassified && cause <= retryExhaustedRetriableSendack) ||
+			(code != TerminalSendRetryExhausted && cause == 0))
+}
+
 func (v *Verifier) completeTerminal(logical LogicalSend, code TerminalSendCode, cause retryExhaustedCause) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
+	return v.completeTerminalLocked(logical, code, cause)
+}
+
+func (v *Verifier) completeTerminalLocked(logical LogicalSend, code TerminalSendCode, cause retryExhaustedCause) error {
 	pending := v.pending[logical.ClientMsgNo]
-	validCause := (code == TerminalSendRetryExhausted && cause >= retryExhaustedUnclassified && cause <= retryExhaustedRetriableSendack) ||
-		(code != TerminalSendRetryExhausted && cause == 0)
-	if pending == nil || pending.logical != logical || code < TerminalSendRetryExhausted || code > TerminalSendSessionClosed || !validCause {
+	if pending == nil || pending.logical != logical || !validTerminalSendCause(code, cause) {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, uint64(code))
 	}
 	if pending.completion != sendIncomplete {
@@ -1135,7 +1288,7 @@ func (v *Verifier) releaseSendAt(logical LogicalSend, completedAt time.Time) err
 		if _, exists := v.releasedAttempts[key]; exists {
 			return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, attempt.clientSeq)
 		}
-		released := &releasedAttempt{key: key, deadline: deadline, heapIndex: -1}
+		released := &releasedAttempt{key: key, deadline: deadline, heapIndex: -1, firstDeadline: attempt.firstDeadline}
 		v.releasedAttempts[key] = released
 		heap.Push(&v.releasedDeadlines, released)
 	}
@@ -1157,7 +1310,13 @@ func (v *Verifier) releaseSendAt(logical LogicalSend, completedAt time.Time) err
 // immediate transport failure. A released sibling is consumed without making
 // the already completed logical send unknown.
 func (v *Verifier) ResolveAttemptError(clientMsgNo string, clientSeq uint64) error {
-	return v.resolveAttemptError(clientMsgNo, clientSeq, false)
+	return v.ResolveAttemptErrorAt(clientMsgNo, clientSeq, time.Time{})
+}
+
+// ResolveAttemptErrorAt records a transport failure's observation time before
+// completion-queue delay can be mistaken for a late target response.
+func (v *Verifier) ResolveAttemptErrorAt(clientMsgNo string, clientSeq uint64, observedAt time.Time) error {
+	return v.resolveAttemptError(clientMsgNo, clientSeq, observedAt, false)
 }
 
 // ResolveAttemptLocalAdmissionError removes an attempt rejected before it
@@ -1165,14 +1324,23 @@ func (v *Verifier) ResolveAttemptError(clientMsgNo string, clientSeq uint64) err
 // retry behavior, while the additional subset prevents local load-generator
 // pressure from being projected as a target correctness failure.
 func (v *Verifier) ResolveAttemptLocalAdmissionError(clientMsgNo string, clientSeq uint64) error {
-	return v.resolveAttemptError(clientMsgNo, clientSeq, true)
+	return v.ResolveAttemptLocalAdmissionErrorAt(clientMsgNo, clientSeq, time.Time{})
 }
 
-func (v *Verifier) resolveAttemptError(clientMsgNo string, clientSeq uint64, localAdmission bool) error {
+// ResolveAttemptLocalAdmissionErrorAt resolves measured local admission as a
+// non-timeout because the attempt never entered the socket writer. Its explicit
+// failure and local-admission subset retain their existing meanings.
+func (v *Verifier) ResolveAttemptLocalAdmissionErrorAt(clientMsgNo string, clientSeq uint64, observedAt time.Time) error {
+	return v.resolveAttemptError(clientMsgNo, clientSeq, observedAt, true)
+}
+
+func (v *Verifier) resolveAttemptError(clientMsgNo string, clientSeq uint64, observedAt time.Time, localAdmission bool) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	key := releasedAttemptKey{clientSeq: clientSeq, clientMsgNo: clientMsgNo}
-	if clientSeq != 0 && clientMsgNo != "" && v.consumeReleasedAttemptLocked(key) {
+	if released := v.releasedAttempts[key]; clientSeq != 0 && clientMsgNo != "" && released != nil {
+		v.observeFirstAttemptResultLocked(&released.firstDeadline, observedAt, localAdmission)
+		v.consumeReleasedAttemptLocked(key)
 		return nil
 	}
 	pending := v.pending[clientMsgNo]
@@ -1183,6 +1351,7 @@ func (v *Verifier) resolveAttemptError(clientMsgNo string, clientSeq uint64, loc
 	if attempt == nil {
 		return v.recordUnknownSendackLocked(pending.logical.LogicalSend, &frame.SendackPacket{ClientSeq: clientSeq, ClientMsgNo: clientMsgNo})
 	}
+	v.observeFirstAttemptResultLocked(&attempt.firstDeadline, observedAt, localAdmission)
 	if pending.completion == sendIncomplete {
 		if v.recordFirstAttemptFailureLocked(pending, attempt) && localAdmission {
 			v.sendCounters.firstAttemptLocalAdmissionFailures++
@@ -1229,10 +1398,13 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 	v.sendMu.Lock()
 	send := v.sendCounters
 	snapshot := VerifierSnapshot{
-		Sent:                 send.sent,
-		Attempts:             send.attempts,
-		FirstAttempts:        send.firstAttempts,
-		FirstAttemptFailures: send.firstAttemptFailures,
+		Sent:                         send.sent,
+		Attempts:                     send.attempts,
+		FirstAttempts:                send.firstAttempts,
+		FirstAttemptFailures:         send.firstAttemptFailures,
+		FirstAttemptDeadlines:        send.firstAttemptDeadlines,
+		FirstAttemptDeadlineResolved: send.firstAttemptDeadlineResolved,
+		FirstAttemptTimeouts:         send.firstAttemptTimeouts,
 
 		FirstAttemptLocalAdmissionFailures: send.firstAttemptLocalAdmissionFailures,
 

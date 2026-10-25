@@ -18,6 +18,8 @@ type applyTask struct {
 	appliedBefore uint64
 	// queueDepth is the number of pending tasks for this Slot after enqueue.
 	queueDepth int
+	// storageWork returns the original upstream apply responses to the owner.
+	storageWork *storageWork
 }
 
 type applyQueue struct {
@@ -206,8 +208,10 @@ func (p *applyPipeline) runQueue(q *applyQueue) {
 			continue
 		}
 		started := time.Now()
+		observed := applyTask{slot: task.slot, queueDepth: task.queueDepth}
 		task.slot.runApplyTask(context.Background(), task)
-		p.observeApplyTask(task, time.Since(started))
+		task = applyTask{}
+		p.observeApplyTask(observed, time.Since(started))
 	}
 }
 
@@ -343,7 +347,13 @@ func (p *applyPipeline) waitQueueRetired(slotID SlotID, q *applyQueue) {
 }
 
 func (g *slot) runApplyTask(ctx context.Context, task applyTask) {
-	defer g.finishApply()
+	defer func() {
+		if task.storageWork != nil {
+			g.publishStorageCompletion(storageCompletion{work: task.storageWork, part: storageApplyPart, err: g.currentErr()})
+		} else {
+			g.finishApply()
+		}
+	}()
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -380,12 +390,7 @@ func (g *slot) runApplyTask(ctx context.Context, task applyTask) {
 
 	g.refreshDurableAppliedStatus()
 	g.completeResolutions(resolutions)
-	if g.compactor.shouldCompact(lastApplied) {
-		compacted, err := g.compactLog(ctx, lastApplied)
-		if err != nil {
-			g.logCompactionWarning(err, lastApplied)
-		} else if compacted {
-			g.compactor.recordSnapshot(lastApplied)
-		}
-	}
+	g.mu.Lock()
+	g.compactionPending = true
+	g.mu.Unlock()
 }

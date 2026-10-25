@@ -16,6 +16,7 @@ import (
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	nodetransport "github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
@@ -432,7 +433,11 @@ func (s *Service) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 		}
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
+		phase := rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelMetaResolve)
 		meta, err := s.resolvePreparedAppendMeta(ctx, req.ChannelID, req.ExpectedChannelEpoch, req.ExpectedLeaderEpoch, req.ExpectedRouteGeneration, req.CommitMode)
+		if phase != nil {
+			phase.End(rpctrace.ResultFor(err))
+		}
 		if err != nil {
 			return ch.AppendBatchResult{}, err
 		}
@@ -1650,7 +1655,11 @@ func (s *Service) appendWithMeta(ctx context.Context, req ch.AppendRequest, meta
 
 func (s *Service) appendBatchOnce(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error, ch.Meta, bool) {
 	started := time.Now()
+	phase := rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelMetaResolve)
 	meta, ok, usedCache, err := s.resolveAppendMetaCached(ctx, req.ChannelID)
+	if phase != nil {
+		phase.End(rpctrace.ResultFor(err))
+	}
 	s.observeAppendStage("meta_resolve", err, time.Since(started))
 	if err != nil {
 		return ch.AppendBatchResult{}, err, meta, usedCache
@@ -1661,7 +1670,11 @@ func (s *Service) appendBatchOnce(ctx context.Context, req ch.AppendBatchRequest
 
 func (s *Service) appendBatchFresh(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
 	started := time.Now()
+	phase := rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelMetaResolve)
 	meta, ok, err := s.resolveAppendMetaFresh(ctx, req.ChannelID)
+	if phase != nil {
+		phase.End(rpctrace.ResultFor(err))
+	}
 	s.observeAppendStage("meta_resolve", err, time.Since(started))
 	if err != nil {
 		return ch.AppendBatchResult{}, err
@@ -1695,7 +1708,11 @@ func (s *Service) appendBatchWithMeta(ctx context.Context, req ch.AppendBatchReq
 			return res, err
 		}
 		started := time.Now()
+		phase := rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelMetaApply)
 		err := s.applyAppendMeta(ctx, meta, req.ExpectedRouteGeneration)
+		if phase != nil {
+			phase.End(rpctrace.ResultFor(err))
+		}
 		s.observeAppendStage("meta_apply", err, time.Since(started))
 		if err != nil {
 			return ch.AppendBatchResult{}, err
@@ -1705,7 +1722,17 @@ func (s *Service) appendBatchWithMeta(ctx context.Context, req ch.AppendBatchReq
 		}
 	}
 	started := time.Now()
+	phase := rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelRuntimeAppend)
 	res, err := s.runtime.AppendBatch(ctx, req)
+	if phase != nil {
+		if err != nil {
+			phase.End(rpctrace.ResultFor(err))
+		} else {
+			// The synchronous observer keeps shared work scoped to each original
+			// caller's aligned items; a sibling error is not a batch error.
+			phase.EndItems(len(res.Items), func(i int) rpctrace.Result { return rpctrace.ResultFor(res.Items[i].Err) })
+		}
+	}
 	s.observeAppendStage("runtime_append", err, time.Since(started))
 	return res, err
 }

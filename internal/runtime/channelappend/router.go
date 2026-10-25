@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	contract "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
@@ -283,7 +284,15 @@ func (r *Router) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchIt
 	}
 }
 
-func (r *Router) sendSingle(item SendBatchItem) SendBatchItemResult {
+// sendSingle keeps one invocation-local stage ledger across existing retries.
+// Only its final timeout publishes a value copy; multi-item routing stays absent.
+func (r *Router) sendSingle(item SendBatchItem) (out SendBatchItemResult) {
+	var timing contract.RoutingFailureDiagnostics
+	defer func() {
+		if errors.Is(out.Err, context.DeadlineExceeded) {
+			out.Err = &routingFailureError{cause: out.Err, timing: timing}
+		}
+	}()
 	prepared, routeChannel, result, done := prepareRouterItem(item, time.Now(), r.commandChannels)
 	if done {
 		return result
@@ -298,10 +307,15 @@ func (r *Router) sendSingle(item SendBatchItem) SendBatchItemResult {
 		if r.resolver == nil {
 			return SendBatchItemResult{Err: ErrRouteNotReady}
 		}
+		started := time.Now()
+		timing.Attempts++
 		target, err := r.resolver.ResolveAppendAuthority(routerItemContext(prepared), routeChannel)
+		timing.Resolve += time.Since(started)
 		if err != nil {
 			if shouldRetryRouterError(err) && canRetryRouterItem(prepared, attempts, r.maxRouteAttempts, time.Now()) {
+				started := time.Now()
 				r.waitBeforeRetry([]SendBatchItem{prepared}, []int{0})
+				timing.RetryDelay += time.Since(started)
 				continue
 			}
 			return SendBatchItemResult{Err: err}
@@ -310,13 +324,15 @@ func (r *Router) sendSingle(item SendBatchItem) SendBatchItemResult {
 		if err != nil {
 			return SendBatchItemResult{Err: err}
 		}
-		result = r.submitSingleTarget(target, prepared)
+		result = r.submitSingleTarget(target, prepared, &timing)
 		submissionUnknown = submissionUnknown || errors.Is(result.Err, errRouterSubmissionUnknown)
 		if shouldInvalidateRouterAuthority(result.Err) {
 			r.invalidateAppendAuthority(routeChannel, target)
 		}
 		if shouldRetryRouterError(result.Err) && canRetryRouterItem(prepared, attempts, r.maxRouteAttempts, time.Now()) {
+			started := time.Now()
 			r.waitBeforeRetry([]SendBatchItem{prepared}, []int{0})
+			timing.RetryDelay += time.Since(started)
 			continue
 		}
 		if submissionUnknown {
@@ -324,6 +340,19 @@ func (r *Router) sendSingle(item SendBatchItem) SendBatchItemResult {
 		}
 		return result
 	}
+}
+
+// routingFailureError carries no identities and retains the exact final cause,
+// including existing uncertainty/non-submission transformations before wrapping.
+type routingFailureError struct {
+	cause  error
+	timing contract.RoutingFailureDiagnostics
+}
+
+func (e *routingFailureError) Error() string { return e.cause.Error() }
+func (e *routingFailureError) Unwrap() error { return e.cause }
+func (e *routingFailureError) RoutingFailureDiagnostics() contract.RoutingFailureDiagnostics {
+	return e.timing
 }
 
 type routerBatchGroup struct {
@@ -371,7 +400,18 @@ func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID
 		if len(indexes) == 0 {
 			return
 		}
-		target, err := r.resolver.ResolveAppendAuthority(routerItemContext(items[indexes[0]]), channelID)
+		ctx := routerItemContext(items[indexes[0]])
+		if len(indexes) > 1 {
+			// Shared authority lookup survives until every grouped item ends.
+			resolveItems := make([]SendBatchItem, len(indexes))
+			for position, index := range indexes {
+				resolveItems[position] = items[index]
+			}
+			var cancel context.CancelFunc
+			ctx, cancel = routerAllItemsContext(resolveItems)
+			defer cancel()
+		}
+		target, err := r.resolver.ResolveAppendAuthority(ctx, channelID)
 		if err == nil {
 			target, err = normalizeRouterTarget(channelID, target)
 		}
@@ -386,11 +426,19 @@ func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID
 		if err != nil {
 			for _, index := range indexes {
 				item := items[index]
-				if shouldRetryRouterError(err) && canRetryRouterItem(item, attempts[index], r.maxRouteAttempts, time.Now()) {
+				// The shared context is canceled when all items end; retain each
+				// item's deadline error instead of leaking that aggregate cause.
+				result := rewriteTerminalRouterError(item, SendBatchItemResult{Err: err}, time.Now())
+				if errors.Is(err, ErrAppendNotSubmitted) && !errors.Is(result.Err, ErrAppendNotSubmitted) {
+					// Preserve supplied proof through deadline conversion; the
+					// invocation finalizer still removes it after uncertain submission.
+					result.Err = errors.Join(ErrAppendNotSubmitted, result.Err)
+				}
+				if shouldRetryRouterError(result.Err) && canRetryRouterItem(item, attempts[index], r.maxRouteAttempts, time.Now()) {
 					nextPending = append(nextPending, index)
 					continue
 				}
-				results[index] = SendBatchItemResult{Err: err}
+				results[index] = result
 			}
 			continue
 		}
@@ -655,7 +703,7 @@ func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
 	return finishActive(activeResults)
 }
 
-func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem) SendBatchItemResult {
+func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem, timing *contract.RoutingFailureDiagnostics) SendBatchItemResult {
 	startedAt := time.Now()
 	submitted := false
 	path := "remote"
@@ -672,7 +720,10 @@ func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem) 
 	}
 	ctx, cancel := routerAllItemsContext([]SendBatchItem{item})
 	defer cancel()
-	if !r.acquireGroup(ctx) {
+	admissionStarted := time.Now()
+	acquired := r.acquireGroup(ctx)
+	timing.GroupAdmission += time.Since(admissionStarted)
+	if !acquired {
 		return finish(rewriteTerminalRouterError(item, SendBatchItemResult{Err: ctx.Err()}, time.Now()))
 	}
 	defer r.releaseGroup()
@@ -699,7 +750,9 @@ func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem) 
 	}
 	if item.AppendAdmission != nil {
 		var admissionErr error
+		started := time.Now()
 		item, admissionErr = admitRouterAppend(item)
+		timing.AppendAdmission += time.Since(started)
 		if admissionErr != nil {
 			return finish(SendBatchItemResult{Err: admissionErr})
 		}
@@ -712,14 +765,19 @@ func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem) 
 	}
 	submitted = true
 	if local {
+		started := time.Now()
+		timing.LocalAttempts++
 		future, err := r.local.SubmitLocal(ctx, target, []SendBatchItem{item})
+		timing.LocalSubmit += time.Since(started)
 		if err != nil {
 			return finish(SendBatchItemResult{Err: err})
 		}
 		if future == nil {
 			return finish(SendBatchItemResult{Err: ErrAppendResultMissing})
 		}
+		started = time.Now()
 		activeResults, err := future.Wait(ctx)
+		timing.LocalWait += time.Since(started)
 		if err != nil {
 			return finish(rewriteTerminalRouterError(item, SendBatchItemResult{Err: err}, time.Now()))
 		}
@@ -729,7 +787,10 @@ func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem) 
 		result := rewriteTerminalRouterError(item, activeResults[0], time.Now())
 		return finish(result)
 	}
+	started := time.Now()
+	timing.RemoteAttempts++
 	activeResults := r.forwardBatch(ctx, target, []SendBatchItem{item})
+	timing.Forward += time.Since(started)
 	if len(activeResults) != 1 {
 		return finish(SendBatchItemResult{Err: ErrAppendResultMissing})
 	}

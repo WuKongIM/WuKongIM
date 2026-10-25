@@ -44,9 +44,12 @@ plugin, migration, message projections, and MQTT session state.
 2. A Multi-Raft worker groups contiguous queued read barriers into one fresh
    quorum round, retaining each caller's cancellation, pending bound and durable
    apply fence. Later arrivals and intervening controls require another round.
-   Each scheduler pass gives queued controls a turn even when Advance exposes
-   more Ready work; persistence, snapshot/configuration and durable-apply fences remain.
-   It persists Ready state, sends messages, batches normal
+   Each non-paused scheduler pass gives queued controls a turn while more Ready work is
+   available. One owner handles RawNode and its asynchronous local-storage messages;
+   a bounded append FIFO persists work and returns reliable private completions.
+   Only the owner publishes durable memory and dependent Raft replies. Application
+   waits for its append prefix, including committed HardState, then uses the existing
+   per-Slot apply FIFO. Network messages progress during Save while count capacity remains. The runtime batches normal
    entries, flushes before configuration changes, and atomically applies an
    ownership-validated FSM batch before persisting apply and completing futures.
    Durable Slot storage owns snapshot payload bytes; the Raft memory view keeps
@@ -96,6 +99,15 @@ plugin, migration, message projections, and MQTT session state.
 - Losing leadership fails pending proposal/configuration futures. Transport
   payload ownership, queues, apply batches, subscriber commands, scans,
   snapshots, and result payloads remain bounded.
+  Futures bind to accepted entry index/term before asynchronous Save. New
+  storage ownership caps each Slot at `min(4, MaxApplyingTasks)` Ready records and
+  8 MiB, and each Runtime at `4 * Workers` records and `8 MiB * Workers`; running
+  work and unconsumed completions remain charged. These are queue ownership limits,
+  not RawNode-input or RSS limits. A full Slot count pauses before Ready, returns the worker, and resumes after one complete lease retires; same-Slot message-only Ready and queued inputs also wait.
+  Node/byte limits, large legal entries, snapshots and configuration retain one borrowed synchronous Ready joining prior append/apply work. No accepted Ready is parked.
+  Async Save, fallback and compaction share the worker-sized Save allowance. Each turn may merge at most four already queued, compatible same-generation/term writes; original replies, apply fences and leases remain separate.
+  Close/reload retain old identity until physical work and completion ownership join. Terminal queued and borrowed-control Futures retain the exact cause across submission, with callbacks outside locks.
+  Network Step rejects local-storage types/endpoints; only private completions deliver those responses.
 - Recovery starts at a verified snapshot/certified FSM boundary and replays its
   committed suffix; a watermark alone cannot skip replay. Unknown or migration writes invalidate
   all proofs; disjoint FSM writes invalidate only their own. Compaction reanchors
@@ -103,9 +115,30 @@ plugin, migration, message projections, and MQTT session state.
   recovery keeps watermark semantics without certifying unknown state.
 - Ordinary and CMD membership progress is monotonic and UID-owned. Removed
   conversation table IDs stay reserved and must not be reused.
-- Message edits atomically resolve CAS/idempotency and maintain latest-state indexes through the Slot FSM. Reads group at most 200 targets by physical Slot with eight managed workers and a fresh local-only safe ReadIndex plus durable-apply barrier per group, followed by one shared database snapshot for that group (noop fallback for embedding ports without ReadIndex). Replica capability activation is persisted in each channel head; later quorum writes reuse it unless the replica set changes. JSON RPC format, row counts and bytes are bounded; read DTOs omit default zero fields while preserving field names, aligned pages and legacy decoding; matched binaries remain a rollout requirement. Read assembly revalidates Slot mapping and authority with a dedicated retryable read-route cause, distinct from database/CAS conflicts. ReadIndex requires a durable current-term commit; unconfirmed/canceled reads remain counted up to 256 per Slot until confirmation or Raft reset.
-- Concurrent SEND fact callers collect for at most 5 ms before sealed fresh reads; idle one/two-fact calls run immediately. Batches bound 64 calls/4096 inputs, 64 active batches, 1024 owned calls and 16 MiB credits. Each caller owns cancellation; last cancellation and Close join workers before storage/transport close. No completed facts are reused.
+- Message edits atomically resolve CAS/idempotency and maintain latest-state indexes through the Slot FSM. Reads group at most 200 targets by physical Slot with eight managed workers and a fresh local-only safe ReadIndex plus durable-apply barrier per group, followed by one shared database snapshot for that group (noop fallback for embedding ports without ReadIndex). Replica capability activation is persisted in each channel head; later quorum writes reuse it unless the replica set changes. JSON RPC format, row counts and bytes are bounded; read DTOs omit default zero fields while preserving field names, aligned pages and legacy decoding; matched binaries remain a rollout requirement. Read assembly revalidates Slot mapping and authority with a dedicated retryable read-route cause, distinct from database/CAS conflicts. ReadIndex admission requires a durable committed current-term prefix, even if the latest commit is still saving; completion still waits for the fresh read index to be durable-applied. Unconfirmed/canceled reads remain counted up to 256 per Slot until confirmation or Raft reset.
+- Concurrent SEND fact callers collect for at most 5 ms before sealed fresh reads; idle one/two-fact calls run immediately. Batches bound 64 calls/4096 original inputs and 64 collecting/executing owners. Full execution queues prepaid members in FIFO within the same 1024 owned calls/16 MiB data credits; pending has no worker/timer, and an owner return immediately seals a fitting FIFO prefix without bypassing a large head. Pending cancellation drops references before refund; selected last cancellation and Close join actual workers before dependencies close. No completed facts are reused. Credits cover owned input/result/member structures, not allocator overhead, borrowed context graphs, raw RPC/DB heap or RSS; at most 64 cohort/context/timer owners have a separate fixed bound.
+- Ingress cohort rejections copy satisfied call/byte guard bits and reservation occupancy under the ownership lock. Active occupancy remains context; bit 1 is historical. The optional error snapshot contains no identities, preserves the original busy cause and does not describe receiver admission or pre-copy oversized inputs.
 - Send-permission facts use a separate node-scoped typed RPC: same-leader Slots share one envelope, but each Slot retains its own route fence, fresh required ReadIndex/apply barrier and snapshot. Maintenance admission spans the entire read. Local leaders use the same path without loopback. Requests cap at 4096 facts/1 MiB, four workers and 128 executing envelopes (at most 512 Slot workers). At most 1024 additional envelopes (16 MiB of undecoded bytes) may wait before decoding for up to 2 s or caller cancellation; overflow/timeout is typed busy, with no extra RPC retry. One stale-route retry touches only failed groups. Policy/Channel-info commands preserve omitted flags and increment send-policy versions only on actual changes.
+- Optional receiver RPC phases separate envelope admission, authority execution,
+  fresh barrier and snapshot. They use only the existing execution context;
+  shared origin cohorts do not inherit one caller's trace or cancellation.
+  Sampled fresh barriers distinguish control wait, read eligibility, raw quorum,
+  Ready-to-accept and durable-apply wait on the same local clock. Raw ReadStates
+  observation records when quorum proof becomes available. A fresh proof for an already
+  durable-applied index may pass newer Save after checking actual leader/term; other reads still wait.
+  The immutable Runtime flag follows RPC diagnostics; disabled Ready has no optional clocks, locks or scans.
+  A fixed 32-observer Slot registry retains at most two Save and two Send
+  overlays per read; Save includes PersistentState preparation and has a closed
+  entries/HardState/snapshot/mixed kind. Message-only Ready has no Save overlay.
+  A fixed five-phase coverage record accumulates every Save/Send intersection,
+  including work beyond the detailed-overlay cap. It follows the same longest group,
+  clips work to caller termination, and marks unreached phases unknown. These
+  per-kind totals are not spans or fsync measurements and cannot be added to phase
+  durations or to each other: asynchronous Save and Send can overlap. Overlap can
+  mean parallel progress and does not itself establish owner blocking. Owner storage
+  coverage excludes count-paused scheduling time and separately records budget fallback scopes and drain/Save-admission/synchronous-work subsets; non-budget fences use a disjoint scope with closed cause bits. A separate optional five-phase record measures same-Slot count pauses through owner resumption, including late read registration and cancellation clipping; it does not identify append/apply causes. Explicit owner tokens exclude ordinary async Save; missing fields remain unknown, and overlapping pause/Save/owner scopes or parent/subsets must not be added.
+  The RPC trace retains only its longest barrier group, publishing it whole within 32 spans or reporting drops. Cancellation closes observation without releasing
+  its still-unconfirmed Raft read budget or changing late results.
 
 Command 79 adjusts the exact node MQTT storage escrow using revision/bytes CAS, complete Controller roster and cluster limit. Grants remain at zero to prevent ABA. Mismatched limits, stale roster revisions, incomplete startup debt and growth over the cluster sum fail closed. This allocation does not certify Channel content.
 

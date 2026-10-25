@@ -17,13 +17,13 @@ func BenchmarkPendingTableStoreComplete(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				ch := make(chan Response, 1)
+				ch := newPendingOwner()
 				id := uint64(i + 1)
 				table.Store(id, ch)
-				if !table.Complete(id, resp) {
+				if !completePendingForTest(table, id, resp) {
 					b.Fatalf("Complete(%d) = false, want true", id)
 				}
-				<-ch
+				<-ch.Done()
 			}
 		})
 	}
@@ -41,13 +41,13 @@ func BenchmarkPendingTableStoreCompleteParallel(b *testing.B) {
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
 				for pb.Next() {
-					ch := make(chan Response, 1)
+					ch := newPendingOwner()
 					id := ids.Add(1)
 					table.Store(id, ch)
-					if !table.Complete(id, resp) {
+					if !completePendingForTest(table, id, resp) {
 						b.Fatalf("Complete(%d) = false, want true", id)
 					}
-					<-ch
+					<-ch.Done()
 				}
 			})
 		})
@@ -64,7 +64,7 @@ func BenchmarkPendingTableFailAll(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				table := NewPendingTable(16)
 				for id := 0; id < pending; id++ {
-					table.Store(uint64(id+1), make(chan Response, 1))
+					table.Store(uint64(id+1), newPendingOwner())
 				}
 				table.FailAll(errBoom)
 			}

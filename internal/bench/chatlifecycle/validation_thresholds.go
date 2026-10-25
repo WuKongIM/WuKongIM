@@ -89,6 +89,9 @@ func validateThresholds(t ThresholdsConfig) error {
 	if t.Cluster.LeaderImbalanceFor <= 0 {
 		return fieldError("thresholds.cluster.leader_imbalance_for", "must be greater than zero")
 	}
+	if t.Timeline.LatencyWarmup <= 0 {
+		return fieldError("thresholds.timeline.latency_warmup", "must be greater than zero")
+	}
 	if t.Timeline.Warmup <= 0 {
 		return fieldError("thresholds.timeline.warmup", "must be greater than zero")
 	}
@@ -97,6 +100,9 @@ func validateThresholds(t ThresholdsConfig) error {
 	}
 	if t.Timeline.Final <= 0 {
 		return fieldError("thresholds.timeline.final", "must be greater than zero")
+	}
+	if t.Timeline.LatencyWarmup >= t.Timeline.Final {
+		return fieldError("thresholds.timeline.latency_warmup", "must be before final")
 	}
 	if t.Timeline.Warmup >= t.Timeline.Checkpoint {
 		return fieldError("thresholds.timeline.warmup", "must be before checkpoint")

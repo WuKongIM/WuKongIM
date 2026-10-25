@@ -276,12 +276,18 @@ type VerdictEvaluator struct {
 	latencyAnomalyHead  int
 	latencyAnomalySize  int
 	latencyAnomalyCount uint64
-	latencyEvidence     [3]bool
-	capacityWarning     bool
-	resources           [3]verdictResourceNode
-	resourceLast        time.Time
-	heapWindowCapacity  int
-	goroWindowCapacity  int
+	// Latency evidence keeps the original warmup cut and the last accepted histogram cut.
+	latencyBaselineAt    time.Time
+	latencyLastAt        time.Time
+	latencyWindowInvalid bool
+	// A gap longer than the statistics window restarts positive qualification only.
+	latencyQualificationStart time.Time
+	latencyQualification      [3]*CounterWindow
+	capacityWarning           bool
+	resources                 [3]verdictResourceNode
+	resourceLast              time.Time
+	heapWindowCapacity        int
+	goroWindowCapacity        int
 }
 
 // NewVerdictEvaluator validates immutable thresholds before retaining evidence.
@@ -295,7 +301,12 @@ func NewVerdictEvaluator(start time.Time, thresholds ThresholdsConfig) (*Verdict
 		return nil, ErrVerdictConfig
 	}
 	var latency [3]verdictLatencyState
+	var qualification [3]*CounterWindow
 	for index := range latency {
+		qualification[index], err = NewCounterWindow(verdictLatencyQualificationWindow, verdictLatencyQualificationSamples)
+		if err != nil {
+			return nil, ErrVerdictConfig
+		}
 		latency[index].p99, err = NewCounterWindow(thresholds.Latency.SustainedBreachWindow, verdictLatencyWindowSamples)
 		if err != nil {
 			return nil, ErrVerdictConfig
@@ -315,11 +326,12 @@ func NewVerdictEvaluator(start time.Time, thresholds ThresholdsConfig) (*Verdict
 	}
 	return &VerdictEvaluator{
 		start: start, thresholds: thresholds,
-		snapshot:           VerdictSnapshot{Outcome: VerdictPass},
-		minuteFailures:     minuteFailures,
-		latency:            latency,
-		heapWindowCapacity: heapCapacity,
-		goroWindowCapacity: goroCapacity,
+		snapshot:             VerdictSnapshot{Outcome: VerdictPass},
+		minuteFailures:       minuteFailures,
+		latency:              latency,
+		latencyQualification: qualification,
+		heapWindowCapacity:   heapCapacity,
+		goroWindowCapacity:   goroCapacity,
 	}, nil
 }
 
@@ -406,7 +418,9 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 	}
 	if observation.Latency != nil {
 		current := *observation.Latency
-		if !validLatencyCounters(current, v.thresholds.Latency) || (v.latencySeen && latencyCountersRegressed(current, v.previousLatency)) {
+		if !validLatencyCounters(current, v.thresholds.Latency) || (v.latencySeen && latencyCountersRegressed(current, v.previousLatency)) ||
+			(v.latencySeen && !validLatencyDelta(subtractLatencyCounters(current, v.previousLatency))) {
+			v.latencyWindowInvalid = true
 			selectSignal(VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseCounterRegression})
 		} else {
 			hadBaseline := v.latencySeen
@@ -416,14 +430,21 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 			}
 			v.latencySeen = true
 			v.previousLatency = current
-			warmupEnd := v.start.Add(v.thresholds.Timeline.Warmup)
+			warmupEnd := v.start.Add(v.thresholds.Timeline.LatencyWarmup)
 			afterWarmup := observation.At.After(warmupEnd)
 			if !observation.At.Before(warmupEnd) && !v.latencyBoundarySet {
 				// Cumulative worker histograms cannot split the cadence that crosses
 				// warmup. Keep its first post-boundary cut only as the baseline so
 				// pre-warmup latency cannot enter measured evidence.
 				v.latencyBoundarySet = true
+				v.latencyBaselineAt = observation.At
+				v.latencyLastAt = observation.At
+				v.latencyQualificationStart = observation.At
 			} else if hadBaseline && afterWarmup {
+				if !v.observeLatencyQualification(observation.At, delta) {
+					v.latencyWindowInvalid = true
+					selectSignal(VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseCounterRegression})
+				}
 				operations := [...]struct {
 					operation LatencyOperation
 					counters  LatencyThresholdCounters
@@ -435,14 +456,13 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 				}
 				for index, operation := range operations {
 					state := &v.latency[index]
-					if operation.counters.Count > 0 {
-						v.latencyEvidence[index] = true
-					}
 					if err := state.p99.Add(observation.At, operation.counters.AboveP99, operation.counters.Count); err != nil {
+						v.latencyWindowInvalid = true
 						selectSignal(VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseCounterRegression})
 						continue
 					}
 					if err := state.p999.Add(observation.At, operation.counters.AboveP999, operation.counters.Count); err != nil {
+						v.latencyWindowInvalid = true
 						selectSignal(VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseCounterRegression})
 						continue
 					}
@@ -480,6 +500,9 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 							selectSignal(VerdictSignal{Outcome: VerdictProductFailure, Cause: operation.cause})
 						}
 					}
+				}
+				if !v.latencyWindowInvalid {
+					v.latencyLastAt = observation.At
 				}
 			}
 		}
@@ -729,6 +752,15 @@ func validLatencyCounters(counters LatencyCounters, thresholds LatencyThresholds
 	return true
 }
 
+func validLatencyDelta(delta LatencyCounters) bool {
+	for _, counters := range [...]LatencyThresholdCounters{delta.Hot, delta.Cold, delta.Sync} {
+		if counters.AboveP99 > counters.Count || counters.AboveP999 > counters.AboveP99 || counters.Above10Seconds > counters.AboveP999 {
+			return false
+		}
+	}
+	return true
+}
+
 func latencyCountersRegressed(current, previous LatencyCounters) bool {
 	currentValues := [...]uint64{
 		current.Hot.Count, current.Hot.AboveP99, current.Hot.AboveP999, current.Hot.Above10Seconds,
@@ -903,8 +935,8 @@ func (v *VerdictEvaluator) completeEvidenceAt(at time.Time) bool {
 	if !v.correctnessSeen || v.previousCorrectness.FirstAttempts == 0 {
 		return false
 	}
-	for _, seen := range v.latencyEvidence {
-		if !seen {
+	for _, qualified := range v.latencyWindowEvidenceAt(at).Qualified {
+		if !qualified {
 			return false
 		}
 	}

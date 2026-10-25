@@ -163,8 +163,12 @@ type App struct {
 	presenceAuthorityClient *clusterinfra.PresenceAuthorityClient
 	online                  *online.Registry
 	presenceDirectory       *authoritypresence.Directory
-	presenceWorker          WorkerRuntime
-	metrics                 *obsmetrics.Registry
+	// presenceRecovery owns bounded recovery work until its real owners join.
+	presenceRecovery interface{ Close(context.Context) error }
+	// reopenPresenceRecovery replaces a drained cohort after startup rollback.
+	reopenPresenceRecovery func()
+	presenceWorker         WorkerRuntime
+	metrics                *obsmetrics.Registry
 	// goroutines is the always-on process supervisor shared by first-party runtimes.
 	goroutines *goruntimeregistry.Registry
 	// goroutineBaseline excludes tasks that predate this App from its shutdown wait.
@@ -814,6 +818,34 @@ type nodeRPCHandlerFunc func(context.Context, []byte) ([]byte, error)
 
 func (f nodeRPCHandlerFunc) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
 	return f(ctx, payload)
+}
+
+// classifiedNodeRPCHandler preserves trusted opcode policy through cluster
+// registration without splitting a mixed service or adding executor capacity.
+type classifiedNodeRPCHandler struct {
+	handle   nodeRPCHandlerFunc
+	readOnly func([]byte) bool
+	// traceOperation is optional header-only observation, independent of readOnly.
+	traceOperation func([]byte) uint8
+}
+
+func (h classifiedNodeRPCHandler) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	return h.handle(ctx, payload)
+}
+
+// CancelRunningFor only classifies borrowed request bytes; decoding and business
+// validation remain in the entry adapter before any mutation can execute.
+func (h classifiedNodeRPCHandler) CancelRunningFor(payload []byte) bool {
+	return h.readOnly != nil && h.readOnly(payload)
+}
+
+// TraceOperationFor preserves an optional trusted header declaration; nil is
+// unknown and never changes the independent running-cancellation classifier.
+func (h classifiedNodeRPCHandler) TraceOperationFor(payload []byte) uint8 {
+	if h.traceOperation == nil {
+		return 0
+	}
+	return h.traceOperation(payload)
 }
 
 type nodeRPCRegistrar interface {

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 )
 
 // SendBatchFailureDiagnostics explains how one failed item consumed the shared
@@ -20,6 +22,16 @@ type SendBatchFailureDiagnostics struct {
 	Submitter time.Duration
 	// DeadlineBudgetBeforeSubmit is the item's remaining deadline when channelappend began.
 	DeadlineBudgetBeforeSubmit time.Duration
+	// Submission contains the original owned job's phases when supplied by the
+	// admission owner. These phases are not assumed for other submitter ports.
+	Submission channelappend.SubmissionFailureDiagnostics
+	// HasSubmission distinguishes unavailable observations from measured zero.
+	HasSubmission bool
+	// Routing copies the optional single-item Router observation before the
+	// lower result is handed to the entry adapter.
+	Routing channelappend.RoutingFailureDiagnostics
+	// HasRouting distinguishes unobserved routing from a measured zero interval.
+	HasRouting bool
 }
 
 type sendBatchFailureError struct {
@@ -55,5 +67,7 @@ func annotateSendBatchTimeout(err error, diagnostics SendBatchFailureDiagnostics
 	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
+	diagnostics.Submission, diagnostics.HasSubmission = channelappend.SubmissionFailureDiagnosticsFromError(err)
+	diagnostics.Routing, diagnostics.HasRouting = channelappend.RoutingFailureDiagnosticsFromError(err)
 	return &sendBatchFailureError{cause: err, diagnostics: diagnostics}
 }

@@ -59,12 +59,21 @@ passing 72-hour formal generation -> same aged dataset and process proof
   Session expiry transfers to one generation-owned bounded cleanup queue;
   closing tombstones and per-SEND expiry leases prevent replacement or socket
   teardown from racing admitted retry work.
+- Retry admission and owner terminal decisions linearize with direct ACK verification.
+  Only an exact registered positive completion receipt may transfer to the Engine's
+  existing ACK settlement while its callback is queued. Missing state proves nothing;
+  strict public registration, real terminal errors and correctness budgets remain.
 - Initial SENDs settle a timer-local pending count before revisit leasing, so
   late successful ACKs advance the fence before cohort selection.
 - The first measured grant reserves distinct senders across person, group, and
   canary traffic at the formal population. A Channel becomes hot only after
   its first successful SENDACK; metadata-create vectors and hot/first-create/
   reheat latency evidence advance from those exact successful boundaries.
+- Worker protocol v11 carries deadline registration, exact-result coverage, and
+  confirmed observed-late first-attempt counts separately from explicit failures.
+  Only the original attempt's clocked transport result resolves its deadline;
+  missing results, unknown clocks, cancellation and expired receipts stay unknown.
+  Fixed attempt slots and the existing bounded late-receipt map bound retention.
 - Local transport-admission rejection stays explicit harness evidence and is
   excluded from product first-attempt failure rates. Retry exhaustion keeps a
   fixed trigger breakdown; sampled delivery loss starts only after a successful
@@ -80,9 +89,24 @@ passing 72-hour formal generation -> same aged dataset and process proof
   only verdict order, so monotonic classification keeps exact-hour evidence.
 - Failure cleanup fences new work, attempts exact stop for every applicable
   worker with an independent bound, preserving the original cause.
+  Exact recorded product TerminalSend errors permit release; other terminal
+  mutation errors remain harness failures. Stop cannot erase an earlier failure.
 - Verdict precedence is product, infrastructure, harness, then operator stop.
   Missing, stale, regressing, partial, overflowing, or unbounded evidence can
   never produce pass.
+- Latency warmup is ten minutes independently of the formal two-hour resource
+  warmup. Its first valid cumulative cut is a baseline. Positive latency evidence
+  needs a rolling ten-minute interval, 1,000 samples in each hot/cold/full-sync
+  class, and a cut at most five seconds old. Counter deltas belong to their end
+  cut; a gap over ten minutes resets positive qualification, not negative breaches.
+  The numerical five-minute breach rule and correctness gates remain unchanged.
+- Report v7 / threshold v2 binds local-diagnostic, rehearsal, or formal-protocol
+  scope to validated configuration. Formal-protocol scope still requires external
+  Linux topology/hardware evidence. Elapsed rehearsal time alone cannot pass,
+  and missing/stale latency qualification cannot yield a successful report.
+  Baseline/start/end elapsed positions share one monotonic process clock;
+  duration/order/freshness use them after serialization. Wall times are audit
+  fields; readers never reconstruct missing offsets or upgrade old reports.
 - Reports and control responses use closed reason vocabularies, fixed arrays,
   checked arithmetic, and bounded redacted samples. Raw UIDs, Channel IDs,
   payloads, credentials, endpoint bodies, and arbitrary errors are forbidden.

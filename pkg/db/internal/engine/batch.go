@@ -13,6 +13,8 @@ type Batch struct {
 	// certificateEpochs scopes known mutations; epoch zero removes that proof.
 	certificateEpochs      map[string]uint64
 	invalidateCertificates bool
+	// commitStats belongs to the most recent Commit attempt, before Close.
+	commitStats NativeCommitStats
 }
 
 // Set stages a key/value write.
@@ -59,7 +61,11 @@ func (b *Batch) DeleteRange(span Span) error {
 
 // Commit commits the batch, syncing when sync is true.
 func (b *Batch) Commit(sync bool) error {
-	if b == nil || b.batch == nil {
+	if b == nil {
+		return dberrors.ErrClosed
+	}
+	b.commitStats = NativeCommitStats{}
+	if b.batch == nil {
 		return dberrors.ErrClosed
 	}
 	opts := pebble.NoSync
@@ -69,7 +75,7 @@ func (b *Batch) Commit(sync bool) error {
 	if b.db != nil && b.db.seal != nil {
 		return b.commitSealed(opts)
 	}
-	return b.batch.Commit(opts)
+	return b.commitNative(opts)
 }
 
 // Close releases batch resources.
@@ -79,5 +85,6 @@ func (b *Batch) Close() error {
 	}
 	batch := b.batch
 	b.batch = nil
+	b.commitStats = NativeCommitStats{}
 	return batch.Close()
 }

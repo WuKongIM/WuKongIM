@@ -27,6 +27,7 @@ func TestServiceRequestOwnershipAllocations(t *testing.T) {
 		call()
 	}
 	allocations := testing.AllocsPerRun(1000, call)
+	t.Logf("queue_owner_allocations=%.2f", allocations)
 	if allocations > 1 {
 		t.Fatalf("queue-to-executor ownership allocated %.2f objects/request, want at most 1", allocations)
 	}

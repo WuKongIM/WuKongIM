@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/observability/presencelog"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal"
@@ -552,6 +553,16 @@ func (h *Handler) logSendFailure(cmd message.SendCommand, source, class string, 
 	if cmd.ClientMsgNo != "" {
 		fields = append(fields, wklog.ClientMsgNo(cmd.ClientMsgNo))
 	}
+	if snapshot, ok := message.PermissionAdmissionRejectionFromError(err); ok {
+		fields = append(fields,
+			wklog.Bool("permissionAdmissionPresent", true),
+			wklog.Int64("permissionAdmissionReasons", int64(snapshot.Reasons)),
+			wklog.Int64("permissionAdmissionActiveCohorts", int64(snapshot.ActiveCohorts)),
+			wklog.Int64("permissionAdmissionOwnedCalls", int64(snapshot.OwnedCalls)),
+			wklog.Int64("permissionAdmissionOwnedBytes", int64(snapshot.OwnedBytes)),
+			wklog.Int64("permissionAdmissionRequestBytes", int64(snapshot.RequestBytes)),
+		)
+	}
 	if diagnostics, ok := message.SendBatchFailureDiagnosticsFromError(err); ok {
 		fields = append(fields,
 			wklog.String("failedStage", diagnostics.FailedStage),
@@ -560,6 +571,31 @@ func (h *Handler) logSendFailure(cmd message.SendCommand, source, class string, 
 			wklog.Duration("submitterDuration", diagnostics.Submitter),
 			wklog.Duration("deadlineBudgetBeforeSubmit", diagnostics.DeadlineBudgetBeforeSubmit),
 		)
+		if diagnostics.HasSubmission {
+			fields = append(fields,
+				wklog.Bool("submissionTimingsPresent", true),
+				wklog.Duration("submissionQueueDuration", diagnostics.Submission.Queue),
+				wklog.Duration("submissionDependencyDuration", diagnostics.Submission.Dependency),
+				wklog.Duration("submissionReadyDuration", diagnostics.Submission.Ready),
+				wklog.Duration("submissionRouteDuration", diagnostics.Submission.Route),
+				wklog.Duration("submissionPreCallbackDuration", diagnostics.Submission.PreCallback),
+			)
+		}
+		if diagnostics.HasRouting {
+			fields = append(fields,
+				wklog.Bool("routingTimingsPresent", true),
+				wklog.Duration("routingResolveDuration", diagnostics.Routing.Resolve),
+				wklog.Duration("routingGroupAdmissionDuration", diagnostics.Routing.GroupAdmission),
+				wklog.Duration("routingAppendAdmissionDuration", diagnostics.Routing.AppendAdmission),
+				wklog.Duration("routingLocalSubmitDuration", diagnostics.Routing.LocalSubmit),
+				wklog.Duration("routingLocalWaitDuration", diagnostics.Routing.LocalWait),
+				wklog.Duration("routingForwardDuration", diagnostics.Routing.Forward),
+				wklog.Duration("routingRetryDelayDuration", diagnostics.Routing.RetryDelay),
+				wklog.Int64("routingAttempts", int64(diagnostics.Routing.Attempts)),
+				wklog.Int64("routingLocalAttempts", int64(diagnostics.Routing.LocalAttempts)),
+				wklog.Int64("routingRemoteAttempts", int64(diagnostics.Routing.RemoteAttempts)),
+			)
+		}
 	}
 	h.frameLogger().Warn("gateway send failed", fields...)
 }
@@ -683,6 +719,12 @@ func (e activationAuthFailureError) Unwrap() error {
 
 func (e activationAuthFailureError) GatewayAuthFailure() string {
 	return e.class
+}
+
+// GatewayAuthFailureLogFields projects only immutable physical-round evidence
+// carried by this activation failure; a plain remote status remains unknown.
+func (e activationAuthFailureError) GatewayAuthFailureLogFields() []wklog.Field {
+	return presencelog.AppendRecoveryProviderFailure(nil, e.err)
 }
 
 func classifyActivationError(err error) error {

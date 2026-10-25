@@ -520,7 +520,8 @@ func (n *Node) RegisterRPC(serviceID uint8, handler NodeRPCHandler) {
 	if n == nil || serviceID == 0 || handler == nil {
 		return
 	}
-	wrapped := clusternet.HandlerFunc(handler.HandleRPC)
+	// Preserve optional trusted request policies carried by the handler's type.
+	var wrapped clusternet.Handler = handler
 	n.mu.Lock()
 	if n.pendingRPCHandlers == nil {
 		n.pendingRPCHandlers = make(map[uint8]clusternet.Handler)

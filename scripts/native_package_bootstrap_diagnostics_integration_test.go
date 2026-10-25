@@ -16,6 +16,7 @@ import (
 // Exercise the real launcher and its cleanup with a controlled Docker boundary.
 // This proves diagnostic ownership and bounds, not that a distro boots systemd.
 func TestNativePackageBootstrapFailureDiagnostics(t *testing.T) {
+	sourceRoot := repoRoot(t)
 	for _, mode := range []string{"installer", "systemd", "probe-failure", "probe-timeout", "large-output", "cap-and-timeout"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
@@ -66,7 +67,7 @@ exit 18
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 			defer cancel()
-			cmd := exec.CommandContext(ctx, "bash", filepath.Join(repoRoot(t), "scripts/validate-native-package-lifecycle-container.sh"), "rockylinux:9", "rpm")
+			cmd := exec.CommandContext(ctx, "bash", filepath.Join(sourceRoot, "scripts/validate-native-package-lifecycle-container.sh"), "rockylinux:9", "rpm")
 			cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "WK_NATIVE_PACKAGE_DIST_DIR="+root, "FIXTURE_ROOT="+root, "FIXTURE_MODE="+mode)
 			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 			cmd.WaitDelay = time.Second

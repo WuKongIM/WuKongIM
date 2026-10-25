@@ -167,7 +167,7 @@ func TestLocalStorageOverlapCaptureClosedFailureDiagnostics(t *testing.T) {
 		{name: "stat_exit124_is_not_own_deadline", command: "stat", body: "exit 124", reason: "stat"},
 		{name: "stat_stderr", command: "stat", body: "printf '3\\n'; printf 'private-path-and-error\\n' >&2", reason: "stat"},
 		{name: "stat_invalid_size", command: "stat", body: "printf 'invalid-size\\n'", reason: "stat"},
-		{name: "file_disappeared_after_find", command: "find", body: "printf '%s/chunk-000000\\n' \"$1\"; rm \"$1/chunk-000000\"", reason: "stat"},
+		{name: "file_disappeared_after_every_find", command: "find", body: "printf '%s/chunk-000000\\n' \"$1\"; rm -f \"$1/chunk-000000\"", reason: "deadline"},
 		{name: "file_limit4097", fileLimit: true, reason: "entrylimit"},
 		// Inject filesystem measurement results at the OS command boundary. These
 		// exercise both byte limits without thousands of timed stat processes.

@@ -209,3 +209,34 @@ func TestValidationErrorsAreFieldPaths(t *testing.T) {
 		t.Fatalf("Validate() error = %v, want profile field path", err)
 	}
 }
+
+func TestLatencyWarmupIsExplicitAndPrecedesFinal(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		value time.Duration
+		want  string
+	}{
+		{"missing", 0, "must be greater than zero"},
+		{"negative", -time.Second, "must be greater than zero"},
+		{"too late", 30 * time.Minute, "must be before final"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := LocalConfig()
+			cfg.Thresholds.Timeline.LatencyWarmup = test.value
+			want := "thresholds.timeline.latency_warmup: " + test.want
+			if err := cfg.Validate(); err == nil || err.Error() != want {
+				t.Fatalf("Validate() = %v, want %s", err, want)
+			}
+		})
+	}
+	formal := FormalConfig()
+	formal.Thresholds.Timeline.LatencyWarmup = 11 * time.Minute
+	if err := formal.Validate(); err == nil || !strings.Contains(err.Error(), "thresholds.timeline.latency_warmup") {
+		t.Fatalf("formal accepted changed latency warmup: %v", err)
+	}
+	exact := LocalConfig()
+	exact.Thresholds.Timeline.LatencyWarmup = 30*time.Minute - time.Nanosecond
+	if err := exact.Validate(); err != nil {
+		t.Fatalf("exact complete latency window rejected: %v", err)
+	}
+}

@@ -210,6 +210,7 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 		}, a.metrics.PrometheusRegistry()).MustRegister(a.goroutines)
 	}
 	clusterCfg.Goroutines = a.goroutines
+	clusterCfg.Transport.RPCTraceEvery = 0
 	if top != nil && a.cfg.Top.APIEnabled {
 		clusterCfg.Channel.Observer = combineChannelObservers(clusterCfg.Channel.Observer, topChannelObserver{top: top})
 		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, topSlotObserver{top: top})
@@ -219,6 +220,11 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 	}
 	if a.cfg.Observability.Diagnostics.Enabled {
 		a.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(a.cfg))
+		if every := a.cfg.Observability.Diagnostics.RPCSampleEvery; every != 0 {
+			clusterCfg.Transport.RPCTraceEvery = every
+			clusterCfg.Transport.Observer = combineTransportObservers(clusterCfg.Transport.Observer,
+				&rpcDiagnosticsObserver{store: a.diagnostics, nodeID: clusterCfg.NodeID})
+		}
 		clusterCfg.Slots.PreferredLeaderObserver = combinePreferredLeaderObservers(
 			clusterCfg.Slots.PreferredLeaderObserver,
 			&preferredLeaderDiagnosticsObserver{store: a.diagnostics, nodeID: clusterCfg.NodeID},
@@ -402,7 +408,21 @@ func (a *App) wirePresence() {
 			return clusterinfra.ValidatePresenceTarget(presenceNode, target)
 		})
 		if canRecover {
-			authority.SetRecovery(presence.NewAuthorityRecovery(directory, clusterinfra.NewPresenceRecoveryOwners(recoveryNode, ownerReader)))
+			a.reopenPresenceRecovery = func() {
+				recovery := presence.NewAuthorityRecoveryWithOptions(directory, clusterinfra.NewPresenceRecoveryOwners(recoveryNode, ownerReader), presence.RecoveryOptions{
+					ResultCensus: a.cfg.Observability.Diagnostics.Enabled && a.cfg.Observability.Diagnostics.RPCSampleEvery != 0,
+				})
+				a.presenceRecovery = recovery
+				authority.SetRecovery(recovery)
+				if a.metrics != nil {
+					// Bind the exact generation; a reopened cohort replaces the
+					// previous source without racing lifecycle interface writes.
+					a.metrics.Presence.SetRecoverySnapshot(func() obsmetrics.PresenceRecoverySnapshot {
+						return obsmetrics.PresenceRecoverySnapshot(recovery.Stats())
+					})
+				}
+			}
+			a.reopenPresenceRecovery()
 		}
 		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
 		client.SetLocalOwner(ownerActions)
@@ -411,8 +431,8 @@ func (a *App) wirePresence() {
 		}
 		a.presenceAuthorityClient = client
 		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, OwnerRoutes: ownerReader, Logger: a.logger.Named("node")})
-		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceAuthorityRPC))
-		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceOwnerRPC))
+		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, classifiedNodeRPCHandler{handle: adapter.HandlePresenceAuthorityRPC, readOnly: accessnode.PresenceAuthorityReadOnly})
+		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, classifiedNodeRPCHandler{handle: adapter.HandlePresenceOwnerRPC, readOnly: accessnode.PresenceOwnerReadOnly, traceOperation: accessnode.PresenceOwnerTraceOperation})
 		if a.presence == nil {
 			a.presence = presence.New(presence.Options{
 				Local:                a.online,

@@ -73,6 +73,29 @@ scheduled backup or restore
   routes. Operation 10 adds `WKVO` version-2 aligned multi-target snapshots,
   bounded to 256 targets, 512 total UIDs, and 4,096 routes per owner page.
   Existing singleton presence byte layouts remain unchanged.
+- Presence owner operation 11 retains original caller boundaries in a `WKVO`
+  version-3 page. Requests cap at 16 calls, 256 total target groups and 512 UIDs;
+  each reply contains complete calls in the echoed `Start`/`Next` range and at
+  most 4,096 routes. Clients read one page without hidden continuation or retry.
+  Only the exact typed remote unknown-operation-11 response proves unsupported;
+  timeout, busy, malformed replies and local same-text errors never permit replay.
+- Bounded owner clients scan all v1/v2/v3 reply fields without allocating, then
+  jointly reserve decoded route backing, aligned arrays and copied strings before
+  decoding. Each owned page keeps its lease until released; raw wire is excluded.
+  Bounded readers reject unknown statuses as malformed; existing codecs and bytes
+  remain unchanged. Singleton legacy reads use op9, multi-target reads use op10.
+- Presence read-only classifiers verify the `WKVP` version-2 header, selecting
+  authority operations 5/8 and owner operations 9/10/11 only. Full body validation
+  remains in handlers; malformed reads never dispatch an owner mutation.
+- The owner diagnostic classifier declares only version-2 header operations
+  7/9/10/11 for selected server RPC samples. Unknown/truncated headers stay zero;
+  the declaration grants neither full-body validation nor cancellation authority.
+- Failed presence Register/Commit with route-not-ready log a closed source phase,
+  numeric target and optional immutable physical-round provider evidence. Known
+  masks preserve missing stages; RPC bytes stay unchanged and lookups add no
+  event. The shared `internal/observability/presencelog` formatter preserves these
+  fields for both node and gateway adapters. Raw causes, UID/session identities
+  and tokens remain excluded from the added evidence.
 - Presence batch lookups preserve input alignment and isolate group-scoped
   stale/rejected results. Compatibility fallback is limited to an explicit
   unsupported-operation response, never arbitrary transport failure.

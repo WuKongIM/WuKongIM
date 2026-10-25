@@ -38,8 +38,10 @@ type CheckpointEvidence struct {
 	MetaCreate        MetaCreateAccountingSnapshot
 	Resources         ReportResourceEvidence
 	Cluster           ReportClusterEvidence
-	Verdict           VerdictSnapshot
-	Capacity          ReportCapacityEvidence
+	// LatencyWindow is the exact reducer proof; empty evidence cannot support a successful verdict.
+	LatencyWindow VerdictLatencyWindowSnapshot
+	Verdict       VerdictSnapshot
+	Capacity      ReportCapacityEvidence
 	// Continuous proves this report is an in-process boundary in the formal
 	// Soak-to-capacity chain, never a restartable checkpoint.
 	Continuous bool
@@ -236,14 +238,16 @@ func (r *CheckpointRecorder) buildReport(
 	return Report{
 		SchemaVersion: ReportSchemaVersion, ThresholdVersion: ReportThresholdVersion, DesignProfile: ReportDesignProfile,
 		ConfigDigest: r.configDigest, DatasetDigest: evidence.DatasetDigest,
-		Thresholds: r.cfg.Thresholds, Profile: r.cfg.Profile, Mode: r.cfg.Mode, Stage: r.cfg.Stage,
+		Qualification: reportQualification(r.cfg.Profile, r.cfg.Stage),
+		Thresholds:    r.cfg.Thresholds, Profile: r.cfg.Profile, Mode: r.cfg.Mode, Stage: r.cfg.Stage,
 		RunDuration: r.cfg.RunDuration, Kind: kind,
 		Final: final, Continue: !final, Continuous: evidence.Continuous,
 		Fence: ReportFence{RunHash: hashReportValue(r.fence.RunID), AssignmentHash: hashReportValue(r.fence.AssignmentID), Generation: r.fence.Generation},
 		Window: ReportTimeWindow{
 			Start: r.start, WarmupEnd: r.start.Add(r.cfg.Thresholds.Timeline.Warmup),
-			QualificationAt: r.start.Add(r.cfg.Thresholds.Timeline.Checkpoint),
-			FinalAt:         r.start.Add(r.cfg.measuredDuration()), End: at, Elapsed: processElapsed,
+			LatencyWarmupEnd: r.start.Add(r.cfg.Thresholds.Timeline.LatencyWarmup),
+			QualificationAt:  r.start.Add(r.cfg.Thresholds.Timeline.Checkpoint),
+			FinalAt:          r.start.Add(r.cfg.measuredDuration()), End: at, Elapsed: processElapsed,
 		},
 		MinimumWorkerUptime: snapshot.MinimumUptime,
 		Topology: ReportTopologyProof{
@@ -257,7 +261,8 @@ func (r *CheckpointRecorder) buildReport(
 		EvidenceClassification: snapshot.EvidenceClassification, EvidenceCounts: snapshot.EvidenceCounts,
 		Lifecycle: evidence.Lifecycle, MetaCreate: evidence.MetaCreate,
 		Latency: ReportLatencyEvidence{
-			HotSendACK: snapshot.HotSendackLatency, ColdFirstCreateSendACK: snapshot.ColdFirstCreateSendackLatency,
+			QualificationWindow: projectReportLatencyQualification(evidence.LatencyWindow, r.start, processElapsed, r.cfg.Thresholds),
+			HotSendACK:          snapshot.HotSendackLatency, ColdFirstCreateSendACK: snapshot.ColdFirstCreateSendackLatency,
 			WorkerLifecycleReheatSendACK: snapshot.LifecycleReheatSendackLatency,
 			ReceiveACK:                   snapshot.RecvackLatency,
 			SendPendingToWrite:           snapshot.SendPendingToWriteLatency,

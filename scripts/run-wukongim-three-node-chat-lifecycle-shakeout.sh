@@ -374,15 +374,19 @@ sed \
 if (( MEASURE_SECONDS > 0 )); then
   checkpoint_milliseconds=$((WARMUP_SECONDS * 1000 + 1))
   final_seconds=$((WARMUP_SECONDS + MEASURE_SECONDS + GRACEFUL_STOP_TIMEOUT + 60))
+  measured_timeline="timeline: {latency_warmup: ${WARMUP_SECONDS}s, warmup: ${WARMUP_SECONDS}s, checkpoint: ${checkpoint_milliseconds}ms, final: ${final_seconds}s}"
   # The local staircase owns its post-drain rate verdict. Recovered first-attempt
   # failures remain in evidence but must not trigger the formal evaluator's
   # immediate terminal decision before the fixed measured interval completes.
   sed \
-    -e "s/timeline: {warmup: 10m, checkpoint: 20m, final: 30m}/timeline: {warmup: ${WARMUP_SECONDS}s, checkpoint: ${checkpoint_milliseconds}ms, final: ${final_seconds}s}/" \
+    -e "s/timeline: {latency_warmup: 10m, warmup: 10m, checkpoint: 20m, final: 30m}/$measured_timeline/" \
     -e 's/overall_first_attempt_failure: {max_failures: 1, per_attempts: 10000, operator: "<"}/overall_first_attempt_failure: {max_failures: 1, per_attempts: 1, operator: "<="}/' \
     -e 's/any_minute_first_attempt_failure: {max_failures: 1, per_attempts: 1000, operator: "<="}/any_minute_first_attempt_failure: {max_failures: 1, per_attempts: 1, operator: "<="}/' \
     "$LIFECYCLE_CONFIG" >"$LIFECYCLE_CONFIG.next"
   mv "$LIFECYCLE_CONFIG.next" "$LIFECYCLE_CONFIG"
+  # A changed template must not silently retain its longer evidence timeline.
+  rendered_timeline="$(awk '/^[[:space:]]*timeline:/ { sub(/^[[:space:]]*/, ""); print }' "$LIFECYCLE_CONFIG")"
+  [[ "$rendered_timeline" == "$measured_timeline" ]] || die 'measured local timeline derivation failed: explicit latency/resource warmup and checkpoint are required'
 fi
 
 sha256_file() {

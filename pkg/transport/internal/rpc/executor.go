@@ -1,6 +1,7 @@
 package rpc
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 	"github.com/panjf2000/ants/v2"
 )
@@ -44,6 +46,8 @@ type Executor struct {
 	unregisterPool func()
 	// unregisterOnce removes pool ownership after every worker has exited.
 	unregisterOnce sync.Once
+	// done closes only after released workers leave process-wide ownership.
+	done chan struct{}
 }
 
 // NewExecutor creates a bounded service task executor.
@@ -59,6 +63,7 @@ func NewExecutor(capacity int, observer core.Observer) (*Executor, error) {
 			if task == nil {
 				return
 			}
+			task.req.Dispatch.Mark(rpctrace.DispatchWorkerEnter)
 			executor.busy.Add(1)
 			defer executor.busy.Add(-1)
 			task.run()
@@ -76,7 +81,7 @@ func NewExecutor(capacity int, observer core.Observer) (*Executor, error) {
 		return nil, fmt.Errorf("%w: create service executor: %v", core.ErrInvalidConfig, err)
 	}
 
-	executor = &Executor{pool: pool, capacity: capacity}
+	executor = &Executor{pool: pool, capacity: capacity, done: make(chan struct{})}
 	unregister, err := goruntimeregistry.Default().RegisterPool(goruntimeregistry.TaskTransportRPCExecutor, executor.poolStats)
 	if err != nil {
 		pool.Release()
@@ -125,8 +130,14 @@ func (e *Executor) Submit(task *serviceTask) error {
 		return core.ErrStopped
 	}
 
+	if task != nil {
+		task.req.Dispatch.Mark(rpctrace.DispatchExecutorSubmit)
+	}
 	err := e.pool.Invoke(task)
 	if err == nil {
+		if task != nil {
+			task.req.Dispatch.Mark(rpctrace.DispatchExecutorAccepted)
+		}
 		return nil
 	}
 	if errors.Is(err, ants.ErrPoolOverload) {
@@ -157,6 +168,24 @@ func (e *Executor) Stop() error {
 		}
 	})
 	return e.stopErr
+}
+
+// Wait joins a previously stopped executor, including workers that outlived Stop's grace.
+func (e *Executor) Wait(ctx context.Context) error {
+	if e == nil {
+		return nil
+	}
+	select {
+	case <-e.done:
+		return nil
+	default:
+	}
+	select {
+	case <-e.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (e *Executor) poolStats() goruntimeregistry.PoolStats {
@@ -190,5 +219,6 @@ func (e *Executor) unregister() {
 		if e.unregisterPool != nil {
 			e.unregisterPool()
 		}
+		close(e.done)
 	})
 }
