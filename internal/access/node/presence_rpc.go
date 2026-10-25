@@ -8,6 +8,7 @@ import (
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	"github.com/WuKongIM/WuKongIM/internal/observability/presencelog"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
@@ -610,7 +611,7 @@ func (a *Adapter) logPresenceAuthorityError(req presenceRPCRequest, status strin
 			wklog.String("activation_phase", phase),
 			wklog.Int("hashSlot", int(req.Target.HashSlot)),
 			wklog.Uint64("slotID", uint64(req.Target.SlotID)), wklog.LeaderNodeID(req.Target.LeaderNodeID)}
-		a.rpcLogger().Warn("presence activation authority not ready", appendRecoveryProviderFailure(fields, err)...)
+		a.rpcLogger().Warn("presence activation authority not ready", presencelog.AppendRecoveryProviderFailure(fields, err)...)
 		return
 	}
 	if status != rpcStatusRejected {

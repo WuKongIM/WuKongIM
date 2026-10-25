@@ -74,6 +74,12 @@ Its owner-call interval includes encoding, RPC and decoding unless separate
 evidence proves a narrower phase. Shared recovery execution has no single
 caller trace parent; a provider failure's physical-round timing cannot be
 reported as the caller's exclusive delay.
+Direct local Register/Commit can bypass node RPC rejection logs. The existing
+gateway activation-error wrapper projects the same immutable provider evidence
+through an optional data-only capability into its original auth-failure log.
+Both adapters share one formatter; plain remote status carries no such evidence.
+Gateway accepts at most 32 extra fields and omits larger groups whole. This does
+not add a second event, alter the error chain, or turn unknown stages into zero.
 
 Node RPC services retain independent FIFO/concurrency budgets; shared executor
 capacity is derived from their sum. The transport label `presence owner action`
@@ -81,6 +87,28 @@ names the whole owner service, including action opcode 7 and reads 9/10/11.
 Its timeout total cannot identify which opcode failed. Service-wait histograms
 are observed at handler entry and omit requests canceled while queued; a low
 mean cannot rule out queue residence for those missing requests.
+
+`service_queue` begins immediately before Enqueue, after TrackInbound. It can
+include admission locking, FIFO/service-token wait, executor handoff, worker
+bookkeeping and cancellation processing. Ending without a handler span does not
+prove the request occupied the FIFO throughout or exhausted the service limit.
+The queue watcher stops at dequeue; later pump/worker checks still reject expired
+work. A caller deadline requests cancellation rather than forcing the diagnostic
+span to end at that instant. Correlate exact physical RPCs and executed subphases;
+sparse zero gauges and unrelated authentication timestamps are insufficient.
+
+Bound, declared server RPC observations may add one fixed 16-point dispatch
+sidecar outside the 32-span budget. Its mask distinguishes measured zero from
+unknown; offsets share that server Trace's monotonic origin. Concurrent enqueue,
+worker and expiry owners form a partial order, not a timeline sorted by point
+index. Finish freezes detached values and late points remain unknown. The planned
+effective queue deadline is separate, can precede the origin or exceed a healthy
+sample's duration, and is not an observed wait. A handler terminal path means
+dispatcher exit into the handler, not business success. Nil/unbound/client,
+unselected and unknown-operation paths do not allocate a dispatch recorder.
+The nullable pointer still enlarges unsampled request owners. A pinned N0
+queue-to-worker microbenchmark measured 176→192 B/request with one object in
+both versions; the struct's 8-byte growth is not its allocator-class cost.
 
 Selected server RPC samples may retain a trusted registration's fixed uint8
 operation declaration before service enqueue, including queue cancellation or

@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +12,30 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
+
+func TestRPCDispatchDiagnosticsObserverStoreQueryOwnsSnapshot(t *testing.T) {
+	store := obsdiagnostics.NewStore(obsdiagnostics.StoreOptions{Capacity: 2})
+	observer := &rpcDiagnosticsObserver{store: store, nodeID: 42}
+	sample := &rpctrace.Sample{TraceID: "token/dispatch", Side: rpctrace.SideServer, ServiceID: 14, Operation: 11, Result: rpctrace.ResultTimeout,
+		Dispatch: &rpctrace.DispatchSample{KnownMask: 1 << rpctrace.DispatchWorkerEnter, TerminalPath: rpctrace.DispatchPathWorkerRejected}}
+	observer.ObserveTransport(transport.Event{Name: "rpc_trace", RPCTrace: sample})
+	sample.Dispatch.KnownMask = 0
+	query := obsdiagnostics.Query{TraceID: "token/dispatch", Stage: obsdiagnostics.StageRPCServer}
+	first := store.Query(context.Background(), query)
+	if len(first.Events) != 1 || first.Events[0].RPC.Dispatch == nil || first.Events[0].RPC.Dispatch.KnownMask != 1<<rpctrace.DispatchWorkerEnter {
+		t.Fatal("observer/store retained live dispatch backing")
+	}
+	first.Events[0].RPC.Dispatch.Offsets[rpctrace.DispatchWorkerEnter] = time.Hour
+	first.Events[0].RPC.Dispatch.TerminalPath = rpctrace.DispatchPathHandler
+	second := store.Query(context.Background(), query)
+	if second.Events[0].RPC.Dispatch.Offsets[rpctrace.DispatchWorkerEnter] != 0 || second.Events[0].RPC.Dispatch.TerminalPath != rpctrace.DispatchPathWorkerRejected {
+		t.Fatal("query exposed mutable dispatch evidence")
+	}
+	data, err := json.Marshal(second)
+	if err != nil || !strings.Contains(string(data), `"dispatch":`) || !strings.Contains(string(data), `"terminal_path":"worker_rejected"`) {
+		t.Fatalf("dispatch was lost in diagnostics JSON: %s / %v", data, err)
+	}
+}
 
 func TestRPCDiagnosticsObserverRetainsEndpointSample(t *testing.T) {
 	for _, tc := range []struct {

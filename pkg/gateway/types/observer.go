@@ -1,6 +1,10 @@
 package types
 
-import "time"
+import (
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+)
 
 type Observer interface {
 	OnConnectionOpen(event ConnectionEvent)
@@ -67,6 +71,14 @@ type AuthEvent struct {
 // AuthFailureClassifier lets entry adapters expose a bounded auth failure class.
 type AuthFailureClassifier interface {
 	GatewayAuthFailure() string
+}
+
+// AuthFailureLogFields optionally supplies fixed scalar metadata for an
+// activation error. The gateway adds at most 32 fields to its existing failure
+// log; a larger group is omitted whole. Implementations must not add request
+// identities, credentials, raw causes, or mutable values. Missing fields are unknown.
+type AuthFailureLogFields interface {
+	GatewayAuthFailureLogFields() []wklog.Field
 }
 
 type FrameEvent struct {

@@ -262,11 +262,17 @@ type Sample struct {
 	BarrierCoverage *BarrierCoverage `json:"barrier_coverage,omitempty"`
 	// ReceivePrefix precedes the existing server window; absence means unknown.
 	ReceivePrefix *ReceivePrefix `json:"receive_prefix,omitempty"`
+	// Dispatch is optional selected server evidence, independent of MaxSpans.
+	Dispatch *DispatchSample `json:"dispatch,omitempty"`
 }
 
 // Clone detaches mutable data before crossing a store/query boundary.
 func (s Sample) Clone() Sample {
 	s.Spans = append([]SpanSample(nil), s.Spans...)
+	if s.Dispatch != nil {
+		dispatch := *s.Dispatch
+		s.Dispatch = &dispatch
+	}
 	if s.ReceivePrefix != nil {
 		prefix := *s.ReceivePrefix
 		s.ReceivePrefix = &prefix
@@ -353,6 +359,8 @@ type Trace struct {
 	serviceID uint16
 	operation uint8
 	closed    bool
+	// dispatch exists only for admitted bound server traces with a declaration.
+	dispatch *DispatchRecorder
 	// Receive evidence is fixed-size and never changes the original trace clock.
 	receivePrefix        ReceivePrefix
 	hasReceivePrefix     bool
@@ -660,6 +668,9 @@ func (t *Trace) Finish(result Result) *Sample {
 	if t.hasReceivePrefix {
 		prefix := t.receivePrefix
 		s.ReceivePrefix = &prefix
+	}
+	if t.dispatch != nil {
+		s.Dispatch = t.dispatch.finish(elapsed)
 	}
 	t.owner.active.Add(-1)
 	return s

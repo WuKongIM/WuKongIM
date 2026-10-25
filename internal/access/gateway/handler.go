@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/observability/presencelog"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal"
@@ -718,6 +719,12 @@ func (e activationAuthFailureError) Unwrap() error {
 
 func (e activationAuthFailureError) GatewayAuthFailure() string {
 	return e.class
+}
+
+// GatewayAuthFailureLogFields projects only immutable physical-round evidence
+// carried by this activation failure; a plain remote status remains unknown.
+func (e activationAuthFailureError) GatewayAuthFailureLogFields() []wklog.Field {
+	return presencelog.AppendRecoveryProviderFailure(nil, e.err)
 }
 
 func classifyActivationError(err error) error {

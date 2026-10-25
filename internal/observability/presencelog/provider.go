@@ -1,13 +1,13 @@
-package node
+package presencelog
 
 import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// appendRecoveryProviderFailure publishes fixed scalar metadata only on the
+// AppendRecoveryProviderFailure publishes fixed scalar metadata only on the
 // existing failed activation event. Missing stages remain absent, not zero.
-func appendRecoveryProviderFailure(fields []wklog.Field, err error) []wklog.Field {
+func AppendRecoveryProviderFailure(fields []wklog.Field, err error) []wklog.Field {
 	e, ok := presence.RecoveryProviderFailure(err)
 	if !ok {
 		return fields

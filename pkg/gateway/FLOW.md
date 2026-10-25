@@ -64,6 +64,10 @@ Message, presence, Channel, and Controller business policy stays outside gateway
 - During auth pending, any additional frame is a protocol violation. CONNECT
   must be the sole first decoded frame, and successful activation is rolled back
   if CONNACK cannot be written before close.
+- Only failed activation may supply optional data-only `AuthFailureLogFields`.
+  Core appends at most 32 fields to the original auth-failure log and omits an
+  oversized group whole. Authenticator failures do not query this capability;
+  business evidence stays in the entry adapter, without an `internal` import.
 - `OnSessionOpen` happens at most once and before `OnFrame` or `OnPacket`; `OnSessionClose`
   and relevant errors happen only after an in-progress open callback returns.
 - Inbound bytes, outbound bytes, auth queue, SEND backlog, per-shard mailboxes,

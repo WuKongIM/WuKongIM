@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 )
 
@@ -29,7 +30,10 @@ func (e *requestEntry) watchQueue(s *Service) {
 		// Unbudgeted inbound requests already have an explicit cancellation
 		// owner. Reuse its single queue hook instead of allocating a child
 		// cancellation tree. Generic contexts retain the standard path.
-		callback := func() { e.service.expire(e, requestError(e.req.Context.Err())) }
+		callback := func() {
+			e.req.Dispatch.Mark(rpctrace.DispatchContextCancelCallback)
+			e.service.expire(e, requestError(e.req.Context.Err()), rpctrace.DispatchPathContextExpiry)
+		}
 		if owner, ok := ctx.(interface{ WatchQueueCancellation(func()) func() bool }); ok {
 			e.stopExpiry = owner.WatchQueueCancellation(callback)
 		} else {
@@ -122,24 +126,27 @@ func (s *Service) expireQueueDeadline() {
 		return
 	}
 	s.mu.Unlock()
-	s.expire(e, core.ErrTimeout)
+	s.expire(e, core.ErrTimeout, rpctrace.DispatchPathQueueExpiry)
 }
 
 // expire releases both the FIFO position and payload even while all workers are blocked.
-func (s *Service) expire(e *requestEntry, err error) {
+func (s *Service) expire(e *requestEntry, err error, path rpctrace.DispatchPath) {
 	s.mu.Lock()
 	if !e.queued {
 		s.mu.Unlock()
 		return
 	}
 	s.unlinkLocked(e)
+	e.req.Dispatch.Mark(rpctrace.DispatchExpiryUnlink)
 	if s.stopped {
 		err = core.ErrStopped
 	}
 	e.stopQueueWatch()
 	event := s.queueEvent("expired", s.queueSnapshotLocked())
 	s.mu.Unlock()
+	e.req.Dispatch.End(path)
 	s.observe(event)
+	e.req.Dispatch.Mark(rpctrace.DispatchExpiryObserversDone)
 	deliver(e.req, Response{Err: err})
 	s.releaseRequest(e.req)
 }
@@ -154,11 +161,16 @@ func (s *Service) nextRequest() (Request, bool) {
 		e := s.head
 		if e != nil {
 			s.unlinkLocked(e)
+			e.req.Dispatch.Mark(rpctrace.DispatchDequeue)
 			err := s.beforeExecution(e.req)
 			e.stopQueueWatch()
 			event := s.queueEvent("ok", s.queueSnapshotLocked())
 			s.mu.Unlock()
+			if err != nil {
+				e.req.Dispatch.End(rpctrace.DispatchPathDequeueRejected)
+			}
 			s.observe(event)
+			e.req.Dispatch.Mark(rpctrace.DispatchDequeueObserversDone)
 			if err != nil {
 				deliver(e.req, Response{Err: err})
 				s.releaseRequest(e.req)

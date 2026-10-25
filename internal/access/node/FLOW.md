@@ -93,7 +93,9 @@ scheduled backup or restore
 - Failed presence Register/Commit with route-not-ready log a closed source phase,
   numeric target and optional immutable physical-round provider evidence. Known
   masks preserve missing stages; RPC bytes stay unchanged and lookups add no
-  event. Raw causes, UID/session identities and tokens remain excluded.
+  event. The shared `internal/observability/presencelog` formatter preserves these
+  fields for both node and gateway adapters. Raw causes, UID/session identities
+  and tokens remain excluded from the added evidence.
 - Presence batch lookups preserve input alignment and isolate group-scoped
   stale/rejected results. Compatibility fallback is limited to an explicit
   unsupported-operation response, never arbitrary transport failure.

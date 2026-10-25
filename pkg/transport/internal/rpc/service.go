@@ -23,6 +23,8 @@ const (
 type Request struct {
 	// TraceQueue spans admission through actual handler entry, including executor wait.
 	TraceQueue rpctrace.Span
+	// Dispatch is nil except for selected, bound server header declarations.
+	Dispatch *rpctrace.DispatchRecorder
 	// Context carries the connection lifetime and negotiated caller budget. Nil
 	// uses the service lifetime. Running cancellation is opt-in per service.
 	Context context.Context
@@ -176,17 +178,21 @@ func (s *Service) TraceOperationFor(payload []byte) uint8 {
 // Enqueue transfers payload ownership on success. Failed admission releases the
 // payload but leaves error response and Finish responsibility with the caller.
 func (s *Service) Enqueue(req Request) error {
+	req.Dispatch.Mark(rpctrace.DispatchEnqueueEnter)
 	payloadLen := req.Payload.Len()
 	req.retainedBytes = int64(req.Payload.RetainedBytes())
 	if s.opts.MaxPayload > 0 && payloadLen > s.opts.MaxPayload {
+		req.Dispatch.End(rpctrace.DispatchPathEnqueueRejected)
 		req.Payload.Release()
 		s.observeAdmissionAndQueue("too_large", payloadLen, s.queueSnapshot())
+		req.Dispatch.Mark(rpctrace.DispatchEnqueueObserversDone)
 		return core.ErrMsgTooLarge
 	}
 	if req.Context == nil {
 		req.Context = s.ctx
 	}
 	s.mu.Lock()
+	req.Dispatch.Mark(rpctrace.DispatchEnqueueLocked)
 	var err error
 	result := "ok"
 	switch {
@@ -203,12 +209,25 @@ func (s *Service) Enqueue(req Request) error {
 	if err != nil {
 		snapshot := s.queueSnapshotLocked()
 		s.mu.Unlock()
+		req.Dispatch.Mark(rpctrace.DispatchEnqueueUnlocked)
+		req.Dispatch.End(rpctrace.DispatchPathEnqueueRejected)
 		req.Payload.Release()
 		s.observeAdmissionAndQueue(result, payloadLen, snapshot)
+		req.Dispatch.Mark(rpctrace.DispatchEnqueueObserversDone)
 		return err
 	}
 	entry := &requestEntry{serviceTask: serviceTask{service: s, req: req}, queued: true, enqueuedAt: time.Now()}
 	entry.req.entry = entry
+	if req.Dispatch != nil {
+		var deadline time.Time
+		if s.opts.QueueTimeout > 0 {
+			deadline = entry.enqueuedAt.Add(s.opts.QueueTimeout)
+		}
+		if caller, ok := req.Context.Deadline(); ok && (deadline.IsZero() || caller.Before(deadline)) {
+			deadline = caller
+		}
+		req.Dispatch.SetQueueDeadline(deadline)
+	}
 	s.appendLocked(entry)
 	s.retainedBytes += req.retainedBytes
 	s.retainedItems++
@@ -218,12 +237,15 @@ func (s *Service) Enqueue(req Request) error {
 	snapshot := s.queueSnapshotLocked()
 	retained := s.retainedEventLocked()
 	s.mu.Unlock()
+	req.Dispatch.Mark(rpctrace.DispatchEnqueueUnlocked)
 	s.observe(retained)
 	s.observeAdmissionAndQueue("ok", payloadLen, snapshot)
+	req.Dispatch.Mark(rpctrace.DispatchEnqueueObserversDone)
 	select {
 	case s.queueReady <- struct{}{}:
 	default:
 	}
+	req.Dispatch.Mark(rpctrace.DispatchEnqueueWakeDone)
 	return nil
 }
 
@@ -276,6 +298,7 @@ func (s *Service) Stop() {
 		s.mu.Unlock()
 		s.observe(event)
 		for _, req := range drained {
+			req.Dispatch.End(rpctrace.DispatchPathStopped)
 			deliver(req, Response{Err: core.ErrStopped})
 			s.releaseRequest(req)
 		}
@@ -321,6 +344,7 @@ func (s *Service) pump() {
 			}
 			s.taskWG.Done()
 			s.releaseToken()
+			req.Dispatch.End(rpctrace.DispatchPathSubmitRejected)
 			deliver(req, Response{Err: err})
 			s.releaseRequest(req)
 			s.observeTask(taskResult(err), payloadLen, 0)
@@ -373,6 +397,7 @@ func (s *Service) beforeExecution(req Request) error {
 func (s *Service) handle(req Request) error {
 	// Recheck after executor admission: dispatch can race with caller cancellation.
 	if err := s.beforeExecution(req); err != nil {
+		req.Dispatch.End(rpctrace.DispatchPathWorkerRejected)
 		deliver(req, Response{Err: err})
 		return err
 	}
@@ -408,6 +433,8 @@ func (s *Service) handle(req Request) error {
 	handlerSpan := rpctrace.Begin(ctx, rpctrace.StageHandler)
 	handlerResult := rpctrace.ResultError
 	defer func() { handlerSpan.End(handlerResult) }()
+	req.Dispatch.End(rpctrace.DispatchPathHandler)
+	req.Dispatch.Mark(rpctrace.DispatchHandlerEnter)
 	resp, err := s.handler(ctx, req.Payload.Bytes())
 	if ctx.Err() != nil {
 		err = requestError(ctx.Err())
@@ -584,6 +611,9 @@ func trySendResponse(ch chan Response, resp Response) {
 }
 
 func deliver(req Request, resp Response) {
+	if resp.Err != nil {
+		req.Dispatch.Mark(rpctrace.DispatchErrorDeliver)
+	}
 	req.TraceQueue.End(core.RPCTraceResult(resp.Err))
 	if req.RespondBorrowed != nil {
 		req.RespondBorrowed(resp)
@@ -634,6 +664,7 @@ func (t *serviceTask) run() {
 		s.taskWG.Done()
 	}()
 
+	t.req.Dispatch.Mark(rpctrace.DispatchWorkerBookkeepingDone)
 	err := s.handle(t.req)
 	result = taskResult(err)
 }

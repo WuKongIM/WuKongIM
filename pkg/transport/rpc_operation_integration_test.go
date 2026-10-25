@@ -46,6 +46,17 @@ func TestRPCOperationOnlyClassifiesAdmittedServerObservations(t *testing.T) {
 				if sample.Operation != want {
 					t.Fatal("operation invented or missing")
 				}
+				if want == 0 {
+					if sample.Dispatch != nil {
+						t.Fatal("unknown/client sample acquired dispatch clocks")
+					}
+				} else {
+					d := requireDispatch(t, sample, rpctrace.DispatchPathHandler)
+					requireDispatchMarks(t, d, rpctrace.DispatchEnqueueEnter, rpctrace.DispatchEnqueueLocked, rpctrace.DispatchDequeue, rpctrace.DispatchDequeueObserversDone, rpctrace.DispatchExecutorSubmit, rpctrace.DispatchWorkerEnter, rpctrace.DispatchWorkerBookkeepingDone, rpctrace.DispatchHandlerEnter)
+					if !d.QueueDeadlineKnown || d.QueueDeadline <= d.Offsets[rpctrace.DispatchHandlerEnter] {
+						t.Fatal("actual queue deadline was lost or mistaken for elapsed work")
+					}
+				}
 			}
 			if tc.every == 1 {
 				samples := obs.snapshot()
@@ -123,8 +134,26 @@ func TestRPCOperationQueueCancelAndBusyDoNotRequireHandler(t *testing.T) {
 	for _, sample := range obs.snapshot() {
 		if sample.Side == rpctrace.SideServer {
 			found[sample.Operation] = sample.Result
+			switch sample.Operation {
+			case 7:
+				requireDispatch(t, sample, rpctrace.DispatchPathHandler)
+			case 11:
+				d := requireDispatch(t, sample, rpctrace.DispatchPathContextExpiry)
+				requireDispatchMarks(t, d, rpctrace.DispatchContextCancelCallback, rpctrace.DispatchExpiryUnlink, rpctrace.DispatchExpiryObserversDone, rpctrace.DispatchErrorDeliver)
+				if d.KnownMask&(1<<rpctrace.DispatchDequeue|1<<rpctrace.DispatchWorkerEnter|1<<rpctrace.DispatchHandlerEnter) != 0 {
+					t.Fatal("canceled FIFO owner invented dequeue/worker/handler entry")
+				}
+			case 9:
+				d := requireDispatch(t, sample, rpctrace.DispatchPathEnqueueRejected)
+				requireDispatchMarks(t, d, rpctrace.DispatchEnqueueEnter, rpctrace.DispatchEnqueueLocked, rpctrace.DispatchErrorDeliver)
+				if d.QueueDeadlineKnown {
+					t.Fatal("rejected admission invented a queue-owned deadline")
+				}
+			}
 		} else if sample.Operation != 0 {
 			t.Fatal("client inferred operation")
+		} else if sample.Dispatch != nil {
+			t.Fatal("client retained server dispatch")
 		}
 	}
 	if found[7] != rpctrace.ResultOK || found[11] != rpctrace.ResultCanceled || found[9] != rpctrace.ResultBusy {
@@ -177,8 +206,88 @@ func TestRPCOperationMissingServiceAndRecorderDropStayUnknown(t *testing.T) {
 				if sample.Operation != 0 {
 					t.Fatal("missing evidence became known")
 				}
+				if sample.Dispatch != nil {
+					t.Fatal("missing/dropped declaration enabled dispatch")
+				}
 				if dropped && sample.Side == rpctrace.SideServer {
 					t.Fatal("dropped server produced sample")
+				}
+			}
+		})
+	}
+}
+
+func requireDispatch(t *testing.T, sample rpctrace.Sample, path rpctrace.DispatchPath) *rpctrace.DispatchSample {
+	t.Helper()
+	if sample.Dispatch == nil || sample.Dispatch.TerminalPath != path {
+		t.Fatalf("dispatch path=%+v, want %s", sample.Dispatch, path)
+	}
+	for point, offset := range sample.Dispatch.Offsets {
+		if sample.Dispatch.KnownMask&(1<<point) != 0 && (offset < 0 || offset > sample.Duration) {
+			t.Fatal("dispatch mark exceeded its containing frozen trace")
+		}
+	}
+	return sample.Dispatch
+}
+
+func requireDispatchMarks(t *testing.T, sample *rpctrace.DispatchSample, points ...rpctrace.DispatchPoint) {
+	t.Helper()
+	for _, point := range points {
+		if sample.KnownMask&(1<<point) == 0 {
+			t.Fatalf("dispatch point %d is unknown in %+v", point, sample)
+		}
+	}
+}
+
+func TestRPCDispatchPreservesStartedReadAndMutationCancellation(t *testing.T) {
+	for _, operation := range []byte{7, 11} {
+		t.Run(map[byte]string{7: "mutation", 11: "read"}[operation], func(t *testing.T) {
+			entered, release := make(chan struct{}), make(chan struct{})
+			observed := make(chan error, 1)
+			opts := traceOptions()
+			opts.TraceOperationFor = func(body []byte) uint8 { return body[0] }
+			opts.CancelRunningFor = func(body []byte) bool { return body[0] == 11 }
+			obs := &traceObserver{}
+			client, server := tracePair(t, true, 1, opts, func(ctx context.Context, body []byte) ([]byte, error) {
+				close(entered)
+				if operation == 11 {
+					<-ctx.Done()
+				} else {
+					<-release
+				}
+				observed <- ctx.Err()
+				return body, nil
+			}, obs)
+			t.Cleanup(func() {
+				select {
+				case <-release:
+				default:
+					close(release)
+				}
+			})
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			result := make(chan error, 1)
+			go func() { _, err := client.Call(ctx, 2, 0, PriorityRPC, 1, []byte{operation}); result <- err }()
+			traceWait(t, entered)
+			cancel()
+			if err := <-result; !errors.Is(err, ErrCanceled) {
+				t.Fatalf("caller cancellation changed: %v", err)
+			}
+			close(release)
+			select {
+			case err := <-observed:
+				if operation == 7 && err != nil || operation == 11 && !errors.Is(err, context.Canceled) {
+					t.Fatalf("started request execution policy changed: %v", err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("started request did not finish")
+			}
+			client.Stop()
+			server.Stop()
+			for _, sample := range obs.snapshot() {
+				if sample.Side == rpctrace.SideServer {
+					requireDispatch(t, sample, rpctrace.DispatchPathHandler)
 				}
 			}
 		})

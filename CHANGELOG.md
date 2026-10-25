@@ -26,6 +26,16 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve available presence-provider failure stages on the existing gateway
+  activation rejection log, including direct local authority calls; remote
+  statuses without evidence remain unknown. / 网关原有激活失败日志补充可用的在线恢复
+  provider 阶段，覆盖本节点权威调用；无阶段证据的远端状态继续保持未知。
+
+- Split selected server RPC dispatch evidence into bounded admission, dequeue,
+  executor, worker and cancellation points, retaining unknown late stages and
+  the original execution limits. / 采样服务端 RPC 补充准入、出队、执行器、工作线程和
+  取消处理点位；晚到阶段保持未知，原执行额度与门禁不变。
+
 - Identify declared presence-owner operations in selected RPC diagnostics,
   including requests canceled while queued, without changing request bytes or
   execution policy. / 采样 RPC 诊断补充在线所有者操作类型，覆盖排队期间取消的请求，

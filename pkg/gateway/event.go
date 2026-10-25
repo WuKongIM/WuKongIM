@@ -19,6 +19,7 @@ type TransportWriteObserver = gatewaytypes.TransportWriteObserver
 type ConnectionEvent = gatewaytypes.ConnectionEvent
 type AuthEvent = gatewaytypes.AuthEvent
 type AuthFailureClassifier = gatewaytypes.AuthFailureClassifier
+type AuthFailureLogFields = gatewaytypes.AuthFailureLogFields
 type FrameEvent = gatewaytypes.FrameEvent
 type FrameHandleEvent = gatewaytypes.FrameHandleEvent
 type SessionErrorEvent = gatewaytypes.SessionErrorEvent

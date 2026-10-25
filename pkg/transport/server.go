@@ -390,8 +390,9 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 	}
 	// Header observation precedes queue ownership so cancellation without handler
 	// entry retains its declaration. Missing/dropped traces never classify bytes.
-	if inbound.Trace != nil {
-		inbound.Trace.RecordOperation(service.TraceOperationFor(inbound.Payload.Bytes()))
+	var dispatch *rpctrace.DispatchRecorder
+	if inbound.Trace != nil && inbound.Trace.RecordOperation(service.TraceOperationFor(inbound.Payload.Bytes())) {
+		dispatch = inbound.Trace.StartDispatch()
 	}
 	requestCtx = rpctrace.With(requestCtx, inbound.Trace)
 	// Encode borrowed handler bytes into an owned wire buffer before the callback returns.
@@ -427,7 +428,8 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 	}
 
 	queue := inbound.Trace.Begin(rpctrace.StageServiceQueue)
-	if err := service.Enqueue(rpc.Request{Context: requestCtx, Finish: finish, TraceQueue: queue, Payload: inbound.Payload, RespondBorrowed: respond}); err != nil {
+	if err := service.Enqueue(rpc.Request{Context: requestCtx, Finish: finish, TraceQueue: queue, Dispatch: dispatch, Payload: inbound.Payload, RespondBorrowed: respond}); err != nil {
+		dispatch.Mark(rpctrace.DispatchErrorDeliver)
 		queue.End(core.RPCTraceResult(err))
 		finish()
 		s.sendRPCError(ctx, inbound, err)

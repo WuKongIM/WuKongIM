@@ -379,3 +379,155 @@ and optional census. That is an explicit observation-condition change, not a
 performance comparison with the sampling-zero run or a formal Linux certificate.
 Failed worker verdicts still stop traffic; a bounded post-stop diagnostic hold
 must fit the original cleanup deadline. All earlier failures remain unchanged.
+
+## Sixth and seventh diagnoses: same-RPC waits and bounded profiles
+
+Both runs use exact product `4fcab68036a03a6ab06a58b3974a431214397be3`
+(tree `5740bb5b663a0aeb87d115700ce4395708db88f3`). R6 adds one-in-32 RPC
+sampling and bounded collection; R7 additionally captures three node2 profiles.
+These are explicit observation-condition changes, not unchanged-baseline
+performance comparisons. Original workload, deadlines and release gates remain.
+
+| Evidence | R6 | R7 |
+| --- | ---: | ---: |
+| Native monotonic measured seconds | 262.456193667 | 287.323760334 |
+| SEND / eventual ACK | 522,006 / 522,006 | 572,006 / 572,006 |
+| Original deadlines / resolved | 522,006 / 522,006 | 572,006 / 572,006 |
+| Observed-late originals / unknown | 16,647 / 0 | 16,721 / 0 |
+| Retries | 9,979 | 9,821 |
+| Sampled / completed deliveries | 4,779 / 4,779 | 5,166 / 5,166 |
+| Complete periodic intervals | 51 | 56 |
+| SEND/s over printed wall intervals | 1,999.960472303 | 1,999.853325946 |
+
+Both naturally stop with `harness_invalid / worker_harness_invalid`; neither
+reaches the ten-minute latency baseline. All v7 elapsed positions, qualified
+duration and class counts remain zero, with `not_evaluated`. SEND terminal,
+loss, duplicate, corruption and sequence-regression fields are zero. This
+supports observed ACKs and sampled delivery, not exhaustive recipient delivery.
+Native cleanup and fresh independent checks confirm zero owned processes and
+zero listeners on all 64 reserved ports. No supervisor measurement stop or
+automatic retry reclassifies these results.
+
+R6 retains one canonical node3 Register failure in a shared physical round:
+owner1 completes in 95.580ms, then owner2 remote operation11 times out at
+261.268ms under its original 250ms budget. The cumulative 356.847ms owner-read
+interval includes both owners. Admission is 583ns and the initial snapshot
+43.125µs. Two gateway authentication failures cannot be matched by event counts
+or wall timestamps to that single authority event. R7 instead retains one
+gateway `activation_route_not_ready` failure lasting 348.717ms, with no authority
+Register/Commit or provider capsule. Its owner, mode, budget and stages remain
+unknown; R6's capsule must not be copied into R7's explanation.
+The retained nested Register/recovery/provider error chain supports the last
+failed registration taking the direct local authority path: remote stable status
+strips those inner phases. Earlier retries and nested owner reads may still be
+remote. That local path bypasses the node RPC rejection logger, explaining a
+coverage gap rather than proving that no provider work ran. Its outer activation
+budget is three seconds; the 250ms owner budget belongs to an inner physical round.
+
+R6's three pre-Stop cuts contain 180 exact client/server operation11 pairs:
+177 both succeed and three clients time out. Two node2 pairs have 528.972ms and
+546.456ms in `service_queue`, without handler or response spans. Their client
+acquisition, capability and queue/write intervals are each below 0.008ms. This
+is direct evidence of waiting before business handler entry. The interval also
+includes admission, executor handoff and cancellation processing; it does not
+prove continuous FIFO residence or exhaustion of the 128 execution slots.
+Three node2 queue/inflight snapshots show zero, but are neither continuous nor
+joined to those requests. Successful pairs also show up to 190.529ms between
+response notification and caller resumption. Endpoint-local intervals do not
+measure one-way network delay or establish the rare authentication's parent.
+
+R6 exported scheduler histograms contain runnable waits above 117.440512ms,
+while exported GC stop-the-world histograms contain none in that range.
+Smoothed process CPU and host snapshots do not show sustained full utilization;
+they cannot rule out short contention or measure five-second CPU deltas.
+Node2 allocation counter differences are approximately 228–266 MB/s. GC CPU
+and disk-latency histories are absent. This motivates profiles, not a conclusion
+that GC or infrastructure alone caused the failure.
+
+R7's node2 allocs snapshots at +15s/+230s and CPU capture at +210s all complete
+before Stop; raw size totals 559,993 bytes. The pinned official pprof tool parses
+all three. The 10.153918958s CPU window has 5.90 sampled CPU-seconds: GC assist
+is 0.85% cumulative and is not dominant in that window. System-call stacks
+include transport Writev/read and compaction read/write. These are sampling
+attributions, not proof of network capacity exhaustion or the later failure.
+The authentication warning occurs about 59.892s after the CPU window ends.
+
+The two allocation samples differ by an estimated 50.9615GB over 214.837845s.
+They use 524,288-byte sampling and may lag completed GC cycles. Largest business
+sites include recovery admission indexes (3.534GB flat, 6.93%), batch collection
+backing (2.727GB, 5.35%) and peer exchange (1.418GB, 2.78%). No one site dominates;
+the observed small-result paths do not eagerly allocate 4,096 routes per call.
+Node2 write counters separately show 91.437% single-frame logical batches over
+the +90s→+270s cuts. A logical batch is not necessarily one kernel syscall, and
+these counters do not identify the profiled request or prove saturation.
+
+R6's four and R7's five RPC cuts have complete body hashes and sizes. The
+failure-triggered cut uses the existing closed provider marker. Its generic
+status-field predicate has a coverage gap: native status does not expose the
+assumed root `messages` object. It cannot promise a pre-Stop cut for every
+product failure. Sealed scripts and original verdicts remain unchanged.
+
+The product observation's [candidate CI](https://github.com/WuKongIM/WuKongIM/actions/runs/40214199112)
+passes default and migration/messaging E2E, but its scripts check times out at
+the unchanged 600s wrapper deadline. All 652 completed top-level cases and eight
+unfinished cases remain retained; no observed assertion failure does not make
+the command pass. Two fixture parents bypassed the documented scheduler by
+resolving `repoRoot` only inside child cases. Test-only commit
+`e04632ef13c33c8b34c477503088a4bb99afc7d0` hoists those two calls, retaining all
+16 modes and original assertions/deadlines. Its first
+[candidate](https://github.com/WuKongIM/WuKongIM/actions/runs/40220133117),
+[three-node](https://github.com/WuKongIM/WuKongIM/actions/runs/40220133141),
+[Manager](https://github.com/WuKongIM/WuKongIM/actions/runs/40220133344), and
+[native preview](https://github.com/WuKongIM/WuKongIM/actions/runs/40220133168)
+workflows pass. This neither erases the original timeout nor proves an exact
+full-suite speedup caused only by the hoist. R7 still executes the original
+4fc binaries from their clean exact source.
+
+The next narrow observation belongs inside the RPC dispatcher: distinguish
+admission, actual dequeue, executor handoff, worker bookkeeping and cancellation
+for the same selected physical RPC. A total queue span, sparse gauges, CPU
+window or unrelated authentication timestamp is insufficient. No larger pool,
+longer deadline, lower correctness threshold or verified performance repair is
+implied. Effective positive latency evidence, same-source four-host Linux
+qualification and signed stable-channel publication remain incomplete.
+
+## Dispatcher and local activation evidence follow-up
+
+The next candidate adds one optional fixed 16-point companion to selected,
+bound server RPC samples with a known operation declaration. It separates
+enqueue entry/lock/unlock, observer/wake completion, actual dequeue, executor
+submission/acceptance, worker entry/bookkeeping, handler entry and expiry/error
+delivery. These are local monotonic points with a known mask, not a total order
+or proof of continuous queue occupancy. The effective planned queue deadline is
+separate from actual execution and may exceed a healthy sample's duration.
+Finish and query cloning detach the values; late marks remain unknown. The
+32-span/128-active bounds, original wire, concurrency and cancellation remain.
+
+Unselected paths allocate no companion, but their request owner still grows.
+A same-toolchain N0 microbenchmark, 100,000 queue-to-worker lifecycles per
+version, measures 176→192 B/request and one object in both. Request/entry/Trace/
+Sample `unsafe.Sizeof` each grow eight bytes; allocator class growth differs.
+Single-run ns/op is not a throughput comparison or capacity certificate.
+
+The same source projects the existing immutable physical-round provider evidence
+from the failed gateway activation error into its original log. Node and gateway
+share one formatter with the node's existing field order and values preserved.
+Generic gateway core accepts at most 32 extra fields and omits oversized groups
+whole; it does not query this capability for authenticator failures. A plain
+remote status remains unknown. Error unwrapping, retry, CONNACK and rollback are
+unchanged. Real local Register→bounded recovery→empty owner roster tests first
+reproduce the missing fields, then verify the original log in JSON and console
+formats without a node RPC. Controlled Service observers test dispatcher
+branches; they are not a reproduction of a production observer bottleneck.
+
+Related unit suites, real TCP/Service and local activation integration tests,
+store/query isolation and focused race×20 pass. The named FLOW check validates
+89 files with zero invalid files and 21 advisory length warnings. This does not
+reclassify the earlier broad MQTT integration failure or certify the full suite.
+
+The fresh local rerun remains pending. Its private collector preserves the
+closed dispatch schema and triggers on native `harness.failures`; connection
+totals and normal churn do not identify message failures. No generic predicate
+is claimed to cover every product failure before Stop. The run retains N32 and
+the existing three debug flags, omits R7 profiles, and preserves the original
+workload, gates and native early-stop behavior. It is diagnostic evidence only.

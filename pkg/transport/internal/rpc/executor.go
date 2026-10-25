@@ -9,6 +9,7 @@ import (
 	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
 	"github.com/panjf2000/ants/v2"
 )
@@ -62,6 +63,7 @@ func NewExecutor(capacity int, observer core.Observer) (*Executor, error) {
 			if task == nil {
 				return
 			}
+			task.req.Dispatch.Mark(rpctrace.DispatchWorkerEnter)
 			executor.busy.Add(1)
 			defer executor.busy.Add(-1)
 			task.run()
@@ -128,8 +130,14 @@ func (e *Executor) Submit(task *serviceTask) error {
 		return core.ErrStopped
 	}
 
+	if task != nil {
+		task.req.Dispatch.Mark(rpctrace.DispatchExecutorSubmit)
+	}
 	err := e.pool.Invoke(task)
 	if err == nil {
+		if task != nil {
+			task.req.Dispatch.Mark(rpctrace.DispatchExecutorAccepted)
+		}
 		return nil
 	}
 	if errors.Is(err, ants.ErrPoolOverload) {
