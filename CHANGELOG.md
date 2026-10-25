@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Extend sampled Channel-authority RPC timing through writer preparation and the
+  first selected append effect, preserving each caller's observation ownership
+  across shared batches. / Channel 权威节点 RPC 采样补充 writer 准备与首个 append
+  执行区间，共享批次保留各调用的独立观测归属。
+
 - Preserve message and metadata read-cache headroom when Pebble retains writable
   and recycled memtables. Their default combined cache budgets become 512 MiB
   and 320 MiB per node; this increases potential memory use, not an RSS limit.

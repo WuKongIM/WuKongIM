@@ -15,6 +15,9 @@ const (
 type Future struct {
 	done chan struct{}
 	once sync.Once
+	// rpcTrace is optional observation ownership, fixed before enqueue. It never
+	// owns cancellation, admission or post-commit reservations.
+	rpcTrace *submissionTrace
 
 	mu      sync.Mutex
 	results []SendBatchItemResult
@@ -83,6 +86,7 @@ func (f *Future) complete(results []SendBatchItemResult) {
 		f.closed = true
 		onDone := f.onDone
 		f.mu.Unlock()
+		f.finishRPCTrace()
 		close(f.done)
 		if onDone != nil {
 			onDone()
@@ -173,6 +177,7 @@ func (f *Future) finish() {
 		f.closed = true
 		onDone := f.onDone
 		f.mu.Unlock()
+		f.finishRPCTrace()
 		close(f.done)
 		if onDone != nil {
 			onDone()

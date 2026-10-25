@@ -76,6 +76,19 @@ const (
 	StageCommitPublish           Stage = "commit_publish"
 )
 
+// Channel authority stages retain a bounded first-effect view within the
+// enclosing caller wait; they never imply a complete storage critical path.
+const (
+	StageChannelSubmit             Stage = "channel_submit"
+	StageChannelFutureWait         Stage = "channel_future_wait"
+	StageChannelPrepareWait        Stage = "channel_prepare_wait"
+	StageChannelPrepare            Stage = "channel_prepare"
+	StageChannelFirstAppendPending Stage = "channel_first_append_pending"
+	StageChannelFirstAppendQueue   Stage = "channel_first_append_queue"
+	StageChannelFirstAppend        Stage = "channel_first_append"
+	StageChannelAfterFirstAppend   Stage = "channel_after_first_append"
+)
+
 // Result is a closed observation outcome; errors and payloads are never stored.
 type Result string
 
@@ -650,7 +663,9 @@ func validStage(stage Stage) bool {
 		StageResponseReceiveObserver, StageResponseDispatch, StageResponseResume,
 		StageRecoveryAdmission, StageRecoveryFlight, StageRecoveryOwners, StageRecoveryOwner, StageRecoveryInstall,
 		StagePermissionAdmission, StagePermissionBarrier, StagePermissionSnapshot, StagePermissionAuthority,
-		StageCommitAdmission, StageCommitQueue, StageCommitCollect, StageCommitBuild, StageCommitDurable, StageCommitPublish:
+		StageCommitAdmission, StageCommitQueue, StageCommitCollect, StageCommitBuild, StageCommitDurable, StageCommitPublish,
+		StageChannelSubmit, StageChannelFutureWait, StageChannelPrepareWait, StageChannelPrepare,
+		StageChannelFirstAppendPending, StageChannelFirstAppendQueue, StageChannelFirstAppend, StageChannelAfterFirstAppend:
 		return true
 	default:
 		return validBarrierStage(stage)

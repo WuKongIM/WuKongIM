@@ -67,6 +67,7 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   transient sends. Valid MQTT metadata permits empty bodies; native sends still require a body. Owned envelopes preserve original metadata.
 - Temporary gofail builds can delay accepted Will appends before the native budget; ordinary controls are inert.
 - Accepted work survives caller cancellation; a timed-out Stop bounds its wait and never discards admitted work.
+- Sampled RPC Futures retain fixed preparation and first-append phases without caller cancellation ownership. Pending ends when runAppend claims the first effect immediately before pool submission. First-effect timing is partial shared work with per-Future outcomes; the after-first interval also includes ordered completion and any remaining original Future work. Rejected/realtime-only paths never invent append phases. Samples use the existing bounded trace and transport publication, without new queues or collectors.
 - Per-item result order and cardinality are preserved across routing, append,
   retry, and remote forwarding.
 - Backlog, worker pools, router concurrency, recipient pages, owner fanout, and

@@ -839,6 +839,20 @@ and `a85ba3e18a6a4183f019f5049664ece6271f3cd6c166c159a5848dd638465bb6`.
 PR #1038 remains Draft; original latency, Linux capacity and long stability
 remain unresolved.
 
+Strict pairing retains 2,722 eligible RPC pairs with both endpoints wholly
+inside the first-grant-to-120-second window. Channel-authority SEND (service 21)
+has 191 client durations over 400 ms among 508 pairs. That slow group's mean
+client/server/handler times are 510.700/417.263/398.265 ms, with 14.489 ms in
+the service queue. All 508 server samples retain only the five transport/handler
+spans with zero drops. The missing append subdivision is a coverage gap, not
+zero storage time; a quorum-exchange RPC from a different request cannot fill it.
+Presence authority (service 13) also retains recovery FIFO and service-queue
+waiting, while most shared owner work has no original-caller subdivision.
+These observations prioritize Channel append ownership and preserve the
+remaining presence uncertainty; they do not establish global RPC pool saturation.
+The independent pairing receipt is
+`6de96a88c9dc3919d6a1a6b341734794500e9a1109d0b03149a5559c7a509e03`.
+
 Private local receipts retain raw samples without committing identities or
 credentials. Their SHA-256 bindings are:
 

@@ -1,5 +1,13 @@
 # Project Knowledge
 
+Channel-authority SEND RPC 21 observes submission and Future waiting separately.
+Sampled Futures retain only a trace reference through writer preparation and
+their first selected append effect; shared effects must not copy the first
+caller's trace or outcome onto siblings. The post-first-append interval ends at
+the whole original Future and can include ordered completion or other accepted
+work. It is not pure publication, fsync or scheduler time. Caller cancellation
+and trace completion cannot cancel accepted runtime work; MaxSpans remains 32.
+
 Pebble v2.1.4 charges writable and recycled memtable arenas against its block
 cache. A 128 MiB cache with one active and one recycled 64 MiB memtable cannot
 retain ordinary blocks. The DB engine therefore treats CacheSize as read

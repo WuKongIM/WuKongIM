@@ -310,9 +310,12 @@ func (w *channelWriter) prepareInbox(inbox []submittedBatch) []preparedInboxBatc
 	}
 	prepared := make([]preparedInboxBatch, 0, len(inbox))
 	for _, batch := range inbox {
+		batch.future.rpcTrace.beginPrepare()
+		outcome := prepareBatch(w.ports.runtimeCtx, batch.items, w.ports.prepare, batch.target.WriteFenced)
+		batch.future.rpcTrace.endPrepare(outcome.results)
 		prepared = append(prepared, preparedInboxBatch{
 			batch:   batch,
-			outcome: prepareBatch(w.ports.runtimeCtx, batch.items, w.ports.prepare, batch.target.WriteFenced),
+			outcome: outcome,
 		})
 	}
 	return prepared
@@ -377,6 +380,9 @@ func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepar
 				admitted = append(admitted, item)
 			}
 			w.state.enqueuePrepared(admitted)
+			if len(admitted) > 0 {
+				batch.future.rpcTrace.admitDurable()
+			}
 			w.ports.metrics.addPendingAppendItems(len(admitted))
 			w.ports.metrics.observePressure()
 		} else {
@@ -424,7 +430,11 @@ func (w *channelWriter) nextAppendLocked(out *appendEffect) bool {
 
 func (w *channelWriter) runAppend(effect *appendEffect) {
 	snapshot := *effect
+	observations := selectAppendTraces(snapshot.seq, snapshot.items)
 	err := w.ports.appendPool.submit(func() {
+		for _, observation := range observations {
+			observation.beginAppend()
+		}
 		completion := func() (completion appendCompletedEvent) {
 			defer func() {
 				if recovered := recover(); recovered != nil {
@@ -433,10 +443,24 @@ func (w *channelWriter) runAppend(effect *appendEffect) {
 			}()
 			return snapshot.run(w.ports.runtimeCtx, w.ports.append)
 		}()
+		if len(observations) > 0 {
+			for i := range completion.items {
+				item := &completion.items[i]
+				if item.item.future != nil {
+					item.item.future.rpcTrace.recordAppendResult(snapshot.seq, item.result, item.traceErr)
+				}
+			}
+		}
+		for _, observation := range observations {
+			observation.endAppend()
+		}
 		w.applyAppendCompletion(completion)
 		w.rescheduleIfNeeded()
 	})
 	if err != nil {
+		for _, observation := range observations {
+			observation.rejectAppend()
+		}
 		w.applyAppendCompletion(appendScheduleErrorCompletion(snapshot, err))
 		w.rescheduleIfNeeded()
 	}
