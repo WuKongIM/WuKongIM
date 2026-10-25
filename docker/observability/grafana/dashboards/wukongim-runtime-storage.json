@@ -2567,10 +2567,21 @@
           "expr": "sum by (store) (wukongim_storage_pebble_sstable_size_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
           "legendFormat": "sstable {{store}}",
           "refId": "G"
+        },
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_block_cache_size_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "block cache retained {{store}}",
+          "refId": "H"
+        },
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_memtable_reserved_size_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "memtable reserved {{store}}",
+          "refId": "I"
         }
       ],
       "title": "Pebble Storage Footprint",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Block-cache retained bytes are occupancy, not capacity. Memtable reservations include active, recycled and reader-pinned arenas, exclude flushable-batch backing, and are not process RSS. Active memtable bytes overlap the reservation series."
     },
     {
       "datasource": "Prometheus",
@@ -2627,7 +2638,32 @@
           },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "M"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ops"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "N"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ops"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -2707,10 +2743,21 @@
           "expr": "sum by (store) (rate(wukongim_storage_pebble_compaction_bytes_written{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval]))",
           "legendFormat": "compaction written bytes/s {{store}}",
           "refId": "L"
+        },
+        {
+          "expr": "sum by (store) (rate(wukongim_storage_pebble_block_cache_hits{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval]))",
+          "legendFormat": "block cache hits/s {{store}}",
+          "refId": "M"
+        },
+        {
+          "expr": "sum by (store) (rate(wukongim_storage_pebble_block_cache_misses{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval]))",
+          "legendFormat": "block cache misses/s {{store}}",
+          "refId": "N"
         }
       ],
       "title": "Pebble Storage Activity",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Block-cache hit and miss rates use cumulative snapshots since each store opened; rate handles a lower counter after reopen. They describe block-cache accesses, not Bloom-filter decisions."
     },
     {
       "datasource": "Prometheus",

@@ -1,6 +1,12 @@
 # Sampled Slot read blocking at 2,000 SEND/s
 
-The unchanged local workload still fails on candidate `d7acdae32`. Earlier
+The latest short run on `ca9aa4817` completes the planned 120-second window
+without observed correctness failures after correcting storage cache budgeting.
+It remains unqualified: hot SENDACK P99 is in the (1,2]-second bucket, above
+the original 400 ms target, and the official latency window has not started.
+R27 below preserves the exact result, memory cost and remaining uncertainty.
+
+Earlier runs on candidate `d7acdae32` still fail at about 40 seconds. Earlier
 same-request observations identified per-Slot storage-count fallback occupying
 the Raft owner. Yielding before Ready removes that measured fallback. R21's
 independent observation measured same-Slot scheduling pause across 81.6%
@@ -786,6 +792,52 @@ the subtraction in unsigned arithmetic; it includes active/recycled/pinned
 arenas but excludes flushable-batch backing and is not an RSS measurement.
 The 17 focused checks across nine packages pass; their final receipt is
 `94d588e43ca46ab7591ce09506a2f2f2694b076cee1d4362857c99fa73ad74a4`.
+
+### R27 completes the short window; latency remains unqualified
+
+Candidate `ca9aa48175fea8572a8e4f762236e43f85ac4008` uses the same original
+distribution, 2,000 primary SEND/s, deadlines and gates. The unprofiled RPC
+collector is byte-identical to R24. First grant is
+`2026-10-25T15:15:05.569937+08:00`. The supervisor requests the original planned
+stop at +120.208 seconds; final reporting includes drain through +122.709.
+The final totals are 242,003 primary sends and 242,003 ACKs, with zero
+first-attempt failures, rejects, terminal messages, loss, duplication,
+corruption or sequence regression. All 2,588 sampled delivery correlations
+complete. The 8,380 retry attempts remain recorded. Saved periodic intervals
+sustain 1,998.799–2,002.199 SEND/s. No original correctness breach is observed.
+
+This is **not** an acceptance PASS. The original verdict is `operator_stop`.
+All samples remain inside the configured two-hour warmup, so the verdict
+engine has no latency-window samples: zero warnings do not establish healthy
+latency. The final histogram records 67,756 successful hot SENDACKs, of which
+67,378 (99.442%) exceed 400 ms. Hot mean is 817.887 ms and P99 lies in the
+(1,2]-second bucket; cold P99 exceeds two seconds. On the common attempt
+population, pending-to-write mean is 1.347 ms and write-to-ACK mean is
+947.245 ms. This locates most observed waiting after the client write; it does
+not attribute it to one server phase or establish a global RPC queue limit.
+
+At the available matched +5/+12/+19-second metric cuts, allocation rates are
+similar to R24. R27's next native snapshot is after the stop request, not an
+active +35/+40-second cut. Its +19-to-post-stop message-cache delta shows
+99.426–99.489% hits with 82.1–94.0 MiB retained blocks and 128 MiB reserved
+arenas. The separate Raft adapter still shows zero retained cache and hits;
+that is a remaining observation, not proof of the latency cause.
+
+In the first 40 seconds, the sampled simultaneous three-server RSS peak is
+4,481.45 MiB, versus R24's 5,699.98 MiB; their last sample times differ by
+about 1.2 seconds. R27's full active-window peak is 6,794.58 MiB and must not
+be compared directly with R24's shorter active run. Host free-memory readings
+also differ (82% versus 68%); runtime swap changes are unavailable. The
+controlled engine RED/GREEN establishes the cache mechanism, but these shared
+Mac runs cannot assign every improvement to that change or qualify Linux
+capacity. All owned processes and all 64 reserved listeners are cleared.
+
+The timeline, cache/memory comparison and independent cleanup are bound by
+`1b5a812c6a77d1985d9a94ff222510c8708a31558f02802211222129cca436d3`,
+`4b678373f07666eeab6e80c9cba7ea18b9868df39120c0b18a66493254fb8079`
+and `a85ba3e18a6a4183f019f5049664ece6271f3cd6c166c159a5848dd638465bb6`.
+PR #1038 remains Draft; original latency, Linux capacity and long stability
+remain unresolved.
 
 Private local receipts retain raw samples without committing identities or
 credentials. Their SHA-256 bindings are:

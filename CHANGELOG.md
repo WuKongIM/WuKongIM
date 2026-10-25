@@ -31,8 +31,9 @@ move those entries into a version section named for that exact tag.
   and 320 MiB per node; this increases potential memory use, not an RSS limit.
   / 为消息与元数据存储分别计入读缓存和 memtable 额度，避免回收缓冲占满读缓存；
   默认组合额度分别为每节点 512 MiB、320 MiB，潜在内存占用增加，并非进程内存上限。
-  Storage metrics also expose cache occupancy, hits/misses and reserved memtable
-  arena bytes. / 存储指标同步展示缓存占用、命中/未命中及 memtable 内存预留。
+  Storage metrics and Grafana panels also expose cache occupancy, hits/misses
+  and reserved memtable arena bytes. / 存储指标和 Grafana 面板同步展示缓存占用、
+  命中/未命中及 memtable 内存预留。
 
 - Distinguish sampled RPC receive-observer, response-dispatch and caller-resume
   delays, retaining the server's pre-dispatch interval without moving existing
