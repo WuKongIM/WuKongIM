@@ -97,6 +97,26 @@ work. A caller deadline requests cancellation rather than forcing the diagnostic
 span to end at that instant. Correlate exact physical RPCs and executed subphases;
 sparse zero gauges and unrelated authentication timestamps are insufficient.
 
+RPC completion uses one request-owned candidate/result and send-success gate.
+The reader finishes copying/decoding before committing deadline eligibility;
+an already committed timely candidate survives a delayed caller, while Send
+failure retains its original precedence. Genuine expiry, explicit cancellation,
+remote errors and connection shutdown remain separate outcomes. The pending
+index retains copy-in-progress ownership and removes only the matching owner;
+shutdown fences registration, then settles detached owners outside index locks.
+Normalize deadline arithmetic to a local monotonic reference without renewing
+the caller's budget. No new per-request goroutine or timer is required.
+The receive `Notified` boundary now denotes candidate commit rather than the
+old pre-buffered-channel-send point; earlier trace samples keep their original
+meaning. Local completed receipt is not proof of remote business success.
+This consistency contract does not establish the cause of an unsampled provider
+failure or renew an enclosing decode/usecase budget.
+A pinned full `Conn.Call` lifecycle fixture measures 713→793 B/request without
+a deadline and 712→792 B/request with a reused future deadline, both retaining
+16 allocations/request. This is an 80-byte observation for that fixture, not
+a throughput claim. The owner is 128 bytes before allocator/notification cost;
+terminal transitions allocate no objects and add no timer or goroutine.
+
 Bound, declared server RPC observations may add one fixed 16-point dispatch
 sidecar outside the 32-span budget. Its mask distinguishes measured zero from
 unknown; offsets share that server Trace's monotonic origin. Concurrent enqueue,

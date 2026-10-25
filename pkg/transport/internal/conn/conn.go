@@ -249,41 +249,41 @@ func (c *Conn) Call(ctx context.Context, outbound Outbound) (_ []byte, err error
 	outbound.RequestID = requestID
 	outbound.writeCtx = ctx
 
-	respCh := make(chan rpc.Response, 1)
-	c.pending.Store(requestID, respCh)
+	completion := rpc.NewCompletion(ctx)
+	c.pending.Store(requestID, completion)
 	c.observePendingRPC("ok")
-	if err := c.Send(ctx, outbound); err != nil {
-		c.pending.Delete(requestID)
-		c.observePendingRPC("ok")
-		if errors.Is(err, context.Canceled) {
-			return nil, core.ErrCanceled
+	if sendErr := c.Send(ctx, outbound); sendErr != nil {
+		if errors.Is(sendErr, context.Canceled) {
+			sendErr = core.ErrCanceled
 		}
-		return nil, err
+		completion.SendResult(sendErr)
+		c.pending.DeleteOwner(requestID, completion)
+		c.observePendingRPC("ok")
+		return nil, sendErr
 	}
-
-	select {
-	case resp := <-respCh:
-		recordResponseReceive(&outbound, &resp)
-		return resp.Payload, resp.Err
-	case <-ctx.Done():
-		if outbound.Kind == core.FrameKindRPCBudgetRequest {
-			// Best effort: a full/failed connection cannot reliably deliver cancellation;
-			// the propagated budget still bounds queued work on the receiver.
-			_ = c.Send(c.ctx, Outbound{Kind: core.FrameKindRPCCancel, Priority: core.PriorityControl, ServiceID: outbound.ServiceID, RequestID: requestID})
+	completion.SendResult(nil)
+	for {
+		var connectionErr error
+		if c.ctx.Err() != nil {
+			connectionErr = core.ErrStopped
 		}
-		c.pending.Delete(requestID)
-		c.observePendingRPC("ok")
-		if errors.Is(ctx.Err(), context.Canceled) {
-			return nil, core.ErrCanceled
+		if result, ready := completion.Resolve(connectionErr); ready {
+			if result.LocalContext && outbound.Kind == core.FrameKindRPCBudgetRequest {
+				// Best effort: the propagated budget still bounds queued receiver work
+				// if a full or failed connection cannot deliver cancellation.
+				_ = c.Send(c.ctx, Outbound{Kind: core.FrameKindRPCCancel, Priority: core.PriorityControl, ServiceID: outbound.ServiceID, RequestID: requestID})
+			}
+			if c.pending.DeleteOwner(requestID, completion) {
+				c.observePendingRPC("ok")
+			}
+			recordResponseReceive(&outbound, &result.Response)
+			return result.Response.Payload, result.Response.Err
 		}
-		return nil, ctx.Err()
-	case <-c.ctx.Done():
+		// Wakeups carry no terminal precedence: the owner decides every path.
 		select {
-		case resp := <-respCh:
-			recordResponseReceive(&outbound, &resp)
-			return resp.Payload, resp.Err
-		default:
-			return nil, core.ErrStopped
+		case <-completion.Done():
+		case <-ctx.Done():
+		case <-c.ctx.Done():
 		}
 	}
 }
@@ -533,12 +533,12 @@ func (c *Conn) handleRPCResponse(frame wire.Frame) {
 }
 
 // handleRPCResponseWithTiming transfers an optional completed receive interval
-// through the existing pending response channel. Late frames retain no owner.
+// through the request completion owner. Late frames retain no receive evidence.
 func (c *Conn) handleRPCResponseWithTiming(frame wire.Frame, timing *rpc.ReceiveTiming) {
 	defer frame.Body.Release()
 
-	responseChannel, pending := c.pending.Take(frame.Header.RequestID)
-	if !pending {
+	completion := c.pending.Load(frame.Header.RequestID)
+	if completion == nil {
 		return
 	}
 	defer c.observePendingRPC("ok")
@@ -565,14 +565,10 @@ func (c *Conn) handleRPCResponseWithTiming(frame wire.Frame, timing *rpc.Receive
 			response.Payload = append([]byte(nil), body[1:]...)
 		}
 	}
-	if timing != nil {
-		timing.Notified = time.Now()
-		response.ReceiveTiming = timing
-	}
-	select {
-	case responseChannel <- response:
-	default:
-	}
+	response.ReceiveTiming = timing
+	// Copy/decode is complete before the owner commits against its deadline.
+	completion.Publish(response)
+	c.pending.DeleteOwner(frame.Header.RequestID, completion)
 }
 
 func (c *Conn) observePendingRPC(result string) {

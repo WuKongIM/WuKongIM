@@ -464,7 +464,8 @@ func TestConnReceiveBridgeRejectsForgedAndNonRPCMetadata(t *testing.T) {
 					c.AcceptRPCTrace([16]byte{6})
 				}
 				id := rpcTraceSampleBit | 17
-				response := make(chan rpc.Response, 1)
+				response := rpc.NewCompletion(context.Background())
+				response.SendResult(nil)
 				if kind == core.FrameKindRPCResponse {
 					c.pending.Store(id, response)
 				}
@@ -481,8 +482,12 @@ func TestConnReceiveBridgeRejectsForgedAndNonRPCMetadata(t *testing.T) {
 				var has bool
 				if kind == core.FrameKindRPCResponse {
 					select {
-					case got := <-response:
-						has = receiveBridgeHasTiming(got)
+					case <-response.Done():
+						got, ready := response.Resolve(nil)
+						if !ready {
+							t.Fatal("notified owner did not resolve")
+						}
+						has = receiveBridgeHasTiming(got.Response)
 					case <-time.After(3 * time.Second):
 						peer.Close()
 						c.Close(nil)

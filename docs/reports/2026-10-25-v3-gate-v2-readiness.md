@@ -525,9 +525,86 @@ store/query isolation and focused race×20 pass. The named FLOW check validates
 89 files with zero invalid files and 21 advisory length warnings. This does not
 reclassify the earlier broad MQTT integration failure or certify the full suite.
 
-The fresh local rerun remains pending. Its private collector preserves the
+The fresh local rerun is recorded below. Its private collector preserves the
 closed dispatch schema and triggers on native `harness.failures`; connection
 totals and normal churn do not identify message failures. No generic predicate
 is claimed to cover every product failure before Stop. The run retains N32 and
 the existing three debug flags, omits R7 profiles, and preserves the original
 workload, gates and native early-stop behavior. It is diagnostic evidence only.
+
+## Eighth diagnosis: dispatch points and the client completion boundary
+
+Exact product `8cb5ef37b7d94b4994f0a4f36e7d81b9c3e61d9d` (tree
+`cc56efed0d13ab15d6db64db78851adab8a263ad`) uses the same 10,000-online,
+2,000-SEND/s local workload and original gates. It naturally stops after
+257.199593416 monotonic seconds with `harness_invalid / worker_harness_invalid`.
+All 512,005 SENDs are acknowledged and all 4,700 sampled deliveries complete;
+correctness and terminal fields remain zero. Original deadline coverage is
+complete, including 15,209 observed-late originals (2.970478804%), with zero
+unknown coverage and 8,886 retries. Fifty complete periodic intervals average
+1,999.948273950 SEND/s over printed wall time. No positive latency window is
+reached. Native and independent cleanup confirm zero owned processes and no
+listeners on all 64 ports.
+
+Independent Standards and Spec reviews cover the final 32-path observation
+delta with zero findings. First
+[candidate](https://github.com/WuKongIM/WuKongIM/actions/runs/40226249194),
+[three-node](https://github.com/WuKongIM/WuKongIM/actions/runs/40226249239),
+[Manager](https://github.com/WuKongIM/WuKongIM/actions/runs/40226249216) and
+[native preview](https://github.com/WuKongIM/WuKongIM/actions/runs/40226249217)
+CI all pass. Those checks do not certify the failed original-scale local run or
+replace same-source formal Linux qualification.
+
+Four cuts contain 36 completed requests, below the 45-request cap; all body
+hashes and sizes verify. Three cuts precede Stop, one follows it, and none cross
+the native terminal boundary. Active270 is absent because the run ends earlier.
+The pre-Stop observations yield 147 exact operation11 client/server pairs:
+146 both succeed and one client times out while its server succeeds. That pair
+is node3→node2: client 251.134583ms, server 44.5925ms, handler 0.244708ms.
+Server queue elapsed is 20.252208ms; the new points place 20.230042ms between
+first executor submission and worker entry, with nanosecond/microsecond queue
+lock and dequeue work. Server completion means its local WriteTo returned,
+not that the client received the response. The client's three receive phases
+are absent. Successful controls retain caller-resume tails up to 86.110709ms.
+This sample does not reproduce R6's 500ms prehandler wait or identify the
+unsampled authentication failure. Post-Stop cancellations remain separate.
+
+One canonical node1 gateway/provider failure appears in three log sinks.
+Its shared 16-call physical round has three planned owners and two completed
+scans. The current owner3 remote-calls scope times out after 345.113042ms,
+with 249.999542ms remaining at port entry under its 250ms configured budget.
+The cumulative owner-read interval is 458.762249ms and includes the earlier
+successful owners. Admission is 125ns and the first snapshot 9.584µs.
+The single fixed Auth-duration metric is 690.434792ms; it is not an exclusive
+provider interval. No exact RPC TraceID joins this event to the node3→node2 pair.
+
+The client records receive phases only when its waiter takes the response
+branch. Its context-expiry branch neither reads an already-buffered response
+nor publishes that response's receive evidence. Therefore missing receive
+phases also permit a completion/cancellation race, not just unread data.
+The next controlled experiment uses the existing admission-observer and
+post-notification test barriers to hold the caller after a timely response,
+then release it after its deadline. This is a test of completion arbitration;
+it is not yet a demonstrated cause of R8 or a verified performance repair.
+
+The fixed 32-trial experiment on original 8cb establishes the proposed contract
+gap: every post-send publication witness precedes its actual 500ms deadline,
+but delayed callers yield 17 replies and 15 deadline errors. Every deadline
+outcome omits the three receive phases. No setup is invalid; pending, payload,
+trace and connection/caller joins all close. This is controlled evidence, not a
+join to R8's unsampled Auth failure.
+
+The new [completion contract](../specs/rpc-completion-arbitration.md) explicitly
+defines eligibility after complete copy/decode, with the original Send-success
+gate and one owner for deadline/cancel/Stop outcomes. This is a consistency
+decision rather than an earlier API guarantee. Its fixed 32-trial regression
+now returns 32 replies and no deadline/setup failures, preserving all receive
+phases. Related units, focused integration and owner/index/compatibility
+race×20 pass. Original RED records remain unchanged.
+
+Full `Conn.Call` microbenchmarks measure +80 B/request in both unobserved modes:
+713→793 B/request without a deadline and 712→792 with a reused future deadline;
+both retain 16 allocations/request. Terminal transitions allocate no objects.
+This does not certify performance. A fresh exact candidate, independent review
+and original-scale local rerun are still required; original gates, outer
+provider budgets and formal Linux/signed-package release requirements remain.

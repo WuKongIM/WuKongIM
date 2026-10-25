@@ -26,6 +26,13 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Decide RPC completion against the original deadline through one request-owned
+  state, preserving timely responses when callers resume late while rejecting
+  truly late replies. Send failures, explicit cancellation and connection-close
+  handling keep their required precedence. / RPC 通过请求自有状态统一裁决完成与原始
+  deadline，保留调用方延后恢复时已及时完成的响应，并拒绝真正迟到的响应；保留
+  发送失败、显式取消和连接关闭的必要优先规则。
+
 - Preserve available presence-provider failure stages on the existing gateway
   activation rejection log, including direct local authority calls; remote
   statuses without evidence remain unknown. / 网关原有激活失败日志补充可用的在线恢复

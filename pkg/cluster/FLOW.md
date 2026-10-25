@@ -128,7 +128,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   only explicitly allowed restore RPC available. Backup and restore retain
   cluster routing and exact authority fences.
 - Node RPC negotiates budget/cancel via a reserved wire-v1 service; explicit unsupported peers retain v1.
-  Queued work expires under caller budgets or five seconds. Execution defaults to 30 seconds
+  Client completion uses one request-owned original-deadline decision; delayed waiters retain timely committed responses, while true expiry remains failed. Queued work expires under caller budgets or five seconds. Execution defaults to 30 seconds
   (one minute for Operations MCP, five minutes for repository probes, 48 hours for backup/restore).
   Trusted mixed-service opcode policies preserve read cancellation through Node registration; started mutations execute
   independently. Ready frames batch without an idle coalescing delay.
