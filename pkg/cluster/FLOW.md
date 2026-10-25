@@ -132,7 +132,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   (one minute for Operations MCP, five minutes for repository probes, 48 hours for backup/restore).
   Trusted mixed-service opcode policies preserve read cancellation through Node registration; started mutations execute
   independently. Ready frames batch without an idle coalescing delay.
-- Default-off RPC phase tracing negotiates a connection-generation token before setting a sampled RequestID bit.
+- Default-off RPC phase tracing negotiates a connection-generation token before setting a sampled RequestID bit. Trusted registration may classify a fixed operation scalar only for admitted server observations before enqueue; transport retains opaque declarations without business decoding or execution/cancellation changes, and missing observations remain unknown.
   Both endpoints retain bounded local intervals through the existing observer drain. The same runtime enablement controls optional Slot barrier subphases; no separate operator setting or global switch changes the unsampled Ready path.
   Explicit unsupported peers keep original business frames; other negotiation failures stop dispatch.
   Observation values never transfer caller cancellation to started mutations. A separate local append observer times actual metadata resolve/apply and the enclosing runtime append, including its nested reserve/submit/future phases; shared owners retain aligned outcomes, remote forwarding invents no local work, and no observer is added to the wire.

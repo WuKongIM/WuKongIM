@@ -59,7 +59,7 @@ Stop or startup rollback
 - Synchronous before-send Webhook admission is independent of Webhook workers and plugin enablement; configuration errors fail startup.
 - Gateway feedback uses Online Delivery FeedbackHandler directly; disabled delivery leaves that optional port absent.
 - Optional features require all their ports; unavailable capabilities remain explicit.
-- RPC phase samples require diagnostics enabled and nonzero `diagnostics.rpc_sample_every`.
+- RPC phase samples require diagnostics enabled and nonzero `diagnostics.rpc_sample_every`. Trusted owner header declarations label selected server samples before enqueue, preserving queued cancellation evidence and execution policy; unpaired clients remain unknown and no operation metric label is added.
   Both transport endpoints feed detached samples through the bounded observer drain, independently of metrics.
   Existing queries return `rpc.client`/`rpc.server`; missing samples do not prove absence of waits. Shared first-append children follow exact sampled Future owners through the local adapter/Node path without copying a single caller Trace or its cancellation; the existing 32-span cap and frozen publication remain unchanged.
 - Manager Channel inventory and its node RPC share the non-activating Channel

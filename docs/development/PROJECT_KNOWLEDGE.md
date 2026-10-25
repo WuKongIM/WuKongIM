@@ -82,6 +82,17 @@ Its timeout total cannot identify which opcode failed. Service-wait histograms
 are observed at handler entry and omit requests canceled while queued; a low
 mean cannot rule out queue residence for those missing requests.
 
+Selected server RPC samples may retain a trusted registration's fixed uint8
+operation declaration before service enqueue, including queue cancellation or
+business admission rejection. This header-only classification is not full-body
+validation and never changes request cancellation or admission. Zero/absent is
+unknown. Unselected, recorder-dropped and unregistered-service paths do not call
+the classifier. A client sample has no independent operation declaration; only
+its exact connection-generation TraceID/service pair may inherit the matched
+server declaration during analysis. SID14 declarations are restricted to
+7/9/10/11. The optional callback borrows bytes without retaining them and must be
+bounded, nonblocking and concurrency-safe. No operation metric label is added.
+
 Storage wait metric names require source interpretation. RuntimePressure's
 `message_commit` queue-wait observation currently includes the whole Submit,
 not pure coordinator queue residence. Native quorum `store_append_wait` includes

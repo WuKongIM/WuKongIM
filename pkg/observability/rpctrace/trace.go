@@ -239,9 +239,12 @@ type Sample struct {
 	// ParentTraceID links a nested client call to its observed local server owner.
 	ParentTraceID string `json:"parent_trace_id,omitempty"`
 	// Unbound means negotiation or dispatch did not establish a joinable wire key.
-	Unbound      bool          `json:"unbound,omitempty"`
-	Side         Side          `json:"side"`
-	ServiceID    uint16        `json:"service_id"`
+	Unbound   bool   `json:"unbound,omitempty"`
+	Side      Side   `json:"side"`
+	ServiceID uint16 `json:"service_id"`
+	// Operation is a trusted registration's narrow server-header declaration,
+	// not full request validation. Zero/absent is unknown; clients do not infer it.
+	Operation    uint8         `json:"operation,omitempty"`
 	At           time.Time     `json:"at"`
 	Duration     time.Duration `json:"duration"`
 	Result       Result        `json:"result"`
@@ -348,6 +351,7 @@ type Trace struct {
 	unbound   bool
 	side      Side
 	serviceID uint16
+	operation uint8
 	closed    bool
 	// Receive evidence is fixed-size and never changes the original trace clock.
 	receivePrefix        ReceivePrefix
@@ -565,6 +569,21 @@ func (t *Trace) ID() string {
 	return t.id
 }
 
+// RecordOperation freezes the first nonzero server-header declaration before
+// publication. It retains no payload and does not validate the business body.
+func (t *Trace) RecordOperation(operation uint8) bool {
+	if t == nil || operation == 0 {
+		return false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed || t.side != SideServer || t.operation != 0 {
+		return false
+	}
+	t.operation = operation
+	return true
+}
+
 // Span is a small handle to one timing interval. Zero handles are disabled.
 type Span struct {
 	trace *Trace
@@ -637,7 +656,7 @@ func (t *Trace) Finish(result Result) *Sample {
 	} else {
 		t.dropped += uint64(t.barrierCount)
 	}
-	s := &Sample{TraceID: t.id, ParentTraceID: t.parentID, Unbound: t.unbound, Side: t.side, ServiceID: t.serviceID, At: t.at, Duration: elapsed, Result: normalizeResult(result), Spans: spans, DroppedSpans: t.dropped, RecorderDropped: t.owner.dropped.Load(), BarrierGroups: t.barrierGroups, DroppedBarrierGroups: t.droppedBarrierGroups, BarrierCoverage: coverage}
+	s := &Sample{TraceID: t.id, ParentTraceID: t.parentID, Unbound: t.unbound, Side: t.side, ServiceID: t.serviceID, Operation: t.operation, At: t.at, Duration: elapsed, Result: normalizeResult(result), Spans: spans, DroppedSpans: t.dropped, RecorderDropped: t.owner.dropped.Load(), BarrierGroups: t.barrierGroups, DroppedBarrierGroups: t.droppedBarrierGroups, BarrierCoverage: coverage}
 	if t.hasReceivePrefix {
 		prefix := t.receivePrefix
 		s.ReceivePrefix = &prefix

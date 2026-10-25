@@ -79,3 +79,19 @@ func PresenceOwnerReadOnly(payload []byte) bool {
 	op := payload[len(presenceRPCRequestMagic)]
 	return op == presenceOpReadOwnerRoutesID || op == presenceOpReadOwnerRoutesByTargetsID || op == presenceOpReadOwnerRouteCallsID
 }
+
+// PresenceOwnerTraceOperation declares only known owner operations from a
+// complete wire-v2 header. The entry handler still validates the entire body;
+// this observation never changes read-versus-mutation cancellation policy.
+func PresenceOwnerTraceOperation(payload []byte) uint8 {
+	if len(payload) < len(presenceRPCRequestMagic)+1 || !isPresenceRPCRequestBinary(payload) {
+		return 0
+	}
+	op := payload[len(presenceRPCRequestMagic)]
+	switch op {
+	case presenceOpApplyRouteActionID, presenceOpReadOwnerRoutesID, presenceOpReadOwnerRoutesByTargetsID, presenceOpReadOwnerRouteCallsID:
+		return op
+	default:
+		return 0
+	}
+}

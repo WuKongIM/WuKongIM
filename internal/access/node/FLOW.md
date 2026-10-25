@@ -87,6 +87,9 @@ scheduled backup or restore
 - Presence read-only classifiers verify the `WKVP` version-2 header, selecting
   authority operations 5/8 and owner operations 9/10/11 only. Full body validation
   remains in handlers; malformed reads never dispatch an owner mutation.
+- The owner diagnostic classifier declares only version-2 header operations
+  7/9/10/11 for selected server RPC samples. Unknown/truncated headers stay zero;
+  the declaration grants neither full-body validation nor cancellation authority.
 - Failed presence Register/Commit with route-not-ready log a closed source phase,
   numeric target and optional immutable physical-round provider evidence. Known
   masks preserve missing stages; RPC bytes stay unchanged and lookups add no

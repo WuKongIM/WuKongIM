@@ -83,6 +83,11 @@ func (s *TransportServer) Register(serviceID uint8, handler Handler) {
 		// this does not create another service or increase its worker budget.
 		opts.CancelRunningFor = policy.CancelRunningFor
 	}
+	if declaration, ok := handler.(interface{ TraceOperationFor([]byte) uint8 }); ok {
+		// Trusted entry registration owns the closed header vocabulary. Transport
+		// invokes it only for a selected, admitted server observation.
+		opts.TraceOperationFor = declaration.TraceOperationFor
+	}
 	err := s.server.Handle(uint16(serviceID), func(ctx context.Context, payload []byte) ([]byte, error) {
 		if s.cfg.MaxPayload > 0 && len(payload) > s.cfg.MaxPayload {
 			return nil, fmt.Errorf("%w: payload too large", ErrInvalidFrame)

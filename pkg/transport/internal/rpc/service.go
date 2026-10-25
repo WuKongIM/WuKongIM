@@ -163,6 +163,16 @@ func newService(id uint16, handler core.Handler, opts core.ServiceOptions, obser
 	return s
 }
 
+// TraceOperationFor borrows the narrow registered header classifier. The server
+// calls it only after observation admission and before enqueue, including work
+// later canceled in the queue; it never validates or retains the request body.
+func (s *Service) TraceOperationFor(payload []byte) uint8 {
+	if s.opts.TraceOperationFor == nil {
+		return 0
+	}
+	return s.opts.TraceOperationFor(payload)
+}
+
 // Enqueue transfers payload ownership on success. Failed admission releases the
 // payload but leaves error response and Finish responsibility with the caller.
 func (s *Service) Enqueue(req Request) error {

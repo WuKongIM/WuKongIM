@@ -432,7 +432,7 @@ func (a *App) wirePresence() {
 		a.presenceAuthorityClient = client
 		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, OwnerRoutes: ownerReader, Logger: a.logger.Named("node")})
 		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, classifiedNodeRPCHandler{handle: adapter.HandlePresenceAuthorityRPC, readOnly: accessnode.PresenceAuthorityReadOnly})
-		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, classifiedNodeRPCHandler{handle: adapter.HandlePresenceOwnerRPC, readOnly: accessnode.PresenceOwnerReadOnly})
+		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, classifiedNodeRPCHandler{handle: adapter.HandlePresenceOwnerRPC, readOnly: accessnode.PresenceOwnerReadOnly, traceOperation: accessnode.PresenceOwnerTraceOperation})
 		if a.presence == nil {
 			a.presence = presence.New(presence.Options{
 				Local:                a.online,

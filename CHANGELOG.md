@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Identify declared presence-owner operations in selected RPC diagnostics,
+  including requests canceled while queued, without changing request bytes or
+  execution policy. / 采样 RPC 诊断补充在线所有者操作类型，覆盖排队期间取消的请求，
+  保留原请求字节与执行策略。
+
 - Add closed presence-recovery failure reasons and observed shared-round phase
   timings to existing authority rejection diagnostics, preserving error mapping,
   budgets and protocol replies. / 在线恢复拒绝诊断补充固定原因和共享执行阶段耗时，

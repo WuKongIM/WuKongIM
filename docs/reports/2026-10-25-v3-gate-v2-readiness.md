@@ -326,3 +326,56 @@ does not prove a wire request was dispatched. Global RPC sampling remains
 disabled for this first diagnostic, avoiding a
 simultaneous census/capability-negotiation change. No performance repair or
 successful original-scale window is claimed by adding these observations.
+
+## Fifth candidate: remote owner interval isolated
+
+The observation candidate `a3db0f95603d59fd4a0ae451800834fd025c7d62`
+(tree `66d5a07371ed54c0e16393c9267f92f3cd19b299`) passed its first-attempt
+[Linux candidate suites](https://github.com/WuKongIM/WuKongIM/actions/runs/40208909642),
+[fixed three-node regression](https://github.com/WuKongIM/WuKongIM/actions/runs/40208909692),
+[Manager smoke](https://github.com/WuKongIM/WuKongIM/actions/runs/40208909630), and
+[four-distribution native preview](https://github.com/WuKongIM/WuKongIM/actions/runs/40208909748).
+The verified CI merge tree has the same tracked source. Those jobs remain
+separate from four-host original-scale Linux qualification.
+
+The fresh Mac run retained global RPC sampling zero and the original workload,
+runtime limits and gates. It naturally stopped after 267.403353708 monotonic
+seconds with `harness_invalid / worker_harness_invalid`. All 532,006 SENDs were
+acknowledged; all 4,860 sampled deliveries completed. Terminal, loss, duplicate,
+corruption, sequence-regression and explicit first-attempt failure counts were
+zero. All original deadlines resolved, including 14,650 observed-late results
+(2.753728341%); unknown coverage was zero and retries were 9,271. Eventual ACKs
+do not erase the original misses. Its 52 complete periodic intervals averaged
+1,999.997277276 SEND/s over 260.002853958 printed wall seconds. These wall-derived
+rates do not certify monotonic scheduling or hardware capacity. It again stopped
+before the ten-minute baseline; all three v7 elapsed positions remain zero and
+latency is `not_evaluated`. Native cleanup and an independent census confirmed
+zero owned processes and zero listeners on all 64 reserved ports.
+
+One node2 Register failure now identifies `owner_unavailable` in a shared physical
+recovery round. The current owner was node1, remote calls used operation 11, and
+the error was a timeout. Configured owner budget was 250,000,000ns; the first page
+entered its port with 249,999,625ns remaining. The entire owner interval lasted
+266,981,583ns. Provider admission took 166ns and its initial Controller snapshot
+10,541ns. Those stages are not the main wait in this captured round. The 16 input
+calls are not 16 authentication failures. The immutable capture precedes later
+owners; absent later stages do not prove they never executed.
+
+The owner interval includes encoding, client connection/capability work, RPC,
+decoding, validation and merge. Port entry does not prove wire dispatch. Neither
+this evidence nor aggregate SID14 timeout counters establish executor saturation,
+registry-lock contention, network delay or disk contention. Existing sampled
+RPCs can pair a client timeout with a server success, so collecting server errors
+alone would lose relevant evidence. Their service ID cannot distinguish owner
+action 7 from reads 9/10/11.
+
+The next local diagnostic adds a fixed operation declaration to selected server
+samples before service enqueue, using a trusted bounded header classifier. It
+does not validate the complete body, change wire bytes, alter cancellation, add
+executor capacity or extend deadlines. Unpaired clients keep unknown operation;
+only a matching connection-generation TraceID may inherit the server declaration.
+Enabling one-in-32 RPC sampling also enables its existing capability negotiation
+and optional census. That is an explicit observation-condition change, not a
+performance comparison with the sampling-zero run or a formal Linux certificate.
+Failed worker verdicts still stop traffic; a bounded post-stop diagnostic hold
+must fit the original cleanup deadline. All earlier failures remain unchanged.

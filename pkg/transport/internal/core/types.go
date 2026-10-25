@@ -223,6 +223,12 @@ type ServiceOptions struct {
 	// Nil preserves CancelRunning. Both policies must not be configured together.
 	// The executable policy is excluded from diagnostic configuration encoding.
 	CancelRunningFor func([]byte) bool `json:"-"`
+	// TraceOperationFor optionally declares a sampled server operation from a
+	// narrow header. Trusted registration must supply a bounded, nonblocking,
+	// concurrency-safe function that borrows bytes without retaining or changing
+	// them. It runs only for an admitted observation before service enqueue; it
+	// is not full request validation and must not alter cancellation policy.
+	TraceOperationFor func([]byte) uint8 `json:"-"`
 	// MaxPayload bounds accepted payload bytes for this service; zero means use the transport frame limit.
 	MaxPayload int
 }

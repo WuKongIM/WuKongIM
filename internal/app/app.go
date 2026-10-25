@@ -825,6 +825,8 @@ func (f nodeRPCHandlerFunc) HandleRPC(ctx context.Context, payload []byte) ([]by
 type classifiedNodeRPCHandler struct {
 	handle   nodeRPCHandlerFunc
 	readOnly func([]byte) bool
+	// traceOperation is optional header-only observation, independent of readOnly.
+	traceOperation func([]byte) uint8
 }
 
 func (h classifiedNodeRPCHandler) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
@@ -834,7 +836,16 @@ func (h classifiedNodeRPCHandler) HandleRPC(ctx context.Context, payload []byte)
 // CancelRunningFor only classifies borrowed request bytes; decoding and business
 // validation remain in the entry adapter before any mutation can execute.
 func (h classifiedNodeRPCHandler) CancelRunningFor(payload []byte) bool {
-	return h.readOnly(payload)
+	return h.readOnly != nil && h.readOnly(payload)
+}
+
+// TraceOperationFor preserves an optional trusted header declaration; nil is
+// unknown and never changes the independent running-cancellation classifier.
+func (h classifiedNodeRPCHandler) TraceOperationFor(payload []byte) uint8 {
+	if h.traceOperation == nil {
+		return 0
+	}
+	return h.traceOperation(payload)
 }
 
 type nodeRPCRegistrar interface {
