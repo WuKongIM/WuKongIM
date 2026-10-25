@@ -98,10 +98,13 @@ passing 72-hour formal generation -> same aged dataset and process proof
   class, and a cut at most five seconds old. Counter deltas belong to their end
   cut; a gap over ten minutes resets positive qualification, not negative breaches.
   The numerical five-minute breach rule and correctness gates remain unchanged.
-- Report v6 / threshold v2 binds local-diagnostic, rehearsal, or formal-protocol
+- Report v7 / threshold v2 binds local-diagnostic, rehearsal, or formal-protocol
   scope to validated configuration. Formal-protocol scope still requires external
   Linux topology/hardware evidence. Elapsed rehearsal time alone cannot pass,
   and missing/stale latency qualification cannot yield a successful report.
+  Baseline/start/end elapsed positions share one monotonic process clock;
+  duration/order/freshness use them after serialization. Wall times are audit
+  fields; readers never reconstruct missing offsets or upgrade old reports.
 - Reports and control responses use closed reason vocabularies, fixed arrays,
   checked arithmetic, and bounded redacted samples. Raw UIDs, Channel IDs,
   payloads, credentials, endpoint bodies, and arbitrary errors are forbidden.

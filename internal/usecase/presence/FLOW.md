@@ -53,6 +53,8 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 
 - Activation failures retain their original error family through fixed phase
   wrappers. Diagnostic extraction returns the innermost known phase, never request data.
+  Recovery distinguishes admission, provider, validation, installation and
+  Directory readback; execution cancellation keeps its existing not-ready mapping.
 - Failed authority registration removes the pending local session. Failed final
   activation queues exact unregister and removes local state.
 - Status observation is best effort, never adds authority traffic, counts only
@@ -68,6 +70,10 @@ It does not own gateway frames, concrete cluster routing, or session storage.
   Only all-member cancellation or Close cancels actual execution. UID proofs
   with no live owner are not installed; exact authority fences still govern all
   installation. Old and new peer compatibility never merges per-call route caps.
+  If proof appears between the initial lookup and missing-UID selection, an empty
+  missing set requires a fresh read under the same target fence. It never implies
+  offline. Only groups joining flights reread after work completes; a cold sibling
+  cannot retry or erase another group's failed readback. No RPC or retry is added.
 - Canceled queued work leaves the physical FIFO before releasing its ledger.
   Active ownership and result credits survive caller cancellation until the
   real provider returns. Close stops admission, cancels queued/active work and

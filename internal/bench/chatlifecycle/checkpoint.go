@@ -261,7 +261,7 @@ func (r *CheckpointRecorder) buildReport(
 		EvidenceClassification: snapshot.EvidenceClassification, EvidenceCounts: snapshot.EvidenceCounts,
 		Lifecycle: evidence.Lifecycle, MetaCreate: evidence.MetaCreate,
 		Latency: ReportLatencyEvidence{
-			QualificationWindow: projectReportLatencyQualification(evidence.LatencyWindow, r.start, at, r.cfg.Thresholds),
+			QualificationWindow: projectReportLatencyQualification(evidence.LatencyWindow, r.start, processElapsed, r.cfg.Thresholds),
 			HotSendACK:          snapshot.HotSendackLatency, ColdFirstCreateSendACK: snapshot.ColdFirstCreateSendackLatency,
 			WorkerLifecycleReheatSendACK: snapshot.LifecycleReheatSendackLatency,
 			ReceiveACK:                   snapshot.RecvackLatency,

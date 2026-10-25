@@ -126,7 +126,7 @@ func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLo
 	results := make([]EndpointLookupResult, len(groups))
 	if r == nil || r.directory == nil || r.owners == nil {
 		for i := range results {
-			results[i].Err = authority.ErrRouteNotReady
+			results[i].Err = WrapActivationPhase(ActivationPhaseRecoveryAdmission, authority.ErrRouteNotReady)
 		}
 		return results
 	}
@@ -162,15 +162,17 @@ func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLo
 		}
 		if err != nil {
 			for i := range results {
-				if errors.Is(results[i].Err, authority.ErrRouteNotReady) {
-					results[i] = EndpointLookupResult{Err: err}
+				if len(waits[i]) > 0 && errors.Is(results[i].Err, authority.ErrRouteNotReady) {
+					results[i] = EndpointLookupResult{Err: WrapActivationPhase(ActivationPhaseRecoveryAdmission, err)}
 				}
 			}
 			return results
 		}
 	}
 	for i, g := range groups {
-		if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
+		// Only joined work can replace an earlier not-ready result. A sibling's
+		// completion must not retry a failed readback that owns no flight.
+		if len(waits[i]) == 0 || !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
 			continue
 		}
 		var err error
@@ -204,10 +206,11 @@ func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLo
 			span.End(rpctrace.ResultFor(err))
 		}
 		if err != nil {
-			results[i] = EndpointLookupResult{Err: err}
+			results[i] = EndpointLookupResult{Err: WrapActivationPhase(ActivationPhaseRecoveryProvider, err)}
 			continue
 		}
 		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(g.Target, g.UIDs)
+		results[i].Err = WrapActivationPhase(ActivationPhaseRecoveryReadback, results[i].Err)
 	}
 	return results
 }
@@ -222,29 +225,42 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 	refs := 0
 	for i, g := range groups {
 		if err := ctx.Err(); err != nil {
-			results[i].Err = err
+			results[i].Err = WrapActivationPhase(ActivationPhaseRecoveryAdmission, err)
 			continue
 		}
 		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(g.Target, g.UIDs)
 		if !errors.Is(results[i].Err, authority.ErrRouteNotReady) {
+			results[i].Err = WrapActivationPhase(ActivationPhaseRecoveryReadback, results[i].Err)
 			continue
 		}
 		uids, err := r.directory.RecoveryUIDs(g.Target, g.UIDs)
 		if err != nil {
-			results[i].Err = err
+			results[i].Err = WrapActivationPhase(ActivationPhaseRecoveryValidation, err)
 			continue
 		}
-		if len(uids) > 0 {
-			missing = append(missing, EndpointLookupGroup{Target: g.Target, UIDs: uids})
-			indexes = append(indexes, i)
-			refs += len(uids)
+		if len(uids) == 0 {
+			// Another caller may publish proof between the two Directory reads.
+			// An empty missing set is not a route result: reread the same fence.
+			if err := ctx.Err(); err != nil {
+				results[i] = EndpointLookupResult{Err: WrapActivationPhase(ActivationPhaseRecoveryAdmission, err)}
+				continue
+			}
+			results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(g.Target, g.UIDs)
+			results[i].Err = WrapActivationPhase(ActivationPhaseRecoveryReadback, results[i].Err)
+			if err := ctx.Err(); err != nil {
+				results[i] = EndpointLookupResult{Err: WrapActivationPhase(ActivationPhaseRecoveryReadback, err)}
+			}
+			continue
 		}
+		missing = append(missing, EndpointLookupGroup{Target: g.Target, UIDs: uids})
+		indexes = append(indexes, i)
+		refs += len(uids)
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
 		for i := range results {
-			results[i] = EndpointLookupResult{Err: authority.ErrRouteNotReady}
+			results[i] = EndpointLookupResult{Err: WrapActivationPhase(ActivationPhaseRecoveryAdmission, authority.ErrRouteNotReady)}
 		}
 		return results, nil, waits
 	}
@@ -263,6 +279,7 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 				continue
 			}
 			if len(uid) > recoveryPageUIDBytes-cloneBytes {
+				markRecoveryAdmissionFailures(results, indexes)
 				return results, nil, waits
 			}
 			cloneBytes += len(uid)
@@ -279,6 +296,7 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 		workBytes = 256 + len(missing)*128 + len(newKeys)*256 + cloneBytes
 	}
 	if len(r.members) >= recoveryMaxMembers || len(newKeys) > recoveryMaxKeys-len(r.inFlight) || memberBytes+workBytes > recoveryMaxUIDBytes-r.ownedUIDBytes {
+		markRecoveryAdmissionFailures(results, indexes)
 		return results, nil, waits
 	}
 	m := &recoveryMember{ctx: ctx, stop: make(chan struct{}), bytes: memberBytes}
@@ -333,6 +351,14 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 	}
 	r.kickLocked()
 	return results, m, waits
+}
+
+// markRecoveryAdmissionFailures annotates only rejected missing groups. Proven
+// siblings and failed Directory reads retain their own result and phase.
+func markRecoveryAdmissionFailures(results []EndpointLookupResult, indexes []int) {
+	for _, i := range indexes {
+		results[i].Err = WrapActivationPhase(ActivationPhaseRecoveryAdmission, results[i].Err)
+	}
 }
 
 // returnMember detaches one caller once, then checks each affected execution
@@ -525,6 +551,7 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 		}
 		for _, g := range w.groups {
 			uids, err := r.directory.RecoveryUIDs(g.Target, g.UIDs)
+			err = recoveryExecutionFailure(ActivationPhaseRecoveryValidation, err)
 			for _, uid := range g.UIDs {
 				outcomes[i][recoveryKey(g.Target, uid)] = err
 			}
@@ -583,12 +610,14 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 			}
 		}
 		for k, g := range c.Groups {
+			phase := ActivationPhaseRecoveryProvider
 			err := e.ctx.Err()
 			if err == nil {
 				err = providerErr
 			}
 			if err == nil && (len(recovered) != len(activeCalls) || len(recovered[j]) != len(c.Groups) || routeCount > 4096) {
 				err = authority.ErrRouteNotReady
+				phase = ActivationPhaseRecoveryValidation
 			}
 			if err == nil {
 				err = recovered[j][k].Err
@@ -604,6 +633,7 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 				for _, route := range recovered[j][k].Routes {
 					if _, ok := allowed[route.UID]; !ok || route.OwnerNodeID == 0 || route.OwnerBootID == 0 || route.SessionID == 0 {
 						err = authority.ErrStaleRoute
+						phase = ActivationPhaseRecoveryValidation
 						break
 					}
 				}
@@ -615,6 +645,7 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 			}
 			if err == nil && len(live) == 0 {
 				err = authority.ErrRouteNotReady
+				phase = ActivationPhaseRecoveryValidation
 			}
 			if err == nil {
 				routes := recovered[j][k].Routes
@@ -640,11 +671,17 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 				span := rpctrace.Begin(e.ctx, rpctrace.StageRecoveryInstall)
 				err = r.directory.InstallRecoveredRoutes(g.Target, live, routes)
 				span.End(rpctrace.ResultFor(err))
+				phase = ActivationPhaseRecoveryInstall
 			}
+			groupErr := recoveryExecutionFailure(phase, err)
+			var noLiveErr error
 			for _, uid := range g.UIDs {
-				outcome := err
+				outcome := groupErr
 				if _, ok := wanted[uid]; !ok {
-					outcome = authority.ErrRouteNotReady
+					if noLiveErr == nil {
+						noLiveErr = WrapActivationPhase(ActivationPhaseRecoveryValidation, authority.ErrRouteNotReady)
+					}
+					outcome = noLiveErr
 				}
 				outcomes[i][recoveryKey(g.Target, uid)] = outcome
 			}
@@ -673,6 +710,18 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 	r.mu.Unlock()
 }
 
+// recoveryExecutionFailure retains the historical execution cancellation
+// family before adding a fixed phase. Caller cancellation never uses this path.
+func recoveryExecutionFailure(phase ActivationPhase, err error) error {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if inner := ActivationFailurePhase(err); inner.String() != "" {
+			phase = inner
+		}
+		err = authority.ErrRouteNotReady
+	}
+	return WrapActivationPhase(phase, err)
+}
+
 // finishWorkLocked publishes status, removes all active ownership references,
 // and transfers only the small retired flight/channel to charged caller indices.
 func (r *AuthorityRecovery) finishWorkLocked(w *recoveryWork, outcomes map[recoveryUIDKey]error) {
@@ -693,14 +742,20 @@ func (r *AuthorityRecovery) finishWorkLocked(w *recoveryWork, outcomes map[recov
 		}
 		close(w.started)
 	}
+	var defaultErr error
+	if outcomes == nil {
+		defaultErr = WrapActivationPhase(ActivationPhaseRecoveryAdmission, authority.ErrRouteNotReady)
+	}
 	for _, f := range w.flights {
 		key := f.key
-		err := authority.ErrRouteNotReady
+		err := defaultErr
 		if outcomes != nil {
 			err = outcomes[key]
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			err = authority.ErrRouteNotReady
+			// Flight publication historically normalizes execution cancellation.
+			// Keep that error family while retaining only the closed phase.
+			err = recoveryExecutionFailure(ActivationFailurePhase(err), err)
 		}
 		f.err = err
 		delete(r.inFlight, key)

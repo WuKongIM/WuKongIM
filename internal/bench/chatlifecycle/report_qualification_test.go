@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestReportV6RejectsLegacyV5ThresholdV1(t *testing.T) {
+func TestReportV7RejectsLegacyV5ThresholdV1(t *testing.T) {
 	report := reportFixture(t)
 	report.SchemaVersion = "wukongim/chat-lifecycle-report/v5"
 	report.ThresholdVersion = "wukongim/chat-lifecycle-thresholds/v1"
@@ -18,7 +18,7 @@ func TestReportV6RejectsLegacyV5ThresholdV1(t *testing.T) {
 	}
 }
 
-func TestReportV6CarriesScopeAndSeparateLatencyWarmup(t *testing.T) {
+func TestReportV7CarriesScopeAndSeparateLatencyWarmup(t *testing.T) {
 	report := reportFixture(t)
 	body, err := MarshalReport(report, ReportFormatJSON)
 	if err != nil {
@@ -28,7 +28,7 @@ func TestReportV6CarriesScopeAndSeparateLatencyWarmup(t *testing.T) {
 	if err := json.Unmarshal(body, &raw); err != nil {
 		t.Fatal(err)
 	}
-	if string(raw["schema_version"]) != `"wukongim/chat-lifecycle-report/v6"` || string(raw["threshold_version"]) != `"wukongim/chat-lifecycle-thresholds/v2"` {
+	if string(raw["schema_version"]) != `"wukongim/chat-lifecycle-report/v7"` || string(raw["threshold_version"]) != `"wukongim/chat-lifecycle-thresholds/v2"` {
 		t.Fatalf("versions = %s / %s", raw["schema_version"], raw["threshold_version"])
 	}
 	if len(raw["qualification"]) == 0 {
@@ -46,7 +46,7 @@ func TestReportV6CarriesScopeAndSeparateLatencyWarmup(t *testing.T) {
 	}
 }
 
-func TestReportV6RejectsUnqualifiedSuccessfulFinal(t *testing.T) {
+func TestReportV7RejectsUnqualifiedSuccessfulFinal(t *testing.T) {
 	report := reportFixture(t)
 	report.Kind, report.Final, report.Continue = CheckpointFinal, true, false
 	report.Window.End = report.Window.FinalAt
@@ -61,7 +61,7 @@ func TestReportV6RejectsUnqualifiedSuccessfulFinal(t *testing.T) {
 	}
 }
 
-func TestReportV6QualificationScopeFollowsProfileAndStage(t *testing.T) {
+func TestReportV7QualificationScopeFollowsProfileAndStage(t *testing.T) {
 	for _, test := range []struct {
 		cfg      Config
 		scope    ReportQualificationScope
@@ -98,7 +98,7 @@ func TestReportV6QualificationScopeFollowsProfileAndStage(t *testing.T) {
 	}
 }
 
-func TestReportV6RejectsEditedFormalThresholdsAndTopology(t *testing.T) {
+func TestReportV7RejectsEditedFormalThresholdsAndTopology(t *testing.T) {
 	for _, test := range []struct {
 		name   string
 		mutate func(*Report)
@@ -121,7 +121,7 @@ func TestReportV6RejectsEditedFormalThresholdsAndTopology(t *testing.T) {
 	}
 }
 
-func TestReportV6RejectsContradictoryOrStalePositiveWindows(t *testing.T) {
+func TestReportV7RejectsContradictoryOrStalePositiveWindows(t *testing.T) {
 	for _, test := range []struct {
 		name   string
 		mutate func(*Report)
@@ -141,11 +141,11 @@ func TestReportV6RejectsContradictoryOrStalePositiveWindows(t *testing.T) {
 		{"sync sample exceeds total", func(r *Report) { r.Latency.QualificationWindow.Samples[2] = r.Sync.Thresholds.Count + 1 }},
 		{"truncated interval", func(r *Report) { r.Latency.QualificationWindow.Duration -= time.Nanosecond }},
 		{"late baseline", func(r *Report) {
-			r.Latency.QualificationWindow.BaselineAt = r.Latency.QualificationWindow.WindowStart.Add(time.Second)
+			r.Latency.QualificationWindow.BaselineElapsed = r.Latency.QualificationWindow.WindowStartElapsed + time.Second
 		}},
 		{"future cut", func(r *Report) {
-			r.Latency.QualificationWindow.LastAt = r.Window.End.Add(time.Second)
-			r.Latency.QualificationWindow.WindowEnd = r.Latency.QualificationWindow.LastAt
+			r.Latency.QualificationWindow.WindowEndElapsed = r.Window.Elapsed + time.Second
+			r.Latency.QualificationWindow.WindowStartElapsed = r.Latency.QualificationWindow.WindowEndElapsed - 10*time.Minute
 		}},
 		{"stale claim", func(r *Report) {
 			r.Window.End = r.Window.End.Add(5*time.Second + time.Nanosecond)
@@ -178,7 +178,7 @@ func TestReportV6RejectsContradictoryOrStalePositiveWindows(t *testing.T) {
 	}
 }
 
-func TestReportV6RejectsReheaderWithoutNewEvidence(t *testing.T) {
+func TestReportV7RejectsReheaderWithoutNewEvidence(t *testing.T) {
 	report := qualifiedReportFixture(t)
 	body, err := json.Marshal(report)
 	if err != nil {
@@ -257,11 +257,11 @@ func qualifiedReportFixture(t *testing.T) Report {
 }
 
 func qualifiedLatencyWindowFixture(start, end time.Time) VerdictLatencyWindowSnapshot {
-	return VerdictLatencyWindowSnapshot{WarmupEnd: start.Add(10 * time.Minute), BaselineAt: start.Add(10 * time.Minute), LastAt: end, WindowStart: end.Add(-10 * time.Minute), WindowEnd: end, Duration: 10 * time.Minute, RequiredDuration: 10 * time.Minute, MaxAge: 5 * time.Second, MinimumSamples: 1_000, Samples: [3]uint64{1_000, 1_000, 1_000}, Qualified: [3]bool{true, true, true}}
+	return VerdictLatencyWindowSnapshot{BaselineElapsed: 10 * time.Minute, WindowStartElapsed: end.Sub(start) - 10*time.Minute, WindowEndElapsed: end.Sub(start), WarmupEnd: start.Add(10 * time.Minute), BaselineAt: start.Add(10 * time.Minute), LastAt: end, WindowStart: end.Add(-10 * time.Minute), WindowEnd: end, Duration: 10 * time.Minute, RequiredDuration: 10 * time.Minute, MaxAge: 5 * time.Second, MinimumSamples: 1_000, Samples: [3]uint64{1_000, 1_000, 1_000}, Qualified: [3]bool{true, true, true}}
 }
 
 func qualifiedReportLatencyWindowFixture(start, end time.Time) ReportLatencyQualificationWindow {
-	return ReportLatencyQualificationWindow{WarmupEnd: start.Add(10 * time.Minute), BaselineAt: start.Add(10 * time.Minute), LastAt: end, WindowStart: end.Add(-10 * time.Minute), WindowEnd: end, Duration: 10 * time.Minute, RequiredDuration: 10 * time.Minute, MaxAge: 5 * time.Second, MinimumSamples: 1_000, Samples: [3]uint64{1_000, 1_000, 1_000}, Qualified: [3]bool{true, true, true}, Status: ReportLatencySufficient}
+	return ReportLatencyQualificationWindow{BaselineElapsed: 10 * time.Minute, WindowStartElapsed: end.Sub(start) - 10*time.Minute, WindowEndElapsed: end.Sub(start), WarmupEnd: start.Add(10 * time.Minute), BaselineAt: start.Add(10 * time.Minute), LastAt: end, WindowStart: end.Add(-10 * time.Minute), WindowEnd: end, Duration: 10 * time.Minute, RequiredDuration: 10 * time.Minute, MaxAge: 5 * time.Second, MinimumSamples: 1_000, Samples: [3]uint64{1_000, 1_000, 1_000}, Qualified: [3]bool{true, true, true}, Status: ReportLatencySufficient}
 }
 
 func reportLatencyHistogramFixture(count uint64) WorkerHistogramSnapshot {

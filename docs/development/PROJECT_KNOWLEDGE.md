@@ -1,6 +1,6 @@
 # Project Knowledge
 
-Chat-lifecycle report v6 / threshold contract v2 separates `local_diagnostic`,
+Chat-lifecycle report v7 / threshold contract v2 separates `local_diagnostic`,
 `rehearsal`, and `formal_protocol` scope. A formal-protocol report still requires
 same-source/run/Lease external Linux hardware, independent-host and disk proof;
 configuration names cannot certify the environment. Mac pressure diagnostics do
@@ -17,6 +17,10 @@ cut; gaps exceeding ten minutes reset positive qualification. Resource-only
 observations cannot refresh it. Numerical limits, the five-minute sustained
 breach rule and correctness gates are unchanged; short local diagnostics may
 run with insufficient evidence, but elapsed rehearsal time alone cannot pass.
+Qualification persists baseline/start/end elapsed positions from one monotonic
+process clock; duration, order and freshness use those positions. Serialized
+wall timestamps are audit fields, not a reconstructed qualification clock.
+Readers reject missing offsets and older schemas without modifying old evidence.
 
 `RetryAttempts` counts registered retry attempts, not distinct retried messages.
 Explicit product first-attempt failures still subtract driver-local admission
@@ -44,6 +48,14 @@ registration/commit authority logs therefore emit a closed phase and numeric
 fence target without raw errors, UID/session identities or tokens. Endpoint
 lookups do not emit this event. A generic benchmark CONNECT failure alone cannot
 distinguish rejected CONNACK from EOF; correlate preserved server auth evidence.
+Recovery's first Directory read and missing-proof query are separate reads.
+Concurrent installation can make the latter empty: reread the same exact target
+and preserve its error/cancellation rather than returning the stale first error
+or treating an empty set as successful offline proof. Only groups with joined
+flights may have outcomes replaced after work admission/completion; a cold
+sibling cannot retry or overwrite another group's failed readback. Fixed
+recovery admission/provider/validation/install/readback phases preserve existing
+error-family normalization, wire status, deadlines and admission bounds.
 
 Storage wait metric names require source interpretation. RuntimePressure's
 `message_commit` queue-wait observation currently includes the whole Submit,

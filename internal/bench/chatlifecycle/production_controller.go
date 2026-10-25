@@ -843,5 +843,6 @@ func (c *ProductionEvidenceController) qualifiedLatencyAt(at time.Time) bool {
 		return false
 	}
 	window := c.evaluator.LatencyWindowEvidence()
-	return window.Qualified == ([3]bool{true, true, true}) && !window.LastAt.After(at) && at.Sub(window.LastAt) <= window.MaxAge
+	elapsed := at.Sub(c.start.StartedAt)
+	return window.Qualified == ([3]bool{true, true, true}) && window.WindowEndElapsed <= elapsed && elapsed-window.WindowEndElapsed <= window.MaxAge
 }

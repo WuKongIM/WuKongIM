@@ -653,8 +653,8 @@ func TestRecoveryCloseRetainsActiveResultOwnershipUntilProviderReturns(t *testin
 		t.Fatalf("Close erased unfinished owner: %v", err)
 	}
 	requireFlightError(t, call.await(t), authority.ErrRouteNotReady)
-	if _, err := recovery.Endpoints(context.Background(), target, []string{"late"}); err != authority.ErrRouteNotReady {
-		t.Fatal("closed scheduler admitted work")
+	if _, err := recovery.Endpoints(context.Background(), target, []string{"late"}); !errors.Is(err, authority.ErrRouteNotReady) || presence.ActivationFailurePhase(err) != presence.ActivationPhaseRecoveryAdmission {
+		t.Fatalf("closed scheduler lost admission failure: %v", err)
 	}
 	close(release)
 	join, stop := context.WithTimeout(context.Background(), time.Second)

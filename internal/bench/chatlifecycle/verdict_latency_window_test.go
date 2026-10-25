@@ -233,3 +233,26 @@ func TestLatencyWindowEvidenceCannotStayFreshThroughResourceOnlyCuts(t *testing.
 		t.Fatalf("resource-only observations manufactured freshness: %+v", got)
 	}
 }
+
+func TestLatencyWindowElapsedPositionsUseOneProcessOrigin(t *testing.T) {
+	start := time.Now()
+	thresholds := FormalConfig().Thresholds
+	evaluator, err := NewVerdictEvaluator(start, thresholds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	counters := LatencyCountersForThresholds(thresholds.Latency)
+	for cut := uint64(0); cut <= 121; cut++ {
+		counters.Hot.Count = cut * 10
+		counters.Cold.Count = cut * 10
+		counters.Sync.Count = cut * 10
+		at := start.Add(10*time.Minute + time.Duration(cut)*5*time.Second)
+		if err := evaluator.Observe(VerdictObservation{At: at, Latency: &counters}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := evaluator.LatencyWindowEvidence()
+	if got.BaselineElapsed != 10*time.Minute || got.WindowStartElapsed != 10*time.Minute+5*time.Second || got.WindowEndElapsed != 20*time.Minute+5*time.Second || got.Duration != got.WindowEndElapsed-got.WindowStartElapsed || got.Qualified != ([3]bool{true, true, true}) {
+		t.Fatalf("positions did not use common process origin: %+v", got)
+	}
+}

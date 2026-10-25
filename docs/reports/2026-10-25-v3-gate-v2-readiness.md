@@ -7,7 +7,7 @@ explicit first-attempt failure, and message-correctness thresholds are retained.
 
 ## Evidence contract
 
-Chat-lifecycle reports advance to `report/v6` and `thresholds/v2`; worker protocol
+Chat-lifecycle reports advance to `report/v7` and `thresholds/v2`; worker protocol
 advances to v11 so an older worker cannot silently supply zero deadline counters.
 Old reports remain archived, and the new reader rejects them as current capacity
 continuation inputs. Original R30/R31 outcomes remain `operator_stop`.
@@ -30,6 +30,12 @@ cut; gaps longer than ten minutes restart positive evidence. Resource-only
 observations, stale cuts and counter regressions cannot create qualification.
 The numerical sustained-breach rule still uses five minutes. Short diagnostics
 may execute while remaining insufficient; elapsed rehearsal time cannot pass.
+
+Report v7 records baseline/start/end elapsed positions from one process-start
+monotonic clock. Duration is the exact elapsed-position difference; ordering and
+freshness also use elapsed positions. Wall timestamps remain audit fields after
+JSON serialization. No tolerance, wall-clock reconstruction, old-report upgrade
+or threshold change supplies missing evidence.
 
 First-attempt reporting exposes known-deadline registrations, resolved original
 results and confirmed observed-late timeouts. The three sets satisfy
@@ -147,3 +153,66 @@ for route-not-ready Register/Commit failures; endpoint lookup fanout adds no suc
 event. Remote wire status stays unchanged. This supplies the missing recovery /
 directory registration / commit boundary for a subsequent deliberate run rather
 than guessing the first run's underlying cause.
+
+## Second candidate and clock repair
+
+Commit `43642e56b2f22534921bc5f811b296ad9ce6e5f1` passed the
+[candidate default/scripts/migration suites](https://github.com/WuKongIM/WuKongIM/actions/runs/40193574219),
+the three fixed Linux performance cases, messaging race, Manager and native
+package preview. Its [three-node correctness run](https://github.com/WuKongIM/WuKongIM/actions/runs/40193574202)
+still failed. The repaired launcher produced the intended short timeline and
+the native driver retained `operator_stop` with 75,002 ACKs, without the prior
+generator invariant. The report consumer rejected its serialized v6 window:
+monotonic duration was 89,930,033,567ns but the wall timestamp difference was
+89,930,033,577ns. That 10ns clock-representation mismatch explains the consumer's
+missing-evidence classification. The original failed CI/report remain archived;
+they are not reclassified as a v7 pass.
+
+V7 reproduces that mismatch and wall shifts of ±10ns and ±200µs through actual
+checkpoint/write/read boundaries. Persisted elapsed positions remove the wall
+subtraction; truncated, future, stale and missing positions still fail. Fresh
+exact-source Linux regression evidence is required after this repair.
+
+The second original-scale Mac diagnosis also terminated early with native
+`harness_invalid / worker_harness_invalid`, before the ten-minute baseline.
+Fifty complete intervals covered 250.002423292s at 1,999.972614 logical SEND/s.
+Final drain completed all 512,005 SEND/ACKs and all 4,692 sampled correlations.
+Terminal/loss/duplicate/corruption/sequence and explicit product first-attempt
+failures were zero. All original deadlines were resolved; 17,735 observed late
+results and 11,459 retry registrations remain separate counters, with unknown
+deadline coverage zero. None of these counts qualifies the missing window.
+
+Worker2 retained two CONNECT failures. Matching node3 authentication evidence
+and node2's redacted authority event place failures in activation registration
+and recovery; the remote event names HashSlot 79 / physical Slot 4 / leader2.
+This narrows the source boundary but does not prove provider timeout, RPC queue
+saturation, or any one recovery race caused these two failures. New subphase
+evidence and deterministic failure-path tests are required before the next run.
+Recorded cleanup and an independent fresh census confirmed no retained workload
+processes and no listeners on the 64 reserved ports.
+
+Deterministic public RecoveryDirectory-seam tests with the real Directory now
+reproduce a separate race: proof can be installed between an initial not-ready
+read and the missing-proof query, leaving an empty missing set but returning the
+stale initial error. The repair reads back the same exact authority target once;
+empty input alone proves no route result. Confirmed absence, live proof,
+eviction, changed fence and cancellation remain distinct. A failed readback with
+no joined flight retains its own error and phase even when a cold sibling queues,
+finishes or cancels. There is no new RPC, provider retry, deadline or admission
+budget. Five fixed recovery subphases preserve the original error normalization.
+These deterministic failures establish a real bug; they do not establish that
+either earlier native CONNECT rejection hit it.
+
+The complete report package also exposed a pre-existing test synchronization
+assumption: a goroutine-start notification followed by `Gosched` did not prove
+Tick had joined the generation's Stop wait set. Stop could legally seal admission
+first. The regression now observes that exact Tick blocked at its admitted mutex
+boundary before starting Stop; production lifecycle code remains unchanged.
+
+The combined local bench, presence, node/gateway/cluster adapter and related CLI
+suites pass with pinned Go 1.25.11. Presence integration and its seven new boundary
+cases pass, including 20 race iterations. The Stop regression fails when its
+production join is deliberately removed, then passes 20 normal and 20 race
+iterations with the original production bytes restored. FLOW contracts and the
+24 terminal-collector process fixtures pass. These checks validate the repairs;
+they do not supply a new original-scale latency window or formal Linux evidence.

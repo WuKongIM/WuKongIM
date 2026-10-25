@@ -20,7 +20,7 @@ thresholds. Three service nodes and three workers share one local filesystem,
 which is not representative of the four-host cloud topology. It is not formal
 evidence.
 
-Reports use schema `wukongim/chat-lifecycle-report/v6` and threshold contract
+Reports use schema `wukongim/chat-lifecycle-report/v7` and threshold contract
 `wukongim/chat-lifecycle-thresholds/v2`. `qualification.scope` distinguishes
 `local_diagnostic`, `rehearsal`, and `formal_protocol`. A formal-protocol report
 still needs matching external Linux deployment and independent-host/disk
@@ -41,6 +41,13 @@ do not refresh latency evidence. Numerical latency limits and their five-minute
 sustained-breach rule are unchanged, as are correctness and resource gates.
 Short diagnostic runs can finish without qualifying; they cannot produce a
 rehearsal pass or formal pass from missing latency evidence.
+
+Qualification persists `baseline_elapsed`, `window_start_elapsed`, and
+`window_end_elapsed` from the same process-start monotonic clock. Window
+duration, order, and freshness use these positions after JSON serialization;
+wall timestamps are retained for audit. The reader neither reconstructs missing
+positions from wall time nor upgrades older reports. Clock-rounding differences
+therefore cannot invalidate an otherwise identical measured window.
 
 Messages separately report `first_attempt_deadlines`,
 `first_attempt_deadline_resolved`, and `first_attempt_timeouts`.

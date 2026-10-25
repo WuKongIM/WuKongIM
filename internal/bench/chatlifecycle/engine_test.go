@@ -3886,15 +3886,16 @@ func TestEngineStopJoinsTickWaitingOnPriorGenerationTimeBoundary(t *testing.T) {
 		_ = fixture.engine.Stop()
 	}()
 	tickAt := fixture.clock.Now().Add(time.Minute)
-	tickStarted := make(chan struct{})
+	tickStarted := make(chan string, 1)
 	tickDone := make(chan error, 1)
 	go func() {
-		close(tickStarted)
+		tickStarted <- engineTestCurrentGoroutineHeader()
 		_, tickErr := fixture.engine.Tick(tickAt, fixture.demand(0))
 		tickDone <- tickErr
 	}()
-	<-tickStarted
-	runtime.Gosched()
+	// Starting a goroutine does not prove Tick has enrolled in tickOps. Observe
+	// this exact Tick blocked on stepMu before Stop fences further admission.
+	waitEngineTestTickOnStepMu(t, <-tickStarted)
 
 	stopDone := make(chan error, 1)
 	go func() { stopDone <- fixture.engine.Stop() }()

@@ -18,16 +18,20 @@ const (
 type VerdictLatencyWindowSnapshot struct {
 	WarmupEnd time.Time
 	// BaselineAt is the first cumulative cut at or after latency warmup; it is never measured traffic.
-	BaselineAt       time.Time
-	LastAt           time.Time
-	WindowStart      time.Time
-	WindowEnd        time.Time
-	Duration         time.Duration
-	RequiredDuration time.Duration
-	MaxAge           time.Duration
-	MinimumSamples   uint64
-	Samples          [3]uint64
-	Qualified        [3]bool
+	BaselineAt  time.Time
+	LastAt      time.Time
+	WindowStart time.Time
+	WindowEnd   time.Time
+	// Elapsed positions share the evaluator process-start monotonic origin.
+	BaselineElapsed    time.Duration
+	WindowStartElapsed time.Duration
+	WindowEndElapsed   time.Duration
+	Duration           time.Duration
+	RequiredDuration   time.Duration
+	MaxAge             time.Duration
+	MinimumSamples     uint64
+	Samples            [3]uint64
+	Qualified          [3]bool
 }
 
 // LatencyWindowEvidence returns the last statistics window without advancing its clock.
@@ -49,12 +53,17 @@ func (v *VerdictEvaluator) latencyWindowEvidenceAt(at time.Time) VerdictLatencyW
 	if v.latencyLastAt.IsZero() || v.latencyQualificationStart.IsZero() {
 		return evidence
 	}
+	evidence.BaselineElapsed = v.latencyBaselineAt.Sub(v.start)
 	evidence.WindowStart = v.latencyQualificationStart
-	if cutoff := v.latencyLastAt.Add(-verdictLatencyQualificationWindow); cutoff.After(evidence.WindowStart) {
-		evidence.WindowStart = cutoff
+	evidence.WindowStartElapsed = v.latencyQualificationStart.Sub(v.start)
+	evidence.WindowEndElapsed = v.latencyLastAt.Sub(v.start)
+	if cutoffElapsed := evidence.WindowEndElapsed - verdictLatencyQualificationWindow; cutoffElapsed > evidence.WindowStartElapsed {
+		evidence.WindowStart = v.latencyLastAt.Add(-verdictLatencyQualificationWindow)
+		evidence.WindowStartElapsed = cutoffElapsed
 	}
-	evidence.Duration = evidence.WindowEnd.Sub(evidence.WindowStart)
-	fresh := !at.IsZero() && !v.latencyLastAt.After(at) && at.Sub(v.latencyLastAt) <= verdictLatencyQualificationMaxAge
+	evidence.Duration = evidence.WindowEndElapsed - evidence.WindowStartElapsed
+	atElapsed := at.Sub(v.start)
+	fresh := !at.IsZero() && evidence.WindowEndElapsed <= atElapsed && atElapsed-evidence.WindowEndElapsed <= verdictLatencyQualificationMaxAge
 	valid := fresh && !v.latencyWindowInvalid && v.snapshot.Outcome != VerdictHarnessInvalid
 	for index, window := range v.latencyQualification {
 		_, evidence.Samples[index] = window.Sum()
@@ -67,7 +76,7 @@ func (v *VerdictEvaluator) latencyWindowEvidenceAt(at time.Time) VerdictLatencyW
 // interval longer than the statistics window cannot be split exactly, so its
 // ending cut restarts positive qualification without suppressing negative breaches.
 func (v *VerdictEvaluator) observeLatencyQualification(at time.Time, delta LatencyCounters) bool {
-	if at.Sub(v.latencyLastAt) > verdictLatencyQualificationWindow {
+	if at.Sub(v.start)-v.latencyLastAt.Sub(v.start) > verdictLatencyQualificationWindow {
 		v.latencyQualificationStart = at
 		for _, window := range v.latencyQualification {
 			*window = CounterWindow{span: window.span, entries: window.entries}

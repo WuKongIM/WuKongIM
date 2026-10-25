@@ -33,7 +33,7 @@ REGISTERED_RESOURCES = {
 
 
 def report(stage="rehearsal"):
-    return {"schema_version": "wukongim/chat-lifecycle-report/v6", "threshold_version": "wukongim/chat-lifecycle-thresholds/v2",
+    return {"schema_version": "wukongim/chat-lifecycle-report/v7", "threshold_version": "wukongim/chat-lifecycle-thresholds/v2",
             "qualification": {"scope": "rehearsal" if stage=="rehearsal" else "formal_protocol", "external_linux_evidence_required": True},
             "stage": "formal" if stage=="capacity" else stage, "mode": "capacity" if stage=="capacity" else "soak",
             "kind": "final", "final": True, "continue": False, "fence": {"run_hash": "sha256:"+hashlib.sha256(RUN.encode()).hexdigest(), "generation": 1},
@@ -412,12 +412,13 @@ class HelperBoundsTests(unittest.TestCase):
         cls.helper=importlib.util.module_from_spec(spec);spec.loader.exec_module(cls.helper)
 
     def test_terminal_report_contract_versions_and_scope_fail_closed(self):
-        # Failure matrix: historical schema/threshold pairs, absent version or
+        # Failure matrix: v6/v5 schema and historical thresholds, absent version or
         # scope, cross-stage scope, and a claimed Linux proof must not become
         # a current terminal anchor. The collector only retains evidence;
         # the Go report reader owns the complete numerical gate validation.
         mutations = {
-            'old-schema': lambda x: x.update(schema_version='wukongim/chat-lifecycle-report/v5'),
+            'old-v6-schema': lambda x: x.update(schema_version='wukongim/chat-lifecycle-report/v6'),
+            'old-v5-schema': lambda x: x.update(schema_version='wukongim/chat-lifecycle-report/v5'),
             'old-thresholds': lambda x: x.update(threshold_version='wukongim/chat-lifecycle-thresholds/v1'),
             'missing-thresholds': lambda x: x.pop('threshold_version'),
             'missing-qualification': lambda x: x.pop('qualification'),

@@ -26,6 +26,14 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Read back routes at the same authority fence when concurrent recovery has
+  already supplied proof, preserving failed and proven siblings independently.
+  / 修复并发恢复已补齐路由证明后仍返回旧未就绪错误的竞态，各组独立保留原结果。
+
+- Preserve the monotonic latency-window positions in serialized lifecycle
+  reports so wall-clock rounding cannot invalidate measured evidence.
+  / 长稳报告显式保存单调计时位置，避免 JSON 时间戳舍入导致有效延迟证据被拒绝。
+
 - Reconcile already verified SENDACK completion before benchmark retry
   registration or terminal decisions can misclassify it, and preserve the requested
   short Linux smoke timeline when rendering the expanded lifecycle configuration.

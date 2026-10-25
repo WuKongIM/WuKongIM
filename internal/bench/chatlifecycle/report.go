@@ -14,7 +14,7 @@ import (
 
 const (
 	// ReportSchemaVersion identifies the persisted JSON and Markdown contract.
-	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v6"
+	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v7"
 	// ReportThresholdVersion binds reports to the reviewed exact threshold semantics.
 	ReportThresholdVersion = "wukongim/chat-lifecycle-thresholds/v2"
 	// ReportDesignProfile identifies the approved lifecycle-soak design baseline.
