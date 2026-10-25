@@ -282,3 +282,47 @@ processes and zero listeners on all 64 reserved ports. The release decision stay
 Linux rehearsal/72-hour/aged-capacity chain remain missing, and production stable
 signed-package publication remains disabled. A repaired candidate needs fresh
 evidence; these failed runs remain archived under their original identities.
+
+## Fourth candidate and the remaining observation gap
+
+The repaired `14dabb614b72e87627a7740c1c2212a376463e27` candidate passed its
+[Linux candidate suite](https://github.com/WuKongIM/WuKongIM/actions/runs/40201680089),
+[fixed three-node regression](https://github.com/WuKongIM/WuKongIM/actions/runs/40201680082),
+[Manager smoke](https://github.com/WuKongIM/WuKongIM/actions/runs/40201680158), and
+[four-distribution native preview](https://github.com/WuKongIM/WuKongIM/actions/runs/40201680078).
+The CI merge tree again matched its source. This is fixed Linux regression
+evidence, not the formal four-host original-scale acceptance chain.
+
+Its fresh original-scale Mac run ended after 297.657593750 monotonic seconds
+with the original `harness_invalid / worker_harness_invalid`. All 592,006 SENDs
+were acknowledged and all 5,337 sampled deliveries completed. SEND terminal,
+loss, duplicate, corruption, sequence-regression and explicit first-attempt
+failure counts were zero. All registered original deadlines resolved; 27,149
+original responses were observed late, with zero unknown coverage. The 58 full
+periodic intervals averaged approximately 1,999.993 SEND/s. It stopped before
+the ten-minute latency baseline; its v7 offsets remain zero and latency is
+`not_evaluated`. This run does not erase the third run's earlier terminal error.
+
+Three node2 Register failures named `recovery_provider`, corresponding to the
+three subsequent authentication failures. Only the stage was captured; it did
+not distinguish snapshot, admission, owner read, response validation or final
+recheck. The transport label `presence owner action` covers action opcode 7 and
+reads 9/10/11, so its 812 timeout delta cannot identify those three failures.
+The current CONNECT Code30 path intentionally combines target rejection with
+dial/EOF/other transport failures and stops the worker. Its native classification
+is retained; the label alone does not prove a driver cause. An online occupancy
+snapshot is not an independent CONNECT error budget.
+
+The next observation therefore adds failure-only immutable provider evidence:
+closed reasons, executed-stage masks, local monotonic durations, owner
+scope/page progress, and distinct configured budget, effective port-entry budget
+and observed elapsed fields. Scope is the shared physical round, never a
+fabricated original-caller trace. Unexecuted stages remain unknown rather than
+zero; context normalization keeps the old error family and may mark an existing
+capture as overridden without extending its clock. Successful prefixes and the
+existing result ledger, wire replies, deadlines, retries and gates are retained.
+Owner intervals include page encoding, RPC, decoding and merge; entering a port
+does not prove a wire request was dispatched. Global RPC sampling remains
+disabled for this first diagnostic, avoiding a
+simultaneous census/capability-negotiation change. No performance repair or
+successful original-scale window is claimed by adding these observations.

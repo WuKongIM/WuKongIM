@@ -68,6 +68,20 @@ sibling cannot retry or overwrite another group's failed readback. Fixed
 recovery admission/provider/validation/install/readback phases preserve existing
 error-family normalization, wire status, deadlines and admission bounds.
 
+The production presence-recovery provider reads Controller-local snapshots and
+owner-local online indexes; it does not itself invoke a Slot/DB read barrier.
+Its owner-call interval includes encoding, RPC and decoding unless separate
+evidence proves a narrower phase. Shared recovery execution has no single
+caller trace parent; a provider failure's physical-round timing cannot be
+reported as the caller's exclusive delay.
+
+Node RPC services retain independent FIFO/concurrency budgets; shared executor
+capacity is derived from their sum. The transport label `presence owner action`
+names the whole owner service, including action opcode 7 and reads 9/10/11.
+Its timeout total cannot identify which opcode failed. Service-wait histograms
+are observed at handler entry and omit requests canceled while queued; a low
+mean cannot rule out queue residence for those missing requests.
+
 Storage wait metric names require source interpretation. RuntimePressure's
 `message_commit` queue-wait observation currently includes the whole Submit,
 not pure coordinator queue residence. Native quorum `store_append_wait` includes

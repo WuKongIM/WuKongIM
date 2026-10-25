@@ -87,9 +87,10 @@ scheduled backup or restore
 - Presence read-only classifiers verify the `WKVP` version-2 header, selecting
   authority operations 5/8 and owner operations 9/10/11 only. Full body validation
   remains in handlers; malformed reads never dispatch an owner mutation.
-- Failed presence Register/Commit with route-not-ready log only a closed source
-  phase and numeric target. RPC bytes stay unchanged; lookups add no such logs,
-  and raw causes, UID/session identities and tokens are excluded from this event.
+- Failed presence Register/Commit with route-not-ready log a closed source phase,
+  numeric target and optional immutable physical-round provider evidence. Known
+  masks preserve missing stages; RPC bytes stay unchanged and lookups add no
+  event. Raw causes, UID/session identities and tokens remain excluded.
 - Presence batch lookups preserve input alignment and isolate group-scoped
   stale/rejected results. Compatibility fallback is limited to an explicit
   unsupported-operation response, never arbitrary transport failure.

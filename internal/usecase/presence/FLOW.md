@@ -55,6 +55,9 @@ It does not own gateway frames, concrete cluster routing, or session storage.
   wrappers. Diagnostic extraction returns the innermost known phase, never request data.
   Recovery distinguishes admission, provider, validation, installation and
   Directory readback; execution cancellation keeps its existing not-ready mapping.
+  Immutable provider evidence survives normalization; a later physical-context
+  override keeps only the same global or aligned group failure capture, never
+  another group's cause. Masks distinguish unobserved stages from measured zero.
 - Failed authority registration removes the pending local session. Failed final
   activation queues exact unregister and removes local state.
 - Status observation is best effort, never adds authority traffic, counts only

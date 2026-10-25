@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Add closed presence-recovery failure reasons and observed shared-round phase
+  timings to existing authority rejection diagnostics, preserving error mapping,
+  budgets and protocol replies. / 在线恢复拒绝诊断补充固定原因和共享执行阶段耗时，
+  保留原错误映射、预算及协议响应。
+
 - Keep items rejected at Channel append eligibility out of the active batch
   when several leading items fail, preserving one completion per input.
   / 修复批次开头连续多条请求失效时被重复纳入活动集的问题，保持每项只完成一次。

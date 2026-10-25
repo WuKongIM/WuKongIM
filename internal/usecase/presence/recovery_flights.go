@@ -612,6 +612,18 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 		for k, g := range c.Groups {
 			phase := ActivationPhaseRecoveryProvider
 			err := e.ctx.Err()
+			if err != nil {
+				// Physical cancellation keeps priority. Preserve only the same
+				// provider failure's frozen observation, never another group.
+				observedErr := providerErr
+				if observedErr == nil && len(recovered) == len(activeCalls) && len(recovered[j]) == len(c.Groups) {
+					observedErr = recovered[j][k].Err
+				}
+				if evidence, ok := RecoveryProviderFailure(observedErr); ok {
+					evidence.ContextOverride = true
+					err = WithRecoveryProviderFailure(err, evidence)
+				}
+			}
 			if err == nil {
 				err = providerErr
 			}
@@ -714,10 +726,14 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 // family before adding a fixed phase. Caller cancellation never uses this path.
 func recoveryExecutionFailure(phase ActivationPhase, err error) error {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		evidence, observed := RecoveryProviderFailure(err)
 		if inner := ActivationFailurePhase(err); inner.String() != "" {
 			phase = inner
 		}
 		err = authority.ErrRouteNotReady
+		if observed {
+			err = WithRecoveryProviderFailure(err, evidence)
+		}
 	}
 	return WrapActivationPhase(phase, err)
 }

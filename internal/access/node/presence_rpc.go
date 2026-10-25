@@ -604,12 +604,13 @@ func (a *Adapter) logPresenceAuthorityError(req presenceRPCRequest, status strin
 		if phase == "" {
 			phase = "unknown"
 		}
-		a.rpcLogger().Warn("presence activation authority not ready",
+		fields := []wklog.Field{
 			wklog.Event("internal.access.node.presence_activation_not_ready"),
 			wklog.String("op", req.Op), wklog.String("status", status),
 			wklog.String("activation_phase", phase),
 			wklog.Int("hashSlot", int(req.Target.HashSlot)),
-			wklog.Uint64("slotID", uint64(req.Target.SlotID)), wklog.LeaderNodeID(req.Target.LeaderNodeID))
+			wklog.Uint64("slotID", uint64(req.Target.SlotID)), wklog.LeaderNodeID(req.Target.LeaderNodeID)}
+		a.rpcLogger().Warn("presence activation authority not ready", appendRecoveryProviderFailure(fields, err)...)
 		return
 	}
 	if status != rpcStatusRejected {

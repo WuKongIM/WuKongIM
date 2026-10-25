@@ -74,8 +74,7 @@ management, plugins, diagnostics, and bounded operations observations.
 
 ## Invariants and Failure Semantics
 
-- Presence Register/Commit annotate recovery and Directory failure phases while
-  preserving original error-family mapping, authority fences and retry decisions.
+- Presence recovery failures freeze physical-round reason, executed stages, owner/page progress and policy/port-entry/elapsed budgets; no caller trace is invented. Original error families, proofs, fences and retry decisions stay unchanged.
 - Route, leader, term, epoch, revision, lease and optional prepared-append route fences must be forwarded
   exactly; preferred or cached ownership must never replace observed authority.
 - Missing leaders, stale routes, unavailable placement, and write fences fail
