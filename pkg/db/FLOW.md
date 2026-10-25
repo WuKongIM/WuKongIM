@@ -42,6 +42,14 @@ It does not own product policy or expose Pebble-specific APIs to callers.
   known disjoint Slot writes invalidate only their own certificate.
 - Engine snapshots provide a pinned bounded-iterator view and must be closed;
   later writes and compactions may proceed while the view streams.
+- The engine's cache option is a read-headroom target. Its Pebble cache capacity
+  also budgets six configured memtables for ordinary writable/recycled arenas,
+  including mixed-size rotation. Default message/meta combined capacities are
+  512/320 MiB; allocation is lazy but may become resident. This is neither an
+  RSS limit nor a read-cache guarantee with long-lived pins, large flushable
+  batches or read-only WAL replay. Invalid arithmetic rejects before opening.
+- Storage snapshots retain block-cache bytes, cumulative hits/misses and arena
+  reservations (active/recycled/pinned); these exclude flushable-batch backing.
 - Metrics must not race root shutdown or a direct message-domain close.
 - Darwin uses 16 MiB `BytesPerSync` to avoid compaction range-sync full-file
   fsync behavior.

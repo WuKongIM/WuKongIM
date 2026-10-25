@@ -19,6 +19,15 @@ type EngineMetricsSnapshot struct {
 	// IdempotencyPointReads is the number of possible filter hits verified
 	// against durable storage since the message DB opened.
 	IdempotencyPointReads uint64
+	// BlockCacheSizeBytes is the current retained block-cache bytes, not its capacity.
+	BlockCacheSizeBytes int64
+	// BlockCacheHits counts block reads served from the cache since this store opened.
+	BlockCacheHits int64
+	// BlockCacheMisses counts block reads that missed the cache since this store opened.
+	BlockCacheMisses int64
+	// MemTableReservedSizeBytes is cache accounting for active, recycled and reader-pinned
+	// memtable arenas. It excludes flushable-batch backing and is not total cache reservations or RSS.
+	MemTableReservedSizeBytes uint64
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -123,6 +132,10 @@ func (db *MessageDB) MetricsSnapshot() EngineMetricsSnapshot {
 
 func engineMetricsFromSnapshot(snapshot engine.MetricsSnapshot) EngineMetricsSnapshot {
 	return EngineMetricsSnapshot{
+		BlockCacheSizeBytes:          snapshot.BlockCacheSizeBytes,
+		BlockCacheHits:               snapshot.BlockCacheHits,
+		BlockCacheMisses:             snapshot.BlockCacheMisses,
+		MemTableReservedSizeBytes:    snapshot.MemTableReservedSizeBytes,
 		DiskSpaceUsageBytes:          snapshot.DiskSpaceUsageBytes,
 		ReadAmplification:            snapshot.ReadAmplification,
 		MemTableSizeBytes:            snapshot.MemTableSizeBytes,

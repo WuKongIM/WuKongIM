@@ -1,6 +1,6 @@
 # Sampled Slot read blocking at 2,000 SEND/s
 
-The unchanged local workload still fails on candidate `e0205a54`. Earlier
+The unchanged local workload still fails on candidate `d7acdae32`. Earlier
 same-request observations identified per-Slot storage-count fallback occupying
 the Raft owner. Yielding before Ready removes that measured fallback. R21's
 independent observation measured same-Slot scheduling pause across 81.6%
@@ -9,7 +9,10 @@ Bounded compatible-prefix coalescing subsequently reduces that measured pause,
 but the original workload still fails. These successful samples neither trace
 every failed SEND nor separate append, apply and completion consumption within
 the pause. Earlier observations, controlled regressions and failed runs remain
-below; none establishes a capacity pass or qualifies v3 for release.
+below; none establishes a capacity pass or qualifies v3 for release. R24's
+receive evidence rules in a caller-resumption contribution but does not explain
+most of the remaining client/server duration gap. Current-frame receive
+observation is short; this does not exclude earlier-frame work or pre-read waits.
 
 ## Fixed workload and result
 
@@ -580,7 +583,8 @@ the server's existing dispatch revalidation is inside its total prefix. The
 notification point is immediately before the existing buffered send, so resume
 includes that send and scheduling rather than measuring only scheduler delay.
 These observations neither change admission nor extend business deadlines.
-The original-scale result for this candidate remains pending.
+The R24 result below records this candidate's original-scale failure and the
+newly retained receive evidence.
 
 R23's timeline, independent timeline review and independent aggregate review
 are bound by
@@ -599,6 +603,189 @@ preserves those results separately from R22/R23's failed original-scale gates.
 PR #1038 remains Draft; this candidate does not qualify v3 for release.
 
 ## Retained evidence
+
+### R24 receive evidence and original-scale result
+
+The clean `d7acdae32` build preserves the workload, gates, sampling rate and
+resource limits. Full transport/rpctrace integration and race checks pass, as
+does app diagnostics wiring. All four first automatic Linux workflows pass:
+16 jobs succeed and two conditionally skip. Nine 500-SEND/s windows pass their
+original gates; those results do not supersede the failed 2,000-SEND/s run.
+
+R24's first grant is `2026-10-24T08:41:57.539961+08:00`. The first saved failing
+cut is +40.056671791 seconds, with 80,014 sends, 71,349 ACKs, 307 first-attempt
+failures and 14 retry-exhausted attempt timeouts. The preceding five seconds
+sustain 1,996.808 SEND/s and 1,502.406 ACK/s. Loss, duplicate, corruption and
+sequence-regression counters are zero. Final terminal outcomes are 19 attempt
+timeouts and 8,863 stop-induced session closures, which remain separate.
+Independent cleanup confirms zero product/test processes and reserved listeners.
+
+The collector retains all five bounded cuts, including the added actual-gate
+cut. That acquisition crosses stopping, so strict selection uses both endpoint
+completion times before the saved failure boundary. It retains 3,466 pairs:
+2,185 from active cuts, 704 from the early warning cut and 577 from the gate
+cut. All 99/52/43 permission pairs in those groups succeed. The latest gate
+permission pair finishes only 79.383541 ms before the boundary, narrowing the
+previous approximately four-second observation gap without claiming that the
+failed SENDs themselves were traced.
+
+For services 14/15/80/84, active successful receive groups contain 158/435/127/82
+pairs. Their caller-resumption means are 6.43/7.80/5.67/5.91 ms while their
+client/server duration differences remain 63.13/64.59/64.14/69.56 ms. Gate-cut
+services 15/80/84 retain 88/36/22 successful pairs, with resumption means
+38.59/30.21/24.67 ms and duration differences 169.93/150.03/171.32 ms.
+Current-frame receive observer and dispatch stage means are each below one
+microsecond in these groups, and server receive-prefix means remain below one
+microsecond. These are sample means, not workload percentiles or maximum waits.
+
+All observed client receive groups lie within their actual response-wait span.
+They must not be added to that span or to the client/server duration difference.
+Resumption begins immediately before the notification attempt and may include
+send-path scheduling or earlier still-blocked caller work; it is not exclusively
+runnable scheduling delay. Initial identity validation, earlier-frame deferred
+observation, socket readiness and full-frame reading remain outside this new
+window. Eleven early and three gate-cut service-14 client timeouts lack receive
+groups and remain separate unknowns, not zero-duration successful receipts.
+
+R24 timeline, result review and first Linux CI audit are bound respectively by
+`2fda62ed3b3014363f4ae77009e0859332720c3c556a0dd2b31635997fac99de`,
+`3c813aca3809da36d9e8512de092495ad6caa216962da6fdec58e382d1cbbcee`
+and `a0c6ab450bed60b4ca95f0198d1eebd93bfac8c502490b91f78a617e0a875fa2`.
+The analysis retained its first pretty-JSON output-bound failure, then encoded
+the identical fields and values compactly within the unchanged 1 MiB bound.
+
+Twelve saved metric responses provide a separate pre-gate context. Per-node
+TotalAlloc rates rise from 245–259 MB/s between the +5 and +19 second cuts to
+746–774 MB/s between +19 and the +35 second warning cut. Go heap allocation
+reaches 1.49–1.61 GiB per node. These are allocation traffic and heap gauges,
+respectively, not evidence of a leak. The warning cut already contains one
+first-attempt failure while still passing the original gate.
+
+Successful message-batch Build means rise from 0.74–0.81 ms to 11.83–12.56 ms;
+native completed fsync means and completed GC pause totals do not show a
+corresponding rise. Build measures wall time and does not distinguish encoding,
+locks, scheduling or GC assist. Batch composition also changes. The sampled
+global RPC task aggregate peaks at 630 busy out of 15,234 registered capacity,
+with zero sampled queue depth and no recorded executor rejections. This does
+not rule out a saturated local service; node 3 send-authority occupancy reaches
+444 of 512 at the warning cut.
+
+Sparse runtime scheduler buckets do not establish a worsening distribution.
+Their exported histogram sums in client_golang v1.16.0 are estimates from
+bucket lower bounds, not exact sums. The separate GC summary uses actual
+completed PauseTotal, but neither measures concurrent GC CPU or assist.
+Allocation sources therefore remain a hypothesis to investigate with a bounded
+same-binary allocation delta profile before making another execution change.
+Metric analysis and independent review are bound by
+`7aec379ecc90999ad728f7269c5bb5fa7ef7e6c58a6fd1e864bb8720789fc08b`
+and `9e1156908907148a73ec428fabb94d6a60aacb1da5ff0ec7703c5d5d6c07e4f6`.
+
+### R25 allocation capture canceled before completion
+
+R25 reuses R24's exact binaries and original workload/gates, adding only three
+bounded allocation delta requests planned for +25 to +40 seconds. Its first
+grant is `2026-10-24T09:03:27.354003+08:00`. The first saved failing cut is
++35.046731458 seconds: 70,011 primary sends, 63,528 ACKs and 12 first-attempt
+failures, crossing the original overall first-attempt-rate gate. Terminal and
+loss counters are zero at that cut. The preceding interval sustains 1,992.999
+primary SEND/s and 1,359.599 ACK/s.
+
+All three allocation requests start at approximately +25 seconds, then cancel
+when the coordinator terminates before their 15-second delta completes. Each
+retains zero profile bytes; all collector threads join. This is an incomplete
+diagnostic, not a valid allocation profile or a successful capacity result.
+The failed run remains intact. The next diagnostic moves only the same
+15-second capture to +15 through +30 seconds, retaining the original workload,
+gates and cancellation behavior. R25's independently checked cleanup is bound
+by `9e263abb4348493d894e2f3a0e38d7cba0b1f2d7dc4c51a0931905e57237ffe5`.
+
+### R26 valid allocation profiles and remaining capacity failure
+
+R26 changes only that capture schedule. The first grant is
+`2026-10-24T09:13:25.170884+08:00`; its first saved failing cut is
++40.036411417 seconds, with 80,012 sends, 70,279 ACKs, 661 first-attempt
+failures and 37 exhausted attempt timeouts. The preceding interval sustains
+2,000.998 SEND/s and 1,390.398 ACK/s. The +35-second cut already contains seven
+first-attempt failures but still passes the original gate. Final terminal
+results separate 40 attempt timeouts from 9,749 stop-induced closures.
+
+All three allocation profiles complete and decode within the original limits.
+Their snapshot-completion windows fall approximately between +15.10 and
++30.31 seconds, before the saved failing cut. Estimated, sampling-scaled
+allocation totals are 4.810/4.864/5.308 GB and 24.94/24.18/26.74 million objects.
+All six explicit `alloc_space` pprof totals match independent decoding.
+Memory profiles can lag collection by two GC cycles; these are neither exact
+allocation-event windows nor comparable to the different +19-to-35 metric
+window. They do not identify individual failed SENDs or establish GC causality.
+
+Pebble `manual.New` accounts for 21.23%/22.27%/22.77% of sampled allocation
+bytes. Mutually exclusive leaf-stack classification attributes
+14.66%/15.59%/16.33% of each node's total allocation to filter-block reads.
+The corresponding product paths include MQTT activation/source-state reads,
+durable proposal/entry identity checks and checkpoint reads. Presence recovery
+admission accounts for 4.21%/4.41%/4.46%, and the replication batch pool's
+collection buffer for 3.78%/3.69%/3.83%. Cumulative caller percentages overlap
+and must not be added together.
+
+The first decoder rejected Go's omitted optional default-sample field; the
+second rejected legitimate long generic function names. Both failures remain
+preserved. Narrow compatibility fixes retain the four sample types, exact
+capture identity, explicit sample selection, signed values, bounded input and
+output, and full-name aggregation. No recollection or extra pprof run occurs.
+
+The timeline review, allocation review and cleanup bind respectively to
+`f3ebddb35b3236821e03c25a330eac6945c64619656a4c8eeb220ddbfec6a94c`,
+`4e522cb257f62a86b3cb1601c2b5ef2f0f253385480e0c068e4c0c7bdc3d20ff`
+and `a772544ea48118d244196fd8271b7d89e35dda2e411a73b83db0bbefa1ba71ae`.
+PR #1038 remains Draft; the original capacity gate remains **FAIL**.
+
+### Cache reservation mechanism and bounded correction
+
+A real Pebble integration fixture now isolates one mechanism behind those
+filter-block allocations. With the original 128 MiB combined cache capacity,
+one 64 MiB active memtable and one retained 64 MiB recycled arena consume the
+cache reservation allowance. Thirty-two repeated, warmed, in-range negative
+lookups perform 128 block-cache misses and no hits. The same fixture with
+32 MiB arenas records 128 hits and no misses. Both cases retain the Bloom
+checks and verify durable values across close/reopen. Earlier fixture setup
+failures remain preserved; only the final established reservation state is
+used as the behavioral RED.
+
+The engine now treats its cache option as requested read headroom R and budgets
+the combined Pebble capacity as `R + (T + 2) * M`, with the existing write-stop
+threshold T=4 and configured memtable size M. The six-table allowance covers
+ordinary mixed-size rotation plus one recycled arena. Native-integer overflow
+rejects before filesystem creation. The same rule applies to read-only opens,
+which may still replay WALs into memtables. Long-lived reader pins, large
+flushable batches and arbitrary read-only WAL replay remain outside this
+ordinary allowance; it is neither an RSS cap nor an unconditional cache floor.
+
+Message and metadata combined capacities change from 128 MiB each to
+512/320 MiB per node. This permits an additional 576 MiB per node, or
+1,728 MiB across the three acceptance servers. It is lazy allocation, but
+unused reservation allowance can become cached blocks and resident memory.
+Raft's separate adapter and cache budget are unchanged. No memtable size,
+durability check, queue, deadline, workload or acceptance gate is relaxed.
+
+The production 64 MiB fixture passes after the correction, as do normalization,
+overflow and open-before-side-effects checks. The mechanism receipt and first
+GREEN are bound by
+`a47647f7838415721cf1e0727c98dffb2d11f4c42a1d3dc545d2b1440cc8429e`
+and `a8988fd1312fb38430c0fdbb36911e596f8466ce35c976e3a5d80ca4b2b559ec`.
+This establishes cache reuse, not the cause of every failed SEND. The next
+original-scale run must report both the unchanged gates and actual memory
+use; passing this fixture alone does not qualify the candidate for release.
+
+Existing storage snapshots now expose block-cache retained bytes, cumulative
+hits/misses and memtable arena reservations without additional polling or
+background work. Review caught an upstream `ZombieSize` unsigned underflow
+while large flushable batches are queued. Two real WAL replay fixtures retain
+the failing value and verify the corrected, independently expected 256 KiB
+reservation. Adding `Size + ZombieSize` from the same native snapshot reverses
+the subtraction in unsigned arithmetic; it includes active/recycled/pinned
+arenas but excludes flushable-batch backing and is not an RSS measurement.
+The 17 focused checks across nine packages pass; their final receipt is
+`94d588e43ca46ab7591ce09506a2f2f2694b076cee1d4362857c99fa73ad74a4`.
 
 Private local receipts retain raw samples without committing identities or
 credentials. Their SHA-256 bindings are:

@@ -17,6 +17,7 @@ import (
 const (
 	defaultCacheSize                = 128 << 20
 	defaultMemTableSize             = 32 << 20
+	memTableStopWritesThreshold     = 4
 	defaultL0CompactionConcurrency  = 6
 	defaultCompactionConcurrencyMax = 4
 	compactionDebtMemTableCount     = 4
@@ -28,7 +29,11 @@ const (
 
 // Options controls Pebble engine tuning.
 type Options struct {
-	// CacheSize configures Pebble block cache bytes.
+	// CacheSize is the read-cache headroom target. Pebble also charges writable
+	// and recycled memtables against this cache, so its combined capacity adds
+	// six MemTableSize allowances. This is not a process memory limit or a
+	// guaranteed read-cache floor with pinned old memtables, large flushable
+	// batches, or read-only WAL replay. Values <= 0 use 128 MiB.
 	CacheSize int64
 	// MemTableSize configures Pebble memtable bytes.
 	MemTableSize int64
@@ -65,7 +70,10 @@ func Open(path string, opts Options) (*DB, error) {
 	}
 	stalls := newStallRecorder(time.Now)
 	disk := newDiskSlowRecorder()
-	popts := pebbleOptions(opts, stalls)
+	popts, err := pebbleOptions(opts, stalls)
+	if err != nil {
+		return nil, err
+	}
 	popts.EventListener.DiskSlow = disk.observe
 	var diskHealth io.Closer
 	if opts.DiskSlowThreshold > 0 {
@@ -162,20 +170,31 @@ func pebbleIterOptions(span Span, _ IterOptions) *pebble.IterOptions {
 	return options
 }
 
-func pebbleOptions(opts Options, stalls *stallRecorder) *pebble.Options {
+func pebbleOptions(opts Options, stalls *stallRecorder) (*pebble.Options, error) {
 	if opts.CacheSize <= 0 {
 		opts.CacheSize = defaultCacheSize
 	}
 	if opts.MemTableSize <= 0 {
 		opts.MemTableSize = defaultMemTableSize
 	}
+	// Pebble reserves arena bytes even while retaining a recycled memtable.
+	// Its stall check precedes rotation: mixed-size active tables may overshoot
+	// the threshold by one table, and one more may be recycled. Budget those
+	// ordinary reservations separately from useful read-cache headroom. Old
+	// iterator pins and large flushable batches remain additional pressure.
+	const memtableAllowances = memTableStopWritesThreshold + 2
+	maxInt := int64(^uint(0) >> 1)
+	if opts.CacheSize > maxInt || opts.MemTableSize > (maxInt-opts.CacheSize)/memtableAllowances {
+		return nil, dberrors.ErrInvalidArgument
+	}
+	cacheBudget := opts.CacheSize + memtableAllowances*opts.MemTableSize
 	if opts.CompactionDebtConcurrencyBytes <= 0 {
 		opts.CompactionDebtConcurrencyBytes = opts.MemTableSize * compactionDebtMemTableCount
 	}
 	popts := &pebble.Options{
-		CacheSize:                   opts.CacheSize,
+		CacheSize:                   cacheBudget,
 		MemTableSize:                uint64(opts.MemTableSize),
-		MemTableStopWritesThreshold: 4,
+		MemTableStopWritesThreshold: memTableStopWritesThreshold,
 		L0CompactionThreshold:       8,
 		L0StopWritesThreshold:       24,
 		// Keep one baseline compaction and let Pebble add up to three more only as
@@ -207,7 +226,7 @@ func pebbleOptions(opts Options, stalls *stallRecorder) *pebble.Options {
 	for i := range popts.Levels {
 		popts.Levels[i].FilterPolicy = bloom.FilterPolicy(10)
 	}
-	return popts
+	return popts, nil
 }
 
 func platformBytesPerSync() int {

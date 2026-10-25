@@ -1,5 +1,22 @@
 # Project Knowledge
 
+Pebble v2.1.4 charges writable and recycled memtable arenas against its block
+cache. A 128 MiB cache with one active and one recycled 64 MiB memtable cannot
+retain ordinary blocks. The DB engine therefore treats CacheSize as read
+headroom and sets combined capacity to R + (T + 2) M, with write-stop threshold
+T = 4 unchanged. The two extra allowances cover mixed-size rotation after the
+stall check and one recycled arena; checked native-int arithmetic rejects
+overflow before opening. ReadOnly uses the same policy because WAL replay can
+retain memtables. This does not bound RSS or guarantee headroom under arbitrary
+iterator pins, large flushable batches or replay. Default message/meta capacities
+are 512/320 MiB (576 MiB more combined capacity per node); measure resident memory
+as well as throughput. Raft's separate Pebble adapter does not use this policy.
+Native `MemTable.ZombieSize` can underflow while a large flushable batch is
+queued. Export arena reservations by adding `Size + ZombieSize` in unsigned
+arithmetic from the same snapshot, reversing Pebble's subtraction exactly.
+This includes active/recycled/reader-pinned arenas, excludes flushable-batch
+backing reservations, and must not be interpreted as total storage memory.
+
 Permission-read cohort busy errors may carry an immutable rejection-time snapshot
 of satisfied guards (owned calls=2, owned bytes=4), retained
 occupancy and the rejected call's conservative byte reservation. Capture all

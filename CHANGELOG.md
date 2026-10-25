@@ -26,6 +26,14 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve message and metadata read-cache headroom when Pebble retains writable
+  and recycled memtables. Their default combined cache budgets become 512 MiB
+  and 320 MiB per node; this increases potential memory use, not an RSS limit.
+  / 为消息与元数据存储分别计入读缓存和 memtable 额度，避免回收缓冲占满读缓存；
+  默认组合额度分别为每节点 512 MiB、320 MiB，潜在内存占用增加，并非进程内存上限。
+  Storage metrics also expose cache occupancy, hits/misses and reserved memtable
+  arena bytes. / 存储指标同步展示缓存占用、命中/未命中及 memtable 内存预留。
+
 - Distinguish sampled RPC receive-observer, response-dispatch and caller-resume
   delays, retaining the server's pre-dispatch interval without moving existing
   timing boundaries. / RPC 采样区分接收观测、响应分派及调用恢复等待，补充服务端

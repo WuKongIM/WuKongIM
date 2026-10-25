@@ -53,7 +53,10 @@ func TestStallRecorderCountsReasonsAndDurations(t *testing.T) {
 
 func TestPebbleOptionsInstallStallListener(t *testing.T) {
 	r := newStallRecorder(time.Now)
-	popts := pebbleOptions(Options{}, r)
+	popts, err := pebbleOptions(Options{}, r)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if popts.EventListener == nil || popts.EventListener.WriteStallBegin == nil || popts.EventListener.WriteStallEnd == nil {
 		t.Fatalf("pebble options missing write stall listener")
 	}

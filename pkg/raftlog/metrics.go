@@ -10,6 +10,15 @@ import (
 type MetricsSnapshot struct {
 	// Available distinguishes a live engine snapshot from nil or closing storage.
 	Available bool
+	// BlockCacheSizeBytes is the current retained block-cache bytes, not its capacity.
+	BlockCacheSizeBytes int64
+	// BlockCacheHits counts block reads served from the cache since this store opened.
+	BlockCacheHits int64
+	// BlockCacheMisses counts block reads that missed the cache since this store opened.
+	BlockCacheMisses int64
+	// MemTableReservedSizeBytes is cache accounting for active, recycled and reader-pinned
+	// memtable arenas. It excludes flushable-batch backing and is not total cache reservations or RSS.
+	MemTableReservedSizeBytes uint64
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -104,8 +113,17 @@ func (db *DB) MetricsSnapshot() MetricsSnapshot {
 		compactionBytesRead += level.TableBytesRead
 		compactionBytesWritten += level.TableBytesCompacted
 	}
+	// Pebble v2.1.4 subtracts queue bytes (including flushable batches) from
+	// arena-only reservations to form ZombieSize. Unsigned addition restores
+	// that same snapshot's reservation even when the subtraction wraps. This
+	// excludes separate flushable-batch reservations and does not estimate RSS.
+	memTableReserved := metrics.MemTable.Size + metrics.MemTable.ZombieSize
 	snapshot := MetricsSnapshot{
 		Available:                    true,
+		BlockCacheSizeBytes:          metrics.BlockCache.Size,
+		BlockCacheHits:               metrics.BlockCache.Hits,
+		BlockCacheMisses:             metrics.BlockCache.Misses,
+		MemTableReservedSizeBytes:    memTableReserved,
 		DiskSpaceUsageBytes:          metrics.DiskSpaceUsage(),
 		ReadAmplification:            metrics.ReadAmp(),
 		MemTableSizeBytes:            metrics.MemTable.Size,
