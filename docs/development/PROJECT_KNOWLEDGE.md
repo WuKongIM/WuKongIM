@@ -1,5 +1,14 @@
 # Project Knowledge
 
+Original-scale Mac short diagnostics do not substitute for the four-host cloud
+qualification. In the formal/rehearsal contract, latency first establishes a
+baseline at two hours and needs subsequent samples; the bounded two-hour
+rehearsal has no planned post-warmup latency window. Preserve `operator_stop`
+and incomplete evidence instead of converting raw short-run latency into a
+formal pass/failure. The 400ms contract has historical calibration, not a
+topology-independent hardware promise; see the
+[gate reassessment](../reports/2026-10-25-performance-gate-applicability.md).
+
 Storage wait metric names require source interpretation. RuntimePressure's
 `message_commit` queue-wait observation currently includes the whole Submit,
 not pure coordinator queue residence. Native quorum `store_append_wait` includes
@@ -32,6 +41,13 @@ caller's trace or outcome onto siblings. The post-first-append interval ends at
 the whole original Future and can include ordered completion or other accepted
 work. It is not pure publication, fsync or scheduler time. Caller cancellation
 and trace completion cannot cancel accepted runtime work; MaxSpans remains 32.
+Backend append phases use an independent context observer, never the first
+caller's Trace or context. Original active items map through idempotency
+deduplication to each unique storage index and every selected sampled owner;
+retry indexes project that map, excluding owners whose items already recovered.
+Aligned item outcomes are consumed synchronously. Missing cardinality stays
+unfinished. Metadata resolve/apply and runtime append are distinct; runtime
+reserve/submit/Future-wait phases nest inside runtime append and are not additive.
 
 Pebble v2.1.4 charges writable and recycled memtable arenas against its block
 cache. A 128 MiB cache with one active and one recycled 64 MiB memtable cannot

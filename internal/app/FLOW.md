@@ -61,7 +61,7 @@ Stop or startup rollback
 - Optional features require all their ports; unavailable capabilities remain explicit.
 - RPC phase samples require diagnostics enabled and nonzero `diagnostics.rpc_sample_every`.
   Both transport endpoints feed detached samples through the bounded observer drain, independently of metrics.
-  Existing queries return `rpc.client`/`rpc.server`; missing samples do not prove absence of waits.
+  Existing queries return `rpc.client`/`rpc.server`; missing samples do not prove absence of waits. Shared first-append children follow exact sampled Future owners through the local adapter/Node path without copying a single caller Trace or its cancellation; the existing 32-span cap and frozen publication remain unchanged.
 - Manager Channel inventory and its node RPC share the non-activating Channel
   observer; lifecycle metadata and Leader residency remain separate evidence.
 - Opt-in MQTT composition shares the existing Gateway and device-token verifier,

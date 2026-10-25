@@ -89,6 +89,17 @@ const (
 	StageChannelAfterFirstAppend   Stage = "channel_after_first_append"
 )
 
+// Shared first-effect children are partial observations. Runtime reserve,
+// submit and future wait nest inside runtime append and must not be added to it.
+const (
+	StageChannelMetaResolve       Stage = "channel_meta_resolve"
+	StageChannelMetaApply         Stage = "channel_meta_apply"
+	StageChannelRuntimeAppend     Stage = "channel_runtime_append"
+	StageChannelRuntimeReserve    Stage = "channel_runtime_reserve"
+	StageChannelRuntimeSubmit     Stage = "channel_runtime_submit"
+	StageChannelRuntimeFutureWait Stage = "channel_runtime_future_wait"
+)
+
 // Result is a closed observation outcome; errors and payloads are never stored.
 type Result string
 
@@ -668,7 +679,7 @@ func validStage(stage Stage) bool {
 		StageChannelFirstAppendPending, StageChannelFirstAppendQueue, StageChannelFirstAppend, StageChannelAfterFirstAppend:
 		return true
 	default:
-		return validBarrierStage(stage)
+		return validBarrierStage(stage) || validAppendPhase(stage)
 	}
 }
 

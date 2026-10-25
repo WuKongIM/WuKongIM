@@ -6,6 +6,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 // appendCancelCleanupTimeout bounds best-effort waiter cleanup after caller cancellation.
@@ -42,7 +43,11 @@ func (c *cluster) appendBatch(ctx context.Context, req ch.AppendBatchRequest, so
 	}
 	key := ch.ChannelKeyForID(req.ChannelID)
 	started := time.Now()
+	phase := rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelRuntimeReserve)
 	releaseAppend, err := c.group.ReserveAppend(key)
+	if phase != nil {
+		phase.End(rpctrace.ResultFor(err))
+	}
 	c.observeAppendStage("runtime_append_reserve_wait", err, time.Since(started))
 	if err != nil {
 		return ch.AppendBatchResult{}, err
@@ -55,19 +60,36 @@ func (c *cluster) appendBatch(ctx context.Context, req ch.AppendBatchRequest, so
 		event.MQTTSourceActivation = true
 		event.MQTTSource = *source
 	}
+	phase = rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelRuntimeSubmit)
 	future, err := c.group.Submit(ctx, key, event)
+	if phase != nil {
+		phase.End(rpctrace.ResultFor(err))
+	}
 	c.observeAppendStage("runtime_append_submit", err, time.Since(started))
 	if err != nil {
 		return ch.AppendBatchResult{}, err
 	}
 	started = time.Now()
+	phase = rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelRuntimeFutureWait)
 	result, completed := awaitAppendFuture(ctx, future)
 	if completed {
+		if phase != nil {
+			if result.Err != nil {
+				phase.End(rpctrace.ResultFor(result.Err))
+			} else {
+				// This wait includes reactor/quorum completion, not only storage;
+				// keep its per-item outcomes aligned with the original owners.
+				phase.EndItems(len(result.AppendBatch.Items), func(i int) rpctrace.Result { return rpctrace.ResultFor(result.AppendBatch.Items[i].Err) })
+			}
+		}
 		c.observeAppendStage("runtime_append_wait", result.Err, time.Since(started))
 		if result.Err != nil {
 			return ch.AppendBatchResult{}, result.Err
 		}
 		return result.AppendBatch, nil
+	}
+	if phase != nil {
+		phase.End(rpctrace.ResultFor(ctx.Err()))
 	}
 	c.observeAppendStage("runtime_append_wait", ctx.Err(), time.Since(started))
 	// Cancellation after mailbox admission is cooperative; durable writes already started are not cancelled.

@@ -33,8 +33,10 @@ move those entries into a version section named for that exact tag.
 
 - Extend sampled Channel-authority RPC timing through writer preparation and the
   first selected append effect, preserving each caller's observation ownership
-  across shared batches. / Channel 权威节点 RPC 采样补充 writer 准备与首个 append
-  执行区间，共享批次保留各调用的独立观测归属。
+  across shared batches, idempotency deduplication and projected retries. Backend
+  phases distinguish metadata work, runtime admission and Future waiting.
+  / Channel 权威节点 RPC 采样补充 writer 准备、首个 append effect 及后端元数据、
+  运行时准入和 Future 等待分段；去重和重试仍保留每个调用方自己的观测归属。
 
 - Preserve message and metadata read-cache headroom when Pebble retains writable
   and recycled memtables. Their default combined cache budgets become 512 MiB

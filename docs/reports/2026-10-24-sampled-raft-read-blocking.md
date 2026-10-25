@@ -9,6 +9,10 @@ Channel-authority handler time inside the executing append effect, with little
 waiting in that effect's worker pool. R30's native physical-batch statistics
 locate the dominant native interval in combined publication/WAL-sync completion;
 they do not distinguish the two contributors or establish pure device latency.
+These shared-Mac raw distributions do not constitute a formal Linux latency
+failure. Formal qualification is still missing; see the separate
+[gate applicability reassessment](2026-10-25-performance-gate-applicability.md)
+for the topology and measurement-window distinctions.
 
 Earlier runs on candidate `d7acdae32` still fail at about 40 seconds. Earlier
 same-request observations identified per-Slot storage-count fallback occupying

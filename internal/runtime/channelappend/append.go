@@ -100,6 +100,7 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 	}
 
 	batch := newIdempotentAppendBatch(active)
+	phaseObserver := newAppendPhaseObserver(e.seq, batch)
 	req := appendRequest(e.target, batch.items, appendInitialAttempt)
 	// gofail: var wkMQTTWillAcceptedAppendDelay int
 	// if wkMQTTWillAcceptedAppendDelay > 0 {
@@ -111,14 +112,14 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 	//         }
 	//     }
 	// }
-	ctx, cancel := appendBatchContext(runtimeCtx)
+	ctx, cancel := appendBatchContext(phaseObserver.withContext(runtimeCtx))
 	startedAt := time.Now()
 	res, err := ports.appender.AppendBatch(ctx, req)
 	appendDur := sendtrace.Elapsed(startedAt, time.Now())
 	cancel()
 	completion.duration = appendDur
 	if err != nil {
-		unique, retryDur, recovery := appendBatchErrorCompletionsOrRecoveriesAndRetry(runtimeCtx, e.target, batch.items, err, ports)
+		unique, retryDur, recovery := appendBatchErrorCompletionsOrRecoveriesAndRetry(runtimeCtx, e.target, batch.items, err, ports, phaseObserver)
 		completion.duration += retryDur
 		completion.items = append(completion.items, batch.expandCompletions(unique)...)
 		observeIdempotencyRecovery(ports.observer, recovery)
@@ -455,6 +456,7 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 	items []preparedSend,
 	err error,
 	ports appendPorts,
+	phaseObserver *appendPhaseObserver,
 ) ([]appendItemCompletion, time.Duration, IdempotencyRecoveryObservation) {
 	if (!errors.Is(err, ErrAppendFailed) && !errors.Is(err, ErrAppendNotSubmitted)) || ports.idempotency == nil {
 		return appendBatchErrorCompletions(items, err), 0, IdempotencyRecoveryObservation{}
@@ -528,7 +530,7 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 	}
 
 	req := appendRequest(target, retryItems, appendIdempotencyRecoveryAttempt)
-	retryCtx, cancel := appendBatchContext(ctx)
+	retryCtx, cancel := appendBatchContext(phaseObserver.project(retryIndexes).withContext(ctx))
 	startedAt := time.Now()
 	res, retryErr := ports.appender.AppendBatch(retryCtx, req)
 	retryDur := sendtrace.Elapsed(startedAt, time.Now())
