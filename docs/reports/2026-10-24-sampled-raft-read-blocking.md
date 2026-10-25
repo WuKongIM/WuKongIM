@@ -1,12 +1,14 @@
 # Original-scale SEND latency diagnosis
 
-The latest short runs on `ca9aa4817` and `3ee006734` complete the planned
+The latest short runs through `08ecdfdac` complete the planned
 120-second window without observed correctness failures after correcting
 storage cache budgeting. They remain unqualified: hot SENDACK P99 is in the
 (1,2]-second bucket, above the original 400 ms target, and the official latency
-window has not started. R28's same-request observations locate most slow
+window has not started. R28/R30 same-request observations locate most slow
 Channel-authority handler time inside the executing append effect, with little
-waiting in that effect's worker pool. Its downstream subdivision remains open.
+waiting in that effect's worker pool. R30's native physical-batch statistics
+locate the dominant native interval in combined publication/WAL-sync completion;
+they do not distinguish the two contributors or establish pure device latency.
 
 Earlier runs on candidate `d7acdae32` still fail at about 40 seconds. Earlier
 same-request observations identified per-Slot storage-count fallback occupying
@@ -935,6 +937,69 @@ Capture/timeline, decoded waiting analysis and independent review are bound by
 `b056bb1eed60050ba8021524d8e1a299819d924613fb063517d736532258f3d1`,
 `0aed8afa80beb95a0b5c34db3acd6307964aa2b7b3edc966e1ac02c0c40788ce`
 and `0f3123712567503610953c05b2d32c03493574d3fb0a53c76645b0062da4fa71`.
+
+### R30 native physical-commit timing
+
+Candidate `08ecdfdac1fc529140254bd05faeaae6167ca5fb` retains R28's workload,
+cache strategy and original gates. Seven native stages use the existing metrics
+requests; R29's six additional profiles are absent. First grant is
+`2026-10-25T17:19:03.112924+08:00`. TERM is requested +120.035011 seconds on
+the wall clock, after the strict 120-second observation boundary. The final
+report includes 240,003 sends and ACKs, 8,360 retries, zero first-attempt,
+terminal or correctness failures, and 2,575 completed sampled deliveries.
+Twenty-two complete periodic intervals cover 110.000029 seconds at
+2,000.045 primary SEND/s and 1,996.536 ACK/s; the final drain settles the rest.
+
+Hot SENDACK mean is 814.782 ms, 99.4662% exceed 400 ms, and P99 remains in
+(1,2] seconds. Cold mean is 999.632 ms, with 3.4768% exceeding two seconds.
+These do not meet the original latency targets. The official verdict remains
+`operator_stop`; its two-hour warmup has not elapsed, so zero warnings and empty
+qualified latency windows cannot establish a pass. Initial sync readiness is
+not post-warmup sync qualification. Independent cleanup confirms zero owned
+processes and zero listeners across all 64 reserved ports.
+
+Strict same-request pairing retains 538 Channel-authority calls with all eight
+phases complete and zero span drops. All 73 handlers exceeding 400 ms are
+dominated by their first append effect; its mean matched fraction is 94.08%.
+Presence recovery admission remains visible in slow late samples. Permission
+admission is short in retained samples while Raft/apply barriers dominate, but
+that service's span drops prevent a complete phase decomposition.
+
+The +5-to-12/+12-to-19-second physical message-batch populations are 442/516.
+All seven native-stage counts exactly match the successful coordinator commit
+counts at both endpoints and over both intervals. Means are:
+
+| Physical-batch measurement | +5 to +12 seconds | +12 to +19 seconds |
+| --- | ---: | ---: |
+| Native total | 40.294 ms | 34.880 ms |
+| Native publication/WAL-sync completion wait | 39.751 ms | 34.453 ms |
+| Native admission semaphore | 0.000230 ms | 0.000219 ms |
+| Native WAL rotation | 0.234 ms | 0.217 ms |
+| Logical requests per physical batch | 14.676 | 13.184 |
+| Records per physical batch | 91.090 | 82.733 |
+
+Native completion wait is 98.653%/98.776% of native total over these matched
+populations. Memtable and L0 stalls are measured zero. Native WAL queue wait is
+also zero, but Pebble v2.1.4 does not populate that field; it cannot exclude WAL
+queueing. The native wait combines sequence publication and WAL completion,
+not pure fsync. These nested timings are not additive and are not fractions of
+individual SENDACK latency. Missing error-result samples remain unknown.
+R28 has no native observations and is not treated as zero. Its ordinary commit
+means of 38.842/40.246 ms change in opposite directions against R30's
+40.294/34.881 ms; the shared-host comparison does not establish improvement.
+
+The next implementation decision must account for the single coordinator owner
+waiting throughout synchronous completion. Existing Channel lock/pin ownership
+alone does not prove independent groups: global message-ID indexes, checkpoint
+dependencies and MQTT state need explicit coverage. Bounded overlap must retain
+synchronous durability, admitted-resource bounds and joined cancellation/Close
+semantics. No product concurrency change is justified solely by these means.
+
+Timeline, native analysis, independent native review and strict RPC analysis
+are bound by `1085759e88faf56c9801e82f0605d7f8d2dbc2d2cee99469f424199c6f442199`,
+`4cc46685ca7d292ea017f6d22abf0403271c2880580ebbdd8b0c03c9a62058b1`,
+`280ef05b223dba4bb2adc7cee0ae2aa92b048a09f5f46e2d6c79f3afc25dc7f0`
+and `2c0f7d49c237b76c56a63ad94da48a056dc20d6e5f7d1f39031071dc264c335f`.
 
 Private local receipts retain raw samples without committing identities or
 credentials. Their SHA-256 bindings are:

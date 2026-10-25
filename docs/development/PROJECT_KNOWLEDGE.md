@@ -13,6 +13,13 @@ Recovery-seal sequence/epoch publication and ambiguous-error fencing currently
 join synchronous Commit; asynchronous durability needs an explicit design rather
 than simply releasing that lock early. Pebble v2.1.4 marks ApplyNoSyncWait as
 experimental; it is not an established replacement for this contract.
+Native physical-batch CommitWait combines sequence publication and WAL completion;
+NativeTotal excludes the outer engine seal lock and some Apply preprocessing.
+Subtracting those aggregate means cannot isolate seal waiting or pure fsync.
+In Pebble v2.1.4, WALQueueWait is an unpopulated zero field, distinct from an
+absent sample but not proof of no WAL queueing. Message coordinator ownership
+retains Channel locks/pins; it does not by itself prove all global index,
+checkpoint and MQTT dependencies are isolated across physical batches.
 
 Channel-authority SEND RPC 21 observes submission and Future waiting separately.
 Sampled Futures retain only a trace reference through writer preparation and
