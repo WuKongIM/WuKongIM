@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	// ErrLegacySyncBudgetExceeded rejects oversized recent-message responses without partial success.
+	// ErrLegacySyncBudgetExceeded rejects oversized recent-message payloads without partial success.
 	ErrLegacySyncBudgetExceeded = errors.New("internal/usecase/conversation: legacy sync response budget exceeded")
 	// ErrLegacyMessageReaderRequired indicates that old sync message hydration is not wired.
 	ErrLegacyMessageReaderRequired = errors.New("internal/usecase/conversation: legacy message reader required")
@@ -48,7 +48,8 @@ type LegacySyncRequest struct {
 	Version int64
 	// ClientLastMessageSeqs contains entry-normalized per-channel cursors.
 	ClientLastMessageSeqs []LegacyConversationCursor
-	// MessageCount bounds recent messages returned per conversation.
+	// MessageCount bounds recent messages per conversation and may be reduced
+	// to share the response's record budget across all selected conversations.
 	MessageCount int
 	// OnlyUnread enables the old effective-read-floor mode.
 	OnlyUnread bool
@@ -292,9 +293,11 @@ func (a *App) SyncLegacy(ctx context.Context, req LegacySyncRequest) (LegacySync
 	if len(queries) == 0 {
 		return result, nil
 	}
-	// Bound both record count and retained bytes for the entire legacy response.
-	if len(queries) > legacyRecentMessageBudget/min(req.MessageCount, legacyRecentMessageBudget) {
-		return LegacySyncResult{}, ErrLegacySyncBudgetExceeded
+	// Share the record budget after pagination and filtering, preserving every
+	// selected conversation. The candidate cap keeps this per-Channel limit positive.
+	messageCount := min(req.MessageCount, legacyRecentMessageBudget/len(queries))
+	for index := range queries {
+		queries[index].Limit = messageCount
 	}
 	responseBytes := 0
 	readResults := make([]LegacyMessageReadResult, 0, len(queries))

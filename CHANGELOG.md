@@ -311,6 +311,10 @@ move those entries into a version section named for that exact tag.
   expiry; retain all latency and correctness thresholds. / 本地聊天生命周期预检
   默认发送预算提高至 500 条/秒，使 2,500 用户的启动会话活动能在到期前完成；
   延迟和正确性门槛保持不变。
+- Automatically reduce recent messages per conversation when legacy sync would
+  exceed 10,000 requested messages, while preserving selected conversations and
+  the 32 MiB payload limit. / 旧式会话同步请求超过 10000 条最近消息额度时，自动
+  降低每个会话的消息数，保留选中会话及 32 MiB 载荷限制。
 
 - Stop nested MQTT subscription cleanup when the original caller is canceled,
   before further contention reads or source sealing; preserve owner fencing

@@ -36,8 +36,9 @@ It does not subscribe users, deliver messages, or implement storage and transpor
    It replenishes directory-invisible candidates only; unread, excluded-type
    and empty-recents filtering occur after page selection without replenishment.
    Unpaged requests retain the full bounded walk. It applies the v2.2
-   version and per-Channel cursor semantics, then
-   reads recent persisted messages and their stream-event summaries in aligned
+   version and per-Channel cursor semantics, then caps each recent-message query
+   at `min(msg_count, floor(10000 / selected_channels))` when Channels remain.
+   It reads recent persisted messages and their stream-event summaries in aligned
    batches of at most 200 Channels. An old empty-client-number head can be
    reread after an advanced legacy cursor to repair a missing preview; ordinary
    heads retain exclusive-cursor behavior and durable read/delete state is unchanged.
@@ -59,9 +60,12 @@ It does not subscribe users, deliver messages, or implement storage and transpor
   `SyncLegacy` uses the same persisted heads and disk-only recent-message scans.
   Off-page heads beyond the required visible prefix are not read.
   Any attempted read failure aborts its whole response immediately; callers retry the original request.
-  The full request shares List admission and a five-second deadline, with at most
-  10,000 requested recent records and 32 MiB of base/stream payloads. Personal
-  mutations retain committed reads.
+  The full request shares List admission and a five-second deadline. Positive
+  `msg_count` values are automatically reduced after pagination and unread/type
+  filtering to request at most 10,000 recent records without dropping selected
+  Channels. Base/stream payloads exceeding 32 MiB still fail the whole response.
+  Nonpositive `msg_count` still returns an empty array. Personal mutations retain
+  committed reads.
 - A legacy client cursor overrides excluded-type and unread filtering for that
   Channel. Without such a cursor, positive `version` and `only_unread` reads
   start after the effective badge floor. Recent messages are returned newest

@@ -371,18 +371,6 @@ func TestSyncLegacySharesListAdmissionAndDoesNotReadWhenBusy(t *testing.T) {
 	}
 }
 
-func TestSyncLegacyRejectsOversizedRecentResponseBeforeMessageRead(t *testing.T) {
-	reader := &recordingLegacyMessageReader{}
-	app := New(Options{Directory: &membershipDirectoryStore{done: true, rows: []metadb.UserChannelMembership{
-		{UID: "u", ChannelID: "g1", ChannelType: 2, JoinSeq: 1, ActivatedAt: 1},
-		{UID: "u", ChannelID: "g2", ChannelType: 2, JoinSeq: 1, ActivatedAt: 1},
-	}}, Hydrator: dynamicLegacyHydrator{}, LegacyMessages: reader})
-	got, err := app.SyncLegacy(context.Background(), LegacySyncRequest{UID: "u", MessageCount: 10000})
-	if !errors.Is(err, ErrLegacySyncBudgetExceeded) || got.Items != nil || len(reader.queries) != 0 {
-		t.Fatalf("result=%#v err=%v queries=%d", got, err, len(reader.queries))
-	}
-}
-
 func TestSyncLegacyRecentReadFailureDiscardsSuccessfulSiblings(t *testing.T) {
 	cause := errors.New("disk unavailable")
 	reader := &recordingLegacyMessageReader{results: []LegacyMessageReadResult{
