@@ -84,6 +84,22 @@ type storageChannelEntryAtomicSnapshot struct {
 	reclaimTotal      atomic.Uint64
 }
 
+// StorageNativeCommitObservation carries one physical native commit's timings.
+// Availability is independent of duration: missing calls must not appear as zeros.
+// The timings overlap or nest and must not be added to the coordinator total.
+type StorageNativeCommitObservation struct {
+	Available                   bool
+	TotalDuration               time.Duration
+	SemaphoreWaitDuration       time.Duration
+	WALQueueWaitDuration        time.Duration
+	MemTableWriteStallDuration  time.Duration
+	L0ReadAmpWriteStallDuration time.Duration
+	WALRotationDuration         time.Duration
+	// CommitWaitDuration includes publication ordering and WAL sync completion;
+	// it is not a filesystem-fsync measurement.
+	CommitWaitDuration time.Duration
+}
+
 // StorageCommitBatchObservation describes one grouped storage commit attempt.
 type StorageCommitBatchObservation struct {
 	Requests        int
@@ -94,6 +110,8 @@ type StorageCommitBatchObservation struct {
 	CommitDuration  time.Duration
 	PublishDuration time.Duration
 	TotalDuration   time.Duration
+	// Native is observed only when the physical engine supplied a completed sample.
+	Native StorageNativeCommitObservation
 }
 
 // StorageCommitRequestObservation describes one logical storage commit request wait.
@@ -670,6 +688,16 @@ func (m *StorageMetrics) ObserveCommitBatch(store string, result string, obs Sto
 	m.commitBatchDuration.WithLabelValues(store, "commit", result).Observe(obs.CommitDuration.Seconds())
 	m.commitBatchDuration.WithLabelValues(store, "publish", result).Observe(obs.PublishDuration.Seconds())
 	m.commitBatchDuration.WithLabelValues(store, "total", result).Observe(obs.TotalDuration.Seconds())
+	// Keep all native and coordinator observations within the existing atomic scrape cut.
+	if obs.Native.Available {
+		m.commitBatchDuration.WithLabelValues(store, "native_total", result).Observe(obs.Native.TotalDuration.Seconds())
+		m.commitBatchDuration.WithLabelValues(store, "native_semaphore_wait", result).Observe(obs.Native.SemaphoreWaitDuration.Seconds())
+		m.commitBatchDuration.WithLabelValues(store, "native_wal_queue_wait", result).Observe(obs.Native.WALQueueWaitDuration.Seconds())
+		m.commitBatchDuration.WithLabelValues(store, "native_memtable_write_stall", result).Observe(obs.Native.MemTableWriteStallDuration.Seconds())
+		m.commitBatchDuration.WithLabelValues(store, "native_l0_read_amp_write_stall", result).Observe(obs.Native.L0ReadAmpWriteStallDuration.Seconds())
+		m.commitBatchDuration.WithLabelValues(store, "native_wal_rotation", result).Observe(obs.Native.WALRotationDuration.Seconds())
+		m.commitBatchDuration.WithLabelValues(store, "native_commit_wait", result).Observe(obs.Native.CommitWaitDuration.Seconds())
+	}
 }
 
 func (m *StorageMetrics) ObserveCommitRequest(store string, lane string, result string, obs StorageCommitRequestObservation) {

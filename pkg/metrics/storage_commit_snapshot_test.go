@@ -15,7 +15,7 @@ import (
 func TestStorageCommitBatchSnapshotConcurrentGather(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	m := newStorageMetrics(reg, prometheus.Labels{"node_id": "1", "node_name": "node-1"})
-	obs := StorageCommitBatchObservation{Requests: 1, Records: 1, Bytes: 10}
+	obs := StorageCommitBatchObservation{Requests: 1, Records: 1, Bytes: 10, Native: StorageNativeCommitObservation{Available: true}}
 	m.ObserveCommitBatch("message", "ok", obs)
 	var stop atomic.Bool
 	var observed atomic.Uint64
@@ -37,7 +37,7 @@ func TestStorageCommitBatchSnapshotConcurrentGather(t *testing.T) {
 		}
 		counts := storageBatchSnapshotCounts(families, "message")
 		reference := counts["requests"]
-		if len(counts) != 8 || reference < previous {
+		if len(counts) != 15 || reference < previous {
 			t.Fatalf("incomplete or regressing batch snapshot: %v", counts)
 		}
 		for _, count := range counts {

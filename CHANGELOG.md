@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Expose optional native timing for completed physical message commits alongside
+  coordinator phases; publication/WAL-sync waiting remains explicitly combined.
+  / 消息物理提交补充原生等待统计，明确区分不可用观测，并保留发布与 WAL 同步
+  等待的组合口径。
+
 - Extend sampled Channel-authority RPC timing through writer preparation and the
   first selected append effect, preserving each caller's observation ownership
   across shared batches. / Channel 权威节点 RPC 采样补充 writer 准备与首个 append

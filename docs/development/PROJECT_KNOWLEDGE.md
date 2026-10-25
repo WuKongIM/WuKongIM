@@ -1,5 +1,19 @@
 # Project Knowledge
 
+Storage wait metric names require source interpretation. RuntimePressure's
+`message_commit` queue-wait observation currently includes the whole Submit,
+not pure coordinator queue residence. Native quorum `store_append_wait` includes
+local/peer completion and reactor publication. Physical batch commit, native WAL
+fsync and independently sampled replication stages have different populations;
+their means cannot be subtracted or added as one request's critical path.
+Commit request `Partition` selects a shard; it is not a complete write set.
+Message batches can span Channels while naming only the first, and checkpoint
+partitions add a suffix. It cannot prove that two physical groups are independent.
+Recovery-seal sequence/epoch publication and ambiguous-error fencing currently
+join synchronous Commit; asynchronous durability needs an explicit design rather
+than simply releasing that lock early. Pebble v2.1.4 marks ApplyNoSyncWait as
+experimental; it is not an established replacement for this contract.
+
 Channel-authority SEND RPC 21 observes submission and Future waiting separately.
 Sampled Futures retain only a trace reference through writer preparation and
 their first selected append effect; shared effects must not copy the first

@@ -100,7 +100,7 @@ func (b *Batch) commitSealed(opts *pebble.WriteOptions) error {
 		return errRecoverySealBroken
 	}
 	if b.batch.Count() == 0 {
-		return b.batch.Commit(opts)
+		return b.commitNative(opts)
 	}
 	invalidates := !b.preserveCertificates || b.invalidateCertificates
 	if invalidates {
@@ -130,7 +130,7 @@ func (b *Batch) commitSealed(opts *pebble.WriteOptions) error {
 	// Retain its public representation before Commit; Pebble assigns this
 	// header during commit and keeps these bytes immutable afterwards.
 	repr := b.batch.Repr()
-	if err := b.batch.Commit(opts); err != nil {
+	if err := b.commitNative(opts); err != nil {
 		s.broken = true
 		return err
 	}

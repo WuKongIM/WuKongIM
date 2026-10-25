@@ -61,6 +61,9 @@ type BatchEvent struct {
 	PublishDuration time.Duration
 	// TotalDuration is the sum of collect, build, commit, and publish durations.
 	TotalDuration time.Duration
+	// Native is available only when this physical batch completed native commit work.
+	// Its nested durations do not extend TotalDuration or form RPC spans.
+	Native engine.NativeCommitStats
 	// Err is set when build, commit, publish, or close failed the batch.
 	Err error
 }
@@ -616,6 +619,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 			CollectDuration: collectDuration,
 			BuildDuration:   buildDuration,
 			CommitDuration:  commitDuration,
+			Native:          batch.CommitStats(),
 			TotalDuration:   collectDuration + buildDuration + commitDuration,
 			Err:             err,
 		})
@@ -623,6 +627,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 		return
 	}
 	commitDuration := time.Since(commitStarted)
+	native := batch.CommitStats()
 	reqs.traceStage(rpctrace.StageCommitPublish, rpctrace.ResultOK)
 	publishStarted := time.Now()
 	var publishErr error
@@ -651,6 +656,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 		BuildDuration:   buildDuration,
 		CommitDuration:  commitDuration,
 		PublishDuration: publishDuration,
+		Native:          native,
 		TotalDuration:   collectDuration + buildDuration + commitDuration + publishDuration,
 		Err:             publishErr,
 	})

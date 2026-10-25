@@ -1,10 +1,12 @@
-# Sampled Slot read blocking at 2,000 SEND/s
+# Original-scale SEND latency diagnosis
 
-The latest short run on `ca9aa4817` completes the planned 120-second window
-without observed correctness failures after correcting storage cache budgeting.
-It remains unqualified: hot SENDACK P99 is in the (1,2]-second bucket, above
-the original 400 ms target, and the official latency window has not started.
-R27 below preserves the exact result, memory cost and remaining uncertainty.
+The latest short runs on `ca9aa4817` and `3ee006734` complete the planned
+120-second window without observed correctness failures after correcting
+storage cache budgeting. They remain unqualified: hot SENDACK P99 is in the
+(1,2]-second bucket, above the original 400 ms target, and the official latency
+window has not started. R28's same-request observations locate most slow
+Channel-authority handler time inside the executing append effect, with little
+waiting in that effect's worker pool. Its downstream subdivision remains open.
 
 Earlier runs on candidate `d7acdae32` still fail at about 40 seconds. Earlier
 same-request observations identified per-Slot storage-count fallback occupying
@@ -852,6 +854,87 @@ These observations prioritize Channel append ownership and preserve the
 remaining presence uncertainty; they do not establish global RPC pool saturation.
 The independent pairing receipt is
 `6de96a88c9dc3919d6a1a6b341734794500e9a1109d0b03149a5559c7a509e03`.
+
+### R28 observes the Channel append critical section
+
+Candidate `3ee006734757777e7e7548f724f9261823f823e5` adds eight bounded,
+sampled ownership phases without changing the workload, cache budgets or gates.
+First grant is `2026-10-25T15:55:36.740672+08:00`; the strict observation window
+ends 120 seconds later. TERM's wall timestamp is +120.073974 seconds, while the
+supervisor reports +120.160983 on its monotonic clock; these are preserved as
+different measurements. Final drain totals again contain 242,003 sends and ACKs,
+zero first-attempt failures, rejects, terminal messages or correctness errors,
+and 8,825 retries. Periodic intervals sustain 1,989.819–2,010.820 SEND/s.
+
+The raw hot histogram has 67,757 samples, with 67,389 (99.45688%) above 400 ms,
+mean 821.680 ms and P99 in (1,2] seconds. Cold P99 exceeds two seconds.
+The original verdict remains `operator_stop`, with no post-warmup latency
+windows; neither zero warnings nor passing Linux CI qualifies this performance.
+
+Strict endpoint pairing retains 2,824 RPC pairs, including 470 for
+Channel-authority SEND. All 470 have eight unique, complete new server phases
+and zero client/server span drops. In the 32 whose handler exceeds 400 ms,
+every largest internal phase is the first append effect: mean 436.754 ms versus
+465.599 ms for the handler, averaging 93.814% of each matched handler. Mean
+writer-preparation wait is 22.644 ms, prepare 0.0025 ms, first-append pending
+0.0002 ms, effect-pool wait 0.1359 ms and post-first-append residual 0.0018 ms.
+The outer submission/Future spans overlap these phases and must not be added.
+
+The observed first effect can share work with other Futures and includes
+downstream blocking, retries and recovery. It is not pure fsync or quorum time.
+These samples prioritize `Appender.AppendBatch` and its downstream path; they
+do not justify increasing this effect's worker pool. The global observation
+population still contains span drops in permission/presence services, even
+though Channel-authority coverage is complete. Sample ranks are not workload
+latency percentiles. All task processes and reserved listeners are cleared.
+
+Timeline, pairing analysis and independent analysis review are bound by
+`036cd633fcee9df08a30fc00316ccee758c45ef50c34c37c4cb6cfc1925a1ae8`,
+`0f8cebb6433e0bf19682e2925af07399fd29b7d4bd6ba521003844ba66af1f40`
+and `f19a49c453f349469273251924f77b31000e2a97e54fae314333a4d8de4d789f`.
+The first Linux candidate, scripts, migration, messaging/race, Manager and native
+package checks pass for this revision; those checks still include the existing
+500-SEND/s performance windows and do not replace original-scale qualification.
+
+### R29 same-binary waiting snapshots
+
+R29 retains R28's exact source and binaries and adds only six bounded goroutine
+snapshots at +15/+30 seconds. All six complete with 153,973 compressed bytes in
+total, and every owned capture process joins. Bounded decoding and six fixed
+Go 1.25.11 pprof cross-checks agree on every goroutine total. No profile is a
+duration distribution or an unbiased sample of request latency.
+
+In five node/cut snapshots, both commit coordinator goroutines are waiting in
+Pebble `commitPipeline.publish`'s WaitGroup; in the remaining snapshot, both are
+collecting the next batch. Thus ten of twelve instantaneous owner observations
+show combined publication/WAL-sync waiting. The five sealed-commit contexts
+have already entered native Commit; none is sampled waiting to acquire
+`sealMu`. WAL goroutines separately show condition, write and sync states.
+These observations do not turn the combined WaitGroup into pure fsync, and the
+unidentified coordinator stores cannot be assigned from the stack alone.
+
+Existing R28 counter cuts provide independent context: message physical batch
+commit means are 38.842/40.246 ms over +5-to-12/+12-to-19 seconds; native
+channel-log WAL fsync means are 18.677/16.514 ms. Their populations differ and
+must not be subtracted. Three-node batch/WAL counts are 477/482 and 449/469;
+source inspection shows one synchronous native call per ordinary coordinator
+commit, with the recovery seal written in that batch. No fixed duplicate-Sync
+amplification is established. CPU readings of 47.5–68.0% per node with
+GOMAXPROCS=2 do not establish exhausted CPU execution slots. The next measurement
+uses native per-batch `CommitStats`, preserving ordering and synchronous
+durability rather than guessing a concurrency increase.
+
+Final R29 drain again has 242,003 sends and ACKs with zero first-attempt,
+terminal or correctness failures, plus 11,557 retries. Hot mean is 856.031 ms;
+99.3497% exceed 400 ms. This instrumented `operator_stop` run does not qualify
+performance or establish a regression against R28. The original two-hour
+latency warmup remains incomplete. Independent cleanup confirms all task and
+capture processes plus all 64 reserved listeners are gone.
+
+Capture/timeline, decoded waiting analysis and independent review are bound by
+`b056bb1eed60050ba8021524d8e1a299819d924613fb063517d736532258f3d1`,
+`0aed8afa80beb95a0b5c34db3acd6307964aa2b7b3edc966e1ac02c0c40788ce`
+and `0f3123712567503610953c05b2d32c03493574d3fb0a53c76645b0062da4fa71`.
 
 Private local receipts retain raw samples without committing identities or
 credentials. Their SHA-256 bindings are:
