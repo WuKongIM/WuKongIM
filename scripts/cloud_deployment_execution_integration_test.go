@@ -19,9 +19,9 @@ import (
 // Exercise the same Deployment entry as local repair and the Workflow. The
 // adapters execute real processes but never contact a host or provider.
 func TestCloudDeploymentExecution(t *testing.T) {
+	root := repoRoot(t)
 	for _, mode := range []string{"success", "collector retry", "gate retry", "activation failure", "invalid receipt", "collector timeout", "gate timeout", "typed failure then unavailable", "stale evidence", "cancel"} {
 		t.Run(mode, func(t *testing.T) {
-			root := repoRoot(t)
 			dir := t.TempDir()
 			bin := filepath.Join(dir, "bin")
 			if err := os.Mkdir(bin, 0o700); err != nil {
