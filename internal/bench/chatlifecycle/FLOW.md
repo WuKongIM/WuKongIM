@@ -89,6 +89,8 @@ passing 72-hour formal generation -> same aged dataset and process proof
   only verdict order, so monotonic classification keeps exact-hour evidence.
 - Failure cleanup fences new work, attempts exact stop for every applicable
   worker with an independent bound, preserving the original cause.
+  Exact recorded product TerminalSend errors permit release; other terminal
+  mutation errors remain harness failures. Stop cannot erase an earlier failure.
 - Verdict precedence is product, infrastructure, harness, then operator stop.
   Missing, stale, regressing, partial, overflowing, or unbounded evidence can
   never produce pass.

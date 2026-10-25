@@ -66,10 +66,16 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
 - Invalid metadata and unkeyed Will templates fail before routing or IDs, including
   transient sends. Valid MQTT metadata permits empty bodies; native sends still require a body. Owned envelopes preserve original metadata.
 - Temporary gofail builds can delay accepted Will appends before the native budget; ordinary controls are inert.
-- Accepted work survives caller cancellation; a timed-out Stop bounds its wait and never discards admitted work.
+- An append already dispatched survives caller cancellation; a timed-out Stop
+  bounds its wait and never discards admitted work.
 - Sampled RPC Futures retain fixed preparation and first-append phases without caller cancellation ownership. Pending ends when runAppend claims the first effect immediately before pool submission. First-effect timing is partial shared work with per-Future outcomes; the after-first interval also includes ordered completion and any remaining original Future work. Rejected/realtime-only paths never invent append phases. Six child phases retain first-selected active owners through coalescing and retry-index projection; shared phases fan out once per Trace with only its aligned item outcomes. Unknown results stay unfinished, and nested runtime phases are not additive. Samples use the existing bounded trace and transport publication, without new queues or collectors.
 - Per-item result order and cardinality are preserved across routing, append,
   retry, and remote forwarding.
+  The append-time eligibility check forms an exact disjoint partition of the
+  original items, preserving each partition's relative order and one completion
+  per original Future/index. Items rejected by their context or deadline check
+  never re-enter the Appender, including an entirely inactive batch or consecutive
+  inactive leading items.
 - Backlog, worker pools, router concurrency, recipient pages, owner fanout, and
   post-commit handoff are all bounded. Saturation fails before append with a
   typed busy/backpressure result; acknowledged commits are never dropped.

@@ -341,9 +341,11 @@ func activeAppendItems(items []preparedSend) ([]preparedSend, []appendItemComple
 	filtered := false
 	for i, item := range items {
 		if err := appendItemError(item); err != nil {
-			filtered = true
-			if active == nil {
+			if !filtered {
+				// A filtered first item leaves an empty prefix nil; filtered
+				// alone records that the original prefix was already copied.
 				active = append([]preparedSend(nil), items[:i]...)
+				filtered = true
 			}
 			inactive = append(inactive, appendItemErrorCompletion(item, err))
 			continue

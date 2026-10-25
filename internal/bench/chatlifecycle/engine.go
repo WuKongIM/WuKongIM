@@ -4418,10 +4418,14 @@ func (e *Engine) cleanupInflight() {
 	for _, inflight := range e.inflight {
 		logical := inflight.intent.Logical
 		e.completeMetaCreate(inflight.intent, false)
-		if err := e.verifier.CompleteTerminal(logical, TerminalSendSessionClosed); err != nil {
-			_ = e.verifier.abortSendHarness(logical)
-		} else {
+		terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendSessionClosed)
+		// The strict verifier returns this exact product error after recording
+		// the terminal result. Other errors prove no successful state change.
+		recorded, ok := terminalErr.(*VerificationError)
+		if ok && recorded.Classification() == SyncClassificationProductFailure && recorded.Code() == FailureCodeTerminalSend {
 			_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
+		} else {
+			_ = e.verifier.abortSendHarness(logical)
 		}
 		e.releaseCorrelationLease(inflight.intent)
 		_ = e.removeInflight(inflight)

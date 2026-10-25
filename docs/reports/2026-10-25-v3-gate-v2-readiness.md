@@ -216,3 +216,69 @@ production join is deliberately removed, then passes 20 normal and 20 race
 iterations with the original production bytes restored. FLOW contracts and the
 24 terminal-collector process fixtures pass. These checks validate the repairs;
 they do not supply a new original-scale latency window or formal Linux evidence.
+
+## Third candidate: original-scale correctness stop
+
+Candidate `e90ae2596eb3b881acbfd0e91b1ac3129157de3d` (tree
+`cdaf4c3d0935edc2542eb8ac73341e861f39312c`) passed all exact-source
+[candidate suites](https://github.com/WuKongIM/WuKongIM/actions/runs/40198607907),
+[three-node regression](https://github.com/WuKongIM/WuKongIM/actions/runs/40198607773),
+[Manager smoke](https://github.com/WuKongIM/WuKongIM/actions/runs/40198607788), and
+[four-distribution native preview](https://github.com/WuKongIM/WuKongIM/actions/runs/40198607756).
+The CI merge tree was verified equal to the source tree. The Linux correctness
+smoke retained all 75,502 SEND/ACKs and its report was read successfully. Those
+fixed 500-SEND/s cases remain separate from formal original-scale qualification.
+
+A third fresh Mac run retained the same 10,000-online / 2,000-SEND/s workload,
+seed, node/worker limits, disk sharing, numerical gates and bounded cleanup.
+Its measured first grant was 21:49:11.787026 +08 on 2026-10-25. It naturally
+terminated after 97.736997750 monotonic seconds with native
+`product_failure / terminal_send`; no supervisor measurement stop was requested.
+All 19 periodic cuts are preserved. Eighteen complete intervals span
+90.000835375s, with 180,003 SENDs averaging 2,000.014769/s; individual intervals
+range from 1,992.981366/s to 2,008.381339/s.
+
+The first bad cut at 21:50:46.834764208 still had 10,000 online, zero generation
+stops and zero harness errors, but one retry-exhausted terminal triggered by an
+attempt timeout. The preceding 21:50:41.834717667 cut had none. This proves an
+original failure before Stop; it is not created by final cleanup. The final cut
+contains 192,003 SENDs, 191,487 ACKs, two retry-exhausted timeouts and 514
+session-closed terminals. The second exhaustion cannot be placed before Stop
+from the captured cuts. The final terminal total must not be described as 516
+independent failures during steady traffic.
+
+All 192,003 first attempts registered deadlines; 191,491 original results resolved
+coverage, 9,579 were observed late and 512 remain unknown. The known-timeout lower
+bound is 4.988985% of registered deadlines, not an all-attempt success rate.
+Of 2,048 sampled delivery correlations, 2,041 completed and seven remained
+outstanding; zero loss/duplicate/corruption/sequence fields do not prove complete
+delivery for this failed run. It never reached the ten-minute latency baseline:
+all three v7 elapsed positions remain zero and status is `not_evaluated`.
+
+The earliest server SEND timeout was node2 at 21:50:41.818: permission 543ms,
+submitter 4,466ms and remote forwarding 3,592ms. Two node1 requests independently
+reported local Future waits of 4,501/4,663ms with queue wait zero. No presence
+activation rejection, authentication failure or permission-admission-busy event
+was retained. Completed physical message commits were all at most 500ms in the
+captured histograms, with means around 37–42ms; they omit unfinished work and
+cannot explain a particular Future's 4.5s. The capture lacks the failed logical
+SEND's complete attempt/ACK clocks and corresponding backend phases. RPC queue
+saturation, pure fsync and a particular storage queue are not established causes.
+
+Two follow-up defects are independently testable. Stop cleanup interpreted the
+strict Verifier's successfully recorded product TerminalSend error as a failed
+mutation and added GeneratorInvariant noise. Only that exact recorded error may
+release its pending state; unexpected errors stay strict. Separately, Channel
+append filtering used a nil active slice as a first-filter sentinel. Two leading
+ineligible inputs could copy the first failed input back into the active batch,
+producing four completions from three inputs, an extra Appender/post-commit call
+and aggregate inflight -1 despite deduplicated Future completion. The terminal
+node1 metric was -1, but no captured batch identity proves this path caused the
+first timeout. Fixing either defect cannot reclassify the original run as passing.
+
+Native cleanup and a fresh independent census confirmed zero remaining workload
+processes and zero listeners on all 64 reserved ports. The release decision stays
+**not ready**: effective positive latency evidence and the same-source four-host
+Linux rehearsal/72-hour/aged-capacity chain remain missing, and production stable
+signed-package publication remains disabled. A repaired candidate needs fresh
+evidence; these failed runs remain archived under their original identities.

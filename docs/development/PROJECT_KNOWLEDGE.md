@@ -41,6 +41,17 @@ send lock with completion. Only its retained exact registered positive ACK may
 be reconciled through the existing owner ACK settlement; missing pending state
 or an invalid receipt cannot skip a failure. The eventual queued ACK must not
 repeat verification, latency counts, correlations or lease release.
+Strict Verifier terminal recording returns a direct product TerminalSend
+VerificationError after mutation. Stop cleanup must consume exactly that result
+before release; unknown, wrapped or generator errors remain harness failures.
+This distinction cannot erase a product failure observed before Stop.
+
+Channel append eligibility partitions must preserve input cardinality and order
+with disjoint active/inactive ownership. A nil active slice cannot indicate
+whether filtering has begun: a leading invalid item leaves an empty prefix.
+Only the first invalid item copies the preceding valid prefix; items rejected
+at eligibility cannot re-enter Appender or post-commit effects. Future/reservation deduplication
+and a clamped writer-state counter do not prove aggregate ownership is balanced.
 
 Presence activation errors expose fixed phases while preserving `errors.Is/As`,
 RPC status, rollback and retries. Remote RPC status does not carry source phase;
