@@ -1001,6 +1001,71 @@ are bound by `1085759e88faf56c9801e82f0605d7f8d2dbc2d2cee99469f424199c6f442199`,
 `280ef05b223dba4bb2adc7cee0ae2aa92b048a09f5f46e2d6c79f3afc25dc7f0`
 and `2c0f7d49c237b76c56a63ad94da48a056dc20d6e5f7d1f39031071dc264c335f`.
 
+### Controlled synchronous-overlap mechanism
+
+The engine integration fixture `TestNativeSyncGateIndependentOverlap` uses the
+existing pinned native options with a test-only crashable filesystem. One
+serial-owner control and two independent-owner cases gate WAL `SyncData`.
+The second batch can become readable while the first sync is blocked, but
+neither owner acknowledges early. Releasing each sync separately produces its
+own ACK and the expected durable crash-clone state. A canceled caller wait
+retains both owners; every owner joins before database Close. The hook runs
+after Pebble snapshots its sync waiters, so this controlled case requires two
+syncs and does not promise sync sharing or throughput improvement.
+
+The native WAL-error case runs in the exact test binary as an isolated process:
+the default fatal logger exits with status 1 and no ACK marker. Replacing that
+fatal behavior with a no-op logger would invalidate the failure experiment.
+Focused and race executions pass; race requires CGO while the first focused
+execution does not. These runs validate native API mechanics, not a concurrent
+product coordinator, original-scale latency or Linux capacity. Reproduction is
+`go test -tags=integration ./pkg/db/internal/engine -run '^TestNativeSyncGate' -count=1`.
+The optional artifact directory must be new for each execution.
+
+The mechanism receipt and independent review are bound by
+`c61cd790fce45aea9c566222885688fd1aeafbdee259ebe101b662956ec3fcd6`
+and `dce635443df463ed591b9bf5637808695b53643a510062a307b265d56f77e889`.
+
+### Real APFS overlap observation does not justify adoption
+
+A bounded Darwin-only observation then uses the stable synchronous API against
+three fresh databases per phase, with 32 fixed 102,400-byte payload batches per
+database. Production message-engine memtable, cache and compaction-debt options
+remain 64/512/128 MiB. Filesystem methods pass through immediately; the test
+restores the default health middleware and changes no sync interval. Each
+A-B-B-A sequence uses one/two/two/one owners per database with GOMAXPROCS=2.
+Creation, batch preparation, Close and reopen verification stay outside the
+commit window. All owners join before Close. Each sequence writes 384 physical
+batches and verifies all 12,288 key/value pairs after reopening.
+
+| Descriptive pooled measurement | One owner, A phases | Two owners, B phases |
+| --- | ---: | ---: |
+| First sequence: physical batches/s | 197.493 | 212.805 |
+| First sequence: mean batch wall time | 14.642 ms | 25.629 ms |
+| Compatibility sequence: physical batches/s | 204.500 | 212.696 |
+| Compatibility sequence: mean batch wall time | 13.958 ms | 26.406 ms |
+
+The limited throughput difference accompanies substantially longer individual
+batch waits; these observations do not support enabling two concurrent product
+groups. Actual SyncData counts are 105/99/99/105 in the first sequence and
+105/95/98/105 in the second. Fresh databases rotate their initial small WALs;
+these are neither one-sync-per-batch proofs nor steady-state 64-MiB memtable
+measurements. Native wait still combines publication and WAL completion.
+Orderly reopen does not replace the separate gated crash-clone experiment.
+
+The first execution is retained. A subsequent compatibility regression exposes
+that the helper relied on its parent's GOMAXPROCS=2. Parent GOMAXPROCS=4 first
+fails before entering any observation phase; the sole correction explicitly
+sets the owned child to 2. The same parent setting then completes a necessary
+full validation with a new artifact directory. Neither sequence is discarded
+or selected as the performance result. Shared APFS, synthetic prebuilt batches,
+filesystem/allocator carryover and host drift limit generalization to R30's
+process topology and workload. No original gate or product concurrency changes.
+
+The complete observation and independent raw-statistics review are bound by
+`a0748ab5f2b61ada1a970e79962ae2c04f0d57cda5bcbcedb7fe74ee061ff8fa`
+and `bab4168322f5adeb124d4b1a0762179a97a137923aa2fc1f49277cfae78aa258`.
+
 Private local receipts retain raw samples without committing identities or
 credentials. Their SHA-256 bindings are:
 

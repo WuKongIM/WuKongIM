@@ -20,6 +20,10 @@ In Pebble v2.1.4, WALQueueWait is an unpopulated zero field, distinct from an
 absent sample but not proof of no WAL queueing. Message coordinator ownership
 retains Channel locks/pins; it does not by itself prove all global index,
 checkpoint and MQTT dependencies are isolated across physical batches.
+Pebble v2.1.4 treats a native commit-pipeline error as fatal. WAL-sync failure
+tests must retain that logger behavior in an isolated process; a no-op fatal
+logger does not model a recoverable production Commit error. Native visibility
+can precede synchronous completion, so a successful Get is not a durability ACK.
 
 Channel-authority SEND RPC 21 observes submission and Future waiting separately.
 Sampled Futures retain only a trace reference through writer preparation and
