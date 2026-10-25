@@ -14,9 +14,9 @@ import (
 
 const (
 	// ReportSchemaVersion identifies the persisted JSON and Markdown contract.
-	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v5"
+	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v6"
 	// ReportThresholdVersion binds reports to the reviewed exact threshold semantics.
-	ReportThresholdVersion = "wukongim/chat-lifecycle-thresholds/v1"
+	ReportThresholdVersion = "wukongim/chat-lifecycle-thresholds/v2"
 	// ReportDesignProfile identifies the approved lifecycle-soak design baseline.
 	ReportDesignProfile = "chat-lifecycle-soak/2026-08-04"
 
@@ -78,12 +78,14 @@ type ReportFence struct {
 // Start and End are wall-clock audit timestamps; Elapsed is the process-local
 // monotonic duration captured before the timestamps are serialized.
 type ReportTimeWindow struct {
-	Start           time.Time     `json:"start"`
-	WarmupEnd       time.Time     `json:"warmup_end"`
-	QualificationAt time.Time     `json:"qualification_at"`
-	FinalAt         time.Time     `json:"final_at"`
-	End             time.Time     `json:"end"`
-	Elapsed         time.Duration `json:"elapsed"`
+	Start time.Time `json:"start"`
+	// LatencyWarmupEnd is independent of the resource baseline WarmupEnd.
+	LatencyWarmupEnd time.Time     `json:"latency_warmup_end"`
+	WarmupEnd        time.Time     `json:"warmup_end"`
+	QualificationAt  time.Time     `json:"qualification_at"`
+	FinalAt          time.Time     `json:"final_at"`
+	End              time.Time     `json:"end"`
+	Elapsed          time.Duration `json:"elapsed"`
 }
 
 // ReportTopologyProof is the checked cluster shape, not an endpoint inventory.
@@ -105,17 +107,18 @@ type ReportWorkerGeneration struct {
 
 // ReportLatencyEvidence combines bounded worker histograms with verdict-window evidence.
 type ReportLatencyEvidence struct {
-	HotSendACK                   WorkerHistogramSnapshot `json:"hot_sendack"`
-	ColdFirstCreateSendACK       WorkerHistogramSnapshot `json:"cold_first_create_sendack"`
-	WorkerLifecycleReheatSendACK WorkerHistogramSnapshot `json:"worker_lifecycle_reheat_sendack"`
-	ReceiveACK                   WorkerHistogramSnapshot `json:"receive_ack"`
-	SendPendingToWrite           WorkerHistogramSnapshot `json:"send_pending_to_write"`
-	SendWriteToACK               WorkerHistogramSnapshot `json:"send_write_to_ack"`
-	FullSync                     WorkerHistogramSnapshot `json:"full_sync"`
-	Warnings                     ReportLatencyWarnings   `json:"warnings"`
-	AnomalyCount                 uint64                  `json:"anomaly_count"`
-	Anomalies                    []ReportLatencyAnomaly  `json:"anomalies,omitempty"`
-	Retention                    ReportWindowRetention   `json:"retention"`
+	QualificationWindow          ReportLatencyQualificationWindow `json:"qualification_window"`
+	HotSendACK                   WorkerHistogramSnapshot          `json:"hot_sendack"`
+	ColdFirstCreateSendACK       WorkerHistogramSnapshot          `json:"cold_first_create_sendack"`
+	WorkerLifecycleReheatSendACK WorkerHistogramSnapshot          `json:"worker_lifecycle_reheat_sendack"`
+	ReceiveACK                   WorkerHistogramSnapshot          `json:"receive_ack"`
+	SendPendingToWrite           WorkerHistogramSnapshot          `json:"send_pending_to_write"`
+	SendWriteToACK               WorkerHistogramSnapshot          `json:"send_write_to_ack"`
+	FullSync                     WorkerHistogramSnapshot          `json:"full_sync"`
+	Warnings                     ReportLatencyWarnings            `json:"warnings"`
+	AnomalyCount                 uint64                           `json:"anomaly_count"`
+	Anomalies                    []ReportLatencyAnomaly           `json:"anomalies,omitempty"`
+	Retention                    ReportWindowRetention            `json:"retention"`
 }
 
 // ReportLatencyWarnings is the tagged fixed warning projection.
@@ -293,11 +296,12 @@ type Report struct {
 	DesignProfile    string `json:"design_profile"`
 	ConfigDigest     string `json:"config_digest"`
 	// DatasetDigest is the immutable target-issued identity used by later aged-data admission.
-	DatasetDigest string           `json:"dataset_digest"`
-	Thresholds    ThresholdsConfig `json:"thresholds"`
-	Profile       Profile          `json:"profile"`
-	Mode          Mode             `json:"mode"`
-	Stage         Stage            `json:"stage"`
+	DatasetDigest string                      `json:"dataset_digest"`
+	Thresholds    ThresholdsConfig            `json:"thresholds"`
+	Qualification ReportQualificationEvidence `json:"qualification"`
+	Profile       Profile                     `json:"profile"`
+	Mode          Mode                        `json:"mode"`
+	Stage         Stage                       `json:"stage"`
 	// RunDuration records the trusted direct-rehearsal override; zero retains the reviewed stage duration.
 	RunDuration time.Duration  `json:"run_duration,omitempty"`
 	Kind        CheckpointKind `json:"kind"`
@@ -352,6 +356,8 @@ func MarshalReport(report Report, format ReportFormat) ([]byte, error) {
 		fmt.Fprintf(&body, "- design_profile: `%s`\n", report.DesignProfile)
 		fmt.Fprintf(&body, "- profile: `%s`\n", report.Profile)
 		fmt.Fprintf(&body, "- stage: `%s`\n", report.Stage)
+		fmt.Fprintf(&body, "- qualification_scope: `%s`\n", report.Qualification.Scope)
+		fmt.Fprintf(&body, "- latency_window_status: `%s`\n", report.Latency.QualificationWindow.Status)
 		fmt.Fprintf(&body, "- kind: `%s`\n", report.Kind)
 		fmt.Fprintf(&body, "- verdict: `%s`\n", report.Verdict.Outcome)
 		body.WriteString("\n## Redacted structured evidence\n\n")
@@ -413,12 +419,15 @@ func validateReport(report Report) error {
 		(report.Profile != ProfileFormal && report.Profile != ProfileLocal) ||
 		(report.Mode != ModeSoak && report.Mode != ModeCapacity) ||
 		!validReportStage(report) || !validReportRunDuration(report) ||
+		!validReportQualification(report) || !validReportFormalProtocol(report) || !validReportLatencyQualification(report) ||
+		!validWorkerMessageSnapshot(report.Messages) ||
 		(report.Kind != CheckpointQualification && report.Kind != CheckpointFinal) ||
 		!validReportHash(report.Fence.RunHash) || !validReportHash(report.Fence.AssignmentHash) ||
 		report.Fence.Generation == 0 || report.Window.Start.IsZero() || report.Window.End.Before(report.Window.Start) ||
 		report.Window.Elapsed < 0 ||
 		report.MinimumWorkerUptime < report.Window.Elapsed ||
 		!report.Window.WarmupEnd.Equal(report.Window.Start.Add(report.Thresholds.Timeline.Warmup)) ||
+		!report.Window.LatencyWarmupEnd.Equal(report.Window.Start.Add(report.Thresholds.Timeline.LatencyWarmup)) ||
 		!report.Window.QualificationAt.Equal(report.Window.Start.Add(report.Thresholds.Timeline.Checkpoint)) ||
 		!report.Window.FinalAt.Equal(report.Window.Start.Add(reportMeasuredDuration(report))) || !report.Topology.Validated ||
 		report.Topology.LogicalSlotGroups <= 0 || report.Topology.HashSlots <= 0 ||

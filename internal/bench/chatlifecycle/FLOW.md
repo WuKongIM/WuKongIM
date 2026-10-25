@@ -65,6 +65,11 @@ passing 72-hour formal generation -> same aged dataset and process proof
   canary traffic at the formal population. A Channel becomes hot only after
   its first successful SENDACK; metadata-create vectors and hot/first-create/
   reheat latency evidence advance from those exact successful boundaries.
+- Worker protocol v11 carries deadline registration, exact-result coverage, and
+  confirmed observed-late first-attempt counts separately from explicit failures.
+  Only the original attempt's clocked transport result resolves its deadline;
+  missing results, unknown clocks, cancellation and expired receipts stay unknown.
+  Fixed attempt slots and the existing bounded late-receipt map bound retention.
 - Local transport-admission rejection stays explicit harness evidence and is
   excluded from product first-attempt failure rates. Retry exhaustion keeps a
   fixed trigger breakdown; sampled delivery loss starts only after a successful
@@ -83,6 +88,16 @@ passing 72-hour formal generation -> same aged dataset and process proof
 - Verdict precedence is product, infrastructure, harness, then operator stop.
   Missing, stale, regressing, partial, overflowing, or unbounded evidence can
   never produce pass.
+- Latency warmup is ten minutes independently of the formal two-hour resource
+  warmup. Its first valid cumulative cut is a baseline. Positive latency evidence
+  needs a rolling ten-minute interval, 1,000 samples in each hot/cold/full-sync
+  class, and a cut at most five seconds old. Counter deltas belong to their end
+  cut; a gap over ten minutes resets positive qualification, not negative breaches.
+  The numerical five-minute breach rule and correctness gates remain unchanged.
+- Report v6 / threshold v2 binds local-diagnostic, rehearsal, or formal-protocol
+  scope to validated configuration. Formal-protocol scope still requires external
+  Linux topology/hardware evidence. Elapsed rehearsal time alone cannot pass,
+  and missing/stale latency qualification cannot yield a successful report.
 - Reports and control responses use closed reason vocabularies, fixed arrays,
   checked arithmetic, and bounded redacted samples. Raw UIDs, Channel IDs,
   payloads, credentials, endpoint bodies, and arbitrary errors are forbidden.

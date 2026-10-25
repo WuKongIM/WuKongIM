@@ -28,7 +28,7 @@ func TestPreflightValidFormalAndLocalGateTraffic(t *testing.T) {
 	}
 }
 
-func TestWorkerPreflightRejectsProtocolV1BeforeCoordinatorMutation(t *testing.T) {
+func TestWorkerPreflightRejectsLegacyProtocolsBeforeCoordinatorMutation(t *testing.T) {
 	serverForVersion := func(version uint64) *httptest.Server {
 		return httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 			switch request.URL.Path {
@@ -46,7 +46,7 @@ func TestWorkerPreflightRejectsProtocolV1BeforeCoordinatorMutation(t *testing.T)
 	for _, testCase := range []struct {
 		version uint64
 		wantErr bool
-	}{{version: 1, wantErr: true}, {version: workerProtocolVersion, wantErr: false}} {
+	}{{version: 1, wantErr: true}, {version: 10, wantErr: true}, {version: 11, wantErr: false}} {
 		server := serverForVersion(testCase.version)
 		client, err := NewWorkerClient(WorkerClientConfig{
 			BaseURL: server.URL, ControlToken: "control-secret", HTTPClient: server.Client(),

@@ -1188,9 +1188,10 @@ func capacityTestAdmission(t *testing.T) (Config, CapacityAdmission, time.Time) 
 	if _, err := captureCheckpoint(t, recorder, soakStart.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), checkpointEvidenceFixture(false)); err != nil {
 		t.Fatal(err)
 	}
-	finalSnapshots := coordinatorSnapshotFixture(fence, 2, 72*time.Hour, 2)
+	finalSnapshots := qualifiedCheckpointSnapshotFixture(fence, 2, 72*time.Hour, 2)
 	finalEvidence := checkpointEvidenceFixture(false)
 	finalEvidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
+	finalEvidence.LatencyWindow = qualifiedLatencyWindowFixture(soakStart, soakStart.Add(72*time.Hour))
 	finalEvidence.Continuous = true
 	checkpoint, err := captureCheckpoint(t, recorder, soakStart.Add(72*time.Hour), finalSnapshots, finalEvidence)
 	if err != nil {

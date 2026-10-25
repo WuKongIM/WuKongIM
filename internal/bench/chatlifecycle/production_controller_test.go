@@ -211,10 +211,11 @@ func TestProductionEvidenceControllerContinuesFormalBoundaryWithoutRestartingEvi
 	controller.mu.Lock()
 	controller.recorder.qualificationCaptured = true
 	controller.frozen = VerdictSnapshot{Outcome: VerdictPass, Cause: VerdictCauseCompleted, Terminal: true}
+	seedProductionControllerLatencyWindow(t, controller, start, start.Add(72*time.Hour))
 	controller.lastObservation = observation.Snapshot()
 	controller.lastObservationID = controller.lastObservation.Sequence
 	controller.mu.Unlock()
-	running := productionControllerWorkerSnapshots(cfg, fence, 1, 72*time.Hour, WorkerPhaseRunning)
+	running := productionControllerQualifiedSnapshots(cfg, fence, 1, 72*time.Hour, WorkerPhaseRunning, 1201)
 	if err := controller.Finalize(context.Background(), CoordinatorFinalCut{
 		Start: startCut, At: start.Add(72 * time.Hour), Decision: CoordinatorCompleted,
 		Prepare: running, FinalSnapshots: running, Continuous: true,
@@ -286,7 +287,15 @@ func TestProductionEvidenceControllerFreezesRehearsalPassWithoutFormalLongWindow
 		strings.Contains(string(startBody), cfg.RunID) || strings.Contains(string(startBody), fence.AssignmentID) {
 		t.Fatalf("bounded run-start receipt = %q/%v", startBody, err)
 	}
-	prepare := productionControllerWorkerSnapshots(cfg, fence, 1, 2*time.Hour, WorkerPhaseRunning)
+	// A real post-warmup statistics interval is distinct from the uncompleted long resource windows.
+	for index := uint64(0); index < 120; index++ {
+		elapsed := 110*time.Minute + time.Duration(index)*5*time.Second
+		snapshots := productionControllerQualifiedSnapshots(cfg, fence, index+1, elapsed, WorkerPhaseRunning, index*10+1)
+		if decision, err := controller.Observe(context.Background(), CoordinatorEvidenceCut{Start: startCut, Kind: CoordinatorCutPeriodic, At: start.Add(elapsed), Snapshots: snapshots}); err != nil || decision != "" {
+			t.Fatalf("qualifying rehearsal cut %d = %s/%v", index, decision, err)
+		}
+	}
+	prepare := productionControllerQualifiedSnapshots(cfg, fence, 121, 2*time.Hour, WorkerPhaseRunning, 1201)
 	decision, err := controller.Observe(context.Background(), CoordinatorEvidenceCut{
 		Start: startCut, Kind: CoordinatorCutTerminal, At: start.Add(2 * time.Hour), Snapshots: prepare,
 	})
@@ -298,7 +307,7 @@ func TestProductionEvidenceControllerFreezesRehearsalPassWithoutFormalLongWindow
 		!strings.Contains(string(statusBody), `"recent_events"`) {
 		t.Fatalf("live diagnostic status = %q/%v", statusBody, err)
 	}
-	final := productionControllerWorkerSnapshots(cfg, fence, 2, 2*time.Hour+time.Second, WorkerPhaseFinal)
+	final := productionControllerQualifiedSnapshots(cfg, fence, 122, 2*time.Hour+time.Second, WorkerPhaseFinal, 1201)
 	if err := controller.Finalize(context.Background(), CoordinatorFinalCut{
 		Start: startCut, At: start.Add(2*time.Hour + time.Second), Decision: decision,
 		Prepare: prepare, FinalSnapshots: final,

@@ -1,19 +1,36 @@
 # Project Knowledge
 
-Original-scale Mac short diagnostics do not substitute for the four-host cloud
-qualification. In the formal/rehearsal contract, latency first establishes a
-baseline at two hours and needs subsequent samples; the bounded two-hour
-rehearsal has no planned post-warmup latency window. Preserve `operator_stop`
-and incomplete evidence instead of converting raw short-run latency into a
-formal pass/failure. The 400ms contract has historical calibration, not a
-topology-independent hardware promise; see the
+Chat-lifecycle report v6 / threshold contract v2 separates `local_diagnostic`,
+`rehearsal`, and `formal_protocol` scope. A formal-protocol report still requires
+same-source/run/Lease external Linux hardware, independent-host and disk proof;
+configuration names cannot certify the environment. Mac pressure diagnostics do
+not qualify the four-host cloud target. Preserve historical `operator_stop` and
+incomplete evidence without relabeling them under the new contract. The 400ms
+contract has historical calibration, not a hardware-independent promise; see the
 [gate reassessment](../reports/2026-10-25-performance-gate-applicability.md).
-Chat-lifecycle `RetryAttempts` counts registered retry attempts, not distinct
-retried messages. Timer expiry schedules retry without settling the explicit
-first-attempt failure counter; a later registered success may finish the logical
-SEND. The product counter also subtracts driver-local admission failures.
-Zero first-attempt failures therefore does not prove every first attempt met its
-retry deadline. Do not substitute retry-attempt rate for that gate's numerator.
+Latency warmup is ten minutes; formal/rehearsal resource warmup stays two hours.
+The first valid cumulative cut is a baseline. Positive latency qualification
+requires a rolling ten-minute interval, at least 1,000 hot/cold/full-sync attempt
+samples each, and a final cut no older than five seconds. This sample floor
+resolves the p99.9 rank, not statistical confidence. Deltas count at their end
+cut; gaps exceeding ten minutes reset positive qualification. Resource-only
+observations cannot refresh it. Numerical limits, the five-minute sustained
+breach rule and correctness gates are unchanged; short local diagnostics may
+run with insufficient evidence, but elapsed rehearsal time alone cannot pass.
+
+`RetryAttempts` counts registered retry attempts, not distinct retried messages.
+Explicit product first-attempt failures still subtract driver-local admission
+failures. Worker protocol v11 adds known-deadline registrations, resolved first
+results, and confirmed observed-late timeouts, with
+`timeouts <= resolved <= deadlines <= first_attempts`. Only the original
+attempt's first clocked transport ACK/error resolves deadline evidence. Local
+admission errors are excluded from confirmed timeouts; missing responses,
+invalid clocks, cancellation and receipt expiry leave unknown coverage.
+Always expose `deadlines - resolved`; zero confirmed timeouts with a coverage
+gap does not prove all first attempts met their deadline. Retry counts and
+explicit failures cannot substitute for or be summed with this lower bound.
+No new timeout-rate gate is introduced. Fixed attempt slots and bounded late
+receipts retain evidence without an unbounded message history.
 
 Storage wait metric names require source interpretation. RuntimePressure's
 `message_commit` queue-wait observation currently includes the whole Submit,

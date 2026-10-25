@@ -1012,9 +1012,17 @@ func sumWorkerGrantCounts(counts WorkerGrantCounts) (uint64, bool) {
 	return total + counts.Worker2, true
 }
 
+// validWorkerMessageSnapshot preserves deadline coverage as nested subsets of original attempts.
+func validWorkerMessageSnapshot(messages WorkerMessageSnapshot) bool {
+	return messages.FirstAttemptFailures <= messages.FirstAttempts &&
+		messages.FirstAttemptTimeouts <= messages.FirstAttemptDeadlineResolved &&
+		messages.FirstAttemptDeadlineResolved <= messages.FirstAttemptDeadlines &&
+		messages.FirstAttemptDeadlines <= messages.FirstAttempts
+}
+
 func validWorkerSnapshot(snapshot WorkerSnapshot) bool {
 	terminal, terminalOK := snapshot.Messages.TerminalReasons.total()
-	if snapshot.Messages.FirstAttemptFailures > snapshot.Messages.FirstAttempts || !terminalOK || terminal != snapshot.Messages.Terminal {
+	if !validWorkerMessageSnapshot(snapshot.Messages) || !terminalOK || terminal != snapshot.Messages.Terminal {
 		return false
 	}
 	thresholds := snapshot.Sync.Thresholds
@@ -1692,7 +1700,10 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 		Messages: WorkerMessageSnapshot{
 			Sent: verification.Sent, SendAttempts: verification.Attempts, SendAcknowledged: verification.Acknowledged,
 			FirstAttempts: verification.FirstAttempts, FirstAttemptFailures: firstAttemptFailures,
-			SendRejected: verification.SendackRejections, Received: verification.Received,
+			FirstAttemptDeadlines:        verification.FirstAttemptDeadlines,
+			FirstAttemptDeadlineResolved: verification.FirstAttemptDeadlineResolved,
+			FirstAttemptTimeouts:         verification.FirstAttemptTimeouts,
+			SendRejected:                 verification.SendackRejections, Received: verification.Received,
 			ReceiveAcknowledged: verification.ReceiveAcknowledged, ReceiveAckFailures: verification.ReceiveAckFailures,
 			RetryAttempts: verification.RetryAttempts, Terminal: verification.Terminal,
 			TerminalReasons: verification.TerminalReasons,

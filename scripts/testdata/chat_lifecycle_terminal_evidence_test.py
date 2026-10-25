@@ -33,7 +33,9 @@ REGISTERED_RESOURCES = {
 
 
 def report(stage="rehearsal"):
-    return {"schema_version": "wukongim/chat-lifecycle-report/v5", "stage": "formal" if stage=="capacity" else stage, "mode": "capacity" if stage=="capacity" else "soak",
+    return {"schema_version": "wukongim/chat-lifecycle-report/v6", "threshold_version": "wukongim/chat-lifecycle-thresholds/v2",
+            "qualification": {"scope": "rehearsal" if stage=="rehearsal" else "formal_protocol", "external_linux_evidence_required": True},
+            "stage": "formal" if stage=="capacity" else stage, "mode": "capacity" if stage=="capacity" else "soak",
             "kind": "final", "final": True, "continue": False, "fence": {"run_hash": "sha256:"+hashlib.sha256(RUN.encode()).hexdigest(), "generation": 1},
             "window": {"start": START, "end": END}, "verdict": {"terminal": True, "outcome": "product_failure", "cause": "message_loss"},
             "capacity": dict(attempted=False, completed=False, lower_bound=False, maximum_passing_rate=0, first_failing_rate=0, recovery_passed=False),
@@ -408,6 +410,37 @@ class HelperBoundsTests(unittest.TestCase):
     def setUpClass(cls):
         spec=importlib.util.spec_from_file_location('terminal_evidence',ROOT/'scripts/chat-lifecycle/terminal-evidence.py')
         cls.helper=importlib.util.module_from_spec(spec);spec.loader.exec_module(cls.helper)
+
+    def test_terminal_report_contract_versions_and_scope_fail_closed(self):
+        # Failure matrix: historical schema/threshold pairs, absent version or
+        # scope, cross-stage scope, and a claimed Linux proof must not become
+        # a current terminal anchor. The collector only retains evidence;
+        # the Go report reader owns the complete numerical gate validation.
+        mutations = {
+            'old-schema': lambda x: x.update(schema_version='wukongim/chat-lifecycle-report/v5'),
+            'old-thresholds': lambda x: x.update(threshold_version='wukongim/chat-lifecycle-thresholds/v1'),
+            'missing-thresholds': lambda x: x.pop('threshold_version'),
+            'missing-qualification': lambda x: x.pop('qualification'),
+            'local-scope': lambda x: x['qualification'].update(scope='local_diagnostic'),
+            'cross-stage-scope': lambda x: x['qualification'].update(scope='formal_protocol'),
+            'claimed-linux-proof': lambda x: x['qualification'].update(scope='linux_verified'),
+            'linux-proof-exempted': lambda x: x['qualification'].update(external_linux_evidence_required=False),
+            'non-boolean-linux-requirement': lambda x: x['qualification'].update(external_linux_evidence_required='true'),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)/'final.json'
+            for stage in ('rehearsal', 'formal', 'capacity'):
+                with self.subTest(valid_stage=stage):
+                    value=report(stage)
+                    if stage=='capacity':value['capacity']['attempted']=True
+                    target.write_text(json.dumps(value))
+                    parsed,_=self.helper.read_report(target,stage)
+                    self.assertEqual(parsed['qualification']['scope'],'rehearsal' if stage=='rehearsal' else 'formal_protocol')
+            for label,change in mutations.items():
+                with self.subTest(invalid_contract=label):
+                    value=report();change(value);target.write_text(json.dumps(value))
+                    with self.assertRaises((ValueError,KeyError,TypeError)):
+                        self.helper.read_report(target,'rehearsal')
 
     def test_selector_partition_is_disjoint_and_complete(self):
         h=self.helper

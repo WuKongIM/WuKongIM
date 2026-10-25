@@ -279,7 +279,7 @@ func TestLocalProfileAllowsShorterShakeout(t *testing.T) {
 	cfg.Workload.SendRatePerSecond = 10
 	cfg.Workload.MaxGlobalBurst = 20
 	cfg.Workload.Sessions[0] = DurationShare{Percent: 25, Min: time.Minute, Max: 2 * time.Minute}
-	cfg.Thresholds.Timeline = TimelineThresholds{Warmup: time.Minute, Checkpoint: 2 * time.Minute, Final: 3 * time.Minute}
+	cfg.Thresholds.Timeline = TimelineThresholds{LatencyWarmup: time.Minute, Warmup: time.Minute, Checkpoint: 2 * time.Minute, Final: 3 * time.Minute}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}

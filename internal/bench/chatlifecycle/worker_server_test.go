@@ -241,7 +241,7 @@ func TestWorkerServerLifecycleReheatRejectsFenceMissingAndHonorsCancellation(t *
 	}
 }
 
-func TestWorkerServerAdvertisesWorkerProtocolV10(t *testing.T) {
+func TestWorkerServerAdvertisesWorkerProtocolV11(t *testing.T) {
 	t.Parallel()
 
 	server, err := NewWorkerServer(WorkerServerConfig{
@@ -265,8 +265,8 @@ func TestWorkerServerAdvertisesWorkerProtocolV10(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode info: %v", err)
 	}
-	if info.ProtocolVersion != 10 {
-		t.Fatalf("protocol version = %d, want 10", info.ProtocolVersion)
+	if info.ProtocolVersion != 11 {
+		t.Fatalf("protocol version = %d, want 11", info.ProtocolVersion)
 	}
 }
 
@@ -861,6 +861,9 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	engineGeneration.verifier.recvMu.Unlock()
 	engineGeneration.verifier.sendMu.Lock()
 	engineGeneration.verifier.sendCounters.firstAttempts = 101
+	engineGeneration.verifier.sendCounters.firstAttemptDeadlines = 95
+	engineGeneration.verifier.sendCounters.firstAttemptDeadlineResolved = 90
+	engineGeneration.verifier.sendCounters.firstAttemptTimeouts = 4
 	engineGeneration.verifier.sendCounters.firstAttemptFailures = 2
 	engineGeneration.verifier.sendCounters.terminal = 3
 	engineGeneration.verifier.sendCounters.terminalReasons = TerminalSendSnapshot{
@@ -892,6 +895,9 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	}
 	if snapshot.Harness.LifecycleApprovalRejections != (LifecycleApprovalRejectionSnapshot{ActivityFence: 2, Deadline: 1}) {
 		t.Fatalf("worker lifecycle approval rejection projection = %+v", snapshot.Harness.LifecycleApprovalRejections)
+	}
+	if counts := deadlineWireCounts(t, snapshot.Messages); counts != [3]uint64{95, 90, 4} {
+		t.Fatalf("worker deadline projection = %v", counts)
 	}
 	if snapshot.Messages.FirstAttempts != 101 || snapshot.Messages.FirstAttemptFailures != 2 ||
 		snapshot.Messages.Terminal != 3 || snapshot.Messages.TerminalReasons != (TerminalSendSnapshot{

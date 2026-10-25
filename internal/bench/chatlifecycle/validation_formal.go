@@ -324,6 +324,9 @@ func validateExactThresholds(got, want ThresholdsConfig) error {
 	if got.Cluster.LeaderImbalanceFor != want.Cluster.LeaderImbalanceFor {
 		return formalError("thresholds.cluster.leader_imbalance_for")
 	}
+	if got.Timeline.LatencyWarmup != want.Timeline.LatencyWarmup {
+		return formalError("thresholds.timeline.latency_warmup")
+	}
 	if got.Timeline.Warmup != want.Timeline.Warmup {
 		return formalError("thresholds.timeline.warmup")
 	}

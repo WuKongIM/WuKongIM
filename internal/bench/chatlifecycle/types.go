@@ -338,8 +338,11 @@ type ClusterThresholds struct {
 	LeaderImbalanceFor      time.Duration `json:"leader_imbalance_for" yaml:"leader_imbalance_for"`
 }
 
-// TimelineThresholds defines warmup, aged checkpoint, and final evidence times.
+// TimelineThresholds separates latency readiness from the resource baseline and aged evidence times.
 type TimelineThresholds struct {
+	// LatencyWarmup excludes startup latency independently of the resource baseline.
+	LatencyWarmup time.Duration `json:"latency_warmup" yaml:"latency_warmup"`
+	// Warmup is the resource queue baseline interval; it does not delay latency measurement.
 	Warmup     time.Duration `json:"warmup" yaml:"warmup"`
 	Checkpoint time.Duration `json:"checkpoint" yaml:"checkpoint"`
 	Final      time.Duration `json:"final" yaml:"final"`

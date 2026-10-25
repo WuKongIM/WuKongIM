@@ -589,6 +589,9 @@ func validateDecodedLocalTimelineWorkerCut(cut localTimelineWorkerCut, runID str
 	}
 	if !validLocalTimelineConnections(cut.Totals) || cut.Messages.SendAcknowledged > cut.Messages.Sent ||
 		cut.Messages.FirstAttempts > cut.Messages.Sent || cut.Messages.SendAttempts < cut.Messages.FirstAttempts ||
+		cut.Messages.FirstAttemptTimeouts > cut.Messages.FirstAttemptDeadlineResolved ||
+		cut.Messages.FirstAttemptDeadlineResolved > cut.Messages.FirstAttemptDeadlines ||
+		cut.Messages.FirstAttemptDeadlines > cut.Messages.FirstAttempts ||
 		cut.Messages.RetryAttempts > cut.Messages.SendAttempts {
 		return errors.New("worker status cut counters are invalid")
 	}
@@ -644,7 +647,7 @@ func validateLocalWorkerCutKeys(line []byte) error {
 	}{
 		{outer["totals"], []string{"target", "online", "starting", "closing", "traffic_ready"}},
 		{outer["close_reasons"], []string{"expired", "heartbeat_failed", "remote_terminal", "read_failed", "generation_stop", "explicit_logout", "transport_close_failed"}},
-		{outer["messages"], []string{"sent", "send_attempts", "first_attempts", "first_attempt_failures", "send_acknowledged", "send_rejected", "received", "receive_acknowledged", "receive_ack_failures", "retry_attempts", "terminal", "terminal_reasons", "losses", "duplicates", "corruptions", "sequence_regressions"}},
+		{outer["messages"], []string{"sent", "send_attempts", "first_attempts", "first_attempt_failures", "first_attempt_deadlines", "first_attempt_deadline_resolved", "first_attempt_timeouts", "send_acknowledged", "send_rejected", "received", "receive_acknowledged", "receive_ack_failures", "retry_attempts", "terminal", "terminal_reasons", "losses", "duplicates", "corruptions", "sequence_regressions"}},
 	}
 	for _, check := range checks {
 		var object map[string]json.RawMessage
@@ -996,6 +999,9 @@ func validateLocalTimelineCutOrder(cuts []localTimelineWorkerCut) error {
 		currentTerminal, currentCorrectness, currentOK := localTimelineProductFailureCounters(current)
 		if !previousOK || !currentOK || !current.At.After(previous.At) || current.Messages.Sent < previous.Messages.Sent ||
 			current.Messages.SendAcknowledged < previous.Messages.SendAcknowledged || current.Messages.RetryAttempts < previous.Messages.RetryAttempts ||
+			current.Messages.FirstAttemptDeadlines < previous.Messages.FirstAttemptDeadlines ||
+			current.Messages.FirstAttemptDeadlineResolved < previous.Messages.FirstAttemptDeadlineResolved ||
+			current.Messages.FirstAttemptTimeouts < previous.Messages.FirstAttemptTimeouts ||
 			current.CloseReasons.GenerationStop < previous.CloseReasons.GenerationStop ||
 			current.Messages.TerminalReasons.SessionClosed < previous.Messages.TerminalReasons.SessionClosed ||
 			currentTerminal < previousTerminal || currentCorrectness < previousCorrectness {

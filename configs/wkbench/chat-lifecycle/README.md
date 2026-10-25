@@ -20,6 +20,39 @@ thresholds. Three service nodes and three workers share one local filesystem,
 which is not representative of the four-host cloud topology. It is not formal
 evidence.
 
+Reports use schema `wukongim/chat-lifecycle-report/v6` and threshold contract
+`wukongim/chat-lifecycle-thresholds/v2`. `qualification.scope` distinguishes
+`local_diagnostic`, `rehearsal`, and `formal_protocol`. A formal-protocol report
+still needs matching external Linux deployment and independent-host/disk
+receipts; its profile alone does not prove the operating system or hardware.
+Old reports remain historical evidence and are not accepted as a new capacity
+continuation checkpoint.
+
+Latency warmup is ten minutes; resource-trend warmup remains two hours in the
+formal and rehearsal profiles. The first valid cumulative cut after latency
+warmup is a baseline, not a measured interval. Positive qualification requires
+a complete rolling ten-minute interval and at least 1,000 observations for each
+of hot SENDACK, cold SENDACK, and full-sync attempts, with a final cut no older
+than five seconds. This count floor resolves the p99.9 rank; it is not a
+statistical confidence guarantee. Samples count valid cumulative deltas ending
+within the window, without interpolating individual events at its boundary.
+Gaps longer than ten minutes reset positive qualification. Resource-only cuts
+do not refresh latency evidence. Numerical latency limits and their five-minute
+sustained-breach rule are unchanged, as are correctness and resource gates.
+Short diagnostic runs can finish without qualifying; they cannot produce a
+rehearsal pass or formal pass from missing latency evidence.
+
+Messages separately report `first_attempt_deadlines`,
+`first_attempt_deadline_resolved`, and `first_attempt_timeouts`.
+Confirmed timeouts count the first attempt's own transport-observed ACK/error
+at or after its deadline, excluding local admission errors. They are a lower
+bound: an unobserved first result, cancellation, receipt expiry, or invalid
+clock leaves unresolved coverage. Show `deadlines - resolved` alongside the
+count; zero confirmed timeouts with incomplete coverage does not establish
+that every first attempt met its deadline. Retry attempts, explicit product
+first-attempt failures, and confirmed timeouts are different counters and must
+not be summed. No new timeout-rate gate is introduced.
+
 The reviewed empty-dataset bootstrap rate is one global 100 logins/second until
 all 10,000 users are simultaneously online. This does not bypass startup work:
 each login still completes WKProto CONNECT/CONNACK and a fresh version-zero full

@@ -67,7 +67,7 @@ func LocalConfig() Config {
 	}
 	cfg.Thresholds.MinimumDataFilesystemBytes = localFilesystemBytes
 	cfg.Thresholds.Resource.MinimumLoadFilesystemBytes = localFilesystemBytes
-	cfg.Thresholds.Timeline = TimelineThresholds{Warmup: 10 * time.Minute, Checkpoint: 20 * time.Minute, Final: 30 * time.Minute}
+	cfg.Thresholds.Timeline = TimelineThresholds{LatencyWarmup: 10 * time.Minute, Warmup: 10 * time.Minute, Checkpoint: 20 * time.Minute, Final: 30 * time.Minute}
 	return cfg
 }
 
@@ -143,7 +143,7 @@ func FormalConfig() Config {
 			// continuous traffic. Sixty-four entries keeps that normal pipeline healthy
 			// while StateProbe/StateSnapshot or a sustained larger backlog still fails.
 			Cluster:  ClusterThresholds{HealthPollEvery: 5 * time.Second, UnhealthyFailAfter: 30 * time.Second, MaxHotReplicaLagEntries: 64, LeaderImbalancePercent: 20, LeaderImbalanceFor: 10 * time.Minute},
-			Timeline: TimelineThresholds{Warmup: 2 * time.Hour, Checkpoint: 24 * time.Hour, Final: formalCheckpointDuration},
+			Timeline: TimelineThresholds{LatencyWarmup: 10 * time.Minute, Warmup: 2 * time.Hour, Checkpoint: 24 * time.Hour, Final: formalCheckpointDuration},
 		},
 		Capacity: CapacityConfig{StartRatePerSecond: 2_000, RecoveryRatePerSecond: 2_000, StepPercent: 25, RefinePercent: 10, MaximumDuration: 8 * time.Hour, Step: CapacityStep{Stabilize: 10 * time.Minute, Measure: 20 * time.Minute}, RecoveryDuration: 30 * time.Minute},
 	}

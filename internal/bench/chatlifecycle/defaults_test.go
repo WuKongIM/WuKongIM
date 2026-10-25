@@ -65,7 +65,7 @@ func TestLocalConfigValid(t *testing.T) {
 	if !reflect.DeepEqual(cfg.Observation, wantObservation) {
 		t.Fatalf("observation = %+v, want %+v", cfg.Observation, wantObservation)
 	}
-	if cfg.Thresholds.MinimumDataFilesystemBytes != 10_000_000_000 || cfg.Thresholds.Resource.MinimumLoadFilesystemBytes != 10_000_000_000 || cfg.Thresholds.Timeline != (TimelineThresholds{Warmup: 10 * time.Minute, Checkpoint: 20 * time.Minute, Final: 30 * time.Minute}) {
+	if cfg.Thresholds.MinimumDataFilesystemBytes != 10_000_000_000 || cfg.Thresholds.Resource.MinimumLoadFilesystemBytes != 10_000_000_000 || cfg.Thresholds.Timeline != (TimelineThresholds{LatencyWarmup: 10 * time.Minute, Warmup: 10 * time.Minute, Checkpoint: 20 * time.Minute, Final: 30 * time.Minute}) {
 		t.Fatalf("local thresholds = %+v", cfg.Thresholds)
 	}
 	if err := cfg.Validate(); err != nil {
@@ -183,7 +183,7 @@ func TestFormalConfigDefaults(t *testing.T) {
 	if cfg.Thresholds.Cluster.HealthPollEvery != 5*time.Second || cfg.Thresholds.Cluster.UnhealthyFailAfter != 30*time.Second || cfg.Thresholds.Cluster.MaxHotReplicaLagEntries != 64 || cfg.Thresholds.Cluster.LeaderImbalancePercent != 20 || cfg.Thresholds.Cluster.LeaderImbalanceFor != 10*time.Minute {
 		t.Fatalf("cluster thresholds = %+v", cfg.Thresholds.Cluster)
 	}
-	if cfg.Thresholds.Timeline.Warmup != 2*time.Hour || cfg.Thresholds.Timeline.Checkpoint != 24*time.Hour || cfg.Thresholds.Timeline.Final != 72*time.Hour {
+	if cfg.Thresholds.Timeline.LatencyWarmup != 10*time.Minute || cfg.Thresholds.Timeline.Warmup != 2*time.Hour || cfg.Thresholds.Timeline.Checkpoint != 24*time.Hour || cfg.Thresholds.Timeline.Final != 72*time.Hour {
 		t.Fatalf("timeline = %+v", cfg.Thresholds.Timeline)
 	}
 	if cfg.Thresholds.Correctness.TerminalSends != 0 || cfg.Thresholds.Correctness.ActivationRejections != 0 || cfg.Thresholds.Correctness.Losses != 0 || cfg.Thresholds.Correctness.Duplicates != 0 || cfg.Thresholds.Correctness.Corruptions != 0 || cfg.Thresholds.Correctness.SequenceRegressions != 0 {

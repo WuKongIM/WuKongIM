@@ -26,6 +26,13 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Separate chat-lifecycle latency qualification from resource warmup, label local
+  diagnostics and formal-protocol evidence explicitly, and expose confirmed
+  first-attempt deadline misses with their observation coverage. Correctness and
+  numerical latency limits remain unchanged; old reports cannot qualify a new run.
+  / 分离聊天长稳延迟与资源预热窗口，明确本地诊断和正式协议证据范围，补充首试
+  超时下界及观测覆盖；保留正确性和延迟数值门禁，旧报告不能替代新合同验收。
+
 - Expose optional native timing for completed physical message commits alongside
   coordinator phases; publication/WAL-sync waiting remains explicitly combined.
   / 消息物理提交补充原生等待统计，明确区分不可用观测，并保留发布与 WAL 同步

@@ -737,6 +737,8 @@ type engineCompletion struct {
 	verificationErr error
 	clientSeq       uint64
 	clientMsgNo     string
+	// observedAt captures async transport failure before owner-queue delay.
+	observedAt time.Time
 }
 
 type engineLoginResult struct {
@@ -2551,7 +2553,9 @@ func (e *Engine) sessionSendack(_ string, ack *frame.SendackPacket, verification
 }
 
 func (e *Engine) sessionAsyncSendError(_ string, clientSeq uint64, clientMsgNo string) {
-	e.enqueueSessionCompletion(engineCompletion{clientSeq: clientSeq, clientMsgNo: clientMsgNo})
+	observedAt := e.clock.Now()
+	e.verifier.ObserveAttemptErrorAt(clientMsgNo, clientSeq, observedAt)
+	e.enqueueSessionCompletion(engineCompletion{clientSeq: clientSeq, clientMsgNo: clientMsgNo, observedAt: observedAt})
 }
 
 func (e *Engine) enqueueSessionCompletion(completion engineCompletion) {
@@ -2824,7 +2828,7 @@ func (e *Engine) observeCompletion(completion engineCompletion) {
 	case completion.ack != nil:
 		_ = e.observeSendack(completion.ack, completion.verificationErr)
 	case completion.clientMsgNo != "":
-		_ = e.verifier.ResolveAttemptError(completion.clientMsgNo, completion.clientSeq)
+		_ = e.verifier.ResolveAttemptErrorAt(completion.clientMsgNo, completion.clientSeq, completion.observedAt)
 		inflight := e.inflight[completion.clientMsgNo]
 		if inflight != nil && inflight.currentClientSeq == completion.clientSeq {
 			_ = e.scheduleRetry(inflight, e.clock.Now(), retryExhaustedTransportError)
@@ -3433,7 +3437,8 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	}
 	e.nextClientSeq++
 	clientSeq := e.nextClientSeq
-	if err := e.verifier.ObserveAttempt(logical, attemptPlan, clientSeq); err != nil {
+	deadline := attemptAt.Add(e.attemptTimeoutFor(intent))
+	if err := e.verifier.ObserveAttemptWithDeadline(logical, attemptPlan, clientSeq, deadline); err != nil {
 		return e.abortHarness(inflight, err)
 	}
 	if !inflight.registerClientSeq(clientSeq, attemptAt) {
@@ -3450,15 +3455,14 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 		if ctx != nil && ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 			return e.cancelAttempt(inflight)
 		}
-		resolve := e.verifier.ResolveAttemptError
+		resolve := e.verifier.ResolveAttemptErrorAt
 		cause := retryExhaustedTransportError
 		if errors.Is(err, wkclient.ErrSendQueueFull) {
-			resolve = e.verifier.ResolveAttemptLocalAdmissionError
+			resolve = e.verifier.ResolveAttemptLocalAdmissionErrorAt
 			cause = retryExhaustedLocalAdmission
 		}
-		return errors.Join(resolve(logical.ClientMsgNo, clientSeq), e.scheduleRetry(inflight, attemptAt, cause))
+		return errors.Join(resolve(logical.ClientMsgNo, clientSeq, e.clock.Now()), e.scheduleRetry(inflight, attemptAt, cause))
 	}
-	deadline := attemptAt.Add(e.attemptTimeoutFor(intent))
 	if deadline.Before(attemptAt) {
 		return e.abortHarness(inflight, errEngineConfig)
 	}

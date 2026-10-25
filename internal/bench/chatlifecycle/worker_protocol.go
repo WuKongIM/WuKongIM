@@ -3,7 +3,7 @@ package chatlifecycle
 import "time"
 
 const (
-	workerProtocolVersion  uint64 = 10
+	workerProtocolVersion  uint64 = 11
 	workerMaxRequestBytes  int64  = 1 << 20
 	workerMaxResponseBytes int64  = 4 << 20
 )
@@ -310,9 +310,15 @@ type WorkerMetaCreateSnapshot struct {
 
 // WorkerMessageSnapshot exposes end-to-end aggregate correctness counters.
 type WorkerMessageSnapshot struct {
-	Sent                 uint64               `json:"sent"`
-	SendAttempts         uint64               `json:"send_attempts"`
-	FirstAttempts        uint64               `json:"first_attempts"`
+	Sent          uint64 `json:"sent"`
+	SendAttempts  uint64 `json:"send_attempts"`
+	FirstAttempts uint64 `json:"first_attempts"`
+	// FirstAttemptDeadlines counts original attempts registered with a known deadline.
+	FirstAttemptDeadlines uint64 `json:"first_attempt_deadlines"`
+	// FirstAttemptDeadlineResolved counts exact original ACK/error observations with a valid clock.
+	FirstAttemptDeadlineResolved uint64 `json:"first_attempt_deadline_resolved"`
+	// FirstAttemptTimeouts is the confirmed observed-late lower bound, excluding local admission errors.
+	FirstAttemptTimeouts uint64               `json:"first_attempt_timeouts"`
 	FirstAttemptFailures uint64               `json:"first_attempt_failures"`
 	SendAcknowledged     uint64               `json:"send_acknowledged"`
 	SendRejected         uint64               `json:"send_rejected"`

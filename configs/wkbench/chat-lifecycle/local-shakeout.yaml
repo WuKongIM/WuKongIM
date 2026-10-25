@@ -101,7 +101,7 @@ thresholds:
     max_hot_replica_lag_entries: 64
     leader_imbalance_percent: 20
     leader_imbalance_for: 10m
-  timeline: {warmup: 10m, checkpoint: 20m, final: 30m}
+  timeline: {latency_warmup: 10m, warmup: 10m, checkpoint: 20m, final: 30m}
 capacity:
   aged_checkpoint: {reference: "", completed: false, passed: false, duration: 0s}
   start_rate_per_second: 2000

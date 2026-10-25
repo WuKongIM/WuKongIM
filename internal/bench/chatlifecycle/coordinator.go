@@ -2716,6 +2716,7 @@ func coordinatorSnapshotRegressed(
 		current.Generated.Canary, current.Generated.PayloadBytes,
 		current.Messages.Sent, current.Messages.SendAttempts, current.Messages.SendAcknowledged,
 		current.Messages.FirstAttempts, current.Messages.FirstAttemptFailures,
+		current.Messages.FirstAttemptDeadlines, current.Messages.FirstAttemptDeadlineResolved, current.Messages.FirstAttemptTimeouts,
 		current.Messages.SendRejected, current.Messages.Received, current.Messages.ReceiveAcknowledged,
 		current.Messages.ReceiveAckFailures, current.Messages.RetryAttempts, current.Messages.Terminal,
 		current.Messages.TerminalReasons.RetryExhausted.Total,
@@ -2751,6 +2752,7 @@ func coordinatorSnapshotRegressed(
 		previous.Generated.Canary, previous.Generated.PayloadBytes,
 		previous.Messages.Sent, previous.Messages.SendAttempts, previous.Messages.SendAcknowledged,
 		previous.Messages.FirstAttempts, previous.Messages.FirstAttemptFailures,
+		previous.Messages.FirstAttemptDeadlines, previous.Messages.FirstAttemptDeadlineResolved, previous.Messages.FirstAttemptTimeouts,
 		previous.Messages.SendRejected, previous.Messages.Received, previous.Messages.ReceiveAcknowledged,
 		previous.Messages.ReceiveAckFailures, previous.Messages.RetryAttempts, previous.Messages.Terminal,
 		previous.Messages.TerminalReasons.RetryExhausted.Total,
@@ -2948,10 +2950,13 @@ func addCoordinatorGenerated(total *WorkerGeneratedSnapshot, value WorkerGenerat
 }
 
 func addCoordinatorMessages(total *WorkerMessageSnapshot, value WorkerMessageSnapshot) error {
-	values := [23]struct{ destination, source *uint64 }{
+	values := [26]struct{ destination, source *uint64 }{
 		{&total.Sent, &value.Sent}, {&total.SendAttempts, &value.SendAttempts},
 		{&total.SendAcknowledged, &value.SendAcknowledged},
 		{&total.FirstAttempts, &value.FirstAttempts}, {&total.FirstAttemptFailures, &value.FirstAttemptFailures},
+		{&total.FirstAttemptDeadlines, &value.FirstAttemptDeadlines},
+		{&total.FirstAttemptDeadlineResolved, &value.FirstAttemptDeadlineResolved},
+		{&total.FirstAttemptTimeouts, &value.FirstAttemptTimeouts},
 		{&total.SendRejected, &value.SendRejected},
 		{&total.Received, &value.Received}, {&total.ReceiveAcknowledged, &value.ReceiveAcknowledged},
 		{&total.ReceiveAckFailures, &value.ReceiveAckFailures}, {&total.RetryAttempts, &value.RetryAttempts},

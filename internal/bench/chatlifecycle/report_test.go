@@ -262,6 +262,7 @@ func TestReportAcceptsCapacityAttributionOutcomesBeforeSoakTimelineFinal(t *test
 			report.Window.End = report.Window.Start.Add(2 * time.Hour)
 			report.Window.Elapsed = 2 * time.Hour
 			report.Verdict = ReportVerdictEvidence{Terminal: true, Outcome: test.outcome, Cause: test.cause}
+			addQualifiedReportEvidence(&report)
 			report.Capacity = ReportCapacityEvidence{
 				Attempted: true, Completed: true, Attribution: test.attribution, MaximumPassingRate: 2_000,
 				FirstFailingRate: 2_500, RecoveryPassed: true,
@@ -296,6 +297,7 @@ func TestReportAcceptsReviewedFormalSoakLatencyAttributionOnly(t *testing.T) {
 		report.Window.Elapsed = report.Window.End.Sub(report.Window.Start)
 		report.MinimumWorkerUptime = report.Window.Elapsed
 		report.Verdict = ReportVerdictEvidence{Terminal: true, Outcome: test.outcome, Cause: test.cause}
+		addQualifiedReportEvidence(&report)
 		for index := range report.Workers {
 			report.Workers[index].Phase = WorkerPhaseFinal
 		}
