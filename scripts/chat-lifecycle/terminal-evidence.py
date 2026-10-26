@@ -154,7 +154,11 @@ def identity(document, report, timestamp):
 def validate_worker(body, report):
     value = strict_json(body)
     keys(value, ("schema", "run_id", "at", "workers"))
-    require(value["schema"] == "wukongim/chat-lifecycle-worker-evidence/v1")
+    # Keep archived v1's closed vocabulary; v2 appends emitter-specific codes
+    # without changing the five identity-free fields retained in each example.
+    maximum_code = {"wukongim/chat-lifecycle-worker-evidence/v1": 36,
+                    "wukongim/chat-lifecycle-worker-evidence/v2": 46}.get(value["schema"])
+    require(maximum_code is not None)
     identity(value, report, "at")
     expected = {w["worker_index"]: w for w in report["worker_generations"]}
     require(type(value["workers"]) is list and len(value["workers"]) == 3)
@@ -189,7 +193,7 @@ def validate_worker(body, report):
             for item in examples:
                 keys(item, ("stage", "code", "sample_index", "fingerprint", "value"))
                 uint(item["stage"], 1, 9)
-                uint(item["code"], 1, 36)
+                uint(item["code"], 1, maximum_code)
                 uint(item["sample_index"])
                 uint(item["value"])
                 require(type(item["fingerprint"]) is list and len(item["fingerprint"]) == 16)

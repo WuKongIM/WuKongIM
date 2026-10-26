@@ -2665,7 +2665,7 @@ func (e *Engine) retryDeferredGroupRoute(work *engineWork, now time.Time) error 
 	if !work.eligibilityDeadline.After(now) {
 		e.deferredGroupRoutes--
 		e.activityUnderDelivered++
-		return e.recordGroupUnderDelivery(work.intent)
+		return e.recordGroupUnderDelivery(work.intent, FailureCodeOfferedDeferredGroupEligibility)
 	}
 	admit := func(intent TrafficIntent) bool {
 		return e.sessions.acquireSendAndCorrelationLease(intent, now)
@@ -2680,7 +2680,7 @@ func (e *Engine) retryDeferredGroupRoute(work *engineWork, now time.Time) error 
 		if !work.due.After(now) || !work.due.Before(work.eligibilityDeadline) {
 			e.deferredGroupRoutes--
 			e.activityUnderDelivered++
-			return e.recordGroupUnderDelivery(work.intent)
+			return e.recordGroupUnderDelivery(work.intent, FailureCodeOfferedDeferredGroupEligibility)
 		}
 		if err := e.addWork(work); err != nil {
 			e.deferredGroupRoutes--
@@ -2839,11 +2839,20 @@ func (e *Engine) observeCompletion(completion engineCompletion) {
 func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Time) error {
 	switch work.kind {
 	case engineWorkSend:
-		if !work.dispatchDeadline.IsZero() && (now.After(work.dispatchDeadline) || e.clock.Now().After(work.dispatchDeadline)) {
+		var dispatchFailure FailureCode
+		if !work.dispatchDeadline.IsZero() {
+			// Keep the original strict deadline and short-circuit clock reads.
+			if now.After(work.dispatchDeadline) {
+				dispatchFailure = FailureCodeOfferedDispatchSampledDeadline
+			} else if e.clock.Now().After(work.dispatchDeadline) {
+				dispatchFailure = FailureCodeOfferedDispatchFreshDeadline
+			}
+		}
+		if dispatchFailure != 0 {
 			e.activityUnderDelivered++
 			e.completeMetaCreate(work.intent, false)
 			return errors.Join(
-				e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1),
+				e.recordUnderDelivery(dispatchFailure, 1),
 				e.settleLifecycleInitialActivity(work.intent),
 				e.releaseUnstartedSendLease(work.intent),
 			)
@@ -2947,7 +2956,7 @@ func (e *Engine) expireLifecycleWork(work *engineWork, now time.Time) error {
 		return nil
 	}
 	e.activityUnderDelivered++
-	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1)
+	return e.recordUnderDelivery(FailureCodeOfferedLifecycleEligibility, 1)
 }
 
 // installLifecycleTimer replaces only the current channel generation and
@@ -4066,7 +4075,7 @@ func (e *Engine) routePersonGrantWithAdmission(grant TrafficIntent, now time.Tim
 			return routed, nil
 		}
 	}
-	return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(len(e.activeChannels)))
+	return TrafficIntent{}, e.recordUnderDelivery(FailureCodeOfferedPersonRouteUnavailable, uint64(len(e.activeChannels)))
 }
 
 func (e *Engine) routeActivePersonGrant(grant TrafficIntent, now time.Time, correlate, requireUnreserved bool, admit grantRouteAdmission) (TrafficIntent, bool, error) {
@@ -4191,7 +4200,7 @@ func (e *Engine) expireActivity(activity *engineWork, now time.Time) error {
 		return e.settleLifecycleInitialActivity(activity.intent)
 	}
 	e.activityUnderDelivered++
-	return errors.Join(e.settleLifecycleInitialActivity(activity.intent), e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1))
+	return errors.Join(e.settleLifecycleInitialActivity(activity.intent), e.recordUnderDelivery(FailureCodeOfferedActivityEligibility, 1))
 }
 
 func (e *Engine) addActiveChannel(channel engineActiveChannel) {
@@ -4277,7 +4286,7 @@ func (e *Engine) routeGroupGrantWithAdmission(grant TrafficIntent, now time.Time
 		return TrafficIntent{}, err
 	}
 	if !available {
-		return TrafficIntent{}, e.recordGroupUnderDelivery(grant)
+		return TrafficIntent{}, e.recordGroupUnderDelivery(grant, FailureCodeOfferedGroupRouteUnavailable)
 	}
 	return routed, nil
 }
@@ -4391,7 +4400,7 @@ func (e *Engine) admitDueCanary(now time.Time, admit grantRouteAdmission) error 
 		if now.Sub(e.canaryUnavailableSince) < e.activityEligibilityWindow {
 			return nil
 		}
-		return e.recordGroupUnderDelivery(canary)
+		return e.recordGroupUnderDelivery(canary, FailureCodeOfferedCanaryEligibility)
 	}
 	if err := e.addLeasedSendWorkAt(routed, 0, now); err != nil {
 		return err
@@ -4400,7 +4409,7 @@ func (e *Engine) admitDueCanary(now time.Time, admit grantRouteAdmission) error 
 	return e.generator.commitCanary()
 }
 
-func (e *Engine) recordGroupUnderDelivery(intent TrafficIntent) error {
+func (e *Engine) recordGroupUnderDelivery(intent TrafficIntent, code FailureCode) error {
 	groupIndex, ok := e.generator.catalog.IndexFromGroupID(intent.ChannelID)
 	if !ok {
 		return errEngineConfig
@@ -4409,7 +4418,7 @@ func (e *Engine) recordGroupUnderDelivery(intent TrafficIntent) error {
 	if err != nil {
 		return errEngineConfig
 	}
-	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(group.MemberCount))
+	return e.recordUnderDelivery(code, uint64(group.MemberCount))
 }
 
 // cleanupInflight runs after Stop joined all session drains and drained owner
@@ -4453,7 +4462,7 @@ func (e *Engine) cleanupQueuedSendLeases() {
 	e.deferredGroupRoutes = 0
 	if deferredGroupRoutes > 0 {
 		e.activityUnderDelivered += deferredGroupRoutes
-		_ = e.recordRuntimeFailure(RuntimeFailureUnderDelivery, deferredGroupRoutes)
+		_ = e.recordUnderDelivery(FailureCodeOfferedCleanupDeferredGroup, deferredGroupRoutes)
 	}
 }
 
@@ -4476,8 +4485,16 @@ func (e *Engine) cleanupPendingActivities() {
 	e.activityFutureCanceled += futureCanceled
 	if underDelivered > 0 {
 		e.activityUnderDelivered += underDelivered
-		_ = e.recordRuntimeFailure(RuntimeFailureUnderDelivery, underDelivered)
+		_ = e.recordUnderDelivery(FailureCodeOfferedCleanupPendingActivity, underDelivered)
 	}
+}
+
+// recordUnderDelivery identifies the source branch without changing aggregate
+// harness classification or the branch's original count/member-count units.
+func (e *Engine) recordUnderDelivery(code FailureCode, value uint64) error {
+	e.harnessInvalid++
+	_ = e.evidence.Record(EvidenceEvent{Class: FailureClassHarness, Stage: EvidenceStageCapacity, Code: code, Value: value})
+	return &RuntimeError{code: RuntimeFailureUnderDelivery}
 }
 
 func (e *Engine) recordRuntimeFailure(code RuntimeFailureCode, value uint64) error {

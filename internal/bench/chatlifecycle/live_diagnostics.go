@@ -312,7 +312,7 @@ func (r *liveDiagnosticRecorder) writeTerminalWorkerEvidence(at time.Time, snaps
 		RunID   string                                 `json:"run_id"`
 		At      time.Time                              `json:"at"`
 		Workers [coordinatorWorkerCount]workerEvidence `json:"workers"`
-	}{Schema: "wukongim/chat-lifecycle-worker-evidence/v1", RunID: r.runID, At: at}
+	}{Schema: "wukongim/chat-lifecycle-worker-evidence/v2", RunID: r.runID, At: at}
 	for _, snapshot := range snapshots {
 		if snapshot.RunID != r.runID || !validWorkerSnapshot(snapshot) {
 			return errProductionController
