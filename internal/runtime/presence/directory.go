@@ -38,6 +38,9 @@ type directoryShard struct {
 type authoritySlot struct {
 	// target is the exact fencing token accepted by this authority identity.
 	target RouteTarget
+	// recoveryGeneration invalidates caller-local proofs when this instance is replaced.
+	// Its separate allocation must not retain a retired slot's route maps.
+	recoveryGeneration *recoveryGeneration
 	// active contains committed routes by exact owner route identity.
 	active map[identityKey]Route
 	// byUID indexes active route identities for UID endpoint lookups.
@@ -61,6 +64,9 @@ type authoritySlot struct {
 	recoveryOrder []string
 	recoveryNext  int
 }
+
+// recoveryGeneration is nonzero-sized so distinct live instances cannot alias.
+type recoveryGeneration struct{ marker byte }
 
 type pendingRoute struct {
 	// route is the candidate that will become active on commit.
@@ -295,11 +301,15 @@ func (d *Directory) EndpointsByUIDs(target RouteTarget, uids []string) ([]Route,
 	if d.requireRecovery && !slot.recoveryReady(uids) {
 		return nil, ErrRouteNotReady
 	}
+	return slot.endpointsByUIDsLocked(uids), nil
+}
+
+func (s *authoritySlot) endpointsByUIDsLocked(uids []string) []Route {
 	var routes []Route
 	for _, uid := range uids {
-		routes = append(routes, slot.endpointsByUIDLocked(uid)...)
+		routes = append(routes, s.endpointsByUIDLocked(uid)...)
 	}
-	return routes, nil
+	return routes
 }
 
 // EndpointsByTargets resolves exact-target groups while acquiring each directory shard once.
@@ -437,15 +447,16 @@ func (d *Directory) shard(hashSlot uint16) *directoryShard {
 
 func newAuthoritySlot(target RouteTarget) *authoritySlot {
 	return &authoritySlot{
-		target:       target,
-		active:       make(map[identityKey]Route),
-		byUID:        make(map[string]map[identityKey]struct{}),
-		pending:      make(map[PendingRouteToken]pendingRoute),
-		ownerSeq:     make(map[identityKey]uint64),
-		tombstoneSeq: make(map[identityKey]uint64),
-		expiryHeap:   make(expiryBucketHeap, 0),
-		expiryBySeen: make(map[int64]*expiryBucket),
-		expiryByKey:  make(map[identityKey]*expiryBucket),
+		target:             target,
+		recoveryGeneration: &recoveryGeneration{},
+		active:             make(map[identityKey]Route),
+		byUID:              make(map[string]map[identityKey]struct{}),
+		pending:            make(map[PendingRouteToken]pendingRoute),
+		ownerSeq:           make(map[identityKey]uint64),
+		tombstoneSeq:       make(map[identityKey]uint64),
+		expiryHeap:         make(expiryBucketHeap, 0),
+		expiryBySeen:       make(map[int64]*expiryBucket),
+		expiryByKey:        make(map[identityKey]*expiryBucket),
 	}
 }
 

@@ -22,6 +22,8 @@ type snapshotReadView interface {
 type slotSnapshotStream struct {
 	reader io.ReadCloser
 	cancel context.CancelFunc
+	// done closes after the producer releases its pinned view and pipe writer.
+	done <-chan struct{}
 }
 
 type prefixedSnapshotStream struct {
@@ -36,7 +38,10 @@ func (s *slotSnapshotStream) Read(buffer []byte) (int, error) { return s.reader.
 
 func (s *slotSnapshotStream) Close() error {
 	s.cancel()
-	return s.reader.Close()
+	err := s.reader.Close()
+	// Unblock a pending pipe write before joining the view's sole owner.
+	<-s.done
+	return err
 }
 
 var slotSnapshotMagic = [4]byte{'W', 'K', 'D', 'B'}
@@ -240,15 +245,17 @@ func (db *MetaDB) openHashSlotSnapshot(ctx context.Context, hashSlots []uint16, 
 	}
 	streamContext, cancel := context.WithCancel(ctx)
 	reader, writer := io.Pipe()
+	done := make(chan struct{})
 	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskDatabaseBackupStream, func() {
+		// Deferred cleanup also covers a panic recovered by the task registry.
+		// A terminal read must never precede release of the pinned view.
+		streamErr := io.ErrUnexpectedEOF
+		defer close(done)
+		defer func() { _ = writer.CloseWithError(streamErr) }()
 		defer view.Close()
-		if err := writeHashSlotSnapshotStream(streamContext, writer, view, normalized, backupOnly); err != nil {
-			_ = writer.CloseWithError(err)
-			return
-		}
-		_ = writer.Close()
+		streamErr = writeHashSlotSnapshotStream(streamContext, writer, view, normalized, backupOnly)
 	})
-	return &slotSnapshotStream{reader: reader, cancel: cancel}, nil
+	return &slotSnapshotStream{reader: reader, cancel: cancel, done: done}, nil
 }
 
 func writeHashSlotSnapshotStream(ctx context.Context, writer io.Writer, view snapshotReadView, hashSlots []HashSlot, backupOnly bool) error {

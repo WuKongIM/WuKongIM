@@ -20,7 +20,12 @@ const (
 	recoveryMaxUIDBytes = 128 << 20
 	// One result responsibility retains at most one original call's 4096 routes.
 	recoveryMaxResultCalls = 16
+	// A cold built-in readback owns a fixed mask, target and closure until this
+	// caller returns. Charge conservatively without cloning caller-owned UIDs.
+	recoveryReadbackScopeBytes = 256
 )
+
+type recoveryReadback func() ([]Route, error)
 
 // recoveryUIDKey includes the distributed authority fence, excluding node-local
 // revisions so matching proofs coalesce while every original target is rechecked.
@@ -130,7 +135,7 @@ func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLo
 		}
 		return results
 	}
-	results, m, waits := r.admitRecoveryPage(ctx, groups)
+	results, m, waits, readbacks := r.admitRecoveryPage(ctx, groups)
 	if m == nil {
 		return results
 	}
@@ -199,6 +204,13 @@ func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLo
 				break
 			}
 		}
+		if readbacks != nil && readbacks[i] != nil {
+			select {
+			case <-m.stop:
+				err = authority.ErrRouteNotReady
+			default:
+			}
+		}
 		if ctx.Err() != nil {
 			err = ctx.Err()
 		}
@@ -209,7 +221,11 @@ func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLo
 			results[i] = EndpointLookupResult{Err: WrapActivationPhase(ActivationPhaseRecoveryProvider, err)}
 			continue
 		}
-		results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(g.Target, g.UIDs)
+		if readbacks != nil && readbacks[i] != nil {
+			results[i].Routes, results[i].Err = readbacks[i]()
+		} else {
+			results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(g.Target, g.UIDs)
+		}
 		results[i].Err = WrapActivationPhase(ActivationPhaseRecoveryReadback, results[i].Err)
 	}
 	return results
@@ -217,9 +233,13 @@ func (r *AuthorityRecovery) recoverPage(ctx context.Context, groups []EndpointLo
 
 // Admission owns a bounded caller and its indices even when it only follows an
 // existing flight. All dimensions are checked before cloning or publishing.
-func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []EndpointLookupGroup) ([]EndpointLookupResult, *recoveryMember, [][]*recoveryUIDFlight) {
+func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []EndpointLookupGroup) ([]EndpointLookupResult, *recoveryMember, [][]*recoveryUIDFlight, []recoveryReadback) {
 	results := make([]EndpointLookupResult, len(groups))
 	waits := make([][]*recoveryUIDFlight, len(groups))
+	var readbacks []recoveryReadback
+	// Only the exact built-in Directory has this proof contract. An embedding
+	// wrapper can override reads and must retain the original three-method port.
+	builtin, scoped := r.directory.(*authority.Directory)
 	missing := make([]EndpointLookupGroup, 0, len(groups))
 	indexes := make([]int, 0, len(groups))
 	refs := 0
@@ -233,7 +253,20 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 			results[i].Err = WrapActivationPhase(ActivationPhaseRecoveryReadback, results[i].Err)
 			continue
 		}
-		uids, err := r.directory.RecoveryUIDs(g.Target, g.UIDs)
+		var uids []string
+		var err error
+		if scoped && builtin != nil {
+			var read recoveryReadback
+			uids, read, err = builtin.RecoveryUIDsWithReadback(g.Target, g.UIDs)
+			if read != nil {
+				if readbacks == nil {
+					readbacks = make([]recoveryReadback, len(groups))
+				}
+				readbacks[i] = read
+			}
+		} else {
+			uids, err = r.directory.RecoveryUIDs(g.Target, g.UIDs)
+		}
 		if err != nil {
 			results[i].Err = WrapActivationPhase(ActivationPhaseRecoveryValidation, err)
 			continue
@@ -245,7 +278,12 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 				results[i] = EndpointLookupResult{Err: WrapActivationPhase(ActivationPhaseRecoveryAdmission, err)}
 				continue
 			}
-			results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(g.Target, g.UIDs)
+			if readbacks != nil && readbacks[i] != nil {
+				results[i].Routes, results[i].Err = readbacks[i]()
+				readbacks[i] = nil
+			} else {
+				results[i].Routes, results[i].Err = r.directory.EndpointsByUIDs(g.Target, g.UIDs)
+			}
 			results[i].Err = WrapActivationPhase(ActivationPhaseRecoveryReadback, results[i].Err)
 			if err := ctx.Err(); err != nil {
 				results[i] = EndpointLookupResult{Err: WrapActivationPhase(ActivationPhaseRecoveryReadback, err)}
@@ -262,10 +300,10 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 		for i := range results {
 			results[i] = EndpointLookupResult{Err: WrapActivationPhase(ActivationPhaseRecoveryAdmission, authority.ErrRouteNotReady)}
 		}
-		return results, nil, waits
+		return results, nil, waits, readbacks
 	}
 	if len(missing) == 0 {
-		return results, nil, waits
+		return results, nil, waits, readbacks
 	}
 	newKeys := make(map[recoveryUIDKey]recoveryUIDKey)
 	cloneBytes := 0
@@ -280,7 +318,7 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 			}
 			if len(uid) > recoveryPageUIDBytes-cloneBytes {
 				markRecoveryAdmissionFailures(results, indexes)
-				return results, nil, waits
+				return results, nil, waits, readbacks
 			}
 			cloneBytes += len(uid)
 			newKeys[k] = k
@@ -291,13 +329,21 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 	// caller indices conservatively; none depend on that creator remaining live.
 	// This logical ledger excludes allocator overhead and process RSS.
 	memberBytes := 512 + len(groups)*128 + refs*512
+	if readbacks != nil {
+		memberBytes += len(readbacks) * 8 // conservative pointer-slice backing
+		for _, read := range readbacks {
+			if read != nil {
+				memberBytes += recoveryReadbackScopeBytes
+			}
+		}
+	}
 	workBytes := 0
 	if len(newKeys) > 0 {
 		workBytes = 256 + len(missing)*128 + len(newKeys)*256 + cloneBytes
 	}
 	if len(r.members) >= recoveryMaxMembers || len(newKeys) > recoveryMaxKeys-len(r.inFlight) || memberBytes+workBytes > recoveryMaxUIDBytes-r.ownedUIDBytes {
 		markRecoveryAdmissionFailures(results, indexes)
-		return results, nil, waits
+		return results, nil, waits, readbacks
 	}
 	m := &recoveryMember{ctx: ctx, stop: make(chan struct{}), bytes: memberBytes}
 	r.members[m] = struct{}{}
@@ -350,7 +396,7 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 		r.queue = append(r.queue, m.work)
 	}
 	r.kickLocked()
-	return results, m, waits
+	return results, m, waits, readbacks
 }
 
 // markRecoveryAdmissionFailures annotates only rejected missing groups. Proven

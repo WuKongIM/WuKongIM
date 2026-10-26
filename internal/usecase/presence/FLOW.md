@@ -69,8 +69,12 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 - Production target-aware lookup preserves the complete fence and returns
   aligned results. The per-UID fallback exists only for limited compatibility
   implementations and cannot provide that target fence.
-- Flights store no routes. Successful callers reread current Directory proof,
-  including after eviction. Shared execution has its own cancel root: one
+- Flights store no routes. Successful callers reread current Directory routes.
+  Only the exact built-in Directory captures a caller-local known/missing mask;
+  known proof survives residency eviction within that request, while original
+  misses need current proof and the same local authority instance. Wrappers keep
+  their original read contract. Capture metadata is charged to caller admission.
+  Shared execution has its own cancel root: one
   caller's cancellation/deadline does not cancel live UID followers or other
   batch members, and every caller still returns on its own original context.
   Only all-member cancellation or Close cancels actual execution. UID proofs

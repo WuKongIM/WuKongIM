@@ -62,13 +62,18 @@ type BackupSnapshotStats struct {
 type messageBackupStream struct {
 	reader io.ReadCloser
 	cancel context.CancelFunc
+	// done closes after the producer releases its pinned view and pipe writer.
+	done <-chan struct{}
 }
 
 func (s *messageBackupStream) Read(buffer []byte) (int, error) { return s.reader.Read(buffer) }
 
 func (s *messageBackupStream) Close() error {
 	s.cancel()
-	return s.reader.Close()
+	err := s.reader.Close()
+	// Unblock a pending pipe write before joining the view's sole owner.
+	<-s.done
+	return err
 }
 
 type messageBackupReadView interface {
@@ -96,15 +101,16 @@ func (db *MessageDB) OpenBackupSnapshot(ctx context.Context, request BackupSnaps
 	}
 	streamContext, cancel := context.WithCancel(ctx)
 	reader, writer := io.Pipe()
+	done := make(chan struct{})
 	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskDatabaseBackupStream, func() {
+		// Cleanup runs before terminal publication, including recovered panics.
+		streamErr := io.ErrUnexpectedEOF
+		defer close(done)
+		defer func() { _ = writer.CloseWithError(streamErr) }()
 		defer view.Close()
-		if err := writeMessageBackupSnapshot(streamContext, writer, view, request.HashSlot, channels, nil); err != nil {
-			_ = writer.CloseWithError(err)
-			return
-		}
-		_ = writer.Close()
+		streamErr = writeMessageBackupSnapshot(streamContext, writer, view, request.HashSlot, channels, nil)
 	})
-	return &messageBackupStream{reader: reader, cancel: cancel}, nil
+	return &messageBackupStream{reader: reader, cancel: cancel, done: done}, nil
 }
 
 // OpenBackupSnapshotWithStats pins and streams committed message data while
@@ -133,15 +139,16 @@ func (db *MessageDB) OpenBackupSnapshotWithStats(ctx context.Context, request Ba
 	}
 	streamContext, cancel := context.WithCancel(ctx)
 	reader, writer := io.Pipe()
+	done := make(chan struct{})
 	goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskDatabaseBackupStream, func() {
+		// Cleanup runs before terminal publication, including recovered panics.
+		streamErr := io.ErrUnexpectedEOF
+		defer close(done)
+		defer func() { _ = writer.CloseWithError(streamErr) }()
 		defer view.Close()
-		if err := writeMessageBackupSnapshot(streamContext, writer, view, request.HashSlot, channels, messageCounts); err != nil {
-			_ = writer.CloseWithError(err)
-			return
-		}
-		_ = writer.Close()
+		streamErr = writeMessageBackupSnapshot(streamContext, writer, view, request.HashSlot, channels, messageCounts)
 	})
-	return &messageBackupStream{reader: reader, cancel: cancel}, stats, nil
+	return &messageBackupStream{reader: reader, cancel: cancel, done: done}, stats, nil
 }
 
 func normalizeBackupChannelCuts(channels []BackupChannelCut) ([]BackupChannelCut, error) {

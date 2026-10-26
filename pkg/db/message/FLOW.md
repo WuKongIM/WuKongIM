@@ -7,9 +7,8 @@ summary: Stores Channel message logs, indexes, checkpoints, retention state, sna
 
 ## Responsibility
 
-`pkg/db/message` persists node-local Channel logs with canonical leases, atomic append/follower apply,
-indexes, checkpoints, history, retention, inspection and portable backup/restore on `pkg/db/internal`.
-
+`pkg/db/message` persists node-local Channel logs, indexes, checkpoints, history,
+retention and portable backup/restore on `pkg/db/internal` with canonical leases.
 Compatibility maps Channel records/offsets and pinned retained Will receipts without transferring engine ownership or cluster authority.
 
 ## Boundaries
@@ -42,9 +41,8 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
    Catalog pages follow encoded key order; skip only the exact cursor key.
    Remote client-number lookups additionally cap inspected index entries and
    payload bytes, failing explicitly rather than returning partial matches.
-3. Snapshot, backup, restore, truncation, retention, and close stream or mutate
-   bounded batches while keeping rows, indexes, catalog, system state, leases,
-   and physical engine ownership consistent.
+3. Snapshot, backup, restore, truncation, retention and close use bounded batches
+   while keeping rows, indexes, catalog, system state, leases and engine ownership consistent.
 
 ## Invariants and Failure Semantics
 - Offline helpers preserve optional publication column 21 and verify proposal
@@ -136,6 +134,8 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
 - Backup count and content come from one pinned view; restore is exact-retry
   idempotent, conflicts with different state, and cleans partial rows in bounded
   batches before retry.
+  Both backup APIs release their view before EOF/error; Close cancels and
+  unblocks writes, then joins the producer before callers close the database.
   Native/full/pruned/Will-receipt backups use versions 1/2/3/4. Byte and streaming imports share preflight for chains, originals/trim proof and immutable target receipts; allocation high-water statistics include receipts.
   Restore rebuilds meters without global IDs, publishing baseline/frontier together after the suffix; legacy header frontiers wait until then.
 

@@ -2486,3 +2486,21 @@ completion, installation and provider-reference release.
   scan deadline and observed-at cut. Discard partial inventories; never skip
   vanished paths, reset the budget, or promote incomplete evidence. Find errors,
   other stat failures, invalid types/sizes and sustained churn still fail closed.
+
+- Presence recovery's bounded FIFO can evict an initially known UID while
+  installing another UID's complete proof. Built-in Directory readback captures
+  the known/missing partition under one lock and reads current routes under the
+  same distributed fence and separate local generation marker. Only initially
+  known proofs ignore residency loss; original misses still require current
+  proof, so a new instance joining an old flight cannot invent offline state.
+  Scopes remain caller-local and charged; wrappers retain the original port.
+  This fixes a deterministic 1,025-UID readback failure, not the unjoined R13
+  online-delivery deadline or full 2,000 SEND/s qualification.
+
+- Metadata ordinary/backup and both message backup streams own their pinned
+  engine view until producer completion. EOF/error follows view release; Close
+  cancels and closes the reader before joining the owner. All closers join the
+  same completion signal, including recovered producer panics. Callers must
+  finish streams before closing their database. Real Linux public-API tests
+  reproduce the old early-Close leak; the original migration CI full-EOF
+  interleaving remains source-supported rather than uniquely reproduced.

@@ -27,7 +27,11 @@ this node. It stores virtual gateway-owner routes, never concrete sessions.
    candidate. Owner sequences and unregister tombstones fence stale activity.
 3. Production lookups require bounded per-UID owner reconstruction after authority
    changes; exact-target completion retains tombstones and caches both present
-   and absent UID proofs in a bounded FIFO. Eviction requires a new proof.
+   and absent UID proofs in a bounded FIFO. New lookups require a new proof after eviction.
+   A bounded request readback may retain initially known proof across FIFO eviction,
+   but initially missing UIDs still need current proof. A separate nonzero generation
+   marker rejects replaced local authority instances, including identical-fence ABA.
+   Readback copies current routes; it never retains an old route table or snapshot.
 4. Touch refreshes or safely recreates exact active routes; TTL expiry pops due
    activity buckets from per-authority indexes without scanning all routes.
 
