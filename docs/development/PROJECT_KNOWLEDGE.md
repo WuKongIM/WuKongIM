@@ -2258,6 +2258,16 @@ specification, runbook, report, or module documentation; link to them when neede
   capacity evidence. Fixture artifact paths use a non-`WK_` environment variable
   so product child processes do not treat test metadata as runtime configuration.
 
+- Chat-lifecycle grant failure diagnostics retain the terminal attempt at three
+  fixed worker positions. The real HTTP adapter closes request, body and typed
+  response failures before aggregation; coordinator exact-match failures retain
+  no invented HTTP status. Context ownership is causal, opaque ports stay
+  unknown, and late status recovery or cleanup cannot erase the earlier delivery
+  evidence. One bounded CLI JSON line supplements the unchanged compatibility
+  summary without changing control budgets, retries, native reports or verdicts.
+  Failure cleanup still discards Stop results and may return before finalization;
+  this diagnostic line is not proof of a completed native report or successful Stop.
+
 - Chat-lifecycle finalization diagnostics retain a closed rejecting stage/reason
   and the previously frozen outcome/cause as observations, never a substitute
   report. Private error chains remain available to `errors.Is/As` but are not

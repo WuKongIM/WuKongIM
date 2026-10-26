@@ -2854,7 +2854,7 @@ func TestCoordinatorGrantRoundRecoversLateWorkerRuntimeClassification(t *testing
 	}
 	coordinator := &Coordinator{workers: workers, roundTimeout: roundTimeout}
 
-	disposition, failure := coordinator.deliverGrant(
+	disposition, failure, _ := coordinator.deliverGrant(
 		context.Background(), assignments, request, roundTimeout,
 	)
 	if disposition != coordinatorRoundStageFailed {

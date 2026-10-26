@@ -2,6 +2,7 @@ package benchmark
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -254,10 +255,10 @@ func (r *productionChatLifecycleRunner) Run(ctx context.Context) (chatLifecycleR
 		}
 		return chatLifecycleRunResult{
 			Verdict: verdict,
-			Summary: chatLifecycleAppendFinalizationSummary(
+			Summary: chatLifecycleAppendGrantSummary(chatLifecycleAppendFinalizationSummary(
 				fmt.Sprintf("chat-lifecycle outcome=%s cause=%s report=%s\n", report.Verdict.Outcome, report.Verdict.Cause, finalPath),
 				result.FinalizationFailure,
-			),
+			), result.GrantFailures),
 		}, nil
 	}
 	verdict := chatLifecycleCoordinatorVerdict(result)
@@ -272,10 +273,25 @@ func chatLifecycleCoordinatorSummary(
 	result chatlifecycle.CoordinatorResult,
 	report string,
 ) string {
-	return chatLifecycleAppendFinalizationSummary(fmt.Sprintf(
+	return chatLifecycleAppendGrantSummary(chatLifecycleAppendFinalizationSummary(fmt.Sprintf(
 		"chat-lifecycle outcome=%s cause=%s coordinator_code=%s grant_failure_code=%s worker_runtime_code=%s observer_code=%s preflight_code=%s report=%s\n",
 		verdict.Outcome, verdict.Cause, result.Code, result.GrantFailure, result.WorkerFailure.RuntimeCode, result.ObserverCode, result.Preflight.Code, report,
-	), result.FinalizationFailure)
+	), result.FinalizationFailure), result.GrantFailures)
+}
+
+// chatLifecycleAppendGrantSummary preserves the compatibility line and verdict,
+// then appends at most three failed workers on one closed diagnostic line.
+func chatLifecycleAppendGrantSummary(summary string, failures chatlifecycle.CoordinatorGrantFailures) string {
+	bounded := failures.Bounded()
+	if len(bounded) == 0 {
+		return summary
+	}
+	encoded, err := json.Marshal(bounded)
+	const prefix = "chat-lifecycle grant_delivery="
+	if err != nil || len(prefix)+len(encoded)+1 > 1024 {
+		return summary
+	}
+	return summary + prefix + string(encoded) + "\n"
 }
 
 // chatLifecycleAppendFinalizationSummary adds observations to either existing

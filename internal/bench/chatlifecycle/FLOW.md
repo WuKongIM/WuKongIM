@@ -102,6 +102,8 @@ passing 72-hour formal generation -> same aged dataset and process proof
   worker with an independent bound, preserving the original cause.
   Exact recorded product TerminalSend errors permit release; other terminal
   mutation errors remain harness failures. Stop cannot erase an earlier failure.
+- Grant failures retain three fixed worker sequence/attempt/closed-boundary entries.
+  Only observed HTTP/context causes enter one bounded CLI line; summary, retries, deadlines, cleanup and reports stay unchanged.
 - Verdict precedence is product, infrastructure, harness, then operator stop.
   Missing, stale, regressing, partial, overflowing, or unbounded evidence can
   never produce pass.
