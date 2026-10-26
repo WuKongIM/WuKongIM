@@ -1,0 +1,517 @@
+//go:build integration
+
+package transport_test
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/transport/testkit"
+	"github.com/WuKongIM/WuKongIM/pkg/transport/wire"
+)
+
+// TestTransportPoolHOLMechanism is a controlled public-transport experiment.
+// It does not exercise Node.CallRPC or reproduce a production failure.
+func TestTransportPoolHOLMechanism(t *testing.T) {
+	t.Run("async_handler_control", func(t *testing.T) {
+		f := newHOLFixture(t, "handler")
+		f.warm(t)
+		bulk := f.startCall("bulk", 1, transport.PriorityBulk, 2)
+		holWait(t, f.bulkEntered)
+		owner := holAwait(t, f.startCall("owner-same", 17, transport.PriorityRPC, 14))
+		holRequireStatus(t, owner, "ok")
+		// No Pull reply exists yet; a separate-service handler must not hold
+		// the byte-stream reader while this owner RPC completes.
+		f.releaseHandler()
+		bulkResult := holAwait(t, bulk)
+		holRequireStatus(t, bulkResult, "ok")
+		if holConnectionID(owner.TraceID) != holConnectionID(bulkResult.TraceID) {
+			t.Fatal("manual keys 1 and 17 did not reuse the same connection")
+		}
+		f.finish(t)
+		f.requireSpan(t, owner.TraceID, rpctrace.SideClient, rpctrace.StageClientQueue)
+		f.requireSpan(t, owner.TraceID, rpctrace.SideClient, rpctrace.StageRequestWrite)
+		f.requireSpan(t, owner.TraceID, rpctrace.SideServer, rpctrace.StageHandler)
+		f.requireSpan(t, owner.TraceID, rpctrace.SideServer, rpctrace.StageResponseWrite)
+	})
+
+	t.Run("reader_frame_hol_control", func(t *testing.T) {
+		f := newHOLFixture(t, "reader")
+		f.warm(t)
+		bulk := f.startCall("bulk", 1, transport.PriorityBulk, 2)
+		holWait(t, f.readReached)
+		// The full Pull response is already in the fault Conn. Only its
+		// header and first body byte were delivered to the client readLoop.
+		same := f.startCall("owner-same", 17, transport.PriorityRPC, 14)
+		other := f.startCall("owner-other", 18, transport.PriorityRPC, 14)
+		holWait(t, f.returned["owner-same"])
+		holWait(t, f.returned["owner-other"])
+		sameResult := holAwait(t, same)
+		otherResult := holAwait(t, other)
+		holRequireStatus(t, sameResult, "timeout")
+		holRequireStatus(t, otherResult, "ok")
+		f.releaseReader()
+		bulkResult := holAwait(t, bulk)
+		holRequireStatus(t, bulkResult, "ok")
+		if holConnectionID(sameResult.TraceID) != holConnectionID(bulkResult.TraceID) ||
+			holConnectionID(sameResult.TraceID) == holConnectionID(otherResult.TraceID) {
+			t.Fatal("same/other key controls did not preserve their connection identities")
+		}
+		f.finish(t)
+		f.requireSpan(t, sameResult.TraceID, rpctrace.SideClient, rpctrace.StageClientQueue)
+		f.requireSpan(t, sameResult.TraceID, rpctrace.SideClient, rpctrace.StageRequestWrite)
+		f.requireSpan(t, sameResult.TraceID, rpctrace.SideServer, rpctrace.StageHandler)
+		f.requireSpan(t, sameResult.TraceID, rpctrace.SideServer, rpctrace.StageResponseWrite)
+		for _, span := range f.sample(t, sameResult.TraceID, rpctrace.SideClient).Spans {
+			if string(span.Stage) == "response_receive_observer" && !span.Incomplete {
+				t.Fatal("timeout fabricated a complete response receive observation")
+			}
+		}
+	})
+}
+
+const (
+	holOwnerBudget = 250 * time.Millisecond
+	holBulkBudget  = 2 * time.Second
+	holGuard       = 3 * time.Second
+	holFrameBytes  = 256 << 10
+)
+
+type holCallResult struct {
+	Label         string        `json:"label"`
+	Service       uint16        `json:"service"`
+	Key           uint64        `json:"key"`
+	Budget        time.Duration `json:"budget_ns"`
+	Started       time.Duration `json:"started_ns"`
+	Finished      time.Duration `json:"finished_ns"`
+	Status        string        `json:"status"`
+	TraceState    string        `json:"trace_state"`
+	TraceID       string        `json:"trace_id"`
+	ResponseBytes int           `json:"response_bytes"`
+	ResponseHash  string        `json:"response_sha256,omitempty"`
+}
+
+type holEvent struct {
+	Kind       string        `json:"kind"`
+	Label      string        `json:"label,omitempty"`
+	At         time.Duration `json:"at_ns"`
+	Connection uint64        `json:"connection,omitempty"`
+	RequestID  uint64        `json:"request_id,omitempty"`
+	Bytes      int           `json:"bytes,omitempty"`
+}
+
+// holFixture owns only two public transport endpoints and their joined resources.
+type holFixture struct {
+	mode      string
+	started   time.Time
+	server    *transport.Server
+	client    *transport.Client
+	bulkReply []byte
+	// Gates separate blocked handler execution from buffered response delivery.
+	bulkEntered    chan struct{}
+	handlerRelease chan struct{}
+	readReached    chan struct{}
+	readerRelease  chan struct{}
+	returned       map[string]chan struct{}
+	handlerOnce    sync.Once
+	readerOnce     sync.Once
+	reachedOnce    sync.Once
+	finishOnce     sync.Once
+	callsWG        sync.WaitGroup
+	mu             sync.Mutex
+	// Detached observations contain no payloads and have fixed count caps.
+	events      []holEvent
+	calls       []holCallResult
+	samples     []rpctrace.Sample
+	connections []*holReadGateConn
+	overflow    bool
+	finished    bool
+	cleanupOK   bool
+	clientStats transport.Stats
+	serverStats transport.Stats
+}
+
+func newHOLFixture(t *testing.T, mode string) *holFixture {
+	t.Helper()
+	f := &holFixture{mode: mode, started: time.Now(), bulkEntered: make(chan struct{}),
+		handlerRelease: make(chan struct{}), readReached: make(chan struct{}), readerRelease: make(chan struct{}),
+		returned: map[string]chan struct{}{"owner-same": make(chan struct{}), "owner-other": make(chan struct{})}}
+	f.bulkReply = []byte("bulk-ok")
+	if mode == "reader" {
+		f.bulkReply = bytes.Repeat([]byte{'B'}, 128<<10)
+	}
+	var err error
+	f.server, err = transport.NewServer(transport.ServerConfig{NodeID: 2, RPCTracing: true, Observer: f})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { f.finish(t); f.writeArtifact(t) })
+	opts := transport.ServiceOptions{Concurrency: 128, QueueSize: 4096, MaxQueueBytes: 64 << 20,
+		Timeout: 30 * time.Second, QueueTimeout: 5 * time.Second, CancelRunning: true}
+	for _, service := range []uint16{2, 14} {
+		service := service
+		if err := f.server.Handle(service, func(ctx context.Context, payload []byte) ([]byte, error) {
+			label := string(payload)
+			f.event(holEvent{Kind: "handler_enter", Label: label})
+			defer func() {
+				f.event(holEvent{Kind: "handler_return_boundary", Label: label})
+				if ch := f.returned[label]; ch != nil {
+					close(ch)
+				}
+			}()
+			if service == 2 {
+				close(f.bulkEntered)
+				if f.mode == "handler" {
+					select {
+					case <-f.handlerRelease:
+					case <-ctx.Done():
+						return nil, ctx.Err()
+					}
+				}
+				return f.bulkReply, nil
+			}
+			return []byte("ok-" + label), nil
+		}, opts); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := f.server.ListenAndServe("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	f.client, err = transport.NewClient(transport.ClientConfig{NodeID: 1, PoolSize: 16,
+		RPCTraceEvery: 1, RequestBudgets: true, Observer: f,
+		Discovery: testkit.StaticDiscovery{2: f.server.Addr()},
+		Dialer: func(network, address string, timeout time.Duration) (net.Conn, error) {
+			raw, err := net.DialTimeout(network, address, timeout)
+			if err != nil {
+				return nil, err
+			}
+			f.mu.Lock()
+			wrapped := &holReadGateConn{Conn: raw, fixture: f, ordinal: uint64(len(f.connections) + 1), closed: make(chan struct{})}
+			f.connections = append(f.connections, wrapped)
+			f.mu.Unlock()
+			f.event(holEvent{Kind: "connection_open", Connection: wrapped.ordinal})
+			return wrapped, nil
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+func (f *holFixture) event(event holEvent) {
+	event.At = time.Since(f.started)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.events) >= 128 {
+		f.overflow = true
+		return
+	}
+	f.events = append(f.events, event)
+}
+
+// ObserveTransport only copies bounded anonymous traces; it never blocks on a gate.
+func (f *holFixture) ObserveTransport(event transport.Event) {
+	if event.RPCTrace == nil {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.samples) >= 64 {
+		f.overflow = true
+		return
+	}
+	f.samples = append(f.samples, event.RPCTrace.Clone())
+}
+
+func (f *holFixture) warm(t *testing.T) {
+	for i, key := range []uint64{17, 18} {
+		holRequireStatus(t, holAwait(t, f.startCall(fmt.Sprintf("warm-%d", i+1), key, transport.PriorityRPC, 14)), "ok")
+	}
+}
+
+// startCall fixes every owner deadline at 250ms and retains its actual terminal identity.
+func (f *holFixture) startCall(label string, key uint64, priority transport.Priority, service uint16) <-chan holCallResult {
+	result := make(chan holCallResult, 1)
+	budget := holOwnerBudget
+	if service == 2 {
+		budget = holBulkBudget
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
+	ctx, capture := rpctrace.WithTerminalCapture(ctx)
+	started := time.Since(f.started)
+	f.callsWG.Add(1)
+	go func() {
+		defer f.callsWG.Done()
+		defer cancel()
+		body, err := f.client.Call(ctx, 2, key, priority, service, []byte(label))
+		status := "ok"
+		switch {
+		case errors.Is(err, context.DeadlineExceeded), errors.Is(err, transport.ErrTimeout):
+			status = "timeout"
+		case errors.Is(err, context.Canceled), errors.Is(err, transport.ErrCanceled):
+			status = "canceled"
+		case err != nil:
+			status = "other_error"
+		}
+		want := []byte("ok-" + label)
+		if service == 2 {
+			want = f.bulkReply
+		}
+		if err == nil && !bytes.Equal(body, want) {
+			status = "response_mismatch"
+		}
+		identity := capture.Snapshot()
+		row := holCallResult{Label: label, Service: service, Key: key, Budget: budget, Started: started,
+			Finished: time.Since(f.started), Status: status, TraceState: identity.State.String(), TraceID: identity.TraceID, ResponseBytes: len(body)}
+		if err == nil {
+			digest := sha256.Sum256(body)
+			row.ResponseHash = hex.EncodeToString(digest[:])
+		}
+		f.mu.Lock()
+		f.calls = append(f.calls, row)
+		f.mu.Unlock()
+		f.event(holEvent{Kind: "client_return", Label: label})
+		result <- row
+	}()
+	return result
+}
+
+func holAwait(t *testing.T, result <-chan holCallResult) holCallResult {
+	t.Helper()
+	select {
+	case row := <-result:
+		return row
+	case <-time.After(holGuard):
+		t.Fatal("bounded call join failed")
+		return holCallResult{}
+	}
+}
+func holWait(t *testing.T, ready <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-ready:
+	case <-time.After(holGuard):
+		t.Fatal("bounded gate did not progress")
+	}
+}
+func holRequireStatus(t *testing.T, row holCallResult, status string) {
+	t.Helper()
+	if row.Status != status || row.TraceState != "bound" || row.TraceID == "" {
+		t.Fatalf("request %s status=%s trace=%s; want %s/bound", row.Label, row.Status, row.TraceState, status)
+	}
+}
+func holConnectionID(trace string) string {
+	connection, _, _ := strings.Cut(trace, "/")
+	return connection
+}
+func (f *holFixture) releaseHandler() { f.handlerOnce.Do(func() { close(f.handlerRelease) }) }
+func (f *holFixture) releaseReader()  { f.readerOnce.Do(func() { close(f.readerRelease) }) }
+
+func (f *holFixture) sample(t *testing.T, id string, side rpctrace.Side) rpctrace.Sample {
+	t.Helper()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, sample := range f.samples {
+		if sample.TraceID == id && sample.Side == side {
+			return sample
+		}
+	}
+	t.Fatalf("missing anonymous %s trace %s", side, id)
+	return rpctrace.Sample{}
+}
+func (f *holFixture) requireSpan(t *testing.T, id string, side rpctrace.Side, stage rpctrace.Stage) {
+	t.Helper()
+	for _, span := range f.sample(t, id, side).Spans {
+		if span.Stage == stage && !span.Incomplete && span.Result == rpctrace.ResultOK {
+			return
+		}
+	}
+	t.Fatalf("missing complete %s span on %s trace %s", stage, side, id)
+}
+
+// finish releases every gate before joining public transport owners and raw Conns.
+func (f *holFixture) finish(t *testing.T) {
+	t.Helper()
+	f.finishOnce.Do(func() {
+		f.releaseHandler()
+		f.releaseReader()
+		ctx, cancel := context.WithTimeout(context.Background(), holGuard)
+		defer cancel()
+		ok := true
+		if f.client != nil {
+			if err := f.client.StopContext(ctx); err != nil {
+				t.Error("client StopContext incomplete")
+				ok = false
+			}
+			f.clientStats = f.client.Stats()
+		}
+		if f.server != nil {
+			if err := f.server.StopContext(ctx); err != nil {
+				t.Error("server StopContext incomplete")
+				ok = false
+			}
+			f.serverStats = f.server.Stats()
+		}
+		joined := make(chan struct{})
+		go func() { f.callsWG.Wait(); close(joined) }()
+		select {
+		case <-joined:
+		case <-ctx.Done():
+			t.Error("call goroutines did not join")
+			ok = false
+		}
+		f.mu.Lock()
+		if len(f.connections) > 2 {
+			t.Error("fixture exceeded two peer connections")
+			ok = false
+		}
+		for _, connection := range f.connections {
+			select {
+			case <-connection.closed:
+			default:
+				t.Error("owned TCP connection not closed")
+				ok = false
+			}
+		}
+		if f.clientStats.Connections != 0 || f.clientStats.PendingRPC != 0 || f.clientStats.QueuedItems != 0 || f.clientStats.QueuedBytes != 0 || f.serverStats.Connections != 0 || f.serverStats.QueuedItems != 0 || f.serverStats.QueuedBytes != 0 {
+			t.Error("transport ownership remained after StopContext")
+			ok = false
+		}
+		if f.overflow {
+			t.Error("bounded observation artifact overflow")
+			ok = false
+		}
+		f.finished, f.cleanupOK = true, ok
+		f.mu.Unlock()
+		f.event(holEvent{Kind: "cleanup_complete"})
+	})
+}
+
+// writeArtifact publishes one exclusive bounded JSON document after owners have joined.
+func (f *holFixture) writeArtifact(t *testing.T) {
+	t.Helper()
+	f.mu.Lock()
+	document := struct {
+		Schema         string            `json:"schema"`
+		Mode           string            `json:"mode"`
+		PoolSize       int               `json:"pool_size"`
+		OwnerBudget    time.Duration     `json:"owner_budget_ns"`
+		ControlledOnly bool              `json:"controlled_mechanism_only"`
+		NodePathTested bool              `json:"node_callrpc_default_path_tested"`
+		Failed         bool              `json:"test_failed"`
+		Joined         bool              `json:"all_owned_joined"`
+		Connections    int               `json:"connections_created"`
+		ClientStats    transport.Stats   `json:"client_after_stop"`
+		ServerStats    transport.Stats   `json:"server_after_stop"`
+		Events         []holEvent        `json:"events"`
+		Calls          []holCallResult   `json:"calls"`
+		Samples        []rpctrace.Sample `json:"rpc_samples"`
+	}{"transport-hol-mechanism/v1", f.mode, 16, holOwnerBudget, true, false, t.Failed(), f.finished && f.cleanupOK, len(f.connections), f.clientStats, f.serverStats, f.events, f.calls, f.samples}
+	encoded, err := json.MarshalIndent(document, "", "  ")
+	f.mu.Unlock()
+	if err != nil || len(encoded) > 1<<20 {
+		t.Error("bounded artifact encoding failed")
+		return
+	}
+	if directory := os.Getenv("WK_TRANSPORT_HOL_ARTIFACT_DIR"); directory != "" {
+		info, err := os.Lstat(directory)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			t.Error("artifact directory is not an owned real directory")
+			return
+		}
+		file, err := os.OpenFile(filepath.Join(directory, f.mode+".json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			t.Error("exclusive artifact creation failed")
+			return
+		}
+		_, writeErr := file.Write(append(encoded, '\n'))
+		closeErr := file.Close()
+		if writeErr != nil || closeErr != nil {
+			t.Error("artifact write failed")
+			return
+		}
+	}
+	t.Logf("transport_hol_mechanism=%s", encoded)
+}
+
+// holReadGateConn is a bounded reader fault on a real TCP connection. The full
+// selected response has arrived here before body delivery to readLoop pauses.
+// It is not a proxy, a network-delay measurement, or a production transport.
+type holReadGateConn struct {
+	net.Conn
+	fixture   *holFixture
+	ordinal   uint64
+	closed    chan struct{}
+	closeOnce sync.Once
+	frame     []byte
+	offset    int
+	gated     bool
+}
+
+// Read withholds only one selected body after the complete underlying frame was buffered.
+func (c *holReadGateConn) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	if c.offset == len(c.frame) {
+		frame, err := wire.ReadFrame(c.Conn, holFrameBytes-wire.HeaderSize)
+		if err != nil {
+			return 0, err
+		}
+		header := wire.EncodeHeader(frame.Header)
+		c.frame = append(c.frame[:0], header[:]...)
+		c.frame = append(c.frame, frame.Body.Bytes()...)
+		frame.Body.Release()
+		c.offset = 0
+		c.gated = c.fixture.mode == "reader" && frame.Header.Kind == transport.FrameKindRPCResponse && frame.Header.ServiceID == 2 && len(c.frame) > wire.HeaderSize+1
+		if c.gated {
+			c.fixture.event(holEvent{Kind: "full_frame_buffered", Connection: c.ordinal, RequestID: frame.Header.RequestID, Bytes: len(c.frame)})
+		}
+	}
+	if c.gated && c.offset == wire.HeaderSize+1 {
+		c.fixture.reachedOnce.Do(func() {
+			c.fixture.event(holEvent{Kind: "reader_gate_reached", Connection: c.ordinal})
+			close(c.fixture.readReached)
+		})
+		select {
+		case <-c.fixture.readerRelease:
+		case <-c.closed:
+			return 0, net.ErrClosed
+		}
+		c.fixture.event(holEvent{Kind: "reader_gate_released", Connection: c.ordinal})
+		c.gated = false
+	}
+	remaining := len(c.frame) - c.offset
+	if c.gated && c.offset < wire.HeaderSize+1 {
+		remaining = min(remaining, wire.HeaderSize+1-c.offset)
+	}
+	n := copy(p, c.frame[c.offset:c.offset+min(len(p), remaining)])
+	c.offset += n
+	return n, nil
+}
+
+// Close releases a blocked reader and closes the exact owned TCP connection once.
+func (c *holReadGateConn) Close() error {
+	var err error
+	c.closeOnce.Do(func() {
+		close(c.closed)
+		err = c.Conn.Close()
+		c.fixture.event(holEvent{Kind: "connection_closed", Connection: c.ordinal})
+	})
+	return err
+}
