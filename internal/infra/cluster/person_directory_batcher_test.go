@@ -123,7 +123,7 @@ func TestPersonDirectoryBatcherEmitsCompletedWaveBeforeSlowSiblingBatch(t *testi
 	for i := range admissions {
 		admissions[i] = personDirectoryBatchAdmission{ctx: context.Background(), mutation: testPersonDirectoryMutation(i)}
 	}
-	waves := make(chan []personDirectoryBatchOutcome, 2)
+	waves := make(chan []personDirectoryBatchOutcome, len(admissions))
 	done := make(chan struct{})
 	go func() {
 		batcher.ensureBatchWaves(admissions, func(wave []personDirectoryBatchOutcome) {
@@ -132,27 +132,46 @@ func TestPersonDirectoryBatcherEmitsCompletedWaveBeforeSlowSiblingBatch(t *testi
 		close(done)
 	}()
 
-	select {
-	case wave := <-waves:
-		if got := directoryOutcomeIndexes(wave); !equalInts(got, []int{0, 1}) {
-			t.Fatalf("first completed wave indexes = %v, want [0 1]", got)
+	seen := make([]bool, len(admissions))
+	awaitSet := func(phase string, want [4]bool) {
+		t.Helper()
+		// Completion waves group currently ready waiters, not atomic durable
+		// batches. Keep one original deadline across every fragment in this phase.
+		deadline := time.NewTimer(time.Second)
+		defer deadline.Stop()
+		for remaining := 2; remaining > 0; {
+			select {
+			case wave := <-waves:
+				if len(wave) == 0 {
+					t.Fatalf("%s admission emitted an empty wave", phase)
+				}
+				for _, outcome := range wave {
+					if outcome.index < 0 || outcome.index >= len(admissions) || !want[outcome.index] || seen[outcome.index] {
+						t.Fatalf("%s admission emitted unexpected or duplicate index %d", phase, outcome.index)
+					}
+					if outcome.err != nil {
+						t.Fatalf("%s admission failed at index %d", phase, outcome.index)
+					}
+					seen[outcome.index] = true
+					remaining--
+				}
+			case <-deadline.C:
+				t.Fatalf("%s durable batch did not complete under its original deadline", phase)
+			}
 		}
-	case <-time.After(time.Second):
-		t.Fatal("fast durable batch was held behind slow sibling")
 	}
+	awaitSet("fast", [4]bool{true, true, false, false})
 	releaseOnce.Do(func() { close(releaseSlow) })
-	select {
-	case wave := <-waves:
-		if got := directoryOutcomeIndexes(wave); !equalInts(got, []int{2, 3}) {
-			t.Fatalf("second completed wave indexes = %v, want [2 3]", got)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("slow durable batch did not complete after release")
-	}
+	awaitSet("slow", [4]bool{false, false, true, true})
 	select {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("wave admission did not join all owned work")
+	}
+	select {
+	case <-waves:
+		t.Fatal("directory admission emitted an extra wave after all four results")
+	default:
 	}
 }
 
