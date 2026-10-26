@@ -105,6 +105,18 @@ Its timeout total cannot identify which opcode failed. Service-wait histograms
 are observed at handler entry and omit requests canceled while queued; a low
 mean cannot rule out queue residence for those missing requests.
 
+Remote presence-owner service 14 uses one fixed connection slot per peer:
+default key 17 modulo the default pool of 16 selects slot 1. A 16-connection
+pool does not spread that service across all connections. Pull/PullBatch also
+select slot 1, but default native quorum replication uses service 86/key 89,
+slot 9; its nonnil QuorumLog disables the ordinary follower-pull loop. Static
+collision is not evidence that Pull traffic caused a production timeout.
+A controlled real-TCP response-reader gate can time out a same-connection owner
+while another slot succeeds; a held separate-service handler alone did not.
+This does not establish the actual R14/R16 cause or reproduce R14's opposite-
+direction 188ms request-full-frame gap. See the archived, manually reproducible
+[frame observation](../reports/2026-10-27-rpc-frame-observation.md).
+
 `service_queue` begins immediately before Enqueue, after TrackInbound. It can
 include admission locking, FIFO/service-token wait, executor handoff, worker
 bookkeeping and cancellation processing. Ending without a handler span does not
@@ -149,12 +161,15 @@ assessment, not a throughput or RSS guarantee.
 For the pinned Go 1.25.11 execution-trace profiles, scheduler samples use the
 entering event's `Event.Stack`. For unblock/create entries this is the waker or
 creator's stack, not necessarily the delayed goroutine's; initial status-stack
-events can instead carry the target's stack. The extractor skips stackless
-transitions, including normal `GoStart`, so its aggregates are not exact
-runnable-to-running delays.
-The exporter may also recover to a usable trace prefix. Exact state analysis
-must process all target-goroutine transitions, require reader EOF, and report
-trace-edge censoring and continuity errors. Multi-goroutine wait totals are
+events can instead carry the target's stack. The pinned `cmd/trace/pprof.go`
+filters stackless transitions before updating its state map, including normal `GoStart` exits
+from runnable. Skipping an exit can leave an interval open until a later
+stack-bearing transition; exported weights are not exact contiguous waits.
+The pinned `cmd/trace/main.go` can export a usable prefix after a later parse
+error, so `trace -pprof` exit 0 does not certify a clean parse to EOF. Exact state
+analysis must process all target-goroutine transitions, require reader EOF, and
+report trace-edge censoring and continuity errors. These are Go 1.25.11 source
+semantics, not a claim about other Go versions. Multi-goroutine wait totals are
 neither CPU time nor a physical capture duration; idle network and worker waits
 do not prove RPC saturation. Preserve original profile outputs and verdicts.
 
