@@ -26,6 +26,12 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve already-known presence proofs during the same recovery request's
+  readback, preventing a healthy lookup from failing when bounded-cache insertion
+  evicts another requested proof. Authority and missing-proof checks remain.
+  / 在线路由恢复读回保留本请求已确认的证明，修复缓存补入挤掉同页证明而误报未就绪；
+  保留权威校验及缺失证明检查。
+
 - Preserve closed CONNECT failure stages and anonymous handshake-to-presence
   RPC correlation in bounded diagnostics, without changing timeouts or verdicts.
   / 有界诊断保留 CONNECT 失败阶段及握手到在线路由 RPC 的匿名关联，

@@ -30,6 +30,10 @@ type RecoveryOptions struct {
 
 // NewAuthorityRecoveryWithOptions fixes diagnostic accounting at construction.
 func NewAuthorityRecoveryWithOptions(directory RecoveryDirectory, owners RecoveryOwners, options RecoveryOptions) *AuthorityRecovery {
+	// A typed-nil built-in Directory is missing support, not a usable port.
+	if builtin, ok := directory.(*authority.Directory); ok && builtin == nil {
+		directory = nil
+	}
 	r := &AuthorityRecovery{directory: directory, owners: owners, resultCensus: options.ResultCensus,
 		inFlight: make(map[recoveryUIDKey]*recoveryUIDFlight), members: make(map[*recoveryMember]struct{}),
 		active: make(map[*recoveryExecution]struct{}), drained: make(chan struct{})}
