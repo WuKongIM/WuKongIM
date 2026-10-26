@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Retain bounded per-worker grant failure phases and reasons in chat-lifecycle
+  diagnostics while preserving control deadlines, retries and acceptance verdicts.
+  / 生命周期压测诊断保留各 worker 的 grant 失败阶段与原因，保持控制超时、重试及验收判定不变。
+
 - Release metadata and message backup snapshot views before stream completion,
   preventing database-close snapshot leaks during offline verification or early
   stream cancellation. / 元数据及消息备份流结束前释放快照，修复离线校验或提前

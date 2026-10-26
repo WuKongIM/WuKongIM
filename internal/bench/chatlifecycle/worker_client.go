@@ -165,13 +165,13 @@ func (c *WorkerClient) do(ctx context.Context, method, path string, requestBody,
 	if requestBody != nil {
 		encoded, err := json.Marshal(requestBody)
 		if err != nil || int64(len(encoded)) > workerMaxRequestBytes {
-			return ErrWorkerClientConfig
+			return workerGrantResponseError(responseBody, CoordinatorGrantPhaseRequest, CoordinatorGrantReasonUnknown, 0, ErrWorkerClientConfig)
 		}
 		body = bytes.NewReader(encoded)
 	}
 	request, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
-		return fmt.Errorf("%w: request", ErrWorkerClientConfig)
+		return workerGrantResponseError(responseBody, CoordinatorGrantPhaseRequest, CoordinatorGrantReasonUnknown, 0, fmt.Errorf("%w: request", ErrWorkerClientConfig))
 	}
 	request.Header.Set("Authorization", "Bearer "+c.token)
 	if requestBody != nil {
@@ -179,34 +179,39 @@ func (c *WorkerClient) do(ctx context.Context, method, path string, requestBody,
 	}
 	response, err := c.httpClient.Do(request)
 	if err != nil {
+		preserved := err
 		if ctxErr := causalWorkerContextError(ctx, err); ctxErr != nil {
-			return ctxErr
+			preserved = ctxErr
 		}
-		return err
+		return workerGrantContextResponseError(responseBody, ctx, CoordinatorGrantPhaseRequest, CoordinatorGrantReasonTransport, 0, err, preserved)
 	}
 	defer response.Body.Close()
 
 	limited := io.LimitReader(response.Body, c.maxResponse+1)
 	encoded, err := io.ReadAll(limited)
 	if err != nil {
+		preserved := ErrWorkerResponse
 		if ctxErr := causalWorkerContextError(ctx, err); ctxErr != nil {
-			return ctxErr
+			preserved = ctxErr
 		}
-		return ErrWorkerResponse
+		return workerGrantContextResponseError(responseBody, ctx, CoordinatorGrantPhaseBody, CoordinatorGrantReasonBodyRead, response.StatusCode, err, preserved)
 	}
 	if int64(len(encoded)) > c.maxResponse {
-		return ErrWorkerResponse
+		return workerGrantResponseError(responseBody, CoordinatorGrantPhaseBody, CoordinatorGrantReasonBodyLimit, response.StatusCode, ErrWorkerResponse)
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		var apiError WorkerAPIError
 		if !decodeStrictWorkerResponse(encoded, &apiError) || !validWorkerAPIError(apiError) {
-			return ErrWorkerResponse
+			return workerGrantResponseError(responseBody, CoordinatorGrantPhaseBody, CoordinatorGrantReasonBodyDecode, response.StatusCode, ErrWorkerResponse)
 		}
 		apiError.Status = response.StatusCode
-		return &apiError
+		return workerGrantResponseError(responseBody, CoordinatorGrantPhaseResponse, CoordinatorGrantReasonHTTPStatus, response.StatusCode, &apiError)
 	}
-	if responseBody == nil || !decodeStrictWorkerResponse(encoded, responseBody) || !validTypedWorkerResponse(responseBody) {
-		return ErrWorkerResponse
+	if responseBody == nil || !decodeStrictWorkerResponse(encoded, responseBody) {
+		return workerGrantResponseError(responseBody, CoordinatorGrantPhaseBody, CoordinatorGrantReasonBodyDecode, response.StatusCode, ErrWorkerResponse)
+	}
+	if !validTypedWorkerResponse(responseBody) {
+		return workerGrantResponseError(responseBody, CoordinatorGrantPhaseResponse, workerGrantInvalidResponseReason(responseBody), response.StatusCode, ErrWorkerResponse)
 	}
 	return nil
 }

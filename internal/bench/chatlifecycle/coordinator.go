@@ -120,6 +120,9 @@ type CoordinatorResult struct {
 	Code    CoordinatorCode
 	// GrantFailure retains the bounded grant-stage reason when a grant round fails.
 	GrantFailure CoordinatorGrantFailureCode
+	// GrantFailures retains only the terminal attempt of each failed worker;
+	// it is a local diagnostic, not a native report or worker wire extension.
+	GrantFailures CoordinatorGrantFailures
 	// ObserverCode retains the bounded terminal observer reason when Code is observer.
 	ObserverCode ObserverCode
 	// Preflight retains the bounded admission reason without raw errors or credentials.
@@ -731,11 +734,12 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 		return result
 	}
 	result.Grant = grant
-	if grantDisposition, workerFailure := c.deliverGrant(
+	if grantDisposition, workerFailure, grantFailures := c.deliverGrant(
 		observationContext, assignments, grantPlan.request(fence, grant), c.roundTimeout,
 	); grantDisposition != coordinatorRoundSucceeded {
 		result.GrantFailure = CoordinatorGrantFailureDelivery
 		result.WorkerFailure = workerFailure
+		result.GrantFailures = grantFailures
 		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeGrant, grantDisposition)
 		joinFailureObservation()
 		result.Outcome, result.Code = coordinatorConcurrentFailure(observation, reason)
@@ -814,10 +818,11 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 			result.GrantFailure = CoordinatorGrantFailurePlan
 			return coordinatorRoundStageFailed
 		}
-		if disposition, workerFailure := c.deliverGrant(
+		if disposition, workerFailure, grantFailures := c.deliverGrant(
 			observationContext, assignments, grantPlan.request(fence, grant), coordinatorGrantCadence,
 		); disposition != coordinatorRoundSucceeded {
 			result.GrantFailure = CoordinatorGrantFailureDelivery
+			result.GrantFailures = grantFailures
 			if workerFailure.RuntimeCode != "" {
 				result.WorkerFailure = workerFailure
 			}
@@ -2097,9 +2102,9 @@ func (c *Coordinator) deliverGrant(
 	assignments []CoordinatorAssignment,
 	request WorkerGrantRequest,
 	maxRoundTimeout time.Duration,
-) (coordinatorRoundDisposition, CoordinatorWorkerFailure) {
+) (coordinatorRoundDisposition, CoordinatorWorkerFailure, CoordinatorGrantFailures) {
 	if maxRoundTimeout <= 0 {
-		return coordinatorRoundStageFailed, CoordinatorWorkerFailure{}
+		return coordinatorRoundStageFailed, CoordinatorWorkerFailure{}, CoordinatorGrantFailures{}
 	}
 	grantRoundTimeout := min(c.roundTimeout, maxRoundTimeout)
 	roundContext, cancel := context.WithTimeoutCause(parent, grantRoundTimeout, errCoordinatorRoundDeadline)
@@ -2107,6 +2112,7 @@ func (c *Coordinator) deliverGrant(
 	type grantResult struct {
 		response WorkerGrantResponse
 		err      error
+		attempts uint8
 	}
 	results := [coordinatorWorkerCount]grantResult{}
 	var wait sync.WaitGroup
@@ -2115,6 +2121,7 @@ func (c *Coordinator) deliverGrant(
 		go func() {
 			defer wait.Done()
 			for attempt := 0; attempt < 2; attempt++ {
+				results[workerID].attempts++
 				results[workerID].response, results[workerID].err = c.workers[workerID].Grant(roundContext, request)
 				if results[workerID].err == nil || roundContext.Err() != nil {
 					return
@@ -2129,6 +2136,7 @@ func (c *Coordinator) deliverGrant(
 	wait.Wait()
 	var evidence [coordinatorWorkerCount]coordinatorRoundEvidence
 	var workerFailure CoordinatorWorkerFailure
+	var grantFailures CoordinatorGrantFailures
 	for workerID, result := range results {
 		if workerFailure.RuntimeCode == "" {
 			var apiError *WorkerAPIError
@@ -2141,12 +2149,15 @@ func (c *Coordinator) deliverGrant(
 			sameWorkerFence(result.response.WorkerFence, assignments[workerID].WorkerFence) &&
 			result.response.WorkerID == uint64(workerID) && result.response.WorkerCount == coordinatorWorkerCount &&
 			result.response.Sequence == request.Sequence && result.response.Released == expectedReleased}
+		if !evidence[workerID].valid {
+			grantFailures[workerID] = coordinatorGrantFailure(parent, roundContext, assignments[workerID].WorkerAssignment, request, result.response, result.attempts, result.err)
+		}
 	}
 	disposition := resolveCoordinatorRoundDisposition(parent, roundContext, evidence)
 	if disposition == coordinatorRoundStageFailed && workerFailure.RuntimeCode == "" {
 		workerFailure = c.recoverLateGrantFailure(parent, assignments, request)
 	}
-	return disposition, workerFailure
+	return disposition, workerFailure, grantFailures
 }
 
 // recoverLateGrantFailure reads only the bounded worker status projection
