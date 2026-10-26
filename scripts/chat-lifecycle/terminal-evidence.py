@@ -154,10 +154,11 @@ def identity(document, report, timestamp):
 def validate_worker(body, report):
     value = strict_json(body)
     keys(value, ("schema", "run_id", "at", "workers"))
-    # Keep archived v1's closed vocabulary; v2 appends emitter-specific codes
-    # without changing the five identity-free fields retained in each example.
+    # Preserve archived vocabularies. V3 appends closed CONNECT diagnostics
+    # without changing the five redacted fields retained in each example.
     maximum_code = {"wukongim/chat-lifecycle-worker-evidence/v1": 36,
-                    "wukongim/chat-lifecycle-worker-evidence/v2": 46}.get(value["schema"])
+                    "wukongim/chat-lifecycle-worker-evidence/v2": 46,
+                    "wukongim/chat-lifecycle-worker-evidence/v3": 53}.get(value["schema"])
     require(maximum_code is not None)
     identity(value, report, "at")
     expected = {w["worker_index"]: w for w in report["worker_generations"]}
@@ -196,6 +197,15 @@ def validate_worker(body, report):
                 uint(item["code"], 1, maximum_code)
                 uint(item["sample_index"])
                 uint(item["value"])
+                if item["code"] >= 47:
+                    require(row["class"] == 4 and item["stage"] == 8)
+                    if item["code"] == 52:
+                        # Current WKProto reason bytes end at SystemBusy=30;
+                        # zero is unknown, while success=1 cannot be a rejection.
+                        uint(item["value"], 0, 30)
+                        require(item["value"] != 1)
+                    else:
+                        uint(item["value"], 0, 10)
                 require(type(item["fingerprint"]) is list and len(item["fingerprint"]) == 16)
                 for byte in item["fingerprint"]:
                     uint(byte, 0, 255)

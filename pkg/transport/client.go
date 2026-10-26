@@ -155,7 +155,11 @@ func (c *Client) CallOwned(ctx context.Context, nodeID NodeID, shardKey uint64, 
 		}()
 	}
 	var trace *rpctrace.Trace
-	if c.traceRecorder != nil && (rpctrace.From(ctx) != nil || (c.traceSequence.Add(1)-1)%uint64(c.cfg.RPCTraceEvery) == 0) {
+	capture := rpctrace.TerminalCaptureFrom(ctx)
+	if c.traceRecorder == nil {
+		capture.RecorderDisabled()
+	}
+	if c.traceRecorder != nil && (capture != nil || rpctrace.From(ctx) != nil || (c.traceSequence.Add(1)-1)%uint64(c.cfg.RPCTraceEvery) == 0) {
 		trace = c.traceRecorder.Start(ctx, rpctrace.SideClient, serviceID)
 		ctx = rpctrace.With(ctx, trace)
 		defer func() { core.FinishRPCTrace(c.cfg.Observer, nodeID, trace, core.RPCTraceResult(err)) }()

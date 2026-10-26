@@ -53,6 +53,9 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 
 - Activation failures retain their original error family through fixed phase
   wrappers. Diagnostic extraction returns the innermost known phase, never request data.
+  Registration failure may carry an anonymous owner-route digest; malformed or
+  absent owner identity stays unknown. Shared provider failures can reference one
+  actual terminal owner RPC without claiming an exclusive logical caller.
   Recovery distinguishes admission, provider, validation, installation and
   Directory readback; execution cancellation keeps its existing not-ready mapping.
   Immutable provider evidence survives normalization; a later physical-context

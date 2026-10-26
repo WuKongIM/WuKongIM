@@ -42,5 +42,11 @@ func AppendRecoveryProviderFailure(fields []wklog.Field, err error) []wklog.Fiel
 	if e.Observed&presence.RecoveryProviderObservedPageNext != 0 {
 		fields = append(fields, wklog.Uint64("recovery_provider_page_next", e.PageNext))
 	}
+	if e.OwnerRPCTrace.State != 0 {
+		fields = append(fields, wklog.String("recovery_provider_owner_trace_state", e.OwnerRPCTrace.State.String()))
+		if e.OwnerRPCTrace.TraceID != "" {
+			fields = append(fields, wklog.String("recovery_provider_owner_trace_id", e.OwnerRPCTrace.TraceID))
+		}
+	}
 	return fields
 }

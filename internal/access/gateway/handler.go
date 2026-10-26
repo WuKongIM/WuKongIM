@@ -724,7 +724,11 @@ func (e activationAuthFailureError) GatewayAuthFailure() string {
 // GatewayAuthFailureLogFields projects only immutable physical-round evidence
 // carried by this activation failure; a plain remote status remains unknown.
 func (e activationAuthFailureError) GatewayAuthFailureLogFields() []wklog.Field {
-	return presencelog.AppendRecoveryProviderFailure(nil, e.err)
+	fields := presencelog.AppendRecoveryProviderFailure(nil, e.err)
+	if hash, ok := presence.ActivationFailureRouteHash(e.err); ok {
+		fields = append(fields, wklog.String("activation_route_hash", hex.EncodeToString(hash[:])))
+	}
+	return fields
 }
 
 func classifyActivationError(err error) error {

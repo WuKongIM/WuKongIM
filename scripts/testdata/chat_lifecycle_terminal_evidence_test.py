@@ -569,6 +569,27 @@ class HelperBoundsTests(unittest.TestCase):
         spec=importlib.util.spec_from_file_location('terminal_evidence',ROOT/'scripts/chat-lifecycle/terminal-evidence.py')
         cls.helper=importlib.util.module_from_spec(spec);spec.loader.exec_module(cls.helper)
 
+    def test_connect_evidence_v3_and_historical_closed_vocabularies(self):
+        def document(version, code, value, stage=8, failure_class=4):
+            item=worker();item['schema']='wukongim/chat-lifecycle-worker-evidence/v'+str(version)
+            for entry in item['workers']:
+                entry['evidence']['classification']='harness_invalid'
+                entry['evidence']['classes']=[dict(
+                    **{'class':failure_class},count=1,
+                    first=[dict(stage=stage,code=code,sample_index=0,fingerprint=[17]*16,value=value)],last=None)]
+            return item
+        for version,code,value,stage in [(1,30,0,8),(2,46,18446744073709551615,6)]+[(3,code,15 if code==52 else 10,8) for code in range(47,54)]:
+            with self.subTest(accepted=(version,code)):
+                item=document(version,code,value,stage)
+                self.helper.validate_worker(json.dumps(item).encode(),report())
+                self.assertEqual(set(item['workers'][0]['evidence']['classes'][0]['first'][0]),
+                                 {'stage','code','sample_index','fingerprint','value'})
+        for version,code,value,stage,kind in [(1,47,0,8,4),(2,47,0,8,4),(3,54,0,8,4),
+                (3,47,11,8,4),(3,52,31,8,4),(3,52,1,8,4),(3,52,15,6,4),(3,52,15,8,3)]:
+            with self.subTest(rejected=(version,code,value,stage,kind)):
+                with self.assertRaises((ValueError,KeyError,TypeError)):
+                    self.helper.validate_worker(json.dumps(document(version,code,value,stage,kind)).encode(),report())
+
     def test_terminal_report_contract_versions_and_scope_fail_closed(self):
         # Failure matrix: v6/v5 schema and historical thresholds, absent version or
         # scope, cross-stage scope, and a claimed Linux proof must not become

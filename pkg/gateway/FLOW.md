@@ -68,6 +68,8 @@ Message, presence, Channel, and Controller business policy stays outside gateway
   Core appends at most 32 fields to the original auth-failure log and omits an
   oversized group whole. Authenticator failures do not query this capability;
   business evidence stays in the entry adapter, without an `internal` import.
+  Existing failed-auth logs may add a fixed anonymous handshake digest; activation
+  evidence may link the owner's route digest without retaining public keys.
 - `OnSessionOpen` happens at most once and before `OnFrame` or `OnPacket`; `OnSessionClose`
   and relevant errors happen only after an in-progress open callback returns.
 - Inbound bytes, outbound bytes, auth queue, SEND backlog, per-shard mailboxes,
@@ -103,7 +105,7 @@ Message, presence, Channel, and Controller business policy stays outside gateway
 - Physical isolation uses optional CloseTransportAndWait, fencing new I/O and
   joining gnet CloseWithCallback; OnClose/enqueue are not completion proof.
   Cancellation bounds waiting; one receipt persists independently of cleanup.
-- Observations remain low-cardinality and never add per-connection identities.
+- Metrics remain low-cardinality and never add per-connection identities.
   Pressure snapshots carry monotonic revisions so delayed callbacks cannot
   overwrite terminal zero or resurrect a cleared connection source.
 

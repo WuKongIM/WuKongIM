@@ -194,6 +194,7 @@ func (r *PresenceRecoveryOwners) readOwnedRecoveryCallPages(ctx context.Context,
 		}
 		var owned presence.OwnedOwnerRouteCallPage
 		var err error
+		var capture *rpctrace.TerminalCapture
 		switch {
 		case legacy:
 			mode := presence.RecoveryProviderOwnerRemoteTargets
@@ -201,7 +202,9 @@ func (r *PresenceRecoveryOwners) readOwnedRecoveryCallPages(ctx context.Context,
 				mode = presence.RecoveryProviderOwnerRemoteSingle
 			}
 			diagnostic.dispatch(ctx, mode)
-			owned, err = r.remote.ReadOwnerRoutesByTargetsBounded(ctx, owner, calls[start].Groups, budget)
+			callCtx, terminal := rpctrace.WithTerminalCapture(ctx)
+			capture = terminal
+			owned, err = r.remote.ReadOwnerRoutesByTargetsBounded(callCtx, owner, calls[start].Groups, budget)
 			if err == nil {
 				owned.Page.Start, owned.Page.Next = start, start+1
 			}
@@ -210,13 +213,16 @@ func (r *PresenceRecoveryOwners) readOwnedRecoveryCallPages(ctx context.Context,
 			owned, err = local.ReadOwnerRouteCallsBounded(ctx, calls, start, budget)
 		default:
 			diagnostic.dispatch(ctx, presence.RecoveryProviderOwnerRemoteCalls)
-			owned, err = r.remote.ReadOwnerRouteCallsBounded(ctx, owner, calls, start, budget)
+			callCtx, terminal := rpctrace.WithTerminalCapture(ctx)
+			capture = terminal
+			owned, err = r.remote.ReadOwnerRouteCallsBounded(callCtx, owner, calls, start, budget)
 			if start == 0 && errors.Is(err, presence.ErrOwnerRouteCallsUnsupported) {
 				owned.Release()
 				legacy = true
 				continue
 			}
 		}
+		diagnostic.data.OwnerRPCTrace = capture.Snapshot()
 		page := owned.Page
 		if observe != nil {
 			observe(&page)

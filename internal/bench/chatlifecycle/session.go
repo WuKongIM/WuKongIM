@@ -597,6 +597,12 @@ func (p *SessionPool) recordLoginSyncEvidence(err error) {
 		event.Stage, event.Code = EvidenceStageSessionFactory, FailureCodeSessionFactoryFailed
 	case LoginSyncStageConnect:
 		event.Stage, event.Code = EvidenceStageConnect, FailureCodeSessionConnectFailed
+		var operation *loginSyncOperationError
+		if errors.As(err, &operation) && operation.connect.code != 0 {
+			event.Code = operation.connect.code
+			event.Value = operation.connect.value
+			event.Fingerprint = operation.connect.fingerprint
+		}
 	case LoginSyncStageSync:
 		event.Stage = EvidenceStageSync
 		var validation *ConversationSyncValidationError

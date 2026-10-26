@@ -3,7 +3,7 @@ package chatlifecycle
 import "time"
 
 const (
-	workerProtocolVersion  uint64 = 12
+	workerProtocolVersion  uint64 = 13
 	workerMaxRequestBytes  int64  = 1 << 20
 	workerMaxResponseBytes int64  = 4 << 20
 )

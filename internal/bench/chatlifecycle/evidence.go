@@ -4,6 +4,8 @@ import (
 	"errors"
 	"sort"
 	"sync"
+
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 const maxEvidenceExamplesPerSide = 64
@@ -94,6 +96,15 @@ const (
 	FailureCodeOfferedCanaryEligibility
 	FailureCodeOfferedCleanupDeferredGroup
 	FailureCodeOfferedCleanupPendingActivity
+	// CONNECT codes retain the original outcome; Value is a closed kind (0..10)
+	// except ConnackRejected, which carries a known protocol reason or zero.
+	FailureCodeSessionConnectLocal
+	FailureCodeSessionConnectDial
+	FailureCodeSessionConnectWrite
+	FailureCodeSessionConnackRead
+	FailureCodeSessionConnackFrame
+	FailureCodeSessionConnackRejected
+	FailureCodeSessionConnectCrypto
 )
 
 // EvidenceEvent is the recorder input. Fingerprint is a stable redacted digest;
@@ -303,6 +314,12 @@ func validEvidenceEvent(event EvidenceEvent) bool {
 			return event.Stage == EvidenceStageSessionFactory
 		case FailureCodeSessionConnectFailed:
 			return event.Stage == EvidenceStageConnect
+		case FailureCodeSessionConnectLocal, FailureCodeSessionConnectDial,
+			FailureCodeSessionConnectWrite, FailureCodeSessionConnackRead,
+			FailureCodeSessionConnackFrame, FailureCodeSessionConnectCrypto:
+			return event.Stage == EvidenceStageConnect && event.Value <= 10
+		case FailureCodeSessionConnackRejected:
+			return event.Stage == EvidenceStageConnect && event.Value <= uint64(frame.ReasonSystemBusy) && event.Value != uint64(frame.ReasonSuccess)
 		case FailureCodeSessionSyncFailed, FailureCodeSessionSyncValidation:
 			return event.Stage == EvidenceStageSync
 		default:

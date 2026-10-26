@@ -332,6 +332,9 @@ func (r *Recorder) Start(ctx context.Context, side Side, serviceID uint16) *Trac
 		n := r.active.Load()
 		if n >= r.limit {
 			r.dropped.Add(1)
+			if side == SideClient {
+				TerminalCaptureFrom(ctx).record(TerminalIdentity{State: TerminalTraceRecorderExhausted})
+			}
 			return nil
 		}
 		if r.active.CompareAndSwap(n, n+1) {
@@ -339,6 +342,9 @@ func (r *Recorder) Start(ctx context.Context, side Side, serviceID uint16) *Trac
 		}
 	}
 	t := &Trace{owner: r, at: time.Now(), id: r.prefix + strconv.FormatUint(r.sequence.Add(1), 16), unbound: true, side: side, serviceID: serviceID}
+	if side == SideClient {
+		t.terminal = TerminalCaptureFrom(ctx)
+	}
 	if parent := From(ctx); parent != nil {
 		t.parentID = parent.ID()
 	}
@@ -359,6 +365,8 @@ type Trace struct {
 	serviceID uint16
 	operation uint8
 	closed    bool
+	// terminal belongs only to this exact client Call, never its server parent.
+	terminal *TerminalCapture
 	// dispatch exists only for admitted bound server traces with a declaration.
 	dispatch *DispatchRecorder
 	// Receive evidence is fixed-size and never changes the original trace clock.
@@ -673,6 +681,11 @@ func (t *Trace) Finish(result Result) *Sample {
 		s.Dispatch = t.dispatch.finish(elapsed)
 	}
 	t.owner.active.Add(-1)
+	state := TerminalTraceBound
+	if t.unbound {
+		state = TerminalTraceUnbound
+	}
+	t.terminal.record(TerminalIdentity{State: state, TraceID: t.id, Unbound: t.unbound})
 	return s
 }
 

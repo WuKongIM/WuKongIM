@@ -44,6 +44,14 @@ original 1–36 range. Full snapshot/status capture is bounded at 256 KiB and
 three-worker terminal evidence at 1 MiB. The earlier 8/16 KiB local capture caps
 could reject legal retained samples; that collection defect alone does not
 explain an engine under-delivery event. Report v7 / threshold v2 remain unchanged.
+Worker protocol v13 / worker-evidence v3 appends CONNECT codes 47–53: their Value
+is a closed kind (0 unknown, 1–10 fixed kinds), except rejection's recognized
+protocol reason (0 unknown). Legacy code 30 and all previous units stay unchanged;
+readers retain v1/v2 vocabularies. Handshake fingerprints hash actual public
+ClientKey plus ClientTimestamp; fresh benchmark clients distinguish attempts,
+while generic same-packet duplicates remain ambiguous. Anonymous owner-route
+digests and terminal RPC references link failure evidence without raw identities
+or an invented first-caller parent for shared physical recovery.
 Direct transport ACK verification can precede its Engine-owner callback. Retry
 registration and owner terminal decisions must therefore share the Verifier
 send lock with completion. Only its retained exact registered positive ACK may

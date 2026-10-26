@@ -141,58 +141,49 @@ func (c *Client) Connect(ctx context.Context, opts ConnectOptions) (*frame.Conna
 	if c.closed {
 		c.mu.Unlock()
 		err := ErrClosed
-		c.observeConnect(opts, time.Since(started), err)
-		return nil, err
+		return nil, c.failConnect(opts, started, "local", err, nil, nil)
 	}
 	if c.terminalFence != terminalFenceOpen {
 		c.mu.Unlock()
 		err := ErrTerminalFenceActive
-		c.observeConnect(opts, time.Since(started), err)
-		return nil, err
+		return nil, c.failConnect(opts, started, "local", err, nil, nil)
 	}
 	c.mu.Unlock()
 
 	conn, err := c.cfg.Dialer.DialContext(ctx, "tcp", c.cfg.Addr)
 	if err != nil {
-		c.observeConnect(opts, time.Since(started), err)
-		return nil, err
+		return nil, c.failConnect(opts, started, "dial", err, nil, nil)
 	}
 	if err = ctx.Err(); err != nil {
 		_ = conn.Close()
-		c.observeConnect(opts, time.Since(started), err)
-		return nil, err
+		return nil, c.failConnect(opts, started, "dial", err, nil, nil)
 	}
 
 	packet := c.crypto.connectPacket(opts)
 	if err = c.writeFrameSync(ctx, conn, packet); err != nil {
 		_ = conn.Close()
-		c.observeConnect(opts, time.Since(started), err)
-		return nil, err
+		return nil, c.failConnect(opts, started, "connect_write", err, packet, nil)
 	}
 
 	f, err := c.readFrameSync(ctx, conn)
 	if err != nil {
 		_ = conn.Close()
-		c.observeConnect(opts, time.Since(started), err)
-		return nil, err
+		return nil, c.failConnect(opts, started, "connack_read", err, packet, nil)
 	}
 	ack, ok := f.(*frame.ConnackPacket)
 	if !ok {
 		_ = conn.Close()
 		err = fmt.Errorf("client: expected CONNACK, got %s", f.GetFrameType())
-		c.observeConnect(opts, time.Since(started), err)
-		return nil, err
+		return nil, c.failConnect(opts, started, "frame", err, packet, nil)
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
 		_ = conn.Close()
 		err = fmt.Errorf("client: connack reason=%s", ack.ReasonCode)
-		c.observeConnect(opts, time.Since(started), err)
-		return nil, err
+		return nil, c.failConnect(opts, started, "rejected", err, packet, ack)
 	}
 	if err = c.crypto.applyConnack(ack); err != nil {
 		_ = conn.Close()
-		c.observeConnect(opts, time.Since(started), err)
-		return nil, err
+		return nil, c.failConnect(opts, started, "crypto", err, packet, nil)
 	}
 
 	var oldConn net.Conn
@@ -202,15 +193,13 @@ func (c *Client) Connect(ctx context.Context, opts ConnectOptions) (*frame.Conna
 		c.mu.Unlock()
 		_ = conn.Close()
 		err = ErrClosed
-		c.observeConnect(opts, time.Since(started), err)
-		return nil, err
+		return nil, c.failConnect(opts, started, "local", err, packet, nil)
 	}
 	if c.terminalFence != terminalFenceOpen {
 		c.mu.Unlock()
 		_ = conn.Close()
 		err = ErrTerminalFenceActive
-		c.observeConnect(opts, time.Since(started), err)
-		return nil, err
+		return nil, c.failConnect(opts, started, "local", err, packet, nil)
 	}
 	oldConn = c.conn
 	oldPending = c.pending

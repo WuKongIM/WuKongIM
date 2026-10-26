@@ -95,7 +95,8 @@ scheduled backup or restore
   masks preserve missing stages; RPC bytes stay unchanged and lookups add no
   event. The shared `internal/observability/presencelog` formatter preserves these
   fields for both node and gateway adapters. Raw causes, UID/session identities
-  and tokens remain excluded from the added evidence.
+  and tokens remain excluded from the added evidence. Register hashes the decoded
+  original Route for gateway correlation; token-only Commit keeps that hash unknown.
 - Presence batch lookups preserve input alignment and isolate group-scoped
   stale/rejected results. Compatibility fallback is limited to an explicit
   unsupported-operation response, never arbitrary transport failure.
