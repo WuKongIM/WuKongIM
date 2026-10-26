@@ -38,6 +38,10 @@ It does not provision users or channels, choose benchmark policy, or retry sends
 - `Close` is terminal. Reconnect before terminal close uses a fresh pending
   tracker and reader; streaming `Recv`/`ReadFrame` has no implicit operation timeout.
   Incomplete-frame EOF is unexpected, never a clean boundary.
+- Failed CONNECT exposes a closed phase/kind and recognized CONNACK reason while
+  preserving original error text and unwrapping. Post-dial failures hash the
+  actual packet's public ClientKey and ClientTimestamp; pre-packet identity is
+  unknown. This packet digest is not a global reconnect-uniqueness guarantee.
 - `TrySendAsync` leaves no pending entry when admission, writer queue, or
   inflight capacity is busy.
 - Retries may reuse idempotent `ClientMsgNo`, but overlapping attempts require

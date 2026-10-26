@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -1015,6 +1016,9 @@ func (s *Server) logAuthFailure(state *sessionState, connect *frame.ConnectPacke
 		)
 	}
 	if connect != nil {
+		if digest := frame.HandshakeFingerprint(connect.ClientKey, connect.ClientTimestamp); digest != [16]byte{} {
+			fields = append(fields, wklog.String("connect_fingerprint", hex.EncodeToString(digest[:])))
+		}
 		fields = append(fields,
 			wklog.String("uid", connect.UID),
 			wklog.String("device_id", connect.DeviceID),

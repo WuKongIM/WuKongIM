@@ -157,7 +157,7 @@ func TestLiveDiagnosticRecorderRetainsTerminalFailureExamples(t *testing.T) {
 	if err = json.Unmarshal(body, &document); err != nil {
 		t.Fatal(err)
 	}
-	if document.Schema != "wukongim/chat-lifecycle-worker-evidence/v2" || len(document.Workers) != 3 || document.Workers[1].WorkerID != 1 || document.Workers[1].Evidence.Classes[0].First[0].SampleIndex != 234 {
+	if document.Schema != "wukongim/chat-lifecycle-worker-evidence/v3" || len(document.Workers) != 3 || document.Workers[1].WorkerID != 1 || document.Workers[1].Evidence.Classes[0].First[0].SampleIndex != 234 {
 		t.Fatalf("missing terminal example: %s", body)
 	}
 	for _, forbidden := range []string{`"uid"`, `"channel_id"`, `"client_msg_no"`, `"payload"`} {

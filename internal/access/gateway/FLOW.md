@@ -42,9 +42,10 @@ It does not own reusable message, presence, delivery, or storage policy.
 - Missing activation UID is an authentication error; the adapter never writes
   CONNACK directly.
 - Activation errors may project the cause's immutable physical-round provider
-  evidence through an optional gateway log-field capability. The shared presence
-  formatter adds no identities; direct local authority calls retain available
-  stages, while plain remote status remains unknown. Error classification,
+  evidence and anonymous original-route hash through an optional gateway log-field
+  capability. The shared presence formatter excludes raw identities; direct local
+  authority calls retain available stages, while plain remote status keeps provider
+  evidence unknown. Error classification,
   unwrapping, rollback and protocol reasons remain unchanged.
 - Route movement and send-deadline failures map to retryable node-not-match
   SENDACK while observations keep timeout distinct.

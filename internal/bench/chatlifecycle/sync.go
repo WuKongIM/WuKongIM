@@ -197,7 +197,7 @@ func RunLoginSync(ctx context.Context, uid string, connector LoginSyncConnector,
 		if ctx.Err() != nil {
 			reason = LoginSyncReasonCanceled
 		}
-		return result, newLoginSyncOperationError(LoginSyncStageConnect, reason)
+		return result, newConnectLoginSyncOperationError(reason, connectErr)
 	}
 	result.ConnectCompleted = true
 	if err := ctx.Err(); err != nil {
@@ -231,6 +231,8 @@ func RunLoginSync(ctx context.Context, uid string, connector LoginSyncConnector,
 type loginSyncOperationError struct {
 	stage  LoginSyncStage
 	reason string
+	// connect contains only a closed observation copied before raw cause release.
+	connect connectFailureEvidence
 }
 
 func newLoginSyncOperationError(stage LoginSyncStage, reason string) error {

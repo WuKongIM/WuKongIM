@@ -1707,6 +1707,20 @@ func failureCodeName(code FailureCode) string {
 		return "session_factory_failed"
 	case FailureCodeSessionConnectFailed:
 		return "session_connect_failed"
+	case FailureCodeSessionConnectLocal:
+		return "session_connect_local"
+	case FailureCodeSessionConnectDial:
+		return "session_connect_dial"
+	case FailureCodeSessionConnectWrite:
+		return "session_connect_write"
+	case FailureCodeSessionConnackRead:
+		return "session_connack_read"
+	case FailureCodeSessionConnackFrame:
+		return "session_connack_frame"
+	case FailureCodeSessionConnackRejected:
+		return "session_connack_rejected"
+	case FailureCodeSessionConnectCrypto:
+		return "session_connect_crypto"
 	case FailureCodeSessionSyncFailed:
 		return "session_sync_failed"
 	case FailureCodeSessionSyncValidation:

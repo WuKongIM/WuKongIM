@@ -3,7 +3,7 @@ package presence
 import "context"
 
 // Activate registers a local session with the UID authority and promotes it locally after authority success.
-func (a *App) Activate(ctx context.Context, cmd ActivateCommand) error {
+func (a *App) Activate(ctx context.Context, cmd ActivateCommand) (err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -19,6 +19,13 @@ func (a *App) Activate(ctx context.Context, cmd ActivateCommand) error {
 		return WrapActivationPhase(ActivationPhaseTarget, err)
 	}
 	route := routeFromOwnerRoute(routeProjection)
+	defer func() {
+		if err != nil {
+			if hash := ActivationRouteHash(route.OwnerNodeID, route.OwnerBootID, route.SessionID); hash != [16]byte{} {
+				err = &activationRouteError{err: err, hash: hash}
+			}
+		}
+	}()
 	if err := a.local.RegisterPending(LocalSession{Route: routeProjection, Session: cmd.Session}); err != nil {
 		return WrapActivationPhase(ActivationPhaseLocalRegister, err)
 	}

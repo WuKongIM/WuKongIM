@@ -69,7 +69,7 @@ passing 72-hour formal generation -> same aged dataset and process proof
   canary traffic at the formal population. A Channel becomes hot only after
   its first successful SENDACK; metadata-create vectors and hot/first-create/
   reheat latency evidence advance from those exact successful boundaries.
-- Worker protocol v12 carries deadline registration, exact-result coverage, and
+- Worker protocol v13 carries deadline registration, exact-result coverage, and
   confirmed observed-late first-attempt counts separately from explicit failures.
   Only the original attempt's clocked transport result resolves its deadline;
   missing results, unknown clocks, cancellation and expired receipts stay unknown.
@@ -79,8 +79,10 @@ passing 72-hour formal generation -> same aged dataset and process proof
   person/group routing, deferred-group/canary eligibility, and both cleanup paths.
   Historical code 27 identifies no emitter. Branch codes preserve original numeric
   units and harness verdicts; they do not attribute scheduler or server causes.
-  Terminal worker-evidence v2 carries these codes; the terminal collector also
-  reads historical v1 with its original closed vocabulary. Local snapshot/status
+  CONNECT codes 47–53 add closed phase/kind or rejection reason and a packet digest.
+  Legacy code 30 stays unknown; no raw cause, identity or credential is retained.
+  Terminal worker-evidence v3 carries these codes; the collector also reads
+  historical v1/v2 with their original vocabularies. Local snapshot/status
   capture is bounded at 256 KiB, below the worker API's 4 MiB response limit;
   three-worker terminal evidence remains bounded at 1 MiB.
 - Local transport-admission rejection stays explicit harness evidence and is

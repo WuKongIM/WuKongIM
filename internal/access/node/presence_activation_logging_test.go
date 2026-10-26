@@ -43,6 +43,7 @@ func TestPresenceActivationNotReadyLoggingPreservesStatusAndRedaction(t *testing
 			}
 			entry := requireNodeLogEntry(t, logger, "WARN", "internal.access.node.rpc", "internal.access.node.presence_activation_not_ready")
 			allowed := map[string]bool{"event": true, "op": true, "status": true, "activation_phase": true, "hashSlot": true, "slotID": true, "leaderNodeID": true}
+			allowed["activation_route_hash"] = op == presenceOpRegisterRoute
 			phaseSeen := false
 			for _, f := range entry.fields {
 				if !allowed[f.Key] {

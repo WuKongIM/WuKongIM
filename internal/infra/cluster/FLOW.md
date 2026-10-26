@@ -75,6 +75,8 @@ management, plugins, diagnostics, and bounded operations observations.
 ## Invariants and Failure Semantics
 
 - Presence recovery failures freeze physical-round reason, executed stages, owner/page progress and policy/port-entry/elapsed budgets; no caller trace is invented. Original error families, proofs, fences and retry decisions stay unchanged.
+  Terminal RPC correlation is bounded and diagnostic-only; every owner page resets
+  capture, with disabled, exhausted and unbound observation explicit.
 - Route, leader, term, epoch, revision, lease and optional prepared-append route fences must be forwarded
   exactly; preferred or cached ownership must never replace observed authority.
 - Missing leaders, stale routes, unavailable placement, and write fences fail

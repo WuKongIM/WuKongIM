@@ -46,7 +46,7 @@ func TestWorkerPreflightRejectsLegacyProtocolsBeforeCoordinatorMutation(t *testi
 	for _, testCase := range []struct {
 		version uint64
 		wantErr bool
-	}{{version: 1, wantErr: true}, {version: 10, wantErr: true}, {version: 11, wantErr: true}, {version: 12, wantErr: false}} {
+	}{{version: 1, wantErr: true}, {version: 10, wantErr: true}, {version: 11, wantErr: true}, {version: 12, wantErr: true}, {version: 13, wantErr: false}} {
 		server := serverForVersion(testCase.version)
 		client, err := NewWorkerClient(WorkerClientConfig{
 			BaseURL: server.URL, ControlToken: "control-secret", HTTPClient: server.Client(),

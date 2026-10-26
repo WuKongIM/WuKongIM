@@ -12,8 +12,9 @@ group shared by the node RPC and gateway access adapters.
 
 ## Boundaries
 
-No business policy, new event, retry, routing, wire field, mutable observation,
-or request identity belongs here. The presence usecase owns the evidence.
+No business policy, new event, retry, routing, wire field or mutable observation
+belongs here. The presence usecase owns the evidence, including fixed anonymous
+owner-route and actual terminal owner-RPC references; raw identities stay excluded.
 
 ## Main Flows
 

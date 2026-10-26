@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
@@ -50,6 +51,7 @@ func (o *recoveryProviderObservation) owner(node uint64) {
 }
 
 func (o *recoveryProviderObservation) page(start int) {
+	o.data.OwnerRPCTrace = rpctrace.TerminalIdentity{}
 	o.data.PageStart, o.data.PageNext = uint64(start), 0
 	o.data.OwnerMode = presence.RecoveryProviderOwnerNone
 	o.data.OwnerEffectiveBudget = 0
@@ -102,6 +104,7 @@ func (o *recoveryProviderObservation) failure(reason presence.RecoveryProviderRe
 	if reason != presence.RecoveryProviderOwnerUnavailable && reason != presence.RecoveryProviderOwnerPage && reason != presence.RecoveryProviderOwnerResult {
 		data.OwnerError = presence.RecoveryProviderOwnerNoError
 		data.Observed &^= presence.RecoveryProviderObservedOwnerError
+		data.OwnerRPCTrace = rpctrace.TerminalIdentity{}
 	}
 	if o.inStage {
 		data.Observed |= o.stage.Mask()

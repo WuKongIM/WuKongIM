@@ -3,6 +3,8 @@ package presence
 import (
 	"errors"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 // RecoveryProviderReason is a closed, identity-free provider failure vocabulary.
@@ -186,9 +188,18 @@ type RecoveryProviderFailureEvidence struct {
 	// OwnerElapsed spans the entire current owner scope, including all pages,
 	// decoding and merge, even when the current page has not entered its port.
 	OwnerConfiguredBudget, OwnerEffectiveBudget, OwnerElapsed time.Duration
+	// OwnerRPCTrace is terminal metadata for this exact remote owner page only.
+	// Shared physical-round evidence can be referenced by multiple logical calls.
+	OwnerRPCTrace rpctrace.TerminalIdentity
 }
 
 func (e RecoveryProviderFailureEvidence) valid() bool {
+	if !e.OwnerRPCTrace.Valid() {
+		return false
+	}
+	if e.OwnerRPCTrace.State != rpctrace.TerminalTraceUnknown && (e.Observed&RecoveryProviderObservedOwnerDispatch == 0 || e.OwnerMode == RecoveryProviderOwnerLocal || e.OwnerMode == RecoveryProviderOwnerNone) {
+		return false
+	}
 	if e.Reason.String() == "" || e.Observed & ^recoveryProviderObservedMask != 0 || e.FailureElapsed < 0 || e.OwnersCompleted > e.OwnersPlanned || e.OwnerMode > RecoveryProviderOwnerRemoteTargets || e.OwnerError.String() == "" {
 		return false
 	}

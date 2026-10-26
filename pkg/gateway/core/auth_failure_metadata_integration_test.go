@@ -66,7 +66,7 @@ func TestServerAuthFailureMetadataIsActivationOnlyBoundedAndSingleLog(t *testing
 			handler.onActivate = func(*gateway.Context) (*frame.ConnackPacket, error) { return nil, failure }
 			proto := newScriptedProtocol("wkproto")
 			proto.encodedBytes = []byte("connack-system")
-			proto.pushDecode(decodeResult{frames: []frame.Frame{&frame.ConnectPacket{UID: "fixture-user", DeviceID: "fixture-device"}}, consumed: 1})
+			proto.pushDecode(decodeResult{frames: []frame.Frame{&frame.ConnectPacket{UID: "fixture-user", DeviceID: "fixture-device", ClientKey: "opaque-client-key", ClientTimestamp: 1700000000123}}, consumed: 1})
 			factory := testkit.NewFakeTransportFactory("auth-metadata-transport")
 			registry := core.NewRegistry()
 			if err := registry.RegisterProtocol(proto); err != nil {
@@ -116,7 +116,11 @@ func TestServerAuthFailureMetadataIsActivationOnlyBoundedAndSingleLog(t *testing
 			extra := 0
 			errorSeen := false
 			failureClass := ""
+			fingerprint := ""
 			for _, f := range entry.fields {
+				if f.Key == "connect_fingerprint" {
+					fingerprint, _ = f.Value.(string)
+				}
 				for i := 0; i < tc.fieldCount; i++ {
 					if f.Key == fmt.Sprintf("test_metadata_%02d", i) {
 						extra++
@@ -134,6 +138,9 @@ func TestServerAuthFailureMetadataIsActivationOnlyBoundedAndSingleLog(t *testing
 			}
 			if !errorSeen {
 				t.Fatal("original error field was removed")
+			}
+			if fingerprint != "382d6d5418bf374c708ca41aa9b855d0" {
+				t.Fatalf("CONNECT tuple fingerprint = %q", fingerprint)
 			}
 			wantClass := "activation_route_not_ready"
 			if tc.authenticator {

@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve closed CONNECT failure stages and anonymous handshake-to-presence
+  RPC correlation in bounded diagnostics, without changing timeouts or verdicts.
+  / 有界诊断保留 CONNECT 失败阶段及握手到在线路由 RPC 的匿名关联，
+  保持原超时与验收判定不变。
+
 - Distinguish chat-lifecycle offered-load under-delivery branches in bounded
   worker evidence, retain historical evidence compatibility, and collect legal
   full snapshots within finite size limits. Load, deadline and verdict rules stay

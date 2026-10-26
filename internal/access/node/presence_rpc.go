@@ -611,6 +611,11 @@ func (a *Adapter) logPresenceAuthorityError(req presenceRPCRequest, status strin
 			wklog.String("activation_phase", phase),
 			wklog.Int("hashSlot", int(req.Target.HashSlot)),
 			wklog.Uint64("slotID", uint64(req.Target.SlotID)), wklog.LeaderNodeID(req.Target.LeaderNodeID)}
+		if req.Op == presenceOpRegisterRoute {
+			if hash := presence.ActivationRouteHash(req.Route.OwnerNodeID, req.Route.OwnerBootID, req.Route.SessionID); hash != [16]byte{} {
+				fields = append(fields, wklog.String("activation_route_hash", fmt.Sprintf("%x", hash)))
+			}
+		}
 		a.rpcLogger().Warn("presence activation authority not ready", presencelog.AppendRecoveryProviderFailure(fields, err)...)
 		return
 	}
