@@ -115,32 +115,69 @@ func TestLocalStorageOverlapCaptureSignalTrapLeavesNoChild(t *testing.T) {
 		"--observed-at", "2026-08-13T10:00:00.123Z", "--run-id", "test-run",
 		"--sample", "sample-1", "--node", "node-1",
 	}
-	cmd := exec.Command("bash", arguments...)
-	cmd.Env = overlapTestEnvironment(fakeBin, pidFile)
+	boundaryPath := filepath.Join(dir, "signal-boundary")
+	hookPath := filepath.Join(dir, "signal-boundary.sh")
+	// The owning Bash sends TERM after registering the child, so Go scheduling
+	// cannot postpone delivery until the capture's original scan deadline.
+	hook := `overlap_signal_owner=$$
+  overlap_signal_fired=0
+  set -T
+  overlap_signal_boundary() {
+    [[ "$0" == "${WK_OVERLAP_SIGNAL_SCRIPT:-}" ]] || return 0
+    [[ "$overlap_signal_fired" == 0 ]] || return 0
+    [[ "${BASHPID:-$$}" == "$overlap_signal_owner" && "${BASH_SUBSHELL:-0}" == 0 ]] || return 0
+    [[ "$1" == 'local fast_polls=0' ]] || return 0
+    overlap_signal_fired=1
+    local recorded_pid="" ready=0
+    for ((overlap_signal_wait=0; overlap_signal_wait<200; overlap_signal_wait++)); do
+      if [[ -s "$WK_OVERLAP_FAKE_PID_FILE" ]]; then
+        IFS= read -r recorded_pid <"$WK_OVERLAP_FAKE_PID_FILE" || true
+        if [[ "$recorded_pid" =~ ^[1-9][0-9]*$ && "$recorded_pid" == "$ACTIVE_CHILD_PID" ]]; then
+          ready=1
+          break
+        fi
+      fi
+      /bin/sleep .01
+    done
+    [[ "$ready" == 1 ]] || exit 97
+    printf '%s %s\n' "$$" "$recorded_pid" >"$WK_OVERLAP_SIGNAL_BOUNDARY"
+    kill -TERM "$$"
+  }
+  trap 'overlap_signal_boundary "$BASH_COMMAND"' DEBUG
+`
+	if err := os.WriteFile(hookPath, []byte(hook), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "bash", arguments...)
+	cmd.Env = append(overlapTestEnvironment(fakeBin, pidFile),
+		"BASH_ENV="+hookPath,
+		"WK_OVERLAP_SIGNAL_SCRIPT="+arguments[0],
+		"WK_OVERLAP_SIGNAL_BOUNDARY="+boundaryPath,
+	)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
+	err := cmd.Run()
+	if ctx.Err() != nil {
+		t.Fatalf("signal capture helper exceeded fixture bound: %v; stdout=%q stderr=%q", ctx.Err(), stdout.String(), stderr.String())
 	}
-	t.Cleanup(func() { _ = cmd.Process.Kill() })
-	waitForOverlapPIDFile(t, pidFile, 2*time.Second)
-	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		t.Fatalf("signal capture helper: %v", err)
+	boundaryBody, boundaryErr := os.ReadFile(boundaryPath)
+	if boundaryErr != nil {
+		t.Fatalf("signal boundary not reached: %v; stdout=%q stderr=%q", boundaryErr, stdout.String(), stderr.String())
 	}
-	waited := make(chan error, 1)
-	go func() { waited <- cmd.Wait() }()
-	select {
-	case err := <-waited:
-		var exitError *exec.ExitError
-		if !errors.As(err, &exitError) || exitError.ExitCode() != 143 {
-			t.Fatalf("signal capture helper exit = %v, want 143; stdout=%q stderr=%q", err, stdout.String(), stderr.String())
-		}
-	case <-time.After(4 * time.Second):
-		t.Fatalf("signal capture helper did not terminate; stdout=%q stderr=%q", stdout.String(), stderr.String())
+	boundary := strings.Fields(string(boundaryBody))
+	if len(boundary) != 2 || boundary[0] != strconv.Itoa(cmd.Process.Pid) || boundary[1] != strconv.Itoa(readRecordedOverlapPID(t, pidFile)) {
+		t.Fatalf("signal was not sent by the registered child's owner: %q", boundary)
 	}
 	assertRecordedOverlapProcessGone(t, pidFile)
+	t.Logf("signal boundary owner=%s child=%s; registered child absent", boundary[0], boundary[1])
+	var exitError *exec.ExitError
+	if !errors.As(err, &exitError) || exitError.ExitCode() != 143 {
+		t.Fatalf("signal capture helper exit = %v, want 143; stdout=%q stderr=%q", err, stdout.String(), stderr.String())
+	}
 }
 
 func TestLocalStorageOverlapCaptureClosedFailureDiagnostics(t *testing.T) {
