@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Release metadata and message backup snapshot views before stream completion,
+  preventing database-close snapshot leaks during offline verification or early
+  stream cancellation. / 元数据及消息备份流结束前释放快照，修复离线校验或提前
+  关闭流后紧接着关闭数据库时的快照泄漏报错。
+
 - Preserve already-known presence proofs during the same recovery request's
   readback, preventing a healthy lookup from failing when bounded-cache insertion
   evicts another requested proof. Authority and missing-proof checks remain.

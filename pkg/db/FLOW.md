@@ -42,6 +42,9 @@ It does not own product policy or expose Pebble-specific APIs to callers.
   known disjoint Slot writes invalidate only their own certificate.
 - Engine snapshots provide a pinned bounded-iterator view and must be closed;
   later writes and compactions may proceed while the view streams.
+  Metadata and message backup streams release their pinned view before terminal
+  EOF/error. Stream Close cancels and closes the reader before joining its
+  producer; callers must complete streams before closing the physical database.
 - The engine's cache option is a read-headroom target. Its Pebble cache capacity
   also budgets six configured memtables for ordinary writable/recycled arenas,
   including mixed-size rotation. Default message/meta combined capacities are

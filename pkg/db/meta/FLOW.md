@@ -31,6 +31,9 @@ It does not own product business policy or expose engine-specific APIs.
 3. Snapshot and restore cover registered row, index, and system spans; restore
    installs isolated portable metadata, replays ordered Slot FSM commands, and
    verifies canonical digests.
+   Ordinary and semantic backup streams release their pinned view before
+   publishing terminal EOF/error. Close unblocks the writer and joins that
+   owner, including cancellation and repeated/concurrent Close.
 4. Active migration tasks expose bounded ID/type cursor pages over the existing
    index, allowing fair executor scheduling without changing stored encodings.
 5. Business Channel point reads use a fixed 8,192-entry LRU. Mutations and

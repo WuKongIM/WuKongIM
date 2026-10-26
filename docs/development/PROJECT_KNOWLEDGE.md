@@ -2496,3 +2496,11 @@ completion, installation and provider-reference release.
   Scopes remain caller-local and charged; wrappers retain the original port.
   This fixes a deterministic 1,025-UID readback failure, not the unjoined R13
   online-delivery deadline or full 2,000 SEND/s qualification.
+
+- Metadata ordinary/backup and both message backup streams own their pinned
+  engine view until producer completion. EOF/error follows view release; Close
+  cancels and closes the reader before joining the owner. All closers join the
+  same completion signal, including recovered producer panics. Callers must
+  finish streams before closing their database. Real Linux public-API tests
+  reproduce the old early-Close leak; the original migration CI full-EOF
+  interleaving remains source-supported rather than uniquely reproduced.
