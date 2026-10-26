@@ -1681,6 +1681,26 @@ func failureCodeName(code FailureCode) string {
 		return "session_remote_terminal"
 	case FailureCodeOfferedLoadUnderDelivery:
 		return "offered_load_under_delivery"
+	case FailureCodeOfferedDispatchSampledDeadline:
+		return "offered_dispatch_sampled_deadline"
+	case FailureCodeOfferedDispatchFreshDeadline:
+		return "offered_dispatch_fresh_deadline"
+	case FailureCodeOfferedActivityEligibility:
+		return "offered_activity_eligibility"
+	case FailureCodeOfferedLifecycleEligibility:
+		return "offered_lifecycle_eligibility"
+	case FailureCodeOfferedPersonRouteUnavailable:
+		return "offered_person_route_unavailable"
+	case FailureCodeOfferedGroupRouteUnavailable:
+		return "offered_group_route_unavailable"
+	case FailureCodeOfferedDeferredGroupEligibility:
+		return "offered_deferred_group_eligibility"
+	case FailureCodeOfferedCanaryEligibility:
+		return "offered_canary_eligibility"
+	case FailureCodeOfferedCleanupDeferredGroup:
+		return "offered_cleanup_deferred_group"
+	case FailureCodeOfferedCleanupPendingActivity:
+		return "offered_cleanup_pending_activity"
 	case FailureCodeSessionSchedulerCPUSaturated:
 		return "session_scheduler_cpu_saturated"
 	case FailureCodeSessionFactoryFailed:

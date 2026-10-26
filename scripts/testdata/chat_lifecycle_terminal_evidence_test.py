@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Process-level terminal collector tests. Every SSH invocation is a fixture."""
+"""Process-level evidence capture tests. Every SSH invocation is a fixture."""
 import calendar
 import copy
 from decimal import Decimal, ROUND_HALF_UP
@@ -350,6 +350,26 @@ class CollectorTests(unittest.TestCase):
                 self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'rehearsal-worker-evidence')['state'],'invalid')
                 self.assertNotIn('workload/rehearsal/worker-evidence.json',files)
 
+    def test_worker_evidence_schema_versions_keep_closed_code_ranges(self):
+        # Archived v1 is never reinterpreted as the new emitter vocabulary.
+        # v2 keeps the same five identity-free example fields and appends 37..46.
+        for version,code,valid in [(1,27,True),(1,36,True),(1,37,False),
+                                   (2,27,True),(2,37,True),(2,46,True),(2,47,False)]:
+            with self.subTest(version=version,code=code):
+                expected=worker()
+                expected['schema']='wukongim/chat-lifecycle-worker-evidence/v'+str(version)
+                for row in expected['workers']:
+                    row['evidence']['classes'][0]['first'][0]['code']=code
+                def mutate(name,value):
+                    if name=='worker-evidence.json':
+                        value.clear();value.update(copy.deepcopy(expected))
+                rc,m,_,files,_=self.run_case('worker-v'+str(version)+'-code'+str(code),mutation=mutate)
+                self.assertEqual(rc==0,valid)
+                self.assertEqual(self.capture(m,'rehearsal-worker-evidence')['state'],'collected' if valid else 'invalid')
+                path='workload/rehearsal/worker-evidence.json'
+                if valid:self.assertEqual(files[path],json.dumps(expected).encode())
+                else:self.assertNotIn(path,files)
+
     def test_capacity_required_by_passing_formal_cannot_be_missing(self):
         rc,m,calls,_,_=self.run_case('missing-capacity',stage='formal',report_mutation=lambda x:x['verdict'].update(outcome='pass',cause='completed'))
         self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
@@ -403,6 +423,144 @@ class CollectorTests(unittest.TestCase):
                 self.assertNotIn('metrics/range-runtime.json',files)
                 self.assertEqual(len([c for c in calls if c['kind'].startswith('range-')]),8)
                 self.assertFalse(any(p.endswith('.tmp') for p in files))
+
+
+class WorkerCaptureTests(unittest.TestCase):
+    @staticmethod
+    def retained_snapshot(worker_id=0, classes=1):
+        # Legal production retention is 64 first + 64 last per closed class,
+        # not the 16 total events observed in the archived failed rehearsal.
+        example=dict(stage=6,code=46,sample_index=18446744073709551615,
+                     fingerprint=[255]*16,value=18446744073709551615)
+        rows=[dict(class_=index,count=128,first=[copy.deepcopy(example) for _ in range(64)],
+                   last=[copy.deepcopy(example) for _ in range(64)]) for index in range(1,classes+1)]
+        for row in rows:row['class']=row.pop('class_')
+        return dict(run_id=RUN,assignment_id='capture-fixture',phase='final',uptime=1,
+                    snapshot_sequence=13,generation=1,worker_id=worker_id,worker_count=3,
+                    sessions=dict(target=3333,online=3333,traffic_ready=3333),
+                    messages=dict(sent=1,send_acknowledged=1),evidence=dict(classes=rows))
+
+    def run_capture(self, consumer, endpoint=None, size=None, classes=1):
+        with tempfile.TemporaryDirectory(prefix='wk-worker-capture-') as directory:
+            d=Path(directory);bin=d/'bin';bin.mkdir();responses=d/'responses';responses.mkdir()
+            output=d/'output';output.mkdir();expected={}
+            for index in range(3):
+                bodies={'snapshot':self.retained_snapshot(index,classes),
+                        'status':dict(run_id=RUN,assignment_id='capture-fixture',phase='final',
+                                      generation=1,worker_id=index,worker_count=3,unexpected=False,traffic_ready=True)}
+                for kind,value in bodies.items():
+                    body=json.dumps(value,separators=(',',':')).encode()+b'\n'
+                    if kind==endpoint and size is not None:
+                        self.assertLessEqual(len(body),size)
+                        body+=b' '*(size-len(body))
+                    name='worker-'+str(index+1)+'-'+kind+'.json'
+                    (responses/name).write_bytes(body);expected[name]=body
+            scripts={
+                'timeout':'#!/bin/sh\nshift\nexec "$@"\n',
+                'sleep':'#!/bin/sh\nexit 0\n',
+                'ssh':r'''#!/bin/sh
+command=""
+for arg do command="$arg"; done
+printf '%s\0' "$command" >>"$WORKER_CAPTURE_COMMANDS"
+case "$command" in
+  *'systemctl stop'*) exit 0 ;;
+  *'systemctl is-active'*) printf 'active\n'; exit 0 ;;
+  *'systemctl show'*) printf 'ActiveState=active\n'; exit 0 ;;
+  *journalctl*) printf '%064d\n' 0; exit 0 ;;
+  *api/v1/targets*) printf '{"status":"success","data":{"activeTargets":[]}}\n'; exit 0 ;;
+  *'/reports/rehearsal/'*) exit 3 ;;
+esac
+case "$command" in *19091*) worker=1 ;; *19092*) worker=2 ;; *19093*) worker=3 ;; *) exit 91 ;; esac
+case "$command" in *'/v1/chat-lifecycle/status'*) kind=status ;; *'/v1/chat-lifecycle/snapshot'*) kind=snapshot ;; *) exit 92 ;; esac
+cat "$WORKER_CAPTURE_RESPONSES/worker-$worker-$kind.json"
+''',
+                'wkchatlifecycle':r'''#!/bin/sh
+case "$1" in
+  repair-capture) printf '{"fixture":true}\n' ;;
+  repair-observe) printf '{"state":{},"decision":{"action":"stop_and_diagnose","reason":"fixture_terminal"}}\n' ;;
+  repair-abort) printf '{"state":{},"decision":{"action":"abort","reason":"observation_unavailable"}}\n' ;;
+  *) exit 93 ;;
+esac
+'''}
+            for name,body in scripts.items():
+                path=bin/name;path.write_text(body);path.chmod(0o700)
+            ssh_config=d/'ssh-config';ssh_config.write_text('Host wukong-load\n')
+            state=d/'state.json';state.write_text('{}\n')
+            run_start=d/'run-start.json'
+            run_start.write_text(json.dumps(dict(schema='wukongim.chat_lifecycle.run_start/v1',stage='rehearsal',
+                started_at=START,expected_end_at=END,run_hash='sha256:'+'a'*64,assignment_hash='sha256:'+'b'*64,generation=1)))
+            env=dict(os.environ,PATH=str(bin)+os.pathsep+os.environ['PATH'],WORKER_CAPTURE_COMMANDS=str(d/'commands'),
+                     WORKER_CAPTURE_RESPONSES=str(responses),WK_CHAT_LAB_DIAGNOSIS_DIR=str(output),
+                     WK_CHAT_LAB_SSH_CONFIG=str(ssh_config),WK_CHAT_LAB_REQUEST_ID=RUN,
+                     WK_CHAT_REPAIR_TOOL=str(bin/'wkchatlifecycle'),WK_CHAT_REPAIR_STATE=str(state),
+                     WK_CHAT_REPAIR_RUN_START=str(run_start),WK_CHAT_REPAIR_OUTPUT_DIR=str(output),
+                     WK_CHAT_REPAIR_SSH_CONFIG=str(ssh_config),WK_CHAT_REPAIR_REQUEST_ID=RUN,
+                     WK_CHAT_REPAIR_OPERATOR_STOP_FILE=str(d/'no-operator-stop'),
+                     WK_CHAT_REPAIR_MAX_SECONDS='60',WK_CHAT_REPAIR_POLL_SECONDS='1')
+            script='collect-local-diagnosis.sh' if consumer=='local' else 'repair-monitor.sh'
+            run=subprocess.run(['bash',str(ROOT/'scripts/chat-lifecycle'/script)],env=env,cwd=ROOT,capture_output=True,timeout=20)
+            self.assertNotIn(b'Authorization: Bearer ',run.stdout+run.stderr)
+            retained={str(p.relative_to(output)):p.read_bytes() for p in output.rglob('*') if p.is_file()}
+            calls=[x.decode() for x in (d/'commands').read_bytes().split(b'\0') if x]
+            RESULTS.append(dict(case='worker-capture-'+consumer+'-'+str(endpoint)+'-'+str(size)+'-'+str(classes),
+                exit_code=run.returncode,files=[dict(path=p,bytes=len(body),sha256=hashlib.sha256(body).hexdigest()) for p,body in sorted(retained.items())]))
+            return run.returncode,retained,expected,calls
+
+    def assert_captured(self,consumer,rc,files,expected):
+        if consumer=='local':
+            self.assertEqual(rc,0)
+            summary=json.loads(files['summary.json'])
+            self.assertEqual(summary['classification'],'captured');self.assertEqual(summary['failed_captures'],0)
+        else:
+            self.assertEqual(rc,10)
+            self.assertEqual(json.loads(files['repair-decision.json'])['decision']['reason'],'fixture_terminal')
+        for name,body in expected.items():
+            if consumer=='repair':
+                worker,kind=re.fullmatch(r'worker-(\d)-(status|snapshot)\.json',name).groups()
+                name='terminal-cut/'+kind+'-'+worker+'.json'
+            self.assertEqual(files[name],body)
+
+    def test_all_worker_capture_callers_retain_128_examples(self):
+        body=json.dumps(self.retained_snapshot(),separators=(',',':')).encode()+b'\n'
+        self.assertGreater(len(body),16384);self.assertLess(len(body),262144)
+        for consumer in ('local','repair'):
+            with self.subTest(consumer=consumer):
+                rc,files,expected,calls=self.run_capture(consumer)
+                self.assert_captured(consumer,rc,files,expected)
+                for port in ('19091','19092','19093'):
+                    for endpoint in ('status','snapshot'):
+                        self.assertEqual(sum(':'+port+'/v1/chat-lifecycle/'+endpoint in call for call in calls),1)
+
+    def test_worker_capture_bound_accepts_exact_and_rejects_next_byte(self):
+        for consumer in ('local','repair'):
+            for endpoint in ('status','snapshot'):
+                for extra in (0,1):
+                    with self.subTest(consumer=consumer,endpoint=endpoint,extra=extra):
+                        rc,files,expected,_=self.run_capture(consumer,endpoint,262144+extra)
+                        if extra==0:
+                            self.assert_captured(consumer,rc,files,expected)
+                        elif consumer=='local':
+                            summary=json.loads(files['summary.json'])
+                            self.assertEqual(summary['classification'],'insufficient_evidence')
+                            self.assertEqual(summary['failed_captures'],3)
+                            for index in range(1,4):self.assertNotIn('worker-'+str(index)+'-'+endpoint+'.json',files)
+                        else:
+                            self.assertEqual(rc,10)
+                            self.assertEqual(json.loads(files['repair-decision.json'])['decision']['reason'],'observation_unavailable')
+                            for index in range(1,4):self.assertNotIn('observation-failure/'+endpoint+'-'+str(index)+'.json',files)
+                        self.assertFalse(any('.next' in name for name in files))
+
+    def test_maximum_retained_evidence_shape_fits_capture_and_terminal_budgets(self):
+        # Four classes can each retain 128 maximal five-field examples. The
+        # full-snapshot Go marshal bound is tested at its owning worker seam.
+        snapshots=[self.retained_snapshot(index,classes=4) for index in range(3)]
+        for snapshot in snapshots:
+            body=json.dumps(snapshot,separators=(',',':')).encode()+b'\n'
+            self.assertLess(len(body),262144)
+            self.assertEqual(sum(len(row['first'])+len(row['last']) for row in snapshot['evidence']['classes']),512)
+        document=worker();document['schema']='wukongim/chat-lifecycle-worker-evidence/v2'
+        for index,row in enumerate(document['workers']):row['evidence']=snapshots[index]['evidence']
+        self.assertLess(len(json.dumps(document,separators=(',',':')).encode())+1,1048576)
 
 
 class HelperBoundsTests(unittest.TestCase):

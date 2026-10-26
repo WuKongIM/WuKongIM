@@ -26,6 +26,12 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Distinguish chat-lifecycle offered-load under-delivery branches in bounded
+  worker evidence, retain historical evidence compatibility, and collect legal
+  full snapshots within finite size limits. Load, deadline and verdict rules stay
+  unchanged. / 聊天生命周期压测以有界证据区分负载欠交付路径，兼容历史证据，
+  并在有限大小内保留合法完整快照；负载、时限与判定规则保持不变。
+
 - Decide RPC completion against the original deadline through one request-owned
   state, preserving timely responses when callers resume late while rejecting
   truly late replies. Send failures, explicit cancellation and connection-close

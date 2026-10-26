@@ -70,7 +70,7 @@ func TestEngineExternalGrantDoesNotReplayLateArrivals(t *testing.T) {
 	if sent := fixture.verifier.Snapshot().Sent; sent != 0 {
 		t.Fatalf("late scheduler replayed %d stale SENDs as catch-up load", sent)
 	}
-	if !workerEvidenceHasCode(fixture.evidence.Snapshot(), FailureCodeOfferedLoadUnderDelivery) {
+	if !workerEvidenceHasCode(fixture.evidence.Snapshot(), FailureCode(37)) {
 		t.Fatal("discarded arrival credit lost explicit harness under-delivery evidence")
 	}
 	assertPacingLeasesReleased(t, fixture)
@@ -114,6 +114,9 @@ func TestEngineExternalGrantChecksActualDispatchTimeAfterOwnerDelay(t *testing.T
 	fixture.clock.Set(now.Add(2 * time.Second))
 	close(release)
 	assertRuntimeFailure(t, <-result, RuntimeFailureUnderDelivery)
+	if !workerEvidenceHasCode(fixture.evidence.Snapshot(), FailureCode(38)) {
+		t.Fatal("fresh dispatch clock expiry lost its distinct emitter code")
+	}
 	if sent := fixture.verifier.Snapshot().Sent; sent != 0 {
 		t.Fatalf("stale sampled advance time admitted %d late SENDs", sent)
 	}

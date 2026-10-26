@@ -10,6 +10,9 @@ command -v timeout >/dev/null 2>&1 || { echo 'portable timeout command is unavai
 
 umask 077
 failed=0
+# Full snapshots retain up to 64 first + 64 last examples per evidence class.
+# Keep a finite allowance below the 1MiB terminal document and 4MiB worker API.
+worker_response_max_bytes=262144
 bounded_remote() {
   local maximum_bytes="$1" output="$2"
   shift 2
@@ -70,9 +73,9 @@ bounded_remote_optional_json_file 1048576 "$WK_CHAT_LAB_DIAGNOSIS_DIR/diagnostic
 
 for worker in 1 2 3; do
   port=$(( 19090 + worker ))
-  bounded_remote 16384 "$WK_CHAT_LAB_DIAGNOSIS_DIR/worker-${worker}-status.json" \
+  bounded_remote "$worker_response_max_bytes" "$WK_CHAT_LAB_DIAGNOSIS_DIR/worker-${worker}-status.json" \
     "sudo bash -euo pipefail -c 'source /etc/wukongim/secrets/load.env; curl --silent --show-error --fail --max-time 20 -H \"Authorization: Bearer \${WK_BENCH_WORKER_TOKEN}\" http://127.0.0.1:${port}/v1/chat-lifecycle/status'" || true
-  bounded_remote 16384 "$WK_CHAT_LAB_DIAGNOSIS_DIR/worker-${worker}-snapshot.json" \
+  bounded_remote "$worker_response_max_bytes" "$WK_CHAT_LAB_DIAGNOSIS_DIR/worker-${worker}-snapshot.json" \
     "sudo bash -euo pipefail -c 'source /etc/wukongim/secrets/load.env; curl --silent --show-error --fail --max-time 20 -H \"Authorization: Bearer \${WK_BENCH_WORKER_TOKEN}\" http://127.0.0.1:${port}/v1/chat-lifecycle/snapshot'" || true
 done
 

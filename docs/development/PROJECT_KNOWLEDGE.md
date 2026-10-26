@@ -35,6 +35,15 @@ gap does not prove all first attempts met their deadline. Retry counts and
 explicit failures cannot substitute for or be summed with this lower bound.
 No new timeout-rate gate is introduced. Fixed attempt slots and bounded late
 receipts retain evidence without an unbounded message history.
+Worker protocol v12 adds closed under-delivery emitter codes 37–46 without
+changing the five evidence-example fields, original numeric units, 100ms dispatch
+or five-minute eligibility semantics. Historical code 27 has unknown emitter;
+new branch evidence still cannot prove a scheduler pause or server-pressure cause.
+Worker-evidence v2 carries the appended vocabulary; terminal readers retain v1's
+original 1–36 range. Full snapshot/status capture is bounded at 256 KiB and
+three-worker terminal evidence at 1 MiB. The earlier 8/16 KiB local capture caps
+could reject legal retained samples; that collection defect alone does not
+explain an engine under-delivery event. Report v7 / threshold v2 remain unchanged.
 Direct transport ACK verification can precede its Engine-owner callback. Retry
 registration and owner terminal decisions must therefore share the Verifier
 send lock with completion. Only its retained exact registered positive ACK may

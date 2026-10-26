@@ -241,7 +241,7 @@ func TestWorkerServerLifecycleReheatRejectsFenceMissingAndHonorsCancellation(t *
 	}
 }
 
-func TestWorkerServerAdvertisesWorkerProtocolV11(t *testing.T) {
+func TestWorkerServerAdvertisesWorkerProtocolV12(t *testing.T) {
 	t.Parallel()
 
 	server, err := NewWorkerServer(WorkerServerConfig{
@@ -265,8 +265,8 @@ func TestWorkerServerAdvertisesWorkerProtocolV11(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode info: %v", err)
 	}
-	if info.ProtocolVersion != 11 {
-		t.Fatalf("protocol version = %d, want 11", info.ProtocolVersion)
+	if info.ProtocolVersion != 12 {
+		t.Fatalf("protocol version = %d, want 12", info.ProtocolVersion)
 	}
 }
 
@@ -1258,7 +1258,7 @@ func TestWorkerEngineGenerationBootstrapsBeforeTrafficAndUsesAssignedGeneration(
 			if checkpointErr != nil {
 				t.Fatalf("churn checkpoint: %v", checkpointErr)
 			}
-			if !workerEvidenceHasCode(churn.Evidence, FailureCodeOfferedLoadUnderDelivery) {
+			if !feedbackEvidenceHasUnderDeliveryCode(churn.Evidence) {
 				t.Fatalf("traffic stopped again after churn instead of recording classified evidence: %+v", churn)
 			}
 		}

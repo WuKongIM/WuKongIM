@@ -73,7 +73,7 @@ const (
 	FailureCodeSessionReadFailed
 	FailureCodeSessionLoginSaturated
 	FailureCodeSessionRemoteTerminal
-	FailureCodeOfferedLoadUnderDelivery
+	FailureCodeOfferedLoadUnderDelivery // Historical evidence cannot identify the emitting branch.
 	FailureCodeSessionSchedulerCPUSaturated
 	FailureCodeSessionFactoryFailed
 	FailureCodeSessionConnectFailed
@@ -83,6 +83,17 @@ const (
 	FailureCodeLifecycleLeaseInvalidated
 	FailureCodeLifecycleReplaySaturated
 	FailureCodeTransportAdmissionSaturated
+	// Append-only emitter codes preserve the five-field retained example shape.
+	FailureCodeOfferedDispatchSampledDeadline
+	FailureCodeOfferedDispatchFreshDeadline
+	FailureCodeOfferedActivityEligibility
+	FailureCodeOfferedLifecycleEligibility
+	FailureCodeOfferedPersonRouteUnavailable
+	FailureCodeOfferedGroupRouteUnavailable
+	FailureCodeOfferedDeferredGroupEligibility
+	FailureCodeOfferedCanaryEligibility
+	FailureCodeOfferedCleanupDeferredGroup
+	FailureCodeOfferedCleanupPendingActivity
 )
 
 // EvidenceEvent is the recorder input. Fingerprint is a stable redacted digest;
@@ -277,7 +288,12 @@ func validEvidenceEvent(event EvidenceEvent) bool {
 			FailureCodeEngineInflightSaturated, FailureCodeEngineRetrySaturated,
 			FailureCodeOfferedLoadUnderDelivery, FailureCodeSessionSchedulerCPUSaturated,
 			FailureCodeLifecycleFenceExhausted, FailureCodeLifecycleLeaseInvalidated,
-			FailureCodeLifecycleReplaySaturated, FailureCodeTransportAdmissionSaturated:
+			FailureCodeLifecycleReplaySaturated, FailureCodeTransportAdmissionSaturated,
+			FailureCodeOfferedDispatchSampledDeadline, FailureCodeOfferedDispatchFreshDeadline,
+			FailureCodeOfferedActivityEligibility, FailureCodeOfferedLifecycleEligibility,
+			FailureCodeOfferedPersonRouteUnavailable, FailureCodeOfferedGroupRouteUnavailable,
+			FailureCodeOfferedDeferredGroupEligibility, FailureCodeOfferedCanaryEligibility,
+			FailureCodeOfferedCleanupDeferredGroup, FailureCodeOfferedCleanupPendingActivity:
 			return event.Stage == EvidenceStageCapacity
 		case FailureCodeSessionReadFailed:
 			return event.Stage == EvidenceStageReceive

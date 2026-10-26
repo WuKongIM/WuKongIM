@@ -18,6 +18,9 @@ stage_service="${WK_CHAT_REPAIR_SERVICE:-wkbench-rehearsal.service}"
 qualification_finalize_seconds="${WK_CHAT_REPAIR_QUALIFICATION_FINALIZE_SECONDS:-600}"
 qualified_report_remote=/var/lib/wukongim-cloud/reports/rehearsal/final.json
 qualified_report_max_bytes=4194304
+# Match local diagnosis's full-snapshot allowance without reducing 64 + 64
+# evidence retention; strict input remains below the 1MiB file reader limit.
+worker_response_max_bytes=262144
 [[ "$poll_seconds" =~ ^[1-9][0-9]*$ && "$max_seconds" =~ ^[1-9][0-9]*$ ]]
 (( poll_seconds <= 30 && max_seconds >= 60 && max_seconds <= 260100 ))
 [[ "$qualification_finalize_seconds" =~ ^[1-9][0-9]*$ ]]
@@ -224,7 +227,7 @@ remote_get() {
     return 1
   fi
   size="$(stat -c '%s' "$temporary" 2>/dev/null || stat -f '%z' "$temporary")"
-  [[ -s "$temporary" && "$size" =~ ^[1-9][0-9]*$ && "$size" -le 8192 ]] || {
+  [[ -s "$temporary" && "$size" =~ ^[1-9][0-9]*$ && "$size" -le "$worker_response_max_bytes" ]] || {
     rm -f -- "$temporary"
     return 1
   }

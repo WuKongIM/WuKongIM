@@ -526,6 +526,7 @@ func TestEngineSampledCanaryFailsAfterRosterEligibilityWindow(t *testing.T) {
 	evidence := fixture.evidence.Snapshot()
 	if evidenceCountForClass(evidence, FailureClassHarness) != 1 || len(evidence.Classes) != 1 ||
 		evidence.Classes[0].Class != FailureClassHarness || len(evidence.Classes[0].First) != 1 ||
+		evidence.Classes[0].First[0].Code != FailureCode(44) ||
 		evidence.Classes[0].First[0].Value != uint64(canary.Group.MemberCount) {
 		t.Fatalf("sustained canary gap evidence = %+v", evidence)
 	}
@@ -1424,6 +1425,9 @@ func TestEngineStopAccountsForPendingMandatoryActivityWithoutPollutingDrainedSto
 				t.Fatalf("stopped mandatory activity accounting = %+v", snapshot)
 			}
 			assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), wantHarness)
+			if wantHarness > 0 && !workerEvidenceHasCode(fixture.evidence.Snapshot(), FailureCode(46)) {
+				t.Fatal("pending-activity cleanup lost its distinct emitter code")
+			}
 			if test.terminal && evidenceCountForClass(fixture.evidence.Snapshot(), FailureClassReceive) != 1 {
 				t.Fatalf("terminal product evidence was lost or duplicated: %+v", fixture.evidence.Snapshot())
 			}
@@ -6508,6 +6512,9 @@ func TestEngineDeferredSampledGroupFailsAfterEligibilityWindow(t *testing.T) {
 		t.Fatalf("expired deferred group snapshot = %+v", snapshot)
 	}
 	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 1)
+	if !workerEvidenceHasCode(fixture.evidence.Snapshot(), FailureCode(43)) {
+		t.Fatal("deferred group eligibility lost its distinct emitter code")
+	}
 }
 
 func TestEngineLocalThreeNodeTwoThousandQPSFirstGrantUsesDistinctSenders(t *testing.T) {
@@ -7021,7 +7028,7 @@ func assertUnderDeliveryEvidence(t *testing.T, snapshot EvidenceSnapshot, want u
 		if class.Class != FailureClassHarness {
 			continue
 		}
-		if len(class.First) == 0 || class.First[0].Code != FailureCodeOfferedLoadUnderDelivery {
+		if len(class.First) == 0 || !feedbackUnderDeliveryCode(class.First[0].Code) {
 			t.Fatalf("under-delivery evidence code = %+v, want %d", class.First, FailureCodeOfferedLoadUnderDelivery)
 		}
 		return
