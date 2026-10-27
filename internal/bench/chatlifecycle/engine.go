@@ -57,6 +57,9 @@ type EngineConfig struct {
 	Retry     RetryPolicy
 	Verifier  *Verifier
 	Evidence  *EvidenceRecorder
+	// EnableDriverDiagnostics retains fixed first-miss timing prefixes for local
+	// diagnosis. Additional enabled clock reads are a diagnostic confound.
+	EnableDriverDiagnostics bool
 	// WorkerID is this engine's zero-based worker partition.
 	WorkerID uint64
 	// WorkerCount must match the workload and identity partition count.
@@ -776,6 +779,9 @@ type Engine struct {
 	workerID     uint64
 	workers      uint64
 	onlineTarget int
+	// driverDiagnostics is nil by default; driverTurn is active-owner-only.
+	driverDiagnostics *engineDriverRecorder
+	driverTurn        *driverTurn
 
 	commandCapacity  int
 	workCapacity     int
@@ -944,6 +950,9 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 			workerCount: config.WorkerCount, onlineTarget: onlineTarget, bootstrapping: true,
 		},
 	}
+	if config.EnableDriverDiagnostics {
+		engine.driverDiagnostics = &engineDriverRecorder{}
+	}
 	if err := config.Sessions.setEngineObservers(engine.sessionSendack, engine.sessionAsyncSendError); err != nil {
 		return nil, err
 	}
@@ -1005,6 +1014,10 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	if nextGeneration == 0 || nextGeneration > maxLogicalGeneration {
 		return errEngineConfig
 	}
+	if e.driverDiagnostics != nil {
+		e.driverDiagnostics = &engineDriverRecorder{}
+	}
+	e.driverTurn = nil
 	e.evidence.reset()
 	e.verifier.resetRuntime()
 	if err := e.sessions.resetRuntime(); err != nil {
@@ -1873,9 +1886,11 @@ func (e *Engine) Advance(now time.Time) (int, error) {
 		return 0, errEngineNotRunning
 	}
 	defer e.sessionOps.Done()
+	turn := e.beginDriverTurn(now, "advance")
 	e.stepMu.Lock()
+	e.driverLockAcquired(turn)
 	defer e.stepMu.Unlock()
-	return e.advanceWithSessionExpiry(generationCtx, generationCtx, now)
+	return e.advanceWithSessionExpiry(generationCtx, generationCtx, now, turn)
 }
 
 // AdvanceContext is the cancelable form used by bounded worker drain.
@@ -1887,17 +1902,19 @@ func (e *Engine) AdvanceContext(ctx context.Context, now time.Time) (int, error)
 	defer e.sessionOps.Done()
 	advanceCtx, cancel := mergeGenerationContext(generationCtx, ctx)
 	defer cancel()
+	turn := e.beginDriverTurn(now, "advance")
 	e.stepMu.Lock()
+	e.driverLockAcquired(turn)
 	defer e.stepMu.Unlock()
-	return e.advanceWithSessionExpiry(advanceCtx, generationCtx, now)
+	return e.advanceWithSessionExpiry(advanceCtx, generationCtx, now, turn)
 }
 
 func (e *Engine) advanceWithContext(ctx context.Context, now time.Time) (int, error) {
 	return e.enqueueAdvance(ctx, now)
 }
 
-func (e *Engine) advanceWithSessionExpiry(admissionCtx, generationCtx context.Context, now time.Time) (int, error) {
-	if err := e.awaitOwnerTimeAdmission(admissionCtx, now); err != nil {
+func (e *Engine) advanceWithSessionExpiry(admissionCtx, generationCtx context.Context, now time.Time, turn *driverTurn) (int, error) {
+	if err := e.awaitOwnerTimeAdmissionWithDriver(admissionCtx, now, turn); err != nil {
 		return 0, err
 	}
 	if err := admissionCtx.Err(); err != nil {
@@ -1908,10 +1925,16 @@ func (e *Engine) advanceWithSessionExpiry(admissionCtx, generationCtx context.Co
 	// Step, Advance, and coordinator grants never wait on socket teardown.
 	// Caller cancellation linearizes at the check above; once committed, only
 	// generation shutdown may interrupt the remaining owner work.
-	if _, err := e.expireSessions(now); err != nil {
-		return 0, err
+	expiryStarted := e.driverNow(turn)
+	expired, expiryErr := e.expireSessions(now)
+	if turn != nil {
+		turn.record.SessionExpiry += e.driverElapsed(turn, expiryStarted)
+		turn.record.SessionsExpired += uint64(expired)
 	}
-	processed, err := e.advanceWithContext(generationCtx, now)
+	if expiryErr != nil {
+		return 0, expiryErr
+	}
+	processed, err := e.enqueueAdvanceWithDriver(generationCtx, now, turn)
 	if generationCtx.Err() != nil &&
 		(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 		return processed, errEngineNotRunning
@@ -1926,14 +1949,22 @@ func (e *Engine) expireSessions(now time.Time) (int, error) {
 // awaitOwnerTimeAdmission preserves the cancellation and monotonic-time fence
 // before session expiry or scheduler work performs visible mutation.
 func (e *Engine) awaitOwnerTimeAdmission(ctx context.Context, now time.Time) error {
+	return e.awaitOwnerTimeAdmissionWithDriver(ctx, now, nil)
+}
+
+func (e *Engine) awaitOwnerTimeAdmissionWithDriver(ctx context.Context, now time.Time, turn *driverTurn) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	queuedAt := e.driverNow(turn)
 	response := make(chan error, 1)
 	if err := e.enqueue(engineCommand{run: func() {
 		if err := ctx.Err(); err != nil {
 			response <- err
 			return
+		}
+		if turn != nil {
+			turn.record.AdmissionWait += e.driverElapsed(turn, queuedAt)
 		}
 		response <- e.validateOwnerTime(now)
 	}}); err != nil {
@@ -1957,16 +1988,24 @@ func (e *Engine) validateOwnerTime(now time.Time) error {
 }
 
 func (e *Engine) enqueueAdvance(ctx context.Context, now time.Time) (int, error) {
+	return e.enqueueAdvanceWithDriver(ctx, now, nil)
+}
+
+func (e *Engine) enqueueAdvanceWithDriver(ctx context.Context, now time.Time, turn *driverTurn) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
+	queuedAt := e.driverNow(turn)
 	response := make(chan advanceResult, 1)
 	if err := e.enqueue(engineCommand{run: func() {
 		if err := ctx.Err(); err != nil {
 			response <- advanceResult{err: err}
 			return
 		}
-		response <- e.advance(ctx, now)
+		if turn != nil {
+			turn.record.AdvanceWait += e.driverElapsed(turn, queuedAt)
+		}
+		response <- e.advance(ctx, now, turn)
 	}}); err != nil {
 		return 0, err
 	}
@@ -1995,15 +2034,18 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	}()
 	stepCtx, cancel := mergeGenerationContext(generationCtx, ctx)
 	defer cancel()
+	turn := e.beginDriverTurn(now, "step")
 	e.stepMu.Lock()
+	e.driverLockAcquired(turn)
 	defer e.stepMu.Unlock()
 	if err := stepCtx.Err(); err != nil {
 		return EngineStepSnapshot{}, err
 	}
-	if err := e.awaitOwnerTimeAdmission(stepCtx, now); err != nil {
+	if err := e.awaitOwnerTimeAdmissionWithDriver(stepCtx, now, turn); err != nil {
 		return EngineStepSnapshot{}, err
 	}
 
+	prepareStarted := e.driverNow(turn)
 	result := EngineStepSnapshot{}
 	resultErr := e.drainLoginResults(now, &result)
 	// A non-coordinator generation starts local traffic only after its own
@@ -2012,7 +2054,16 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	if demand != nil {
 		e.finishBootstrapIfOnline(now)
 	}
+	if turn != nil {
+		turn.record.StepPreparation += e.driverElapsed(turn, prepareStarted)
+	}
+	expiryStarted := e.driverNow(turn)
 	expired, expireErr := e.expireSessions(now)
+	if turn != nil {
+		turn.record.SessionExpiry += e.driverElapsed(turn, expiryStarted)
+		turn.record.SessionsExpired += uint64(expired)
+	}
+	prepareStarted = e.driverNow(turn)
 	e.schedulerMetrics.expired.Add(uint64(expired))
 	result.Expired = expired
 	if expireErr != nil {
@@ -2115,7 +2166,10 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 			resultErr = errors.Join(resultErr, tickErr)
 		}
 	}
-	advanced, advanceErr := e.advanceWithContext(stepCtx, now)
+	if turn != nil {
+		turn.record.StepPreparation += e.driverElapsed(turn, prepareStarted)
+	}
+	advanced, advanceErr := e.enqueueAdvanceWithDriver(stepCtx, now, turn)
 	result.Advanced = advanced
 	resultErr = errors.Join(resultErr, advanceErr)
 	resultErr = errors.Join(resultErr, e.drainLoginResults(now, &result))
@@ -2370,8 +2424,9 @@ func (e *Engine) FencePlannedShutdown(ctx context.Context) error {
 // EngineWorkerRuntimeSnapshot is one command-serialized engine and generator
 // projection used by consistent worker checkpoints.
 type EngineWorkerRuntimeSnapshot struct {
-	Engine    EngineSnapshot
-	Generated TrafficGeneratorSnapshot
+	Engine            EngineSnapshot
+	Generated         TrafficGeneratorSnapshot
+	DriverDiagnostics *DriverDiagnosticsSnapshot `json:"driver_diagnostics,omitempty"`
 }
 
 // WorkerRuntimeSnapshot serializes engine and generator evidence in one owner
@@ -2394,7 +2449,7 @@ func (e *Engine) WorkerRuntimeSnapshotContext(ctx context.Context) (EngineWorker
 	e.lifecycleMu.Lock()
 	if !e.running {
 		// StartGeneration resets the generator under this same lifecycle fence.
-		snapshot := EngineWorkerRuntimeSnapshot{Engine: e.cached, Generated: e.generator.Snapshot()}
+		snapshot := EngineWorkerRuntimeSnapshot{Engine: e.cached, Generated: e.generator.Snapshot(), DriverDiagnostics: e.finalDriverDiagnostics()}
 		e.lifecycleMu.Unlock()
 		return snapshot, nil
 	}
@@ -2775,15 +2830,22 @@ func (e *Engine) observeWorkPeak() {
 	}
 }
 
-func (e *Engine) advance(ctx context.Context, now time.Time) advanceResult {
+func (e *Engine) advance(ctx context.Context, now time.Time, turn *driverTurn) advanceResult {
 	if err := ctx.Err(); err != nil {
 		return advanceResult{err: err}
 	}
+	e.driverTurn = turn
+	defer func() { e.driverTurn = nil }()
 	e.now = now
-	e.verifier.expireCorrelations(now, func(clientMsgNo string) {
+	verifierStarted := e.driverNow(turn)
+	expired := e.verifier.expireCorrelations(now, func(clientMsgNo string) {
 		e.sessions.releaseCorrelationLease(clientMsgNo)
 	})
-	e.drainCompletions()
+	if turn != nil {
+		turn.record.VerifierExpiry += e.driverElapsed(turn, verifierStarted)
+		turn.record.CorrelationsExpired += uint64(expired)
+	}
+	e.drainDriverCompletions(turn, driverDrainInitial)
 	var result advanceResult
 	sentWorkSinceYield := 0
 	generationTerminal := false
@@ -2793,6 +2855,7 @@ func (e *Engine) advance(ctx context.Context, now time.Time) advanceResult {
 		if !workDue && !retryDue {
 			break
 		}
+		workStarted := e.driverNow(turn)
 		processedSend := false
 		var workErr error
 		if retryDue && (!workDue || !e.work[0].due.Before(e.retries.entries[0].Due)) {
@@ -2809,9 +2872,13 @@ func (e *Engine) advance(ctx context.Context, now time.Time) advanceResult {
 			}
 			workErr = e.processWork(ctx, work, now)
 		}
+		if turn != nil {
+			turn.record.WorkExecution += e.driverElapsed(turn, workStarted)
+			turn.record.Processed++
+		}
 		result.err = errors.Join(result.err, workErr)
 		result.processed++
-		e.drainCompletions()
+		e.drainDriverCompletions(turn, driverDrainAfterWork)
 		if runtimeFailureTerminatesGeneration(workErr) {
 			generationTerminal = true
 			break
@@ -2822,7 +2889,7 @@ func (e *Engine) advance(ctx context.Context, now time.Time) advanceResult {
 		if sentWorkSinceYield >= completionFairnessQuantum {
 			if len(e.inflight) > 0 {
 				runtime.Gosched()
-				e.drainCompletions()
+				e.drainDriverCompletions(turn, driverDrainFairness)
 			}
 			sentWorkSinceYield = 0
 		}
@@ -2865,8 +2932,12 @@ func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Tim
 			// Keep the original strict deadline and short-circuit clock reads.
 			if now.After(work.dispatchDeadline) {
 				dispatchFailure = FailureCodeOfferedDispatchSampledDeadline
-			} else if e.clock.Now().After(work.dispatchDeadline) {
-				dispatchFailure = FailureCodeOfferedDispatchFreshDeadline
+			} else {
+				fresh := e.clock.Now()
+				if fresh.After(work.dispatchDeadline) {
+					dispatchFailure = FailureCodeOfferedDispatchFreshDeadline
+					e.recordDriverMiss(work, now, fresh)
+				}
 			}
 		}
 		if dispatchFailure != 0 {
@@ -3430,6 +3501,13 @@ func (e *Engine) completeLifecycleTimer(work *engineWork, now time.Time) error {
 }
 
 func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attempt uint8, now time.Time) error {
+	turn := e.driverTurn
+	if turn != nil {
+		turn.record.Attempts++
+		if attempt > 0 {
+			turn.record.Retries++
+		}
+	}
 	logical := intent.Logical
 	inflight := e.inflight[logical.ClientMsgNo]
 	attemptAt := e.clock.Now()
@@ -3485,7 +3563,16 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	}
 	packet := *intent.Packet
 	packet.ClientSeq = clientSeq
-	if err := e.sessions.TrySend(ctx, logical.Sender, &packet); err != nil {
+	sdkStarted := e.driverNow(turn)
+	sendErr := e.sessions.TrySend(ctx, logical.Sender, &packet)
+	if turn != nil {
+		duration := e.driverElapsed(turn, sdkStarted)
+		turn.record.SDKAdmission += duration
+		if duration > turn.record.SDKAdmissionMax {
+			turn.record.SDKAdmissionMax = duration
+		}
+	}
+	if err := sendErr; err != nil {
 		if ctx != nil && ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 			return e.cancelAttempt(inflight)
 		}

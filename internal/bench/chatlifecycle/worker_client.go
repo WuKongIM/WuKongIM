@@ -237,6 +237,11 @@ func causalWorkerContextError(ctx context.Context, err error) error {
 func validTypedWorkerResponse(response any) bool {
 	switch value := response.(type) {
 	case *WorkerSnapshot:
+		// Optional diagnostics fail independently; they cannot change native
+		// worker evidence or make an active snapshot into terminal evidence.
+		if value.Phase != WorkerPhaseFinal || !validDriverDiagnostics(value.DriverDiagnostics, value.Generation) {
+			value.DriverDiagnostics = nil
+		}
 		return validWorkerSnapshot(*value)
 	case *WorkerStatus:
 		return validWorkerPhase(value.Phase)

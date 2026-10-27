@@ -71,11 +71,11 @@ passing 72-hour formal generation -> same aged dataset and process proof
   canary traffic at the formal population. A Channel becomes hot only after
   its first successful SENDACK; metadata-create vectors and hot/first-create/
   reheat latency evidence advance from those exact successful boundaries.
-- Worker protocol v13 carries deadline registration, exact-result coverage, and
-  confirmed observed-late first-attempt counts separately from explicit failures.
-  Only the original attempt's clocked transport result resolves its deadline;
-  missing results, unknown clocks, cancellation and expired receipts stay unknown.
-  Fixed attempt slots and the existing bounded late-receipt map bound retention.
+- Worker protocol v14 keeps deadline registration, exact-result coverage and confirmed observed-late first-attempt counts separate.
+  Only the original clocked transport result resolves its deadline; missing/unknown/canceled/expired results remain unknown.
+  Fixed attempt slots and the bounded late-receipt map bound retention. Private opt-in retains 16 fresh-dispatch timing prefixes per generation.
+  Added clock reads are diagnostic overhead; codes, units, gates, order and drain fairness stay fixed.
+  Detached records cross only after generation Stop joins, into a bounded terminal sidecar rather than live logs.
 - Under-delivery retains the five-field redacted evidence shape. Append-only
   codes distinguish sampled/fresh dispatch deadlines, activity/lifecycle eligibility,
   person/group routing, deferred-group/canary eligibility, and both cleanup paths.

@@ -2575,3 +2575,14 @@ completion, installation and provider-reference release.
   after global-ring overwrite or reconstruct phases not selected before execution.
   Query limits do not increase index capacity, and retained sample percentiles
   are not population SLOs.
+
+- Batch storage lock admission must not retain earlier Channel locks while
+  waiting for a busy later append/checkpoint lock. Leader append, follower apply
+  and checkpoint batches share the same all-or-release acquisition helper.
+  Cancellation before commit ownership is definitely-not-written; admitted
+  mutation locks and pins remain owned until terminal finalization.
+- Chat-lifecycle code38 is a fresh-clock dispatch miss before SDK admission,
+  not an accepted product SEND or a delivery-loss proof. Optional driver timing
+  retains the first 16 numeric prefixes per generation, stops extra timing at
+  saturation, and marks clock regressions unknown. Final-only protocol-v14
+  records and their terminal sidecar do not alter five-field Evidence or gates.

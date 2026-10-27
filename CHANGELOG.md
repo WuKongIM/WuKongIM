@@ -26,6 +26,15 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Release unrelated Channel locks while a leader append batch waits for busy
+  Channels, and honor cancellation before storage admission. / leader 批量追加
+  等待忙 Channel 时释放无关锁，并在存储准入前响应取消。
+
+- Add opt-in bounded dispatch-deadline diagnostics to the chat-lifecycle load
+  driver, exported after worker shutdown; coordinator and workers require the
+  matching private protocol v14. / 生命周期压测可选保留有界发送截止分段诊断，
+  worker 停止后导出，协调器与 worker 需使用匹配的私有协议 v14。
+
 - Preserve exact SEND-to-RPC diagnostic references and bounded RPC tail samples,
   so operators can distinguish an observed request from missing lower evidence.
   / 保留精确的 SEND 到 RPC 诊断引用及有界长尾样本，区分已观测请求与缺失的下层证据。
