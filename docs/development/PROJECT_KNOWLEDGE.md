@@ -2215,6 +2215,17 @@ specification, runbook, report, or module documentation; link to them when neede
   report underdelivery instead of catching up. Qualification after this harness
   repair does not establish performance under the former synchronized bursts.
   See [nightly diagnosis](../reports/2026-10-15-nightly-chat-arrivals.md).
+- Worker snapshot capture owns a coherent Engine/Generator/pool tuple, while
+  required live client queue getters run synchronously outside the Engine owner.
+  A cancelable single-capture gate bounds copied client sets; Stop fences and
+  joins the actual getter return before client close. Errors remain errors, not
+  zero gauges. Snapshot itself does not hold worker advanceMu; blocking the
+  Engine can indirectly stall ticks and later grants that do hold it.
+- Peer callback delivery still occupies the existing bounded target worker after
+  I/O ownership is released. Track that phase separately from in-flight keys so
+  independently ready work can use spare existing target slots. Count callback
+  owners in the unchanged target limit, retire phase on panic, preserve initial
+  single-owner coalescing, and join admitted callbacks during Runtime.Close.
 - A reduced chat-lifecycle SEND rate must still cover the online population's
   mandatory bootstrap relationship activity inside its eligibility window.
   Reducing only the rate can make a local profile intrinsically undeliverable,

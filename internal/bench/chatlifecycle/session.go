@@ -1154,6 +1154,21 @@ func (p *SessionPool) SnapshotContext(ctx context.Context) (SessionPoolSnapshot,
 	if err := ctx.Err(); err != nil {
 		return SessionPoolSnapshot{}, err
 	}
+	return p.observeSnapshotQueues(ctx, p.captureSnapshot())
+}
+
+// sessionSnapshotCapture owns a bounded client set for one live observation.
+// Its scalar values are captured before external queue getters can block.
+type sessionSnapshotCapture struct {
+	snapshot SessionPoolSnapshot
+	clients  []SessionClient
+}
+
+// captureSnapshot performs no external client calls while copying pool state.
+func (p *SessionPool) captureSnapshot() sessionSnapshotCapture {
+	if p == nil {
+		return sessionSnapshotCapture{}
+	}
 	p.mu.RLock()
 	snapshot := SessionPoolSnapshot{
 		Online: len(p.online), Starting: len(p.starting), Closing: len(p.closing), ReadErrors: p.readErrors, VerificationErrors: p.verificationErrors,
@@ -1174,7 +1189,17 @@ func (p *SessionPool) SnapshotContext(ctx context.Context) (SessionPoolSnapshot,
 		clients = append(clients, session.client)
 	}
 	p.mu.RUnlock()
-	for _, client := range clients {
+	return sessionSnapshotCapture{snapshot: snapshot, clients: clients}
+}
+
+// observeSnapshotQueues joins every required getter; errors never become zeros.
+func (p *SessionPool) observeSnapshotQueues(ctx context.Context, capture sessionSnapshotCapture) (SessionPoolSnapshot, error) {
+	defer clear(capture.clients)
+	snapshot := capture.snapshot
+	for _, client := range capture.clients {
+		if err := ctx.Err(); err != nil {
+			return SessionPoolSnapshot{}, err
+		}
 		queue, err := client.QueueSnapshot(ctx)
 		if err != nil {
 			return SessionPoolSnapshot{}, err
@@ -1183,7 +1208,12 @@ func (p *SessionPool) SnapshotContext(ctx context.Context) (SessionPoolSnapshot,
 		snapshot.QueueCapacity += queue.Capacity
 		snapshot.TransportInflight += queue.Inflight
 	}
-	snapshot.TransportAdmissionRejected = p.transportAdmissionRejected.Load()
+	if err := ctx.Err(); err != nil {
+		return SessionPoolSnapshot{}, err
+	}
+	if p != nil {
+		snapshot.TransportAdmissionRejected = p.transportAdmissionRejected.Load()
+	}
 	return snapshot, nil
 }
 

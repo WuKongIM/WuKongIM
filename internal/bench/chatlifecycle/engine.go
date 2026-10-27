@@ -809,8 +809,12 @@ type Engine struct {
 	generationCtx    context.Context
 	generationCancel context.CancelFunc
 	cached           EngineSnapshot
-	sessionOps       sync.WaitGroup
-	stepOps          sync.WaitGroup
+	// snapshotGate bounds external queue observations to one captured client set.
+	// It is acquired outside the owner and before allocating that set.
+	snapshotGate chan struct{}
+	// sessionOps also joins generation-bound snapshot probes before client close.
+	sessionOps sync.WaitGroup
+	stepOps    sync.WaitGroup
 	// tickOps leases public Tick calls to their admission generation, including
 	// time spent waiting for the shared time-transaction boundary.
 	tickOps          sync.WaitGroup
@@ -934,6 +938,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		coldAttemptTimeout:        config.ColdAttemptTimeout,
 		activityEligibilityWindow: config.ActivityEligibilityWindow,
 		lifecycleCandidateSlots:   lifecycleCandidateSlots,
+		snapshotGate:              make(chan struct{}, 1),
 		scheduler: sessionScheduler{
 			workload: config.Generator.workload, workerID: config.WorkerID,
 			workerCount: config.WorkerCount, onlineTarget: onlineTarget, bootstrapping: true,
@@ -2258,45 +2263,8 @@ func (e *Engine) Snapshot() (EngineSnapshot, error) {
 
 // SnapshotContext is the cancelable worker-control projection.
 func (e *Engine) SnapshotContext(ctx context.Context) (EngineSnapshot, error) {
-	if e == nil {
-		return EngineSnapshot{}, errEngineConfig
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		return EngineSnapshot{}, err
-	}
-	e.lifecycleMu.Lock()
-	running := e.running
-	cached := e.cached
-	generationCtx := e.generationCtx
-	e.lifecycleMu.Unlock()
-	if !running {
-		return cached, nil
-	}
-	snapshotCtx, cancel := mergeGenerationContext(generationCtx, ctx)
-	defer cancel()
-	type snapshotResult struct {
-		snapshot EngineSnapshot
-		err      error
-	}
-	response := make(chan snapshotResult, 1)
-	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
-		e.drainCompletions()
-		snapshot, snapshotErr := e.buildSnapshotContext(snapshotCtx, true)
-		response <- snapshotResult{snapshot: snapshot, err: snapshotErr}
-	}}); err != nil {
-		return EngineSnapshot{}, err
-	}
-	select {
-	case result := <-response:
-		return result.snapshot, result.err
-	case <-ctx.Done():
-		return EngineSnapshot{}, ctx.Err()
-	case <-generationCtx.Done():
-		return EngineSnapshot{}, errEngineNotRunning
-	}
+	snapshot, err := e.WorkerRuntimeSnapshotContext(ctx)
+	return snapshot.Engine, err
 }
 
 // ScheduleRate serializes a control-plane rate update with the generator's
@@ -2424,38 +2392,91 @@ func (e *Engine) WorkerRuntimeSnapshotContext(ctx context.Context) (EngineWorker
 		return EngineWorkerRuntimeSnapshot{}, err
 	}
 	e.lifecycleMu.Lock()
-	running := e.running
-	cached := e.cached
-	generationCtx := e.generationCtx
-	e.lifecycleMu.Unlock()
-	if !running {
-		return EngineWorkerRuntimeSnapshot{Engine: cached, Generated: e.generator.Snapshot()}, nil
+	if !e.running {
+		// StartGeneration resets the generator under this same lifecycle fence.
+		snapshot := EngineWorkerRuntimeSnapshot{Engine: e.cached, Generated: e.generator.Snapshot()}
+		e.lifecycleMu.Unlock()
+		return snapshot, nil
 	}
+	if !e.accepting {
+		e.lifecycleMu.Unlock()
+		return EngineWorkerRuntimeSnapshot{}, errEngineNotRunning
+	}
+	generation, generationCtx := e.generation, e.generationCtx
+	// Stop fences admission under lifecycleMu before waiting on sessionOps.
+	e.sessionOps.Add(1)
+	e.lifecycleMu.Unlock()
+	defer e.sessionOps.Done()
 	snapshotCtx, cancel := mergeGenerationContext(generationCtx, ctx)
 	defer cancel()
-	type runtimeSnapshotResult struct {
-		snapshot EngineWorkerRuntimeSnapshot
-		err      error
-	}
-	response := make(chan runtimeSnapshotResult, 1)
-	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
-		e.drainCompletions()
-		snapshot, snapshotErr := e.buildSnapshotContext(snapshotCtx, true)
-		response <- runtimeSnapshotResult{
-			snapshot: EngineWorkerRuntimeSnapshot{Engine: snapshot, Generated: e.generator.Snapshot()},
-			err:      snapshotErr,
+	failure := func(err error) (EngineWorkerRuntimeSnapshot, error) {
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		} else if generationCtx.Err() != nil {
+			err = errEngineNotRunning
 		}
-	}}); err != nil {
 		return EngineWorkerRuntimeSnapshot{}, err
 	}
 	select {
-	case result := <-response:
-		return result.snapshot, result.err
-	case <-ctx.Done():
-		return EngineWorkerRuntimeSnapshot{}, ctx.Err()
-	case <-generationCtx.Done():
-		return EngineWorkerRuntimeSnapshot{}, errEngineNotRunning
+	case e.snapshotGate <- struct{}{}:
+		defer func() { <-e.snapshotGate }()
+	case <-snapshotCtx.Done():
+		return failure(snapshotCtx.Err())
 	}
+	type runtimeSnapshotCapture struct {
+		snapshot EngineWorkerRuntimeSnapshot
+		sessions sessionSnapshotCapture
+		err      error
+	}
+	response := make(chan runtimeSnapshotCapture, 1)
+	if err := e.enqueueBlockingContext(snapshotCtx, engineCommand{run: func() {
+		if err := snapshotCtx.Err(); err != nil {
+			response <- runtimeSnapshotCapture{err: err}
+			return
+		}
+		e.drainCompletions()
+		sessions := e.sessions.captureSnapshot()
+		snapshot := EngineWorkerRuntimeSnapshot{
+			Engine: e.snapshotFromSessions(sessions.snapshot, true), Generated: e.generator.Snapshot(),
+		}
+		if err := snapshotCtx.Err(); err != nil {
+			clear(sessions.clients)
+			response <- runtimeSnapshotCapture{err: err}
+			return
+		}
+		response <- runtimeSnapshotCapture{snapshot: snapshot, sessions: sessions}
+	}}); err != nil {
+		return failure(err)
+	}
+	var captured runtimeSnapshotCapture
+	select {
+	case captured = <-response:
+	case <-snapshotCtx.Done():
+		return failure(snapshotCtx.Err())
+	}
+	if captured.err != nil {
+		return failure(captured.err)
+	}
+	// Client getters are live observations, not owner work. This call remains
+	// synchronous so Stop cannot close a client before its actual probe returns.
+	sessions, err := e.sessions.observeSnapshotQueues(snapshotCtx, captured.sessions)
+	if err != nil {
+		return failure(err)
+	}
+	captured.snapshot.Engine.TransportQueueDepth = sessions.QueueDepth
+	captured.snapshot.Engine.TransportQueueCapacity = sessions.QueueCapacity
+	captured.snapshot.Engine.TransportInflight = sessions.TransportInflight
+	captured.snapshot.Engine.TransportAdmissionRejected = sessions.TransportAdmissionRejected
+	if err := snapshotCtx.Err(); err != nil {
+		return failure(err)
+	}
+	e.lifecycleMu.Lock()
+	valid := e.running && e.accepting && e.generation == generation && e.generationCtx == generationCtx
+	e.lifecycleMu.Unlock()
+	if !valid {
+		return failure(errEngineNotRunning)
+	}
+	return captured.snapshot, nil
 }
 
 func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done chan<- struct{}) {
@@ -4542,6 +4563,11 @@ func (e *Engine) buildSnapshotContext(ctx context.Context, running bool) (Engine
 	if err != nil {
 		return EngineSnapshot{}, err
 	}
+	return e.snapshotFromSessions(sessions, running), nil
+}
+
+// snapshotFromSessions reads only owner state and an already captured pool view.
+func (e *Engine) snapshotFromSessions(sessions SessionPoolSnapshot, running bool) EngineSnapshot {
 	retries := RetrySchedulerSnapshot{}
 	if e.retries != nil {
 		retries = e.retries.Snapshot()
@@ -4594,7 +4620,7 @@ func (e *Engine) buildSnapshotContext(ctx context.Context, running bool) (Engine
 	if e.retries != nil && len(e.retries.entries) > 0 {
 		snapshot.NextRetryAt = e.retries.entries[0].Due
 	}
-	return snapshot, nil
+	return snapshot
 }
 
 func (e *Engine) emptySnapshot(running bool) EngineSnapshot {

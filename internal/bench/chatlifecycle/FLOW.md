@@ -43,6 +43,8 @@ passing 72-hour formal generation -> same aged dataset and process proof
 - Worker control uses constant-time bearer verification and exact
   `run_id + assignment_id + generation` fences. Status and snapshots retain only
   bounded aggregates. All control rounds are bounded and attempt three workers concurrently.
+  Snapshot captures Engine/generator on one owner turn; one cancelable requester
+  probes clients outside it. Every queue read must succeed; Stop joins before close.
 - The coordinator is the sole global rate allocator. Workers apply only their
   sequenced share; delayed ticks discard credit and never catch up in bursts.
   After the immediate bootstrap grant, external grants retain seeded subsecond
@@ -140,9 +142,7 @@ passing 72-hour formal generation -> same aged dataset and process proof
 ## Read First
 
 - [config.go](config.go) and [coordinator.go](coordinator.go)
-- [worker_server.go](worker_server.go)
-- [engine.go](engine.go)
-- [production_controller.go](production_controller.go)
+- [worker_server.go](worker_server.go), [engine.go](engine.go), and [production_controller.go](production_controller.go)
 
 ## Update Triggers
 

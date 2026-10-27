@@ -26,6 +26,14 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Keep chat-lifecycle queue observations off the primary scheduling owner, so
+  slow client gauges cannot pause valid SEND arrivals or later grants.
+  / 生命周期压测的队列观测不再占用主调度 owner，避免慢读取阻塞合法发送和后续 grant。
+
+- Let ready peer exchanges use spare bounded target slots while another
+  exchange delivers callbacks, preserving ordering and existing resource limits.
+  / 复制 RPC 回调处理中允许可执行请求使用剩余目标槽位，保持顺序和原有资源上限。
+
 - Retain bounded SEND append and ordered ACK-publication timings across admitted
   work, helping operators distinguish commit waits from result-publication waits.
   / 有界 SEND 诊断保留已接纳追加与有序 ACK 发布的分段计时，便于区分提交等待和结果发布等待。
