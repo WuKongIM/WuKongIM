@@ -4,6 +4,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 // BatchAdmission atomically accepts prepared items or returns an error without
@@ -48,12 +50,27 @@ type sendBatchPublication struct {
 	emit     func(int, SendBatchItemResult) error
 	cancel   func()
 	complete func(error)
+	// traces contains no payload or context and is absent when tracing is disabled.
+	traces []sendBatchPublicationTrace
+}
+
+type sendBatchPublicationTrace struct {
+	readyAt     time.Time
+	traceID     string
+	clientMsgNo string
+	nodeID      uint64
 }
 
 func newSendBatchPublication(items []SendBatchItem, emit func(int, SendBatchItemResult) error, cancel func(), complete func(error)) *sendBatchPublication {
 	p := &sendBatchPublication{results: make([]SendBatchItemResult, len(items)), terminal: make([]bool, len(items)), next: make([]int, len(items)), keys: make([]sendBatchSessionKey, len(items)), heads: make(map[sendBatchSessionKey]int), pending: len(items), emit: emit, cancel: cancel, complete: complete}
+	if sendtrace.Enabled() {
+		p.traces = make([]sendBatchPublicationTrace, len(items))
+	}
 	tails := make(map[sendBatchSessionKey]int)
 	for i, item := range items {
+		if p.traces != nil {
+			p.traces[i] = sendBatchPublicationTrace{traceID: item.Command.TraceID, clientMsgNo: item.Command.ClientMsgNo, nodeID: item.Command.SenderNodeID}
+		}
 		p.next[i] = -1
 		key := sendBatchSessionKeyFor(i, item.Command)
 		p.keys[i] = key
@@ -68,6 +85,10 @@ func newSendBatchPublication(items []SendBatchItem, emit func(int, SendBatchItem
 }
 
 func (p *sendBatchPublication) finishItem(index int, result SendBatchItemResult) {
+	var readyAt time.Time
+	if p.traces != nil {
+		readyAt = time.Now()
+	}
 	p.mu.Lock()
 	if index < 0 || index >= len(p.results) || p.terminal[index] {
 		p.err = errors.Join(p.err, ErrSendBatchEmissionMismatch)
@@ -75,11 +96,15 @@ func (p *sendBatchPublication) finishItem(index int, result SendBatchItemResult)
 		return
 	}
 	p.results[index] = result
+	if p.traces != nil {
+		p.traces[index].readyAt = readyAt
+	}
 	p.terminal[index] = true
 	p.pending--
 	key := p.keys[index]
 	for head := p.heads[key]; head >= 0 && p.terminal[head]; head = p.heads[key] {
 		if p.err == nil {
+			p.observePublicationWait(head)
 			p.err = p.emit(head, p.results[head])
 		}
 		p.heads[key] = p.next[head]
@@ -89,6 +114,28 @@ func (p *sendBatchPublication) finishItem(index int, result SendBatchItemResult)
 	if complete != nil {
 		complete(err)
 	}
+}
+
+// observePublicationWait runs only for an actual emit attempt. Its ready
+// boundary precedes the publication mutex, so contention is not hidden as zero.
+func (p *sendBatchPublication) observePublicationWait(index int) {
+	if p.traces == nil {
+		return
+	}
+	trace := p.traces[index]
+	startedAt := time.Now()
+	if trace.readyAt.IsZero() || startedAt.Before(trace.readyAt) {
+		return
+	}
+	sendtrace.Record(sendtrace.Event{
+		Stage:       sendtrace.StageMessageResultPublicationWait,
+		At:          trace.readyAt,
+		Duration:    startedAt.Sub(trace.readyAt),
+		TraceID:     trace.traceID,
+		ClientMsgNo: trace.clientMsgNo,
+		NodeID:      trace.nodeID,
+		Result:      sendtrace.ResultOK,
+	})
 }
 
 // finishPreparation is the second half of the join: even inline results may not

@@ -2370,10 +2370,21 @@ specification, runbook, report, or module documentation; link to them when neede
   Commit observations follow each logical request from queue-credit admission
   through physical-batch entry, collection, build, durable commit and publication;
   shared physical phases overlap across requests and publication excludes Finalize.
-  Commit intervals require a propagated trace: the Channel leader's asynchronous
-  reactor/durability contexts do not yet carry it. Follower exchange RPC commit
-  samples describe that exchange, not the original SEND's full storage path.
+  The Channel leader carries its shared append observer into independently owned
+  quorum work without propagating caller cancellation. Per-owner local queue,
+  local Sync and peer waits, quorum resolution and reactor completion may overlap;
+  local Sync includes storage-adapter/coordinator waiting, not pure fsync.
+  Initial installation and regrouped physical DB mutations do not inherit that
+  observer. Follower exchange RPC commit samples describe that exchange, not the
+  original SEND's full storage path.
   Absent commit intervals cannot establish absent storage waiting.
+  SEND result-publication and physical-session publication waits retain the
+  original ready boundary through the existing admitted ownership. They include
+  mutex/scheduling waits before the emit/write attempt, exclude its callback,
+  and do not identify a blocking predecessor or prove socket/client receipt.
+  Their successful observation result is not a successful business SEND verdict.
+  Missing, sampled-out or omitted-zero timings remain unknown; logical message
+  identity alone does not identify an exact retry attempt.
   Presence census distinguishes actual execution batches and original-call
   result responsibility. Decoded result/page bytes are diagnostic structural
   estimates (visible slice capacity plus live strings), not heap or RSS bounds;

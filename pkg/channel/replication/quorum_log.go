@@ -8,6 +8,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
 	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
@@ -359,7 +360,10 @@ func (l *quorumLog) commitLocked(ctx context.Context, state *quorumChannel, prop
 		return receipt, err
 	}
 	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, round.proposal, l.cfg.Durability)
-	return l.resolveRoundLocked(ctx, state, round, result, err)
+	decisionPhase := rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelQuorumDecision)
+	receipt, err = l.resolveRoundLocked(ctx, state, round, result, err)
+	decisionPhase.End(rpctrace.ResultFor(err))
+	return receipt, err
 }
 
 // SubmitCommit starts the same protocol as Commit without holding the caller
@@ -393,6 +397,7 @@ func (l *quorumLog) SubmitCommit(ctx context.Context, proposal Proposal, complet
 	state.inflight = true
 	state.mu.Unlock()
 	err = startDurableRound(ctx, l.cfg.Local, authority.Voters, authority.WriteQuorum, round.proposal, l.cfg.Durability, func(result durableRoundResult, err error) {
+		decisionPhase := rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelQuorumDecision)
 		state.mu.Lock()
 		var receipt Receipt
 		if state.authority.ID != authority.ID {
@@ -402,6 +407,7 @@ func (l *quorumLog) SubmitCommit(ctx context.Context, proposal Proposal, complet
 		}
 		state.inflight = false
 		state.mu.Unlock()
+		decisionPhase.End(rpctrace.ResultFor(err))
 		complete(receipt, err)
 	})
 	if err != nil {

@@ -98,6 +98,13 @@ const (
 	StageChannelRuntimeReserve    Stage = "channel_runtime_reserve"
 	StageChannelRuntimeSubmit     Stage = "channel_runtime_submit"
 	StageChannelRuntimeFutureWait Stage = "channel_runtime_future_wait"
+	// Lower append intervals overlap: local Sync includes DB/coordinator waits;
+	// peer wait includes bounded peer ownership, not only transport service time.
+	StageChannelLocalQueue      Stage = "channel_local_queue"
+	StageChannelLocalSync       Stage = "channel_local_sync"
+	StageChannelPeerWait        Stage = "channel_peer_wait"
+	StageChannelQuorumDecision  Stage = "channel_quorum_decision"
+	StageChannelReactorComplete Stage = "channel_reactor_complete"
 )
 
 // Result is a closed observation outcome; errors and payloads are never stored.
@@ -707,8 +714,11 @@ func With(ctx context.Context, t *Trace) context.Context {
 
 // Copy propagates observation ownership without inheriting source cancellation,
 // deadlines, or unrelated values into independently executing mutations.
-func Copy(dst, src context.Context) context.Context { return With(dst, From(src)) }
-func Begin(ctx context.Context, stage Stage) Span   { return From(ctx).Begin(stage) }
+func Copy(dst, src context.Context) context.Context {
+	dst = With(dst, From(src))
+	return WithAppendPhaseObserver(dst, AppendPhaseObserverFrom(src))
+}
+func Begin(ctx context.Context, stage Stage) Span { return From(ctx).Begin(stage) }
 
 func validStage(stage Stage) bool {
 	switch stage {

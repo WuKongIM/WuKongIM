@@ -6,6 +6,8 @@ import (
 	"time"
 
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 var errDeferredSendCompletion = errors.New("gateway: invalid deferred SEND completion")
@@ -29,6 +31,8 @@ type deferredSendRecord struct {
 	write                      func() error
 	err                        error
 	ready, published, released bool
+	// readyAt is retained only while tracing this admitted publication record.
+	readyAt time.Time
 	// errorReported prevents item cleanup from reporting the batch failure again.
 	errorReported bool
 }
@@ -41,6 +45,7 @@ type deferredSendBatch struct {
 	owner                       *deferredSendShard
 	records                     []deferredSendRecord
 	started                     time.Time
+	observePublication          bool
 	sealed, completed, returned bool
 }
 
@@ -79,7 +84,7 @@ func (e *sendExecutor) dispatchDeferredMailboxBatch(shard int, tasks []asyncDisp
 // dispatchDeferredBatch runs on the existing ordered mailbox preparation worker.
 // It copies task descriptors before the mailbox can recycle its batch slice.
 func (e *sendExecutor) dispatchDeferredBatch(shard int, tasks []asyncDispatchTask) {
-	job := &deferredSendBatch{executor: e, shard: shard, owner: &e.deferred[shard], records: make([]deferredSendRecord, len(tasks)), started: time.Now()}
+	job := &deferredSendBatch{executor: e, shard: shard, owner: &e.deferred[shard], records: make([]deferredSendRecord, len(tasks)), started: time.Now(), observePublication: sendtrace.Enabled()}
 	owner := job.owner
 	owner.mu.Lock()
 	if owner.lanes == nil {
@@ -124,6 +129,10 @@ func (e *sendExecutor) dispatchDeferredBatch(shard int, tasks []asyncDispatchTas
 }
 
 func (b *deferredSendBatch) publish(index int, write func() error) error {
+	var readyAt time.Time
+	if b.observePublication {
+		readyAt = time.Now()
+	}
 	b.owner.mu.Lock()
 	if index < 0 || index >= len(b.records) || write == nil || b.sealed || b.records[index].ready {
 		b.owner.mu.Unlock()
@@ -132,6 +141,7 @@ func (b *deferredSendBatch) publish(index int, write func() error) error {
 	record := &b.records[index]
 	record.ready = true
 	record.write = write
+	record.readyAt = readyAt
 	run := record.lane.startLocked()
 	b.owner.mu.Unlock()
 	if run {
@@ -248,13 +258,14 @@ func (b *deferredSendBatch) runLane(lane *deferredSendLane) {
 			b.owner.mu.Unlock()
 			return
 		}
-		write, err, task := record.write, record.err, record.task
+		write, err, task, readyAt := record.write, record.err, record.task, record.readyAt
 		errorReported := record.errorReported
 		b.owner.mu.Unlock()
 		if err == nil && task.state != nil && task.state.isClosed() {
 			err = gatewaytypes.ErrSessionClosed
 		}
 		if err == nil && write != nil {
+			recordSessionPublicationWait(task, readyAt)
 			err = record.job.invokePublication(task, write)
 		}
 		e := record.job.executor
@@ -274,6 +285,29 @@ func (b *deferredSendBatch) runLane(lane *deferredSendLane) {
 		b.owner.mu.Unlock()
 		record.job.releaseRecord(record)
 	}
+}
+
+// recordSessionPublicationWait observes eligibility, not write completion or ACK
+// receipt. Core has the original frame identity but never invents a business trace.
+func recordSessionPublicationWait(task asyncDispatchTask, readyAt time.Time) {
+	if readyAt.IsZero() {
+		return
+	}
+	pkt, ok := task.frame.(*frame.SendPacket)
+	if !ok || pkt == nil {
+		return
+	}
+	startedAt := time.Now()
+	if startedAt.Before(readyAt) {
+		return
+	}
+	sendtrace.Record(sendtrace.Event{
+		Stage:       sendtrace.StageGatewaySessionPublicationWait,
+		At:          readyAt,
+		Duration:    startedAt.Sub(readyAt),
+		ClientMsgNo: pkt.ClientMsgNo,
+		Result:      sendtrace.ResultOK,
+	})
 }
 
 // releaseRecord is constant-time on the common publication path; batch scans

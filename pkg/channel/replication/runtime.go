@@ -9,6 +9,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
@@ -102,6 +103,10 @@ type localDurabilityItem struct {
 	proposal    durableProposal
 	complete    func(durabilityCompletion)
 	submittedAt time.Time
+	// Observation follows only this admitted proposal, never its caller context.
+	observation rpctrace.AppendPhaseObserver
+	queuePhase  rpctrace.AppendPhaseEnd
+	syncPhase   rpctrace.AppendPhaseEnd
 }
 
 type runtimeLocalDurability struct {
@@ -235,6 +240,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		},
 		CancelAcceptedOnClose: true,
 		CancelAccepted: func(item localDurabilityItem, err error) {
+			item.queuePhase.End(rpctrace.ResultFor(err))
 			item.complete(durabilityCompletion{outcome: ch.AppendOutcomeDefinitelyNotWritten, err: err})
 		},
 		CancelRunningOnClose: true,
@@ -419,12 +425,22 @@ func (l *runtimeLocalDurability) submitLocal(ctx context.Context, proposal durab
 	if l.runtime.closed.Load() {
 		return ch.ErrClosed
 	}
-	return l.runtime.localPool.Submit(ctx, localDurabilityItem{proposal: proposal.freeze(), complete: complete, submittedAt: time.Now()})
+	observation := rpctrace.AppendPhaseObserverFrom(ctx)
+	var queuePhase rpctrace.AppendPhaseEnd
+	if observation != nil {
+		queuePhase = observation.BeginAppendPhase(rpctrace.StageChannelLocalQueue)
+	}
+	err := l.runtime.localPool.Submit(ctx, localDurabilityItem{proposal: proposal.freeze(), complete: complete, submittedAt: time.Now(), observation: observation, queuePhase: queuePhase})
+	if err != nil {
+		queuePhase.End(rpctrace.ResultFor(err))
+	}
+	return err
 }
 
 func (l *runtimeLocalDurability) runBatch(_ context.Context, items []localDurabilityItem) error {
 	batchStartedAt := time.Now()
 	for _, item := range items {
+		item.queuePhase.End(rpctrace.ResultOK)
 		observeReplicationStage(l.observer, stageQuorumLocalQueue, nil, batchStartedAt.Sub(item.submittedAt))
 	}
 	mutations := make([]Mutation, len(items))
@@ -438,6 +454,11 @@ func (l *runtimeLocalDurability) runBatch(_ context.Context, items []localDurabi
 	}
 	ctx, cancel := context.WithTimeout(l.runtime.ctx, l.timeout)
 	storeStartedAt := time.Now()
+	for i := range items {
+		if items[i].observation != nil {
+			items[i].syncPhase = items[i].observation.BeginAppendPhase(rpctrace.StageChannelLocalSync)
+		}
+	}
 	results := l.store.Sync(ctx, mutations)
 	cancel()
 	var storeErr error
@@ -458,20 +479,36 @@ func (l *runtimeLocalDurability) runBatch(_ context.Context, items []localDurabi
 	observeReplicationStage(l.observer, stageQuorumLocalStore, storeErr, time.Since(storeStartedAt))
 	if len(results) != len(items) {
 		for _, item := range items {
+			item.syncPhase.End(rpctrace.ResultUnfinished)
+		}
+		for _, item := range items {
 			item.complete(durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: errInvalidExchangeResult})
 		}
 		return nil
 	}
+	// Sync returned for every item. Close all of its observations before any
+	// completion can block on quorum, publication, or another downstream owner.
 	for index, item := range items {
-		result := results[index]
-		completion := durabilityCompletion{outcome: result.Outcome, err: result.Err}
-		if !validLocalDurabilityResult(item.proposal, result) {
-			completion = durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: errInvalidExchangeResult}
+		if item.syncPhase != nil {
+			completion := normalizeLocalDurabilityCompletion(item.proposal, results[index])
+			item.syncPhase.End(rpctrace.ResultFor(completion.err))
 		}
+	}
+	for index, item := range items {
+		completion := normalizeLocalDurabilityCompletion(item.proposal, results[index])
 		observeReplicationStage(l.observer, stageQuorumLocalEndToEnd, completion.err, time.Since(item.submittedAt))
 		item.complete(completion)
 	}
 	return nil
+}
+
+// normalizeLocalDurabilityCompletion preserves the original item-aligned
+// durability result for both observation and the ordered completion callback.
+func normalizeLocalDurabilityCompletion(proposal durableProposal, result MutationResult) durabilityCompletion {
+	if !validLocalDurabilityResult(proposal, result) {
+		return durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: errInvalidExchangeResult}
+	}
+	return durabilityCompletion{outcome: result.Outcome, err: result.Err}
 }
 
 func validLocalDurabilityResult(proposal durableProposal, result MutationResult) bool {

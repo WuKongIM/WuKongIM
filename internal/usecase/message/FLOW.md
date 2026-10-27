@@ -85,6 +85,9 @@ SEND hooks, directory writes or append; delayed publications must authorize agai
   Permission admission errors may also carry an identity-free value snapshot
   of rejected reservation reasons and occupancy; wrappers preserve original
   error text and identities, and missing observations remain absent.
+  Optional SEND tracing retains an original result-ready clock until its
+  session-ordered emit attempt. This wait includes publication-mutex contention,
+  excludes the emit callback, and changes no result, context or deadline.
 - Terminal source-Channel checks are authoritative and bypass stale permission
   cache state.
 - Page preparation never rewrites a caller start sequence to enforce visibility;

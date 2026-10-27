@@ -7,6 +7,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 // Result is the common completion envelope for worker tasks.
@@ -16,6 +17,9 @@ type Result struct {
 	Err   error
 	// Duration is the worker execution time measured by the owning pool.
 	Duration time.Duration
+	// AppendObservation is detached observation ownership from ready completion
+	// until reactor validation, ending before the original Future is published.
+	AppendObservation rpctrace.AppendPhaseEnd `json:"-"`
 
 	StoreAppend          *StoreAppendResult
 	StoreLoad            *StoreLoadResult

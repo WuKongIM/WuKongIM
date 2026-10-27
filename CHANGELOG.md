@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Retain bounded SEND append and ordered ACK-publication timings across admitted
+  work, helping operators distinguish commit waits from result-publication waits.
+  / 有界 SEND 诊断保留已接纳追加与有序 ACK 发布的分段计时，便于区分提交等待和结果发布等待。
+
 - Join canceled native-package validation timers and watchdogs so bootstrap
   diagnostics retain their deadlines and cleanup across timer-start races.
   / 原生包验收取消时回收计时器及 watchdog，避免启动竞态阻塞诊断与清理。
