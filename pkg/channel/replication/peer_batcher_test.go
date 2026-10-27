@@ -611,7 +611,9 @@ func TestPeerBatcherSplitsOneTargetWithoutASecondCollectionTimer(t *testing.T) {
 	link := &recordingPeerLink{}
 	batcher, err := newPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
-		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
+		// This case verifies serial [2,1] draining, not the default parallel
+		// handoff that lets another ready Channel advance during callbacks.
+		OwnerContext: context.Background(), ExchangeTimeout: time.Minute, MaxTargetFlight: 1,
 		MaxBatchItems: 2, MaxBatchBytes: 4096,
 		MaxQueuedItems: 8, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 4, MaxTargetQueuedBytes: 4096,
 	})

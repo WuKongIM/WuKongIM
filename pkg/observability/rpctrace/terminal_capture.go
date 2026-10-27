@@ -112,6 +112,28 @@ func (c *TerminalCapture) Snapshot() TerminalIdentity {
 	return c.identity
 }
 
+// IdentityFor validates the endpoint and service before exposing fixed identity.
+// A finished trace retains its identity; it never retains or revives live work.
+func (t *Trace) IdentityFor(side Side, serviceID uint16) TerminalIdentity {
+	if t == nil {
+		return TerminalIdentity{}
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.side != side || t.serviceID != serviceID {
+		return TerminalIdentity{}
+	}
+	state := TerminalTraceBound
+	if t.unbound {
+		state = TerminalTraceUnbound
+	}
+	identity := TerminalIdentity{State: state, TraceID: t.id, Unbound: t.unbound}
+	if !identity.Valid() {
+		return TerminalIdentity{}
+	}
+	return identity
+}
+
 // RecorderDisabled records explicit missing evidence without enabling tracing.
 func (c *TerminalCapture) RecorderDisabled() {
 	c.record(TerminalIdentity{State: TerminalTraceRecorderDisabled})

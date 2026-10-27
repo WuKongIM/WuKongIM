@@ -8,6 +8,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 func (r *Reactor) handleAppend(event Event) {
@@ -240,6 +241,8 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 }
 
 func (r *Reactor) handleQuorumCommitResult(result worker.Result) {
+	observation := result.AppendObservation
+	defer func() { observation.End(rpctrace.ResultUnfinished) }()
 	rc, err := r.lookupLoadedChannel(result.Fence.ChannelKey)
 	if err != nil {
 		return
@@ -277,6 +280,8 @@ func (r *Reactor) handleQuorumCommitResult(result worker.Result) {
 		r.markAppendHWAdvanced(rc, oldHW, rc.state.HW, now)
 		r.afterSuccessfulQuorumCommit(rc, now)
 	}
+	observation.End(rpctrace.ResultFor(commitErr))
+	observation = nil
 	r.completeReplies(rc, decision.Replies, nil)
 	r.finishAppendInflightBatch(rc, commitErr, now)
 }

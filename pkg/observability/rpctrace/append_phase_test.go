@@ -69,7 +69,7 @@ func TestAppendPhasePortIsIndependentAndSynchronous(t *testing.T) {
 	rpctrace.BeginAppendPhase(ctx, rpctrace.StageHandler).End(rpctrace.ResultOK)
 	rpctrace.BeginAppendPhase(ctx, "unknown").End(rpctrace.ResultOK)
 	if observer.calls != 2 {
-		t.Fatal("port accepted stages outside its six-phase vocabulary")
+		t.Fatal("port accepted stages outside its fixed append vocabulary")
 	}
 	cancel()
 	if ctx.Err() != context.Canceled {

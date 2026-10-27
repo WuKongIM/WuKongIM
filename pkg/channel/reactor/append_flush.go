@@ -11,6 +11,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 func (r *Reactor) nextBatchOpID() ch.OpID {
@@ -101,7 +102,9 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 	} else if r.cfg.QuorumLog != nil {
 		batch.authority = rc.quorumAuthority.ID
 		batch.commandID = appendProposalCommandID(rc.state.Key, batch.authority, batch.records)
-		submitErr = r.submitQuorumCommit(context.Background(), batch.fence, replication.Proposal{
+		// Accepted durability keeps independent execution ownership while copying
+		// only the original proposal's bounded observation sidecar.
+		submitErr = r.submitQuorumCommit(rpctrace.Copy(context.Background(), batch.requests[0].ctx), batch.fence, replication.Proposal{
 			Key: rc.state.Key, Expected: batch.authority, CommandID: batch.commandID, Records: batch.records,
 			PayloadsImmutable:         true,
 			ServerAllocatedMessageIDs: task.StoreAppend.ServerAllocatedMessageIDs,

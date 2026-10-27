@@ -7,6 +7,7 @@ import (
 	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 // Group owns a set of hash-sharded local authority channel writers.
@@ -338,6 +339,9 @@ func (g *Group) SubmitLocal(ctx context.Context, target AuthorityTarget, items [
 	copiedItems := copySendBatchItems(items)
 	future := newFuture(len(copiedItems))
 	future.rpcTrace = newSubmissionTrace(ctx, len(copiedItems))
+	if sendtrace.Enabled() {
+		future.rpcReference = sendtrace.AppendRPCReferenceFrom(ctx)
+	}
 	future.setOnDone(shard.releaseAdmission)
 	writer := shard.getOrCreate(target)
 	if writer.enqueue(submittedBatch{target: target, items: copiedItems, future: future}) {

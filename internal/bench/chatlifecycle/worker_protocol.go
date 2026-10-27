@@ -3,7 +3,7 @@ package chatlifecycle
 import "time"
 
 const (
-	workerProtocolVersion  uint64 = 13
+	workerProtocolVersion  uint64 = 14
 	workerMaxRequestBytes  int64  = 1 << 20
 	workerMaxResponseBytes int64  = 4 << 20
 )
@@ -429,4 +429,7 @@ type WorkerSnapshot struct {
 	Queues                        WorkerQueueSnapshot       `json:"queues"`
 	Harness                       WorkerHarnessSnapshot     `json:"harness"`
 	Evidence                      EvidenceSnapshot          `json:"evidence"`
+	// DriverDiagnostics is a detached optional final-generation diagnostic.
+	// It never participates in native evidence or verdict calculations.
+	DriverDiagnostics *DriverDiagnosticsSnapshot `json:"driver_diagnostics,omitempty"`
 }

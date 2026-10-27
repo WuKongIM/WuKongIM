@@ -108,6 +108,9 @@ Message, presence, Channel, and Controller business policy stays outside gateway
 - Metrics remain low-cardinality and never add per-connection identities.
   Pressure snapshots carry monotonic revisions so delayed callbacks cannot
   overwrite terminal zero or resurrect a cleared connection source.
+  Optional SEND tracing measures a ready result's wait for its session publication
+  attempt, including owner scheduling but excluding the write callback. It is not
+  socket completion or client receipt; missing or unretained samples stay unknown.
 
 ## Read First
 

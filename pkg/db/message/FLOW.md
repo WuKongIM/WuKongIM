@@ -23,9 +23,9 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
 
 ## Main Flows
 
-1. Acquiring a Channel reuses one canonical entry; append and follower apply
-   transfer its locks/pins to terminal commit ownership, validate sequences and
-   duplicates, synchronously commit compatible batches, then publish all rows,
+1. Batch append/apply/checkpoint admission releases earlier locks while a later
+   Channel is busy. Accepted mutations transfer canonical locks/pins through
+   validation and terminal synchronous commit, then publish all rows,
    indexes, checkpoints, history, and frontiers atomically.
    Exact quorum proposals persist versioned authority, command, range,
    predecessor, entry identities, and paired command/range indexes in that same

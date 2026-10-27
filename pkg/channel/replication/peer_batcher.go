@@ -59,9 +59,12 @@ type peerTargetQueue struct {
 	background        []queuedPeerItem
 	urgentWorkers     int
 	backgroundWorkers int
-	inflight          map[ch.ChannelKey]struct{}
-	ownedItems        int
-	ownedBytes        int
+	// urgentCallbacks counts still-owned workers delivering completed exchanges.
+	// It is protected by b.mu and never releases a target flight or Close join.
+	urgentCallbacks int
+	inflight        map[ch.ChannelKey]struct{}
+	ownedItems      int
+	ownedBytes      int
 }
 
 type peerWorkClass uint8
@@ -325,7 +328,7 @@ func (b *peerBatcher) ensureTargetWorkersLocked(node ch.NodeID, target *peerTarg
 	if target.backgroundWorkers > 0 || len(target.background) > 0 {
 		urgentLimit--
 	}
-	if urgentWasScheduled && urgentReady && len(target.inflight) > 0 &&
+	if urgentWasScheduled && urgentReady && (len(target.inflight) > 0 || target.urgentCallbacks > 0) &&
 		target.urgentWorkers < urgentLimit && target.workerCount() < b.cfg.MaxTargetFlight {
 		if err := b.scheduleTargetLocked(node, target, peerWorkUrgent); err != nil {
 			scheduleErr = errors.Join(scheduleErr, err)
@@ -356,22 +359,27 @@ func (b *peerBatcher) drainTarget(node ch.NodeID, class peerWorkClass) {
 			}
 		}
 		observeReplicationStage(b.cfg.Observer, exchangeStage, exchangeErr, exchangeFinished.Sub(exchangeStarted))
-		b.release(node, items)
-		for index := range items {
-			observeReplicationStage(b.cfg.Observer, endToEndStage, errs[index], exchangeFinished.Sub(items[index].queuedAt))
-			switch items[index].kind {
-			case ExchangeReplicate, ExchangeStoragePrepare, ExchangeStorageCancel:
-				if items[index].kind == ExchangeReplicate {
-					items[index].completeReplicate(results[index].replicate, errs[index])
-				} else {
-					items[index].completeFunding(results[index].funding, errs[index])
+		b.release(node, class, items)
+		func() {
+			// Clear delivery ownership before retiring the worker, including when
+			// a callback panics. Callback order and the panic policy stay unchanged.
+			defer b.finishCallbacks(node, class)
+			for index := range items {
+				observeReplicationStage(b.cfg.Observer, endToEndStage, errs[index], exchangeFinished.Sub(items[index].queuedAt))
+				switch items[index].kind {
+				case ExchangeReplicate, ExchangeStoragePrepare, ExchangeStorageCancel:
+					if items[index].kind == ExchangeReplicate {
+						items[index].completeReplicate(results[index].replicate, errs[index])
+					} else {
+						items[index].completeFunding(results[index].funding, errs[index])
+					}
+				case ExchangeProbe:
+					items[index].completeProbe(results[index].probe, errs[index])
+				case ExchangeFetch:
+					items[index].completeFetch(results[index].fetch, errs[index])
 				}
-			case ExchangeProbe:
-				items[index].completeProbe(results[index].probe, errs[index])
-			case ExchangeFetch:
-				items[index].completeFetch(results[index].fetch, errs[index])
 			}
-		}
+		}()
 	}
 }
 
@@ -623,7 +631,9 @@ func invalidExchangeResults(items []queuedPeerItem, results []peerExchangeResult
 	return results, errs
 }
 
-func (b *peerBatcher) release(node ch.NodeID, items []queuedPeerItem) {
+// release atomically moves a completed exchange into callback delivery while
+// retaining its counted worker, so independent ready work can use spare flight.
+func (b *peerBatcher) release(node ch.NodeID, class peerWorkClass, items []queuedPeerItem) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	target := b.targets[node]
@@ -637,9 +647,25 @@ func (b *peerBatcher) release(node ch.NodeID, items []queuedPeerItem) {
 		b.ownedItems--
 		b.ownedBytes -= item.bytes
 	}
+	if class == peerWorkUrgent {
+		target.urgentCallbacks++
+	}
 	// An owner for the other class may have retired while this Channel was
 	// in flight. Releasing ownership is the event that makes it runnable again.
 	_ = b.ensureTargetWorkersLocked(node, target)
+}
+
+// finishCallbacks removes only callback-phase state; the owner remains counted
+// until it takes another batch or finishTargetWorker retires its join ownership.
+func (b *peerBatcher) finishCallbacks(node ch.NodeID, class peerWorkClass) {
+	if class != peerWorkUrgent {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if target := b.targets[node]; target != nil && target.urgentCallbacks > 0 {
+		target.urgentCallbacks--
+	}
 }
 
 func (b *peerBatcher) submitFunding(ctx context.Context, node ch.NodeID, request ReplicateRequest, nonce uint64, cancel bool, complete func(StorageFundingResult, error)) error {

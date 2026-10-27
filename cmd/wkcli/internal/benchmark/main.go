@@ -844,14 +844,23 @@ type workerCLIConfig struct {
 
 func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 	if cfg.mode == workerModeChatLifecycle {
+		enableDriverDiagnostics, err := loadDriverDiagnosticsEnvironment()
+		if err != nil {
+			fmt.Fprintln(stderr, "chat lifecycle worker driver diagnostic configuration failed")
+			return exitConfig
+		}
 		benchToken, err := chatlifecycle.LoadBenchToken()
 		if err != nil {
 			fmt.Fprintln(stderr, "chat lifecycle worker target credential configuration failed")
 			return exitConfig
 		}
+		factory := chatlifecycle.NewEngineWorkerGenerationFactory(benchToken)
+		if enableDriverDiagnostics {
+			factory = chatlifecycle.NewEngineWorkerGenerationFactoryWithDriverDiagnostics(benchToken)
+		}
 		workerServer, err := chatlifecycle.NewWorkerServer(chatlifecycle.WorkerServerConfig{
 			ControlToken: cfg.server.ControlToken,
-			Factory:      chatlifecycle.NewEngineWorkerGenerationFactory(benchToken),
+			Factory:      factory,
 			ReportGrantFailure: func(event chatlifecycle.WorkerGrantFailureEvent) {
 				_ = json.NewEncoder(stderr).Encode(event)
 			},
@@ -879,6 +888,19 @@ func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 		return exitConfig
 	}
 	return 0
+}
+
+// loadDriverDiagnosticsEnvironment reads one private worker-process opt-in.
+// It never enters workload configuration, assignments, thresholds or reports.
+func loadDriverDiagnosticsEnvironment() (bool, error) {
+	switch os.Getenv("WK_CHAT_LIFECYCLE_DRIVER_DIAGNOSTICS") {
+	case "", "0", "false":
+		return false, nil
+	case "1", "true":
+		return true, nil
+	default:
+		return false, errors.New("invalid private driver diagnostic opt-in")
+	}
 }
 
 var errChatLifecycleWorkerUnexpected = errors.New("chat lifecycle worker generation terminated unexpectedly")

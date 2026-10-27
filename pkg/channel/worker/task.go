@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 // TaskKind identifies one blocking work category.
@@ -218,6 +219,10 @@ type RPCPullHintTask struct {
 func (t Task) Run(ctx context.Context, deps Deps) Result {
 	ctx, cancel := taskContext(ctx, t.Context)
 	defer cancel()
+	if t.Kind == TaskQuorumCommit {
+		// Copy only observation after deriving the task and pool cancellation owner.
+		ctx = rpctrace.Copy(ctx, t.Context)
+	}
 	var res Result
 	switch t.Kind {
 	case TaskFunc:
@@ -291,7 +296,7 @@ func runQuorumCommit(ctx context.Context, deps Deps, t Task) Result {
 		return invalidResult(t)
 	}
 	receipt, err := deps.QuorumLog.Commit(ctx, t.QuorumCommit.Proposal)
-	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, QuorumCommit: &QuorumCommitResult{Receipt: receipt}}
+	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, QuorumCommit: &QuorumCommitResult{Receipt: receipt}, AppendObservation: rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelReactorComplete)}
 }
 
 func taskContext(parent context.Context, task context.Context) (context.Context, context.CancelFunc) {

@@ -322,7 +322,54 @@ func (r *liveDiagnosticRecorder) writeTerminalWorkerEvidence(at time.Time, snaps
 			SnapshotSequence: snapshot.SnapshotSequence, Evidence: snapshot.Evidence,
 		}
 	}
-	return writeBoundedDiagnosticDocument(filepath.Join(filepath.Dir(r.path), "worker-evidence.json"), document, 1<<20)
+	if err := writeBoundedDiagnosticDocument(filepath.Join(filepath.Dir(r.path), "worker-evidence.json"), document, 1<<20); err != nil {
+		return err
+	}
+	// This optional post-join sidecar cannot alter the native terminal result.
+	// An absent/invalid sidecar remains unknown diagnostic attribution.
+	_ = r.writeTerminalDriverDiagnostics(at, snapshots)
+	return nil
+}
+
+// writeTerminalDriverDiagnostics uses only final detached worker records. It
+// adds no live-cut logging, control request or I/O to Engine.Stop.
+func (r *liveDiagnosticRecorder) writeTerminalDriverDiagnostics(at time.Time, snapshots []WorkerSnapshot) error {
+	// Disabled or wholly unknown diagnostics must preserve the existing
+	// terminal path without marshaling, allocating or touching the filesystem.
+	enabled := false
+	for index := range snapshots {
+		snapshot := &snapshots[index]
+		if snapshot.Phase == WorkerPhaseFinal && snapshot.DriverDiagnostics != nil && validDriverDiagnostics(snapshot.DriverDiagnostics, snapshot.Generation) {
+			enabled = true
+			break
+		}
+	}
+	if !enabled {
+		return nil
+	}
+	type workerDriver struct {
+		WorkerID    uint64                     `json:"worker_id"`
+		Generation  uint64                     `json:"generation"`
+		Diagnostics *DriverDiagnosticsSnapshot `json:"driver_diagnostics"`
+	}
+	document := struct {
+		Schema  string                               `json:"schema"`
+		RunID   string                               `json:"run_id"`
+		At      time.Time                            `json:"at"`
+		Workers [coordinatorWorkerCount]workerDriver `json:"workers"`
+	}{Schema: "wukongim/chat-lifecycle-driver-diagnostics/v1", RunID: r.runID, At: at}
+	for _, snapshot := range snapshots {
+		diagnostics := snapshot.DriverDiagnostics
+		if snapshot.Phase != WorkerPhaseFinal || !validDriverDiagnostics(diagnostics, snapshot.Generation) {
+			diagnostics = nil
+		}
+		document.Workers[snapshot.WorkerID] = workerDriver{WorkerID: snapshot.WorkerID, Generation: snapshot.Generation, Diagnostics: diagnostics}
+	}
+	body, err := json.Marshal(document)
+	if err != nil {
+		return err
+	}
+	return writeBoundedDiagnosticBytes(filepath.Join(filepath.Dir(r.path), "driver-diagnostics.json"), body, 64<<10)
 }
 
 // writeBoundedDiagnosticDocument atomically publishes a fixed-size status or
@@ -332,6 +379,12 @@ func writeBoundedDiagnosticDocument(path string, document any, maximumBytes int)
 	if err != nil {
 		return err
 	}
+	return writeBoundedDiagnosticBytes(path, body, maximumBytes)
+}
+
+// writeBoundedDiagnosticBytes preserves the same atomic, owner-only publication
+// for compact optional diagnostics and the existing indented native documents.
+func writeBoundedDiagnosticBytes(path string, body []byte, maximumBytes int) error {
 	body = append(body, '\n')
 	if len(body) > maximumBytes {
 		return errProductionController

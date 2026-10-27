@@ -955,11 +955,13 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].key < entries[j].key })
 	sort.Slice(checkpointEntries, func(i, j int) bool { return checkpointEntries[i].key < checkpointEntries[j].key })
-	for _, entry := range entries {
-		entry.appendMu.Lock()
-	}
-	for _, entry := range checkpointEntries {
-		entry.checkpointMu.Lock()
+	// Waiting for a busy Channel must not retain an unrelated earlier lock.
+	if err := lockCommitEntriesWithoutHoldAndWait(ctx, entries, checkpointEntries); err != nil {
+		for _, index := range indexes {
+			results[index].Err = err
+			results[index].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
+		}
+		return
 	}
 	locked := make(map[*channelEntry]struct{}, len(entries))
 	lockedCheckpoints := make(map[*channelEntry]struct{}, len(checkpointEntries))

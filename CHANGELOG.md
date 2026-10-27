@@ -26,6 +26,31 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Release unrelated Channel locks while a leader append batch waits for busy
+  Channels, and honor cancellation before storage admission. / leader 批量追加
+  等待忙 Channel 时释放无关锁，并在存储准入前响应取消。
+
+- Add opt-in bounded dispatch-deadline diagnostics to the chat-lifecycle load
+  driver, exported after worker shutdown; coordinator and workers require the
+  matching private protocol v14. / 生命周期压测可选保留有界发送截止分段诊断，
+  worker 停止后导出，协调器与 worker 需使用匹配的私有协议 v14。
+
+- Preserve exact SEND-to-RPC diagnostic references and bounded RPC tail samples,
+  so operators can distinguish an observed request from missing lower evidence.
+  / 保留精确的 SEND 到 RPC 诊断引用及有界长尾样本，区分已观测请求与缺失的下层证据。
+
+- Keep chat-lifecycle queue observations off the primary scheduling owner, so
+  slow client gauges cannot pause valid SEND arrivals or later grants.
+  / 生命周期压测的队列观测不再占用主调度 owner，避免慢读取阻塞合法发送和后续 grant。
+
+- Let ready peer exchanges use spare bounded target slots while another
+  exchange delivers callbacks, preserving ordering and existing resource limits.
+  / 复制 RPC 回调处理中允许可执行请求使用剩余目标槽位，保持顺序和原有资源上限。
+
+- Retain bounded SEND append and ordered ACK-publication timings across admitted
+  work, helping operators distinguish commit waits from result-publication waits.
+  / 有界 SEND 诊断保留已接纳追加与有序 ACK 发布的分段计时，便于区分提交等待和结果发布等待。
+
 - Join canceled native-package validation timers and watchdogs so bootstrap
   diagnostics retain their deadlines and cleanup across timer-start races.
   / 原生包验收取消时回收计时器及 watchdog，避免启动竞态阻塞诊断与清理。

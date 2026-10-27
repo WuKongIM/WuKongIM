@@ -1121,11 +1121,12 @@ func writeWorkerJSON(response http.ResponseWriter, status int, value any) {
 
 type engineWorkerGenerationFactory struct {
 	// benchToken stays in the worker process and never enters assignments or reports.
-	benchToken        string
-	clock             SessionClock
-	newSessionFactory func(WorkerAssignment) (SessionClientFactory, error)
-	newSyncer         func(WorkerAssignment) (ConversationSyncer, error)
-	newTicker         func(time.Duration) workerGenerationTicker
+	benchToken              string
+	enableDriverDiagnostics bool
+	clock                   SessionClock
+	newSessionFactory       func(WorkerAssignment) (SessionClientFactory, error)
+	newSyncer               func(WorkerAssignment) (ConversationSyncer, error)
+	newTicker               func(time.Duration) workerGenerationTicker
 }
 
 // NewEngineWorkerGenerationFactory composes the existing deterministic models,
@@ -1133,6 +1134,12 @@ type engineWorkerGenerationFactory struct {
 // not introduce a parallel traffic runtime.
 func NewEngineWorkerGenerationFactory(benchToken string) WorkerGenerationFactory {
 	return engineWorkerGenerationFactory{benchToken: benchToken}
+}
+
+// NewEngineWorkerGenerationFactoryWithDriverDiagnostics enables bounded local
+// driver timing. Its extra clock reads are a diagnostic confound, not a gate.
+func NewEngineWorkerGenerationFactoryWithDriverDiagnostics(benchToken string) WorkerGenerationFactory {
+	return engineWorkerGenerationFactory{benchToken: benchToken, enableDriverDiagnostics: true}
 }
 
 func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerGeneration, error) {
@@ -1239,7 +1246,8 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 	}
 	engine, err := NewEngine(EngineConfig{
 		Clock: clock, Sessions: sessions, Schedule: schedule, Graph: graph, Traffic: traffic,
-		Generator: generator, Retry: retry, Verifier: verifier, Evidence: evidence,
+		EnableDriverDiagnostics: f.enableDriverDiagnostics,
+		Generator:               generator, Retry: retry, Verifier: verifier, Evidence: evidence,
 		WorkerID: assignment.WorkerID, WorkerCount: assignment.WorkerCount,
 		CommandCapacity: limits.command, WorkCapacity: limits.work, RetryCapacity: limits.retry,
 		InflightCapacity: limits.inflight, MaxWorkPerAdvance: limits.maxWork,
@@ -1683,6 +1691,7 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 	}
 	return WorkerSnapshot{
 		Generation: engine.Generation, WorkerID: engine.WorkerID, WorkerCount: engine.WorkerCount,
+		DriverDiagnostics: runtime.DriverDiagnostics,
 		Sessions: WorkerSessionSnapshot{
 			Target: engine.OnlineTarget, Online: engine.Online, Starting: engine.LoginStarting, Closing: engine.Closing, TrafficReady: engine.TrafficReady,
 			PlannedNew: engine.LoginPlannedNew, PlannedReturning: engine.LoginPlannedReturning,

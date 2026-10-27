@@ -725,3 +725,15 @@ GOWORK=off go test -tags=e2e ./test/e2e/bench/wkbench_smoke -count=1
 ```
 
 Keep `cmd/wkcli/internal/benchmark` as a thin CLI over `internal/bench`. Do not import WuKongIM server internals into wkbench; use `internal/bench/target` and WKProto clients as black-box boundaries.
+
+### Private driver diagnostic opt-in
+
+For local diagnosis only, `WK_CHAT_LIFECYCLE_DRIVER_DIAGNOSTICS=1` (or `true`)
+enables the first 16 fresh-dispatch deadline timing prefixes per worker
+generation. The default is disabled (`0`, `false`, or unset); other values
+fail before worker start. Additional enabled clock reads can perturb timing.
+The terminal `driver-diagnostics.json` sidecar contains only bounded numeric
+phase evidence and closed operation names. It does not change workload TOML,
+10,000 online / 2,000 SEND/s / 256 slots, deadlines, native evidence or gates.
+Absent diagnostics provide no cause attribution. Worker protocol v14 is
+required on both coordinator and workers.

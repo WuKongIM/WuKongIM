@@ -2215,6 +2215,17 @@ specification, runbook, report, or module documentation; link to them when neede
   report underdelivery instead of catching up. Qualification after this harness
   repair does not establish performance under the former synchronized bursts.
   See [nightly diagnosis](../reports/2026-10-15-nightly-chat-arrivals.md).
+- Worker snapshot capture owns a coherent Engine/Generator/pool tuple, while
+  required live client queue getters run synchronously outside the Engine owner.
+  A cancelable single-capture gate bounds copied client sets; Stop fences and
+  joins the actual getter return before client close. Errors remain errors, not
+  zero gauges. Snapshot itself does not hold worker advanceMu; blocking the
+  Engine can indirectly stall ticks and later grants that do hold it.
+- Peer callback delivery still occupies the existing bounded target worker after
+  I/O ownership is released. Track that phase separately from in-flight keys so
+  independently ready work can use spare existing target slots. Count callback
+  owners in the unchanged target limit, retire phase on panic, preserve initial
+  single-owner coalescing, and join admitted callbacks during Runtime.Close.
 - A reduced chat-lifecycle SEND rate must still cover the online population's
   mandatory bootstrap relationship activity inside its eligibility window.
   Reducing only the rate can make a local profile intrinsically undeliverable,
@@ -2370,10 +2381,21 @@ specification, runbook, report, or module documentation; link to them when neede
   Commit observations follow each logical request from queue-credit admission
   through physical-batch entry, collection, build, durable commit and publication;
   shared physical phases overlap across requests and publication excludes Finalize.
-  Commit intervals require a propagated trace: the Channel leader's asynchronous
-  reactor/durability contexts do not yet carry it. Follower exchange RPC commit
-  samples describe that exchange, not the original SEND's full storage path.
+  The Channel leader carries its shared append observer into independently owned
+  quorum work without propagating caller cancellation. Per-owner local queue,
+  local Sync and peer waits, quorum resolution and reactor completion may overlap;
+  local Sync includes storage-adapter/coordinator waiting, not pure fsync.
+  Initial installation and regrouped physical DB mutations do not inherit that
+  observer. Follower exchange RPC commit samples describe that exchange, not the
+  original SEND's full storage path.
   Absent commit intervals cannot establish absent storage waiting.
+  SEND result-publication and physical-session publication waits retain the
+  original ready boundary through the existing admitted ownership. They include
+  mutex/scheduling waits before the emit/write attempt, exclude its callback,
+  and do not identify a blocking predecessor or prove socket/client receipt.
+  Their successful observation result is not a successful business SEND verdict.
+  Missing, sampled-out or omitted-zero timings remain unknown; logical message
+  identity alone does not identify an exact retry attempt.
   Presence census distinguishes actual execution batches and original-call
   result responsibility. Decoded result/page bytes are diagnostic structural
   estimates (visible slice capacity plus live strings), not heap or RSS bounds;
@@ -2540,3 +2562,27 @@ completion, installation and provider-reference release.
   finish streams before closing their database. Real Linux public-API tests
   reproduce the old early-Close leak; the original migration CI full-EOF
   interleaving remains source-supported rather than uniquely reproduced.
+
+- A SEND diagnostic reference binds one original upper invocation to an assigned
+  physical ChannelAppend RPC identity, not to server receipt or business success.
+  Multiple batch members may share that request; routing and client retries may
+  produce several distinct requests. Never choose one member as a shared parent.
+  Missing, disabled, exhausted and local-only observations remain explicit;
+  a nil RPC trace alone does not prove a local path or a disabled recorder.
+- Diagnostics retain one global event ring and separate bounded stage indexes.
+  RPC and forwarded-append stage indexes recall recent, longest positive-duration
+  and non-OK candidates within their existing ID budgets. They cannot pin an event
+  after global-ring overwrite or reconstruct phases not selected before execution.
+  Query limits do not increase index capacity, and retained sample percentiles
+  are not population SLOs.
+
+- Batch storage lock admission must not retain earlier Channel locks while
+  waiting for a busy later append/checkpoint lock. Leader append, follower apply
+  and checkpoint batches share the same all-or-release acquisition helper.
+  Cancellation before commit ownership is definitely-not-written; admitted
+  mutation locks and pins remain owned until terminal finalization.
+- Chat-lifecycle code38 is a fresh-clock dispatch miss before SDK admission,
+  not an accepted product SEND or a delivery-loss proof. Optional driver timing
+  retains the first 16 numeric prefixes per generation, stops extra timing at
+  saturation, and marks clock regressions unknown. Final-only protocol-v14
+  records and their terminal sidecar do not alter five-field Evidence or gates.

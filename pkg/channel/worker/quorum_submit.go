@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
 // errQuorumSubmitPanic reports an ambiguous commit whose submission panicked.
@@ -25,6 +26,8 @@ func (p *Pool) runDeferredQuorumCommit(ctx context.Context, queued queuedTask, s
 	task := queued.task
 	p.observeWait(task.Kind, time.Since(queued.enqueuedAt))
 	taskCtx, cancel := taskContext(ctx, task.Context)
+	// The admitted task keeps its pool-owned cancellation and its observation.
+	taskCtx = rpctrace.Copy(taskCtx, task.Context)
 	started := time.Now()
 	p.deferredWG.Add(1)
 	var once sync.Once
@@ -36,6 +39,7 @@ func (p *Pool) runDeferredQuorumCommit(ctx context.Context, queued queuedTask, s
 			cancel()
 			res.Duration = nonNegativeDuration(time.Since(started))
 			p.observeTask(res.Kind, res.Err, res.Duration)
+			res.AppendObservation = rpctrace.BeginAppendPhase(taskCtx, rpctrace.StageChannelReactorComplete)
 			p.sink.Complete(res)
 		})
 	}

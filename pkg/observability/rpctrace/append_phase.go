@@ -34,6 +34,16 @@ func (end AppendPhaseEnd) EndItems(count int, resultAt func(int) Result) {
 
 type appendPhaseContextKey struct{}
 
+// AppendPhaseObserverFrom returns observation ownership without retaining the
+// source context's cancellation, deadline, or unrelated values.
+func AppendPhaseObserverFrom(ctx context.Context) AppendPhaseObserver {
+	if ctx == nil {
+		return nil
+	}
+	observer, _ := ctx.Value(appendPhaseContextKey{}).(AppendPhaseObserver)
+	return observer
+}
+
 // WithAppendPhaseObserver preserves the runtime context's cancellation and
 // values. It never installs a single Trace. Nil observers keep the original ctx.
 func WithAppendPhaseObserver(ctx context.Context, observer AppendPhaseObserver) context.Context {
@@ -52,7 +62,7 @@ func BeginAppendPhase(ctx context.Context, stage Stage) AppendPhaseEnd {
 	if ctx == nil || !validAppendPhase(stage) {
 		return nil
 	}
-	observer, _ := ctx.Value(appendPhaseContextKey{}).(AppendPhaseObserver)
+	observer := AppendPhaseObserverFrom(ctx)
 	if observer == nil {
 		return nil
 	}
@@ -62,7 +72,9 @@ func BeginAppendPhase(ctx context.Context, stage Stage) AppendPhaseEnd {
 func validAppendPhase(stage Stage) bool {
 	switch stage {
 	case StageChannelMetaResolve, StageChannelMetaApply, StageChannelRuntimeAppend,
-		StageChannelRuntimeReserve, StageChannelRuntimeSubmit, StageChannelRuntimeFutureWait:
+		StageChannelRuntimeReserve, StageChannelRuntimeSubmit, StageChannelRuntimeFutureWait,
+		StageChannelLocalQueue, StageChannelLocalSync, StageChannelPeerWait,
+		StageChannelQuorumDecision, StageChannelReactorComplete:
 		return true
 	default:
 		return false
