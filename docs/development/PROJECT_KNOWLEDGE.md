@@ -2241,7 +2241,7 @@ specification, runbook, report, or module documentation; link to them when neede
   A missing qualification/final report is insufficient evidence, never measured
   zero traffic or proof of a latency regression.
 
-- Native package lifecycle bootstrap includes package installation before systemd PID 1. A bootstrap timeout does not prove a service start or installed package. Failure probes retain stage, PID 1, jobs and journals with five-second command bounds and 64 KiB output caps; unchanged 300-second bootstrap/900-second main validation deadlines remain separate from failure cleanup.
+- Native package lifecycle bootstrap includes package installation before systemd PID 1. A bootstrap timeout does not prove a service start or installed package. Failure probes retain stage, PID 1, jobs and journals with five-second command bounds and 64 KiB output caps; unchanged 300-second bootstrap/900-second main validation deadlines remain separate from failure cleanup. Watchdogs latch cancellation before publishing timer ownership and join their owned timers before returning; command-output caps must not control termination or leave timeout markers behind.
 
 - PR #998 main integration preserves existing main RPC 91/92 and Slot commands
   67/68/69. Only unpublished MQTT metadata/owner RPCs move to 106/107 and

@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Join canceled native-package validation timers and watchdogs so bootstrap
+  diagnostics retain their deadlines and cleanup across timer-start races.
+  / 原生包验收取消时回收计时器及 watchdog，避免启动竞态阻塞诊断与清理。
+
 - Tolerate transient owner RPC delays during presence reconstruction within one
   bounded read chain, and stop querying after every original call has failed.
   Complete owner proofs and caller deadlines remain required.
