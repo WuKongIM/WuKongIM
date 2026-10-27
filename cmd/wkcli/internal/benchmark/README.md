@@ -750,9 +750,10 @@ existing absolute `--work-dir` and creates a new private `runtime-trace`
 directory; existing diagnostic output or a symlink used as the work directory
 is rejected. Trusted ancestor aliases such as macOS `/tmp` remain usable.
 
-The first authenticated, current, valid snapshot with harness failures asks
-one process-owned exporter to retain its recent Go runtime trace. This also
-covers tick/Advance failures and cached final snapshot GETs. The notification
+The first authenticated, current, valid Snapshot GET or Checkpoint POST with
+harness failures asks one process-owned exporter to retain its recent Go
+runtime trace. The coordinator uses Checkpoint POSTs for periodic and terminal
+evidence. This also covers tick/Advance failures and cached final Snapshot GETs. The notification
 runs outside the lifecycle lock and never exports synchronously. Repeated
 snapshots cannot start another export. Snapshot, ordinary Stop, UnexpectedExit
 and process termination retain their original bounds and never wait for this

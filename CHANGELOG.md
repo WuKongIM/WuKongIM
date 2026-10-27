@@ -27,8 +27,9 @@ move those entries into a version section named for that exact tag.
 ### 🐛 Bug Fixes / 问题修复
 
 - Add a default-off runtime trace for lifecycle benchmark workers to inspect
-  dispatch stalls through one asynchronous capture and private, size-limited
-  artifacts. / 生命周期压测 worker 可选采集一次异步运行时轨迹，辅助定位发送
+  dispatch stalls from native checkpoint observations through one asynchronous
+  capture and private, size-limited artifacts. / 生命周期压测 worker 可选在原生观测
+  时采集一次异步运行时轨迹，辅助定位发送
   调度停顿；默认关闭，诊断文件保持私有并限制大小。
 
 - Add default-off, bounded SEND attempt diagnostics that keep original attempts

@@ -72,7 +72,7 @@ passing 72-hour formal generation -> same aged dataset and process proof
   Fixed attempt slots and the bounded late-receipt map bound retention. Private opt-in retains 16 fresh-dispatch timing prefixes per generation.
   Added clock reads are diagnostic overhead; codes, units, gates, order and drain fairness stay fixed.
   Driver timing records cross only after generation Stop joins, into their bounded terminal sidecar. A separate strict attempt-link opt-in copies at most16 confirmed-late original keys, connection scopes and reused SDK timings per generation into detached live/final control cuts. Its separately bounded64KiB atomic sidecar uses existing worker fences/sequence/uptime and never enters native evidence, counts or gates; malformed optional data is discarded independently.
-- A nil-by-default local callback notifies only after an authenticated, current, valid, uncanceled harness-failure Snapshot GET, including cached final cuts, outside the lifecycle mutex.
+- A nil-by-default local callback notifies only after an authenticated, current, valid, uncanceled harness-failure Snapshot GET or coordinator Checkpoint POST, including cached final Snapshot GETs, outside the lifecycle mutex.
   The worker CLI owns its independent opt-in recorder and one asynchronous export; Snapshot, Stop and UnexpectedExit never join that diagnostic writer.
   Enabled runtime tracing adds only static regions around the two existing session-expiry calls and an existing anonymous turn when available.
   These are wall intervals, not pure CPU attribution; absent, partial or evicted capture keeps coverage unknown. Native fields, deadlines, queues, evidence and gates remain unchanged.

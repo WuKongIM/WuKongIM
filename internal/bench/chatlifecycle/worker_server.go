@@ -84,7 +84,7 @@ type WorkerServerConfig struct {
 	// Implementations must not retain raw errors or block normal grant handling.
 	ReportGrantFailure func(WorkerGrantFailureEvent)
 	// ReportHarnessFailure receives an identity-free notification after a valid
-	// current failure snapshot is selected. It runs outside the lifecycle lock
+	// current failure Snapshot or Checkpoint is selected. It runs outside the lifecycle lock
 	// and must only notify nonblockingly, never export diagnostics synchronously.
 	ReportHarnessFailure func()
 }
@@ -552,6 +552,9 @@ func (s *WorkerServer) handleCheckpoint(response http.ResponseWriter, request *h
 	if !validWorkerSnapshot(snapshot) {
 		writeWorkerError(response, http.StatusInternalServerError, WorkerErrorRuntimeFailure)
 		return
+	}
+	if s.reportHarnessFailure != nil && snapshot.Harness.Failures > 0 && request.Context().Err() == nil {
+		s.reportHarnessFailure()
 	}
 	writeWorkerJSON(response, http.StatusOK, snapshot)
 }

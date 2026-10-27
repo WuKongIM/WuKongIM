@@ -2625,8 +2625,11 @@ completion, installation and provider-reference release.
   records and their terminal sidecar do not alter five-field Evidence or gates.
 - Worker runtime tracing uses the independent default-off CLI opt-in
   `WK_CHAT_LIFECYCLE_RUNTIME_TRACE`. A valid authenticated current failure
-  snapshot can request one process-owned asynchronous export in `--work-dir`;
-  notification and export must not delay Snapshot, Stop, UnexpectedExit or
+  Snapshot GET or Checkpoint POST can request one process-owned asynchronous
+  export in `--work-dir`. The coordinator uses Checkpoint POSTs for periodic
+  and terminal evidence; diagnostic notification must cover that entry as
+  well as operator Snapshot GETs after the same validation. Notification and
+  export must not delay Snapshot, Checkpoint, Stop, UnexpectedExit or
   TERM-to-KILL. The 8MiB/10s recorder settings are soft retention targets;
   output caps are 16MiB for the private trace and 4KiB for its receipt.
   Pending, partial, unjoined or evicted observations retain unknown coverage.
