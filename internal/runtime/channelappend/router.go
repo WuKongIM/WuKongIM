@@ -10,6 +10,7 @@ import (
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
@@ -684,6 +685,9 @@ func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
 	}
 	submitted = true
 	if local {
+		if sendtrace.Enabled() {
+			ctx = sendtrace.WithAppendRPCReference(ctx, sendtrace.RPCReference{State: "local_untraced"})
+		}
 		future, err := r.local.SubmitLocal(ctx, group.target, activeItems)
 		if err != nil {
 			return finishActive(routerErrorResults(len(activeItems), err))
@@ -767,6 +771,9 @@ func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem, 
 	if local {
 		started := time.Now()
 		timing.LocalAttempts++
+		if sendtrace.Enabled() {
+			ctx = sendtrace.WithAppendRPCReference(ctx, sendtrace.RPCReference{State: "local_untraced"})
+		}
 		future, err := r.local.SubmitLocal(ctx, target, []SendBatchItem{item})
 		timing.LocalSubmit += time.Since(started)
 		if err != nil {

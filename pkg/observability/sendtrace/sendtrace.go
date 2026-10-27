@@ -52,6 +52,9 @@ const (
 
 // Event describes one low-cost fact observed in the message send path.
 type Event struct {
+	// RPCReference links this original SEND to an exact observed request or an
+	// explicit missing state. It never changes business wire metadata.
+	RPCReference *RPCReference `json:"rpc_reference,omitempty"`
 	// TraceID correlates events that belong to the same diagnostics trace.
 	TraceID string
 	// Stage identifies the stable processing step that emitted this event.

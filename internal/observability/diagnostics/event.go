@@ -3,6 +3,8 @@ package diagnostics
 import (
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+
 	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
@@ -69,6 +71,9 @@ const (
 
 // Event describes one diagnostic fact observed on the local node.
 type Event struct {
+	// RPCReference binds this original SEND event to one observed physical call,
+	// or a closed explicit missing state. It is never business authority.
+	RPCReference *sendtrace.RPCReference `json:"rpc_reference,omitempty"`
 	// RPC retains one detached bounded timing sample, without request payloads.
 	RPC *rpctrace.Sample `json:"rpc,omitempty"`
 	// TraceID correlates events that belong to the same diagnostics trace.
@@ -192,6 +197,9 @@ func (e Event) ContainsMessageSeq(seq uint64) bool {
 }
 
 func normalizeEvent(event Event, now time.Time, maxErrorBytes int) Event {
+	if event.RPCReference != nil && !event.RPCReference.Valid() {
+		event.RPCReference = nil
+	}
 	if event.At.IsZero() {
 		event.At = now
 	}
@@ -212,6 +220,7 @@ func redactEvent(event Event) Event {
 
 // cloneEvent detaches mutable timing evidence at store and query ownership transfers.
 func cloneEvent(event Event) Event {
+	event.RPCReference = event.RPCReference.CloneValid()
 	if event.RPC != nil {
 		sample := event.RPC.Clone()
 		event.RPC = &sample

@@ -11,6 +11,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -61,6 +63,14 @@ func (a *ChannelAppendAdapter) HandleChannelAppendRPC(ctx context.Context, paylo
 	}
 	if a == nil || a.channelAppend == nil {
 		return encodeChannelAppendResponse(channelAppendResponse{Status: rpcStatusRejected})
+	}
+	if sendtrace.Enabled() {
+		ref := sendtrace.RPCReference{State: "remote_untraced"}
+		identity := rpctrace.From(ctx).IdentityFor(rpctrace.SideServer, uint16(ChannelAppendRPCServiceID))
+		if observed := sendtrace.RPCReferenceForTerminal(identity); observed != nil {
+			ref = *observed
+		}
+		ctx = sendtrace.WithAppendRPCReference(ctx, ref)
 	}
 	now := time.Now()
 	items := make([]channelappend.SendBatchItem, len(req.Items))
@@ -116,6 +126,38 @@ func (c *Client) ForwardSendBatch(ctx context.Context, target channelappend.Auth
 	body, err := encodeChannelAppendRequest(channelAppendRequest{Target: target, Items: reqItems})
 	if err != nil {
 		return channelAppendFillActiveErrors(results, activeIndexes, err)
+	}
+	if sendtrace.Enabled() {
+		var capture *rpctrace.TerminalCapture
+		ctx, capture = rpctrace.WithTerminalCapture(ctx)
+		started := time.Now()
+		defer func() {
+			ref := sendtrace.RPCReferenceForTerminal(capture.Snapshot())
+			duration := time.Since(started)
+			for _, index := range activeIndexes {
+				cmd := items[index].Command
+				if cmd.TraceID == "" {
+					continue
+				}
+				result := sendtrace.ResultOK
+				switch err := results[index].Err; {
+				case errors.Is(err, context.Canceled):
+					result = sendtrace.ResultCanceled
+				case errors.Is(err, context.DeadlineExceeded):
+					result = sendtrace.ResultTimeout
+				case err != nil:
+					result = sendtrace.ResultError
+				case results[index].Result.Reason != channelappend.ReasonSuccess:
+					result = sendtrace.ResultError
+				}
+				// This is the joined forwarding call, including response decoding;
+				// it does not imply receiver admission, durability or pure wire time.
+				sendtrace.Record(sendtrace.Event{Stage: sendtrace.StageChannelAppendForward,
+					TraceID: cmd.TraceID, ClientMsgNo: cmd.ClientMsgNo, NodeID: cmd.SenderNodeID,
+					PeerNodeID: target.LeaderNodeID, Duration: duration, Result: result,
+					RPCReference: ref.CloneValid()})
+			}
+		}()
 	}
 	respBody, err := c.node.CallRPC(ctx, target.LeaderNodeID, ChannelAppendRPCServiceID, body)
 	if err != nil {

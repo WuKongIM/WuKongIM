@@ -2562,3 +2562,16 @@ completion, installation and provider-reference release.
   finish streams before closing their database. Real Linux public-API tests
   reproduce the old early-Close leak; the original migration CI full-EOF
   interleaving remains source-supported rather than uniquely reproduced.
+
+- A SEND diagnostic reference binds one original upper invocation to an assigned
+  physical ChannelAppend RPC identity, not to server receipt or business success.
+  Multiple batch members may share that request; routing and client retries may
+  produce several distinct requests. Never choose one member as a shared parent.
+  Missing, disabled, exhausted and local-only observations remain explicit;
+  a nil RPC trace alone does not prove a local path or a disabled recorder.
+- Diagnostics retain one global event ring and separate bounded stage indexes.
+  RPC and forwarded-append stage indexes recall recent, longest positive-duration
+  and non-OK candidates within their existing ID budgets. They cannot pin an event
+  after global-ring overwrite or reconstruct phases not selected before execution.
+  Query limits do not increase index capacity, and retained sample percentiles
+  are not population SLOs.

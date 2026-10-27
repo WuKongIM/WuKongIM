@@ -85,6 +85,7 @@ func (s *Store) Record(event Event) {
 	event = cloneEvent(normalizeEvent(event, s.now(), s.maxError))
 	s.mu.Lock()
 	if overwritten := s.events[s.nextSlot]; overwritten.id != 0 {
+		s.index.forgetRPC(overwritten.event.Stage, overwritten.id)
 		delete(s.byID, overwritten.id)
 	}
 	s.nextID++
@@ -182,7 +183,7 @@ func (s *Store) candidateEventsLocked(ids []uint64) []Event {
 }
 
 func (s *Store) stageCandidateEventsLocked(stage Stage) []Event {
-	return s.candidateEventsLocked(s.index.stage.Get(string(stage)))
+	return s.candidateEventsLocked(s.index.stageIDs(stage))
 }
 
 func (s *Store) retainedCandidateEventsLocked() []Event {

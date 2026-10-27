@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve exact SEND-to-RPC diagnostic references and bounded RPC tail samples,
+  so operators can distinguish an observed request from missing lower evidence.
+  / 保留精确的 SEND 到 RPC 诊断引用及有界长尾样本，区分已观测请求与缺失的下层证据。
+
 - Keep chat-lifecycle queue observations off the primary scheduling owner, so
   slow client gauges cannot pause valid SEND arrivals or later grants.
   / 生命周期压测的队列观测不再占用主调度 owner，避免慢读取阻塞合法发送和后续 grant。

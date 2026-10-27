@@ -3,6 +3,8 @@ package channelappend
 import (
 	"context"
 	"sync"
+
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 const (
@@ -18,6 +20,9 @@ type Future struct {
 	// rpcTrace is optional observation ownership, fixed before enqueue. It never
 	// owns cancellation, admission or post-commit reservations.
 	rpcTrace *submissionTrace
+	// rpcReference is an immutable explicit entry declaration, never a context
+	// or a guess from nil trace ownership. It stays with this original Future.
+	rpcReference *sendtrace.RPCReference
 
 	mu      sync.Mutex
 	results []SendBatchItemResult

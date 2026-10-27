@@ -1,6 +1,11 @@
 package diagnostics
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
+
+const recallForwardStage Stage = "channel.append.forward"
 
 type indexes struct {
 	trace       *boundedIndex
@@ -13,6 +18,10 @@ type indexes struct {
 	slot        *boundedIndex
 	stage       *boundedIndex
 	channelSpan *boundedRangeIndex
+	// RPC recall shares the existing per-stage ID budget without retaining payloads.
+	rpcClient *rpcRecallIndex
+	rpcServer *rpcRecallIndex
+	forward   *rpcRecallIndex
 }
 
 type rangeEntry struct {
@@ -62,7 +71,7 @@ func (i *indexes) add(id uint64, event Event) {
 		i.slot.Add(fmt.Sprint(event.SlotID), id)
 	}
 	if event.Stage != "" {
-		i.stage.Add(string(event.Stage), id)
+		i.addStage(id, event)
 	}
 	if event.ChannelKey != "" && event.RangeStart > 0 && event.RangeEnd >= event.RangeStart {
 		i.channelSpan.Add(event.ChannelKey, rangeEntry{start: event.RangeStart, end: event.RangeEnd, id: id})
@@ -92,9 +101,155 @@ func (i *indexes) lookup(q Query) []uint64 {
 		ids = append(ids, i.slot.Get(fmt.Sprint(q.SlotID))...)
 	}
 	if q.Stage != "" {
-		ids = append(ids, i.stage.Get(string(q.Stage))...)
+		ids = append(ids, i.stageIDs(q.Stage)...)
 	}
 	return uniqueIDs(ids)
+}
+
+func (i *indexes) addStage(id uint64, event Event) {
+	var index **rpcRecallIndex
+	switch event.Stage {
+	case StageRPCClient:
+		index = &i.rpcClient
+	case StageRPCServer:
+		index = &i.rpcServer
+	case recallForwardStage:
+		index = &i.forward
+	default:
+		i.stage.Add(string(event.Stage), id)
+		return
+	}
+	if *index == nil {
+		*index = newRPCRecallIndex(i.stage.maxEvents)
+	}
+	(*index).add(id, event)
+}
+
+func (i *indexes) stageIDs(stage Stage) []uint64 {
+	switch stage {
+	case StageRPCClient:
+		return i.rpcClient.ids()
+	case StageRPCServer:
+		return i.rpcServer.ids()
+	case recallForwardStage:
+		return i.forward.ids()
+	default:
+		return i.stage.Get(string(stage))
+	}
+}
+
+// forgetRPC releases priority IDs when their sole owning global ring slot leaves.
+func (i *indexes) forgetRPC(stage Stage, id uint64) {
+	switch stage {
+	case StageRPCClient:
+		i.rpcClient.remove(id)
+	case StageRPCServer:
+		i.rpcServer.remove(id)
+	case recallForwardStage:
+		i.forward.remove(id)
+	}
+}
+
+type rpcRecallCandidate struct {
+	id       uint64
+	duration time.Duration
+}
+
+// rpcRecallIndex divides N IDs between recent, longest and failed samples.
+// Below four IDs, recency alone preserves useful behavior in tiny stores.
+type rpcRecallIndex struct {
+	recentLimit   int
+	priorityLimit int
+	recent        []uint64
+	longest       []rpcRecallCandidate
+	failed        []uint64
+}
+
+func newRPCRecallIndex(limit int) *rpcRecallIndex {
+	priority := limit / 4
+	return &rpcRecallIndex{recentLimit: limit - 2*priority, priorityLimit: priority}
+}
+
+func (r *rpcRecallIndex) add(id uint64, event Event) {
+	r.recent = appendRecallID(r.recent, id, r.recentLimit)
+	observed := event.RPC != nil
+	if event.Stage == recallForwardStage {
+		observed = event.RPCReference != nil && event.RPCReference.Valid()
+	}
+	if !observed || r.priorityLimit == 0 {
+		return
+	}
+	if event.Result != ResultOK {
+		r.failed = appendRecallID(r.failed, id, r.priorityLimit)
+	}
+	if event.Duration <= 0 {
+		return
+	}
+	candidate := rpcRecallCandidate{id: id, duration: event.Duration}
+	if len(r.longest) < r.priorityLimit {
+		r.longest = append(r.longest, candidate)
+		return
+	}
+	minimum := 0
+	for index := 1; index < len(r.longest); index++ {
+		current, selected := r.longest[index], r.longest[minimum]
+		if current.duration < selected.duration || current.duration == selected.duration && current.id < selected.id {
+			minimum = index
+		}
+	}
+	// Newer event IDs win equal-duration ties deterministically.
+	if event.Duration >= r.longest[minimum].duration {
+		r.longest[minimum] = candidate
+	}
+}
+
+func (r *rpcRecallIndex) ids() []uint64 {
+	if r == nil {
+		return nil
+	}
+	ids := make([]uint64, 0, len(r.recent)+len(r.longest)+len(r.failed))
+	ids = append(ids, r.recent...)
+	for _, candidate := range r.longest {
+		ids = append(ids, candidate.id)
+	}
+	ids = append(ids, r.failed...)
+	return uniqueIDs(ids)
+}
+
+func (r *rpcRecallIndex) remove(id uint64) {
+	if r == nil {
+		return
+	}
+	r.recent = removeRecallID(r.recent, id)
+	r.failed = removeRecallID(r.failed, id)
+	for index, candidate := range r.longest {
+		if candidate.id == id {
+			copy(r.longest[index:], r.longest[index+1:])
+			r.longest[len(r.longest)-1] = rpcRecallCandidate{}
+			r.longest = r.longest[:len(r.longest)-1]
+			return
+		}
+	}
+}
+
+func appendRecallID(ids []uint64, id uint64, limit int) []uint64 {
+	if len(ids) < limit {
+		return append(ids, id)
+	}
+	copy(ids, ids[1:])
+	ids[len(ids)-1] = id
+	return ids
+}
+
+func removeRecallID(ids []uint64, id uint64) []uint64 {
+	for index, current := range ids {
+		if current == id {
+			copy(ids[index:], ids[index+1:])
+			ids[len(ids)-1] = 0
+			return ids[:len(ids)-1]
+		}
+	}
+	return ids
 }
 
 type boundedIndex struct {

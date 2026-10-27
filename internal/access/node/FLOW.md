@@ -52,6 +52,9 @@ scheduled backup or restore
   service 88 is explicitly unsupported, while transport failures remain unavailable.
 - Channel append RPC never resolves routes, creates proxy Channel state,
   appends outside local authority, or runs post-commit effects elsewhere.
+- Enabled SEND diagnostics capture each actual outbound SID21 identity and mark the
+  receiver entry explicitly. Each original item keeps its own reference across shared
+  work; missing receiver traces stay unknown, and references grant no business proof.
 - Channel append request 3 carries bounded publication metadata. Native-only
   requests retain version-2 bytes; invalid metadata fails before dispatch.
 - Owner-push request 2 preserves publication metadata, original timestamp and

@@ -680,6 +680,9 @@ func recordAppendDurableTrace(item preparedSend, messageSeq uint64, err error, d
 		Result:      result,
 		ErrorCode:   errorCode,
 	}
+	if item.future != nil {
+		event.RPCReference = item.future.rpcReference.CloneValid()
+	}
 	if err != nil {
 		event.Error = err.Error()
 	}

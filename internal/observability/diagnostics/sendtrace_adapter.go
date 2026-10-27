@@ -60,6 +60,7 @@ func (s *SendTraceSink) RecordSendTrace(event sendtrace.Event) {
 		return
 	}
 	diagEvent := Event{
+		RPCReference: event.RPCReference,
 		TraceID:      event.TraceID,
 		Stage:        Stage(event.Stage),
 		At:           event.At,
