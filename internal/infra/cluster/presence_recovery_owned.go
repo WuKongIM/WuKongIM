@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 	"unsafe"
 
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
@@ -36,6 +35,8 @@ func (r *PresenceRecoveryOwners) RecoverRouteCallsBounded(ctx context.Context, c
 	if !r.SupportsBoundedRecoveryResults() || !presence.ValidOwnerRecoveryCalls(calls, 0) {
 		return owned, diagnostic.failure(presence.RecoveryProviderInvalidInput, authority.ErrRouteNotReady)
 	}
+	readChainCtx, cancelReadChain := context.WithTimeout(ctx, recoveryReadChainBudget)
+	defer cancelReadChain()
 	bytes := uint64(len(calls)) * uint64(unsafe.Sizeof([]presence.EndpointLookupResult{}))
 	for _, call := range calls {
 		bytes += uint64(len(call.Groups)) * uint64(unsafe.Sizeof(presence.EndpointLookupResult{}))
@@ -70,16 +71,19 @@ func (r *PresenceRecoveryOwners) RecoverRouteCallsBounded(ctx context.Context, c
 		}
 		observePage(nil)
 	}
-	admission := rpctrace.Begin(ctx, rpctrace.StageRecoveryOwners)
+	admission := rpctrace.Begin(readChainCtx, rpctrace.StageRecoveryOwners)
 	diagnostic.begin(presence.RecoveryProviderAdmissionStage)
 	select {
 	case r.admission <- struct{}{}:
 		admission.End(rpctrace.ResultOK)
 		diagnostic.end()
-	case <-ctx.Done():
-		admission.End(rpctrace.ResultFor(ctx.Err()))
+	case <-readChainCtx.Done():
+		admission.End(rpctrace.ResultFor(readChainCtx.Err()))
 		diagnostic.end()
-		return owned, diagnostic.failure(presence.RecoveryProviderAdmission, ctx.Err())
+		if err := ctx.Err(); err != nil {
+			return owned, diagnostic.failure(presence.RecoveryProviderAdmission, err)
+		}
+		return owned, diagnostic.failure(presence.RecoveryProviderReadChainBudget, authority.ErrRouteNotReady)
 	}
 	defer func() { <-r.admission }()
 	if err := ctx.Err(); err != nil {
@@ -99,9 +103,12 @@ func (r *PresenceRecoveryOwners) RecoverRouteCallsBounded(ctx context.Context, c
 		return owned, nil
 	}
 	diagnostic.begin(presence.RecoveryProviderSnapshotBeforeStage)
-	before, err := r.node.LocalControllerSnapshot(ctx)
+	before, err := r.node.LocalControllerSnapshot(readChainCtx)
 	diagnostic.end()
 	if err != nil {
+		if ctx.Err() == nil && readChainCtx.Err() != nil {
+			return owned, diagnostic.failure(presence.RecoveryProviderReadChainBudget, authority.ErrRouteNotReady)
+		}
 		return owned, diagnostic.failure(presence.RecoveryProviderSnapshotBefore, authority.ErrRouteNotReady)
 	}
 	nodes := recoveryOwnerNodes(before)
@@ -109,9 +116,26 @@ func (r *PresenceRecoveryOwners) RecoverRouteCallsBounded(ctx context.Context, c
 	if len(nodes) == 0 || len(nodes) > 256 {
 		return owned, diagnostic.failure(presence.RecoveryProviderOwnerRoster, authority.ErrRouteNotReady)
 	}
-	for _, node := range nodes {
-		readCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	failUnproven := func(start int, reason presence.RecoveryProviderReason) {
+		for i := start; i < len(proofs); i++ {
+			if proofs[i].failed {
+				continue
+			}
+			proofs[i].failed = true
+			failOwnedRecoveryCall(owned.Results[proofs[i].index], owned.Lease, diagnostic.failure(reason, authority.ErrRouteNotReady))
+		}
+	}
+	for ownerIndex, node := range nodes {
 		diagnostic.owner(node.NodeID)
+		if err := ctx.Err(); err != nil {
+			return owned, diagnostic.failure(presence.RecoveryProviderContext, err)
+		}
+		if readChainCtx.Err() != nil {
+			diagnostic.ownerEnd()
+			failUnproven(0, presence.RecoveryProviderReadChainBudget)
+			break
+		}
+		readCtx, cancel := context.WithTimeout(readChainCtx, recoveryOwnerReadBudget)
 		span := rpctrace.Begin(readCtx, rpctrace.StageRecoveryOwner)
 		next, readErr := r.readOwnedRecoveryCallPages(readCtx, node.NodeID, active, proofs, budget, func(page presence.OwnerRouteCallPage) error {
 			for i, reads := range page.Results {
@@ -133,6 +157,13 @@ func (r *PresenceRecoveryOwners) RecoverRouteCallsBounded(ctx context.Context, c
 		}
 		if readErr == nil {
 			diagnostic.data.OwnersCompleted++
+			if readChainCtx.Err() != nil && ownerIndex < len(nodes)-1 {
+				failUnproven(0, presence.RecoveryProviderReadChainBudget)
+				break
+			}
+			if allRecoveryCallsFailed(proofs) {
+				break
+			}
 			continue
 		}
 		if !recoveryCallUnavailable(readErr) {
@@ -140,6 +171,15 @@ func (r *PresenceRecoveryOwners) RecoverRouteCallsBounded(ctx context.Context, c
 				return owned, diagnostic.failure(presence.RecoveryProviderResultBudget, readErr)
 			}
 			return owned, diagnostic.failure(presence.RecoveryProviderOwnerPage, authority.ErrRouteNotReady)
+		}
+		// A spent chain budget cannot prove a stale member unavailable. If any
+		// owner is still unqueried, even this owner's completed prefix is unproven.
+		if readChainCtx.Err() != nil {
+			if ownerIndex < len(nodes)-1 {
+				next = 0
+			}
+			failUnproven(next, presence.RecoveryProviderReadChainBudget)
+			break
 		}
 		if next == 0 && recoveryUnavailableMember(node, readErr) {
 			continue
@@ -151,7 +191,11 @@ func (r *PresenceRecoveryOwners) RecoverRouteCallsBounded(ctx context.Context, c
 		if observePage != nil {
 			observePage(nil)
 		}
+		if allRecoveryCallsFailed(proofs) {
+			break
+		}
 	}
+	cancelReadChain()
 	diagnostic.begin(presence.RecoveryProviderSnapshotAfterStage)
 	after, err := r.node.LocalControllerSnapshot(ctx)
 	diagnostic.end()

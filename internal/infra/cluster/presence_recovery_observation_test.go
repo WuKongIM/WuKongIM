@@ -78,7 +78,7 @@ func TestRecoveryProviderFailureCapsuleDistinguishesSnapshotAndOwner(t *testing.
 			if failure == "snapshot_before" && (got.Observed&presence.RecoveryProviderOwnerReadStage.Mask() != 0 || got.OwnerConfiguredBudget != 0) {
 				t.Fatal("unreached owner read invented timing")
 			}
-			if failure == "owner_timeout" && (got.OwnerNodeID != 2 || got.OwnersPlanned != 2 || got.OwnersCompleted != 1 || got.OwnerConfiguredBudget != 250*time.Millisecond || got.OwnerEffectiveBudget <= 0 || got.OwnerEffectiveBudget > got.OwnerConfiguredBudget || got.OwnerMode != presence.RecoveryProviderOwnerRemoteCalls) {
+			if failure == "owner_timeout" && (got.OwnerNodeID != 2 || got.OwnersPlanned != 2 || got.OwnersCompleted != 1 || got.OwnerConfiguredBudget != time.Second || got.OwnerEffectiveBudget <= 0 || got.OwnerEffectiveBudget > got.OwnerConfiguredBudget || got.OwnerMode != presence.RecoveryProviderOwnerRemoteCalls) {
 				t.Fatalf("owner evidence=%+v", got)
 			}
 		})
@@ -96,7 +96,7 @@ func TestRecoveryProviderScopeWithoutDispatchKeepsEffectiveBudgetUnknown(t *test
 	if !ok || !errors.Is(err, context.Canceled) {
 		t.Fatalf("context evidence=%+v/%t err=%v", data, ok, err)
 	}
-	if data.OwnerConfiguredBudget != 250*time.Millisecond || data.OwnerEffectiveBudget != 0 || data.OwnerMode != presence.RecoveryProviderOwnerNone || data.Observed&presence.RecoveryProviderObservedOwnerDispatch != 0 {
+	if data.OwnerConfiguredBudget != time.Second || data.OwnerEffectiveBudget != 0 || data.OwnerMode != presence.RecoveryProviderOwnerNone || data.Observed&presence.RecoveryProviderObservedOwnerDispatch != 0 {
 		t.Fatalf("scope entry invented port dispatch: %+v", data)
 	}
 }
@@ -194,7 +194,7 @@ func TestRecoveryProviderFailureSeparatesOwnerKindsAndParentBudget(t *testing.T)
 				err = owned.Results[0][0].Err
 			}
 			data, ok := presence.RecoveryProviderFailure(err)
-			if !ok || data.OwnerError != tc.kind || data.Observed&presence.RecoveryProviderObservedOwnerError == 0 || data.OwnerConfiguredBudget != 250*time.Millisecond || data.OwnerEffectiveBudget <= 0 || data.OwnerEffectiveBudget > 100*time.Millisecond {
+			if !ok || data.OwnerError != tc.kind || data.Observed&presence.RecoveryProviderObservedOwnerError == 0 || data.OwnerConfiguredBudget != time.Second || data.OwnerEffectiveBudget <= 0 || data.OwnerEffectiveBudget > 100*time.Millisecond {
 				t.Fatalf("owner kind/budget collapsed: %+v/%t", data, ok)
 			}
 		})

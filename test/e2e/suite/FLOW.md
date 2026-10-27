@@ -42,6 +42,9 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
    from product listeners. Bounded socket/PID evidence identifies exact owned
    senders; partition cuts both directed links, retains node-local/public TCP,
    refuses reconnects and joins relay workers after product cleanup.
+   An optional upstream-copy callback is frozen before start; the default stays
+   transparent `io.Copy`. Scenarios own protocol matching, while the relay retains
+   cancellation, socket closure, the same bridge bound and joined cleanup.
 
 ## Invariants and Failure Semantics
 

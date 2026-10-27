@@ -26,6 +26,12 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Tolerate transient owner RPC delays during presence reconstruction within one
+  bounded read chain, and stop querying after every original call has failed.
+  Complete owner proofs and caller deadlines remain required.
+  / 在线路由恢复在统一读取时限内容忍短时 owner RPC 延迟；全部原始调用失败后停止
+  多余查询，仍要求完整所有者证明并遵守调用方时限。
+
 - Retain bounded per-worker grant failure phases and reasons in chat-lifecycle
   diagnostics while preserving control deadlines, retries and acceptance verdicts.
   / 生命周期压测诊断保留各 worker 的 grant 失败阶段与原因，保持控制超时、重试及验收判定不变。

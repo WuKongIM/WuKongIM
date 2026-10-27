@@ -25,6 +25,7 @@ const (
 	RecoveryProviderMembersChanged
 	RecoveryProviderTargetAfter
 	RecoveryProviderContext
+	RecoveryProviderReadChainBudget
 )
 
 func (r RecoveryProviderReason) String() string {
@@ -57,6 +58,8 @@ func (r RecoveryProviderReason) String() string {
 		return "target_after"
 	case RecoveryProviderContext:
 		return "context"
+	case RecoveryProviderReadChainBudget:
+		return "read_chain_budget"
 	default:
 		return ""
 	}

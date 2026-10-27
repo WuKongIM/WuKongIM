@@ -45,7 +45,7 @@ func (o *recoveryProviderObservation) owner(node uint64) {
 	o.data.PageStart, o.data.PageNext = 0, 0
 	o.data.Observed &^= presence.RecoveryProviderObservedPageNext | presence.RecoveryProviderObservedOwnerElapsed | presence.RecoveryProviderObservedOwnerError
 	o.data.OwnerElapsed = 0
-	o.data.OwnerConfiguredBudget = 250 * time.Millisecond
+	o.data.OwnerConfiguredBudget = recoveryOwnerReadBudget
 	o.page(0)
 	o.data.Observed |= presence.RecoveryProviderObservedOwnerBudget
 }
