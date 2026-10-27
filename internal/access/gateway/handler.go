@@ -415,7 +415,7 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 	}
 	if ctx == nil || ctx.RequestContext == nil {
 		h.logMissingRequestContext(ctx, pkt, sendackSourceSingleMissingRequestContext)
-		return h.writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonSystemError}, sendackSourceSingleMissingRequestContext, sendackErrorClassMissingRequestContext, sendTraceFieldsFromCommand(cmd))
+		return h.writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonSystemError}, sendackSourceSingleMissingRequestContext, sendackErrorClassMissingRequestContext, sendTraceFieldsFromContext(cmd, ctx))
 	}
 
 	result, source, class, err := h.sendBatchOne(message.SendBatchItem{
@@ -426,7 +426,7 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 	if err != nil {
 		return err
 	}
-	return h.writeSendack(ctx, pkt, result, source, class, sendTraceFieldsFromCommand(cmd))
+	return h.writeSendack(ctx, pkt, result, source, class, sendTraceFieldsFromContext(cmd, ctx))
 }
 
 func (h *Handler) handleRecvack(ctx *coregateway.Context, pkt *frame.RecvackPacket) error {
@@ -466,7 +466,9 @@ func (h *Handler) sendBatchOne(item message.SendBatchItem) (message.SendResult, 
 		h.logMessageUsecaseMissing()
 		result := message.SendResult{Reason: message.ReasonSystemError}
 		if cmd.TraceID != "" {
-			recordGatewayMessagesSend(cmd, result, sendackErrorClassOther, sendtraceElapsedSince(startedAt))
+			duration := sendtraceElapsedSince(startedAt)
+			recordGatewayMessagesSend(cmd, result, sendackErrorClassOther, duration)
+			recordAttemptMessagesSend(item.Context, startedAt, duration, result, sendackErrorClassOther)
 		}
 		return result, sendackSourceSingleResult, sendackErrorClassOther, nil
 	}
@@ -498,11 +500,13 @@ func (h *Handler) sendBatchOne(item message.SendBatchItem) (message.SendResult, 
 		h.logSendFailure(cmd, sendackSourceSingleError, class, resultItem.Err)
 		if cmd.TraceID != "" {
 			recordGatewayMessagesSend(cmd, result, class, duration)
+			recordAttemptMessagesSend(item.Context, startedAt, duration, result, class)
 		}
 		return result, sendackSourceSingleError, class, nil
 	}
 	if cmd.TraceID != "" {
 		recordGatewayMessagesSend(cmd, result, sendackErrorClassNone, duration)
+		recordAttemptMessagesSend(item.Context, startedAt, duration, result, sendackErrorClassNone)
 	}
 	return result, sendackSourceSingleResult, sendackErrorClassNone, nil
 }
@@ -514,7 +518,7 @@ func (h *Handler) writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, 
 	}
 	if err := writeSendack(ctx, pkt, result); err != nil {
 		if trace.traceID != "" {
-			recordGatewayWriteSendack(trace, result, err, sendtraceElapsedSince(startedAt))
+			recordGatewayWriteSendack(trace, result, err, sendtraceElapsedSince(startedAt), startedAt)
 		}
 		fields := append([]wklog.Field{
 			wklog.Event("internal.access.gateway.sendack_write_failed"),
@@ -527,7 +531,7 @@ func (h *Handler) writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, 
 		return err
 	}
 	if trace.traceID != "" {
-		recordGatewayWriteSendack(trace, result, nil, sendtraceElapsedSince(startedAt))
+		recordGatewayWriteSendack(trace, result, nil, sendtraceElapsedSince(startedAt), startedAt)
 	}
 	if h.sendackObserver != nil {
 		h.sendackObserver.SendackWritten(SendackEvent{Reason: result.Reason, Source: source, ErrorClass: class})

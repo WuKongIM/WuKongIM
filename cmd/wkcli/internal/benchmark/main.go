@@ -849,6 +849,11 @@ func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "chat lifecycle worker driver diagnostic configuration failed")
 			return exitConfig
 		}
+		enableAttemptLinkDiagnostics, err := loadAttemptLinkDiagnosticsEnvironment()
+		if err != nil {
+			fmt.Fprintln(stderr, "chat lifecycle worker attempt diagnostic configuration failed")
+			return exitConfig
+		}
 		benchToken, err := chatlifecycle.LoadBenchToken()
 		if err != nil {
 			fmt.Fprintln(stderr, "chat lifecycle worker target credential configuration failed")
@@ -857,6 +862,9 @@ func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 		factory := chatlifecycle.NewEngineWorkerGenerationFactory(benchToken)
 		if enableDriverDiagnostics {
 			factory = chatlifecycle.NewEngineWorkerGenerationFactoryWithDriverDiagnostics(benchToken)
+		}
+		if enableAttemptLinkDiagnostics {
+			factory = chatlifecycle.NewEngineWorkerGenerationFactoryWithAttemptLinkDiagnostics(benchToken, enableDriverDiagnostics)
 		}
 		workerServer, err := chatlifecycle.NewWorkerServer(chatlifecycle.WorkerServerConfig{
 			ControlToken: cfg.server.ControlToken,
@@ -963,4 +971,17 @@ func finalizeWorkerConfig(cfg *workerCLIConfig) error {
 		return fmt.Errorf("--control-token is required unless --insecure-control=true")
 	}
 	return nil
+}
+
+// loadAttemptLinkDiagnosticsEnvironment is a private worker-only opt-in; it
+// never enters workload configuration, assignments, counters or thresholds.
+func loadAttemptLinkDiagnosticsEnvironment() (bool, error) {
+	switch os.Getenv("WK_CHAT_LIFECYCLE_ATTEMPT_LINK_DIAGNOSTICS") {
+	case "", "0", "false":
+		return false, nil
+	case "1", "true":
+		return true, nil
+	default:
+		return false, errors.New("invalid private attempt diagnostic opt-in")
+	}
 }

@@ -37,7 +37,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
    and storage submissions share while copying record metadata.
    With `DurableQuorumLog`, leader activation first installs a recovered
    authority frontier and current-term barrier, then each caller append is one
-   immutable exact quorum proposal rather than a transient worker batch.
+   immutable exact quorum proposal rather than a transient worker batch. Optional sampled storage ownership follows each mutation and both batch/fallback Adapters; filtering never shifts owners. Exact DB preparation chooses request membership. A capped local cohort sidecar does not enter peer frames or change quorum/durability; partial or dropped observation remains unknown.
 2. Followers pull continuous records, apply and return ACK progress, and use a
    bounded checkpoint path; idle leaders and caught-up followers coordinate
    checkpointed stop before either runtime can be evicted.

@@ -28,6 +28,9 @@ type Dialer interface {
 
 // Config controls one WKProto client session.
 type Config struct {
+	// EnableAttemptLinkDiagnostics retains the fixed anonymous actual CONNECT
+	// tuple after successful session publication. False retains no success digest.
+	EnableAttemptLinkDiagnostics bool
 	// Addr is the target WKProto TCP address.
 	Addr string
 	// Token is the default CONNECT token when ConnectOptions omits one.

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
@@ -104,4 +105,12 @@ func (a *App) restoreDiagnosticsSink() {
 	}
 	a.diagnosticsRestore()
 	a.diagnosticsRestore = nil
+}
+
+// QuerySendAttempts returns only this node's optional detached summaries.
+func (a *App) QuerySendAttempts(ctx context.Context, keys []sendtrace.AttemptKey) diagnostics.AttemptQueryResult {
+	if a == nil {
+		return (*diagnostics.AttemptStore)(nil).QuerySendAttempts(ctx, keys)
+	}
+	return a.attemptSummaries.QuerySendAttempts(ctx, keys)
 }

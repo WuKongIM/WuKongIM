@@ -147,6 +147,10 @@ enable = true
 # transport metric sampling is unchanged. Enabling timing adds capability
 # negotiation; a negotiation failure can prevent this RPC from being sent.
 rpc_sample_every = 0
+# Allocate 65536 anonymous SEND invocation summaries plus two fixed indexes.
+# Disabled by default; requires diagnostics.enable and a configured bench bearer
+# for the read-only query. Adds diagnostic CPU/memory work, never new deadlines.
+attempt_link_enable = false
 buffer_size = 50000
 sample_rate = 0.01
 slow_threshold_ms = 500

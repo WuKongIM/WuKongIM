@@ -105,7 +105,9 @@ func (h *Handler) sendBatchCompletion(batch *preparedGatewayBatch, index int, re
 		h.logSendFailure(batch.validItems[index].Command, completion.source, completion.class, result.Err)
 	}
 	if batch.traceFields != nil {
-		recordGatewayMessagesSend(batch.validItems[index].Command, completion.result, completion.class, sendtraceElapsedSince(started))
+		duration := sendtraceElapsedSince(started)
+		recordGatewayMessagesSend(batch.validItems[index].Command, completion.result, completion.class, duration)
+		recordAttemptMessagesSend(batch.validItems[index].Context, started, duration, completion.result, completion.class)
 		completion.trace = batch.traceFields[batch.validIndexes[index]]
 	}
 	return completion
@@ -148,7 +150,7 @@ func (h *Handler) prepareSendBatch(items []coregateway.SendBatchItem) (*prepared
 			return nil, err
 		}
 		if traceFields != nil {
-			traceFields[i] = sendTraceFieldsFromCommand(cmd)
+			traceFields[i] = sendTraceFieldsFromContext(cmd, ctx)
 		}
 		if ctx.RequestContext == nil {
 			prechecked[i] = true

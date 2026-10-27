@@ -24,6 +24,8 @@ var errClientNotConnected = errors.New("wkproto client: not connected")
 
 // ClientConfig controls one production WKProto TCP client connection.
 type ClientConfig struct {
+	// EnableAttemptLinkDiagnostics opts into fixed actual connection evidence.
+	EnableAttemptLinkDiagnostics bool
 	// Addr is the gateway TCP address in host:port form.
 	Addr string
 	// Token is the default connect token sent when callers do not override it.
@@ -53,15 +55,16 @@ type tcpDialer interface {
 
 // Client is a black-box WKProto client used by wkbench workers.
 type Client struct {
-	addr              string
-	token             string
-	dialer            tcpDialer
-	operationTimeout  time.Duration
-	ackTimeout        time.Duration
-	sendQueueCapacity int
-	maxInflight       int
-	readBufferSize    int
-	frameBufferSize   int
+	addr                         string
+	token                        string
+	dialer                       tcpDialer
+	operationTimeout             time.Duration
+	ackTimeout                   time.Duration
+	sendQueueCapacity            int
+	maxInflight                  int
+	readBufferSize               int
+	frameBufferSize              int
+	enableAttemptLinkDiagnostics bool
 
 	// connectMu orders adapter session replacement against terminal fencing.
 	connectMu sync.Mutex
@@ -123,6 +126,8 @@ type FrameLease interface {
 type clientSession struct {
 	// inner owns the TCP session, WKProto crypto, reader, writer, and SENDACK matching.
 	inner *wkclient.Client
+	// connectFingerprint is immutable for this actual SDK session.
+	connectFingerprint [16]byte
 	// recvCh backpressures lossless RECV delivery in wire order.
 	recvCh chan frame.Frame
 	// sendackCh isolates SEND futures from RECV pressure.
@@ -176,9 +181,11 @@ type sendackResult struct {
 // FrameTiming preserves process-local SEND boundaries across the adapter's
 // bounded result queues. All fields remain zero for non-SENDACK frames.
 type FrameTiming struct {
-	PendingStartedAt time.Time
-	WriteStartedAt   time.Time
-	ObservedAt       time.Time
+	// ConnectFingerprint identifies the original publishing session, not a later reconnect.
+	ConnectFingerprint [16]byte
+	PendingStartedAt   time.Time
+	WriteStartedAt     time.Time
+	ObservedAt         time.Time
 }
 
 type adapterFrameLease struct {
@@ -208,10 +215,11 @@ const (
 )
 
 type readFrameError struct {
-	kind        ReadErrorKind
-	clientSeq   uint64
-	clientMsgNo string
-	err         error
+	connectFingerprint [16]byte
+	kind               ReadErrorKind
+	clientSeq          uint64
+	clientMsgNo        string
+	err                error
 }
 
 func (e *readFrameError) Error() string { return e.err.Error() }
@@ -220,9 +228,11 @@ func (e *readFrameError) Unwrap() error { return e.err }
 // ReadErrorInfo is the closed redacted ownership carried by one result-queue
 // error. ClientMsgNo is populated only for a non-terminal asynchronous SEND.
 type ReadErrorInfo struct {
-	Kind        ReadErrorKind
-	ClientSeq   uint64
-	ClientMsgNo string
+	// ConnectFingerprint is the original publishing connection scope, when opted in.
+	ConnectFingerprint [16]byte
+	Kind               ReadErrorKind
+	ClientSeq          uint64
+	ClientMsgNo        string
 }
 
 // ReadErrorInfoOf classifies only errors emitted from the bounded result
@@ -233,7 +243,7 @@ func ReadErrorInfoOf(err error) (ReadErrorInfo, bool) {
 	if !errors.As(err, &readErr) {
 		return ReadErrorInfo{}, false
 	}
-	return ReadErrorInfo{Kind: readErr.kind, ClientSeq: readErr.clientSeq, ClientMsgNo: readErr.clientMsgNo}, true
+	return ReadErrorInfo{Kind: readErr.kind, ClientSeq: readErr.clientSeq, ClientMsgNo: readErr.clientMsgNo, ConnectFingerprint: readErr.connectFingerprint}, true
 }
 
 // ReadErrorKindOf is the kind-only projection for callers without SEND retry ownership.
@@ -263,15 +273,16 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		cfg.FrameBufferSize = defaultFrameBufferSize
 	}
 	return &Client{
-		addr:              cfg.Addr,
-		token:             cfg.Token,
-		dialer:            cfg.Dialer,
-		operationTimeout:  cfg.OperationTimeout,
-		ackTimeout:        cfg.AckTimeout,
-		sendQueueCapacity: cfg.SendQueueCapacity,
-		maxInflight:       cfg.MaxInflight,
-		readBufferSize:    cfg.ReadBufferSize,
-		frameBufferSize:   cfg.FrameBufferSize,
+		addr:                         cfg.Addr,
+		token:                        cfg.Token,
+		dialer:                       cfg.Dialer,
+		operationTimeout:             cfg.OperationTimeout,
+		ackTimeout:                   cfg.AckTimeout,
+		sendQueueCapacity:            cfg.SendQueueCapacity,
+		maxInflight:                  cfg.MaxInflight,
+		readBufferSize:               cfg.ReadBufferSize,
+		frameBufferSize:              cfg.FrameBufferSize,
+		enableAttemptLinkDiagnostics: cfg.EnableAttemptLinkDiagnostics,
 	}, nil
 }
 
@@ -611,9 +622,10 @@ func (c *Client) forwardSendack(session *clientSession, future *wkclient.SendFut
 		ReasonCode:  result.ReasonCode,
 	}
 	session.publishSendackTiming(ack, FrameTiming{
-		PendingStartedAt: result.PendingStartedAt,
-		WriteStartedAt:   result.WriteStartedAt,
-		ObservedAt:       result.ObservedAt,
+		PendingStartedAt:   result.PendingStartedAt,
+		WriteStartedAt:     result.WriteStartedAt,
+		ObservedAt:         result.ObservedAt,
+		ConnectFingerprint: session.connectFingerprint,
 	})
 }
 
@@ -909,7 +921,7 @@ func (s *clientSession) consumeError(result errorResult) (frame.Frame, error) {
 	if result.terminal {
 		kind = ReadErrorTerminal
 	}
-	return nil, &readFrameError{kind: kind, clientSeq: result.clientSeq, clientMsgNo: result.clientMsgNo, err: result.err}
+	return nil, &readFrameError{connectFingerprint: s.connectFingerprint, kind: kind, clientSeq: result.clientSeq, clientMsgNo: result.clientMsgNo, err: result.err}
 }
 
 func (s *clientSession) isStopped() bool {
@@ -930,14 +942,15 @@ func (s *clientSession) notifyQueueDrain() {
 
 func newClientSession(inner *wkclient.Client, frameBufferSize int) *clientSession {
 	session := &clientSession{
-		inner:             inner,
-		recvCh:            make(chan frame.Frame, frameBufferSize),
-		sendackCh:         make(chan sendackResult, frameBufferSize),
-		errCh:             make(chan errorResult, frameBufferSize),
-		stopCh:            make(chan struct{}),
-		drainCh:           make(chan struct{}, 1),
-		readPermit:        make(chan struct{}, 1),
-		publicationPermit: make(chan struct{}, frameBufferSize),
+		inner:              inner,
+		connectFingerprint: inner.ConnectFingerprint(),
+		recvCh:             make(chan frame.Frame, frameBufferSize),
+		sendackCh:          make(chan sendackResult, frameBufferSize),
+		errCh:              make(chan errorResult, frameBufferSize),
+		stopCh:             make(chan struct{}),
+		drainCh:            make(chan struct{}, 1),
+		readPermit:         make(chan struct{}, 1),
+		publicationPermit:  make(chan struct{}, frameBufferSize),
 	}
 	session.readPermit <- struct{}{}
 	for i := 0; i < frameBufferSize; i++ {
@@ -1046,15 +1059,16 @@ func (c *Client) newInner() (*wkclient.Client, error) {
 
 func (c *Client) innerConfig() wkclient.Config {
 	return wkclient.Config{
-		Addr:                   c.addr,
-		Token:                  c.token,
-		Dialer:                 c.dialer,
-		OperationTimeout:       c.operationTimeout,
-		AckTimeout:             c.ackTimeout,
-		SendQueueCapacity:      c.sendQueueCapacity,
-		MaxInflight:            c.maxInflight,
-		ReadBufferSize:         c.readBufferSize,
-		InboundFrameBufferSize: c.frameBufferSize,
+		Addr:                         c.addr,
+		EnableAttemptLinkDiagnostics: c.enableAttemptLinkDiagnostics,
+		Token:                        c.token,
+		Dialer:                       c.dialer,
+		OperationTimeout:             c.operationTimeout,
+		AckTimeout:                   c.ackTimeout,
+		SendQueueCapacity:            c.sendQueueCapacity,
+		MaxInflight:                  c.maxInflight,
+		ReadBufferSize:               c.readBufferSize,
+		InboundFrameBufferSize:       c.frameBufferSize,
 	}
 }
 
@@ -1066,4 +1080,17 @@ func (c *Client) withDefaultTimeout(ctx context.Context) (context.Context, conte
 		return ctx, func() {}
 	}
 	return context.WithTimeout(ctx, c.operationTimeout)
+}
+
+// ConnectFingerprint reads the immutable scope of the current benchmark session.
+func (c *Client) ConnectFingerprint() [16]byte {
+	if c == nil || !c.enableAttemptLinkDiagnostics {
+		return [16]byte{}
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.session == nil {
+		return [16]byte{}
+	}
+	return c.session.connectFingerprint
 }

@@ -346,6 +346,7 @@ var schemaHelp = map[string]fieldHelp{
 		EN: "Captures bounded node-local diagnostic events; enabled when omitted.",
 		ZH: "是否采集本节点的有界诊断事件；省略时启用。",
 	},
+	"diagnostics.attempt_link_enable": {EN: "Opt in to 65536 fixed anonymous Gateway invocation summaries and two separately bounded indexes per node. Defaults to false and requires diagnostics.enable. The authenticated read-only attempt query retains candidates, not generic uniqueness proof; enabling this adds diagnostic CPU and memory work.", ZH: "显式开启每节点65536条匿名Gateway调用摘要及两套独立有界索引；默认关闭，要求diagnostics.enable。鉴权只读查询仅保留候选，不能证明通用唯一性；开启会增加诊断CPU和内存开销。"},
 	"diagnostics.rpc_sample_every": {
 		EN: "Selects one in N outbound RPCs for bounded request-local timings and accepts negotiated inbound timings while diagnostics.enable is true. Defaults to 0 (disabled); 32 selects one in 32. Range: 0..4294967295. Ordinary metric sampling is unchanged. Enabling timing adds capability negotiation; failure may prevent this RPC from being sent.",
 		ZH: "diagnostics.enable 为 true 时，每 N 次出站 RPC 选择一次有界同请求耗时采样，并接收协商后的入站耗时采样。默认 0（禁用），32 表示每 32 次选一次；范围为 0..4294967295。普通指标采样保持不变；启用会增加能力协商，协商失败可能阻止本次 RPC 发出。",

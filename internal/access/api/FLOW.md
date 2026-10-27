@@ -132,6 +132,8 @@ bench or debug request
   send_ban from an explicit zero. Audit attribution labels backend writes with
   an unknown operator and the actual socket peer, without trusting headers.
 
+- The private read-only `POST /debug/diagnostics/send-attempts/query` requires debug enabled and a configured bearer. Versioned anonymous attempt keys and typed exact RPC selectors share a hard16-selector/8KiB request bound; summary replies stay within64KiB and RPC replies within256KiB. RPC reads use only this node’s existing exact TraceID/stage store query and strictly validate typed side/service identity. Unsupported, ambiguous, expired, inconsistent and over-cap evidence stay explicit; there is no remote call or latest fallback.
+
 ## Read First
 
 - [server.go](server.go)

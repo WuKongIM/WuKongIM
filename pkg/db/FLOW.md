@@ -73,6 +73,14 @@ It does not own product policy or expose Pebble-specific APIs to callers.
   sample; later seal/publication errors retain an already completed observation.
   Native commit wait combines publication ordering and WAL sync completion, not
   pure fsync. These overlapping timings do not add to coordinator total or RPC spans.
+  Selected storage owners additionally retain at most two whole physical-build
+  links per Trace. One central identity reuses a recorder namespace and separate
+  saturating sequence across shared owners; it is not a business/RPC parent.
+  Continuous physical and outer Submit windows remain separate from callback
+  sums, native facts, observer/earlier-finalizer wait and actual Finalize.
+  Early Finish cannot reopen; owner sets/combination cap at 64 with explicit
+  admission drops, independent of recorder active credit. No trace ledger,
+  new queue or default-off identity/clock/allocation work is added.
 - Each writable engine keeps one baseline compaction slot and may open three
   more only as L0 depth or compaction debt crosses configured pressure steps.
 

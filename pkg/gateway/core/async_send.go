@@ -3,6 +3,8 @@ package core
 import (
 	"context"
 	"fmt"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -218,7 +220,14 @@ func (e *sendExecutor) admit(state *sessionState) (int, bool) {
 }
 func (e *sendExecutor) enqueue(shard int, task asyncDispatchTask) bool {
 	task.enqueuedAt = time.Now()
+	if sendtrace.GatewayAttemptEnabled() && task.packet == nil && task.state != nil && task.state.session != nil {
+		if packet, ok := task.frame.(*frame.SendPacket); ok && packet.ClientSeq > 0 && packet.ClientSeq <= math.MaxUint32 {
+			scope, _ := task.state.session.Value(gatewaytypes.SessionValueConnectFingerprint).([16]byte)
+			task.attemptToken = sendtrace.BeginGatewayAttempt(sendtrace.AttemptKey{MessageFingerprint: sendtrace.MessageFingerprint(packet.ClientMsgNo), ClientSeq: uint32(packet.ClientSeq), ConnectFingerprint: scope}, task.enqueuedAt)
+		}
+	}
 	if err := e.mailbox.SubmitHash(context.Background(), uint64(shard), task); err != nil {
+		sendtrace.DiscardGatewayAttempt(task.attemptToken)
 		e.consumeShard(shard, 1)
 		e.consume(1)
 		e.completeAdmission()
@@ -424,7 +433,7 @@ func (e *sendExecutor) dispatchBatch(batch []asyncDispatchTask) {
 			continue
 		}
 		e.server.recordAsyncDispatchWait(task)
-		if err := e.server.dispatchFrame(task.state, task.replyToken, task.frame); err != nil {
+		if err := e.server.dispatchFrame(task.state, task.replyToken, task.frame, task.attemptToken); err != nil {
 			e.server.handleHandlerError(task.state, err)
 		}
 	}

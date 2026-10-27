@@ -90,7 +90,7 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
   index 3 preserves history lookup while native index 4 stays separate. Will
   uniqueness uses durable point proofs without the native negative filter. System 16 atomically retains compact Will receipts across prefix trim; still-present legacy originals can materialize them during trim, while suffix rollback removes matching receipts.
 - Caller cancellation stops waiting but cannot release commit-owned locks or
-  pins before build, physical commit, publish, or terminal shutdown. Native timings retain availability and count physical batches, not logical requests.
+  pins before build, physical commit, publish, or terminal shutdown. Native timings retain availability and count physical batches, not logical requests. Optional typed commit observation binds only prepared writers and dependent staged replays; already-durable independent rows and filtered failures never inherit a sibling cohort. Bounded owner sets retain no caller context/payload. Two whole links distinguish discarded/rebuilt attempts, copied native facts and terminal cleanup; continuous windows are not legacy phase sums, and published Traces never reopen.
 - Retention and truncation remove primary and secondary rows together. Logical
   retention preserves canonical lookup state until physical deletion.
   MQTT System 12 clamps physical trim at copied-through independently of logical visibility.

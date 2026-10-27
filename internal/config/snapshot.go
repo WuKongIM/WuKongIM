@@ -94,6 +94,7 @@ func effectiveCriticalSnapshotValues(values sourceValues, cfg app.Config) map[st
 		recipientDerived = configuredAsZero(values, "WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY")
 	}
 	return map[string]effectiveSnapshotValue{
+		"WK_DIAGNOSTICS_ATTEMPT_LINK_ENABLE": effectiveBoolean(values, "WK_DIAGNOSTICS_ATTEMPT_LINK_ENABLE", cfg.Observability.Diagnostics.AttemptLinkEnable, false),
 		"WK_DIAGNOSTICS_RPC_SAMPLE_EVERY": {
 			value:  strconv.FormatUint(uint64(cfg.Observability.Diagnostics.RPCSampleEvery), 10),
 			source: effectiveValueSource(values, "WK_DIAGNOSTICS_RPC_SAMPLE_EVERY", false),

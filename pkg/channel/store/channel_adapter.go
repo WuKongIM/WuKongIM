@@ -323,6 +323,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 			continue
 		}
 		dbItems = append(dbItems, messagedb.AppendBatchItem{
+			CommitObservation:         item.Request.CommitObservation,
 			Store:                     dbStore,
 			Records:                   records,
 			Class:                     messageDBAppendBatchClass(item.Request.Class),
@@ -713,6 +714,7 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 		return appendLeaderErrorResult(err), err
 	}
 	results := messagedb.StoreAppendBatch(ctx, []messagedb.AppendBatchItem{{
+		CommitObservation:         req.CommitObservation,
 		Store:                     a.store,
 		Records:                   records,
 		Class:                     messageDBAppendBatchClass(req.Class),

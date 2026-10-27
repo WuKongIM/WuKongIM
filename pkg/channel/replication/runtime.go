@@ -447,7 +447,8 @@ func (l *runtimeLocalDurability) runBatch(_ context.Context, items []localDurabi
 	for index, item := range items {
 		proposal := item.proposal
 		mutations[index] = Mutation{
-			ChannelKey: proposal.channelKey, ChannelID: proposal.channelID,
+			CommitObservation: rpctrace.CommitObservationForAppend(item.observation),
+			ChannelKey:        proposal.channelKey, ChannelID: proposal.channelID,
 			Manifest: proposal.manifest, Records: proposal.records, Committed: proposal.committed, Class: MutationClassLeaderQuorum,
 			ServerAllocatedMessageIDs: proposal.serverAllocatedMessageIDs,
 		}

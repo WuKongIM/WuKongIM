@@ -59,9 +59,11 @@ type sessionFrameObserver interface {
 
 // SessionFrameTiming carries identity-free, process-local SEND boundaries.
 type SessionFrameTiming struct {
-	PendingStartedAt time.Time
-	WriteStartedAt   time.Time
-	ObservedAt       time.Time
+	// ConnectFingerprint belongs to the original SDK publication session.
+	ConnectFingerprint [16]byte
+	PendingStartedAt   time.Time
+	WriteStartedAt     time.Time
+	ObservedAt         time.Time
 }
 
 type sessionFrameTimingObserver interface {
@@ -103,9 +105,10 @@ func (a *WKProtoSessionAdapter) ReadFrameObserved(ctx context.Context) (frame.Fr
 func (a *WKProtoSessionAdapter) ReadFrameTiming(ctx context.Context) (frame.Frame, SessionFrameTiming, error) {
 	packet, timing, err := a.client.ReadFrameTiming(ctx)
 	return packet, SessionFrameTiming{
-		PendingStartedAt: timing.PendingStartedAt,
-		WriteStartedAt:   timing.WriteStartedAt,
-		ObservedAt:       timing.ObservedAt,
+		PendingStartedAt:   timing.PendingStartedAt,
+		WriteStartedAt:     timing.WriteStartedAt,
+		ObservedAt:         timing.ObservedAt,
+		ConnectFingerprint: timing.ConnectFingerprint,
 	}, err
 }
 
@@ -278,6 +281,8 @@ type SessionCounts struct {
 }
 
 type onlineSession struct {
+	// connectFingerprint is immutable evidence captured only after login accepts.
+	connectFingerprint    [16]byte
 	snapshot              SessionSnapshot
 	client                SessionClient
 	cancel                context.CancelFunc
@@ -308,7 +313,9 @@ type SessionPool struct {
 	heartbeatTimeout  time.Duration
 	heartbeatSleep    func(context.Context, time.Duration) error
 	onSendack         func(string, *frame.SendackPacket, error)
-	onAsyncSendError  func(string, uint64, string)
+	// onAsyncSendErrorEvidence preserves the original Engine error-clock boundary.
+	onAsyncSendErrorEvidence func(string, uint64, string, [16]byte)
+	onAsyncSendError         func(string, uint64, string)
 
 	mu                 sync.RWMutex
 	online             map[string]*onlineSession
@@ -498,6 +505,11 @@ func (p *SessionPool) loginReserved(ctx, drainParent context.Context, login Sess
 	session := &onlineSession{
 		snapshot: snapshot, client: client, cancel: cancel, done: make(chan struct{}), heartbeatDone: make(chan struct{}),
 		groupIndex: -1, groupPosition: -1, relationshipsObserved: !login.NewIdentity,
+	}
+	if p.verifier.attemptLinkEnabled() {
+		if provider, ok := client.(interface{ ConnectFingerprint() [16]byte }); ok {
+			session.connectFingerprint = provider.ConnectFingerprint()
+		}
 	}
 	canaryAnchorCandidate := false
 	if group, memberOrdinal, member, groupErr := p.catalog.GroupForMemberIndex(login.UserIndex); groupErr != nil {
@@ -1294,6 +1306,8 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 					_ = p.verifier.evidence.Record(EvidenceEvent{
 						Class: FailureClassHarness, Stage: EvidenceStageReceive, Code: FailureCodeSessionReadFailed,
 					})
+				} else if p.onAsyncSendErrorEvidence != nil {
+					p.onAsyncSendErrorEvidence(session.snapshot.UID, info.ClientSeq, info.ClientMsgNo, info.ConnectFingerprint)
 				} else if p.onAsyncSendError != nil {
 					p.onAsyncSendError(session.snapshot.UID, info.ClientSeq, info.ClientMsgNo)
 				}
@@ -1311,7 +1325,12 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 				observedAt = p.clock.Now()
 			}
 			p.recordSendTiming(timing)
-			verificationErr := p.verifier.HandleSendackAt(packet, observedAt)
+			var verificationErr error
+			if p.verifier.attemptLinkEnabled() {
+				verificationErr = p.verifier.HandleSendackWithEvidenceAt(packet, observedAt, AttemptLinkResultEvidence{ConnectFingerprint: timing.ConnectFingerprint, PendingStartedAt: timing.PendingStartedAt, WriteStartedAt: timing.WriteStartedAt})
+			} else {
+				verificationErr = p.verifier.HandleSendackAt(packet, observedAt)
+			}
 			if !p.verifier.correlationOutstanding(packet.ClientMsgNo) {
 				p.releaseCorrelationLease(packet.ClientMsgNo)
 			}
@@ -1642,4 +1661,26 @@ func sleepSessionHeartbeat(ctx context.Context, duration time.Duration) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// ConnectFingerprint adapts the optional SDK connection evidence provider.
+func (a *WKProtoSessionAdapter) ConnectFingerprint() [16]byte {
+	if a == nil || a.client == nil {
+		return [16]byte{}
+	}
+	return a.client.ConnectFingerprint()
+}
+
+// sendConnectionFingerprint reads the retained accepted-session scope; a SEND
+// lease keeps that exact session alive through the original attempt.
+func (p *SessionPool) sendConnectionFingerprint(uid string) [16]byte {
+	if p == nil || !p.verifier.attemptLinkEnabled() {
+		return [16]byte{}
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if session := p.online[uid]; session != nil {
+		return session.connectFingerprint
+	}
+	return [16]byte{}
 }

@@ -55,6 +55,9 @@ It does not provision users or channels, choose benchmark policy, or retry sends
   half-close, local write completion, malformed/stale ACK, EOF, or post-ACK
   bytes fail closed. RECVACK remains permitted while the terminal ACK is pending.
 
+
+- A separate default-off attempt-diagnostic option retains only the actual successful CONNECT tuple digest for the currently published connection. It adds no clock read, changes no queue/inflight limit and is cleared on Close. The benchmark wrapper creates a fresh inner client on reconnect; generic repeated tuples remain non-unique.
+
 ## Read First
 
 - [Client lifecycle](client.go)

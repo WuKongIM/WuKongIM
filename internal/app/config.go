@@ -237,6 +237,9 @@ type DiagnosticsConfig struct {
 	// timing and permits inbound negotiated timing while diagnostics is enabled.
 	// Zero disables RPC timing without changing ordinary metric sampling.
 	RPCSampleEvery uint32
+	// AttemptLinkEnable allocates independent bounded Gateway invocation summaries.
+	// It defaults to false, requires diagnostics enabled, and adds diagnostic CPU/memory work.
+	AttemptLinkEnable bool
 	// BufferSize is the maximum number of diagnostics events retained in memory.
 	BufferSize int
 	// SampleRate is the baseline keep probability for successful diagnostics events.
@@ -971,6 +974,9 @@ func validatePluginConfig(cfg PluginConfig) error {
 }
 
 func validateObservabilityConfig(cfg ObservabilityConfig) error {
+	if cfg.Diagnostics.AttemptLinkEnable && !cfg.Diagnostics.Enabled {
+		return fmt.Errorf("%w: attempt-link diagnostics require diagnostics enabled", ErrInvalidConfig)
+	}
 	if cfg.Prometheus.RetentionTime < 0 {
 		return fmt.Errorf("%w: prometheus retention time must be non-negative", ErrInvalidConfig)
 	}

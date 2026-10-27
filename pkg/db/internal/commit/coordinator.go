@@ -45,6 +45,8 @@ type Lane struct {
 
 // BatchEvent describes one physical commit attempt produced by the coordinator.
 type BatchEvent struct {
+	// CohortRef is optional selected-observation identity for this actual Build.
+	CohortRef *rpctrace.CommitCohortRef `json:"cohort_ref,omitempty"`
 	// Requests is the number of logical requests grouped into the physical commit.
 	Requests int
 	// Records is the total logical record count in the grouped requests.
@@ -117,6 +119,8 @@ type Config struct {
 
 // Request is one logical durable mutation.
 type Request struct {
+	// CommitObservation carries sampled owners only, never cancellation or payload.
+	CommitObservation rpctrace.CommitObservation `json:"-"`
 	// Lane identifies the logical commit lane.
 	Lane Lane
 	// Partition identifies the logical partition affected by the request.
@@ -255,7 +259,8 @@ func (c *Coordinator) Submit(ctx context.Context, req Request) (err error) {
 // known before physical commit admission or became ambiguous afterward.
 func (c *Coordinator) SubmitWithOutcome(ctx context.Context, req Request) (result SubmitResult) {
 	pending := newPendingRequest(req)
-	pending.trace = newRequestTrace(ctx)
+	pending.trace = newRequestTrace(ctx, req.CommitObservation)
+	defer pending.trace.finishSubmit()
 	if c == nil || c.db == nil || req.Build == nil {
 		result = SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: dberrors.ErrInvalidArgument}
 		pending.complete(result)
@@ -365,7 +370,15 @@ func (r pendingRequest) complete(result SubmitResult) {
 	r.finalizeOnce.Do(func() {
 		r.trace.finish(commitTraceResult(result.Err))
 		r.releaseQueued()
-		if r.Finalize != nil {
+		if attempt, observed := r.trace.currentCohort(); observed {
+			if r.Finalize != nil {
+				attempt.StartFinalize(time.Now())
+				r.Finalize()
+				attempt.EndFinalize(time.Now())
+			} else {
+				attempt.EndTerminalWithoutFinalize(time.Now())
+			}
+		} else if r.Finalize != nil {
 			r.Finalize()
 		}
 		r.done <- result
@@ -572,15 +585,24 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 		reqs.completeAll(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: ErrClosed})
 		return
 	}
+	cohortRef := reqs.beginCohort()
 	reqs.traceStage(rpctrace.StageCommitBuild, rpctrace.ResultOK)
 	batch := c.db.NewBatch()
 	defer batch.Close()
 	buildStarted := time.Now()
+	reqs.phaseStart(rpctrace.CommitPhaseBuild, buildStarted)
 	for index, req := range reqs.requests {
 		if err := req.Build(batch); err != nil {
-			buildDuration := time.Since(buildStarted)
+			buildEnded := time.Now()
+			buildDuration := buildEnded.Sub(buildStarted)
+			reqs.phaseEnd(rpctrace.CommitPhaseBuild, buildEnded)
+			for position, candidate := range reqs.requests {
+				rebuilding := position != index && candidate.RebuildOnGroupAbort && len(reqs.requests) > 1
+				candidate.trace.physicalEnd(buildEnded, buildDuration, engine.NativeCommitStats{}, OutcomeDefinitelyNotCommitted, !rebuilding)
+			}
 			reqs.finishTrace(commitTraceResult(err))
 			c.observeBatch(BatchEvent{
+				CohortRef:       cohortRef,
 				Requests:        requests,
 				Records:         records,
 				Bytes:           bytes,
@@ -603,33 +625,44 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 			return
 		}
 	}
-	buildDuration := time.Since(buildStarted)
+	buildEnded := time.Now()
+	buildDuration := buildEnded.Sub(buildStarted)
+	reqs.phaseEnd(rpctrace.CommitPhaseBuild, buildEnded)
 	c.mu.Lock()
 	commitFunc := c.commitFunc
 	c.mu.Unlock()
 	commitStarted := time.Now()
+	reqs.phaseStart(rpctrace.CommitPhaseDurable, commitStarted)
 	reqs.traceStage(rpctrace.StageCommitDurable, rpctrace.ResultOK)
 	if err := commitFunc(batch); err != nil {
-		commitDuration := time.Since(commitStarted)
+		commitEnded := time.Now()
+		commitDuration := commitEnded.Sub(commitStarted)
+		reqs.phaseEnd(rpctrace.CommitPhaseDurable, commitEnded)
+		native := batch.CommitStats()
+		reqs.physicalEnd(commitEnded, buildDuration+commitDuration, native, OutcomeUnknown)
 		reqs.finishTrace(commitTraceResult(err))
 		c.observeBatch(BatchEvent{
+			CohortRef:       cohortRef,
 			Requests:        requests,
 			Records:         records,
 			Bytes:           bytes,
 			CollectDuration: collectDuration,
 			BuildDuration:   buildDuration,
 			CommitDuration:  commitDuration,
-			Native:          batch.CommitStats(),
+			Native:          native,
 			TotalDuration:   collectDuration + buildDuration + commitDuration,
 			Err:             err,
 		})
 		reqs.completeAll(SubmitResult{Outcome: OutcomeUnknown, Err: err})
 		return
 	}
-	commitDuration := time.Since(commitStarted)
+	commitEnded := time.Now()
+	commitDuration := commitEnded.Sub(commitStarted)
+	reqs.phaseEnd(rpctrace.CommitPhaseDurable, commitEnded)
 	native := batch.CommitStats()
 	reqs.traceStage(rpctrace.StageCommitPublish, rpctrace.ResultOK)
 	publishStarted := time.Now()
+	reqs.phaseStart(rpctrace.CommitPhasePublish, publishStarted)
 	var publishErr error
 	publishResults := make([]error, len(reqs.requests))
 	for i, req := range reqs.requests {
@@ -642,13 +675,17 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 			}
 		}
 	}
-	publishDuration := time.Since(publishStarted)
+	publishEnded := time.Now()
+	publishDuration := publishEnded.Sub(publishStarted)
+	reqs.phaseEnd(rpctrace.CommitPhasePublish, publishEnded)
+	reqs.physicalEnd(publishEnded, buildDuration+commitDuration+publishDuration, native, OutcomeCommitted)
 	// Publication spans cover every group callback, excluding the later Finalize
 	// resource release and observer callbacks; their results stay request-aligned.
 	for i, req := range reqs.requests {
 		req.trace.finish(commitTraceResult(publishResults[i]))
 	}
 	c.observeBatch(BatchEvent{
+		CohortRef:       cohortRef,
 		Requests:        requests,
 		Records:         records,
 		Bytes:           bytes,

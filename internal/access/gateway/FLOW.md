@@ -81,6 +81,9 @@ It does not own reusable message, presence, delivery, or storage policy.
 
 - Authenticated connections opt into body-free edit hints with `message_updates.enable` EVENT and receive `message_updates.ready`. Capability is connection-scoped; CONNECT and CMD meanings remain unchanged.
 
+
+- Optional attempt diagnostics carry the original core invocation token separately from usecase commands. Each batch item binds its own upper TraceID and records messages/result and normal WriteFrame callback intervals using existing clocks. Callback completion is not socket flush or client receipt. Derived same-process stage positions are not independent wall observations or cross-endpoint network latency.
+
 ## Read First
 
 - [Gateway handler](handler.go)

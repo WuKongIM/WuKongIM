@@ -271,10 +271,13 @@ type Sample struct {
 	ReceivePrefix *ReceivePrefix `json:"receive_prefix,omitempty"`
 	// Dispatch is optional selected server evidence, independent of MaxSpans.
 	Dispatch *DispatchSample `json:"dispatch,omitempty"`
+	// CommitCohorts links selected storage work without extending RPC lifetime.
+	CommitCohorts *CommitCohortSample `json:"commit_cohorts,omitempty"`
 }
 
 // Clone detaches mutable data before crossing a store/query boundary.
 func (s Sample) Clone() Sample {
+	s.CommitCohorts = s.CommitCohorts.clone()
 	s.Spans = append([]SpanSample(nil), s.Spans...)
 	if s.Dispatch != nil {
 		dispatch := *s.Dispatch
@@ -299,7 +302,9 @@ type Recorder struct {
 	active   atomic.Int64
 	dropped  atomic.Uint64
 	sequence atomic.Uint64
-	prefix   string
+	// cohortSequence saturates independently of RPC/local request identities.
+	cohortSequence atomic.Uint64
+	prefix         string
 }
 
 func NewRecorder(maxActive int) (*Recorder, error) {
@@ -372,6 +377,7 @@ type Trace struct {
 	serviceID uint16
 	operation uint8
 	closed    bool
+	cohorts   commitCohortState
 	// terminal belongs only to this exact client Call, never its server parent.
 	terminal *TerminalCapture
 	// dispatch exists only for admitted bound server traces with a declaration.
@@ -687,6 +693,7 @@ func (t *Trace) Finish(result Result) *Sample {
 	if t.dispatch != nil {
 		s.Dispatch = t.dispatch.finish(elapsed)
 	}
+	s.CommitCohorts = t.cohorts.snapshot(elapsed)
 	t.owner.active.Add(-1)
 	state := TerminalTraceBound
 	if t.unbound {

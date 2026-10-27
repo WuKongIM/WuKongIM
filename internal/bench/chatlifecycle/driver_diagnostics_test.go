@@ -18,8 +18,8 @@ func driverValidSnapshotFixture() WorkerSnapshot {
 	return WorkerSnapshot{RunID: "driver-run", AssignmentID: "driver-assignment", Phase: WorkerPhaseFinal, Generation: 1, WorkerID: 0, WorkerCount: 3, DriverDiagnostics: &DriverDiagnosticsSnapshot{Generation: 1, Records: []DriverDeadlineMiss{{Turn: 1, Operation: "advance", Code: FailureCode(38), ClockValid: true, DeadlineAfterDue: 100 * time.Millisecond, FreshAfterDue: 101 * time.Millisecond}}}}
 }
 func TestDriverDiagnosticsPrivateProtocolRoundTripAndSanitization(t *testing.T) {
-	if workerProtocolVersion != 14 {
-		t.Fatalf("private protocol=%d want14", workerProtocolVersion)
+	if workerProtocolVersion != 15 {
+		t.Fatalf("private protocol=%d want15", workerProtocolVersion)
 	}
 	s := driverValidSnapshotFixture()
 	body, err := json.Marshal(s)

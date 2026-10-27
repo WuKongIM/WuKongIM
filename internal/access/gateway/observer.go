@@ -1,6 +1,8 @@
 package gateway
 
 import (
+	"context"
+	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -49,6 +51,8 @@ type SendackObserver interface {
 }
 
 type sendTraceFields struct {
+	// attemptToken remains specific to the original gateway invocation.
+	attemptToken sendtrace.AttemptToken
 	// traceID correlates sendtrace events for one SEND.
 	traceID string
 	// nodeID is the local gateway owner node that observed the event.
@@ -95,7 +99,7 @@ func recordGatewayMessagesSend(cmd message.SendCommand, result message.SendResul
 	})
 }
 
-func recordGatewayWriteSendack(trace sendTraceFields, result message.SendResult, err error, duration time.Duration) {
+func recordGatewayWriteSendack(trace sendTraceFields, result message.SendResult, err error, duration time.Duration, startedAt time.Time) {
 	if trace.traceID == "" {
 		return
 	}
@@ -116,6 +120,7 @@ func recordGatewayWriteSendack(trace sendTraceFields, result message.SendResult,
 		event.Error = err.Error()
 	}
 	sendtrace.Record(event)
+	sendtrace.RecordGatewayAttemptPhase(trace.attemptToken, sendtrace.AttemptPhase{Stage: sendtrace.StageGatewayWriteSendack, StartedAt: startedAt, Duration: duration, Result: event.Result, Boundary: "write_frame_callback", EndDerived: true})
 }
 
 func sendtraceOutcomeForSendResult(result message.SendResult, class string) (sendtrace.Result, string) {
@@ -167,4 +172,20 @@ func sendtraceErrorCodeForReason(reason message.Reason) string {
 	default:
 		return "reason_unknown"
 	}
+}
+
+func sendTraceFieldsFromContext(cmd message.SendCommand, ctx *coregateway.Context) sendTraceFields {
+	trace := sendTraceFieldsFromCommand(cmd)
+	if ctx != nil {
+		trace.attemptToken = sendtrace.GatewayAttemptFromContext(ctx.RequestContext)
+	}
+	return trace
+}
+func recordAttemptMessagesSend(ctx context.Context, startedAt time.Time, duration time.Duration, result message.SendResult, class string) {
+	token := sendtrace.GatewayAttemptFromContext(ctx)
+	if !token.Valid() {
+		return
+	}
+	outcome, _ := sendtraceOutcomeForSendResult(result, class)
+	sendtrace.RecordGatewayAttemptPhase(token, sendtrace.AttemptPhase{Stage: sendtrace.StageGatewayMessagesSend, StartedAt: startedAt, Duration: duration, Result: outcome, Boundary: "message_call_to_result", EndDerived: true})
 }

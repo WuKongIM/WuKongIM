@@ -186,6 +186,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "top.history_window", EnvKey: "WK_TOP_HISTORY_WINDOW", Kind: kindDuration, Group: "top", Label: "Top history window"},
 
 	{TOMLPath: "diagnostics.enable", EnvKey: "WK_DIAGNOSTICS_ENABLE", Kind: kindBool, Group: "diagnostics", Label: "Diagnostics enabled"},
+	{TOMLPath: "diagnostics.attempt_link_enable", EnvKey: "WK_DIAGNOSTICS_ATTEMPT_LINK_ENABLE", Kind: kindBool, Group: "diagnostics", Label: "Bounded SEND attempt linking enabled"},
 	{TOMLPath: "diagnostics.rpc_sample_every", EnvKey: "WK_DIAGNOSTICS_RPC_SAMPLE_EVERY", Kind: kindInt, Group: "diagnostics", Label: "RPC diagnostic sampling interval"},
 	{TOMLPath: "diagnostics.buffer_size", EnvKey: "WK_DIAGNOSTICS_BUFFER_SIZE", Kind: kindInt, Group: "diagnostics", Label: "Diagnostics buffer size"},
 	{TOMLPath: "diagnostics.sample_rate", EnvKey: "WK_DIAGNOSTICS_SAMPLE_RATE", Kind: kindFloat, Group: "diagnostics", Label: "Diagnostics sample rate"},
@@ -385,6 +386,7 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_TOP_COLLECT_INTERVAL",
 		"WK_TOP_HISTORY_WINDOW",
 		"WK_DIAGNOSTICS_ENABLE",
+		"WK_DIAGNOSTICS_ATTEMPT_LINK_ENABLE",
 		"WK_DIAGNOSTICS_RPC_SAMPLE_EVERY",
 		"WK_DIAGNOSTICS_BUFFER_SIZE",
 		"WK_DIAGNOSTICS_SAMPLE_RATE",

@@ -702,6 +702,13 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Observability.Diagnostics.Enabled = enabled
 	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_ATTEMPT_LINK_ENABLE"); raw != "" {
+		enabled, err := parseBool("WK_DIAGNOSTICS_ATTEMPT_LINK_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.Diagnostics.AttemptLinkEnable = enabled
+	}
 	if raw := configValue(values, "WK_DIAGNOSTICS_RPC_SAMPLE_EVERY"); raw != "" {
 		every, err := strconv.ParseUint(raw, 10, 32)
 		if err != nil {
@@ -787,6 +794,11 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		cfg.Observability.Diagnostics.DebugMatches = debugMatches
 	}
 	cfg.Observability.SetDiagnosticsExplicitFlags(diagnosticsEnabledSet, diagnosticsSampleRateSet, diagnosticsErrorSampleRateSet)
+	// Reject only this new opt-in contradiction; omitted general diagnostics
+	// retains its existing enabled-by-default behavior and validation timing.
+	if cfg.Observability.Diagnostics.AttemptLinkEnable && diagnosticsEnabledSet && !cfg.Observability.Diagnostics.Enabled {
+		return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_ATTEMPT_LINK_ENABLE: requires WK_DIAGNOSTICS_ENABLE=true")
+	}
 	if raw := configValue(values, "WK_GATEWAY_TOKEN_AUTH_ON"); raw != "" {
 		tokenAuthOn, err := parseBool("WK_GATEWAY_TOKEN_AUTH_ON", raw)
 		if err != nil {

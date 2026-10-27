@@ -305,6 +305,8 @@ type Options struct {
 	DebugCluster func(context.Context) (any, error)
 	// Diagnostics reads the node-local diagnostics store for debug query endpoints.
 	Diagnostics DiagnosticsReader
+	// SendAttempts is the independently enabled bounded invocation reader.
+	SendAttempts SendAttemptReader
 	// GoroutineSnapshot returns the current goroutine registry snapshot. Nil disables the endpoint.
 	GoroutineSnapshot func() any
 	// Logger records HTTP API failures that are not otherwise visible to callers.
@@ -352,6 +354,7 @@ type Server struct {
 	debugCluster         func(context.Context) (any, error)
 	goroutineSnapshot    func() any
 	diagnostics          DiagnosticsReader
+	sendAttempts         SendAttemptReader
 	logger               wklog.Logger
 	counts               map[string]int
 	started              bool
@@ -408,6 +411,7 @@ func New(opts Options) *Server {
 		debugCluster:         opts.DebugCluster,
 		goroutineSnapshot:    opts.GoroutineSnapshot,
 		diagnostics:          opts.Diagnostics,
+		sendAttempts:         opts.SendAttempts,
 		logger:               opts.Logger,
 		counts:               map[string]int{},
 	}
@@ -573,6 +577,7 @@ func (s *Server) registerRoutes() {
 		s.engine.Any("/metrics", s.handleMetrics)
 	}
 	if s.debugAPIEnabled {
+		s.engine.POST("/debug/diagnostics/send-attempts/query", s.handleSendAttemptQuery)
 		s.registerPProfRoutes()
 		if s.debugConfig != nil {
 			s.engine.GET("/debug/config", s.handleDebugConfig)

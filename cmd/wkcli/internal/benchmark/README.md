@@ -735,5 +735,7 @@ fail before worker start. Additional enabled clock reads can perturb timing.
 The terminal `driver-diagnostics.json` sidecar contains only bounded numeric
 phase evidence and closed operation names. It does not change workload TOML,
 10,000 online / 2,000 SEND/s / 256 slots, deadlines, native evidence or gates.
-Absent diagnostics provide no cause attribution. Worker protocol v14 is
+Absent diagnostics provide no cause attribution. Worker protocol v15 is
 required on both coordinator and workers.
+
+For the separate bounded attempt diagnostic, set `WK_CHAT_LIFECYCLE_ATTEMPT_LINK_DIAGNOSTICS=1` (or `true`) on each worker process and opt the product into `diagnostics.attempt_link_enable`. Empty/`0`/`false` disables this private worker option; other values fail configuration. The driver option does not enable it. The existing live cuts and final cut may export `attempt-link-diagnostics.json` (at most64KiB) with the first16 confirmed-late original attempt keys per worker generation. This optional evidence preserves native reportv7, Evidencev3, counters, retry/deadline behavior and all original gates. Missing/reused connection identity, multiple Gateway invocations or expired samples remain unknown; a normal WriteFrame callback is not flush or client receipt. Diagnostic CPU/memory/control-response overhead remains a confound.
