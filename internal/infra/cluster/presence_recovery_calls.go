@@ -3,7 +3,6 @@ package cluster
 import (
 	"context"
 	"errors"
-	"time"
 
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
@@ -64,13 +63,18 @@ func (r *PresenceRecoveryOwners) RecoverRouteCallsObserved(ctx context.Context, 
 	if r == nil || r.node == nil || r.local == nil || !presence.ValidOwnerRecoveryCalls(calls, 0) {
 		return fail(authority.ErrRouteNotReady)
 	}
-	admission := rpctrace.Begin(ctx, rpctrace.StageRecoveryOwners)
+	readChainCtx, cancelReadChain := context.WithTimeout(ctx, recoveryReadChainBudget)
+	defer cancelReadChain()
+	admission := rpctrace.Begin(readChainCtx, rpctrace.StageRecoveryOwners)
 	select {
 	case r.admission <- struct{}{}:
 		admission.End(rpctrace.ResultOK)
-	case <-ctx.Done():
-		admission.End(rpctrace.ResultFor(ctx.Err()))
-		return fail(ctx.Err())
+	case <-readChainCtx.Done():
+		admission.End(rpctrace.ResultFor(readChainCtx.Err()))
+		if err := ctx.Err(); err != nil {
+			return fail(err)
+		}
+		return fail(authority.ErrRouteNotReady)
 	}
 	defer func() { <-r.admission }()
 	if err := ctx.Err(); err != nil {
@@ -80,7 +84,7 @@ func (r *PresenceRecoveryOwners) RecoverRouteCallsObserved(ctx context.Context, 
 	if len(active) == 0 {
 		return results
 	}
-	before, err := r.node.LocalControllerSnapshot(ctx)
+	before, err := r.node.LocalControllerSnapshot(readChainCtx)
 	if err != nil {
 		return fail(authority.ErrRouteNotReady)
 	}
@@ -88,8 +92,24 @@ func (r *PresenceRecoveryOwners) RecoverRouteCallsObserved(ctx context.Context, 
 	if len(nodes) == 0 || len(nodes) > 256 {
 		return fail(authority.ErrRouteNotReady)
 	}
-	for _, node := range nodes {
-		readCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	failUnproven := func(start int) {
+		for i := start; i < len(proofs); i++ {
+			if proofs[i].failed {
+				continue
+			}
+			proofs[i].failed = true
+			failRecoveryCall(results[proofs[i].index], authority.ErrRouteNotReady)
+		}
+	}
+	for ownerIndex, node := range nodes {
+		if err := ctx.Err(); err != nil {
+			return fail(err)
+		}
+		if readChainCtx.Err() != nil {
+			failUnproven(0)
+			break
+		}
+		readCtx, cancel := context.WithTimeout(readChainCtx, recoveryOwnerReadBudget)
 		span := rpctrace.Begin(readCtx, rpctrace.StageRecoveryOwner)
 		next, readErr := r.readRecoveryCallPages(readCtx, node.NodeID, active, proofs, func(page presence.OwnerRouteCallPage) {
 			for i, reads := range page.Results {
@@ -105,12 +125,26 @@ func (r *PresenceRecoveryOwners) RecoverRouteCallsObserved(ctx context.Context, 
 			return fail(err)
 		}
 		if readErr == nil {
+			if readChainCtx.Err() != nil && ownerIndex < len(nodes)-1 {
+				failUnproven(0)
+				break
+			}
+			if allRecoveryCallsFailed(proofs) {
+				break
+			}
 			continue
 		}
 		if !recoveryCallUnavailable(readErr) {
 			// Malformed pages and changing owner identities invalidate this round,
 			// including proof collected before the contradiction was observed.
 			return fail(authority.ErrRouteNotReady)
+		}
+		if readChainCtx.Err() != nil {
+			if ownerIndex < len(nodes)-1 {
+				next = 0
+			}
+			failUnproven(next)
+			break
 		}
 		if next == 0 && recoveryUnavailableMember(node, readErr) {
 			continue
@@ -124,7 +158,11 @@ func (r *PresenceRecoveryOwners) RecoverRouteCallsObserved(ctx context.Context, 
 		if observePage != nil {
 			observePage(nil)
 		}
+		if allRecoveryCallsFailed(proofs) {
+			break
+		}
 	}
+	cancelReadChain()
 	after, err := r.node.LocalControllerSnapshot(ctx)
 	if err != nil || !sameRecoveryOwners(nodes, recoveryOwnerNodes(after)) {
 		return fail(authority.ErrRouteNotReady)

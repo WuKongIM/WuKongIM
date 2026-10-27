@@ -83,7 +83,18 @@ or treating an empty set as successful offline proof. Only groups with joined
 flights may have outcomes replaced after work admission/completion; a cold
 sibling cannot retry or overwrite another group's failed readback. Fixed
 recovery admission/provider/validation/install/readback phases preserve existing
-error-family normalization, wire status, deadlines and admission bounds.
+error-family normalization, wire status, caller deadlines and admission bounds.
+
+Presence reconstruction shares a two-second cooperative admission/owner-read
+deadline, with at most one second per owner across every page and legacy fallback.
+The original parent can expire earlier and remains authoritative for final
+membership/fence validation. A spent read-chain budget is never stale-owner
+absence proof; only calls already covered by every owner can retain their result.
+All irreversibly failed original calls stop later owner reads without a retry.
+Cancellation does not reclaim result credits or join ownership before the actual
+reader returns. These internal policies do not change CONNECT's configured
+activation deadline or chat-lifecycle correctness/latency gates; they do not
+establish Linux capacity or explain a cloud scheduler stall.
 
 The production presence-recovery provider reads Controller-local snapshots and
 owner-local online indexes; it does not itself invoke a Slot/DB read barrier.
@@ -2230,7 +2241,7 @@ specification, runbook, report, or module documentation; link to them when neede
   A missing qualification/final report is insufficient evidence, never measured
   zero traffic or proof of a latency regression.
 
-- Native package lifecycle bootstrap includes package installation before systemd PID 1. A bootstrap timeout does not prove a service start or installed package. Failure probes retain stage, PID 1, jobs and journals with five-second command bounds and 64 KiB output caps; unchanged 300-second bootstrap/900-second main validation deadlines remain separate from failure cleanup.
+- Native package lifecycle bootstrap includes package installation before systemd PID 1. A bootstrap timeout does not prove a service start or installed package. Failure probes retain stage, PID 1, jobs and journals with five-second command bounds and 64 KiB output caps; unchanged 300-second bootstrap/900-second main validation deadlines remain separate from failure cleanup. Watchdogs latch cancellation before publishing timer ownership and join their owned timers before returning; command-output caps must not control termination or leave timeout markers behind.
 
 - PR #998 main integration preserves existing main RPC 91/92 and Slot commands
   67/68/69. Only unpublished MQTT metadata/owner RPCs move to 106/107 and

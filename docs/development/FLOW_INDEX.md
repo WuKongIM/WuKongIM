@@ -37,7 +37,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/infra/cloudanalysis/FLOW.md](../../internal/infra/cloudanalysis/FLOW.md) | `package` | Implements bounded private-origin sources and strict parsers for live cloud simulation analysis. | 59 | ok |
 | [internal/infra/clouddeploy/FLOW.md](../../internal/infra/clouddeploy/FLOW.md) | `package` | Provides a root-anchored filesystem adapter for cloud deployment files, inventory, and digests. | 44 | ok |
 | [internal/infra/cloudlease/alibaba/FLOW.md](../../internal/infra/cloudlease/alibaba/FLOW.md) | `package` | Implements fail-closed Alibaba Cloud lease quoting, paid lifecycle, inventory, release, sweep, and OIDC bootstrap. | 61 | ok |
-| [internal/infra/cluster/FLOW.md](../../internal/infra/cluster/FLOW.md) | `package` | Adapts internal ports to cluster, channel, metadata, node-RPC, and operations runtimes without owning business policy. | 149 | warning |
+| [internal/infra/cluster/FLOW.md](../../internal/infra/cluster/FLOW.md) | `package` | Adapts internal ports to cluster, channel, metadata, node-RPC, and operations runtimes without owning business policy. | 150 | warning |
 | [internal/infra/delivery/FLOW.md](../../internal/infra/delivery/FLOW.md) | `package` | Adapts presence lookup and owner-local session writes for canonical online delivery. | 54 | ok |
 | [internal/infra/issueagentgithub/FLOW.md](../../internal/infra/issueagentgithub/FLOW.md) | `package` | Implements bounded GitHub reads and fenced writes for the serverless Issue Agent. | 52 | ok |
 | [internal/infra/mqttowner/FLOW.md](../../internal/infra/mqttowner/FLOW.md) | `package` | Persists immutable node-local proofs of gracefully retired or crashed MQTT owner boots. | 53 | ok |
@@ -96,4 +96,4 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/slot/FLOW.md](../../pkg/slot/FLOW.md) | `subtree` | Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative leader reads, snapshots, and distributed metadata proxies. | 150 | warning |
 | [pkg/workqueue/FLOW.md](../../pkg/workqueue/FLOW.md) | `package` | Provides bounded pools, batch pools, direct worker queues, sharded mailboxes, ownership, shutdown, and observations. | 56 | ok |
 | [scripts/cloud-deployment/FLOW.md](../../scripts/cloud-deployment/FLOW.md) | `package` | Executes shared local and Action deployment activation, bounded readiness, and typed outcomes through host adapters. | 59 | ok |
-| [test/e2e/suite/FLOW.md](../../test/e2e/suite/FLOW.md) | `package` | Provides reusable black-box process, workspace, configuration, protocol, HTTP, diagnostics, and convergence helpers for E2E tests. | 105 | warning |
+| [test/e2e/suite/FLOW.md](../../test/e2e/suite/FLOW.md) | `package` | Provides reusable black-box process, workspace, configuration, protocol, HTTP, diagnostics, and convergence helpers for E2E tests. | 108 | warning |

@@ -29,7 +29,7 @@ func TestRecoverRouteCallsOneDeadlineAcrossPagesAndLegacyFallback(t *testing.T) 
 					t.Error("owner context has no deadline")
 				}
 				deadlines = append(deadlines, deadline)
-				timer := time.NewTimer(150 * time.Millisecond)
+				timer := time.NewTimer(600 * time.Millisecond)
 				defer timer.Stop()
 				select {
 				case <-timer.C:
@@ -67,7 +67,7 @@ func TestRecoverRouteCallsOneDeadlineAcrossPagesAndLegacyFallback(t *testing.T) 
 			if len(deadlines) != 2 || !deadlines[0].Equal(deadlines[1]) {
 				t.Fatalf("owner deadline reset across calls/pages: %v", deadlines)
 			}
-			if time.Since(began) > 600*time.Millisecond {
+			if time.Since(began) > 1400*time.Millisecond {
 				t.Fatal("single owner budget was not bounded")
 			}
 		})

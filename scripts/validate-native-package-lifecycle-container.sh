@@ -57,10 +57,38 @@ active_timeout_marker=""
 total_watchdog_pid=0
 total_timeout_marker=""
 
+# Watchdog traps latch cancellation until a just-forked timer PID is published.
+# Internal timers require no cooperative shutdown. Join them on the normal path,
+# rather than waiting inside a signal handler that can interrupt another wait.
+cancel_watchdog_timer() {
+  timer_cancelled=1
+  if [[ "$timer_pid" =~ ^[1-9][0-9]*$ ]]; then
+    kill -KILL "$timer_pid" >/dev/null 2>&1 || true
+  fi
+}
+
+finish_watchdog_timer() {
+  local timer_status=0
+  if ((timer_cancelled)); then
+    cancel_watchdog_timer
+  fi
+  if [[ "$timer_pid" =~ ^[1-9][0-9]*$ ]]; then
+    wait "$timer_pid" >/dev/null 2>&1 || timer_status=$?
+    if ((timer_cancelled)); then
+      # The first wait may have returned for the trapped signal, before the
+      # child exited. Its KILL cannot be ignored; finish its join uninterrupted.
+      trap '' TERM INT
+      wait "$timer_pid" >/dev/null 2>&1 || true
+    fi
+  fi
+  timer_pid=0
+  ((timer_cancelled == 0 && timer_status == 0))
+}
+
 run_bounded() {
   local timeout_seconds="$1"
   shift
-  local command_pid marker watchdog_pid status
+  local command_pid marker watchdog_pid status timed_out
 
   "$@" &
   command_pid=$!
@@ -69,34 +97,46 @@ run_bounded() {
   active_timeout_marker="$marker"
   (
     timer_pid=0
-    # Output collection may close its pipe at the byte cap. Timeout reporting
-    # must never terminate this owner before it sends TERM and KILL.
+    timer_cancelled=0
     trap '' PIPE
-    trap 'if [[ "$timer_pid" =~ ^[1-9][0-9]*$ ]]; then kill -TERM "$timer_pid" >/dev/null 2>&1 || true; fi; exit 0' TERM INT
+    trap 'cancel_watchdog_timer' TERM INT
     sleep "$timeout_seconds" &
     timer_pid=$!
-    wait "$timer_pid" || exit 0
+    finish_watchdog_timer || exit 0
     if [[ -e "$marker" ]] && kill -0 "$command_pid" >/dev/null 2>&1; then
-      echo "command timed out after ${timeout_seconds}s: $1" >&2 || true
+      # Keep timeout evidence off the capped pipe until termination is joined.
+      printf 'timeout\n' > "$marker"
       kill -TERM "$command_pid" >/dev/null 2>&1 || true
-      sleep 5
+      grace_seconds=5
+      sleep "$grace_seconds" &
+      timer_pid=$!
+      finish_watchdog_timer || exit 0
       kill -KILL "$command_pid" >/dev/null 2>&1 || true
     fi
-    rm -f "$marker"
   ) &
   watchdog_pid=$!
   active_watchdog_pid="$watchdog_pid"
 
-  if wait "$command_pid"; then
+  # Bash's own job notification can hit a closed capped pipe. Child output was
+  # connected at spawn; silence only this wait's notice until ownership closes.
+  if wait "$command_pid" 2>/dev/null; then
     status=0
   else
     status=$?
   fi
-  rm -f "$marker"
   kill -TERM "$watchdog_pid" >/dev/null 2>&1 || true
+  wait "$watchdog_pid" >/dev/null 2>&1 || true
+  timed_out=0
+  if [[ -s "$marker" ]]; then
+    timed_out=1
+  fi
+  rm -f "$marker"
   active_command_pid=0
   active_watchdog_pid=0
   active_timeout_marker=""
+  if ((timed_out)); then
+    echo "command timed out after ${timeout_seconds}s: $1" >&2 || true
+  fi
   return "$status"
 }
 
@@ -124,6 +164,14 @@ cleanup() {
       kill -TERM "$pid" >/dev/null 2>&1 || true
     fi
   done
+  for pid in "$active_watchdog_pid" "$total_watchdog_pid"; do
+    if [[ "$pid" =~ ^[1-9][0-9]*$ ]]; then
+      wait "$pid" >/dev/null 2>&1 || true
+    fi
+  done
+  # A deadline and cleanup can race while the private marker is being written.
+  [[ -z "$active_timeout_marker" ]] || rm -f "$active_timeout_marker"
+  [[ -z "$total_timeout_marker" ]] || rm -f "$total_timeout_marker"
   if ((status != 0)) && run_bounded 10 docker inspect "$container_name" >/dev/null 2>&1; then
     failure_diagnostic "native package lifecycle container logs" docker logs --tail 300 "$container_name"
     failure_diagnostic "native package bootstrap stage" docker exec "$container_name" cat /run/wk-native-bootstrap-stage
@@ -143,13 +191,14 @@ trap 'exit 130' HUP INT TERM
 total_timeout_marker="$(mktemp "${TMPDIR:-/tmp}/wk-native-lifecycle-total-timeout.XXXXXX")"
 (
   timer_pid=0
-  trap 'if [[ "$timer_pid" =~ ^[1-9][0-9]*$ ]]; then kill -TERM "$timer_pid" >/dev/null 2>&1 || true; fi; exit 0' TERM INT
+  timer_cancelled=0
+  trap 'cancel_watchdog_timer' TERM INT
   sleep 900 &
   timer_pid=$!
-  wait "$timer_pid" || exit 0
+  finish_watchdog_timer || exit 0
   if [[ -e "$total_timeout_marker" ]]; then
-    echo "native package lifecycle validation exceeded its 900-second total deadline" >&2
     kill -TERM "$$" >/dev/null 2>&1 || true
+    echo "native package lifecycle validation exceeded its 900-second total deadline" >&2
     rm -f "$total_timeout_marker"
   fi
 ) &

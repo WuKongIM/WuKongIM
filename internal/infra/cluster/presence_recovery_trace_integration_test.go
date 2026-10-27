@@ -40,7 +40,9 @@ func TestPresenceRecoveryTraceKeepsOwnerChildBudgetAndOutcome(t *testing.T) {
 					t.Fatal(err)
 				}
 				trace := recorder.Start(context.Background(), rpctrace.SideServer, 13)
-				ctx, cancel := context.WithTimeout(rpctrace.With(context.Background(), trace), time.Second)
+				// Keep the original activation budget longer than the owner budget,
+				// so child expiry and caller cancellation remain separate outcomes.
+				ctx, cancel := context.WithTimeout(rpctrace.With(context.Background(), trace), 3*time.Second)
 				defer cancel()
 				parentDeadline, _ := ctx.Deadline()
 				ownerID := uint64(1)

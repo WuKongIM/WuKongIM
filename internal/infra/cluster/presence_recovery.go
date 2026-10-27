@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sort"
-	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
@@ -56,7 +55,7 @@ func (r *PresenceRecoveryOwners) RecoverRoutes(ctx context.Context, target prese
 
 // RecoverRoutesByTargets queries each current owner once for a complete bounded
 // page. Stale target errors remain aligned; missing owner evidence never becomes
-// a successful empty result. One unavailable member costs one timeout per page.
+// a successful empty result. Admission and all owners share one read-chain budget.
 func (r *PresenceRecoveryOwners) RecoverRoutesByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
 	results := make([]presence.EndpointLookupResult, len(groups))
 	fail := func(err error) []presence.EndpointLookupResult {
@@ -68,13 +67,18 @@ func (r *PresenceRecoveryOwners) RecoverRoutesByTargets(ctx context.Context, gro
 	if r == nil || r.node == nil || r.local == nil || !presence.ValidOwnerRecoveryPage(groups) {
 		return fail(authority.ErrRouteNotReady)
 	}
-	admission := rpctrace.Begin(ctx, rpctrace.StageRecoveryOwners)
+	readChainCtx, cancelReadChain := context.WithTimeout(ctx, recoveryReadChainBudget)
+	defer cancelReadChain()
+	admission := rpctrace.Begin(readChainCtx, rpctrace.StageRecoveryOwners)
 	select {
 	case r.admission <- struct{}{}:
 		admission.End(rpctrace.ResultOK)
-	case <-ctx.Done():
-		admission.End(rpctrace.ResultFor(ctx.Err()))
-		return fail(ctx.Err())
+	case <-readChainCtx.Done():
+		admission.End(rpctrace.ResultFor(readChainCtx.Err()))
+		if err := ctx.Err(); err != nil {
+			return fail(err)
+		}
+		return fail(authority.ErrRouteNotReady)
 	}
 	defer func() { <-r.admission }()
 	active := make([]presence.EndpointLookupGroup, 0, len(groups))
@@ -96,7 +100,7 @@ func (r *PresenceRecoveryOwners) RecoverRoutesByTargets(ctx context.Context, gro
 	if len(active) == 0 {
 		return results
 	}
-	before, err := r.node.LocalControllerSnapshot(ctx)
+	before, err := r.node.LocalControllerSnapshot(readChainCtx)
 	if err != nil {
 		return fail(authority.ErrRouteNotReady)
 	}
@@ -105,8 +109,14 @@ func (r *PresenceRecoveryOwners) RecoverRoutesByTargets(ctx context.Context, gro
 		return fail(authority.ErrRouteNotReady)
 	}
 	total := 0
-	for _, node := range nodes {
-		readCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	for ownerIndex, node := range nodes {
+		if err := ctx.Err(); err != nil {
+			return fail(err)
+		}
+		if readChainCtx.Err() != nil {
+			return fail(authority.ErrRouteNotReady)
+		}
+		readCtx, cancel := context.WithTimeout(readChainCtx, recoveryOwnerReadBudget)
 		ownerRead := rpctrace.Begin(readCtx, rpctrace.StageRecoveryOwner)
 		snapshots, readErr := r.readOwnerPage(readCtx, node.NodeID, active)
 		if rpctrace.From(readCtx) != nil {
@@ -127,6 +137,10 @@ func (r *PresenceRecoveryOwners) RecoverRoutesByTargets(ctx context.Context, gro
 		cancel()
 		if err := ctx.Err(); err != nil {
 			return fail(err)
+		}
+		if readChainCtx.Err() != nil && (readErr != nil || ownerIndex < len(nodes)-1) {
+			// Budget exhaustion is not evidence that a stale member is absent.
+			return fail(authority.ErrRouteNotReady)
 		}
 		if readErr != nil {
 			// Query stale members too: a reachable ingress may still own sessions.
@@ -177,7 +191,18 @@ func (r *PresenceRecoveryOwners) RecoverRoutesByTargets(ctx context.Context, gro
 			}
 			results[i].Routes = append(results[i].Routes, snapshot.Routes...)
 		}
+		allFailed := true
+		for _, i := range indexes {
+			if results[i].Err == nil {
+				allFailed = false
+				break
+			}
+		}
+		if allFailed {
+			break
+		}
 	}
+	cancelReadChain()
 	after, err := r.node.LocalControllerSnapshot(ctx)
 	if err != nil || !sameRecoveryOwners(nodes, recoveryOwnerNodes(after)) {
 		return fail(authority.ErrRouteNotReady)
@@ -186,6 +211,9 @@ func (r *PresenceRecoveryOwners) RecoverRoutesByTargets(ctx context.Context, gro
 		if err := ValidatePresenceTarget(r.node, groups[i].Target); err != nil {
 			results[i] = presence.EndpointLookupResult{Err: err}
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return fail(err)
 	}
 	return results
 }

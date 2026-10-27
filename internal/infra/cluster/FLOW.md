@@ -40,10 +40,13 @@ management, plugins, diagnostics, and bounded operations observations.
    First person SENDs commit coalesced Channel directory tasks/runtime metadata;
    the asynchronous projector later ensures UID memberships and publishes ready.
 2. Presence reconstruction packs up to 16 original calls into complete-call pages
-   under one 250 ms budget per owner and the existing 16 owner-round gate.
+   with a budget of one second per owner and the existing 16 owner-round gate.
+   Admission and owner reads share a two-second cooperative deadline clipped by the
+   parent; pages/fallback keep one owner deadline, final validation uses the original parent, and ownership waits for real return.
    Each page and each original call across owners retain separate 4096-row bounds.
-   Boot consistency, final membership and target fences precede publication;
-   a later timeout rejects unfinished calls without discarding completed proofs.
+   Boot consistency, membership and target fences guard publication; timeouts reject unfinished calls.
+   Chain expiry never proves a stale member absent; unqueried owners invalidate every viable call.
+   Only the last owner's completed call-prefix survives final validation; all-call failure stops later queries without retries.
    Only first-page typed unsupported evidence permits legacy per-call fallback.
    Controlled-allocation local readers enable the domain-owned nonwaiting result
    budget: pages, exact string copies and old/new accumulator backing stay charged
@@ -81,8 +84,7 @@ management, plugins, diagnostics, and bounded operations observations.
   exactly; preferred or cached ownership must never replace observed authority.
 - Missing leaders, stale routes, unavailable placement, and write fences fail
   closed as typed retryable errors, including a stopped or unreachable append
-  authority transport. Context cancellation and deadlines remain
-  unchanged.
+  authority transport. Caller cancellation and deadlines remain authoritative.
 - CMD discovery may precede the first command log. Its reader treats only the
   routed typed Channel-not-found result as empty, matching the bind tail read.
   CMD reads batch up to 32 directory channels through authoritative source
@@ -119,9 +121,8 @@ management, plugins, diagnostics, and bounded operations observations.
 - Fanout and diagnostic work must remain concurrency-, deadline-, and result-
   bounded and must not place user, Channel, Slot, or node identities in metric
   labels.
-- Optional request-local RPC phases distinguish presence owner-round admission
-  from each serial owner read. Child contexts retain observation metadata under
-  the original 250 ms bound; tracing changes no membership or authority proof.
+- Optional RPC phases distinguish admission from each owner read and retain context
+  metadata under the owner/read-chain deadlines, without changing membership or authority proofs.
 
 - Message-update storage maps a narrow usecase port to authoritative Slot operations. Read adapters preserve edit version/time and byte-limited continuation after content growth; committed history and persisted previews retain separate base-read semantics.
 

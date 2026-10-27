@@ -22,6 +22,11 @@ type TCPLinkObservation struct {
 	Refused   int `json:"refused"`
 }
 
+// TCPUpstreamCopy optionally observes one relay's client-to-product stream.
+// It must preserve bytes, honor cancellation and return without owned workers;
+// relay shutdown also closes both sockets before joining this callback.
+type TCPUpstreamCopy func(context.Context, uint64, uint64, io.Writer, io.Reader) error
+
 type tcpPartitionBridge struct {
 	from, to        uint64
 	client, backend net.Conn
@@ -48,6 +53,10 @@ type ClusterTCPPartition struct {
 	// listeners and closed retain idempotent lifecycle ownership through Close.
 	listeners []net.Listener
 	closed    bool
+	// started freezes optional configuration before any listener starts.
+	started bool
+	// upstreamCopy is immutable after start; nil retains io.Copy.
+	upstreamCopy TCPUpstreamCopy
 }
 
 // tcpIdentityOutput bounds retained child output before allocation can grow.
@@ -83,8 +92,23 @@ func WithClusterTCPPartition(p *ClusterTCPPartition) Option {
 	return optionFunc(func(o *suiteOptions) { o.tcpPartition = p })
 }
 
+// SetUpstreamCopy configures a generic stream seam before static-cluster start.
+// Protocol-specific matching and fault policy belong to the calling scenario.
+func (p *ClusterTCPPartition) SetUpstreamCopy(copy TCPUpstreamCopy) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed || p.started {
+		return fmt.Errorf("cluster TCP copy must be configured before start")
+	}
+	p.upstreamCopy = copy
+	return nil
+}
+
 func (p *ClusterTCPPartition) start(t testing.TB, specs []NodeSpec) []NodeSpec {
 	t.Helper()
+	p.mu.Lock()
+	p.started = true
+	p.mu.Unlock()
 	peers := append([]NodeSpec(nil), specs...)
 	for i, spec := range specs {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -170,10 +194,20 @@ func (p *ClusterTCPPartition) forward(b *tcpPartitionBridge, target string) {
 	v := p.links[key]
 	v.Forwarded++
 	p.links[key] = v
+	upstreamCopy := p.upstreamCopy
 	p.mu.Unlock()
 	// Closing either copy closes both endpoints and joins the second worker.
 	joined := make(chan struct{})
-	go func() { _, _ = io.Copy(backend, b.client); _ = backend.Close(); _ = b.client.Close(); close(joined) }()
+	go func() {
+		if upstreamCopy == nil {
+			_, _ = io.Copy(backend, b.client)
+		} else {
+			_ = upstreamCopy(p.ctx, b.from, b.to, backend, b.client)
+		}
+		_ = backend.Close()
+		_ = b.client.Close()
+		close(joined)
+	}()
 	_, _ = io.Copy(b.client, backend)
 	_ = backend.Close()
 	_ = b.client.Close()
