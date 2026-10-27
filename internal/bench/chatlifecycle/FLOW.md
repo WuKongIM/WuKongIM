@@ -50,11 +50,8 @@ passing 72-hour formal generation -> same aged dataset and process proof
   After the immediate bootstrap grant, external grants retain seeded subsecond
   SEND deadlines. Frequent due-work advancement does not advance the one-second
   login or rate-allocation clock; overdue planned SENDs remain explicit underdelivery.
-- Before CONNECT, each login upserts its APP token through the authenticated
-  Bench API within five seconds and the session concurrency bound. Failure
-  blocks CONNECT; Bench secrets stay worker-local and no UID history is kept.
-- The measured clock starts only after all users finish real CONNECT plus a
-  fresh zero-coverage conversation sync and all workers accept the first grant.
+- Before CONNECT, each login upserts its APP token through the authenticated Bench API within five seconds and the session concurrency bound. Failure blocks CONNECT; Bench secrets stay worker-local and no UID history is kept.
+- The measured clock starts only after all users finish real CONNECT plus a fresh zero-coverage conversation sync and all workers accept the first grant.
 - Repository YAML keeps reviewed stage durations fixed; only the direct repair rehearsal CLI may inject and report a bounded process duration, and formal or shakeout evidence never accepts it.
 - Engine heaps, maps, queues, correlations, samples, and histories are bounded.
   Planning is history-independent; no historical user or Channel owns retained work. A returning-login cold revisit never overlaps the active or pending hot set.
@@ -65,8 +62,7 @@ passing 72-hour formal generation -> same aged dataset and process proof
   Only an exact registered positive completion receipt may transfer to the Engine's
   existing ACK settlement while its callback is queued. Missing state proves nothing;
   strict public registration, real terminal errors and correctness budgets remain.
-- Initial SENDs settle a timer-local pending count before revisit leasing, so
-  late successful ACKs advance the fence before cohort selection.
+- Initial SENDs settle a timer-local pending count before revisit leasing, so late successful ACKs advance the fence before cohort selection.
 - The first measured grant reserves distinct senders across person, group, and
   canary traffic at the formal population. A Channel becomes hot only after
   its first successful SENDACK; metadata-create vectors and hot/first-create/
@@ -76,6 +72,10 @@ passing 72-hour formal generation -> same aged dataset and process proof
   Fixed attempt slots and the bounded late-receipt map bound retention. Private opt-in retains 16 fresh-dispatch timing prefixes per generation.
   Added clock reads are diagnostic overhead; codes, units, gates, order and drain fairness stay fixed.
   Driver timing records cross only after generation Stop joins, into their bounded terminal sidecar. A separate strict attempt-link opt-in copies at most16 confirmed-late original keys, connection scopes and reused SDK timings per generation into detached live/final control cuts. Its separately bounded64KiB atomic sidecar uses existing worker fences/sequence/uptime and never enters native evidence, counts or gates; malformed optional data is discarded independently.
+- A nil-by-default local callback notifies only after an authenticated, current, valid, uncanceled harness-failure Snapshot GET, including cached final cuts, outside the lifecycle mutex.
+  The worker CLI owns its independent opt-in recorder and one asynchronous export; Snapshot, Stop and UnexpectedExit never join that diagnostic writer.
+  Enabled runtime tracing adds only static regions around the two existing session-expiry calls and an existing anonymous turn when available.
+  These are wall intervals, not pure CPU attribution; absent, partial or evicted capture keeps coverage unknown. Native fields, deadlines, queues, evidence and gates remain unchanged.
 - Under-delivery retains the five-field redacted evidence shape. Append-only
   codes distinguish sampled/fresh dispatch deadlines, activity/lifecycle eligibility,
   person/group routing, deferred-group/canary eligibility, and both cleanup paths.

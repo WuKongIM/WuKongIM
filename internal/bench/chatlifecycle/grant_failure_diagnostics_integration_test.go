@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -236,22 +237,23 @@ type grantDiagnosticCompletion struct {
 }
 
 type grantDiagnosticHTTPFixture struct {
-	mode         string
-	failSequence uint64
-	failing      [coordinatorWorkerCount]bool
-	workers      []CoordinatorWorker
-	clock        *manualCoordinatorClock
-	hooks        *recordingCoordinatorRunHooks
-	blocked      chan struct{}
-	release      chan struct{}
-	returned     chan grantDiagnosticCompletion
-	parentCancel context.CancelFunc
-	mu           sync.Mutex
-	assignments  [coordinatorWorkerCount]WorkerAssignment
-	requests     []grantDiagnosticRequest
-	grantCalls   [coordinatorWorkerCount]int
-	stopCalls    [coordinatorWorkerCount]int
-	badFence     bool
+	mode            string
+	failSequence    uint64
+	failing         [coordinatorWorkerCount]bool
+	workers         []CoordinatorWorker
+	clock           *manualCoordinatorClock
+	hooks           *recordingCoordinatorRunHooks
+	blocked         chan struct{}
+	bodyReadStarted chan struct{}
+	release         chan struct{}
+	returned        chan grantDiagnosticCompletion
+	parentCancel    context.CancelFunc
+	mu              sync.Mutex
+	assignments     [coordinatorWorkerCount]WorkerAssignment
+	requests        []grantDiagnosticRequest
+	grantCalls      [coordinatorWorkerCount]int
+	stopCalls       [coordinatorWorkerCount]int
+	badFence        bool
 }
 
 func newGrantDiagnosticHTTPFixture(t *testing.T, mode string, sequence uint64, failing [3]bool) *grantDiagnosticHTTPFixture {
@@ -261,7 +263,8 @@ func newGrantDiagnosticHTTPFixture(t *testing.T, mode string, sequence uint64, f
 		workers: make([]CoordinatorWorker, coordinatorWorkerCount),
 		clock:   newManualCoordinatorClock(time.Unix(1_700_000_000, 0)),
 		hooks:   newRecordingCoordinatorRunHooks(), blocked: make(chan struct{}, coordinatorWorkerCount), release: make(chan struct{}),
-		returned: make(chan grantDiagnosticCompletion, coordinatorWorkerCount*4),
+		bodyReadStarted: make(chan struct{}, 1),
+		returned:        make(chan grantDiagnosticCompletion, coordinatorWorkerCount*4),
 	}
 	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -269,6 +272,15 @@ func newGrantDiagnosticHTTPFixture(t *testing.T, mode string, sequence uint64, f
 		}))
 		t.Cleanup(server.Close)
 		httpClient := server.Client()
+		if mode == "body_canceled" && failing[workerID] {
+			transport := httpClient.Transport
+			if transport == nil {
+				transport = http.DefaultTransport
+			}
+			httpClient.Transport = &grantDiagnosticBodyTransport{
+				base: transport, sequence: sequence, entered: f.bodyReadStarted,
+			}
+		}
 		if mode == "client_timeout" {
 			httpClient.Timeout = 100 * time.Millisecond
 		}
@@ -342,6 +354,15 @@ func (f *grantDiagnosticHTTPFixture) run(t *testing.T) CoordinatorResult {
 				t.Fatal("HTTP fixture siblings did not settle before cancellation")
 			}
 		}
+		if f.mode == "body_canceled" {
+			// A server Flush does not prove that this client reached its body
+			// read. Cancel only after the exact response enters the real Read.
+			select {
+			case <-f.bodyReadStarted:
+			case <-guard.C:
+				t.Fatal("HTTP fixture client never entered the canceled body boundary")
+			}
+		}
 		cancel()
 	}
 	if f.mode == "recovered_transport" {
@@ -366,6 +387,52 @@ func (f *grantDiagnosticHTTPFixture) run(t *testing.T) CoordinatorResult {
 		t.Fatal("grant failure or cleanup exceeded the existing bounded round")
 		return CoordinatorResult{}
 	}
+}
+
+// grantDiagnosticBodyTransport observes the existing real HTTP transport only
+// for the configured failing grant. A copied request body keeps earlier grants
+// and unrelated endpoints from acknowledging the target response boundary.
+type grantDiagnosticBodyTransport struct {
+	base     http.RoundTripper
+	sequence uint64
+	entered  chan<- struct{}
+}
+
+func (t *grantDiagnosticBodyTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	response, err := t.base.RoundTrip(request)
+	if err != nil || response == nil || response.StatusCode != http.StatusOK ||
+		request.URL.Path != "/v1/chat-lifecycle/grant" || request.GetBody == nil {
+		return response, err
+	}
+	bodyCopy, copyErr := request.GetBody()
+	if copyErr != nil {
+		return response, nil
+	}
+	var grant WorkerGrantRequest
+	decodeErr := json.NewDecoder(bodyCopy).Decode(&grant)
+	_ = bodyCopy.Close()
+	if decodeErr == nil && grant.Sequence == t.sequence {
+		response.Body = &grantDiagnosticReadBody{ReadCloser: response.Body, entered: t.entered}
+	}
+	return response, nil
+}
+
+// grantDiagnosticReadBody retains the real Read/Close behavior and emits one
+// nonblocking notification when the client's body read is actually entered.
+type grantDiagnosticReadBody struct {
+	io.ReadCloser
+	entered chan<- struct{}
+	once    sync.Once
+}
+
+func (b *grantDiagnosticReadBody) Read(payload []byte) (int, error) {
+	b.once.Do(func() {
+		select {
+		case b.entered <- struct{}{}:
+		default:
+		}
+	})
+	return b.ReadCloser.Read(payload)
 }
 
 type grantDiagnosticRecordingClient struct {

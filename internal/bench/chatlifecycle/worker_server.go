@@ -83,6 +83,10 @@ type WorkerServerConfig struct {
 	// ReportGrantFailure receives one bounded post-admission terminal event.
 	// Implementations must not retain raw errors or block normal grant handling.
 	ReportGrantFailure func(WorkerGrantFailureEvent)
+	// ReportHarnessFailure receives an identity-free notification after a valid
+	// current failure snapshot is selected. It runs outside the lifecycle lock
+	// and must only notify nonblockingly, never export diagnostics synchronously.
+	ReportHarnessFailure func()
 }
 
 // WorkerGrantFailureEvent is the identity-free diagnostic emitted even when
@@ -97,12 +101,13 @@ type WorkerGrantFailureEvent struct {
 
 // WorkerServer hosts only the authenticated chat-lifecycle worker protocol.
 type WorkerServer struct {
-	tokenHash          [sha256.Size]byte
-	factory            WorkerGenerationFactory
-	drainTimeout       time.Duration
-	now                func() time.Time
-	reportGrantFailure func(WorkerGrantFailureEvent)
-	mux                *http.ServeMux
+	tokenHash            [sha256.Size]byte
+	factory              WorkerGenerationFactory
+	drainTimeout         time.Duration
+	now                  func() time.Time
+	reportGrantFailure   func(WorkerGrantFailureEvent)
+	reportHarnessFailure func()
+	mux                  *http.ServeMux
 
 	mu               sync.Mutex
 	phase            WorkerPhase
@@ -157,14 +162,15 @@ func NewWorkerServer(config WorkerServerConfig) (*WorkerServer, error) {
 		config.Now = time.Now
 	}
 	server := &WorkerServer{
-		tokenHash:          sha256.Sum256([]byte(config.ControlToken)),
-		factory:            config.Factory,
-		drainTimeout:       config.DrainTimeout,
-		now:                config.Now,
-		reportGrantFailure: config.ReportGrantFailure,
-		mux:                http.NewServeMux(),
-		phase:              WorkerPhaseUnassigned,
-		unexpectedExit:     make(chan struct{}),
+		tokenHash:            sha256.Sum256([]byte(config.ControlToken)),
+		factory:              config.Factory,
+		drainTimeout:         config.DrainTimeout,
+		now:                  config.Now,
+		reportGrantFailure:   config.ReportGrantFailure,
+		reportHarnessFailure: config.ReportHarnessFailure,
+		mux:                  http.NewServeMux(),
+		phase:                WorkerPhaseUnassigned,
+		unexpectedExit:       make(chan struct{}),
 	}
 	server.routes()
 	return server, nil
@@ -464,6 +470,10 @@ func (s *WorkerServer) handleSnapshot(response http.ResponseWriter, request *htt
 	if s.phase == WorkerPhaseFinal {
 		final := s.final
 		s.mu.Unlock()
+		if s.reportHarnessFailure != nil && final.Harness.Failures > 0 &&
+			validWorkerSnapshot(final) && request.Context().Err() == nil {
+			s.reportHarnessFailure()
+		}
 		writeWorkerJSON(response, http.StatusOK, final)
 		return
 	}
@@ -496,6 +506,9 @@ func (s *WorkerServer) handleSnapshot(response http.ResponseWriter, request *htt
 	if !validWorkerSnapshot(snapshot) {
 		writeWorkerError(response, http.StatusInternalServerError, WorkerErrorRuntimeFailure)
 		return
+	}
+	if s.reportHarnessFailure != nil && snapshot.Harness.Failures > 0 && request.Context().Err() == nil {
+		s.reportHarnessFailure()
 	}
 	writeWorkerJSON(response, http.StatusOK, snapshot)
 }

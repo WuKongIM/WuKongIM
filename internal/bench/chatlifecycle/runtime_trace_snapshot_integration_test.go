@@ -151,7 +151,7 @@ func TestWorkerRuntimeTraceSnapshotRejectsUnauthenticatedFailedAndInvalidResults
 				generation.snapshotErr = errors.New("redacted runtime failure")
 			}
 			if kind == "invalid_shape" {
-				generation.snapshot.Messages.SendAcknowledged = 1
+				generation.snapshot.Messages.FirstAttemptDeadlineResolved = 1
 			}
 			if kind == "healthy" {
 				generation.snapshot = WorkerSnapshot{}

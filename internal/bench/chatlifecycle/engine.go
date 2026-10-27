@@ -8,7 +8,9 @@ import (
 	"math"
 	"math/bits"
 	"runtime"
+	"runtime/trace"
 	"sort"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1931,7 +1933,19 @@ func (e *Engine) advanceWithSessionExpiry(admissionCtx, generationCtx context.Co
 	// Caller cancellation linearizes at the check above; once committed, only
 	// generation shutdown may interrupt the remaining owner work.
 	expiryStarted := e.driverNow(turn)
+	// Runtime regions retain wall time, including synchronization or scheduling
+	// waits; they do not attribute the interval to scan CPU.
+	var expiryRegion *trace.Region
+	if trace.IsEnabled() {
+		expiryRegion = trace.StartRegion(generationCtx, "wkbench.session_expiry.advance")
+		if turn != nil {
+			trace.Log(generationCtx, "wkbench.driver_turn", strconv.FormatUint(turn.record.Turn, 10))
+		}
+	}
 	expired, expiryErr := e.expireSessions(now)
+	if expiryRegion != nil {
+		expiryRegion.End()
+	}
 	if turn != nil {
 		turn.record.SessionExpiry += e.driverElapsed(turn, expiryStarted)
 		turn.record.SessionsExpired += uint64(expired)
@@ -2063,7 +2077,17 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 		turn.record.StepPreparation += e.driverElapsed(turn, prepareStarted)
 	}
 	expiryStarted := e.driverNow(turn)
+	var expiryRegion *trace.Region
+	if trace.IsEnabled() {
+		expiryRegion = trace.StartRegion(stepCtx, "wkbench.session_expiry.step")
+		if turn != nil {
+			trace.Log(stepCtx, "wkbench.driver_turn", strconv.FormatUint(turn.record.Turn, 10))
+		}
+	}
 	expired, expireErr := e.expireSessions(now)
+	if expiryRegion != nil {
+		expiryRegion.End()
+	}
 	if turn != nil {
 		turn.record.SessionExpiry += e.driverElapsed(turn, expiryStarted)
 		turn.record.SessionsExpired += uint64(expired)

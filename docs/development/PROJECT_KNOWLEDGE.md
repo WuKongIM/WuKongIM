@@ -2623,3 +2623,14 @@ completion, installation and provider-reference release.
   retains the first 16 numeric prefixes per generation, stops extra timing at
   saturation, and marks clock regressions unknown. Final-only protocol-v15
   records and their terminal sidecar do not alter five-field Evidence or gates.
+- Worker runtime tracing uses the independent default-off CLI opt-in
+  `WK_CHAT_LIFECYCLE_RUNTIME_TRACE`. A valid authenticated current failure
+  snapshot can request one process-owned asynchronous export in `--work-dir`;
+  notification and export must not delay Snapshot, Stop, UnexpectedExit or
+  TERM-to-KILL. The 8MiB/10s recorder settings are soft retention targets;
+  output caps are 16MiB for the private trace and 4KiB for its receipt.
+  Pending, partial, unjoined or evicted observations retain unknown coverage.
+  Expiry regions include synchronization and scheduling; Go Running intervals
+  are wall time and may include OS/VM descheduling. No CPU profiler is enabled,
+  so remaining Running time cannot be called pure scan CPU. These artifacts
+  do not change protocol15, Report v7, Evidence v3 or acceptance thresholds.

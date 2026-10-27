@@ -854,6 +854,11 @@ func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "chat lifecycle worker attempt diagnostic configuration failed")
 			return exitConfig
 		}
+		enableRuntimeTrace, err := loadWorkerRuntimeTraceEnvironment()
+		if err != nil {
+			fmt.Fprintln(stderr, "chat lifecycle worker runtime trace configuration failed")
+			return exitConfig
+		}
 		benchToken, err := chatlifecycle.LoadBenchToken()
 		if err != nil {
 			fmt.Fprintln(stderr, "chat lifecycle worker target credential configuration failed")
@@ -866,12 +871,25 @@ func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 		if enableAttemptLinkDiagnostics {
 			factory = chatlifecycle.NewEngineWorkerGenerationFactoryWithAttemptLinkDiagnostics(benchToken, enableDriverDiagnostics)
 		}
+		var reportHarnessFailure func()
+		if enableRuntimeTrace {
+			runtimeTrace, traceErr := newWorkerRuntimeTrace(cfg.server.WorkDir, nil)
+			if traceErr != nil {
+				fmt.Fprintln(stderr, "chat lifecycle worker runtime trace initialization failed")
+				return exitConfig
+			}
+			// The process owns diagnostics; its existing worker exit path never
+			// waits for an export or recorder shutdown that may be blocked.
+			defer runtimeTrace.RequestStop()
+			reportHarnessFailure = runtimeTrace.NotifyHarnessFailure
+		}
 		workerServer, err := chatlifecycle.NewWorkerServer(chatlifecycle.WorkerServerConfig{
 			ControlToken: cfg.server.ControlToken,
 			Factory:      factory,
 			ReportGrantFailure: func(event chatlifecycle.WorkerGrantFailureEvent) {
 				_ = json.NewEncoder(stderr).Encode(event)
 			},
+			ReportHarnessFailure: reportHarnessFailure,
 		})
 		if err != nil {
 			fmt.Fprintln(stderr, "chat lifecycle worker configuration failed")
@@ -908,6 +926,19 @@ func loadDriverDiagnosticsEnvironment() (bool, error) {
 		return true, nil
 	default:
 		return false, errors.New("invalid private driver diagnostic opt-in")
+	}
+}
+
+// loadWorkerRuntimeTraceEnvironment reads an independent worker-only opt-in.
+// It never changes assignments, native evidence, report fields or gates.
+func loadWorkerRuntimeTraceEnvironment() (bool, error) {
+	switch os.Getenv("WK_CHAT_LIFECYCLE_RUNTIME_TRACE") {
+	case "", "0", "false":
+		return false, nil
+	case "1", "true":
+		return true, nil
+	default:
+		return false, errors.New("invalid private worker runtime trace opt-in")
 	}
 }
 
