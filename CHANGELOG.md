@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve complete terminal benchmark metric responses across bounded files
+  when a valid response exceeds 4 MiB, while retaining collection budgets and
+  evidence-completeness gates. / 压测终态指标响应超过 4 MiB 时按有界文件完整保留，
+  避免合法响应被误判为证据采集失败，保持采集预算和证据完整性门禁。
+
 - Add a default-off runtime trace for lifecycle benchmark workers to inspect
   dispatch stalls from native checkpoint observations through one asynchronous
   capture and private, size-limited artifacts. / 生命周期压测 worker 可选在原生观测

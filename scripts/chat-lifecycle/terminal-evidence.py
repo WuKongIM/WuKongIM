@@ -18,6 +18,7 @@ import time
 MAX_FILE_BYTES = 4 << 20
 METRIC_TOTAL_BYTES = 24 << 20
 METRIC_DEADLINE_SECONDS = 60
+METRIC_PARTS_SCHEMA = "wukongim.chat_lifecycle.metric_parts/v1"
 # Exact diagnostic families precede bounded runtime and registered resource families.
 # This ordering preserves useful failure signals even when the shared budget expires.
 METRIC_PARTITIONS = (
@@ -376,8 +377,58 @@ def metric_capture(name, query, start, end, timeout, limit):
     return capture("bash -o pipefail -c "+shlex.quote(curl), timeout, limit)
 
 
+def clear_metric(output, name):
+    """Remove only this fixed partition's old response, index and owned leaves."""
+    directory = output/"metrics"
+    prefix = "range-"+name
+    (directory/(prefix+".json")).unlink(missing_ok=True)
+    (directory/(prefix+".index.json")).unlink(missing_ok=True)
+    for path in directory.glob(prefix+".part-[0-9][0-9][0-9]"):
+        path.unlink()
+
+
+def retain_metric(output, name, body, remaining_bytes):
+    """Publish validated bytes; a multipart index commits the ordered raw leaves."""
+    prefix = Path("metrics")/("range-"+name)
+    digest = hashlib.sha256(body).hexdigest()
+    if len(body) <= MAX_FILE_BYTES:
+        if len(body) > remaining_bytes:
+            return None
+        path = prefix.with_suffix(".json")
+        atomic_retain(output/path, body)
+        return {"path": str(path), "bytes": len(body), "sha256": digest}, len(body)
+
+    # Parts are byte slices, not independent JSON documents. Reassembly retains
+    # every original label, timestamp and numeric string, including UTF-8 cuts.
+    view = memoryview(body)
+    parts = []
+    for ordinal, offset in enumerate(range(0, len(body), MAX_FILE_BYTES)):
+        leaf = view[offset:offset+MAX_FILE_BYTES]
+        parts.append({"path": str(prefix)+".part-"+str(ordinal).zfill(3),
+                      "bytes": len(leaf), "sha256": hashlib.sha256(leaf).hexdigest()})
+    index = {"schema": METRIC_PARTS_SCHEMA, "response_bytes": len(body),
+             "response_sha256": digest, "parts": parts}
+    index_body = json.dumps(index, separators=(",", ":")).encode()+b"\n"
+    retained_bytes = len(body)+len(index_body)
+    if len(index_body) > MAX_FILE_BYTES or retained_bytes > remaining_bytes:
+        return None
+    try:
+        for ordinal, part in enumerate(parts):
+            offset = ordinal*MAX_FILE_BYTES
+            atomic_retain(output/part["path"], view[offset:offset+MAX_FILE_BYTES])
+        path = prefix.with_suffix(".index.json")
+        # No index is visible until every leaf is durably retained.
+        atomic_retain(output/path, index_body)
+    except OSError:
+        clear_metric(output, name)
+        raise
+    return {"storage": "parts", "format": METRIC_PARTS_SCHEMA, "path": str(path),
+            "bytes": len(index_body), "sha256": hashlib.sha256(index_body).hexdigest(),
+            "response_bytes": len(body), "response_sha256": digest}, retained_bytes
+
+
 def collect_ranges(output, anchor, capture_range=metric_capture):
-    """Eight requests share one deadline and transfer budget, including failed bytes."""
+    """Bound response payloads (including failures) and retained files separately."""
     deadline = time.monotonic()+METRIC_DEADLINE_SECONDS
     rows = []
     budget = {"max_requests": len(METRIC_PARTITIONS), "requests": 0, "max_total_bytes": METRIC_TOTAL_BYTES,
@@ -386,11 +437,18 @@ def collect_ranges(output, anchor, capture_range=metric_capture):
         row = {"class": "metrics", "name": "range-"+name, "state": "budget_exhausted", "bytes": 0,
                "query": "up" if name == "up" else '{__name__=~"'+pattern+'"}', "window": dict(anchor, step_seconds=15)}
         rows.append(row)
+        try:
+            clear_metric(output, name)
+        except OSError:
+            row["state"] = "unavailable"
+            continue
         remaining_seconds = deadline-time.monotonic()
         remaining_bytes = METRIC_TOTAL_BYTES-budget["observed_bytes"]
         if remaining_seconds <= 0 or remaining_bytes <= 1:
             continue
-        limit = min(MAX_FILE_BYTES, remaining_bytes-1)
+        # One complete response can span several files. Keep the sentinel read
+        # inside the shared payload budget without changing the eight queries.
+        limit = remaining_bytes-1
         timeout = min(30, remaining_seconds)
         budget["requests"] += 1
         state, body = capture_range(name, row["query"], anchor["epoch_start"], anchor["epoch_end"], timeout, limit)
@@ -404,10 +462,17 @@ def collect_ranges(output, anchor, capture_range=metric_capture):
         except (ValueError, KeyError, TypeError, RecursionError, OverflowError):
             row["state"] = "invalid"
             continue
-        path = Path("metrics")/("range-"+name+".json")
-        atomic_retain(output/path, body)
-        budget["retained_bytes"] += len(body)
-        row.update(coverage, path=str(path), sha256=hashlib.sha256(body).hexdigest())
+        try:
+            retained = retain_metric(output, name, body, METRIC_TOTAL_BYTES-budget["retained_bytes"])
+        except OSError:
+            row["state"] = "unavailable"
+            continue
+        if retained is None:
+            row["state"] = "budget_exhausted"
+            continue
+        metadata, retained_bytes = retained
+        budget["retained_bytes"] += retained_bytes
+        row.update(coverage, **metadata)
     return rows, budget
 
 
