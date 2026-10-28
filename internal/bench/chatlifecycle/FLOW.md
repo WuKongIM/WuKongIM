@@ -55,9 +55,9 @@ passing 72-hour formal generation -> same aged dataset and process proof
 - Repository YAML keeps reviewed stage durations fixed; only the direct repair rehearsal CLI may inject and report a bounded process duration, and formal or shakeout evidence never accepts it.
 - Engine heaps, maps, queues, correlations, samples, and histories are bounded.
   Planning is history-independent; no historical user or Channel owns retained work. A returning-login cold revisit never overlaps the active or pending hot set.
-  Session expiry transfers to one generation-owned bounded cleanup queue;
-  closing tombstones and per-SEND expiry leases prevent replacement or socket
-  teardown from racing admitted retry work.
+  Session expiry skips online-table locking while a conservative atomic deadline bound proves nothing can be due; actual due sets reserve one generation-owned bounded cleanup queue.
+  Closing tombstones and per-SEND expiry leases prevent replacement or socket
+  teardown from racing admitted retry work; pinned overdue sessions remain due hints.
 - Retry admission and owner terminal decisions linearize with direct ACK verification.
   Only an exact registered positive completion receipt may transfer to the Engine's
   existing ACK settlement while its callback is queued. Missing state proves nothing;

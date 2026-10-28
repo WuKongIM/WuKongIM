@@ -2654,6 +2654,14 @@ completion, installation and provider-reference release.
   retains the first 16 numeric prefixes per generation, stops extra timing at
   saturation, and marks clock regressions unknown. Final-only protocol-v15
   records and their terminal sidecar do not alter five-field Evidence or gates.
+- Worker expiry validates cleanup lifecycle and reservation state before using
+  a conservative atomic deadline bound to skip the online-table lock and scan.
+  The bound includes leased non-anchor sessions; a pinned overdue deadline
+  stays due until release. Login publishes earlier deadlines under the table
+  lock, while removals may leave an earlier stale bound. Actual due scans keep
+  complete-set capacity admission and recompute the retained bound in one pass.
+  This removes unnecessary lock coupling; it does not prove that an observed
+  expiry wall interval was CPU work, lock contention or VM descheduling.
 - Worker runtime tracing uses the independent default-off CLI opt-in
   `WK_CHAT_LIFECYCLE_RUNTIME_TRACE`. A valid authenticated current failure
   Snapshot GET or Checkpoint POST can request one process-owned asynchronous

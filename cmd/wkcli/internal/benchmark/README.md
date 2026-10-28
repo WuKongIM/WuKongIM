@@ -756,7 +756,9 @@ observation adds syscalls and can perturb timing, so it is diagnostic evidence.
 The CPU delta includes every thread, other goroutines and GC. It bounds actor
 CPU in the enclosed work interval; it is not actor-only CPU. A small delta
 does not distinguish a lock wait from OS/VM descheduling. Parallel threads may
-produce process CPU greater than elapsed wall time. Failed reads, negative or
+produce process CPU greater than elapsed wall time. Owner-entry sampling starts
+after caller admission and session expiry; it cannot attribute CPU to those
+earlier wall intervals. Failed reads, negative or
 regressing clocks, and clock brackets wider than1ms retain `unknown` plus
 their original numeric bounds. The1ms diagnostic-quality bound does not
 change any workload deadline or acceptance threshold.
