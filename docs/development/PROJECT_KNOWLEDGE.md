@@ -22,6 +22,19 @@ process clock; duration, order and freshness use those positions. Serialized
 wall timestamps are audit fields, not a reconstructed qualification clock.
 Readers reject missing offsets and older schemas without modifying old evidence.
 
+Lifecycle runtime probes are asynchronous node-local reads, not snapshots at a
+ticker instant. Each batch retains only its client request start/end interval,
+after concurrency admission, against the existing clock. An all-missing result
+wholly before `QuietNotBefore` still fails `premature_absence`; one wholly inside
+the original quiet window may qualify. A read crossing either quiet boundary
+cannot qualify and must obtain fresh evidence without extending any deadline.
+Its absence fact still detects an unapproved reload. Batch timing stays bound
+to its own candidates and proof updates remain atomic across all three nodes.
+Reheat approval uses a fresh request cut; the worker checks its actual admission
+before the due time, so a timely successful approval is not invalidated solely
+by a late control response. A constructed clock-race reproduction does not
+establish the cause of an older cloud failure lacking candidate/time evidence.
+
 `RetryAttempts` counts registered retry attempts, not distinct retried messages.
 Explicit product first-attempt failures still subtract driver-local admission
 failures. Worker protocol v11 adds known-deadline registrations, resolved first

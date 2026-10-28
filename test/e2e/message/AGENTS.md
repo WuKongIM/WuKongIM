@@ -97,6 +97,13 @@ per-node coverage remains null; these bytes exclude framing/network overhead.
 Chat lifecycle burst checks also retain exact per-sender message and session ACK
 order for person/group traffic and emit `WKRC-SESSION-ORDER` evidence.
 
+Natural chat lifecycle additionally exercises one real three-node RPC across
+a conservative five-minute test quiet boundary using the actual wall clock.
+Its bounded report distinguishes cold-proof clock/read intervals and snapshots
+from the original real SEND reheat. This single-candidate bridge does not
+approve worker timers or qualify ProductionLifecycle.Run or a cloud root cause;
+see `chat_lifecycle/AGENTS.md` for the fixed limits and boundary interpretation.
+
 The send-ban matrix covers two already connected devices across all additional
 source Channel types (3–12), with exact committed-history rejection checks.
 

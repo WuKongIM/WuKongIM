@@ -2914,7 +2914,7 @@ func TestLifecycleProofRejectsNilContexts(t *testing.T) {
 	if err := proof.Reheat(nil, candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{}); !errors.Is(err, ErrLifecycleHarnessInvalid) {
 		t.Fatalf("reheat error = %v, want harness invalid", err)
 	}
-	if _, err := proof.Poll(nil, &fakeLifecycleProber{nodes: 3}, candidate.QuietNotBefore, LifecycleProbeOptions{BatchSize: 1, MaxConcurrency: 1}); !errors.Is(err, ErrLifecycleHarnessInvalid) {
+	if _, err := proof.Poll(nil, &fakeLifecycleProber{nodes: 3}, newProductionLifecycleClock(candidate.QuietNotBefore), LifecycleProbeOptions{BatchSize: 1, MaxConcurrency: 1}); !errors.Is(err, ErrLifecycleHarnessInvalid) {
 		t.Fatalf("probe error = %v, want harness invalid", err)
 	}
 }
@@ -2953,7 +2953,7 @@ func TestLifecycleProofAsyncProbeBatchesBoundsConcurrencyAndCancellation(t *test
 	done := make(chan error, 1)
 	go func() {
 		proof, _ := NewLifecycleProof(candidates)
-		_, err := proof.Poll(ctx, prober, now, LifecycleProbeOptions{BatchSize: 2, MaxConcurrency: 2})
+		_, err := proof.Poll(ctx, prober, newProductionLifecycleClock(now), LifecycleProbeOptions{BatchSize: 2, MaxConcurrency: 2})
 		done <- err
 	}()
 	prober.awaitCalls(t, 2)
@@ -2976,17 +2976,17 @@ func TestLifecycleProofProbeRequiresAllThreeNodesAndSeparatesTransportEvidence(t
 	candidates := lifecycleTestCandidates(t, now)[:1]
 	prober := &fakeLifecycleProber{nodes: 2}
 	proof, _ := NewLifecycleProof(candidates)
-	result, err := proof.Poll(context.Background(), prober, now, LifecycleProbeOptions{BatchSize: 1200, MaxConcurrency: 1})
+	result, err := proof.Poll(context.Background(), prober, newProductionLifecycleClock(now), LifecycleProbeOptions{BatchSize: 1200, MaxConcurrency: 1})
 	if !errors.Is(err, ErrLifecycleHarnessInvalid) || result.TransportErrors != 0 || result.Latency.Count != 1 {
 		t.Fatalf("result/error = %+v / %v", result, err)
 	}
 	prober = &fakeLifecycleProber{err: errors.New("private transport detail")}
-	result, err = proof.Poll(context.Background(), prober, now, LifecycleProbeOptions{BatchSize: 1200, MaxConcurrency: 1})
+	result, err = proof.Poll(context.Background(), prober, newProductionLifecycleClock(now), LifecycleProbeOptions{BatchSize: 1200, MaxConcurrency: 1})
 	if !errors.Is(err, ErrLifecycleHarnessInvalid) || result.TransportErrors != 1 || result.Latency.Count != 1 || containsRawLifecycleIdentity(result) {
 		t.Fatalf("transport result/error = %+v / %v", result, err)
 	}
 	prober = &fakeLifecycleProber{block: make(chan struct{})}
-	result, err = proof.Poll(context.Background(), prober, now, LifecycleProbeOptions{BatchSize: 1200, MaxConcurrency: 1, RequestTimeout: time.Nanosecond})
+	result, err = proof.Poll(context.Background(), prober, newProductionLifecycleClock(now), LifecycleProbeOptions{BatchSize: 1200, MaxConcurrency: 1, RequestTimeout: time.Nanosecond})
 	if !errors.Is(err, ErrLifecycleHarnessInvalid) || result.TransportErrors != 1 {
 		t.Fatalf("deadline result/error = %+v/%v", result, err)
 	}
@@ -2998,11 +2998,11 @@ func TestLifecycleProofPollMergesBatchesAndAdvancesAtomically(t *testing.T) {
 	proof, _ := NewLifecycleProof(candidates)
 	prober := &fakeLifecycleProber{nodes: 3, sequence: 10}
 	options := LifecycleProbeOptions{BatchSize: 2, MaxConcurrency: 2}
-	if result, err := proof.Poll(context.Background(), prober, now, options); err != nil || result.Requests != 3 || proof.Snapshot().Loaded != 5 {
+	if result, err := proof.Poll(context.Background(), prober, newProductionLifecycleClock(now), options); err != nil || result.Requests != 3 || proof.Snapshot().Loaded != 5 {
 		t.Fatalf("loaded poll = %+v,%v snapshot=%+v", result, err, proof.Snapshot())
 	}
 	prober.status = "missing"
-	if _, err := proof.Poll(context.Background(), prober, candidates[0].QuietNotBefore, options); err != nil || proof.Snapshot().ColdEligible != 5 {
+	if _, err := proof.Poll(context.Background(), prober, newProductionLifecycleClock(candidates[0].QuietNotBefore), options); err != nil || proof.Snapshot().ColdEligible != 5 {
 		t.Fatalf("absent poll = %v snapshot=%+v", err, proof.Snapshot())
 	}
 	for _, candidate := range candidates {
@@ -3011,13 +3011,13 @@ func TestLifecycleProofPollMergesBatchesAndAdvancesAtomically(t *testing.T) {
 		}
 	}
 	prober.status, prober.sequence = "active", 11
-	if _, err := proof.Poll(context.Background(), prober, candidates[0].ReheatAt.Add(time.Second), options); err != nil || proof.Snapshot().Completed != 5 {
+	if _, err := proof.Poll(context.Background(), prober, newProductionLifecycleClock(candidates[0].ReheatAt.Add(time.Second)), options); err != nil || proof.Snapshot().Completed != 5 {
 		t.Fatalf("reheat poll = %v snapshot=%+v", err, proof.Snapshot())
 	}
 
 	failed, _ := NewLifecycleProof(candidates)
 	badBatch := &fakeLifecycleProber{nodes: 3, sequence: 10, failCall: 2}
-	if _, err := failed.Poll(context.Background(), badBatch, now, LifecycleProbeOptions{BatchSize: 2, MaxConcurrency: 1}); !errors.Is(err, ErrLifecycleHarnessInvalid) {
+	if _, err := failed.Poll(context.Background(), badBatch, newProductionLifecycleClock(now), LifecycleProbeOptions{BatchSize: 2, MaxConcurrency: 1}); !errors.Is(err, ErrLifecycleHarnessInvalid) {
 		t.Fatalf("batch error = %v", err)
 	}
 	if snapshot := failed.Snapshot(); snapshot.Loaded != 0 || snapshot.ProductFailures != 0 || snapshot.HarnessFailures != 0 {

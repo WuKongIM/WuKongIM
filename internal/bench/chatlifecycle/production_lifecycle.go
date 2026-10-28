@@ -182,7 +182,7 @@ func (p *ProductionLifecycle) Run(ctx context.Context, fence WorkerFence) error 
 				p.mu.Unlock()
 				leasedOnce = true
 			}
-			pollErr := p.pollRound(ctx, fence, tick)
+			pollErr := p.pollRound(ctx, fence)
 			if pollErr != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
@@ -269,28 +269,28 @@ func (p *ProductionLifecycle) leaseCohort(ctx context.Context, fence WorkerFence
 	}, nil
 }
 
-func (p *ProductionLifecycle) pollRound(ctx context.Context, fence WorkerFence, now time.Time) error {
+func (p *ProductionLifecycle) pollRound(ctx context.Context, fence WorkerFence) error {
 	p.mu.Lock()
 	cohorts := append([]*productionLifecycleCohort(nil), p.active...)
 	p.mu.Unlock()
-	return p.pollCohorts(ctx, fence, now, cohorts)
+	return p.pollCohorts(ctx, fence, cohorts)
 }
 
-func (p *ProductionLifecycle) pollCohorts(ctx context.Context, fence WorkerFence, now time.Time, cohorts []*productionLifecycleCohort) error {
+func (p *ProductionLifecycle) pollCohorts(ctx context.Context, fence WorkerFence, cohorts []*productionLifecycleCohort) error {
 	pollErrors := make([]error, len(cohorts))
 	var wait sync.WaitGroup
 	for index, cohort := range cohorts {
 		wait.Add(1)
 		go func(index int, cohort *productionLifecycleCohort) {
 			defer wait.Done()
-			_, pollErrors[index] = cohort.proof.Poll(ctx, p.options.Prober, now, p.options.ProbeOptions)
+			_, pollErrors[index] = cohort.proof.Poll(ctx, p.options.Prober, p.options.Clock, p.options.ProbeOptions)
 		}(index, cohort)
 	}
 	wait.Wait()
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	reheatErrors := p.reheatColdCandidates(ctx, fence, now, cohorts)
+	reheatErrors := p.reheatColdCandidates(ctx, fence, cohorts)
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -324,7 +324,7 @@ type productionLifecycleReheatJob struct {
 	index     int
 }
 
-func (p *ProductionLifecycle) reheatColdCandidates(ctx context.Context, fence WorkerFence, now time.Time, cohorts []*productionLifecycleCohort) []error {
+func (p *ProductionLifecycle) reheatColdCandidates(ctx context.Context, fence WorkerFence, cohorts []*productionLifecycleCohort) []error {
 	jobsByWorker := make([][]productionLifecycleReheatJob, len(p.options.Workers))
 	jobCount := 0
 	for _, cohort := range cohorts {
@@ -360,6 +360,9 @@ func (p *ProductionLifecycle) reheatColdCandidates(ctx context.Context, fence Wo
 					ChannelID: job.candidate.ChannelID, TimerToken: job.candidate.TimerToken, ActivityVersion: job.candidate.ActivityVersion,
 				}
 			}
+			// The worker validates its actual admission against the scheduled
+			// due time. Retain the request cut, not a queued tick or late reply.
+			admissionAt := p.options.Clock.Now()
 			response, err := p.options.Workers[workerID].ApproveLifecycleReheat(approvalCtx, WorkerLifecycleReheatRequest{
 				WorkerFence: fence, Items: items,
 			})
@@ -369,7 +372,7 @@ func (p *ProductionLifecycle) reheatColdCandidates(ctx context.Context, fence Wo
 				return
 			}
 			for _, job := range jobs {
-				err := job.cohort.proof.Reheat(ctx, now, job.candidate.ChannelID, approvedLifecycleReheatSender{})
+				err := job.cohort.proof.Reheat(ctx, admissionAt, job.candidate.ChannelID, approvedLifecycleReheatSender{})
 				results[job.index] = err
 				succeeded[job.index] = err == nil
 			}
