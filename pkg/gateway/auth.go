@@ -14,16 +14,17 @@ type AuthResult = gatewaytypes.AuthResult
 
 const (
 	// SessionValuePeerAddr identifies the physical TCP peer retained for diagnostics.
-	SessionValuePeerAddr          = gatewaytypes.SessionValuePeerAddr
-	SessionValueUID               = gatewaytypes.SessionValueUID
-	SessionValueDeviceID          = gatewaytypes.SessionValueDeviceID
-	SessionValueDeviceFlag        = gatewaytypes.SessionValueDeviceFlag
-	SessionValueDeviceLevel       = gatewaytypes.SessionValueDeviceLevel
-	SessionValueProtocolVersion   = gatewaytypes.SessionValueProtocolVersion
-	SessionValueEncryptionEnabled = gatewaytypes.SessionValueEncryptionEnabled
-	SessionValueAESKey            = gatewaytypes.SessionValueAESKey
-	SessionValueAESIV             = gatewaytypes.SessionValueAESIV
-	SessionValueCrypto            = gatewaytypes.SessionValueCrypto
+	SessionValuePeerAddr           = gatewaytypes.SessionValuePeerAddr
+	SessionValueConnectFingerprint = gatewaytypes.SessionValueConnectFingerprint
+	SessionValueUID                = gatewaytypes.SessionValueUID
+	SessionValueDeviceID           = gatewaytypes.SessionValueDeviceID
+	SessionValueDeviceFlag         = gatewaytypes.SessionValueDeviceFlag
+	SessionValueDeviceLevel        = gatewaytypes.SessionValueDeviceLevel
+	SessionValueProtocolVersion    = gatewaytypes.SessionValueProtocolVersion
+	SessionValueEncryptionEnabled  = gatewaytypes.SessionValueEncryptionEnabled
+	SessionValueAESKey             = gatewaytypes.SessionValueAESKey
+	SessionValueAESIV              = gatewaytypes.SessionValueAESIV
+	SessionValueCrypto             = gatewaytypes.SessionValueCrypto
 )
 
 type WKProtoAuthOptions struct {

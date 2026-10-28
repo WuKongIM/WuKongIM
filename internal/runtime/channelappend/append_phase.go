@@ -167,3 +167,12 @@ func mergeAppendPhaseResult(current, next rpctrace.Result) rpctrace.Result {
 	}
 	return mergeSubmissionTraceResult(current, next)
 }
+
+// CommitObservation preserves exactly this invocation's selected owners. It
+// keeps no original items or caller context and uses the storage observer cap.
+func (o *appendPhaseObserver) CommitObservation() rpctrace.CommitObservation {
+	if o == nil {
+		return rpctrace.CommitObservation{}
+	}
+	return rpctrace.NewCommitObservation(o.traces...)
+}

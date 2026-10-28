@@ -301,6 +301,7 @@ func recordSessionPublicationWait(task asyncDispatchTask, readyAt time.Time) {
 	if startedAt.Before(readyAt) {
 		return
 	}
+	sendtrace.RecordGatewayAttemptPhase(task.attemptToken, sendtrace.AttemptPhase{Stage: sendtrace.StageGatewaySessionPublicationWait, StartedAt: readyAt, Duration: startedAt.Sub(readyAt), Result: sendtrace.ResultOK, Boundary: "ready_to_publication_attempt", EndDerived: true})
 	sendtrace.Record(sendtrace.Event{
 		Stage:       sendtrace.StageGatewaySessionPublicationWait,
 		At:          readyAt,

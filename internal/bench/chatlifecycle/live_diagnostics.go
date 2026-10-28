@@ -147,6 +147,8 @@ func (r *liveDiagnosticRecorder) Observe(at time.Time, cut CoordinatorCutKind, s
 		return err
 	}
 	r.writeLog(document, messages, r.hotLatencyCounters(snapshots))
+	// Optional diagnostics cannot replace the native observation outcome.
+	_ = r.writeAttemptLinkDiagnostics(at, snapshots, cut != CoordinatorCutTerminal)
 	if cut == CoordinatorCutTerminal {
 		return r.writeTerminalWorkerEvidence(at, snapshots)
 	}
@@ -328,6 +330,7 @@ func (r *liveDiagnosticRecorder) writeTerminalWorkerEvidence(at time.Time, snaps
 	// This optional post-join sidecar cannot alter the native terminal result.
 	// An absent/invalid sidecar remains unknown diagnostic attribution.
 	_ = r.writeTerminalDriverDiagnostics(at, snapshots)
+	_ = r.writeAttemptLinkDiagnostics(at, snapshots, false)
 	return nil
 }
 

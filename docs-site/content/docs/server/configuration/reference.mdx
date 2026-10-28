@@ -175,6 +175,7 @@ description: 可搜索的 WuKongIM 配置手册，逐项说明全部公开 TOML 
 | TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
 | `diagnostics.enable` | `WK_DIAGNOSTICS_ENABLE` | `bool` | 是否采集本节点的有界诊断事件；省略时启用。 |
+| `diagnostics.attempt_link_enable` | `WK_DIAGNOSTICS_ATTEMPT_LINK_ENABLE` | `bool` | 显式开启每节点 65536 条匿名 SEND 调用摘要及两套固定索引；默认 `false`，要求 `diagnostics.enable`。会增加诊断 CPU/内存开销，仅供配置 bearer 后的有界只读查询，不证明通用请求唯一性。 |
 | `diagnostics.rpc_sample_every` | `WK_DIAGNOSTICS_RPC_SAMPLE_EVERY` | `int` | 每 N 次 RPC 采集一次有界分段样本；默认 `0` 关闭，范围为 `0` 到 `4294967295`，并受 `diagnostics.enable` 总开关控制。采样请求需要连接能力协商；协商失败会阻止该次请求发送，明确不支持时按普通 RPC 发送。 |
 | `diagnostics.buffer_size` | `WK_DIAGNOSTICS_BUFFER_SIZE` | `int` | 内存中最多保留的诊断事件数；`0` 使用默认值 `50000`。 |
 | `diagnostics.sample_rate` | `WK_DIAGNOSTICS_SAMPLE_RATE` | `float` | 成功诊断事件的基础保留概率，范围为 `0` 到 `1`；省略时使用 `0.01`。 |

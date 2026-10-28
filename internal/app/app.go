@@ -183,6 +183,8 @@ type App struct {
 	prometheus WorkerRuntime
 	// diagnostics stores sampled send-path trace events for app-local queries.
 	diagnostics *obsdiagnostics.Store
+	// attemptSummaries is separately enabled and never owns business work.
+	attemptSummaries *obsdiagnostics.AttemptStore
 	// diagnosticsTracking stores dynamic diagnostics sampling rules.
 	diagnosticsTracking *obsdiagnostics.TrackingRules
 	// diagnosticsRestore restores the process-wide sendtrace sink installed by this app.

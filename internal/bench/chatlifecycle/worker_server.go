@@ -83,6 +83,10 @@ type WorkerServerConfig struct {
 	// ReportGrantFailure receives one bounded post-admission terminal event.
 	// Implementations must not retain raw errors or block normal grant handling.
 	ReportGrantFailure func(WorkerGrantFailureEvent)
+	// ReportHarnessFailure receives an identity-free notification after a valid
+	// current failure Snapshot or Checkpoint is selected. It runs outside the lifecycle lock
+	// and must only notify nonblockingly, never export diagnostics synchronously.
+	ReportHarnessFailure func()
 }
 
 // WorkerGrantFailureEvent is the identity-free diagnostic emitted even when
@@ -97,12 +101,13 @@ type WorkerGrantFailureEvent struct {
 
 // WorkerServer hosts only the authenticated chat-lifecycle worker protocol.
 type WorkerServer struct {
-	tokenHash          [sha256.Size]byte
-	factory            WorkerGenerationFactory
-	drainTimeout       time.Duration
-	now                func() time.Time
-	reportGrantFailure func(WorkerGrantFailureEvent)
-	mux                *http.ServeMux
+	tokenHash            [sha256.Size]byte
+	factory              WorkerGenerationFactory
+	drainTimeout         time.Duration
+	now                  func() time.Time
+	reportGrantFailure   func(WorkerGrantFailureEvent)
+	reportHarnessFailure func()
+	mux                  *http.ServeMux
 
 	mu               sync.Mutex
 	phase            WorkerPhase
@@ -157,14 +162,15 @@ func NewWorkerServer(config WorkerServerConfig) (*WorkerServer, error) {
 		config.Now = time.Now
 	}
 	server := &WorkerServer{
-		tokenHash:          sha256.Sum256([]byte(config.ControlToken)),
-		factory:            config.Factory,
-		drainTimeout:       config.DrainTimeout,
-		now:                config.Now,
-		reportGrantFailure: config.ReportGrantFailure,
-		mux:                http.NewServeMux(),
-		phase:              WorkerPhaseUnassigned,
-		unexpectedExit:     make(chan struct{}),
+		tokenHash:            sha256.Sum256([]byte(config.ControlToken)),
+		factory:              config.Factory,
+		drainTimeout:         config.DrainTimeout,
+		now:                  config.Now,
+		reportGrantFailure:   config.ReportGrantFailure,
+		reportHarnessFailure: config.ReportHarnessFailure,
+		mux:                  http.NewServeMux(),
+		phase:                WorkerPhaseUnassigned,
+		unexpectedExit:       make(chan struct{}),
 	}
 	server.routes()
 	return server, nil
@@ -464,6 +470,10 @@ func (s *WorkerServer) handleSnapshot(response http.ResponseWriter, request *htt
 	if s.phase == WorkerPhaseFinal {
 		final := s.final
 		s.mu.Unlock()
+		if s.reportHarnessFailure != nil && final.Harness.Failures > 0 &&
+			validWorkerSnapshot(final) && request.Context().Err() == nil {
+			s.reportHarnessFailure()
+		}
 		writeWorkerJSON(response, http.StatusOK, final)
 		return
 	}
@@ -496,6 +506,9 @@ func (s *WorkerServer) handleSnapshot(response http.ResponseWriter, request *htt
 	if !validWorkerSnapshot(snapshot) {
 		writeWorkerError(response, http.StatusInternalServerError, WorkerErrorRuntimeFailure)
 		return
+	}
+	if s.reportHarnessFailure != nil && snapshot.Harness.Failures > 0 && request.Context().Err() == nil {
+		s.reportHarnessFailure()
 	}
 	writeWorkerJSON(response, http.StatusOK, snapshot)
 }
@@ -539,6 +552,9 @@ func (s *WorkerServer) handleCheckpoint(response http.ResponseWriter, request *h
 	if !validWorkerSnapshot(snapshot) {
 		writeWorkerError(response, http.StatusInternalServerError, WorkerErrorRuntimeFailure)
 		return
+	}
+	if s.reportHarnessFailure != nil && snapshot.Harness.Failures > 0 && request.Context().Err() == nil {
+		s.reportHarnessFailure()
 	}
 	writeWorkerJSON(response, http.StatusOK, snapshot)
 }
@@ -1121,12 +1137,13 @@ func writeWorkerJSON(response http.ResponseWriter, status int, value any) {
 
 type engineWorkerGenerationFactory struct {
 	// benchToken stays in the worker process and never enters assignments or reports.
-	benchToken              string
-	enableDriverDiagnostics bool
-	clock                   SessionClock
-	newSessionFactory       func(WorkerAssignment) (SessionClientFactory, error)
-	newSyncer               func(WorkerAssignment) (ConversationSyncer, error)
-	newTicker               func(time.Duration) workerGenerationTicker
+	benchToken                   string
+	enableDriverDiagnostics      bool
+	enableAttemptLinkDiagnostics bool
+	clock                        SessionClock
+	newSessionFactory            func(WorkerAssignment) (SessionClientFactory, error)
+	newSyncer                    func(WorkerAssignment) (ConversationSyncer, error)
+	newTicker                    func(time.Duration) workerGenerationTicker
 }
 
 // NewEngineWorkerGenerationFactory composes the existing deterministic models,
@@ -1140,6 +1157,12 @@ func NewEngineWorkerGenerationFactory(benchToken string) WorkerGenerationFactory
 // driver timing. Its extra clock reads are a diagnostic confound, not a gate.
 func NewEngineWorkerGenerationFactoryWithDriverDiagnostics(benchToken string) WorkerGenerationFactory {
 	return engineWorkerGenerationFactory{benchToken: benchToken, enableDriverDiagnostics: true}
+}
+
+// NewEngineWorkerGenerationFactoryWithAttemptLinkDiagnostics enables the
+// independent first-late prefix and optionally the existing driver sidecar.
+func NewEngineWorkerGenerationFactoryWithAttemptLinkDiagnostics(token string, driver bool) WorkerGenerationFactory {
+	return engineWorkerGenerationFactory{benchToken: token, enableDriverDiagnostics: driver, enableAttemptLinkDiagnostics: true}
 }
 
 func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerGeneration, error) {
@@ -1180,10 +1203,11 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 		return nil, err
 	}
 	verifier, err := NewVerifier(traffic, VerifierConfig{
-		PendingCapacity:     limits.pending,
-		SequenceCapacity:    limits.sequence,
-		CorrelationCapacity: limits.correlation,
-		CorrelationDeadline: config.Thresholds.Latency.SingleAnomaly,
+		PendingCapacity:              limits.pending,
+		SequenceCapacity:             limits.sequence,
+		CorrelationCapacity:          limits.correlation,
+		CorrelationDeadline:          config.Thresholds.Latency.SingleAnomaly,
+		EnableAttemptLinkDiagnostics: f.enableAttemptLinkDiagnostics,
 	}, evidence)
 	if err != nil {
 		return nil, err
@@ -1198,7 +1222,8 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 			gatewayAddress := assignment.Config.Observation.GatewayTCPAddrs[int(assignment.WorkerID)%len(assignment.Config.Observation.GatewayTCPAddrs)]
 			return engineWorkerSessionFactory{
 				address: gatewayAddress, ackTimeout: assignment.Config.Thresholds.Latency.SingleAnomaly,
-				runID: assignment.RunID, assignmentID: assignment.AssignmentID,
+				enableAttemptLinkDiagnostics: f.enableAttemptLinkDiagnostics,
+				runID:                        assignment.RunID, assignmentID: assignment.AssignmentID,
 				tokens: target.NewClient(target.Config{APIAddrs: assignment.Config.Observation.APIAddrs, Token: f.benchToken, HTTPClient: &http.Client{Timeout: 5 * time.Second}}),
 			}, nil
 		}
@@ -1404,11 +1429,12 @@ func (t *wallWorkerGenerationTicker) Stop() { t.ticker.Stop() }
 
 type engineWorkerSessionFactory struct {
 	// tokens persists one device credential before its CONNECT; the session pool bounds concurrent logins.
-	tokens       *target.Client
-	runID        string
-	assignmentID string
-	address      string
-	ackTimeout   time.Duration
+	tokens                       *target.Client
+	runID                        string
+	assignmentID                 string
+	address                      string
+	ackTimeout                   time.Duration
+	enableAttemptLinkDiagnostics bool
 }
 
 func (f engineWorkerSessionFactory) NewSession(ctx context.Context, uid, token string) (SessionClient, error) {
@@ -1436,7 +1462,7 @@ func (f engineWorkerSessionFactory) NewSession(ctx context.Context, uid, token s
 	}
 
 	client, err := wkproto.NewClient(wkproto.ClientConfig{
-		Addr: f.address, Token: token,
+		Addr: f.address, Token: token, EnableAttemptLinkDiagnostics: f.enableAttemptLinkDiagnostics,
 		OperationTimeout: 5 * time.Second, AckTimeout: f.ackTimeout,
 		SendQueueCapacity: 32, MaxInflight: 32, ReadBufferSize: 64 << 10, FrameBufferSize: 32,
 	})
@@ -1691,7 +1717,8 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 	}
 	return WorkerSnapshot{
 		Generation: engine.Generation, WorkerID: engine.WorkerID, WorkerCount: engine.WorkerCount,
-		DriverDiagnostics: runtime.DriverDiagnostics,
+		DriverDiagnostics:      runtime.DriverDiagnostics,
+		AttemptLinkDiagnostics: runtime.AttemptLinkDiagnostics,
 		Sessions: WorkerSessionSnapshot{
 			Target: engine.OnlineTarget, Online: engine.Online, Starting: engine.LoginStarting, Closing: engine.Closing, TrafficReady: engine.TrafficReady,
 			PlannedNew: engine.LoginPlannedNew, PlannedReturning: engine.LoginPlannedReturning,

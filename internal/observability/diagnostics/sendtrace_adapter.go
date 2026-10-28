@@ -1,6 +1,9 @@
 package diagnostics
 
-import "github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+import (
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+	"time"
+)
 
 // Metrics records low-cardinality diagnostics sink outcomes.
 type Metrics interface {
@@ -11,9 +14,10 @@ type Metrics interface {
 
 // SendTraceSink adapts sendtrace events into the node-local diagnostics store.
 type SendTraceSink struct {
-	store   *Store
-	sampler *Sampler
-	metrics Metrics
+	store    *Store
+	sampler  *Sampler
+	metrics  Metrics
+	attempts *AttemptStore
 }
 
 // NewSendTraceSink creates a diagnostics sink for sendtrace hot-path events.
@@ -56,6 +60,14 @@ func (s *SendTraceSink) SendTraceDetailLimits() sendtrace.DetailLimits {
 
 // RecordSendTrace maps a sendtrace event into diagnostics and records it when sampled.
 func (s *SendTraceSink) RecordSendTrace(event sendtrace.Event) {
+	if s != nil && s.attempts != nil {
+		switch event.Stage {
+		case sendtrace.StageChannelAppendForward:
+			s.attempts.RecordTraceRPC(event.TraceID, event.RPCReference)
+		case sendtrace.StageMessageSendDurable:
+			s.attempts.RecordTraceDurable(event.TraceID, event.Duration, event.Result)
+		}
+	}
 	if s == nil || s.store == nil {
 		return
 	}
@@ -100,5 +112,52 @@ func (s *SendTraceSink) RecordSendTrace(event sendtrace.Event) {
 	if s.metrics != nil {
 		s.metrics.RecordEvent(string(diagEvent.Stage), string(diagEvent.Result))
 		s.metrics.SetBufferUsageRatio(s.store.UsageRatio())
+	}
+}
+
+// WithAttemptStore attaches the independently enabled fixed summary capability.
+func (s *SendTraceSink) WithAttemptStore(store *AttemptStore) *SendTraceSink {
+	if s != nil {
+		s.attempts = store
+	}
+	return s
+}
+
+// AttemptLinkEnabled reports only the independent fixed-summary capability.
+func (s *SendTraceSink) AttemptLinkEnabled() bool { return s != nil && s.attempts != nil }
+
+// BeginSendAttempt forwards the existing ingress clock without another read.
+func (s *SendTraceSink) BeginSendAttempt(key sendtrace.AttemptKey, at time.Time) sendtrace.AttemptToken {
+	if s == nil {
+		return sendtrace.AttemptToken{}
+	}
+	return s.attempts.BeginSendAttempt(key, at)
+}
+
+// RecordAttemptPhase forwards only observation data; it never changes a SEND result.
+func (s *SendTraceSink) RecordAttemptPhase(token sendtrace.AttemptToken, p sendtrace.AttemptPhase) {
+	if s != nil {
+		s.attempts.RecordAttemptPhase(token, p)
+	}
+}
+
+// BindAttemptTrace binds one exact invocation without choosing a shared caller.
+func (s *SendTraceSink) BindAttemptTrace(token sendtrace.AttemptToken, trace string) {
+	if s != nil {
+		s.attempts.BindAttemptTrace(token, trace)
+	}
+}
+
+// RecordAttemptRPC copies a bounded reference under the original invocation fence.
+func (s *SendTraceSink) RecordAttemptRPC(token sendtrace.AttemptToken, ref sendtrace.RPCReference) {
+	if s != nil {
+		s.attempts.RecordAttemptRPC(token, ref)
+	}
+}
+
+// DiscardSendAttempt removes only a reservation rejected before mailbox admission.
+func (s *SendTraceSink) DiscardSendAttempt(token sendtrace.AttemptToken) {
+	if s != nil {
+		s.attempts.DiscardSendAttempt(token)
 	}
 }

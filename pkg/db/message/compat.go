@@ -17,6 +17,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -100,6 +101,8 @@ type NativeCommitStats struct {
 
 // CommitCoordinatorBatchEvent describes one physical message DB commit attempt.
 type CommitCoordinatorBatchEvent struct {
+	// CohortRef is optional local observation identity, never durable authority.
+	CohortRef *rpctrace.CommitCohortRef `json:"cohort_ref,omitempty"`
 	// Requests is the number of logical channel append requests in the commit.
 	Requests int
 	// Records is the total logical message record count in the commit.
@@ -221,6 +224,8 @@ type DurableProposal struct {
 
 // AppendBatchItem is one channel append request in a cross-channel batch.
 type AppendBatchItem struct {
+	// CommitObservation carries sampled owners only, without caller context.
+	CommitObservation rpctrace.CommitObservation `json:"-"`
 	// Store is the channel-scoped store that owns Records.
 	Store *ChannelStore
 	// Records contains messages to append to Store.
@@ -674,6 +679,7 @@ func (a commitObserverAdapter) ObserveBatch(event commit.BatchEvent) {
 		return
 	}
 	a.observer.ObserveCommitCoordinatorBatch(CommitCoordinatorBatchEvent{
+		CohortRef:       copyCommitCohortRef(event.CohortRef),
 		Requests:        event.Requests,
 		Records:         event.Records,
 		Bytes:           event.Bytes,
@@ -986,6 +992,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 	}
 	preparedRows := make([]preparedCommitRows, 0, len(entries))
 	pendingResults := make([]pendingAppendResult, 0, len(indexes))
+	var commitObservation rpctrace.CommitObservation
 	for _, entry := range entries {
 		entryIndexes := indexesByEntry[entry]
 		if err := ctxErr(ctx); err != nil {
@@ -1086,6 +1093,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 				}
 			}
 			pendingResults = append(pendingResults, pendingAppendResult{index: index, successOutcome: successOutcome})
+			commitObservation = rpctrace.CombineCommitObservations(commitObservation, item.CommitObservation)
 			if len(prepared.rows) > 0 {
 				virtualLEO = prepared.nextLEO
 				for _, proposal := range prepared.proposals {
@@ -1117,7 +1125,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 		delete(locked, entry)
 	}
 	if len(preparedRows) > 0 {
-		commitResult := commitPreparedRowsBatchResult(ctx, owner, preparedRows, lane)
+		commitResult := commitPreparedRowsBatchResult(ctx, owner, preparedRows, lane, commitObservation)
 		commitOutcome := appendOutcomeForCommitResult(commitResult)
 		commitErr := toChannelError(commitResult.Err)
 		for _, pending := range pendingResults {
@@ -3154,7 +3162,7 @@ func commitPreparedRowsBatch(ctx context.Context, owner *Engine, prepared []prep
 	return commitPreparedRowsBatchResult(ctx, owner, prepared, lane).Err
 }
 
-func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared []preparedCommitRows, lane string) commit.SubmitResult {
+func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared []preparedCommitRows, lane string, observations ...rpctrace.CommitObservation) commit.SubmitResult {
 	if len(prepared) == 0 {
 		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted}
 	}
@@ -3220,11 +3228,16 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 			nextLEO:    item.nextLEO,
 		})
 	}
+	var commitObservation rpctrace.CommitObservation
+	for _, observation := range observations {
+		commitObservation = rpctrace.CombineCommitObservations(commitObservation, observation)
+	}
 	request := commit.Request{
-		Lane:      commit.Lane{Name: commitRowsLaneName(lane), Priority: commitRowsPriority(lane)},
-		Partition: preparedRowsPartition(prepared, lane),
-		Records:   preparedRowsRecordCount(prepared),
-		Bytes:     preparedRowsBytes(prepared),
+		CommitObservation: commitObservation,
+		Lane:              commit.Lane{Name: commitRowsLaneName(lane), Priority: commitRowsPriority(lane)},
+		Partition:         preparedRowsPartition(prepared, lane),
+		Records:           preparedRowsRecordCount(prepared),
+		Bytes:             preparedRowsBytes(prepared),
 		Build: func(batch *engine.Batch) error {
 			for i, mutation := range mutations {
 				if err := mutation.entry.stageCommitRows(batch, mutation.rows, mutation.checkpoint, mutation.point, mutation.proposals, mutation.entries, ^uint64(0)); err != nil {
@@ -3899,4 +3912,13 @@ func (s *ChannelStore) LookupMessagesByClientMsgNo(ctx context.Context, key stri
 		out = append(out, channelMessageFromRow(row))
 	}
 	return out, nil
+}
+
+// copyCommitCohortRef detaches optional observation metadata from its producer.
+func copyCommitCohortRef(ref *rpctrace.CommitCohortRef) *rpctrace.CommitCohortRef {
+	if ref == nil {
+		return nil
+	}
+	copy := *ref
+	return &copy
 }

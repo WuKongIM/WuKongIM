@@ -26,14 +26,28 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Add a default-off runtime trace for lifecycle benchmark workers to inspect
+  dispatch stalls from native checkpoint observations through one asynchronous
+  capture and private, size-limited artifacts. / 生命周期压测 worker 可选在原生观测
+  时采集一次异步运行时轨迹，辅助定位发送
+  调度停顿；默认关闭，诊断文件保持私有并限制大小。
+
+- Add default-off, bounded SEND attempt diagnostics that keep original attempts
+  separate from retries and link retained gateway observations to exact RPCs.
+  / 新增默认关闭的有界 SEND 尝试诊断，区分首次尝试与重试，并关联网关观测和精确 RPC。
+
+- Link sampled storage requests to their actual shared physical commit and
+  distinguish continuous waits, native commit facts and finalization boundaries.
+  / 将采样存储请求关联至实际共享物理提交，区分连续等待、原生提交计时和清理边界。
+
 - Release unrelated Channel locks while a leader append batch waits for busy
   Channels, and honor cancellation before storage admission. / leader 批量追加
   等待忙 Channel 时释放无关锁，并在存储准入前响应取消。
 
 - Add opt-in bounded dispatch-deadline diagnostics to the chat-lifecycle load
   driver, exported after worker shutdown; coordinator and workers require the
-  matching private protocol v14. / 生命周期压测可选保留有界发送截止分段诊断，
-  worker 停止后导出，协调器与 worker 需使用匹配的私有协议 v14。
+  matching private protocol v15. / 生命周期压测可选保留有界发送截止分段诊断，
+  worker 停止后导出，协调器与 worker 需使用匹配的私有协议 v15。
 
 - Preserve exact SEND-to-RPC diagnostic references and bounded RPC tail samples,
   so operators can distinguish an observed request from missing lower evidence.

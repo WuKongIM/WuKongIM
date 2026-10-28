@@ -2,6 +2,7 @@ package replication
 
 import (
 	"context"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
@@ -70,11 +71,13 @@ func (c MutationClass) valid() bool {
 // Mutation is one synchronous exact replica write. Manifest is mandatory;
 // there is no caller-selectable durability or legacy append mode.
 type Mutation struct {
-	ChannelKey ch.ChannelKey
-	ChannelID  ch.ChannelID
-	Manifest   ch.ProposalManifest
-	Records    []ch.Record
-	Committed  uint64
+	// CommitObservation retains sampled owners only; it never enters peer wire.
+	CommitObservation rpctrace.CommitObservation `json:"-"`
+	ChannelKey        ch.ChannelKey
+	ChannelID         ch.ChannelID
+	Manifest          ch.ProposalManifest
+	Records           []ch.Record
+	Committed         uint64
 	// Class controls commit selection only; all classes remain synchronous.
 	Class MutationClass
 	// ServerAllocatedMessageIDs carries the leader's all-record allocator proof.

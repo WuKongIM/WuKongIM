@@ -237,6 +237,9 @@ func causalWorkerContextError(ctx context.Context, err error) error {
 func validTypedWorkerResponse(response any) bool {
 	switch value := response.(type) {
 	case *WorkerSnapshot:
+		if !validAttemptLinkDiagnostics(value.AttemptLinkDiagnostics, value.Generation) {
+			value.AttemptLinkDiagnostics = nil
+		}
 		// Optional diagnostics fail independently; they cannot change native
 		// worker evidence or make an active snapshot into terminal evidence.
 		if value.Phase != WorkerPhaseFinal || !validDriverDiagnostics(value.DriverDiagnostics, value.Generation) {
@@ -295,10 +298,34 @@ func validWorkerErrorCode(code WorkerErrorCode) bool {
 }
 
 func decodeStrictWorkerResponse(encoded []byte, destination any) bool {
+	// Only this new named optional field is decoded independently. Unknown
+	// native fields still pass through the original strict decoder below.
+	var optional json.RawMessage
+	if _, ok := destination.(*WorkerSnapshot); ok {
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(encoded, &fields) != nil {
+			return false
+		}
+		if raw, exists := fields["attempt_link_diagnostics"]; exists {
+			optional = raw
+			delete(fields, "attempt_link_diagnostics")
+			var err error
+			encoded, err = json.Marshal(fields)
+			if err != nil {
+				return false
+			}
+		}
+	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(destination); err != nil {
 		return false
 	}
-	return decoder.Decode(&struct{}{}) == io.EOF
+	if decoder.Decode(&struct{}{}) != io.EOF {
+		return false
+	}
+	if snapshot, ok := destination.(*WorkerSnapshot); ok && len(optional) > 0 {
+		snapshot.AttemptLinkDiagnostics = decodeAttemptLinkDiagnostics(optional, snapshot.Generation)
+	}
+	return true
 }

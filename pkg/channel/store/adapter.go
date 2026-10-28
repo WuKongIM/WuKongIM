@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
@@ -278,7 +279,9 @@ func (c AppendClass) Valid() bool {
 
 // AppendLeaderRequest persists a leader-owned continuous record batch.
 type AppendLeaderRequest struct {
-	Records []ch.Record
+	// CommitObservation is local-only sampled ownership, never durable metadata.
+	CommitObservation rpctrace.CommitObservation `json:"-"`
+	Records           []ch.Record
 	// Class controls commit admission priority, never durability or validation.
 	Class AppendClass
 	// Committed is the monotonic committed frontier persisted atomically with

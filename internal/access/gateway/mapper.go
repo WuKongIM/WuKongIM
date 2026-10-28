@@ -54,6 +54,9 @@ func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, 
 	cmd.RedDot = pkt.Framer.RedDot
 	cmd.MessageID = 0
 	applySendTraceMetadata(&cmd, pkt, traceIDGenerator)
+	if ctx != nil {
+		sendtrace.BindGatewayAttemptTrace(sendtrace.GatewayAttemptFromContext(ctx.RequestContext), cmd.TraceID)
+	}
 	return cmd, nil
 }
 

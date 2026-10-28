@@ -701,9 +701,15 @@ func (s *Server) dispatchSendFrameAsync(state *sessionState, replyToken string, 
 	state.close(gatewaytypes.CloseReasonAsyncDispatchQueueFull, gatewaytypes.ErrAsyncDispatchQueueFull)
 }
 
-func (s *Server) dispatchFrame(state *sessionState, replyToken string, f frame.Frame) error {
+func (s *Server) dispatchFrame(state *sessionState, replyToken string, f frame.Frame, tokens ...sendtrace.AttemptToken) error {
 	start := time.Now()
-	err := s.dispatcher.frame(state, replyToken, f)
+	var err error
+	if len(tokens) > 0 && tokens[0].Valid() && s.dispatcher.handler != nil {
+		ctx := s.dispatcher.context(state, replyToken, state.closeReason(), sendtrace.WithGatewayAttempt(s.dispatcher.requestContext(state), tokens[0]))
+		err = s.dispatcher.handler.OnFrame(ctx, f)
+	} else {
+		err = s.dispatcher.frame(state, replyToken, f)
+	}
 	s.observeFrameHandled(state, f, time.Since(start), err)
 	return err
 }
@@ -887,6 +893,9 @@ func (s *Server) runAuthTask(task asyncAuthTask) {
 		s.rollbackActivatedSession(ctx, activated, connack, session.ErrSessionClosed)
 		suppressObservation = true
 		return
+	}
+	if connack.ReasonCode == frame.ReasonSuccess && sendtrace.GatewayAttemptEnabled() {
+		state.session.SetValue(gatewaytypes.SessionValueConnectFingerprint, frame.HandshakeFingerprint(connect.ClientKey, connect.ClientTimestamp))
 	}
 	openAlreadyDispatched := state.openWasDispatched()
 	if connack.ReasonCode == frame.ReasonSuccess {
@@ -1203,6 +1212,7 @@ func (s *Server) sendBatchItems(batch []asyncDispatchTask) []gatewaytypes.SendBa
 			reason = task.state.closeReason()
 			requestContext = s.dispatcher.requestContext(task.state)
 		}
+		requestContext = sendtrace.WithGatewayAttempt(requestContext, task.attemptToken)
 		items = append(items, gatewaytypes.SendBatchItem{
 			Context:    s.dispatcher.context(task.state, task.replyToken, reason, requestContext),
 			ReplyToken: task.replyToken,
@@ -1221,6 +1231,8 @@ type asyncDispatchTask struct {
 	frame      frame.Frame
 	packet     *protocol.InboundPacket
 	enqueuedAt time.Time
+	// attemptToken belongs to this actual admitted frame only.
+	attemptToken sendtrace.AttemptToken
 }
 
 type asyncSendStats interface {
@@ -1262,6 +1274,7 @@ func recordAsyncDispatchWait(task asyncDispatchTask) time.Duration {
 			ClientMsgNo: send.ClientMsgNo,
 		})
 	}
+	sendtrace.RecordGatewayAttemptPhase(task.attemptToken, sendtrace.AttemptPhase{Stage: sendtrace.StageGatewayAsyncDispatchWait, StartedAt: task.enqueuedAt, Duration: elapsed, Result: sendtrace.ResultOK, Boundary: "enqueue_to_dispatch", EndDerived: true})
 	return elapsed
 }
 

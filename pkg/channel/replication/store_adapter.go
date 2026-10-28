@@ -256,7 +256,8 @@ func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []Mutatio
 				ChannelKey: mutation.ChannelKey,
 				ChannelID:  mutation.ChannelID,
 				Request: channelstore.AppendLeaderRequest{
-					Records: mutation.Records, Class: class, Committed: mutation.Committed, ExactBaseOffset: true,
+					CommitObservation: mutation.CommitObservation,
+					Records:           mutation.Records, Class: class, Committed: mutation.Committed, ExactBaseOffset: true,
 					ExpectedBaseOffset: mutation.Manifest.BaseOffset, Proposal: mutation.Manifest,
 					ServerAllocatedMessageIDs: mutation.ServerAllocatedMessageIDs,
 				},
@@ -281,7 +282,8 @@ func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []Mutatio
 		}
 		class := channelStoreAppendClass(mutation.Class)
 		appendResult, appendErr := store.AppendLeader(ctx, channelstore.AppendLeaderRequest{
-			Records: mutation.Records, Class: class, Committed: mutation.Committed, ExactBaseOffset: true,
+			CommitObservation: mutation.CommitObservation,
+			Records:           mutation.Records, Class: class, Committed: mutation.Committed, ExactBaseOffset: true,
 			ExpectedBaseOffset: mutation.Manifest.BaseOffset, Proposal: mutation.Manifest,
 			ServerAllocatedMessageIDs: mutation.ServerAllocatedMessageIDs,
 		})

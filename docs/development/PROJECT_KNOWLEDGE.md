@@ -2385,10 +2385,24 @@ specification, runbook, report, or module documentation; link to them when neede
   quorum work without propagating caller cancellation. Per-owner local queue,
   local Sync and peer waits, quorum resolution and reactor completion may overlap;
   local Sync includes storage-adapter/coordinator waiting, not pure fsync.
-  Initial installation and regrouped physical DB mutations do not inherit that
-  observer. Follower exchange RPC commit samples describe that exchange, not the
+  Storage regrouping projects typed observations only onto prepared writers and
+  staged replays that depend on their physical commit. Independent already-durable
+  rows and filtered failures cannot inherit a sibling's commit. Initial work
+  outside the selected append owners remains unobserved.
+  Follower exchange RPC commit samples describe that exchange, not the
   original SEND's full storage path.
   Absent commit intervals cannot establish absent storage waiting.
+  Each selected Trace retains at most two whole physical-build links, using one
+  centrally assigned recorder namespace/attempt identity shared by actual group
+  members. The fixed 64-owner observation cap has separate saturating admission
+  drops; it is neither the 128-active-recorder limit nor a business batch limit.
+  Links copy the same physical batch's seven native facts and keep continuous
+  physical/outer-Submit windows separate from callback sums, observer/earlier
+  finalizer wait and this request's Finalize boundary. The legacy coordinator
+  TotalDuration is a sum of phases, not continuous wall time. These measurements
+  include selected instrumentation/lock/scheduling overhead; Finalize is not pure
+  resource-release time and native CommitWait is not pure fsync. Early Trace
+  completion freezes a detached snapshot; later admitted work cannot reopen it.
   SEND result-publication and physical-session publication waits retain the
   original ready boundary through the existing admitted ownership. They include
   mutex/scheduling waits before the emit/write attempt, exclude its callback,
@@ -2575,6 +2589,29 @@ completion, installation and provider-reference release.
   after global-ring overwrite or reconstruct phases not selected before execution.
   Query limits do not increase index capacity, and retained sample percentiles
   are not population SLOs.
+- SEND attempt linkage requires the independent default-off
+  `diagnostics.attempt_link_enable` capability. Its 65,536 fixed compact rows and
+  two fixed 131,072-slot indexes are separate from the existing event ring; they
+  retain anonymous message/actual-CONNECT fingerprints, ClientSeq and a fenced
+  per-frame admission token, not payloads, sessions or caller contexts. At most
+  two opaque forward-RPC references belong to each original. Reused tuples,
+  upper trace identities, reconnect scopes, overwritten or unfinished evidence
+  stay ambiguous/unknown; no generic global uniqueness is claimed.
+  The authenticated node-local POST `/debug/diagnostics/send-attempts/query`
+  accepts at most 16 combined attempt/RPC selectors in 8 KiB. Summary and typed RPC
+  responses cap at 64 KiB and 256 KiB; exact RPC lookup checks both event/sample
+  identity, side and service, never falling back to latest or querying peers.
+  Product summaries do not pin lower RPC samples past the old ring's retention.
+  Benchmark opt-in is independent, retains the first 16 confirmed-late originals per
+  worker generation and publishes detached live/final optional protocol-v15
+  diagnostics. Optional malformed evidence cannot alter native counters,
+  Evidence v3, Report v7, deadlines or gates. A successful write callback is not
+  socket flush/client receipt; missing clocks and identity bridges remain unknown.
+  Summary stage timestamps project existing monotonic offsets onto ingress wall
+  time; they are not independent post-clock-adjustment wall observations.
+  The fifth `message.send_durable` fact retains only duration/result; retries
+  may contribute a segment sum. Its zero StartedAt and false EndDerived never
+  establish a continuous interval or retain the event publication timestamp.
 
 - Batch storage lock admission must not retain earlier Channel locks while
   waiting for a busy later append/checkpoint lock. Leader append, follower apply
@@ -2584,5 +2621,19 @@ completion, installation and provider-reference release.
 - Chat-lifecycle code38 is a fresh-clock dispatch miss before SDK admission,
   not an accepted product SEND or a delivery-loss proof. Optional driver timing
   retains the first 16 numeric prefixes per generation, stops extra timing at
-  saturation, and marks clock regressions unknown. Final-only protocol-v14
+  saturation, and marks clock regressions unknown. Final-only protocol-v15
   records and their terminal sidecar do not alter five-field Evidence or gates.
+- Worker runtime tracing uses the independent default-off CLI opt-in
+  `WK_CHAT_LIFECYCLE_RUNTIME_TRACE`. A valid authenticated current failure
+  Snapshot GET or Checkpoint POST can request one process-owned asynchronous
+  export in `--work-dir`. The coordinator uses Checkpoint POSTs for periodic
+  and terminal evidence; diagnostic notification must cover that entry as
+  well as operator Snapshot GETs after the same validation. Notification and
+  export must not delay Snapshot, Checkpoint, Stop, UnexpectedExit or
+  TERM-to-KILL. The 8MiB/10s recorder settings are soft retention targets;
+  output caps are 16MiB for the private trace and 4KiB for its receipt.
+  Pending, partial, unjoined or evicted observations retain unknown coverage.
+  Expiry regions include synchronization and scheduling; Go Running intervals
+  are wall time and may include OS/VM descheduling. No CPU profiler is enabled,
+  so remaining Running time cannot be called pure scan CPU. These artifacts
+  do not change protocol15, Report v7, Evidence v3 or acceptance thresholds.

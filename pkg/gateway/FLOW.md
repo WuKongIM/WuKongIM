@@ -112,6 +112,9 @@ Message, presence, Channel, and Controller business policy stays outside gateway
   attempt, including owner scheduling but excluding the write callback. It is not
   socket completion or client receipt; missing or unretained samples stay unknown.
 
+
+- Independently enabled attempt diagnostics retain one anonymous epoch/ordinal per admitted WK SEND frame. Per-item Context values preserve that invocation through batching and publication; a rejected mailbox reservation is discarded. Actual CONNECT tuple digests are retained only under this opt-in. Existing enqueue/dispatch/result-ready clocks are reused, with no extra queue, worker or I/O. Reused tuples/packets and missing coverage do not prove generic uniqueness.
+
 ## Read First
 
 - [Options](types/options.go), [Core](core/server.go), [Async SEND](core/async_send.go)

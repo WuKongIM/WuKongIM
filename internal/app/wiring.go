@@ -232,7 +232,8 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 		a.diagnosticsTracking = obsdiagnostics.NewTrackingRules(obsdiagnostics.TrackingRulesOptions{})
 		samplerOptions := diagnosticsSamplerOptions(a.cfg)
 		samplerOptions.TrackingRules = a.diagnosticsTracking
-		sink := obsdiagnostics.NewSendTraceSink(a.diagnostics, obsdiagnostics.NewSampler(samplerOptions))
+		a.attemptSummaries = obsdiagnostics.NewAttemptStore(obsdiagnostics.AttemptStoreOptions{Enabled: a.cfg.Observability.Diagnostics.AttemptLinkEnable, NodeID: diagnosticsNodeID(a.cfg)})
+		sink := obsdiagnostics.NewSendTraceSink(a.diagnostics, obsdiagnostics.NewSampler(samplerOptions)).WithAttemptStore(a.attemptSummaries)
 		if a.metrics != nil {
 			sink = sink.WithMetrics(a.metrics.Diagnostics)
 		}
@@ -989,7 +990,8 @@ func (a *App) wireAPI() {
 			DebugCluster: func(ctx context.Context) (any, error) {
 				return a.debugClusterSnapshot(ctx)
 			},
-			Diagnostics: a,
+			Diagnostics:  a,
+			SendAttempts: a,
 			GoroutineSnapshot: func() any {
 				return a.goroutines.Snapshot()
 			},

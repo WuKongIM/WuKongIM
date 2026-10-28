@@ -8,7 +8,9 @@ import (
 	"math"
 	"math/bits"
 	"runtime"
+	"runtime/trace"
 	"sort"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -955,6 +957,11 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	}
 	if err := config.Sessions.setEngineObservers(engine.sessionSendack, engine.sessionAsyncSendError); err != nil {
 		return nil, err
+	}
+	if engine.verifier.attemptLinkEnabled() {
+		config.Sessions.mu.Lock()
+		config.Sessions.onAsyncSendErrorEvidence = engine.sessionAsyncSendErrorWithEvidence
+		config.Sessions.mu.Unlock()
 	}
 	engine.cached = engine.emptySnapshot(false)
 	return engine, nil
@@ -1926,7 +1933,19 @@ func (e *Engine) advanceWithSessionExpiry(admissionCtx, generationCtx context.Co
 	// Caller cancellation linearizes at the check above; once committed, only
 	// generation shutdown may interrupt the remaining owner work.
 	expiryStarted := e.driverNow(turn)
+	// Runtime regions retain wall time, including synchronization or scheduling
+	// waits; they do not attribute the interval to scan CPU.
+	var expiryRegion *trace.Region
+	if trace.IsEnabled() {
+		expiryRegion = trace.StartRegion(generationCtx, "wkbench.session_expiry.advance")
+		if turn != nil {
+			trace.Log(generationCtx, "wkbench.driver_turn", strconv.FormatUint(turn.record.Turn, 10))
+		}
+	}
 	expired, expiryErr := e.expireSessions(now)
+	if expiryRegion != nil {
+		expiryRegion.End()
+	}
 	if turn != nil {
 		turn.record.SessionExpiry += e.driverElapsed(turn, expiryStarted)
 		turn.record.SessionsExpired += uint64(expired)
@@ -2058,7 +2077,17 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 		turn.record.StepPreparation += e.driverElapsed(turn, prepareStarted)
 	}
 	expiryStarted := e.driverNow(turn)
+	var expiryRegion *trace.Region
+	if trace.IsEnabled() {
+		expiryRegion = trace.StartRegion(stepCtx, "wkbench.session_expiry.step")
+		if turn != nil {
+			trace.Log(stepCtx, "wkbench.driver_turn", strconv.FormatUint(turn.record.Turn, 10))
+		}
+	}
 	expired, expireErr := e.expireSessions(now)
+	if expiryRegion != nil {
+		expiryRegion.End()
+	}
 	if turn != nil {
 		turn.record.SessionExpiry += e.driverElapsed(turn, expiryStarted)
 		turn.record.SessionsExpired += uint64(expired)
@@ -2424,9 +2453,10 @@ func (e *Engine) FencePlannedShutdown(ctx context.Context) error {
 // EngineWorkerRuntimeSnapshot is one command-serialized engine and generator
 // projection used by consistent worker checkpoints.
 type EngineWorkerRuntimeSnapshot struct {
-	Engine            EngineSnapshot
-	Generated         TrafficGeneratorSnapshot
-	DriverDiagnostics *DriverDiagnosticsSnapshot `json:"driver_diagnostics,omitempty"`
+	Engine                 EngineSnapshot
+	Generated              TrafficGeneratorSnapshot
+	DriverDiagnostics      *DriverDiagnosticsSnapshot      `json:"driver_diagnostics,omitempty"`
+	AttemptLinkDiagnostics *AttemptLinkDiagnosticsSnapshot `json:"attempt_link_diagnostics,omitempty"`
 }
 
 // WorkerRuntimeSnapshot serializes engine and generator evidence in one owner
@@ -2449,7 +2479,7 @@ func (e *Engine) WorkerRuntimeSnapshotContext(ctx context.Context) (EngineWorker
 	e.lifecycleMu.Lock()
 	if !e.running {
 		// StartGeneration resets the generator under this same lifecycle fence.
-		snapshot := EngineWorkerRuntimeSnapshot{Engine: e.cached, Generated: e.generator.Snapshot(), DriverDiagnostics: e.finalDriverDiagnostics()}
+		snapshot := EngineWorkerRuntimeSnapshot{Engine: e.cached, Generated: e.generator.Snapshot(), DriverDiagnostics: e.finalDriverDiagnostics(), AttemptLinkDiagnostics: e.verifier.AttemptLinkDiagnostics(e.generation)}
 		e.lifecycleMu.Unlock()
 		return snapshot, nil
 	}
@@ -2493,6 +2523,7 @@ func (e *Engine) WorkerRuntimeSnapshotContext(ctx context.Context) (EngineWorker
 		sessions := e.sessions.captureSnapshot()
 		snapshot := EngineWorkerRuntimeSnapshot{
 			Engine: e.snapshotFromSessions(sessions.snapshot, true), Generated: e.generator.Snapshot(),
+			AttemptLinkDiagnostics: e.verifier.AttemptLinkDiagnostics(e.generation),
 		}
 		if err := snapshotCtx.Err(); err != nil {
 			clear(sessions.clients)
@@ -3546,7 +3577,11 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	e.nextClientSeq++
 	clientSeq := e.nextClientSeq
 	deadline := attemptAt.Add(e.attemptTimeoutFor(intent))
-	completion, err := e.verifier.admitEngineAttemptWithDeadline(logical, attemptPlan, clientSeq, deadline)
+	registration := AttemptLinkRegistration{}
+	if attempt == 0 && e.verifier.attemptLinkEnabled() {
+		registration.ConnectFingerprint = e.sessions.sendConnectionFingerprint(logical.Sender)
+	}
+	completion, err := e.verifier.admitEngineAttemptWithDeadline(logical, attemptPlan, clientSeq, deadline, registration)
 	if err != nil {
 		return e.abortHarness(inflight, err)
 	}
@@ -4721,4 +4756,12 @@ func (e *Engine) emptySnapshot(running bool) EngineSnapshot {
 		GatewayConnectLatency: newWorkerHistogramSnapshot(), ConversationSyncLatency: newWorkerHistogramSnapshot(),
 		SendPendingToWriteLatency: newWorkerHistogramSnapshot(), SendWriteToAckLatency: newWorkerHistogramSnapshot(),
 	}
+}
+
+// sessionAsyncSendErrorWithEvidence keeps the original single Engine clock
+// observation; only the immutable connection scope is new.
+func (e *Engine) sessionAsyncSendErrorWithEvidence(_ string, seq uint64, message string, scope [16]byte) {
+	observedAt := e.clock.Now()
+	e.verifier.ObserveAttemptErrorWithEvidenceAt(message, seq, observedAt, AttemptLinkResultEvidence{Kind: "transport_error", ConnectFingerprint: scope})
+	e.enqueueSessionCompletion(engineCompletion{clientSeq: seq, clientMsgNo: message, observedAt: observedAt})
 }

@@ -34,9 +34,11 @@ type Client struct {
 	mu         sync.Mutex
 	conn       net.Conn
 	session    *wkprotoenc.SessionCrypto
-	closed     bool
-	writeCh    chan writeRequest
-	closeCh    chan struct{}
+	// connectFingerprint belongs to conn and is absent unless explicitly enabled.
+	connectFingerprint [16]byte
+	closed             bool
+	writeCh            chan writeRequest
+	closeCh            chan struct{}
 	// inflight limits SENDs that have been admitted and are waiting for SENDACK.
 	inflight chan struct{}
 	// pending tracks SEND requests waiting for SENDACK frames from the reader loop.
@@ -206,6 +208,9 @@ func (c *Client) Connect(ctx context.Context, opts ConnectOptions) (*frame.Conna
 	oldRecvNotify := c.recvNotify
 	oldRecvActive := c.recvErr == nil
 	c.conn = conn
+	if c.cfg.EnableAttemptLinkDiagnostics {
+		c.connectFingerprint = frame.HandshakeFingerprint(packet.ClientKey, packet.ClientTimestamp)
+	}
 	c.session = c.crypto.currentSession()
 	c.pending = newPendingTracker()
 	c.recvCh = make(chan *frame.RecvPacket, c.cfg.InboundFrameBufferSize)
@@ -240,6 +245,7 @@ func (c *Client) Close() error {
 	c.failActiveTerminalFenceLocked(ErrClosed)
 	conn := c.conn
 	c.conn = nil
+	c.connectFingerprint = [16]byte{}
 	c.session = nil
 	c.recvCh = make(chan *frame.RecvPacket, c.cfg.InboundFrameBufferSize)
 	c.recvOwnership = &inboundOwnership{recvCh: c.recvCh}
@@ -1109,4 +1115,18 @@ func (c *Client) observeSendBatch(records int, bytes int, elapsed time.Duration,
 		Elapsed: elapsed,
 		Err:     err,
 	})
+}
+
+// ConnectFingerprint returns only the currently published opt-in connection
+// tuple digest. Repeated tuples are not a global uniqueness guarantee.
+func (c *Client) ConnectFingerprint() [16]byte {
+	if c == nil || !c.cfg.EnableAttemptLinkDiagnostics {
+		return [16]byte{}
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed || c.conn == nil {
+		return [16]byte{}
+	}
+	return c.connectFingerprint
 }

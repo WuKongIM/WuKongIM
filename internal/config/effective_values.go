@@ -100,6 +100,7 @@ func effectiveConfigValues(cfg app.Config) map[string]any {
 		"WK_TOP_API_ENABLE":                                          cfg.Top.APIEnabled,
 		"WK_TOP_COLLECT_INTERVAL":                                    cfg.Top.CollectInterval,
 		"WK_TOP_HISTORY_WINDOW":                                      cfg.Top.HistoryWindow,
+		"WK_DIAGNOSTICS_ATTEMPT_LINK_ENABLE":                         cfg.Observability.Diagnostics.AttemptLinkEnable,
 		"WK_DIAGNOSTICS_ENABLE":                                      cfg.Observability.Diagnostics.Enabled,
 		"WK_DIAGNOSTICS_RPC_SAMPLE_EVERY":                            int64(cfg.Observability.Diagnostics.RPCSampleEvery),
 		"WK_DIAGNOSTICS_BUFFER_SIZE":                                 cfg.Observability.Diagnostics.BufferSize,

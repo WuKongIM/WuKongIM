@@ -21,10 +21,12 @@ var (
 // VerifierConfig fixes every retained state bound. CorrelationCapacity should
 // be sized from the offered rate multiplied by CorrelationDeadline.
 type VerifierConfig struct {
-	PendingCapacity     int
-	SequenceCapacity    int
-	CorrelationCapacity int
-	CorrelationDeadline time.Duration
+	// EnableAttemptLinkDiagnostics adds only a fixed original-late prefix.
+	EnableAttemptLinkDiagnostics bool
+	PendingCapacity              int
+	SequenceCapacity             int
+	CorrelationCapacity          int
+	CorrelationDeadline          time.Duration
 }
 
 // TerminalSendCode is the fixed terminal outcome vocabulary used after the
@@ -338,6 +340,8 @@ type firstAttemptDeadline struct {
 	deadline       time.Time
 	registeredAt   time.Time
 	resultObserved bool
+	// connectFingerprint is optional actual-session evidence, never authority.
+	connectFingerprint [16]byte
 }
 
 func (s *pendingSend) attempt(clientSeq uint64) *sendAttemptIdentity {
@@ -486,6 +490,8 @@ func (h *correlationDeadlineHeap) Pop() any {
 // One recipient's RECV calls must still come from one session drain in wire
 // order because sequence correctness is defined by that ordered stream.
 type Verifier struct {
+	// attemptLinkDiagnostics is allocated only by the separate private opt-in.
+	attemptLinkDiagnostics *verifierAttemptLinkRecorder
 	// sendMu protects pending SENDs, sampled correlations, and deadlines.
 	sendMu sync.Mutex
 	// recvMu protects recipient sequence ownership and receive counters.
@@ -537,6 +543,9 @@ func NewVerifier(model TrafficModel, config VerifierConfig, evidence *EvidenceRe
 	}
 	heap.Init(&v.deadlines)
 	heap.Init(&v.releasedDeadlines)
+	if config.EnableAttemptLinkDiagnostics {
+		v.attemptLinkDiagnostics = &verifierAttemptLinkRecorder{}
+	}
 	return v, nil
 }
 
@@ -614,7 +623,7 @@ func (v *Verifier) ObserveAttemptWithDeadline(logical LogicalSend, attempt Retry
 // callback; only an exact registered positive ACK can transfer its proof to the
 // owner instead of registering a retry. Pending state remains owned until the
 // owner's normal ACK settlement releases it. This adds no history or wire work.
-func (v *Verifier) admitEngineAttemptWithDeadline(logical LogicalSend, attempt RetryAttempt, clientSeq uint64, deadline time.Time) (*verifiedSendCompletion, error) {
+func (v *Verifier) admitEngineAttemptWithDeadline(logical LogicalSend, attempt RetryAttempt, clientSeq uint64, deadline time.Time, registrations ...AttemptLinkRegistration) (*verifiedSendCompletion, error) {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	pending := v.pending[logical.ClientMsgNo]
@@ -623,7 +632,11 @@ func (v *Verifier) admitEngineAttemptWithDeadline(logical LogicalSend, attempt R
 			return completion, nil
 		}
 	}
-	return nil, v.observeAttemptLocked(pending, logical, attempt, clientSeq, deadline)
+	err := v.observeAttemptLocked(pending, logical, attempt, clientSeq, deadline)
+	if err == nil && v.attemptLinkDiagnostics != nil && attempt.Attempt == 0 && len(registrations) > 0 {
+		pending.attempt(clientSeq).firstDeadline.connectFingerprint = registrations[0].ConnectFingerprint
+	}
+	return nil, err
 }
 
 // verifiedSendCompletionFor reads only a retained, positive, registered ACK.
@@ -673,22 +686,25 @@ func (v *Verifier) observeAttemptLocked(pending *pendingSend, logical LogicalSen
 // failure and outstanding-attempt handling still occurs in ResolveAttemptErrorAt.
 // Unknown or expired identities do not manufacture a new correctness event.
 func (v *Verifier) ObserveAttemptErrorAt(clientMsgNo string, clientSeq uint64, observedAt time.Time) {
+	v.observeAttemptErrorAt(clientMsgNo, clientSeq, observedAt, AttemptLinkResultEvidence{Kind: "transport_error"})
+}
+func (v *Verifier) observeAttemptErrorAt(clientMsgNo string, clientSeq uint64, observedAt time.Time, evidence AttemptLinkResultEvidence) {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	key := releasedAttemptKey{clientMsgNo: clientMsgNo, clientSeq: clientSeq}
 	if released := v.releasedAttempts[key]; released != nil {
-		v.observeFirstAttemptResultLocked(&released.firstDeadline, observedAt, false)
+		v.observeFirstAttemptResultLocked(&released.firstDeadline, observedAt, false, attemptLinkObservation{message: clientMsgNo, seq: clientSeq, result: evidence})
 		return
 	}
 	if attempt := v.pending[clientMsgNo].attempt(clientSeq); attempt != nil {
-		v.observeFirstAttemptResultLocked(&attempt.firstDeadline, observedAt, false)
+		v.observeFirstAttemptResultLocked(&attempt.firstDeadline, observedAt, false, attemptLinkObservation{message: clientMsgNo, seq: clientSeq, result: evidence})
 	}
 }
 
 // observeFirstAttemptResultLocked resolves at most the first exact response.
 // Unknown clocks consume observation coverage without manufacturing an on-time
 // response. No-response receipt expiry deliberately leaves coverage unresolved.
-func (v *Verifier) observeFirstAttemptResultLocked(deadline *firstAttemptDeadline, observedAt time.Time, localAdmission bool) {
+func (v *Verifier) observeFirstAttemptResultLocked(deadline *firstAttemptDeadline, observedAt time.Time, localAdmission bool, observations ...attemptLinkObservation) {
 	if deadline == nil || deadline.deadline.IsZero() || deadline.resultObserved {
 		return
 	}
@@ -699,6 +715,9 @@ func (v *Verifier) observeFirstAttemptResultLocked(deadline *firstAttemptDeadlin
 	v.sendCounters.firstAttemptDeadlineResolved++
 	if !localAdmission && !observedAt.Before(deadline.deadline) {
 		v.sendCounters.firstAttemptTimeouts++
+		if len(observations) > 0 {
+			v.recordAttemptLinkLocked(deadline, observedAt, observations[0])
+		}
 	}
 }
 
@@ -715,17 +734,26 @@ func (v *Verifier) HandleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 	return v.handleSendackAt(ack, completedAt)
 }
 
-func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Time) error {
+func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Time, evidence ...AttemptLinkResultEvidence) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	if ack == nil || ack.ClientMsgNo == "" {
 		return v.recordSendFailureLocked(FailureCodeInvalidSendack, 0, [16]byte{}, EvidenceStageSendack, 0)
 	}
 	positiveSuccess := ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0
+	resultEvidence := AttemptLinkResultEvidence{}
+	if len(evidence) > 0 {
+		resultEvidence = evidence[0]
+	}
+	if positiveSuccess {
+		resultEvidence.Kind = "sendack_success"
+	} else {
+		resultEvidence.Kind = "sendack_rejected"
+	}
 	if ack.ClientSeq != 0 {
 		key := releasedAttemptKey{clientSeq: ack.ClientSeq, clientMsgNo: ack.ClientMsgNo}
 		if released := v.releasedAttempts[key]; released != nil {
-			v.observeFirstAttemptResultLocked(&released.firstDeadline, completedAt, false)
+			v.observeFirstAttemptResultLocked(&released.firstDeadline, completedAt, false, attemptLinkObservation{message: ack.ClientMsgNo, seq: ack.ClientSeq, result: resultEvidence})
 			var correlationErr error
 			if positiveSuccess {
 				correlationErr = v.observeSendackCorrelationLocked(ack, completedAt)
@@ -750,7 +778,7 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 		}
 	}
 	if attempt != nil {
-		v.observeFirstAttemptResultLocked(&attempt.firstDeadline, completedAt, false)
+		v.observeFirstAttemptResultLocked(&attempt.firstDeadline, completedAt, false, attemptLinkObservation{message: ack.ClientMsgNo, seq: ack.ClientSeq, result: resultEvidence})
 	}
 	var correlationErr error
 	if positiveSuccess {
@@ -1339,7 +1367,7 @@ func (v *Verifier) resolveAttemptError(clientMsgNo string, clientSeq uint64, obs
 	defer v.sendMu.Unlock()
 	key := releasedAttemptKey{clientSeq: clientSeq, clientMsgNo: clientMsgNo}
 	if released := v.releasedAttempts[key]; clientSeq != 0 && clientMsgNo != "" && released != nil {
-		v.observeFirstAttemptResultLocked(&released.firstDeadline, observedAt, localAdmission)
+		v.observeFirstAttemptResultLocked(&released.firstDeadline, observedAt, localAdmission, attemptLinkObservation{message: clientMsgNo, seq: clientSeq, result: AttemptLinkResultEvidence{Kind: "transport_error"}})
 		v.consumeReleasedAttemptLocked(key)
 		return nil
 	}
@@ -1351,7 +1379,7 @@ func (v *Verifier) resolveAttemptError(clientMsgNo string, clientSeq uint64, obs
 	if attempt == nil {
 		return v.recordUnknownSendackLocked(pending.logical.LogicalSend, &frame.SendackPacket{ClientSeq: clientSeq, ClientMsgNo: clientMsgNo})
 	}
-	v.observeFirstAttemptResultLocked(&attempt.firstDeadline, observedAt, localAdmission)
+	v.observeFirstAttemptResultLocked(&attempt.firstDeadline, observedAt, localAdmission, attemptLinkObservation{message: clientMsgNo, seq: clientSeq, result: AttemptLinkResultEvidence{Kind: "transport_error"}})
 	if pending.completion == sendIncomplete {
 		if v.recordFirstAttemptFailureLocked(pending, attempt) && localAdmission {
 			v.sendCounters.firstAttemptLocalAdmissionFailures++
@@ -1480,6 +1508,9 @@ func (v *Verifier) resetRuntime() {
 	heap.Init(&v.releasedDeadlines)
 	v.releasedPeak = 0
 	v.sendCounters = verifierSendCounters{}
+	if v.attemptLinkDiagnostics != nil {
+		*v.attemptLinkDiagnostics = verifierAttemptLinkRecorder{}
+	}
 	v.hotSendackLatency = newWorkerHistogramSnapshot()
 	v.coldFirstCreateSendackLatency = newWorkerHistogramSnapshot()
 	v.lifecycleReheatSendackLatency = newWorkerHistogramSnapshot()

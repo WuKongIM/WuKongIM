@@ -131,12 +131,12 @@ Stop or startup rollback
 
 The app configures aggregate MQTT storage on every product node, including when the MQTT listener is disabled. It composes fixed capacity metrics with any injected observer. Cluster factory reopen rebuilds canonical capacity before restore admission resumes. Will publications promote only the typed whole-invocation non-submission capability to same-boot journal sealing.
 - Stream EVENT dispatch is wired only with the complete base reader, event store, authoritative subscribers, presence, owner registry and peer RPC. Fanouts are synchronous request-owned work with bounded admission; entry shutdown joins them without a separate token worker or queue.
-
 - Default product Gateway/message composition owns one bounded ordered Channel submitter, using the existing Router and normalized Gateway record/worker/byte settings. Injected handlers/usecases retain their explicit execution behavior. Constructor rollback, Stop and restore maintenance join accepted callbacks before dependencies close or restart; timed-out drains retain their fence. Same-Channel durable execution cohorts target 32 records (clamped by queue capacity) and the existing session batch bytes; larger original jobs stay intact. Ingress batching, workers, admission capacity and original callback boundaries remain unchanged.
 - Composition wires UID/source-Channel policy mutations, unified send facts, and bounded permission-stage/RPC/ban-scope and sealed-batch ownership observers through existing ports. Every topology follows the same cluster-authoritative admission path. Policy mutation observers write credential-free structured audits; proposal errors retain an unknown outcome rather than reporting tentative state as durable. Available native message commit timings add seven fixed stages under the existing atomic scrape cut; they remain separate from coordinator phases and runtime task totals.
 
-Top ACK-binding counts use independent atomic publication while delivery serializes ACK mutations; publication never acquires the shared Top ingestion/control mutex.
-Sampling and cloning capture the current count, including zero; historical samples remain immutable. Other Top observations keep their existing locks.
+Top ACK-binding counts use independent atomic publication while delivery serializes ACK mutations; publication never acquires the shared Top ingestion/control mutex. Sampling and cloning capture the current count, including zero; historical samples remain immutable. Other Top observations keep their existing locks.
+
+- `diagnostics.attempt_link_enable` is separately default-off and requires general diagnostics. It composes the fixed65536 invocation summary rows and two separately bounded indexes only when enabled, leaving ordinary diagnostic retention unchanged. The sink maps existing original forward events through fixed upper TraceID bindings; the API receives detached summary and local RPC read ports. These observations do not alter admission, durability, deadlines or gates.
 
 ## Read First
 - [app.go](app.go)

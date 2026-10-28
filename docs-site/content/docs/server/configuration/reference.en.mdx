@@ -175,6 +175,7 @@ When the corresponding `api.external_*` is omitted, default external `/route` an
 | TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
 | `diagnostics.enable` | `WK_DIAGNOSTICS_ENABLE` | `bool` | Captures bounded node-local diagnostic events; enabled when omitted. |
+| `diagnostics.attempt_link_enable` | `WK_DIAGNOSTICS_ATTEMPT_LINK_ENABLE` | `bool` | Opt in to 65536 anonymous SEND invocation summaries and two fixed indexes per node; defaults to `false` and requires `diagnostics.enable`. Adds diagnostic CPU/memory work for a bounded read-only query with a configured bearer; candidates do not prove generic request uniqueness. |
 | `diagnostics.rpc_sample_every` | `WK_DIAGNOSTICS_RPC_SAMPLE_EVERY` | `int` | Captures bounded phase samples every N RPCs; defaults to `0` (off), accepts `0` through `4294967295`, and requires `diagnostics.enable`. Sampled requests negotiate connection support; negotiation failure prevents that request from dispatching, while an explicit unsupported response uses an ordinary RPC. |
 | `diagnostics.buffer_size` | `WK_DIAGNOSTICS_BUFFER_SIZE` | `int` | Maximum diagnostic events retained in memory; `0` uses `50000`. |
 | `diagnostics.sample_rate` | `WK_DIAGNOSTICS_SAMPLE_RATE` | `float` | Baseline keep probability for successful diagnostic events, from `0` to `1`; omitted uses `0.01`. |

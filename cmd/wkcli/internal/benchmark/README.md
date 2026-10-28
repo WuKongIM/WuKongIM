@@ -735,5 +735,43 @@ fail before worker start. Additional enabled clock reads can perturb timing.
 The terminal `driver-diagnostics.json` sidecar contains only bounded numeric
 phase evidence and closed operation names. It does not change workload TOML,
 10,000 online / 2,000 SEND/s / 256 slots, deadlines, native evidence or gates.
-Absent diagnostics provide no cause attribution. Worker protocol v14 is
+Absent diagnostics provide no cause attribution. Worker protocol v15 is
 required on both coordinator and workers.
+
+For the separate bounded attempt diagnostic, set `WK_CHAT_LIFECYCLE_ATTEMPT_LINK_DIAGNOSTICS=1` (or `true`) on each worker process and opt the product into `diagnostics.attempt_link_enable`. Empty/`0`/`false` disables this private worker option; other values fail configuration. The driver option does not enable it. The existing live cuts and final cut may export `attempt-link-diagnostics.json` (at most64KiB) with the first16 confirmed-late original attempt keys per worker generation. This optional evidence preserves native reportv7, Evidencev3, counters, retry/deadline behavior and all original gates. Missing/reused connection identity, multiple Gateway invocations or expired samples remain unknown; a normal WriteFrame callback is not flush or client receipt. Diagnostic CPU/memory/control-response overhead remains a confound.
+
+### Private worker runtime trace
+
+For a separate local runtime diagnostic, set
+`WK_CHAT_LIFECYCLE_RUNTIME_TRACE=1` (or `true`) on each chat-lifecycle worker.
+Empty/`0`/`false` disables it; every other value fails before worker Serve.
+The driver and attempt options do not enable it. Enabled mode requires an
+existing absolute `--work-dir` and creates a new private `runtime-trace`
+directory; existing diagnostic output or a symlink used as the work directory
+is rejected. Trusted ancestor aliases such as macOS `/tmp` remain usable.
+
+The first authenticated, current, valid Snapshot GET or Checkpoint POST with
+harness failures asks one process-owned exporter to retain its recent Go
+runtime trace. The coordinator uses Checkpoint POSTs for periodic and terminal
+evidence. This also covers tick/Advance failures and cached final Snapshot GETs. The notification
+runs outside the lifecycle lock and never exports synchronously. Repeated
+snapshots cannot start another export. Snapshot, ordinary Stop, UnexpectedExit
+and process termination retain their original bounds and never wait for this
+diagnostic owner. An interrupted or blocked export may remain pending or
+partial, with unknown coverage.
+
+`trace.partial` becomes `trace.out` only after a successful export and recorder
+shutdown. Trace output is capped at 16 MiB; bounded status receipts consume at
+most 4 KiB. The recorder's 8 MiB `MaxBytes` and ten-second `MinAge` are soft
+retention settings, not hard memory or coverage guarantees. Keep these files
+private: runtime traces contain stacks and source paths. They do not enter
+worker protocol15, reportv7, Evidencev3, native counters or gates.
+
+Decode a completed stream with Go 1.25 `go tool trace -d=parsed trace.out`.
+The two static expiry regions retain an existing anonymous driver turn when
+available. Their durations and Go Running intervals are wall time and may
+include OS/VM descheduling; they are not pure CPU measurements. No CPU
+profiler is started. Parked synchronization stacks, runnable waits and GC
+overlap can guide diagnosis, while missing or evicted events remain unknown.
+Recording and export add diagnostic overhead, so a new capture cannot by
+itself establish the cause of an earlier run.

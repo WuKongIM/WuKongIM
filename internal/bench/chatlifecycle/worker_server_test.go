@@ -241,7 +241,7 @@ func TestWorkerServerLifecycleReheatRejectsFenceMissingAndHonorsCancellation(t *
 	}
 }
 
-func TestWorkerServerAdvertisesWorkerProtocolV14(t *testing.T) {
+func TestWorkerServerAdvertisesWorkerProtocolV15(t *testing.T) {
 	t.Parallel()
 
 	server, err := NewWorkerServer(WorkerServerConfig{
@@ -265,8 +265,8 @@ func TestWorkerServerAdvertisesWorkerProtocolV14(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode info: %v", err)
 	}
-	if info.ProtocolVersion != 14 {
-		t.Fatalf("protocol version = %d, want 14", info.ProtocolVersion)
+	if info.ProtocolVersion != 15 {
+		t.Fatalf("protocol version = %d, want 15", info.ProtocolVersion)
 	}
 }
 
