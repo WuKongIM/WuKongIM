@@ -2668,3 +2668,14 @@ completion, installation and provider-reference release.
   are wall time and may include OS/VM descheduling. No CPU profiler is enabled,
   so remaining Running time cannot be called pure scan CPU. These artifacts
   do not change protocol15, Report v7, Evidence v3 or acceptance thresholds.
+- Optional Linux worker CPU bounds require both private driver diagnostics and
+  `WK_CHAT_LIFECYCLE_DRIVER_CPU_DIAGNOSTICS=1`. A MONOTONIC / PROCESS_CPUTIME_ID /
+  MONOTONIC sample at actual owner entry and the first native code37/38 miss
+  retains at most16 failed turns per generation. Process CPU includes all
+  threads and GC; its delta is only an upper bound on actor CPU in the enclosed
+  work interval. Low CPU alone cannot distinguish lock waits from descheduling.
+  Failed, regressing or wider-than1ms clock brackets remain unknown with raw
+  numeric bounds; this1ms diagnostic-quality rule is not an acceptance gate.
+  Post-join detached records cross a nonblocking channel into one private
+  asynchronous64KiB CLI sidecar per process. Stop never waits for its IO.
+  Neither protocol15 nor native evidence, reports, counters or gates include it.

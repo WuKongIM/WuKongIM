@@ -854,6 +854,11 @@ func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "chat lifecycle worker attempt diagnostic configuration failed")
 			return exitConfig
 		}
+		enableDriverCPU, err := loadDriverCPUDiagnosticsEnvironment(enableDriverDiagnostics)
+		if err != nil {
+			fmt.Fprintln(stderr, "chat lifecycle worker CPU diagnostic configuration failed")
+			return exitConfig
+		}
 		enableRuntimeTrace, err := loadWorkerRuntimeTraceEnvironment()
 		if err != nil {
 			fmt.Fprintln(stderr, "chat lifecycle worker runtime trace configuration failed")
@@ -864,13 +869,24 @@ func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "chat lifecycle worker target credential configuration failed")
 			return exitConfig
 		}
-		factory := chatlifecycle.NewEngineWorkerGenerationFactory(benchToken)
-		if enableDriverDiagnostics {
-			factory = chatlifecycle.NewEngineWorkerGenerationFactoryWithDriverDiagnostics(benchToken)
+		diagnostics := chatlifecycle.WorkerDiagnosticOptions{
+			Driver: enableDriverDiagnostics, AttemptLink: enableAttemptLinkDiagnostics,
 		}
-		if enableAttemptLinkDiagnostics {
-			factory = chatlifecycle.NewEngineWorkerGenerationFactoryWithAttemptLinkDiagnostics(benchToken, enableDriverDiagnostics)
+		if enableDriverCPU {
+			probe, probeErr := newDriverCPUClockProbe()
+			if probeErr != nil {
+				fmt.Fprintln(stderr, "chat lifecycle worker CPU diagnostic initialization failed")
+				return exitConfig
+			}
+			exporter, exportErr := newDriverCPUExporter(cfg.server.WorkDir, nil)
+			if exportErr != nil {
+				fmt.Fprintln(stderr, "chat lifecycle worker CPU diagnostic initialization failed")
+				return exitConfig
+			}
+			defer exporter.RequestStop()
+			diagnostics.CPUClockProbe, diagnostics.CPUReports = probe, exporter.Reports()
 		}
+		factory := chatlifecycle.NewEngineWorkerGenerationFactoryWithDiagnostics(benchToken, diagnostics)
 		var reportHarnessFailure func()
 		if enableRuntimeTrace {
 			runtimeTrace, traceErr := newWorkerRuntimeTrace(cfg.server.WorkDir, nil)
