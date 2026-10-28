@@ -1140,6 +1140,8 @@ type engineWorkerGenerationFactory struct {
 	benchToken                   string
 	enableDriverDiagnostics      bool
 	enableAttemptLinkDiagnostics bool
+	driverCPUClockProbe          func() DriverCPUClockSample
+	driverCPUReports             chan<- DriverCPUReport
 	clock                        SessionClock
 	newSessionFactory            func(WorkerAssignment) (SessionClientFactory, error)
 	newSyncer                    func(WorkerAssignment) (ConversationSyncer, error)
@@ -1166,6 +1168,12 @@ func NewEngineWorkerGenerationFactoryWithAttemptLinkDiagnostics(token string, dr
 }
 
 func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerGeneration, error) {
+	// CPU observation is one explicit pair; reject incomplete opt-ins before
+	// constructing runtime collaborators or sampling the optional probe.
+	if (f.driverCPUClockProbe != nil) != (f.driverCPUReports != nil) ||
+		(f.driverCPUClockProbe != nil && !f.enableDriverDiagnostics) {
+		return nil, errWorkerServerConfig
+	}
 	if !validWorkerAssignment(assignment) || assignment.Generation > maxLogicalGeneration {
 		return nil, errWorkerServerConfig
 	}
@@ -1272,6 +1280,7 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 	engine, err := NewEngine(EngineConfig{
 		Clock: clock, Sessions: sessions, Schedule: schedule, Graph: graph, Traffic: traffic,
 		EnableDriverDiagnostics: f.enableDriverDiagnostics,
+		DriverCPUClockProbe:     f.driverCPUClockProbe,
 		Generator:               generator, Retry: retry, Verifier: verifier, Evidence: evidence,
 		WorkerID: assignment.WorkerID, WorkerCount: assignment.WorkerCount,
 		CommandCapacity: limits.command, WorkCapacity: limits.work, RetryCapacity: limits.retry,
@@ -1295,8 +1304,17 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 	if err != nil {
 		return nil, err
 	}
+	var cpuReport DriverCPUReport
+	if f.driverCPUReports != nil {
+		cpuReport = DriverCPUReport{
+			RunHash: hashReportValue(assignment.RunID), AssignmentHash: hashReportValue(assignment.AssignmentID),
+			WorkerID: assignment.WorkerID,
+		}
+	}
 	return &engineWorkerGeneration{
 		engine: engine, verifier: verifier, evidence: evidence,
+		driverCPUReports: f.driverCPUReports,
+		driverCPUReport:  cpuReport,
 		// The reviewed no-migration profile uses this validated continuous table.
 		// A migration-aware coordinator must inject its copied live mapping.
 		lifecycleSlots: lifecycleSlots,
@@ -1477,6 +1495,11 @@ type engineWorkerGeneration struct {
 	verifier       *Verifier
 	evidence       *EvidenceRecorder
 	lifecycleSlots LifecycleSlotAssignment
+	// driverCPUReport retains only an anonymous immutable fence. Publication
+	// never waits for exporter IO, and its once belongs to this assignment.
+	driverCPUReports    chan<- DriverCPUReport
+	driverCPUReport     DriverCPUReport
+	driverCPUReportOnce sync.Once
 	// onlineTarget and trafficDemand are immutable O(1) tick inputs derived
 	// from the assignment; coordinator snapshots are never used by the latch.
 	onlineTarget   int
@@ -1659,6 +1682,7 @@ func (g *engineWorkerGeneration) Drain(ctx context.Context) error {
 func (g *engineWorkerGeneration) Stop() {
 	g.stopTicks()
 	_ = g.engine.Stop()
+	g.publishDriverCPUReport()
 	g.finish(nil)
 }
 
@@ -1684,6 +1708,7 @@ func (g *engineWorkerGeneration) cancelTicks() <-chan struct{} {
 // terminateFromTick never joins tickDone because it runs on that goroutine.
 func (g *engineWorkerGeneration) terminateFromTick(err error) {
 	_ = g.engine.Stop()
+	g.publishDriverCPUReport()
 	g.finish(err)
 }
 
@@ -1695,6 +1720,7 @@ func (g *engineWorkerGeneration) terminateFromExternal(err error) {
 	if done != nil {
 		<-done
 	}
+	g.publishDriverCPUReport()
 	g.finish(err)
 }
 

@@ -69,11 +69,25 @@ type driverTurn struct {
 	record  DriverDeadlineMiss
 	sampled time.Time
 	last    time.Time
+	// These optional numeric fields transfer to the command owner together
+	// with the Turn. Only that owner reads or mutates them after admission.
+	cpuOwnerEntry DriverCPUClockSample
+	cpuMissSeen   bool
 }
 
 func (e *Engine) beginDriverTurn(sampled time.Time, operation string) *driverTurn {
-	if e.driverDiagnostics == nil || e.driverDiagnostics.full.Load() {
+	if e.driverDiagnostics == nil {
 		return nil
+	}
+	if e.driverDiagnostics.full.Load() {
+		if e.driverCPURecorder == nil {
+			return nil
+		}
+		// CPU observations retain failed Turns, while timing retains misses.
+		// Continue only the anonymous identity after the timing cap; every
+		// driver timing helper already short-circuits without clock reads.
+		// Even after the CPU cap, this sentinel counts dropped Turns once.
+		return &driverTurn{record: DriverDeadlineMiss{Operation: operation}}
 	}
 	at := e.clock.Now()
 	t := &driverTurn{record: DriverDeadlineMiss{Operation: operation, ClockValid: true}, sampled: sampled, last: at}

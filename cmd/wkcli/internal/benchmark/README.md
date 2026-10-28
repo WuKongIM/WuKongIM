@@ -740,6 +740,37 @@ required on both coordinator and workers.
 
 For the separate bounded attempt diagnostic, set `WK_CHAT_LIFECYCLE_ATTEMPT_LINK_DIAGNOSTICS=1` (or `true`) on each worker process and opt the product into `diagnostics.attempt_link_enable`. Empty/`0`/`false` disables this private worker option; other values fail configuration. The driver option does not enable it. The existing live cuts and final cut may export `attempt-link-diagnostics.json` (at most64KiB) with the first16 confirmed-late original attempt keys per worker generation. This optional evidence preserves native reportv7, Evidencev3, counters, retry/deadline behavior and all original gates. Missing/reused connection identity, multiple Gateway invocations or expired samples remain unknown; a normal WriteFrame callback is not flush or client receipt. Diagnostic CPU/memory/control-response overhead remains a confound.
 
+### Private Linux driver CPU bounds
+
+Set `WK_CHAT_LIFECYCLE_DRIVER_CPU_DIAGNOSTICS=1` (or `true`) together with
+`WK_CHAT_LIFECYCLE_DRIVER_DIAGNOSTICS=1` on a Linux worker. Unset, `0` and
+`false` disable it; other values, a missing driver opt-in, or an unsupported
+platform fail startup. Default-off mode performs no CPU-clock reads.
+
+Each admitted owner turn samples Linux MONOTONIC / PROCESS_CPUTIME_ID /
+MONOTONIC once at entry and once at its first original code37/38 dispatch miss.
+At most16 failed turns are retained per generation; saturation stops clock
+sampling. Repeated misses in one turn do not consume additional slots. This
+observation adds syscalls and can perturb timing, so it is diagnostic evidence.
+
+The CPU delta includes every thread, other goroutines and GC. It bounds actor
+CPU in the enclosed work interval; it is not actor-only CPU. A small delta
+does not distinguish a lock wait from OS/VM descheduling. Parallel threads may
+produce process CPU greater than elapsed wall time. Failed reads, negative or
+regressing clocks, and clock brackets wider than1ms retain `unknown` plus
+their original numeric bounds. The1ms diagnostic-quality bound does not
+change any workload deadline or acceptance threshold.
+
+An existing absolute, non-symlink `--work-dir` is required. The worker creates
+a new private `driver-cpu` directory. After Engine join, a nonblocking channel
+offers one detached report to the process exporter. Its first report contains
+hashed run/assignment fences, worker/generation and bounded numeric records;
+`diagnostics.partial` becomes `diagnostics.json` only after a complete write
+and close. Output is at most64KiB and private. Existing output is never reused.
+Stop, Snapshot and process exit never join diagnostic IO. Missing or partial
+output remains unknown. This sidecar does not enter protocol15, native
+Report v7, Evidence v3, counters, deadlines, retry rules or gates.
+
 ### Private worker runtime trace
 
 For a separate local runtime diagnostic, set

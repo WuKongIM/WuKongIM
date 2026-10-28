@@ -62,6 +62,9 @@ type EngineConfig struct {
 	// EnableDriverDiagnostics retains fixed first-miss timing prefixes for local
 	// diagnosis. Additional enabled clock reads are a diagnostic confound.
 	EnableDriverDiagnostics bool
+	// DriverCPUClockProbe is an optional independent process-CPU observation.
+	// It requires the explicit driver diagnostic opt-in and is nil by default.
+	DriverCPUClockProbe func() DriverCPUClockSample
 	// WorkerID is this engine's zero-based worker partition.
 	WorkerID uint64
 	// WorkerCount must match the workload and identity partition count.
@@ -784,6 +787,9 @@ type Engine struct {
 	// driverDiagnostics is nil by default; driverTurn is active-owner-only.
 	driverDiagnostics *engineDriverRecorder
 	driverTurn        *driverTurn
+	// driverCPURecorder is a separate opt-in numeric observation. Its mutable
+	// records stay on the owner until Stop joins; they never enter native wire.
+	driverCPURecorder *engineDriverCPURecorder
 
 	commandCapacity  int
 	workCapacity     int
@@ -907,7 +913,8 @@ type Engine struct {
 
 // NewEngine wires the existing deterministic models and bounded verifier.
 func NewEngine(config EngineConfig) (*Engine, error) {
-	if config.Clock == nil || config.Sessions == nil || config.Schedule.identity == nil ||
+	if (config.DriverCPUClockProbe != nil && !config.EnableDriverDiagnostics) ||
+		config.Clock == nil || config.Sessions == nil || config.Schedule.identity == nil ||
 		config.Graph.identity == nil || config.Traffic.identity == nil || config.Generator == nil ||
 		config.Retry.identity == nil || config.Verifier == nil || config.Evidence == nil ||
 		config.CommandCapacity <= 0 || config.WorkCapacity <= 0 || config.RetryCapacity <= 0 ||
@@ -954,6 +961,9 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	}
 	if config.EnableDriverDiagnostics {
 		engine.driverDiagnostics = &engineDriverRecorder{}
+	}
+	if config.DriverCPUClockProbe != nil {
+		engine.driverCPURecorder = &engineDriverCPURecorder{probe: config.DriverCPUClockProbe}
 	}
 	if err := config.Sessions.setEngineObservers(engine.sessionSendack, engine.sessionAsyncSendError); err != nil {
 		return nil, err
@@ -1023,6 +1033,9 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	}
 	if e.driverDiagnostics != nil {
 		e.driverDiagnostics = &engineDriverRecorder{}
+	}
+	if e.driverCPURecorder != nil {
+		e.driverCPURecorder = &engineDriverCPURecorder{probe: e.driverCPURecorder.probe}
 	}
 	e.driverTurn = nil
 	e.evidence.reset()
@@ -2867,6 +2880,7 @@ func (e *Engine) advance(ctx context.Context, now time.Time, turn *driverTurn) a
 	}
 	e.driverTurn = turn
 	defer func() { e.driverTurn = nil }()
+	e.beginDriverCPUOwnerTurn(turn)
 	e.now = now
 	verifierStarted := e.driverNow(turn)
 	expired := e.verifier.expireCorrelations(now, func(clientMsgNo string) {
@@ -2972,6 +2986,7 @@ func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Tim
 			}
 		}
 		if dispatchFailure != 0 {
+			e.recordDriverCPUDeadlineMiss(dispatchFailure)
 			e.activityUnderDelivered++
 			e.completeMetaCreate(work.intent, false)
 			return errors.Join(

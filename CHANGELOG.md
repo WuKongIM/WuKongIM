@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Add optional Linux process CPU and monotonic bounds for benchmark dispatch
+  misses, exported privately after worker join without changing acceptance gates.
+  / 压测可选记录 Linux 进程 CPU 与单调时钟边界，辅助分析发送派发停顿；
+  worker 回收后私有导出，保持原验收门禁。
+
 - Judge natural cooling from each lifecycle probe's actual request interval,
   avoiding false early-absence failures from queued ticks; uncertain boundary
   reads require fresh proof and keep the original deadlines. / 生命周期自然冷却
