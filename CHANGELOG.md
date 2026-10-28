@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Separate session lookup from client admission in optional lifecycle worker
+  traces, so a pool lock wait is not mistaken for transport admission time.
+  / 生命周期压测的可选运行时轨迹区分会话查找与客户端提交，避免将会话池锁等待误归因于传输层。
+
 - Skip lifecycle worker online-table expiry scans and locking when no session
   can be due, preserving SEND leases and cleanup admission. / 生命周期压测在
   无会话可能到期时跳过在线表扫描与加锁，保留发送租约及清理准入规则。

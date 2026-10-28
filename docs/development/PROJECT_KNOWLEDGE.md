@@ -22,6 +22,15 @@ process clock; duration, order and freshness use those positions. Serialized
 wall timestamps are audit fields, not a reconstructed qualification clock.
 Readers reject missing offsets and older schemas without modifying old evidence.
 
+Lifecycle driver `SDKAdmission` includes the entire `SessionPool.TrySend`,
+including its online-table read lock. Engine step-lock and owner-queue wait
+metrics do not measure that lock. Optional static runtime trace regions split
+`pool_lookup` from `client_try_send` on the same goroutine; they retain no UID.
+Runtime Running intervals are wall state, not measured CPU. A partial or evicted
+trace cannot explain a historical stall. Snapshot table capture runs on the
+same Engine owner as SEND; client queue probes run outside that owner and can
+contend with client admission. ACK drains may independently acquire pool locks.
+
 Lifecycle runtime probes are asynchronous node-local reads, not snapshots at a
 ticker instant. Each batch retains only its client request start/end interval,
 after concurrency admission, against the existing clock. An all-missing result

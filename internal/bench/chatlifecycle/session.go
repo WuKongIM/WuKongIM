@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base32"
 	"errors"
+	"runtime/trace"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -770,15 +771,34 @@ func (p *SessionPool) markRelationshipsObserved(userIndex uint64) bool {
 	return true
 }
 
-// TrySend performs non-waiting local admission through the owned connection.
+// TrySend does not wait for transport capacity; the pool lookup still takes
+// its ordinary state lock. Optional static trace regions separate that wait
+// from the owned client's admission without recording session identities.
 func (p *SessionPool) TrySend(ctx context.Context, uid string, packet *frame.SendPacket) error {
+	var region *trace.Region
+	traceCtx := ctx
+	if trace.IsEnabled() {
+		if traceCtx == nil {
+			traceCtx = context.Background()
+		}
+		region = trace.StartRegion(traceCtx, "wkbench.session_send.pool_lookup")
+	}
 	p.mu.RLock()
 	session := p.online[uid]
 	p.mu.RUnlock()
+	if region != nil {
+		region.End()
+	}
 	if session == nil {
 		return errSessionOffline
 	}
+	if region != nil {
+		region = trace.StartRegion(traceCtx, "wkbench.session_send.client_try_send")
+	}
 	err := session.client.TrySend(ctx, packet)
+	if region != nil {
+		region.End()
+	}
 	if errors.Is(err, wkclient.ErrSendQueueFull) {
 		recordSaturatingAtomic(&p.transportAdmissionRejected)
 	}
