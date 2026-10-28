@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Skip lifecycle worker online-table expiry scans and locking when no session
+  can be due, preserving SEND leases and cleanup admission. / 生命周期压测在
+  无会话可能到期时跳过在线表扫描与加锁，保留发送租约及清理准入规则。
+
 - Add optional Linux process CPU and monotonic bounds for benchmark dispatch
   misses, exported privately after worker join without changing acceptance gates.
   / 压测可选记录 Linux 进程 CPU 与单调时钟边界，辅助分析发送派发停顿；

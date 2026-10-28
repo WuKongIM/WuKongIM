@@ -321,6 +321,9 @@ type SessionPool struct {
 	online             map[string]*onlineSession
 	onlineByIndex      map[uint64]*onlineSession
 	onlineGroupMembers [][]*onlineSession
+	// expiryDeadline is an immutable conservative lower bound published under
+	// mu. Removal may leave an earlier bound; nil means unknown and must scan.
+	expiryDeadline atomic.Pointer[sessionExpiryDeadline]
 	// canaryAnchors is the exact number of non-expiring owner-local sessions
 	// retained for the unique very-large correctness canary.
 	canaryAnchors int
@@ -544,6 +547,7 @@ func (p *SessionPool) loginReserved(ctx, drainParent context.Context, login Sess
 		session.groupPosition = len(members)
 		p.onlineGroupMembers[session.groupIndex] = append(members, session)
 	}
+	p.noteSessionExpiryLocked(session)
 	p.mu.Unlock()
 	go p.drain(drainCtx, session)
 	go p.heartbeat(drainCtx, session)
@@ -861,6 +865,9 @@ func (p *SessionPool) expireAsync(now time.Time) (int, error) {
 	if p.cleanupQueue == nil || p.cleanupPending > cap(p.cleanupQueue) {
 		return 0, errSessionConfig
 	}
+	if p.sessionExpiryNotDue(now) {
+		return 0, nil
+	}
 	sessions, ok := p.detachExpiredWithin(now, cap(p.cleanupQueue)-p.cleanupPending)
 	if !ok {
 		return 0, errSessionConfig
@@ -1000,9 +1007,20 @@ func (p *SessionPool) runExpiryCleanup(queue <-chan *onlineSession, done chan<- 
 func (p *SessionPool) detachExpiredWithin(now time.Time, capacity int) ([]*onlineSession, bool) {
 	p.mu.Lock()
 	due := make([]string, 0)
+	var next time.Time
+	haveNext := false
 	for uid, session := range p.online {
-		if !session.canaryAnchor && !session.snapshot.Deadline.After(now) && p.sendLeases[uid] == 0 && p.correlationLeaseCounts[uid] == 0 {
+		if session.canaryAnchor {
+			continue
+		}
+		if !session.snapshot.Deadline.After(now) && p.sendLeases[uid] == 0 && p.correlationLeaseCounts[uid] == 0 {
 			due = append(due, uid)
+			continue
+		}
+		// A leased overdue session remains a due hint. It must not move the
+		// next check past its release or hide another eligible due session.
+		if !haveNext || session.snapshot.Deadline.Before(next) {
+			next, haveNext = session.snapshot.Deadline, true
 		}
 	}
 	if len(due) > capacity {
@@ -1018,6 +1036,7 @@ func (p *SessionPool) detachExpiredWithin(now time.Time, capacity int) ([]*onlin
 		p.claimCloseReasonLocked(session, sessionCloseReasonExpired)
 		sessions = append(sessions, session)
 	}
+	p.publishSessionExpiryLocked(next, haveNext)
 	p.mu.Unlock()
 	for _, session := range sessions {
 		session.cancel()
@@ -1265,6 +1284,7 @@ func (p *SessionPool) resetRuntime() error {
 		return errSessionOnline
 	}
 	p.ownershipCapacity = 0
+	p.expiryDeadline.Store(nil)
 	p.readErrors = 0
 	p.verificationErrors = 0
 	p.factoryFailed = 0
