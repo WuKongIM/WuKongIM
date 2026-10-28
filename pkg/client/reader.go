@@ -18,7 +18,8 @@ func (c *Client) readerLoop(conn net.Conn, pending *pendingTracker, session *wkp
 	}
 
 	scratch := make([]byte, c.cfg.ReadBufferSize)
-	buf := make([]byte, 0, c.cfg.ReadBufferSize)
+	base := make([]byte, c.cfg.ReadBufferSize)
+	buf := base[:0]
 	for {
 		n, readErr := conn.Read(scratch)
 		if n > 0 {
@@ -39,6 +40,12 @@ func (c *Client) readerLoop(conn net.Conn, pending *pendingTracker, session *wkp
 					return
 				}
 				buf = buf[consumed:]
+			}
+			// Decoded payloads have detached ownership. Reuse the fixed read base
+			// for a small suffix, releasing any temporary large-frame allocation.
+			if len(buf) <= len(base) {
+				copy(base, buf)
+				buf = base[:len(buf)]
 			}
 			if err := c.completeTerminalFenceReadBatch(conn, len(buf)); err != nil {
 				c.failRead(conn, pending, err)

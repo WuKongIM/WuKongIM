@@ -26,6 +26,14 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Reduce temporary allocation for partially filled worker batches, including
+  local quorum writes, while preserving batching and admission limits.
+  / 减少工作队列未满批次（包括本节点 quorum 写入）的临时内存分配，保持组批及准入上限。
+
+- Reuse WKProto tooling-client transport buffers between messages, clearing
+  completed write requests and releasing temporary large-frame read buffers.
+  / WKProto 工具客户端复用收发缓冲区，清除已完成写请求引用并释放大报文临时读取缓冲区。
+
 - Skip lifecycle worker online-table expiry scans and locking when no session
   can be due, preserving SEND leases and cleanup admission. / 生命周期压测在
   无会话可能到期时跳过在线表扫描与加锁，保留发送租约及清理准入规则。
