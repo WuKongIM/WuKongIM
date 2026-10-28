@@ -170,7 +170,11 @@ func (c *Client) runWriterLoop() {
 			c.finishWriteBatch(ready, err)
 			c.observeSendBatch(countSendRequests(ready), bytesWritten, time.Since(started), err)
 		}
-		backlog = rest
+		// Encoding, writes and completions no longer borrow the consumed prefix.
+		// Keep the backing array for the next batch without retaining old requests.
+		remaining := copy(backlog, rest)
+		clear(backlog[remaining:])
+		backlog = backlog[:remaining]
 	}
 }
 

@@ -1,5 +1,17 @@
 # Project Knowledge
 
+`BoundedBatchPool` sizes a new backing array from ready queue depth rather than
+the maximum batch size. This depth is an allocation hint, not an admission or
+batch limit: late arrivals may still grow the batch during collection and
+executor retry. Sparse allocation benchmarks do not certify end-to-end
+throughput or explain every timeout in a shared-host diagnostic run.
+
+WKProto tooling-client pumps reuse transport storage only after synchronous
+write completion or decoded payload detachment. Writer compaction clears old
+request references; reader compaction returns small suffixes to the configured
+read base instead of retaining a large frame's peak allocation. Decoded payloads
+and pending-message ownership remain independent of these reusable buffers.
+
 Chat-lifecycle report v7 / threshold contract v2 separates `local_diagnostic`,
 `rehearsal`, and `formal_protocol` scope. A formal-protocol report still requires
 same-source/run/Lease external Linux hardware, independent-host and disk proof;

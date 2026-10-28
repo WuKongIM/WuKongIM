@@ -70,6 +70,11 @@ func TestConnectFailureEvidenceIntegration(t *testing.T) {
 			observer := &connectEvidenceObserver{}
 			var c *Client
 			wrapped := &connectEvidenceConn{Conn: clientConn}
+			var readStarted chan struct{}
+			if test.kind == "eof" {
+				readStarted = make(chan struct{})
+				wrapped.beforeRead = sync.OnceFunc(func() { close(readStarted) })
+			}
 			if test.writeCancel {
 				wrapped.beforeWrite = cancel
 			}
@@ -123,6 +128,16 @@ func TestConnectFailureEvidenceIntegration(t *testing.T) {
 						return
 					}
 					if test.response == nil {
+						if readStarted != nil {
+							// Close after read admission: closing earlier can make
+							// net.Pipe.SetReadDeadline fail with ErrClosedPipe.
+							select {
+							case <-readStarted:
+							case <-releaseServer:
+								serverDone <- errors.New("EOF fixture never entered read")
+								return
+							}
+						}
 						serverDone <- serverConn.Close()
 						return
 					}
@@ -220,6 +235,7 @@ func (connectEvidenceTimeout) Temporary() bool { return false }
 type connectEvidenceConn struct {
 	net.Conn
 	beforeWrite func()
+	beforeRead  func()
 	afterRead   func()
 	readOnce    sync.Once
 }
@@ -232,6 +248,9 @@ func (c *connectEvidenceConn) Write(body []byte) (int, error) {
 }
 
 func (c *connectEvidenceConn) Read(body []byte) (int, error) {
+	if c.beforeRead != nil {
+		c.beforeRead()
+	}
 	n, err := c.Conn.Read(body)
 	if n > 0 && c.afterRead != nil {
 		c.readOnce.Do(c.afterRead)
