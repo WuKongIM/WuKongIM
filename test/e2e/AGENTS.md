@@ -54,6 +54,12 @@ of `WK_E2E_PERMISSION_TIMELINE_SEQUENTIAL=1` or
 instructions for fixed capture bounds, sampling limits and full-history checks.
 Diagnostic timing never replaces unprofiled performance qualification.
 
+The natural `message/chat_lifecycle` case also retains a bounded single-Channel
+bridge through the real three-node runtime probe and actual wall clock. Its
+cold-boundary intervals and proof snapshots are separate from real SEND reheat
+evidence; consult the scenario rules for limits. This does not qualify the full
+production lifecycle runner, formal hardware or a cloud failure's root cause.
+
 | Domain | Scenario path | Purpose | Run |
 | --- | --- | --- | --- |
 | `message` | `test/e2e/message/connect_recovery_budget` | Preserve the first authenticated CONNECT under one350ms owner-read network delay in a real three-node256HashSlot cluster, with a single-node cluster control, no Register replay, bidirectional message proof and bounded post-cleanup JSON; this is policy mechanism coverage, not performance acceptance. | `WK_E2E_CONNECT_RECOVERY_BUDGET_REPORT_DIR=/absolute/artifact-directory GOWORK=off go test -tags=e2e ./test/e2e/message/connect_recovery_budget -count=1 -timeout=3m -p=1 -v` |

@@ -374,7 +374,9 @@ type LifecycleProof struct {
 	mu         sync.Mutex
 	candidates map[string]*lifecycleCandidateState
 	order      []*lifecycleCandidateState
-	snapshot   LifecycleProofSnapshot
+	// lastPollEnd is owned by pollMu and rejects cross-round clock regression.
+	lastPollEnd time.Time
+	snapshot    LifecycleProofSnapshot
 }
 
 // LifecycleProofSnapshot is the bounded identity-free lifecycle projection.
@@ -415,11 +417,30 @@ func NewLifecycleProof(candidates []LifecycleCandidate) (*LifecycleProof, error)
 
 // Observe consumes one all-three-node probe result without retaining its raw identities.
 func (p *LifecycleProof) Observe(now time.Time, results []model.ChannelRuntimeProbeResult) error {
+	windows := make([]lifecycleProbeWindow, len(p.order))
+	for index := range windows {
+		windows[index] = lifecycleProbeWindow{start: now, end: now}
+	}
+	return p.observeWindows(windows, results)
+}
+
+// lifecycleProbeWindow encloses every node's actual read in one bounded RPC
+// batch. A scheduled ticker instant cannot describe a later remote read.
+type lifecycleProbeWindow struct {
+	start, end time.Time
+}
+
+func (p *LifecycleProof) observeWindows(windows []lifecycleProbeWindow, results []model.ChannelRuntimeProbeResult) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if now.IsZero() || len(results) != 3 {
+	if len(windows) != len(p.order) || len(results) != 3 {
 		p.snapshot.HarnessFailures = saturatingIncrement(p.snapshot.HarnessFailures)
 		return ErrLifecycleHarnessInvalid
+	}
+	for _, window := range windows {
+		if window.start.IsZero() || window.end.IsZero() || window.end.Before(window.start) {
+			return p.harnessFailureLocked()
+		}
 	}
 	orderedResults := append([]model.ChannelRuntimeProbeResult(nil), results...)
 	sort.Slice(orderedResults, func(i, j int) bool { return orderedResults[i].NodeID < orderedResults[j].NodeID })
@@ -474,14 +495,15 @@ func (p *LifecycleProof) Observe(now time.Time, results []model.ChannelRuntimePr
 		if seen[index] != 0b111 {
 			return rollback(ErrLifecycleHarnessInvalid)
 		}
-		if err := p.observeCandidateLocked(now, state, rows[index]); err != nil {
+		if err := p.observeCandidateLocked(windows[index], state, rows[index]); err != nil {
 			return rollback(err)
 		}
 	}
 	return nil
 }
 
-func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleCandidateState, rows [3]model.ChannelRuntimeProbeChannel) error {
+func (p *LifecycleProof) observeCandidateLocked(window lifecycleProbeWindow, state *lifecycleCandidateState, rows [3]model.ChannelRuntimeProbeChannel) error {
+	now := window.end
 	// Completion is absorbing: later cohort polls retain the fixed request shape
 	// but cannot reinterpret or mutate evidence already proven complete.
 	if state.phase == lifecycleComplete {
@@ -543,15 +565,21 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 			if now.Before(state.candidate.QuietNotBefore) {
 				return p.productFailureLocked(LifecycleFailurePrematureAbsence)
 			}
-			if now.After(state.candidate.QuietDeadline) {
+			if window.start.After(state.candidate.QuietDeadline) {
 				return p.productFailureLocked(LifecycleFailureContinuedLoading)
+			}
+			if window.start.Before(state.candidate.QuietNotBefore) || now.After(state.candidate.QuietDeadline) {
+				// An interval crossing either boundary proves absence, but not
+				// its timing. Keep that fact without approving a scheduled SEND.
+				state.missingSeen = [3]bool{true, true, true}
+				return nil
 			}
 			state.phase = lifecycleAwaitReheat
 			state.coldObservedAt = now
 			p.snapshot.ColdEligible = saturatingIncrement(p.snapshot.ColdEligible)
 			return nil
 		}
-		if !now.Before(state.candidate.QuietDeadline) {
+		if !window.start.Before(state.candidate.QuietDeadline) {
 			return p.productFailureLocked(LifecycleFailureContinuedLoading)
 		}
 		if leaders > 1 || (allLoaded && leaders != 1) {
@@ -580,7 +608,7 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 		// when the scheduled SEND/SENDACK completed within it. Consume current
 		// sequence evidence before classifying still-unproven work as timed out.
 		if allMissing {
-			if now.After(state.candidate.ReheatAt.Add(lifecycleReheatDeadline)) {
+			if window.start.After(state.candidate.ReheatAt.Add(lifecycleReheatDeadline)) {
 				return p.productFailureLocked(LifecycleFailureReheatTimeout)
 			}
 			return nil
@@ -601,8 +629,18 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 			}
 			sequenceAdvanced = sequenceAdvanced && row.LEO > state.candidate.InitialSequence && row.HW > state.candidate.InitialSequence
 		}
+		if window.start.Before(state.reheatStarted) {
+			// Timing uncertainty blocks completion, never negative sequence
+			// evidence or the watermarks needed to reject a later regression.
+			for index, row := range rows {
+				if loaded[index] {
+					state.lastLEO[index], state.lastHW[index], state.lastCheckpoint[index] = row.LEO, row.HW, row.CheckpointHW
+				}
+			}
+			return nil
+		}
 		if !sequenceAdvanced {
-			if now.After(state.candidate.ReheatAt.Add(lifecycleReheatDeadline)) {
+			if window.start.After(state.candidate.ReheatAt.Add(lifecycleReheatDeadline)) {
 				return p.productFailureLocked(LifecycleFailureReheatTimeout)
 			}
 			return nil
@@ -762,9 +800,9 @@ type lifecycleRuntimeProber interface {
 // Poll issues bounded read-only probe batches, merges their transient rows by
 // candidate and node, then advances the whole proof in one atomic observation.
 // Raw runtime rows never escape this call.
-func (p *LifecycleProof) Poll(ctx context.Context, prober lifecycleRuntimeProber, now time.Time, options LifecycleProbeOptions) (LifecycleProbeBatchResult, error) {
+func (p *LifecycleProof) Poll(ctx context.Context, prober lifecycleRuntimeProber, clock ObserverClock, options LifecycleProbeOptions) (LifecycleProbeBatchResult, error) {
 	result := LifecycleProbeBatchResult{Latency: newWorkerHistogramSnapshot()}
-	if p == nil || now.IsZero() {
+	if p == nil || clock == nil {
 		return result, ErrLifecycleHarnessInvalid
 	}
 	p.pollMu.Lock()
@@ -775,36 +813,63 @@ func (p *LifecycleProof) Poll(ctx context.Context, prober lifecycleRuntimeProber
 		candidates[index] = state.candidate
 	}
 	p.mu.Unlock()
-	result, rows, err := probeLifecycleCandidates(ctx, prober, candidates, options)
+	result, rows, windows, err := probeLifecycleCandidates(ctx, prober, clock, candidates, options)
 	if err != nil {
 		return result, err
 	}
-	if err := p.Observe(now, rows); err != nil {
+	for _, window := range windows {
+		if window.start.Before(p.lastPollEnd) {
+			return result, ErrLifecycleHarnessInvalid
+		}
+	}
+	if err := p.observeWindows(windows, rows); err != nil {
 		return result, err
+	}
+	for _, window := range windows {
+		if window.end.After(p.lastPollEnd) {
+			p.lastPollEnd = window.end
+		}
 	}
 	return result, nil
 }
 
-func probeLifecycleCandidates(ctx context.Context, prober lifecycleRuntimeProber, candidates []LifecycleCandidate, options LifecycleProbeOptions) (LifecycleProbeBatchResult, []model.ChannelRuntimeProbeResult, error) {
+func probeLifecycleCandidates(ctx context.Context, prober lifecycleRuntimeProber, clock ObserverClock, candidates []LifecycleCandidate, options LifecycleProbeOptions) (LifecycleProbeBatchResult, []model.ChannelRuntimeProbeResult, []lifecycleProbeWindow, error) {
 	result := LifecycleProbeBatchResult{Latency: newWorkerHistogramSnapshot()}
 	if options.RequestTimeout == 0 {
 		options.RequestTimeout = 5 * time.Second
 	}
 	if ctx == nil || prober == nil || len(candidates) == 0 || len(candidates) > lifecycleCohortSize || options.BatchSize <= 0 || options.BatchSize > lifecycleMaxProbeBatch ||
 		options.MaxConcurrency <= 0 || options.MaxConcurrency > lifecycleMaxProbeParallel || options.RequestTimeout < 0 || options.RequestTimeout > 30*time.Second {
-		return result, nil, ErrLifecycleHarnessInvalid
+		return result, nil, nil, ErrLifecycleHarnessInvalid
 	}
 	if err := ctx.Err(); err != nil {
-		return result, nil, err
+		return result, nil, nil, err
 	}
 	probeCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// Serialize only the two clock reads per batch. Preserve their actual
+	// call order so even a between-batch clock regression invalidates the
+	// whole observation before any candidate can advance or fail as product.
+	var clockMu sync.Mutex
+	var lastClock time.Time
+	clockInvalid := false
+	readClock := func() time.Time {
+		clockMu.Lock()
+		defer clockMu.Unlock()
+		now := clock.Now()
+		if now.IsZero() || now.Before(lastClock) {
+			clockInvalid = true
+		}
+		lastClock = now
+		return now
+	}
 	type outcome struct {
 		batch     int
 		requested bool
 		nodes     int
 		latency   time.Duration
 		rows      []model.ChannelRuntimeProbeResult
+		window    lifecycleProbeWindow
 		err       error
 		transport bool
 	}
@@ -835,7 +900,9 @@ func probeLifecycleCandidates(ctx context.Context, prober lifecycleRuntimeProber
 			requestCtx, requestCancel := context.WithTimeout(probeCtx, options.RequestTimeout)
 			defer requestCancel()
 			started := time.Now()
+			window := lifecycleProbeWindow{start: readClock()}
 			rows, err := prober.ProbeChannelRuntimeAll(requestCtx, model.ChannelRuntimeProbeRequest{Channels: channels})
+			window.end = readClock()
 			transport := err != nil
 			latency := time.Since(started)
 			<-sem
@@ -845,14 +912,18 @@ func probeLifecycleCandidates(ctx context.Context, prober lifecycleRuntimeProber
 				if !valid {
 					err = ErrLifecycleHarnessInvalid
 				}
+				if window.start.IsZero() || window.end.IsZero() || window.end.Before(window.start) {
+					err = ErrLifecycleHarnessInvalid
+				}
 			}
-			outcomes <- outcome{batch: batch, requested: true, nodes: len(rows), latency: latency, rows: rows, err: err, transport: transport}
+			outcomes <- outcome{batch: batch, requested: true, nodes: len(rows), latency: latency, rows: rows, window: window, err: err, transport: transport}
 		}(batchIndex, batchCandidates, channels)
 		batchIndex++
 	}
 	go func() { wait.Wait(); close(outcomes) }()
 	var failed bool
 	mergedBatches := make([][]model.ChannelRuntimeProbeResult, batches)
+	batchWindows := make([]lifecycleProbeWindow, batches)
 	for outcome := range outcomes {
 		if outcome.requested {
 			result.Requests = saturatingIncrement(result.Requests)
@@ -872,34 +943,39 @@ func probeLifecycleCandidates(ctx context.Context, prober lifecycleRuntimeProber
 			continue
 		}
 		mergedBatches[outcome.batch] = outcome.rows
+		batchWindows[outcome.batch] = outcome.window
 	}
 	if ctx.Err() != nil {
-		return result, nil, ctx.Err()
+		return result, nil, nil, ctx.Err()
 	}
-	if failed {
-		return result, nil, ErrLifecycleHarnessInvalid
+	if failed || clockInvalid {
+		return result, nil, nil, ErrLifecycleHarnessInvalid
 	}
 	merged := make([]model.ChannelRuntimeProbeResult, 3)
+	windows := make([]lifecycleProbeWindow, len(candidates))
+	for index := range windows {
+		windows[index] = batchWindows[index/options.BatchSize]
+	}
 	for batch, rows := range mergedBatches {
 		if len(rows) != 3 {
-			return result, nil, ErrLifecycleHarnessInvalid
+			return result, nil, nil, ErrLifecycleHarnessInvalid
 		}
 		for node, row := range rows {
 			if batch == 0 {
 				merged[node].NodeID = row.NodeID
 			} else if merged[node].NodeID != row.NodeID {
-				return result, nil, ErrLifecycleHarnessInvalid
+				return result, nil, nil, ErrLifecycleHarnessInvalid
 			}
 			merged[node].Channels = append(merged[node].Channels, row.Channels...)
 		}
 	}
 	for node := range merged {
 		if len(merged[node].Channels) != len(candidates) {
-			return result, nil, ErrLifecycleHarnessInvalid
+			return result, nil, nil, ErrLifecycleHarnessInvalid
 		}
 		merged[node].Checked = len(candidates)
 	}
-	return result, merged, nil
+	return result, merged, windows, nil
 }
 
 func normalizeLifecycleProbeBatch(results []model.ChannelRuntimeProbeResult, candidates []LifecycleCandidate) ([]model.ChannelRuntimeProbeResult, bool) {

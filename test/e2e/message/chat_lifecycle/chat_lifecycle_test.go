@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"net"
 	"net/url"
 	"os"
@@ -25,10 +26,12 @@ import (
 )
 
 const (
-	benchToken       = "chat-lifecycle-e2e-bench-token"
-	operationTimeout = 20 * time.Second
-	idleEvictAfter   = 5 * time.Minute
-	idlePollDeadline = 6*time.Minute + 15*time.Second
+	benchToken        = "chat-lifecycle-e2e-bench-token"
+	operationTimeout  = 20 * time.Second
+	idleEvictAfter    = 5 * time.Minute
+	idlePollDeadline  = 6*time.Minute + 15*time.Second
+	coldProofMaxPolls = 3
+	coldProofMaxReads = 120
 )
 
 func TestPersonChannelNaturalReheat(t *testing.T) {
@@ -65,7 +68,7 @@ func TestPersonChannelNaturalReheat(t *testing.T) {
 	require.NoError(t, right.Close())
 
 	quietStarted := time.Now()
-	requireMissingAfterNaturalIdle(t, ctx, cluster, api, probeRequest, quietStarted)
+	requireColdBoundaryProof(t, ctx, cluster, api, canonicalChannel, first, report.ManagerReads[0].SlotID, quietStarted, report)
 	report.NaturalIdleSeconds = time.Since(quietStarted).Seconds()
 	for range 3 {
 		requireManagerRuntimeActivity(t, ctx, cluster, canonicalChannel, "idle", "inactive", first, report)
@@ -80,6 +83,7 @@ func TestPersonChannelNaturalReheat(t *testing.T) {
 	right = connectAndFullSyncContaining(t, ctx, cluster, api, 2, rightUID, "e2e-lifecycle-first")
 	defer func() { _ = right.Close() }()
 	second := sendPersonMessage(t, cluster, left, right, rightUID, 2, "e2e-lifecycle-second")
+	report.ReheatSequence = second
 	require.Greater(t, second, first, cluster.DumpDiagnostics())
 
 	reheated := requireLoadedLeader(t, ctx, cluster, api, probeRequest, second)
@@ -92,22 +96,25 @@ func TestPersonChannelNaturalReheat(t *testing.T) {
 
 // runtimeActivityReport retains bounded public evidence without Channel or user identities.
 type runtimeActivityReport struct {
-	Scenario           string                 `json:"scenario"`
-	StartedAt          time.Time              `json:"started_at"`
-	FinishedAt         time.Time              `json:"finished_at"`
-	Passed             bool                   `json:"passed"`
-	Nodes              int                    `json:"nodes"`
-	HashSlots          int                    `json:"hash_slots"`
-	IdleThresholdSecs  int                    `json:"idle_threshold_seconds"`
-	NaturalIdleSeconds float64                `json:"natural_idle_seconds"`
-	ManagerReads       []runtimeActivityRead  `json:"manager_reads"`
-	Probes             []runtimeActivityProbe `json:"runtime_probes"`
+	Scenario           string                    `json:"scenario"`
+	StartedAt          time.Time                 `json:"started_at"`
+	FinishedAt         time.Time                 `json:"finished_at"`
+	Passed             bool                      `json:"passed"`
+	Nodes              int                       `json:"nodes"`
+	HashSlots          int                       `json:"hash_slots"`
+	IdleThresholdSecs  int                       `json:"idle_threshold_seconds"`
+	NaturalIdleSeconds float64                   `json:"natural_idle_seconds"`
+	ReheatSequence     uint64                    `json:"product_reheat_sequence"`
+	ColdProof          *runtimeActivityColdProof `json:"cold_boundary_proof,omitempty"`
+	ManagerReads       []runtimeActivityRead     `json:"manager_reads"`
+	Probes             []runtimeActivityProbe    `json:"runtime_probes"`
 }
 
 type runtimeActivityRead struct {
 	Phase         string  `json:"phase"`
 	Query         string  `json:"query"`
 	IngressNodeID uint64  `json:"ingress_node_id"`
+	SlotID        uint32  `json:"slot_id"`
 	Lifecycle     string  `json:"lifecycle_status"`
 	RuntimeStatus string  `json:"runtime_status"`
 	RuntimeNodeID uint64  `json:"runtime_node_id"`
@@ -129,6 +136,185 @@ type runtimeActivityProbeNode struct {
 	Status string `json:"status"`
 	LEO    uint64 `json:"leo"`
 	HW     uint64 `json:"hw"`
+}
+
+// runtimeActivityColdProof describes one E2E bridge, not a worker timer lease
+// or the 1,200-candidate ProductionLifecycle.Run protocol.
+type runtimeActivityColdProof struct {
+	Scope           string                     `json:"scope"`
+	BoundarySource  string                     `json:"boundary_source"`
+	QuietStartedAt  time.Time                  `json:"quiet_started_at"`
+	QuietNotBefore  time.Time                  `json:"quiet_not_before"`
+	QuietDeadline   time.Time                  `json:"quiet_deadline"`
+	InitialSequence uint64                     `json:"initial_sequence"`
+	Polls           []runtimeActivityProofPoll `json:"polls"`
+}
+
+type runtimeActivityProofPoll struct {
+	Phase           string                                   `json:"phase"`
+	StartedAt       time.Time                                `json:"started_at"`
+	FinishedAt      time.Time                                `json:"finished_at"`
+	ProbeStartedAt  time.Time                                `json:"probe_started_at"`
+	ProbeFinishedAt time.Time                                `json:"probe_finished_at"`
+	Succeeded       bool                                     `json:"succeeded"`
+	Batch           benchlifecycle.LifecycleProbeBatchResult `json:"batch"`
+	Snapshot        benchlifecycle.LifecycleProofSnapshot    `json:"snapshot"`
+	Reads           []runtimeActivityProofRead               `json:"public_reads"`
+}
+
+type runtimeActivityProofRead struct {
+	StartedAt  time.Time            `json:"started_at"`
+	FinishedAt time.Time            `json:"finished_at"`
+	Succeeded  bool                 `json:"succeeded"`
+	Probe      runtimeActivityProbe `json:"probe"`
+}
+
+// lifecycleWallClock records the two actual Poll cuts without altering time.
+// This one-candidate bridge admits one RPC batch and retains only two cuts.
+type lifecycleWallClock struct {
+	cuts  [2]time.Time
+	count int
+}
+
+func (c *lifecycleWallClock) Now() time.Time {
+	now := time.Now()
+	if c.count < len(c.cuts) {
+		c.cuts[c.count] = now
+	}
+	c.count++
+	return now
+}
+
+func (*lifecycleWallClock) NewTicker(period time.Duration) benchlifecycle.ObserverTicker {
+	return lifecycleWallTicker{time.NewTicker(period)}
+}
+
+type lifecycleWallTicker struct{ *time.Ticker }
+
+func (t lifecycleWallTicker) C() <-chan time.Time { return t.Ticker.C }
+
+// delayedLifecycleProber delays only the test caller. Every retained row comes
+// unchanged from the real target Client's public all-three-node runtime probe.
+type delayedLifecycleProber struct {
+	api           *target.Client
+	readNotBefore time.Time
+	awaitMissing  bool
+	committedSeq  uint64
+	reads         []runtimeActivityProofRead
+}
+
+func (p *delayedLifecycleProber) ProbeChannelRuntimeAll(ctx context.Context, request model.ChannelRuntimeProbeRequest) ([]model.ChannelRuntimeProbeResult, error) {
+	if err := waitLifecycleUntil(ctx, p.readNotBefore); err != nil {
+		return nil, err
+	}
+	for range coldProofMaxReads {
+		started := time.Now()
+		rows, err := p.api.ProbeChannelRuntimeAll(ctx, request)
+		p.reads = append(p.reads, runtimeActivityProofRead{
+			StartedAt: started, FinishedAt: time.Now(), Succeeded: err == nil,
+			Probe: captureRuntimeActivityProbe("proof_read", rows, p.committedSeq),
+		})
+		if err != nil || !p.awaitMissing || missingEvidenceValid(rows) {
+			return rows, err
+		}
+		if err := waitLifecycleUntil(ctx, time.Now().Add(250*time.Millisecond)); err != nil {
+			return nil, err
+		}
+	}
+	return nil, fmt.Errorf("cold-boundary public read limit exceeded")
+}
+
+func waitLifecycleUntil(ctx context.Context, at time.Time) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if delay := time.Until(at); delay > 0 {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return ctx.Err()
+}
+
+func requireColdBoundaryProof(t *testing.T, ctx context.Context, cluster *suite.StartedCluster, api *target.Client, channelID string, sequence uint64, slotID uint32, quietStarted time.Time, report *runtimeActivityReport) {
+	t.Helper()
+	notBefore := quietStarted.Add(idleEvictAfter)
+	deadline := notBefore.Add(time.Minute)
+	report.ColdProof = &runtimeActivityColdProof{
+		Scope:          "single_candidate_real_rpc_cold_boundary_bridge",
+		BoundarySource: "test_after_sendack_recvack_disconnect_not_server_timestamp",
+		QuietStartedAt: quietStarted, QuietNotBefore: notBefore, QuietDeadline: deadline,
+		InitialSequence: sequence,
+	}
+	// Token/version and the unused reheat time satisfy the candidate shape only.
+	// This bridge never approves a worker timer or advances proof reheat phases.
+	proof, err := benchlifecycle.NewLifecycleProof([]benchlifecycle.LifecycleCandidate{{
+		ChannelID: channelID, ChannelType: uint8(frame.ChannelTypePerson),
+		HashSlot: uint16(crc32.ChecksumIEEE([]byte(channelID)) % 256), SlotID: slotID,
+		TimerToken: 1, ActivityVersion: 1, InitialSequence: sequence,
+		QuietNotBefore: notBefore, QuietDeadline: deadline, ReheatAt: deadline.Add(30 * time.Second), ObservedLoaded: true,
+	}})
+	require.NoError(t, err)
+	loaded := requireColdBoundaryPoll(t, ctx, cluster, proof, &delayedLifecycleProber{api: api, committedSeq: sequence}, "loaded", report.ColdProof)
+	require.Equal(t, uint64(1), loaded.Snapshot.Loaded)
+	require.Zero(t, loaded.Snapshot.ColdEligible)
+
+	// N is a conservative test boundary after the physical SEND. Do not assert
+	// premature absence before N or infer a server last-activity timestamp.
+	require.NoError(t, waitLifecycleUntil(ctx, notBefore.Add(-2*time.Second)))
+	crossing := requireColdBoundaryPoll(t, ctx, cluster, proof, &delayedLifecycleProber{
+		api: api, readNotBefore: notBefore.Add(2 * time.Second), awaitMissing: true, committedSeq: sequence,
+	}, "crossing_quiet_boundary", report.ColdProof)
+	require.True(t, crossing.ProbeStartedAt.Before(notBefore), "probe must actually start before the test boundary")
+	require.False(t, crossing.ProbeFinishedAt.Before(notBefore), "probe must actually finish after the test boundary")
+	require.False(t, crossing.Reads[0].StartedAt.Before(notBefore.Add(2*time.Second)), "public reads must follow the real boundary delay")
+	require.True(t, crossing.Reads[len(crossing.Reads)-1].Probe.Missing, "crossing probe must contain real all-node absence")
+	require.Zero(t, crossing.Snapshot.ProductFailureReasons.PrematureAbsence)
+	require.Zero(t, crossing.Snapshot.ColdEligible, "a crossing interval cannot approve cold eligibility")
+	require.LessOrEqual(t, time.Since(quietStarted), idlePollDeadline, "retain the original natural-idle deadline")
+
+	fresh := requireColdBoundaryPoll(t, ctx, cluster, proof, &delayedLifecycleProber{api: api, committedSeq: sequence}, "fresh_after_quiet_boundary", report.ColdProof)
+	require.False(t, fresh.ProbeStartedAt.Before(notBefore))
+	require.False(t, fresh.ProbeFinishedAt.After(deadline))
+	require.True(t, fresh.Reads[len(fresh.Reads)-1].Probe.Missing)
+	require.Equal(t, uint64(1), fresh.Snapshot.ColdEligible)
+	require.True(t, proof.ColdEligible(channelID))
+	require.Zero(t, fresh.Snapshot.Reheated)
+	require.Zero(t, fresh.Snapshot.Completed, "product SEND reheat is verified separately by the original scenario")
+}
+
+func requireColdBoundaryPoll(t *testing.T, ctx context.Context, cluster *suite.StartedCluster, proof *benchlifecycle.LifecycleProof, prober *delayedLifecycleProber, phase string, report *runtimeActivityColdProof) runtimeActivityProofPoll {
+	t.Helper()
+	require.Less(t, len(report.Polls), coldProofMaxPolls, "cold proof poll limit")
+	clock := &lifecycleWallClock{}
+	poll := runtimeActivityProofPoll{Phase: phase, StartedAt: time.Now()}
+	result, err := proof.Poll(ctx, prober, clock, benchlifecycle.LifecycleProbeOptions{
+		BatchSize: 1, MaxConcurrency: 1, RequestTimeout: 30 * time.Second,
+	})
+	poll.FinishedAt, poll.Succeeded, poll.Batch = time.Now(), err == nil, result
+	poll.ProbeStartedAt, poll.ProbeFinishedAt = clock.cuts[0], clock.cuts[1]
+	poll.Reads, poll.Snapshot = prober.reads, proof.Snapshot()
+	report.Polls = append(report.Polls, poll)
+	require.NoError(t, err, "%s\n%s", phase, cluster.DumpDiagnostics())
+	require.Equal(t, 2, clock.count, "one batch must retain exactly two real clock cuts")
+	require.NotEmpty(t, poll.Reads)
+	require.LessOrEqual(t, len(poll.Reads), coldProofMaxReads)
+	for _, read := range poll.Reads {
+		require.True(t, read.Succeeded)
+		require.False(t, read.StartedAt.Before(poll.ProbeStartedAt))
+		require.False(t, read.FinishedAt.Before(read.StartedAt))
+		require.False(t, poll.ProbeFinishedAt.Before(read.FinishedAt))
+	}
+	require.Equal(t, uint64(1), result.Requests)
+	require.Equal(t, uint64(3), result.Nodes)
+	require.Zero(t, result.TransportErrors)
+	require.Zero(t, poll.Snapshot.ProductFailures)
+	require.Zero(t, poll.Snapshot.HarnessFailures)
+	return poll
 }
 
 func captureRuntimeActivityProbe(phase string, results []model.ChannelRuntimeProbeResult, committedSeq uint64) runtimeActivityProbe {
@@ -213,7 +399,7 @@ func requireManagerRuntimeActivity(
 			}
 			require.NotNil(t, found, "Channel is missing from %s %s on node %d", phase, queryKind, node.Spec.ID)
 			report.ManagerReads = append(report.ManagerReads, runtimeActivityRead{
-				Phase: phase, Query: queryKind, IngressNodeID: node.Spec.ID,
+				Phase: phase, Query: queryKind, IngressNodeID: node.Spec.ID, SlotID: found.SlotID,
 				Lifecycle: found.Status, RuntimeStatus: found.RuntimeStatus, RuntimeNodeID: found.RuntimeNodeID,
 				Leader: found.Leader, MinISR: found.MinISR, MaxMessageSeq: found.MaxMessageSeq,
 			})
@@ -631,36 +817,6 @@ func loadedLeaderEvidenceValid(results []model.ChannelRuntimeProbeResult, commit
 		}
 	}
 	return leaders == 1
-}
-
-func requireMissingAfterNaturalIdle(
-	t *testing.T,
-	ctx context.Context,
-	cluster *suite.StartedCluster,
-	api *target.Client,
-	req model.ChannelRuntimeProbeRequest,
-	quietStarted time.Time,
-) {
-	t.Helper()
-	deadline := time.NewTimer(idlePollDeadline)
-	defer deadline.Stop()
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	var last []model.ChannelRuntimeProbeResult
-	var lastErr error
-	for {
-		last, lastErr = api.ProbeChannelRuntimeAll(ctx, req)
-		if lastErr == nil && time.Since(quietStarted) >= idleEvictAfter && missingEvidenceValid(last) {
-			return
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatalf("natural idle probe canceled: %v; evidence=%s\n%s", ctx.Err(), summarizeProbe(last), cluster.DumpDiagnostics())
-		case <-deadline.C:
-			t.Fatalf("runtime remained loaded after natural idle: err=%v evidence=%s\n%s", lastErr, summarizeProbe(last), cluster.DumpDiagnostics())
-		case <-ticker.C:
-		}
-	}
 }
 
 func missingEvidenceValid(results []model.ChannelRuntimeProbeResult) bool {

@@ -94,16 +94,16 @@ passing 72-hour formal generation -> same aged dataset and process proof
 - Unroutable sampled group work remains bounded and identity-stable until expiry.
   A large-group canary retains two generation-local roster anchors; these O(1)
   anchors disappear on transport failure or shutdown and never grow with group size.
-- Lifecycle proof leases at most 100 current candidates per each of 12 logical
-  Slot groups. All replicas cool naturally; a fenced approval batch unlocks only
-  scheduled SENDs, and post-reheat probes prove sequence continuity. Selection
-  reserves 30 seconds for probe/approval jitter; rejection reasons remain closed.
-- Observer rounds retain source time for resource scheduling; late samples rebase
-  only verdict order, so monotonic classification keeps exact-hour evidence.
-- Failure cleanup fences new work, attempts exact stop for every applicable
-  worker with an independent bound, preserving the original cause.
-  Exact recorded product TerminalSend errors permit release; other terminal
-  mutation errors remain harness failures. Stop cannot erase an earlier failure.
+- Lifecycle proof leases 12x100 current Slot candidates with a 30-second probe/
+  approval reserve and closed rejection reasons. Natural cooling, fenced scheduled
+  SENDs and post-reheat probes prove cold absence and sequence continuity.
+- Each batch uses its admitted RPC start/end interval. Boundary-crossing absence
+  needs fresh proof by the original deadline; definite early absence and existing
+  runtime/watermark/reload gates remain. Approval uses a fresh request cut and
+  the worker's strict due-time fence.
+- Observer rounds retain resource source time; only late verdict order rebases, preserving exact-hour evidence.
+- Failure cleanup fences new work and independently bounds every worker Stop, preserving the original cause.
+  Exact product TerminalSend errors permit release; other terminal mutation errors stay harness failures. Stop preserves earlier failures.
 - Grant failures retain three fixed worker sequence/attempt/closed-boundary entries.
   Only observed HTTP/context causes enter one bounded CLI line; summary, retries, deadlines, cleanup and reports stay unchanged.
 - Verdict precedence is product, infrastructure, harness, then operator stop.

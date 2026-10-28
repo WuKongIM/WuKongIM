@@ -26,6 +26,12 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Judge natural cooling from each lifecycle probe's actual request interval,
+  avoiding false early-absence failures from queued ticks; uncertain boundary
+  reads require fresh proof and keep the original deadlines. / 生命周期自然冷却
+  按每批实际探测区间判定，避免排队 tick 导致“提前缺失”误报；跨边界观测
+  须重新取得明确证据，保留原截止时间与门禁。
+
 - Preserve complete terminal benchmark metric responses across bounded files
   when a valid response exceeds 4 MiB, while retaining collection budgets and
   evidence-completeness gates. / 压测终态指标响应超过 4 MiB 时按有界文件完整保留，

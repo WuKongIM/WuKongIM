@@ -41,6 +41,21 @@ and group Channel runtimes.
   public states, sequence numbers and topology, without Channel/user identities.
   Set `WK_E2E_CHAT_LIFECYCLE_REPORT` to retain it at a chosen absolute path;
   otherwise a private temporary directory is created and its path is logged.
+- Natural reheat also bridges one real Channel into `LifecycleProof.Poll` with
+  an actual wall clock and unchanged public three-node probe results. The test
+  delays one caller across `quietStarted + 5m`, then requires no premature
+  absence or cold eligibility until a fresh request. This conservative test
+  boundary follows SENDACK, RECVACK and disconnect; it is not the server's
+  activity timestamp and supports no pre-boundary absence assertion.
+- The bridge retains exactly three Poll records and at most 120 public
+  all-node read intervals per Poll. The delayed request has a 30-second bound;
+  missing evidence or exhausted bounds fail closed. The original five-minute
+  natural-idle threshold, 6m15s absence limit and nine-minute package limit stay.
+- Report clock cuts, public read intervals and anonymous cold-proof snapshots
+  separately from the original real SEND reheat sequence. The bridge never
+  approves a worker timer or completes proof reheat phases; it does not cover
+  the 1,200-candidate `ProductionLifecycle.Run` protocol, formal hardware
+  qualification or a cloud failure's root cause.
 
 ## Run
 
