@@ -30,6 +30,41 @@ REGISTERED_RESOURCES = {
     "counters": ["wukongim_channelv2_meta_created_total", "wukongim_channel_meta_created_total", "wukongim_channelv2_activation_rejected_total", "wukongim_channel_activation_rejected_total"],
     "go": ["go_goroutines", "go_memstats_heap_alloc_bytes", "go_gc_duration_seconds_count", "go_sched_latencies_seconds_bucket", "go_sched_latencies_seconds_sum", "go_sched_latencies_seconds_count"],
 }
+METRIC_FILE_BYTES = 4 << 20
+METRIC_TOTAL_BYTES = 24 << 20
+METRIC_PARTS_SCHEMA = 'wukongim.chat_lifecycle.metric_parts/v1'
+
+
+def metric_matrix_bytes(family='runtime', series_count=1, sample_count=61):
+    """Independent response bytes include the original 61-point query grid."""
+    names={'presence':'wukongim_presence_endpoint_lookup_total',
+           'delivery':'wukongim_delivery_recipient_worker_process_total',**NAMES}
+    values=[]
+    for index in range(sample_count):
+        stamp=str(Decimal('1792601510.121')+15*index).encode()
+        value=['NaN','+Inf','-Inf'][index] if index<3 else '1.250000000000000000000000000000e-003'
+        values.append(b'['+stamp+b',"'+value.encode()+b'"]')
+    rows=[]
+    for index in range(series_count):
+        labels=json.dumps({'__name__':names[family],'instance':'fixture-'+str(index),
+                           'worker':str(index%3),'label':'悟空/quoted"/slash\\'},
+                          ensure_ascii=False,separators=(',',':')).encode()
+        rows.append(b'{"metric":'+labels+b',"values":['+b','.join(values)+b']}')
+    return b'{"status":"success","data":{"resultType":"matrix","result":['+b','.join(rows)+b']}}'
+
+
+def sized_metric_bytes(family, size):
+    body=metric_matrix_bytes(family,series_count=2)
+    if len(body)>size:raise AssertionError('fixture response exceeds requested size')
+    return body+b' '*(size-len(body))
+
+
+def utf8_boundary_metric_bytes():
+    # The 4MiB byte boundary cuts within this three-byte label character.
+    # Physical parts need not be valid JSON or individually valid UTF-8.
+    prefix=b'{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"wukongim_runtime_pool_queue_depth","padding":"'
+    suffix=b'","instance":"fixture-utf8"},"values":[[1792601510.121,"1.2500e-03"],[1792602410.121,"NaN"]]}]}}'
+    return prefix+b'x'*(METRIC_FILE_BYTES-1-len(prefix))+'悟'.encode()+suffix
 
 
 def report(stage="rehearsal"):
@@ -86,7 +121,7 @@ def ssh_calls(path):
 
 def prepare_ssh(directory, cfg, end):
     """Prepare response bytes once; each real SSH process clips the requested bytes."""
-    responses=directory/'responses';responses.mkdir();routes=[];outcomes=[]
+    responses=directory/'responses';responses.mkdir(exist_ok=True);routes=[];outcomes=[]
     names={'presence':'wukongim_presence_endpoint_lookup_total','delivery':'wukongim_delivery_recipient_worker_process_total',**NAMES,'combined':'up'}
     modes={**cfg['document_modes'],**{'range-'+key:value for key,value in cfg['metric_modes'].items()}}
     bodies={key:Path(path).read_bytes() for key,path in cfg['files'].items()}
@@ -115,6 +150,7 @@ def prepare_ssh(directory, cfg, end):
         if mode=='oversized':result['metric']['fixture_padding']='x'*(4194304+10)
         bodies[key]=json.dumps(data).encode()
         if family=='combined' and cfg['combined_oversized']:bodies[key]=b'x'*4194305
+    bodies.update({'range-'+family:body for family,body in cfg.get('metric_bodies',{}).items()})
     for key,body in bodies.items():
         mode=modes.get(key,'normal');document=key.endswith('.json');name=key.replace('/','-')
         if document:routes.append('*'+key+'*) kind='+name+' ;;')
@@ -166,7 +202,7 @@ exit "$code"
 '''
 
 class CollectorTests(unittest.TestCase):
-    def run_case(self, label, stage="rehearsal", mutation=None, report_mutation=None, document_modes=None, metric_modes=None, capacity=False, combined_oversized=False, end=END, capacity_end=END):
+    def run_case(self, label, stage="rehearsal", mutation=None, report_mutation=None, document_modes=None, metric_modes=None, capacity=False, combined_oversized=False, end=END, capacity_end=END, metric_bodies=None, recapture=None, history=None):
         with tempfile.TemporaryDirectory(prefix="wk-terminal-fixture-") as directory:
             d=Path(directory);bin=d/'bin';bin.mkdir();output=d/'final'/'evidence';output.parent.mkdir()
             reports={stage:report(stage)}
@@ -184,24 +220,75 @@ class CollectorTests(unittest.TestCase):
                     value['at' if name=='worker-evidence.json' else 'updated_at']=doc['window'].get('end',end)
                     if mutation:mutation(name,value)
                     p=d/(current+'-'+name);p.write_text(json.dumps(value));files[current+'/'+name]=str(p)
-            cfg=dict(files=files,calls=str(d/'calls'),document_modes=document_modes or {},metric_modes=metric_modes or {},combined_oversized=combined_oversized)
-            for name,body in [('ssh',prepare_ssh(d,cfg,end)),('timeout','#!/bin/sh\nshift\nexec "$@"\n')]:
-                p=bin/name;p.write_text(body);p.chmod(0o700)
+            cfg=dict(files=files,calls=str(d/'calls'),document_modes=document_modes or {},metric_modes=metric_modes or {},combined_oversized=combined_oversized,metric_bodies=metric_bodies or {})
             env=dict(os.environ,PATH=str(bin)+os.pathsep+os.environ['PATH'],TERMINAL_FIXTURE_COMMANDS=str(d/'commands'),TERMINAL_FIXTURE_RESPONSES=str(d/'responses'),WK_CLOUD_SSH_CONFIG=str(d/'ssh-config'),WK_CLOUD_SERVICE1_IP='fixture-1',WK_CLOUD_SERVICE2_IP='fixture-2',WK_CLOUD_SERVICE3_IP='fixture-3')
             cmd=['bash',str(ROOT/'scripts/chat-lifecycle/collect-terminal-evidence.sh'),stage,str(output)]
-            run=subprocess.run(cmd,env=env,cwd=ROOT,capture_output=True,timeout=35)
-            self.assertNotIn(b'secret-canary',run.stdout+run.stderr)
-            manifest=json.loads((output/'manifest.json').read_text())
-            self.assertNotIn('secret-canary',json.dumps(manifest))
-            calls=ssh_calls(d/'commands')
-            retained={str(p.relative_to(output)):p.read_bytes() for p in output.rglob('*') if p.is_file()}
-            RESULTS.append(dict(case=label,exit_code=run.returncode,manifest=manifest,calls=calls,files=[dict(path=p,bytes=len(b),sha256=hashlib.sha256(b).hexdigest()) for p,b in sorted(retained.items())]))
+            for attempt,change in enumerate([{}]+([recapture] if recapture is not None else [])):
+                if attempt:
+                    for key in ('metric_modes','metric_bodies'):
+                        cfg[key]=change.get(key,{})
+                    for name,body in change.get('seed_files',{}).items():
+                        target=output/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(body)
+                for name,body in [('ssh',prepare_ssh(d,cfg,end)),('timeout','#!/bin/sh\nshift\nexec "$@"\n')]:
+                    p=bin/name;p.write_text(body);p.chmod(0o700)
+                (d/'commands').write_bytes(b'')
+                run=subprocess.run(cmd,env=env,cwd=ROOT,capture_output=True,timeout=35)
+                self.assertNotIn(b'secret-canary',run.stdout+run.stderr)
+                manifest=json.loads((output/'manifest.json').read_text())
+                self.assertNotIn('secret-canary',json.dumps(manifest))
+                calls=ssh_calls(d/'commands')
+                retained={str(p.relative_to(output)):p.read_bytes() for p in output.rglob('*') if p.is_file()}
+                RESULTS.append(dict(case=label+'-attempt'+str(attempt),exit_code=run.returncode,manifest=manifest,calls=calls,files=[dict(path=p,bytes=len(b),sha256=hashlib.sha256(b).hexdigest()) for p,b in sorted(retained.items())]))
+                if history is not None:history.append((run.returncode,manifest,calls,retained))
             return run.returncode,manifest,calls,retained,files
 
     def capture(self, manifest, name):
         found=[x for x in manifest['captures'] if x['name']==name]
         self.assertEqual(len(found),1,'missing capture '+name)
         return found[0]
+
+    def assert_metric_response(self, row, files, family, expected):
+        """Read the public storage format and compare it to independent input bytes."""
+        self.assertEqual(row['state'],'collected')
+        prefix='metrics/range-'+family
+        owned={name for name in files if name==prefix+'.json' or name==prefix+'.index.json' or name.startswith(prefix+'.part-')}
+        if len(expected)<=METRIC_FILE_BYTES:
+            self.assertNotEqual(row.get('storage'),'parts')
+            self.assertEqual(row['path'],prefix+'.json');self.assertEqual(owned,{prefix+'.json'})
+            self.assertEqual(files[row['path']],expected)
+        else:
+            self.assertEqual(row['storage'],'parts');self.assertEqual(row['format'],METRIC_PARTS_SCHEMA)
+            self.assertEqual(row['path'],prefix+'.index.json')
+            index_body=files[row['path']];index=json.loads(index_body)
+            self.assertLessEqual(len(index_body),METRIC_FILE_BYTES)
+            self.assertEqual(index['schema'],METRIC_PARTS_SCHEMA)
+            digest=hashlib.sha256(expected).hexdigest()
+            for value in (row,index):
+                self.assertEqual(value['response_bytes'],len(expected));self.assertEqual(value['response_sha256'],digest)
+            self.assertGreater(len(index['parts']),1)
+            bodies=[];paths=[]
+            for ordinal,part in enumerate(index['parts']):
+                self.assertEqual(part['path'],prefix+'.part-'+str(ordinal).zfill(3))
+                paths.append(part['path']);body=files[part['path']];bodies.append(body)
+                self.assertGreater(len(body),0);self.assertLessEqual(len(body),METRIC_FILE_BYTES)
+                self.assertEqual(part['bytes'],len(body));self.assertEqual(part['sha256'],hashlib.sha256(body).hexdigest())
+            self.assertEqual(len(paths),len(set(paths)));self.assertEqual(owned,set(paths)|{row['path']})
+            self.assertEqual(sum(map(len,bodies)),len(expected));self.assertEqual(b''.join(bodies),expected)
+        self.assertEqual(row['bytes'],len(files[row['path']]))
+        self.assertEqual(row['sha256'],hashlib.sha256(files[row['path']]).hexdigest())
+
+    def assert_range_contract(self, manifest, calls, files):
+        ranges=[call for call in calls if call['kind'].startswith('range-')]
+        self.assertEqual([call['kind'] for call in ranges],['range-'+family for family in FAMILIES])
+        for call in ranges:
+            self.assertEqual((call['start'],call['end'],call['step']),('1792601510.121','1792602410.121','15'))
+        budget=manifest['metrics_budget']
+        self.assertEqual(budget['max_requests'],8);self.assertEqual(budget['requests'],8)
+        self.assertEqual(budget['deadline_seconds'],60);self.assertEqual(budget['max_total_bytes'],METRIC_TOTAL_BYTES)
+        self.assertLessEqual(budget['observed_bytes'],METRIC_TOTAL_BYTES)
+        retained=sum(len(body) for name,body in files.items() if name.startswith('metrics/range-'))
+        self.assertEqual(budget['retained_bytes'],retained);self.assertLessEqual(retained,METRIC_TOTAL_BYTES)
+        self.assertTrue(all(len(body)<=METRIC_FILE_BYTES for name,body in files.items() if name.startswith('metrics/range-')))
 
     def test_rehearsal_retains_exact_terminal_documents_and_failure_window(self):
         rc,m,calls,files,_=self.run_case('rehearsal')
@@ -407,6 +494,96 @@ class CollectorTests(unittest.TestCase):
         self.assertGreater(total,4194304);self.assertLessEqual(total,6*4194304)
         self.assertEqual(m['metrics_budget']['retained_bytes'],total)
 
+    # Failure matrix before implementation: a valid large body is not an
+    # oversized physical file; byte cuts must not rewrite Unicode or numbers;
+    # EOF/exit and the whole matrix must validate before publication; index
+    # bytes share the retention budget; recapture must remove owned stale files.
+    def test_runtime_matrix_parts_preserve_every_series_sample_and_query(self):
+        body=metric_matrix_bytes('runtime',series_count=2048)
+        self.assertGreater(len(body),METRIC_FILE_BYTES)
+        rc,m,calls,files,_=self.run_case('runtime-matrix-parts',metric_bodies={'runtime':body})
+        self.assertEqual(rc,0);self.assertTrue(m['complete'])
+        row=self.capture(m,'range-runtime');self.assert_metric_response(row,files,'runtime',body)
+        self.assertEqual(row['series_count'],2048);self.assertEqual(row['sample_count'],2048*61)
+        self.assertEqual((row['observed_start'],row['observed_end']),('1792601510.121','1792602410.121'))
+        self.assert_range_contract(m,calls,files)
+        # The independent input has equal names with distinct full label sets.
+        series=json.loads(body,parse_float=Decimal)['data']['result']
+        self.assertEqual(len({tuple(sorted(item['metric'].items())) for item in series}),2048)
+        self.assertEqual(series[0]['values'][3],[Decimal('1792601555.121'),'1.250000000000000000000000000000e-003'])
+
+    def test_metric_physical_file_boundary_and_utf8_are_lossless(self):
+        cases=[('minus-one',sized_metric_bytes('runtime',METRIC_FILE_BYTES-1)),
+               ('exact',sized_metric_bytes('runtime',METRIC_FILE_BYTES)),
+               ('plus-one',sized_metric_bytes('runtime',METRIC_FILE_BYTES+1)),
+               ('utf8-cut',utf8_boundary_metric_bytes())]
+        self.assertEqual(cases[-1][1][METRIC_FILE_BYTES-1:METRIC_FILE_BYTES+2],'悟'.encode())
+        for label,body in cases:
+            with self.subTest(boundary=label):
+                rc,m,calls,files,_=self.run_case('runtime-physical-'+label,metric_bodies={'runtime':body})
+                self.assertEqual(rc,0);self.assertTrue(m['complete'])
+                self.assert_metric_response(self.capture(m,'range-runtime'),files,'runtime',body)
+                self.assert_range_contract(m,calls,files)
+
+    def test_large_metric_requires_valid_tail_and_successful_process_exit(self):
+        legal=sized_metric_bytes('runtime',METRIC_FILE_BYTES+1024)
+        for label,body,mode in [('malformed-tail',legal+b'{"unfinished":',None),
+                                ('partial-nonzero',utf8_boundary_metric_bytes()[:-17],'partial'),
+                                ('complete-nonzero',legal,'partial')]:
+            with self.subTest(failure=label):
+                rc,m,calls,files,_=self.run_case('runtime-'+label,metric_bodies={'runtime':body},metric_modes={'runtime':mode} if mode else {})
+                self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+                self.assertNotEqual(self.capture(m,'range-runtime')['state'],'collected')
+                self.assertFalse(any(name.startswith('metrics/range-runtime.') for name in files))
+                self.assertFalse(any('.terminal-' in name or name.endswith('.tmp') for name in files))
+                self.assertIn('metrics/range-up.json',files);self.assertIn('metrics/range-go.json',files)
+                self.assert_range_contract(m,calls,files)
+                rows=[row for row in m['captures'] if row['name'].startswith('range-')]
+                expected_observed=sum(row['response_bytes'] if row.get('storage')=='parts' else row['bytes'] for row in rows)
+                self.assertEqual(m['metrics_budget']['observed_bytes'],expected_observed)
+                # Payload observed includes the failed body; it is not wire bytes.
+                self.assertEqual(self.capture(m,'range-runtime')['bytes'],len(body))
+
+    def test_metric_payload_and_index_share_the_original_total_budget(self):
+        bodies={family:metric_matrix_bytes(family,series_count=1,sample_count=1) for family in FAMILIES}
+        other_bytes=sum(len(body) for family,body in bodies.items() if family!='go')
+        for label,size in [('index-only-overflow',METRIC_TOTAL_BYTES-other_bytes-1),
+                           ('payload-overflow',METRIC_TOTAL_BYTES-other_bytes+1)]:
+            with self.subTest(boundary=label):
+                current=dict(bodies,go=sized_metric_bytes('go',size))
+                rc,m,calls,files,_=self.run_case('shared-budget-'+label,metric_bodies=current)
+                self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
+                self.assertNotEqual(self.capture(m,'range-go')['state'],'collected')
+                self.assertFalse(any(name.startswith('metrics/range-go.') for name in files))
+                self.assertFalse(any('.terminal-' in name or name.endswith('.tmp') for name in files))
+                for family in FAMILIES[:-1]:self.assert_metric_response(self.capture(m,'range-'+family),files,family,current[family])
+                self.assert_range_contract(m,calls,files)
+                expected=METRIC_TOTAL_BYTES-1 if label=='index-only-overflow' else METRIC_TOTAL_BYTES
+                self.assertEqual(m['metrics_budget']['observed_bytes'],expected)
+                self.assertEqual(m['metrics_budget']['retained_bytes'],other_bytes)
+
+    def test_recapture_replaces_old_parts_and_removes_failed_capture_artifacts(self):
+        first=sized_metric_bytes('runtime',2*METRIC_FILE_BYTES+1024)
+        small=metric_matrix_bytes('runtime',series_count=2)
+        for label,second,success in [('small',small,True),('invalid',small+b'{',False)]:
+            with self.subTest(recapture=label):
+                history=[]
+                rc,m,calls,files,_=self.run_case('recapture-'+label,metric_bodies={'runtime':first},history=history,
+                    recapture={'metric_bodies':{'runtime':second},'seed_files':{
+                        'metrics/range-runtime.json':b'old-single-response',
+                        'metrics/range-runtime.part-999':b'old-orphan-part',
+                        'metrics/unrelated-marker.json':b'preserve-unrelated'}})
+                old_rc,old_manifest,old_calls,old_files=history[0]
+                self.assertEqual(old_rc,0);self.assertTrue(old_manifest['complete'])
+                self.assert_metric_response(self.capture(old_manifest,'range-runtime'),old_files,'runtime',first)
+                self.assert_range_contract(old_manifest,old_calls,old_files)
+                self.assertEqual(rc==0,success);self.assertEqual(m['complete'],success)
+                if success:self.assert_metric_response(self.capture(m,'range-runtime'),files,'runtime',second)
+                else:self.assertFalse(any(name.startswith('metrics/range-runtime.') for name in files))
+                self.assertEqual(files['metrics/unrelated-marker.json'],b'preserve-unrelated')
+                self.assertFalse(any('.terminal-' in name or name.endswith('.tmp') for name in files))
+                self.assert_range_contract(m,calls,files)
+
     def test_empty_optional_metric_family_has_explicit_zero_coverage(self):
         rc,m,_,files,_=self.run_case('empty-resources',metric_modes={'go':'empty','counters':'empty'})
         self.assertEqual(rc,0);self.assertTrue(m['complete'])
@@ -415,7 +592,9 @@ class CollectorTests(unittest.TestCase):
             self.assertIsNone(row['observed_start']);self.assertIsNone(row['observed_end'])
 
     def test_partial_metrics_keep_successful_siblings(self):
-        for mode in ['oversized','unavailable','partial','timeout','malformed','wrong-type','wrong-family','error']:
+        # The old >4MiB legal giant-label response is now a valid multipart case.
+        # Genuine shared-budget overflow and invalid large bodies are above.
+        for mode in ['unavailable','partial','timeout','malformed','wrong-type','wrong-family','error']:
             with self.subTest(mode=mode):
                 rc,m,calls,files,_=self.run_case('range-'+mode,metric_modes={'runtime':mode})
                 self.assertNotEqual(rc,0);self.assertFalse(m['complete'])
@@ -675,7 +854,13 @@ class HelperBoundsTests(unittest.TestCase):
                     self.assertEqual((output/row['path']).read_bytes(),bodies[family])
                     self.assertEqual(row['sha256'],hashlib.sha256(bodies[family]).hexdigest())
         self.assertEqual([x[0] for x in calls],FAMILIES)
-        self.assertTrue(all(x[1:3]==('1792601510.121','1792602410.121') and 0<x[3]<=30 and x[4]<=4<<20 for x in calls))
+        # The logical read cap shares remaining response-payload bytes. The
+        # independent 4MiB constraint applies to retained physical files.
+        consumed=0
+        for family,start,end,timeout,cap in calls:
+            self.assertEqual((start,end),('1792601510.121','1792602410.121'))
+            self.assertTrue(0<timeout<=30);self.assertLessEqual(cap+1,(24<<20)-consumed)
+            consumed+=len(bodies.get(family,empty))
         self.assertEqual(budget['max_requests'],8);self.assertEqual(budget['deadline_seconds'],60)
         self.assertEqual(budget['max_total_bytes'],24<<20)
 
@@ -709,6 +894,53 @@ class HelperBoundsTests(unittest.TestCase):
         self.assertLessEqual(sum(x+1 for x in calls),24<<20)
         self.assertLessEqual(len(calls),8);self.assertEqual(budget['observed_bytes'],sum(x+1 for x in calls))
         self.assertTrue(any(x['state']=='budget_exhausted' for x in rows));self.assertEqual(budget['retained_bytes'],0)
+
+    def test_multipart_leaf_io_failure_is_partition_local_and_removes_partial_files(self):
+        # Failure matrix: the second leaf cannot be retained or atomically
+        # replaced. Earlier leaves/index cannot survive as a partial capture,
+        # and failure must not discard the other seven successful families.
+        h=self.helper
+        bodies={family:metric_matrix_bytes(family,series_count=1,sample_count=1) for family in FAMILIES}
+        bodies['runtime']=sized_metric_bytes('runtime',METRIC_FILE_BYTES+1024)
+        for operation in ('retain','replace'):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
+                output=Path(directory);calls=[];failed=[];observed=0
+                retain=h.atomic_retain;replace=h.os.replace
+                def capture(name,query,start,end,timeout,cap):
+                    nonlocal observed
+                    self.assertLessEqual(cap+1,METRIC_TOTAL_BYTES-observed)
+                    body=bodies[name][:cap+1];observed+=len(body);calls.append(name)
+                    return ('oversized' if len(body)>cap else 'collected'),body
+                def retaining(path,body):
+                    if path.name=='range-runtime.part-001':
+                        failed.append(path.name);raise OSError('fixture leaf write failure')
+                    return retain(path,body)
+                def replacing(source,destination):
+                    if Path(destination).name=='range-runtime.part-001':
+                        failed.append(Path(destination).name);raise OSError('fixture leaf replace failure')
+                    return replace(source,destination)
+                target=h if operation=='retain' else h.os
+                attribute='atomic_retain' if operation=='retain' else 'replace'
+                side_effect=retaining if operation=='retain' else replacing
+                with mock.patch.object(target,attribute,side_effect=side_effect):
+                    rows,budget=h.collect_ranges(output,{'end':END,'epoch_start':'1792601510.121',
+                        'epoch_end':'1792602410.121','source':'rehearsal/final.json'},capture)
+                self.assertEqual(failed,['range-runtime.part-001'])
+                self.assertEqual(calls,FAMILIES);self.assertEqual(budget['requests'],8)
+                self.assertEqual(budget['max_requests'],8);self.assertEqual(budget['deadline_seconds'],60)
+                runtime=next(row for row in rows if row['name']=='range-runtime')
+                self.assertNotEqual(runtime['state'],'collected')
+                self.assertFalse(any(path.name.startswith('range-runtime.') for path in output.rglob('*')))
+                self.assertFalse(any(path.name.startswith('.terminal-') or path.name.endswith('.tmp') for path in output.rglob('*')))
+                for family in FAMILIES:
+                    if family=='runtime':continue
+                    row=next(row for row in rows if row['name']=='range-'+family)
+                    self.assertEqual(row['state'],'collected')
+                    self.assertEqual((output/row['path']).read_bytes(),bodies[family])
+                self.assertEqual(budget['observed_bytes'],sum(map(len,bodies.values())))
+                retained=sum(path.stat().st_size for path in output.rglob('*') if path.is_file())
+                self.assertEqual(budget['retained_bytes'],retained)
+                self.assertEqual(retained,sum(len(body) for family,body in bodies.items() if family!='runtime'))
 
     def test_metric_deadline_stops_requests_and_retains_first_partition(self):
         h=self.helper;calls=[]

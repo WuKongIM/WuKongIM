@@ -2278,14 +2278,32 @@ specification, runbook, report, or module documentation; link to them when neede
   and diagnostic-status documents only after binding their run, worker generations,
   snapshot sequences and cut time to the final report. Aggregate loss counts alone
   cannot reconstruct an expired sample after Lease release. Metric collection uses
-  the terminal report window rather than finalizer wall time: eight fixed queries
+  a 15-minute window ending at the terminal report cut, with 15-second steps
+  rather than finalizer wall time: eight fixed queries
   cover runtime pools, channel workers, exact presence-endpoint and delivery-worker,
-  authority-resolution and push-RPC families, with a shared 24 MiB transfer budget
-  and 60-second deadline. Resource queries use registered standard `go_*` and
+  authority-resolution and push-RPC families under one 60-second deadline.
+  Observed response payloads (including failed reads and sentinel bytes) and
+  retained metric files each have a shared 24 MiB limit. `observed_bytes` does
+  not measure HTTP/TLS/SSH wire bytes or bound process RSS. Resource queries use
+  registered standard `go_*` and
   `process_*` names alongside the independent `wukongim_process_*` collector;
   Channel counters use `wukongim_channel(v2)?_meta_created_total` and
   `wukongim_channel(v2)?_activation_rejected_total`. Legacy/promoted counter
   families remain separate raw series and must not be summed as distinct events.
+  The 4 MiB cap applies to each physical file. Responses up to that size retain
+  their original `metrics/range-X.json` bytes. A larger complete, validated
+  response retains ordered raw byte parts of at most 4 MiB and an index at
+  `metrics/range-X.index.json`, with schema
+  `wukongim.chat_lifecycle.metric_parts/v1`. Its capture row declares
+  `storage="parts"` and that `format`; row `bytes`/`sha256` describe the index,
+  while `response_bytes`/`response_sha256` describe the full original response.
+  The index repeats the response identity and lists each part's path, bytes and
+  hash. Reassembly preserves all labels, series, samples and original byte
+  spellings, including UTF-8 cut across parts; parts are not individual JSON
+  documents. `retained_bytes` counts the index and every part within the same
+  24 MiB limit. The index publishes only after all parts succeed. Recapture
+  removes that partition's old response/index/parts; failed validation, retention
+  or total-budget admission cannot leave a partial capture marked collected.
   Valid partitions survive sibling failures; empty families have explicit zero
   coverage and unknown values, never measured zero. Missing, malformed or oversized
   required evidence stays incomplete and never replaces an earlier product failure. Query boundaries
