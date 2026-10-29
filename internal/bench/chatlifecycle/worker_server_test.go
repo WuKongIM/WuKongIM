@@ -1246,6 +1246,7 @@ func TestWorkerEngineGenerationBootstrapsBeforeTrafficAndUsesAssignedGeneration(
 		if traffic.Generated.Primary == 0 || traffic.Generated.Primary > uint64(localBurst) {
 			t.Fatalf("generation %d primary = %d, want 1..%d", generation, traffic.Generated.Primary, localBurst)
 		}
+		waitForEngineAdmissions(t, engineGeneration.engine)
 		packets := sessions.sentPackets()
 		if len(packets) == 0 {
 			t.Fatalf("generation %d released primary traffic without a WKProto SEND", generation)

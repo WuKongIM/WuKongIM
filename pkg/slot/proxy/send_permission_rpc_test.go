@@ -124,7 +124,7 @@ func (c *sendPermissionTestCluster) ReadSlotBarrier(_ context.Context, s multira
 func (c *sendPermissionTestCluster) SendPermissionRoutes(keys []string) []SendPermissionRoute {
 	out := make([]SendPermissionRoute, len(keys))
 	for i, k := range keys {
-		out[i] = SendPermissionRoute{HashSlot: c.HashSlotForKey(k), Fence: SendPermissionFence{SlotID: uint64(c.SlotForKey(k)), LeaderNodeID: 2, LeaderTerm: 1, ConfigEpoch: 1, RouteRevision: 1}}
+		out[i] = SendPermissionRoute{HashSlot: c.HashSlotForKey(k), LocalAuthorityEpoch: 1, Fence: SendPermissionFence{SlotID: uint64(c.SlotForKey(k)), LeaderNodeID: 2, LeaderTerm: 1, ConfigEpoch: 1, RouteRevision: 1}}
 	}
 	return out
 }

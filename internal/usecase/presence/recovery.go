@@ -40,6 +40,15 @@ func NewAuthorityRecoveryWithOptions(directory RecoveryDirectory, owners Recover
 	if bounded, ok := owners.(RecoveryCallBatchOwnersBounded); ok && bounded.SupportsBoundedRecoveryResults() {
 		r.boundedOwners = bounded
 		r.resultBudget = NewRecoveryResultBudget(RecoveryResultMaxRows, RecoveryResultMaxBytes)
+		if shared, ok := owners.(interface{ RecoveryResultBudget() *RecoveryResultBudget }); ok {
+			if budget := shared.RecoveryResultBudget(); budget != nil {
+				r.resultBudget = budget
+			}
+		}
+	}
+	if slots, ok := owners.(*SlotRecovery); ok && directory == slots {
+		slots.admission = r
+		r.fullSlots = slots
 	}
 	return r
 }
@@ -48,6 +57,8 @@ func NewAuthorityRecoveryWithOptions(directory RecoveryDirectory, owners Recover
 // Bounded UID flights coalesce overlapping proofs without per-UID goroutines.
 // Directory ownership fences every completion.
 type AuthorityRecovery struct {
+	// fullSlots enables page-sized physical turns while preserving UID admission.
+	fullSlots *SlotRecovery
 	directory RecoveryDirectory
 	owners    RecoveryOwners
 	// boundedOwners is fixed at construction only after all provider paths opt in.

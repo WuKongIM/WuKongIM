@@ -289,6 +289,9 @@ func TestSendPermissionRPCBoundaries(t *testing.T) {
 							slot, rev = 2, revision.Load()
 						}
 						out[i] = boundaryRoute(uint16(slot), slot, 2, rev)
+						// A stale authority retry requires an actual term change;
+						// unrelated Controller revisions no longer invalidate reads.
+						out[i].Fence.LeaderTerm = rev
 					}
 					return out
 				}
@@ -522,7 +525,7 @@ func (c *boundaryCluster) ReadSlotBarrier(ctx context.Context, slot multiraft.Sl
 	return ctx.Err()
 }
 func boundaryRoute(hash uint16, slot, node, revision uint64) SendPermissionRoute {
-	return SendPermissionRoute{HashSlot: hash, Fence: SendPermissionFence{SlotID: slot, LeaderNodeID: node, LeaderTerm: 1, ConfigEpoch: 1, RouteRevision: revision}}
+	return SendPermissionRoute{HashSlot: hash, LocalAuthorityEpoch: revision, Fence: SendPermissionFence{SlotID: slot, LeaderNodeID: node, LeaderTerm: 1, ConfigEpoch: 1, RouteRevision: revision}}
 }
 func boundaryDB(t *testing.T) *metadb.DB {
 	t.Helper()

@@ -158,6 +158,9 @@ func (n *Node) Stop(ctx context.Context) error {
 			return errors.Join(errs...)
 		}
 	}
+	if err := n.stopPresenceProbe(ctx); err != nil {
+		return errors.Join(errors.Join(errs...), err)
+	}
 	// Controller.Stop rejects an expired context before releasing its backend.
 	// A completed transport join does not authorize disposing that live runtime.
 	if err := ctxErr(ctx); err != nil && (n.started.Load() || n.group.HasStarted()) {

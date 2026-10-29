@@ -7,17 +7,14 @@ summary: Runs the fenced chat-lifecycle workload, evidence pipeline, and aged-da
 
 ## Responsibility
 
-This package owns deterministic chat-lifecycle planning, its three-worker
-protocol, bounded session/traffic engine, continuous observation, natural
-Channel lifecycle proof, evidence reduction, and versioned reports. It does
-not provision infrastructure, persist credentials, or bypass public APIs.
+This package owns deterministic chat-lifecycle planning, its three-worker protocol, bounded session/traffic engine,
+continuous observation, natural Channel lifecycle proof, evidence reduction, and versioned reports. It neither provisions infrastructure nor persists credentials or bypasses public APIs.
 
 ## Boundaries
 
 Production composition injects public HTTP, WKProto, worker-control, metrics,
 host-observation, clock, and report ports; `internal/bench/wkproto` owns transport.
-Cloud orchestration owns paid infrastructure and cleanup; this package consumes
-immutable cost, expiry, topology, and dataset evidence.
+Cloud orchestration owns paid infrastructure and cleanup; this package consumes immutable cost, expiry, topology, and dataset evidence.
 
 ## Main Flows
 
@@ -54,6 +51,8 @@ passing 72-hour formal generation -> same aged dataset and process proof
 - The measured clock starts only after all users finish real CONNECT plus a fresh zero-coverage conversation sync and all workers accept the first grant.
 - Repository YAML keeps reviewed stage durations fixed; only the direct repair rehearsal CLI may inject and report a bounded process duration, and formal or shakeout evidence never accepts it.
 - Engine heaps, maps, queues, correlations, samples, and histories are bounded.
+  A fixed executor pool calls the SDK outside owner/control turns with per-sender FIFO; queued tickets retain work/retry credit and original dispatch deadlines. Only actual execution registers SEND and its attempt clock.
+  Owner completion batches are bounded; Stop cancels and joins executors before closing clients. AdmissionPending distinguishes queued/executing SDK work.
   Planning is history-independent; no historical user or Channel owns retained work. A returning-login cold revisit never overlaps the active or pending hot set.
   Session expiry skips online-table locking while a conservative atomic deadline bound proves nothing can be due; actual due sets reserve one generation-owned bounded cleanup queue.
   Closing tombstones and per-SEND expiry leases prevent replacement or socket
@@ -70,7 +69,8 @@ passing 72-hour formal generation -> same aged dataset and process proof
 - Worker protocol v15 keeps deadline registration, exact-result coverage and confirmed observed-late first-attempt counts separate.
   Only the original clocked transport result resolves its deadline; missing/unknown/canceled/expired results remain unknown.
   Fixed attempt slots and the bounded late-receipt map bound retention. Private opt-in retains 16 fresh-dispatch timing prefixes per generation.
-  Added clock reads are diagnostic overhead; codes, units, gates, order and drain fairness stay fixed. Optional CPU bounds retain16 failed owner turns, keep invalid clocks unknown, and export once through a nonblocking post-join channel; process-wide CPU is not actor-only attribution.
+  Added clock reads are diagnostic overhead; codes, units and gates stay fixed.
+  Owner timing excludes asynchronous SDK execution and keeps identical bounded completion batches with diagnostics disabled. Optional CPU bounds retain16 failed owner turns, keep invalid clocks unknown, and export once through a nonblocking post-join channel; process-wide CPU is not actor-only attribution.
   Driver timing records cross only after generation Stop joins, into their bounded terminal sidecar. A separate strict attempt-link opt-in copies at most16 confirmed-late original keys, connection scopes and reused SDK timings per generation into detached live/final control cuts. Its separately bounded64KiB atomic sidecar uses existing worker fences/sequence/uptime and never enters native evidence, counts or gates; malformed optional data is discarded independently.
 - A nil-by-default local callback notifies only after an authenticated, current, valid, uncanceled harness-failure Snapshot GET or coordinator Checkpoint POST, including cached final Snapshot GETs, outside the lifecycle mutex.
   The worker CLI owns its independent opt-in recorder and one asynchronous export; Snapshot, Stop and UnexpectedExit never join that diagnostic writer.

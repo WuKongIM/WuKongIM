@@ -236,6 +236,10 @@ type ScheduledBackupStoreResolver interface {
 
 // Options configures the internal node RPC adapter.
 type Options struct {
+	// GenerationAuthority handles only the explicit complete-slot protocol.
+	GenerationAuthority PresenceGenerationAuthority
+	// GenerationOwner owns validated owner barriers and bounded page projection.
+	GenerationOwner PresenceGenerationOwner
 	// Authority handles UID route authority requests after payload decoding.
 	Authority PresenceAuthority
 	// Owner handles owner-local session conflict actions after payload decoding.
@@ -302,6 +306,10 @@ type Options struct {
 
 // Adapter decodes node RPC payloads and forwards them to local authority ports.
 type Adapter struct {
+	generationAuthority PresenceGenerationAuthority
+	generationOwner     PresenceGenerationOwner
+	// generationBudget bounds server-side decoded page/UID response ownership.
+	generationBudget *presence.RecoveryResultBudget
 	// authority owns business decisions; Adapter only performs RPC adaptation.
 	authority PresenceAuthority
 	// owner mutates only owner-local real session state.
@@ -372,6 +380,9 @@ func New(opts Options) *Adapter {
 		opts.Logger = wklog.NewNop()
 	}
 	return &Adapter{
+		generationAuthority:        opts.GenerationAuthority,
+		generationOwner:            opts.GenerationOwner,
+		generationBudget:           presence.NewRecoveryResultBudget(presence.RecoveryResultMaxRows, presence.RecoveryResultMaxBytes),
 		authority:                  opts.Authority,
 		owner:                      opts.Owner,
 		ownerRoutes:                opts.OwnerRoutes,
@@ -408,6 +419,9 @@ func New(opts Options) *Adapter {
 
 // HandlePresenceAuthorityRPC handles one encoded presence authority RPC payload.
 func (a *Adapter) HandlePresenceAuthorityRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	if isGenerationFrame(payload) {
+		return a.handlePresenceGeneration(ctx, payload, false)
+	}
 	req, err := decodePresenceRPCRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("presence authority rpc decode failed",
@@ -537,6 +551,9 @@ func (a *Adapter) handlePresenceEndpointsByTargets(ctx context.Context, groups [
 
 // HandlePresenceOwnerRPC handles one encoded presence owner-action RPC payload.
 func (a *Adapter) HandlePresenceOwnerRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	if isGenerationFrame(payload) {
+		return a.handlePresenceGeneration(ctx, payload, true)
+	}
 	req, err := decodePresenceRPCRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("presence owner rpc decode failed",

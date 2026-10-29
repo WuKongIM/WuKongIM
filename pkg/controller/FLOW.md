@@ -44,6 +44,13 @@ not depend on `pkg/cluster`.
 3. Planner, lifecycle, and task APIs propose versioned fenced commands through
    Raft, while non-voter mirrors refresh the complete state file and watchers
    publish latest-state wakeups.
+4. Rare `EnsurePresenceOwnerSet`, `ClaimPresenceGeneration` and
+   `GetPresenceGeneration` calls use committed quorum/apply barriers. Claims CAS
+   against the preceding Hash Slot generation and return their exact FSM apply
+   receipt through the Raft proposal future. `G` and owner epoch `M` use committed
+   Raft indexes; boot IDs are equality identities only. Controller validates desired
+   mapping, while the Node facade separately checks actual Slot leadership/term.
+   No UID, Session, or per-SEND record enters this section.
 
 ## Invariants and Failure Semantics
 
@@ -80,6 +87,18 @@ not depend on `pkg/cluster`.
   observers and diagnostics must never stall apply.
 - Startup publishes the Raft service under the runtime mutex; inbound Step
   captures it under that mutex and releases the lock before Raft execution.
+- A capability-proven, bounded Presence owner vector includes non-data ingress
+  nodes and retains leaving/down obligations. Unknown schema, command or
+  business-protocol support prevents activation. Once active, new/readdressed
+  member endpoints must prove those capabilities before their membership CAS;
+  a private bounded probe client does not publish an unaccepted endpoint to
+  discovery. Removing an old owner without a separate drain proof remains
+  not-ready. Health does not discharge ownership.
+- Optional Presence state participates in clone, normalization, checksums,
+  snapshots and mirror sync. Existing-state snapshot install rejects known G/M
+  rollback. Ordinary backup restore replaces data while preserving Controller
+  history. Replacing all Controller history with an old disk image cannot prove
+  monotonicity and is not an identity-preserving generation recovery protocol.
 
 ## Read First
 

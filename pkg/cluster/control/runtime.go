@@ -65,6 +65,8 @@ type RuntimeConfig struct {
 	SyncClient *controller.SyncClient
 	// SyncPeers resolves Controller state sync endpoints for mirror nodes.
 	SyncPeers controller.PeerPicker
+	// PresenceCapabilityProbe checks exact running members before new durable formats.
+	PresenceCapabilityProbe controller.PresenceCapabilityProbe
 	// TaskClient forwards task writes and creation intents to the current Controller leader.
 	TaskClient *TaskClient
 	// ControlWriteClient forwards generic control writes to the current Controller leader.
@@ -96,24 +98,25 @@ type Runtime struct {
 // NewRuntime creates a Controller-backed control runtime.
 func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	backend, err := controller.NewRuntime(controller.RuntimeConfig{
-		NodeID:                 cfg.NodeID,
-		Addr:                   cfg.Addr,
-		StateDir:               cfg.StateDir,
-		ClusterID:              cfg.ClusterID,
-		Role:                   controller.RuntimeRole(cfg.Role),
-		Voters:                 runtimeFacadeVoters(cfg.Voters),
-		AllowBootstrap:         cfg.AllowBootstrap,
-		InitialSlotCount:       cfg.InitialSlotCount,
-		HashSlotCount:          cfg.HashSlotCount,
-		ReplicaCount:           cfg.ReplicaCount,
-		TickInterval:           cfg.TickInterval,
-		RaftTransport:          cfg.RaftTransport,
-		RaftObserver:           cfg.RaftObserver,
-		TaskTransitionObserver: cfg.TaskTransitionObserver,
-		SyncClient:             cfg.SyncClient,
-		SyncPeers:              cfg.SyncPeers,
-		Now:                    cfg.Now,
-		Logger:                 cfg.Logger,
+		NodeID:                  cfg.NodeID,
+		Addr:                    cfg.Addr,
+		StateDir:                cfg.StateDir,
+		ClusterID:               cfg.ClusterID,
+		Role:                    controller.RuntimeRole(cfg.Role),
+		Voters:                  runtimeFacadeVoters(cfg.Voters),
+		AllowBootstrap:          cfg.AllowBootstrap,
+		InitialSlotCount:        cfg.InitialSlotCount,
+		HashSlotCount:           cfg.HashSlotCount,
+		ReplicaCount:            cfg.ReplicaCount,
+		TickInterval:            cfg.TickInterval,
+		RaftTransport:           cfg.RaftTransport,
+		RaftObserver:            cfg.RaftObserver,
+		TaskTransitionObserver:  cfg.TaskTransitionObserver,
+		SyncClient:              cfg.SyncClient,
+		SyncPeers:               cfg.SyncPeers,
+		PresenceCapabilityProbe: cfg.PresenceCapabilityProbe,
+		Now:                     cfg.Now,
+		Logger:                  cfg.Logger,
 	})
 	if err != nil {
 		return nil, err

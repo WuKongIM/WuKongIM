@@ -32,8 +32,10 @@ const sendPermissionMaxWait = 2 * time.Second
 
 var ErrPermissionBusy = errors.New("permission read admission busy")
 
-// SendPermissionFence is the complete distributed authority identity of a Slot.
-// Hash Slot ownership is carried separately on each read and rederived remotely.
+// SendPermissionFence carries Slot authority and the origin's diagnostic control
+// revision. Hash Slot ownership is rederived for each read. RouteRevision is
+// echoed exactly in the reply, but unrelated control commits do not change the
+// authority required to serve a fresh read.
 type SendPermissionFence struct {
 	SlotID        uint64
 	LeaderNodeID  uint64
@@ -47,8 +49,12 @@ type SendPermissionRoute struct {
 	Fence    SendPermissionFence
 	HashSlot uint16
 	Err      error
+	// LocalAuthorityEpoch belongs to this receiver's immutable route publication.
+	// It guards one local read against topology ABA and is never sent on the wire.
+	LocalAuthorityEpoch uint64
 }
 type sendPermissionRouter interface {
+	// SendPermissionRoutes returns owned rows from one immutable publication.
 	SendPermissionRoutes([]string) []SendPermissionRoute
 }
 type sendPermissionRead struct {
@@ -593,15 +599,24 @@ func (s *Store) readSendPermissionSlot(ctx context.Context, g sendPermissionGrou
 	for i, r := range g.Reads {
 		keys[i], _ = permissionReadKey(r.Read)
 	}
+	// Retain the first owned route projection as the receiver-local topology
+	// guard. This token is never compared with another node's observation.
+	var baseline []SendPermissionRoute
 	validate := func() bool {
 		routes := router.SendPermissionRoutes(keys)
 		if len(routes) != len(keys) {
 			return false
 		}
 		for i, r := range routes {
-			if r.Err != nil || r.Fence != g.Fence || r.HashSlot != g.Reads[i].HashSlot || !s.cluster.IsLocal(multiraft.NodeID(r.Fence.LeaderNodeID)) {
+			if r.Err != nil || !sameSendPermissionAuthority(r.Fence, g.Fence) || r.HashSlot != g.Reads[i].HashSlot || !s.cluster.IsLocal(multiraft.NodeID(r.Fence.LeaderNodeID)) || r.LocalAuthorityEpoch == 0 {
 				return false
 			}
+			if baseline != nil && r.LocalAuthorityEpoch != baseline[i].LocalAuthorityEpoch {
+				return false
+			}
+		}
+		if baseline == nil {
+			baseline = routes
 		}
 		return true
 	}
@@ -650,6 +665,11 @@ func (s *Store) readSendPermissionSlot(ctx context.Context, g sendPermissionGrou
 		out.Results[i] = sendPermissionValue{Index: g.Reads[i].Index, Kind: g.Reads[i].Read.Kind, Fact: f}
 	}
 	return out
+}
+
+func sameSendPermissionAuthority(a, b SendPermissionFence) bool {
+	return a.SlotID == b.SlotID && a.LeaderNodeID == b.LeaderNodeID &&
+		a.LeaderTerm == b.LeaderTerm && a.ConfigEpoch == b.ConfigEpoch
 }
 
 // UpdateChannelInfo changes flags and optional policy in one Slot proposal.

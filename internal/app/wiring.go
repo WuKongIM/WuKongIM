@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internal/access/gateway"
@@ -396,19 +397,50 @@ func (a *App) wireConversations(conversationReadStore *clusterinfra.Conversation
 	}
 }
 
-func (a *App) wirePresence() {
+func (a *App) wirePresence() error {
 	if presenceNode, ok := a.cluster.(clusterinfra.PresenceNode); ok {
 		observer := presenceMetricsObserver{metrics: a.metrics}
 		recoveryNode, canRecover := a.cluster.(clusterinfra.PresenceRecoveryNode)
-		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID(), RequireRecovery: canRecover})
+		generationNode, canFull := a.cluster.(clusterinfra.PresenceGenerationNode)
+		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID(), RequireRecovery: canRecover || canFull})
 		a.presenceDirectory = directory
 		authority := clusterinfra.NewPresenceDirectoryAuthority(directory)
 		ownerActions := presenceOwnerActions{local: a.online}
 		ownerBootID := newOwnerBootID()
+		if canFull {
+			ownerBootID = generationNode.PresenceBootID()
+			if ownerBootID == 0 {
+				return fmt.Errorf("presence full protocol requires a nonzero process identity")
+			}
+		}
 		ownerReader := presence.NewOwnerRecovery(a.online, presenceNode.NodeID(), ownerBootID, func(target presence.RouteTarget) error {
 			return clusterinfra.ValidatePresenceTarget(presenceNode, target)
 		})
-		if canRecover {
+		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
+		var fullAuthority *presenceFullAuthority
+		var fullOwner *presence.OwnerGeneration
+		if canFull {
+			fullAuthority = &presenceFullAuthority{}
+			source := clusterinfra.NewPresenceGenerationAdapter(generationNode, nil)
+			fullOwner = presence.NewOwnerGenerationWithChecks(a.online, presenceNode.NodeID(), ownerBootID, source.ValidateOwnerBegin, source.CheckOwnerGeneration)
+			generationOwners := clusterinfra.NewPresenceGenerationAdapter(generationNode, fullOwner)
+			client.SetGenerationAuthority(fullAuthority)
+			a.reopenPresenceRecovery = func() {
+				slots := presence.NewSlotRecovery(directory, source, generationOwners)
+				callers := presence.NewAuthorityRecoveryWithOptions(slots, slots, presence.RecoveryOptions{
+					ResultCensus: a.cfg.Observability.Diagnostics.Enabled && a.cfg.Observability.Diagnostics.RPCSampleEvery != 0,
+				})
+				a.presenceRecovery = &presenceFullRecovery{callers: callers, slots: slots}
+				fullAuthority.current.Store(slots)
+				authority.SetRecovery(callers)
+				if a.metrics != nil {
+					a.metrics.Presence.SetRecoverySnapshot(func() obsmetrics.PresenceRecoverySnapshot {
+						return obsmetrics.PresenceRecoverySnapshot(callers.Stats())
+					})
+				}
+			}
+			a.reopenPresenceRecovery()
+		} else if canRecover {
 			a.reopenPresenceRecovery = func() {
 				recovery := presence.NewAuthorityRecoveryWithOptions(directory, clusterinfra.NewPresenceRecoveryOwners(recoveryNode, ownerReader), presence.RecoveryOptions{
 					ResultCensus: a.cfg.Observability.Diagnostics.Enabled && a.cfg.Observability.Diagnostics.RPCSampleEvery != 0,
@@ -416,8 +448,6 @@ func (a *App) wirePresence() {
 				a.presenceRecovery = recovery
 				authority.SetRecovery(recovery)
 				if a.metrics != nil {
-					// Bind the exact generation; a reopened cohort replaces the
-					// previous source without racing lifecycle interface writes.
 					a.metrics.Presence.SetRecoverySnapshot(func() obsmetrics.PresenceRecoverySnapshot {
 						return obsmetrics.PresenceRecoverySnapshot(recovery.Stats())
 					})
@@ -425,15 +455,25 @@ func (a *App) wirePresence() {
 			}
 			a.reopenPresenceRecovery()
 		}
-		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
 		client.SetLocalOwner(ownerActions)
 		if a.metrics != nil {
 			client.SetEndpointLookupObserver(observer)
 		}
 		a.presenceAuthorityClient = client
-		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, OwnerRoutes: ownerReader, Logger: a.logger.Named("node")})
+		nodeOptions := accessnode.Options{Authority: authority, Owner: ownerActions, OwnerRoutes: ownerReader, Logger: a.logger.Named("node")}
+		if canFull {
+			nodeOptions.GenerationAuthority = fullAuthority
+			nodeOptions.GenerationOwner = fullOwner
+		}
+		adapter := accessnode.New(nodeOptions)
 		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, classifiedNodeRPCHandler{handle: adapter.HandlePresenceAuthorityRPC, readOnly: accessnode.PresenceAuthorityReadOnly})
 		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, classifiedNodeRPCHandler{handle: adapter.HandlePresenceOwnerRPC, readOnly: accessnode.PresenceOwnerReadOnly, traceOperation: accessnode.PresenceOwnerTraceOperation})
+		if canFull {
+			if err := generationNode.EnablePresenceProtocol(1); err != nil {
+				return fmt.Errorf("activate presence generation protocol: %w", err)
+			}
+		}
+		var ownerSequence atomic.Uint64
 		if a.presence == nil {
 			a.presence = presence.New(presence.Options{
 				Local:                a.online,
@@ -442,6 +482,7 @@ func (a *App) wirePresence() {
 				OnlineStatusObserver: a.webhookPresence,
 				OwnerNodeID:          presenceNode.NodeID(),
 				OwnerBootID:          ownerBootID,
+				OwnerSeq:             func(string) uint64 { return ownerSequence.Add(1) },
 				HashSlot: func(uid string) (uint16, error) {
 					target, err := client.ResolveRouteTarget(uid)
 					if err != nil {
@@ -468,6 +509,7 @@ func (a *App) wirePresence() {
 			})
 		}
 	}
+	return nil
 }
 
 func (a *App) wireManagerConnectionRPC() {

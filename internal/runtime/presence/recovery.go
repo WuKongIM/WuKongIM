@@ -8,6 +8,17 @@ const RecoveryBatchSize = 512
 const recoveryCacheSize = 1024
 
 func (s *authoritySlot) recoveryReady(uids []string) bool {
+	if g := s.generation; g != nil {
+		if g.state != generationComplete {
+			return false
+		}
+		for _, uid := range uids {
+			if g.suspectUIDs[uid] != 0 {
+				return false
+			}
+		}
+		return true
+	}
 	for _, uid := range uids {
 		if uid != "" {
 			if _, ok := s.recovered[uid]; !ok {
@@ -63,6 +74,12 @@ func (d *Directory) RecoveryUIDsWithReadback(target RouteTarget, uids []string) 
 		if current.recoveryGeneration != generation {
 			return nil, ErrRouteNotReady
 		}
+		if current.generation != nil {
+			if !current.recoveryReady(uids) {
+				return nil, ErrRouteNotReady
+			}
+			return current.endpointsByUIDsLocked(uids), nil
+		}
 		if d.requireRecovery {
 			for i, uid := range uids {
 				if missingPositions[i/64]&(uint64(1)<<uint(i%64)) != 0 {
@@ -82,6 +99,9 @@ func (s *authoritySlot) missingRecoveryUIDsLocked(uids []string, positions *[(Re
 	seen := make(map[string]struct{}, len(uids))
 	for i, uid := range uids {
 		if uid == "" {
+			continue
+		}
+		if s.generation != nil && s.recoveryReady([]string{uid}) {
 			continue
 		}
 		if _, ok := s.recovered[uid]; ok {
@@ -109,6 +129,14 @@ func (d *Directory) InstallRecoveredRoutes(target RouteTarget, uids []string, ro
 	slot, err := d.validateTargetLocked(shard, target)
 	if err != nil {
 		return err
+	}
+	// The legacy provider can deliver a readback after Full recovery, but cannot
+	// install per-UID proof or mutate Full rows through this old protocol.
+	if slot.generation != nil {
+		if slot.recoveryReady(uids) {
+			return nil
+		}
+		return ErrRouteNotReady
 	}
 	if len(uids) > RecoveryBatchSize || len(routes) > 4096 {
 		return ErrRouteNotReady

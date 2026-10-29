@@ -65,6 +65,9 @@ func (s ClusterState) Validate() error {
 	if err := validateOpsMCP(s.OpsMCP, nodes); err != nil {
 		return err
 	}
+	if err := validatePresence(s); err != nil {
+		return err
+	}
 	return nil
 }
 

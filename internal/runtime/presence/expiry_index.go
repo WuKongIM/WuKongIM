@@ -93,7 +93,7 @@ func (s *authoritySlot) unscheduleExpiryLocked(key identityKey) {
 	}
 }
 
-func (s *authoritySlot) expireLocked(now time.Time, ttl time.Duration) ExpireResult {
+func (s *authoritySlot) expireLocked(now time.Time, ttl time.Duration, beforeRemove func(Route)) ExpireResult {
 	result := ExpireResult{}
 	if ttl > 0 && !now.IsZero() {
 		for len(s.expiryHeap) > 0 {
@@ -116,6 +116,7 @@ func (s *authoritySlot) expireLocked(now time.Time, ttl time.Duration) ExpireRes
 				if !ok {
 					continue
 				}
+				beforeRemove(route)
 				s.removeActiveLocked(key, route)
 				result.Expired++
 			}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/controller/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/raft/raftstore"
+	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
 	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -59,6 +60,10 @@ type ProposalResult struct {
 	Revision uint64
 	// AppliedRaftIndex is the resulting durable Raft applied index.
 	AppliedRaftIndex uint64
+	// PresenceOwnerSet retains the exact immutable owner-set apply receipt.
+	PresenceOwnerSet *state.PresenceOwnerSet
+	// PresenceGeneration retains the exact immutable generation apply receipt.
+	PresenceGeneration *state.PresenceGeneration
 }
 
 // Service owns one Controller RawNode and applies committed commands to the state machine.

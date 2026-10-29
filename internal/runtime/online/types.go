@@ -82,4 +82,10 @@ type SessionHandle interface {
 type RegistryOptions struct {
 	// ShardCount controls the number of session ID shards; values <= 0 use the default.
 	ShardCount int
+	// SlotPageMaxRows bounds retained owner scan backing across cached pages and
+	// replies. Values <= 0 use 196608 rows; live session indexes are separate.
+	SlotPageMaxRows int
+	// SlotPageMaxBytes bounds retained decoded page backing and cloned strings.
+	// Values <= 0 use 128 MiB; wire buffers, live indexes and RSS are excluded.
+	SlotPageMaxBytes int
 }

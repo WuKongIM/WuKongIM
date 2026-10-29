@@ -6,22 +6,14 @@ summary: Coordinates owner-local connection lifecycle with UID authority registr
 # Presence Use Case Flow
 
 ## Responsibility
-
-This package owns entry-independent presence orchestration between the
-owner-local online registry and the current UID authority client.
-It does not own gateway frames, concrete cluster routing, or session storage.
+Entry-independent orchestration connects the online registry and UID authority; frames, cluster routing and session storage belong elsewhere.
 
 ## Boundaries
-
-- It does not import gateway or protocol frames, cluster runtimes, access, or
-  app composition.
-- Concrete sessions remain local; authority calls use route projections and
-  exact targets.
-- The app touch worker drains dirty routes in bounded batches, avoiding one
-  authority RPC per client ping.
+- It does not import gateway/protocol frames, cluster runtimes, access or app.
+- Concrete sessions remain local; authority calls use route projections/exact targets.
+- The app touch worker batches dirty routes instead of one RPC per client ping.
 
 ## Main Flows
-
 1. Activate resolves the UID Hash Slot, registers the local session pending,
    registers authority, executes returned owner actions, commits a pending
    token, performs the final local active recheck, then observes online status.
@@ -32,9 +24,8 @@ It does not own gateway frames, concrete cluster routing, or session storage.
    entries. Joint admission bounds 8,192 distinct fenced UID keys, 128 MiB of
    cloned UIDs plus scheduler/caller metadata, and 32 MiB per new UID subset;
    any full dimension fails closed without retaining a partial reservation.
-   At most sixteen actual owner batches execute. Each takes already queued
-   work, up to sixteen independent calls, 256 targets and 512 UIDs, without a
-   collection timer. Legacy providers retain the sixteen-original-call result
+   At most sixteen actual owner batches execute. Legacy batches take queued
+   work up to sixteen independent calls, 256 targets and 512 UIDs without a timer. Legacy providers retain the sixteen-original-call result
    guard. Fully bounded local/remote/old-protocol providers instead prepay exact
    decoded backing and cloned strings against a separate 128 MiB / 196,608 row
    capacity ledger. Each original call still permits at most 4,096 routes.
@@ -48,9 +39,30 @@ It does not own gateway frames, concrete cluster routing, or session storage.
    separately. Proven lookups bypass admission; failed groups preserve siblings.
 4. Lookup delegates one UID, a batch, or aligned exact-target groups to optional
    authority batch ports; group errors do not abort successful siblings.
+5. Full-mode wiring uses `NewSlotRecovery(directory, source, owners)` as both
+   ports of `NewAuthorityRecovery(slots, slots)`. This preserves the original
+   caller/input admission and shares the same decoded result ledger across
+   staging, owner pages and original-call output. Sixteen physical page turns
+   execute; after each page a continuation returns to the original FIFO tail.
+   Same-slot followers share one scan; paused scans retain prepaid staging and
+   original caller/key credits. No unbounded waiter queue is added. Each scan
+   has one fixed two-second deadline and each owner one fixed one-second budget
+   across Begin/pages/End. Every owner End and current applied claim must validate
+   before publication. A failed attempt needs a new G.
+6. `SlotRecovery` owns strict registration, commit, abort, touch and unregister
+   orchestration. Infrastructure forwards these DTOs; it must not rebuild an
+   activation receipt or pending claim from a later route resolution. Strict
+   activation atomically uses `MarkActiveWithReceipt`; absent/stale receipts fail
+   closed. Only a typed, pre-mutation owner mismatch permits one shared rebuild
+   under the original context; retry compares actual cuts and cannot revoke again.
+7. `OwnerGeneration` validates Begin freshness before the local atomic cut.
+   `NewOwnerGenerationWithChecks` separates that freshness check from local
+   current-gate checks around pages, End and bounded suspect reads. Repeated
+   pages must not issue repeated Controller quorum probes. Page handles retain
+   the registry's real replay backing until `Release`; all-owner rechecks keep
+   actual activity timestamps and cannot skip unavailable owners.
 
 ## Invariants and Failure Semantics
-
 - Activation failures retain their original error family through fixed phase
   wrappers. Diagnostic extraction returns the innermost known phase, never request data.
   Registration failure may carry an anonymous owner-route digest; malformed or
@@ -74,8 +86,8 @@ It does not own gateway frames, concrete cluster routing, or session storage.
   known proof survives residency eviction within that request, while original
   misses need current proof and the same local authority instance. Wrappers keep
   their original read contract. Capture metadata is charged to caller admission.
-  Shared execution has its own cancel root: one
-  caller's cancellation/deadline does not cancel live UID followers or other
+  Shared execution has its own cancel root: caller cancellation cannot cancel
+  live UID followers or other
   batch members, and every caller still returns on its own original context.
   Only all-member cancellation or Close cancels actual execution. UID proofs
   with no live owner are not installed; exact authority fences still govern all
@@ -84,7 +96,8 @@ It does not own gateway frames, concrete cluster routing, or session storage.
   missing set requires a fresh read under the same target fence. It never implies
   offline. Only groups joining flights reread after work completes; a cold sibling
   cannot retry or erase another group's failed readback. No RPC or retry is added.
-- Canceled queued work leaves the physical FIFO before releasing its ledger.
+- Canceled queued work releases its ledger only after actual ownership ends.
+  Full continuations retain cleanup ownership through the same bounded executors.
   Active ownership and result credits survive caller cancellation until the
   real provider returns. Close stops admission, cancels queued/active work and
   joins actual ownership; timeout reports incomplete cleanup and permits a
@@ -102,11 +115,12 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 - The optional bounded provider capability is fixed at construction only after
   local registry projection, remote decoding and old-protocol fallback all use
   prepaid allocation. Local pages reuse small growing scratch; remote replies
-  validate shape and count exact backing before decoding. No wire changes,
-  automatic RPC retries, per-page timeout reset or partial offline publication
-  are introduced. Published Directory data owns its own lifetime.
-- Always-on fixed budget gauges report charged row capacity and bytes, peaks
-  and rejected reservations even when diagnostic sampling is disabled.
+  validate shape and prepay exact backing before decoding. Legacy wire operations
+  remain unchanged; Full uses separate explicit generation operations. There is
+  no page retry, deadline reset or partial offline publication. Published
+  Directory data owns its own lifetime.
+- Always-on result-budget gauges report charged rows/bytes, peaks and rejections.
+  Full turns explicitly mark the unsupported legacy structure census unobserved.
 - A fixed aggregate census separates FIFO, physical batches, original-call
   result credits and UID admission bytes. When existing RPC diagnostics are
   enabled, partial owner accumulators and transient decoded pages remain
@@ -116,16 +130,21 @@ It does not own gateway frames, concrete cluster routing, or session storage.
   charging aliases per reference; they exclude wire buffers, maps, errors,
   hidden backing prefixes, allocator overhead and RSS and cannot set a heap limit.
 - Import-boundary tests reject concrete entry, protocol, cluster, and app imports.
+- Full mode requires every obligated owner to implement its explicit operations.
+  Unsupported/malformed/timeout responses never create a Full certificate and
+  are not interpreted as empty legacy pages. Negotiating a separate legacy
+  generation is outside `SlotRecovery`; no implicit same-generation downgrade
+  is implemented. Membership/boot changes must invalidate the old serving gate.
+- Shutdown closes the outer `AuthorityRecovery` and then `SlotRecovery`, joining
+  actual provider ownership before releasing its shared result credits. A caller
+  returning on cancellation alone is not that join.
 
 ## Read First
-
 - [Activation](activate.go)
-- [Lookup](lookup.go)
 - [Recovery admission](recovery_flights.go)
-- [Independent owner call pages](owner_recovery_calls.go)
-- [Ports](ports.go)
+- [Full-slot recovery and strict mutations](slot_recovery.go)
+- [Owner generation validation](owner_generation.go)
+- [Generation ports and result lifetimes](generation_ports.go)
 
 ## Update Triggers
-
-Update this file when activation rollback, conflict actions, status observation,
-deactivation ordering, touch ownership, lookup alignment, or imports change.
+Update when activation, conflicts, observation, deactivation, touch, lookup or imports change.

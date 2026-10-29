@@ -1093,12 +1093,13 @@ func TestLifecycleCandidateQuietWindowStartsAtPhysicalSendAdmissionNotDelayedSen
 	fixture.clock.Set(physicalAdmissionAt)
 	intent := fixture.intent(t, edge.OwnerUID, edge.PeerUID, 0, TrafficPerson)
 	intent.ChannelID = edge.PersonChannelID
-	if !fixture.pool.acquireSendLease(intent.Logical.Sender) {
-		t.Fatal("acquire send lease")
+	if err := fixture.engine.SubmitGranted(intent, physicalAdmissionAt); err != nil {
+		t.Fatal(err)
 	}
-	if err := fixture.engine.processAttempt(context.Background(), intent, 0, physicalAdmissionAt); err != nil {
-		t.Fatalf("process attempt: %v", err)
+	if _, err := fixture.engine.Advance(physicalAdmissionAt); err != nil {
+		t.Fatal(err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	routes := fixture.factory.sentRoutes()
 	if len(routes) != 1 || routes[0].packet == nil {
 		t.Fatalf("physical routes = %+v, want one SEND", routes)
@@ -1216,6 +1217,7 @@ func TestEngineApprovedRevisitReplaySurvivesRealDueCompletion(t *testing.T) {
 	if _, err := fixture.engine.Advance(lease.due); err != nil {
 		t.Fatalf("Advance scheduled reheat SEND: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	clientSeq := make(chan uint64, 1)
 	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
 		inflight := fixture.engine.inflight[routedReheat.intent.Logical.ClientMsgNo]

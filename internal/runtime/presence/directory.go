@@ -27,6 +27,8 @@ type Directory struct {
 	touchRoutesTotal atomic.Uint64
 	// expiredRoutesTotal counts routes removed by TTL expiry.
 	expiredRoutesTotal atomic.Uint64
+	// suspects bounds persistent TTL uncertainty independently of request credits.
+	suspects suspectLedger
 }
 
 type directoryShard struct {
@@ -34,6 +36,8 @@ type directoryShard struct {
 	mu sync.RWMutex
 	// slots holds per-hash-slot authority identities installed on this node.
 	slots map[uint16]*authoritySlot
+	// highWater survives LoseAuthority; an aborted/rebuilt G cannot be reused.
+	highWater map[uint16]GenerationClaim
 }
 
 type authoritySlot struct {
@@ -64,6 +68,8 @@ type authoritySlot struct {
 	recovered     map[string]struct{}
 	recoveryOrder []string
 	recoveryNext  int
+	// generation is nonnil only for the explicit complete-slot protocol.
+	generation *slotGeneration
 }
 
 // recoveryGeneration is nonzero-sized so distinct live instances cannot alias.
@@ -100,6 +106,7 @@ func NewDirectory(opts DirectoryOptions) *Directory {
 	}
 	for i := range d.shards {
 		d.shards[i].slots = make(map[uint16]*authoritySlot)
+		d.shards[i].highWater = make(map[uint16]GenerationClaim)
 	}
 	return d
 }
@@ -119,6 +126,9 @@ func (d *Directory) BecomeAuthority(target RouteTarget) {
 			return
 		}
 	}
+	if current != nil {
+		d.dropGenerationLocked(current)
+	}
 	shard.slots[target.HashSlot] = newAuthoritySlot(target)
 }
 
@@ -128,6 +138,7 @@ func (d *Directory) LoseAuthority(hashSlot uint16) {
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
+	d.dropGenerationLocked(shard.slots[hashSlot])
 	delete(shard.slots, hashSlot)
 }
 
@@ -141,6 +152,9 @@ func (d *Directory) RegisterRoute(target RouteTarget, route Route) (RegisterResu
 	if err != nil {
 		return RegisterResult{}, err
 	}
+	if slot.generation != nil || shard.highWater[target.HashSlot].Generation != 0 {
+		return RegisterResult{}, ErrSlotIncomplete
+	}
 	return slot.registerLocked(route)
 }
 
@@ -153,6 +167,9 @@ func (d *Directory) CommitRoute(target RouteTarget, token PendingRouteToken) err
 	slot, err := d.validateTargetLocked(shard, target)
 	if err != nil {
 		return err
+	}
+	if slot.generation != nil || shard.highWater[target.HashSlot].Generation != 0 {
+		return ErrSlotIncomplete
 	}
 	return slot.commitRouteLocked(token)
 }
@@ -170,6 +187,9 @@ func (d *Directory) AbortRoute(target RouteTarget, token PendingRouteToken) erro
 	if _, ok := slot.pending[token]; !ok {
 		return ErrRouteNotReady
 	}
+	if slot.generation != nil {
+		return ErrSlotIncomplete
+	}
 	delete(slot.pending, token)
 	return nil
 }
@@ -184,7 +204,16 @@ func (d *Directory) UnregisterRoute(target RouteTarget, identity RouteIdentity, 
 	if err != nil {
 		return err
 	}
+	return d.unregisterLocked(slot, identity, ownerSeq)
+}
+
+func (d *Directory) unregisterLocked(slot *authoritySlot, identity RouteIdentity, ownerSeq uint64) error {
 	key := makeIdentityKey(identity)
+	if g := slot.generation; g != nil {
+		if suspect, ok := g.suspects[key]; ok && suspect.OwnerSeq <= ownerSeq {
+			d.removeSuspectLocked(g, key)
+		}
+	}
 	if ownerSeq > slot.tombstoneSeq[key] {
 		slot.tombstoneSeq[key] = ownerSeq
 	}
@@ -212,11 +241,31 @@ func (d *Directory) TouchRoutes(target RouteTarget, routes []Route) error {
 	if err != nil {
 		return err
 	}
+	if slot.generation != nil {
+		return ErrSlotIncomplete
+	}
+	d.touchLocked(slot, routes)
+	return nil
+}
+
+func (d *Directory) touchLocked(slot *authoritySlot, routes []Route) {
 	for _, route := range routes {
+		if g := slot.generation; g != nil {
+			cut, ok := g.owners[route.OwnerNodeID]
+			if !ok || cut.cut.BootID != route.OwnerBootID {
+				continue
+			}
+			key := makeRouteIdentityKey(route)
+			if old, ok := g.suspects[key]; ok {
+				if route.OwnerSeq < old.OwnerSeq || route.LastSeenUnix <= old.LastSeenUnix {
+					continue
+				}
+				d.removeSuspectLocked(g, key)
+			}
+		}
 		slot.touchLocked(route)
 	}
 	d.touchRoutesTotal.Add(uint64(len(routes)))
-	return nil
 }
 
 // ExpireRoutesDetailed removes due active routes and reports bounded index diagnostics.
@@ -226,7 +275,7 @@ func (d *Directory) ExpireRoutesDetailed(now time.Time, ttl time.Duration) Expir
 		shard := &d.shards[i]
 		shard.mu.Lock()
 		for _, slot := range shard.slots {
-			slotResult := slot.expireLocked(now, ttl)
+			slotResult := slot.expireLocked(now, ttl, func(route Route) { d.expireGenerationLocked(slot, route) })
 			result.Expired += slotResult.Expired
 			result.DueBuckets += slotResult.DueBuckets
 			result.Examined += slotResult.Examined
@@ -283,7 +332,7 @@ func (d *Directory) EndpointsByUID(target RouteTarget, uid string) ([]Route, err
 	if err != nil {
 		return nil, err
 	}
-	if d.requireRecovery && !slot.recoveryReady([]string{uid}) {
+	if (d.requireRecovery || slot.generation != nil) && !slot.recoveryReady([]string{uid}) {
 		return nil, ErrRouteNotReady
 	}
 	return slot.endpointsByUIDLocked(uid), nil
@@ -299,7 +348,7 @@ func (d *Directory) EndpointsByUIDs(target RouteTarget, uids []string) ([]Route,
 	if err != nil {
 		return nil, err
 	}
-	if d.requireRecovery && !slot.recoveryReady(uids) {
+	if (d.requireRecovery || slot.generation != nil) && !slot.recoveryReady(uids) {
 		return nil, ErrRouteNotReady
 	}
 	return slot.endpointsByUIDsLocked(uids), nil
@@ -379,7 +428,7 @@ func (d *Directory) EndpointsByTargets(groups []EndpointLookupGroup) []EndpointL
 				results[groupIndex].Err = err
 				continue
 			}
-			if d.requireRecovery && !slot.recoveryReady(group.UIDs) {
+			if (d.requireRecovery || slot.generation != nil) && !slot.recoveryReady(group.UIDs) {
 				results[groupIndex].Err = ErrRouteNotReady
 				continue
 			}

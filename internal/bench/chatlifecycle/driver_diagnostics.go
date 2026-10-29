@@ -10,7 +10,8 @@ const driverDiagnosticCapacity = 16
 
 // DriverDeadlineMiss is a bounded, identity-free prefix of one real driver
 // turn at the original fresh-clock dispatch rejection. Durations share the
-// injected SessionClock; SDKAdmission is nested within WorkExecution.
+// injected SessionClock. Only work executed within that owner turn is covered;
+// asynchronous SDK execution has no timing or CPU attribution in this prefix.
 type DriverDeadlineMiss struct {
 	Turn             uint64        `json:"turn"`
 	Operation        string        `json:"operation"`
@@ -28,17 +29,22 @@ type DriverDeadlineMiss struct {
 	VerifierExpiry   time.Duration `json:"verifier_expiry"`
 	CompletionDrain  time.Duration `json:"completion_drain"`
 	WorkExecution    time.Duration `json:"work_execution"`
-	SDKAdmission     time.Duration `json:"sdk_admission"`
-	SDKAdmissionMax  time.Duration `json:"sdk_admission_max"`
+	// SDKAdmission and SDKAdmissionMax retain historical synchronous subspans
+	// of WorkExecution. The dispatcher leaves them zero; zero does not measure
+	// or bound asynchronous SDK execution outside the owner turn.
+	SDKAdmission    time.Duration `json:"sdk_admission"`
+	SDKAdmissionMax time.Duration `json:"sdk_admission_max"`
 	// Residual is elapsed sampled-to-fresh time outside the disjoint segments.
-	Residual            time.Duration `json:"residual"`
-	Processed           uint64        `json:"processed"`
-	Attempts            uint64        `json:"attempts"`
-	Retries             uint64        `json:"retries"`
-	CompletionInitial   uint64        `json:"completion_initial"`
-	CompletionAfterWork uint64        `json:"completion_after_work"`
-	CompletionFairness  uint64        `json:"completion_fairness"`
-	SessionsExpired     uint64        `json:"sessions_expired"`
+	Residual  time.Duration `json:"residual"`
+	Processed uint64        `json:"processed"`
+	// Attempts and Retries are historical synchronous calls within this prefix,
+	// not global attempt totals or asynchronous dispatcher observations.
+	Attempts            uint64 `json:"attempts"`
+	Retries             uint64 `json:"retries"`
+	CompletionInitial   uint64 `json:"completion_initial"`
+	CompletionAfterWork uint64 `json:"completion_after_work"`
+	CompletionFairness  uint64 `json:"completion_fairness"`
+	SessionsExpired     uint64 `json:"sessions_expired"`
 	// CorrelationsExpired uses the verifier's existing acknowledged-expiry count;
 	// it is not a count of all popped heap entries or released attempt receipts.
 	CorrelationsExpired uint64 `json:"correlations_expired"`
@@ -191,32 +197,23 @@ const (
 	driverDrainFairness
 )
 
-// drainDriverCompletions keeps the original unbounded-until-empty semantics.
-// The disabled path calls the unchanged drain without per-completion overhead.
+// drainDriverCompletions observes the same bounded owner share with diagnostics
+// enabled or disabled; observation cannot change dispatch or ACK fairness.
 func (e *Engine) drainDriverCompletions(t *driverTurn, location driverDrainLocation) {
 	if t == nil || e.driverDiagnostics.full.Load() {
 		e.drainCompletions()
 		return
 	}
 	started := e.driverNow(t)
-	var count uint64
-	for {
-		select {
-		case completion := <-e.completions:
-			e.observeCompletion(completion)
-			count++
-		default:
-			t.record.CompletionDrain += e.driverElapsed(t, started)
-			switch location {
-			case driverDrainInitial:
-				t.record.CompletionInitial += count
-			case driverDrainAfterWork:
-				t.record.CompletionAfterWork += count
-			case driverDrainFairness:
-				t.record.CompletionFairness += count
-			}
-			return
-		}
+	count := e.drainCompletionBatch(completionFairnessQuantum)
+	t.record.CompletionDrain += e.driverElapsed(t, started)
+	switch location {
+	case driverDrainInitial:
+		t.record.CompletionInitial += count
+	case driverDrainAfterWork:
+		t.record.CompletionAfterWork += count
+	case driverDrainFairness:
+		t.record.CompletionFairness += count
 	}
 }
 

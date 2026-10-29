@@ -209,6 +209,12 @@ func runConnectBudget(t *testing.T, topology string, nodes int) {
 	if nodes == 3 {
 		proof := fault.snapshot()
 		require.Equal(t, uint64(1), proof.DelaysStarted, "fault must hit exactly one owner read")
+		require.Contains(t, []string{"legacy_uid", "full_hash_slot"}, proof.DelayProtocol)
+		if proof.DelayProtocol == "full_hash_slot" {
+			require.Contains(t, []uint8{4, 5}, proof.DelayOperation)
+		} else {
+			require.Equal(t, uint8(11), proof.DelayOperation)
+		}
 		require.Equal(t, uint64(1), proof.DelayedFramesForwarded, "delayed request was not forwarded")
 		require.GreaterOrEqual(t, proof.HoldNanos, int64(delay))
 		require.Equal(t, "", proof.FailureKind, "fault fixture failed")
@@ -267,9 +273,18 @@ func freshRemoteUID(t *testing.T, slots []suite.SlotDTO, leaders []suite.ActualS
 		}
 	}
 	require.Len(t, coverage, 256)
+	// Full recovery completes a whole Hash Slot. A target sharing a readiness
+	// or independent receiver slot would legitimately have no cold owner Begin.
+	excluded := make(map[uint16]bool)
+	for _, uid := range []string{"e2e-budget-receiver-single_node_cluster", "e2e-budget-receiver-three_node_cluster", "e2e-ready-1", "e2e-ready-2", "e2e-ready-3"} {
+		excluded[routing.HashSlotForKey(uid, 256)] = true
+	}
 	for n := 0; n < 4096; n++ {
 		uid := fmt.Sprintf("e2e-connect-budget-fresh-%d", n)
 		hash := routing.HashSlotForKey(uid, 256)
+		if excluded[hash] {
+			continue
+		}
 		slot, ok := coverage[hash]
 		require.True(t, ok)
 		if nodes == 1 || actual[slot.SlotID] != 1 {

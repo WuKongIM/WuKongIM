@@ -26,6 +26,19 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Keep fresh SEND permission reads valid across unrelated control metadata
+  updates while retaining exact authority and local migration guards.
+  / 控制元数据更新不再误拒绝新鲜的 SEND 权限读取，保留精确权威与本节点迁移校验。
+
+- Fence presence activation to committed authority generations and reconstruct
+  complete Hash Slots through bounded owner pages; expired uncertain routes stay
+  unavailable until verified. / 在线路由激活绑定已提交的权威代际，按有界 owner
+  分页恢复整槽；过期但未核清的路由不会被误判为离线。
+
+- Isolate slow benchmark-client submission from the lifecycle scheduling owner,
+  retaining per-session order, original dispatch deadlines and retry capacity.
+  / 生命周期压测隔离慢客户端发送准入，保留会话顺序、原始派发截止时间与重试容量。
+
 - Reduce temporary allocations when reading presence route snapshots, including
   recovery readback and multiple devices, while preserving route order and ownership.
   / 减少在线路由快照查询（含恢复读回和多设备）的临时分配，保留路由顺序与结果独立性。

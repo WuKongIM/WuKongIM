@@ -114,8 +114,9 @@ Stop or startup rollback
   edits cannot change the content used to prove a send retry.
 - Startup failure rolls back completed components in reverse order. Constructor
   failure releases constructor-owned pools, sinks, and audit resources.
-- Presence wiring shares one owner boot identity between session activation and
-  recovery replies and owns bounded UID recovery; Stop/rollback joins it before cluster close, and retry rebuilds a drained cohort.
+- Full Presence shares the Node capability boot, monotonic sequence and receipts.
+  Support is advertised after handlers bind. Stop/rollback joins caller and slot
+  ownership before cluster close; reopening atomically replaces stable forwarding.
 - Gateway admission opens only after cluster write routing and required runtime
   readiness. Joining nodes remain fenced until observed membership permits it.
 - Backup RPC binds one target-local Controller repository resolver to all four
@@ -139,8 +140,7 @@ Top ACK-binding counts use independent atomic publication while delivery seriali
 - `diagnostics.attempt_link_enable` is separately default-off and requires general diagnostics. It composes the fixed65536 invocation summary rows and two separately bounded indexes only when enabled, leaving ordinary diagnostic retention unchanged. The sink maps existing original forward events through fixed upper TraceID bindings; the API receives detached summary and local RPC read ports. These observations do not alter admission, durability, deadlines or gates.
 
 ## Read First
-- [app.go](app.go)
-- [FLOW_PRODUCT_RUNTIME.md](FLOW_PRODUCT_RUNTIME.md)
+- [app.go](app.go), [Presence wiring](presence_generation.go)
 - [backup.go](backup.go)
 - [issue_agent.go](issue_agent.go)
 - [review_agent.go](review_agent.go)

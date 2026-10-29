@@ -76,6 +76,14 @@ func (s *ClusterState) Normalize() {
 			return s.OpsMCP.Credentials[i].ID < s.OpsMCP.Credentials[j].ID
 		})
 	}
+	if s.Presence != nil {
+		sort.Slice(s.Presence.OwnerSet.Owners, func(i, j int) bool {
+			return s.Presence.OwnerSet.Owners[i].NodeID < s.Presence.OwnerSet.Owners[j].NodeID
+		})
+		sort.Slice(s.Presence.Generations, func(i, j int) bool {
+			return s.Presence.Generations[i].Fence.HashSlot < s.Presence.Generations[j].Fence.HashSlot
+		})
+	}
 	sort.Slice(s.Controllers, func(i, j int) bool { return s.Controllers[i].NodeID < s.Controllers[j].NodeID })
 	sort.Slice(s.Nodes, func(i, j int) bool { return s.Nodes[i].NodeID < s.Nodes[j].NodeID })
 	sort.Slice(s.Slots, func(i, j int) bool { return s.Slots[i].SlotID < s.Slots[j].SlotID })
@@ -121,6 +129,10 @@ func (s ClusterState) Clone() ClusterState {
 	if s.OpsMCP != nil {
 		opsMCP := s.OpsMCP.Clone()
 		out.OpsMCP = &opsMCP
+	}
+	if s.Presence != nil {
+		presence := s.Presence.Clone()
+		out.Presence = &presence
 	}
 	return out
 }

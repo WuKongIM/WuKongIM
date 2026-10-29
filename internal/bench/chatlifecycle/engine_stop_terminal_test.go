@@ -27,6 +27,7 @@ func TestEngineStopRecordsSessionClosedWithoutGeneratorInvariant(t *testing.T) {
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	if err := fixture.engine.Stop(); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
@@ -75,6 +76,7 @@ func TestEngineStopKeepsMissingCompletedAndInvalidVerifierStateStrict(t *testing
 			if _, err := fixture.engine.Advance(now); err != nil {
 				t.Fatalf("Advance: %v", err)
 			}
+			waitForEngineAdmissions(t, fixture.engine)
 			switch name {
 			case "missing_pending":
 				assertVerificationCode(t, fixture.verifier.CompleteTerminal(intent.Logical, TerminalSendNonRetriable), FailureCodeTerminalSend)
@@ -126,6 +128,7 @@ func TestEngineStopPreservesOriginalRetryExhaustionBeforePendingCleanup(t *testi
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("initial Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	for attempt := uint8(0); attempt <= 3; attempt++ {
 		now = now.Add(time.Second)
 		fixture.clock.Set(now)
@@ -143,6 +146,7 @@ func TestEngineStopPreservesOriginalRetryExhaustionBeforePendingCleanup(t *testi
 		if _, err := fixture.engine.Advance(now); err != nil {
 			t.Fatalf("retry Advance: %v", err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 	}
 	pending := fixture.intent(t, uid, "pending-after-timeout-group", 148, TrafficGroup)
 	if err := fixture.engine.SubmitGranted(pending, now); err != nil {
@@ -151,6 +155,7 @@ func TestEngineStopPreservesOriginalRetryExhaustionBeforePendingCleanup(t *testi
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("pending Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	if err := fixture.engine.Stop(); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}

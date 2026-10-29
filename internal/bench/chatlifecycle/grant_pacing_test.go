@@ -166,6 +166,7 @@ func TestEngineDeferredGrantPreservesArrivalWindow(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 		wantInitial := uint64(0)
 		if scenario == "late roster recovery" {
 			wantInitial = 1 // Existing roster gaps retain their separate eligibility budget.
@@ -187,6 +188,7 @@ func TestEngineDeferredGrantPreservesArrivalWindow(t *testing.T) {
 			} else if err != nil {
 				t.Fatal(err)
 			}
+			waitForEngineAdmissions(t, fixture.engine)
 			if sent := fixture.verifier.Snapshot().Sent; sent != wantSent {
 				t.Fatalf("recovered route %s sent=%d want=%d", scenario, sent, wantSent)
 			}

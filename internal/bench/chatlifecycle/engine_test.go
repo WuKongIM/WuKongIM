@@ -76,6 +76,7 @@ func TestEngineOwnsBoundedSessionsRelationshipsAndFutureWork(t *testing.T) {
 	if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
 		t.Fatalf("Advance granted traffic: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	if got := fixture.factory.sentCount(); got != 1 {
 		t.Fatalf("sparse-online transport sends = %d, want one online-routed grant", got)
 	}
@@ -95,13 +96,14 @@ func TestEngineRegistersSendLatencyAtPhysicalAdmissionTime(t *testing.T) {
 	intent := fixture.intent(t, sender, fixture.identity.UID(1), 1, TrafficPerson)
 	ownerAt := fixture.clock.Now()
 	physicalAdmissionAt := ownerAt.Add(90 * time.Millisecond)
+	if err := fixture.engine.SubmitGranted(intent, ownerAt); err != nil {
+		t.Fatal(err)
+	}
 	fixture.clock.Set(physicalAdmissionAt)
-	if !fixture.pool.acquireSendLease(sender) {
-		t.Fatal("acquireSendLease() = false")
+	if _, err := fixture.engine.Advance(ownerAt); err != nil {
+		t.Fatal(err)
 	}
-	if err := fixture.engine.processAttempt(context.Background(), intent, 0, ownerAt); err != nil {
-		t.Fatalf("processAttempt: %v", err)
-	}
+	waitForEngineAdmissions(t, fixture.engine)
 
 	fixture.verifier.sendMu.Lock()
 	registeredAt := fixture.verifier.pending[intent.Logical.ClientMsgNo].registeredAt
@@ -178,6 +180,7 @@ func TestEngineTickRoutesEveryGrantThroughCurrentlyOnlineEligibleSender(t *testi
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	if sent := fixture.factory.sentCount() - before; sent != 100 {
 		t.Fatalf("actual first-attempt SENDs = %d, want one per 100 grants", sent)
 	}
@@ -250,6 +253,7 @@ func TestEngineExactOnePercentSampledPersonRoutesHaveOnlineRecipient(t *testing.
 		if _, err := fixture.engine.Advance(now); err != nil {
 			t.Fatalf("Advance at person route %d: %v", len(personRoutes), err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 		waitForEngineCompletions(t, fixture.engine, fmt.Sprintf("person route %d", len(personRoutes)))
 		routes := fixture.factory.sentRoutes()
 		for _, route := range routes[seenRoutes:] {
@@ -381,6 +385,7 @@ func TestEngineSampledGroupRouteRequiresDistinctOnlineRecipient(t *testing.T) {
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	if snapshot := fixture.verifier.Snapshot(); snapshot.Sampled != 1 || snapshot.CorrelationCurrent != 1 {
 		t.Fatalf("eligible sampled group verification state = %+v", snapshot)
 	}
@@ -601,6 +606,7 @@ func TestEngineSampledPersonRecipientDoesNotExpireBeforeCorrelationSettles(t *te
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("Advance(send): %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	waitForEngineCompletions(t, fixture.engine, "sampled person SENDACK")
 	if snapshot := fixture.verifier.Snapshot(); snapshot.Sampled != 1 || snapshot.CorrelationCurrent != 1 || snapshot.Acknowledged != 1 {
 		t.Fatalf("sampled correlation after SENDACK = %+v", snapshot)
@@ -705,6 +711,7 @@ func TestEngineStopReleasesOutstandingSampledRecipientLease(t *testing.T) {
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("Advance(send): %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	waitForEngineCompletions(t, fixture.engine, "sampled person SENDACK")
 	if snapshot := fixture.verifier.Snapshot(); snapshot.CorrelationCurrent != 1 || snapshot.Acknowledged != 1 {
 		t.Fatalf("sampled correlation before Stop = %+v", snapshot)
@@ -1799,6 +1806,7 @@ func TestEngineReturningCandidateColdRevisitUsesOldEdgeAndRevisitIdentityDomain(
 		if _, err := fixture.engine.Advance(due); err != nil {
 			t.Fatalf("revisit send Advance(%d): %v", tick, err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 		routes := fixture.factory.sentRoutes()[before:]
 		for _, route := range routes {
 			marker, err := DecodePayloadMarker(route.packet.Payload)
@@ -2060,6 +2068,7 @@ func TestEngineDelayedCompletionUsesExactlyThreeStableRetries(t *testing.T) {
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("attempt zero: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	for completed := uint8(0); completed < 3; completed++ {
 		attempt, err := fixture.retry.Attempt(intent.Logical, completed+1)
 		if err != nil {
@@ -2070,6 +2079,7 @@ func TestEngineDelayedCompletionUsesExactlyThreeStableRetries(t *testing.T) {
 		if _, err := fixture.engine.Advance(now); err != nil {
 			t.Fatalf("retry %d Advance: %v", completed+1, err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 	}
 	packets := fixture.factory.sentPackets()
 	if len(packets) != 4 {
@@ -2136,6 +2146,7 @@ func TestEngineSessionExpiryWaitsForAdmittedSendCompletion(t *testing.T) {
 	if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
 		t.Fatalf("Advance(send): %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	packets := fixture.factory.sentPackets()
 	if len(packets) != 1 {
 		t.Fatalf("sent packets = %d, want 1", len(packets))
@@ -2266,6 +2277,7 @@ func TestEngineSuccessfulFirstPersonSendCountsOneExactMetaCreateHashSlot(t *test
 	if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	packet := fixture.factory.sentPackets()[0]
 	ack := &frame.SendackPacket{
 		ClientSeq: packet.ClientSeq, ClientMsgNo: intent.Logical.ClientMsgNo,
@@ -2332,6 +2344,7 @@ func TestEngineSuccessfulFirstGroupSendCountsOneExactMetaCreateHashSlot(t *testi
 		if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
 			t.Fatalf("Advance(%d): %v", ordinal, err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 		packets := fixture.factory.sentPackets()
 		packet := packets[len(packets)-1]
 		ack := &frame.SendackPacket{
@@ -2381,6 +2394,7 @@ func TestEngineNonRetriableSendackFailsWithoutRetry(t *testing.T) {
 	if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	ack := &frame.SendackPacket{
 		ClientSeq:   fixture.factory.sentPackets()[0].ClientSeq,
 		ClientMsgNo: intent.Logical.ClientMsgNo, ReasonCode: frame.ReasonAuthFail,
@@ -2421,11 +2435,13 @@ func TestEngineLateSuccessfulSendackCancelsScheduledRetry(t *testing.T) {
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("initial Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	now = now.Add(20 * time.Millisecond)
 	fixture.clock.Set(now)
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("timeout Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	if snapshot, _ := fixture.engine.Snapshot(); snapshot.RetryQueueDepth != 1 {
 		t.Fatalf("retry queue before late ACK = %+v", snapshot)
 	}
@@ -2467,6 +2483,7 @@ func TestEngineRetryExhaustionClassifiesAttemptTimeout(t *testing.T) {
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("initial Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 
 	for attempt := uint8(0); attempt <= uint8(len(fixedRetryBases)); attempt++ {
 		now = now.Add(time.Second)
@@ -2485,6 +2502,7 @@ func TestEngineRetryExhaustionClassifiesAttemptTimeout(t *testing.T) {
 		if _, err := fixture.engine.Advance(now); err != nil {
 			t.Fatalf("retry %d Advance: %v", attempt+1, err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 	}
 
 	snapshot := fixture.verifier.Snapshot()
@@ -2517,6 +2535,7 @@ func TestEngineRetryExhaustionFromLocalAdmissionIsHarnessInvalid(t *testing.T) {
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("initial Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 
 	for attempt := uint8(1); attempt <= uint8(len(fixedRetryBases)); attempt++ {
 		retry, err := fixture.retry.Attempt(intent.Logical, attempt)
@@ -2526,7 +2545,11 @@ func TestEngineRetryExhaustionFromLocalAdmissionIsHarnessInvalid(t *testing.T) {
 		now = now.Add(retry.Delay)
 		fixture.clock.Set(now)
 		_, advanceErr := fixture.engine.Advance(now)
+		waitForEngineAdmissions(t, fixture.engine)
 		if attempt == uint8(len(fixedRetryBases)) {
+			// The terminal SDK result rejoins asynchronously. Observe it on
+			// the next turn without changing the original attempt clock.
+			_, advanceErr = fixture.engine.Advance(now)
 			assertRuntimeFailure(t, advanceErr, RuntimeFailureCode("transport_admission_saturated"))
 			break
 		}
@@ -2575,6 +2598,7 @@ func TestEngineNonTerminalAsyncSendErrorSchedulesOwnedRetryWithoutDisconnect(t *
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	client := fixture.factory.clients()[0]
 	clientSeq := fixture.factory.sentPackets()[0].ClientSeq
 	client.readErrors <- &engineFakeReadError{kind: wkproto.ReadErrorNonTerminal, clientSeq: clientSeq, clientMsgNo: intent.Logical.ClientMsgNo}
@@ -2619,11 +2643,13 @@ func TestEngineOverlappingAttemptsKeepCurrentOwnershipAndAcceptEitherSuccess(t *
 		if _, err := fixture.engine.Advance(now); err != nil {
 			t.Fatalf("attempt zero Advance: %v", err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 		now = now.Add(time.Millisecond)
 		fixture.clock.Set(now)
 		if _, err := fixture.engine.Advance(now); err != nil {
 			t.Fatalf("attempt zero timeout Advance: %v", err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 		retry, err := fixture.retry.Attempt(intent.Logical, 1)
 		if err != nil {
 			t.Fatalf("retry Attempt: %v", err)
@@ -2633,6 +2659,7 @@ func TestEngineOverlappingAttemptsKeepCurrentOwnershipAndAcceptEitherSuccess(t *
 		if _, err := fixture.engine.Advance(now); err != nil {
 			t.Fatalf("attempt one Advance: %v", err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 		packets := fixture.factory.sentPackets()
 		if len(packets) != 2 || packets[0].ClientSeq == packets[1].ClientSeq || packets[0].ClientMsgNo != packets[1].ClientMsgNo {
 			t.Fatalf("overlapping packets = %+v", packets)
@@ -2770,6 +2797,7 @@ func TestEngineQueueAndCPUSaturationAreHarnessInvalid(t *testing.T) {
 	}
 	_, err := fixture.engine.Advance(now)
 	assertRuntimeFailure(t, err, RuntimeFailureEngineCPUSaturated)
+	waitForEngineAdmissions(t, fixture.engine)
 	snapshot, err := fixture.engine.Snapshot()
 	if err != nil {
 		t.Fatalf("Snapshot: %v", err)
@@ -2834,6 +2862,7 @@ func TestEngineColdCreateDoesNotRetryAtHotDeadline(t *testing.T) {
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("initial Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	if got := fixture.factory.sentCount(); got != 1 {
 		t.Fatalf("initial attempts = %d, want 1", got)
 	}
@@ -2843,6 +2872,7 @@ func TestEngineColdCreateDoesNotRetryAtHotDeadline(t *testing.T) {
 	if _, err := fixture.engine.Advance(hotDeadline); err != nil {
 		t.Fatalf("hot-deadline Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	if snapshot, _ := fixture.engine.Snapshot(); snapshot.RetryQueueDepth != 0 || snapshot.RetryAttempts != 0 {
 		t.Fatalf("cold create retried at hot deadline: %+v", snapshot)
 	}
@@ -2852,6 +2882,7 @@ func TestEngineColdCreateDoesNotRetryAtHotDeadline(t *testing.T) {
 	if _, err := fixture.engine.Advance(coldDeadline); err != nil {
 		t.Fatalf("cold-deadline Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	if snapshot, _ := fixture.engine.Snapshot(); snapshot.RetryQueueDepth != 1 || snapshot.RetryAttempts != 0 {
 		t.Fatalf("cold timeout did not schedule its bounded retry: %+v", snapshot)
 	}
@@ -2939,6 +2970,7 @@ func TestEngineGenerationScopesRealPrimaryLifecycleGroupAndCanaryIdentities(t *t
 		if _, err := fixture.engine.Advance(now); err != nil {
 			t.Fatalf("Advance: %v", err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 		packets := fixture.factory.sentPackets()[before:]
 		if len(packets) != 101 {
 			t.Fatalf("primary+canary packets = %d, want 101", len(packets))
@@ -3811,6 +3843,7 @@ func TestEngineApplyGrantCanceledBeforeAdmissionDoesNotMutateAndRetryAppliesOnce
 	if err != nil || !retried.Admitted || retried.Snapshot.Released != 10 {
 		t.Fatalf("retried grant = %+v, %v; want admitted release 10", retried, err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	if got := fixture.engine.generator.Snapshot().PrimaryReleased - beforeGenerator.PrimaryReleased; got != 10 {
 		t.Fatalf("retried grant generated primary delta %d, want exactly 10", got)
 	}
@@ -3841,11 +3874,13 @@ func TestEngineApplyGrantCanceledBeforeAdmissionDoesNotMutateAndRetryAppliesOnce
 		if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
 			t.Fatalf("Advance paced second grant: %v", err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 	}
 	fixture.clock.Set(now.Add(time.Second - time.Nanosecond))
 	if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
 		t.Fatalf("Advance final paced arrival: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	if got := fixture.factory.sentCount() - secondSentBefore; got != 10 {
 		t.Fatalf("second grant async drain sent %d messages, want 10", got)
 	}
@@ -4461,6 +4496,7 @@ func TestEngineStepStartsLoginsConcurrentlyWithoutBlockingTrafficAndStopJoinsThe
 		_ = fixture.engine.Stop()
 		t.Fatal("Step blocked on the first login instead of advancing traffic")
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	if stepResult.Advanced != 1 || fixture.factory.sentCount() != 1 {
 		close(connectRelease)
 		_ = fixture.engine.Stop()
@@ -4878,6 +4914,7 @@ func TestEngineFormalWorkerAcceptsFirstCoordinatorGrantAfterBootstrap(t *testing
 				snapshot, snapshotErr := fixture.engine.Snapshot()
 				t.Fatalf("first formal ApplyGrant = %+v, %v; bootstrap_errors=%d limits=%+v snapshot=%+v error=%v", result, err, bootstrapErrors, limits, snapshot, snapshotErr)
 			}
+			waitForEngineAdmissions(t, fixture.engine)
 			routes := fixture.factory.sentRoutes()[beforeRoutes:]
 			senders := make(map[string]struct{}, len(routes))
 			for _, route := range routes {
@@ -6574,6 +6611,7 @@ func TestEngineLocalThreeNodeTwoThousandQPSFirstGrantUsesDistinctSenders(t *test
 			if err != nil || !grant.Admitted || grant.Snapshot.Released != rate.Released[workerID] {
 				t.Fatalf("ApplyGrant release %d = %+v, %v", rate.Released[workerID], grant, err)
 			}
+			waitForEngineAdmissions(t, fixture.engine)
 			routes := fixture.factory.sentRoutes()[before:]
 			senders := make(map[string]struct{}, len(routes))
 			personSenders := make(map[string]struct{}, len(routes))
@@ -6912,6 +6950,7 @@ func TestEngineFormalTickRoutesTwoThousandGrantsToOnlineEligibleSenders(t *testi
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	routes := fixture.factory.sentRoutes()[before:]
 	if len(routes) != 2_000 {
 		t.Fatalf("first-attempt routes = %d, want 2000", len(routes))
@@ -6976,13 +7015,30 @@ func waitForEngineCompletions(t testing.TB, engine *Engine, stage string) Engine
 		if err != nil {
 			t.Fatalf("%s Snapshot: %v", stage, err)
 		}
-		if snapshot.InflightCurrent == 0 && snapshot.RetryQueueDepth == 0 {
+		if snapshot.InflightCurrent == 0 && snapshot.RetryQueueDepth == 0 && snapshot.AdmissionPending == 0 {
 			return snapshot
 		}
 		runtime.Gosched()
 	}
 	t.Fatalf("%s completions did not settle: %+v", stage, snapshot)
 	return snapshot
+}
+
+// waitForEngineAdmissions observes the public local-submission boundary before
+// a fake-clock test advances time. It deliberately does not wait for an ACK.
+func waitForEngineAdmissions(t testing.TB, engine *Engine) {
+	t.Helper()
+	for range 10_000 {
+		snapshot, err := engine.Snapshot()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if snapshot.AdmissionPending == 0 {
+			return
+		}
+		runtime.Gosched()
+	}
+	t.Fatal("local admissions did not settle")
 }
 
 func approveCurrentColdRevisit(t *testing.T, engine *Engine, identity string) (bool, error) {
@@ -7037,12 +7093,15 @@ func assertUnderDeliveryEvidence(t *testing.T, snapshot EvidenceSnapshot, want u
 }
 
 type engineTestLimits struct {
+	// ClientFactory supplies a transport adapter at the public SessionPool seam.
+	ClientFactory             SessionClientFactory
 	Formal                    bool
 	IdentityRunID             string
 	IdentitySeed              uint64
 	CommandCapacity           int
 	WorkCapacity              int
 	InflightCapacity          int
+	RetryCapacity             int
 	MaxWorkPerAdvance         int
 	AttemptTimeout            time.Duration
 	ColdAttemptTimeout        time.Duration
@@ -7150,12 +7209,16 @@ func newEngineTestFixture(t testing.TB, limits engineTestLimits) engineTestFixtu
 	}
 	clock := &sessionFakeClock{now: time.Unix(1_700_000_000, 0)}
 	factory := &engineFakeFactory{}
+	var clientFactory SessionClientFactory = factory
+	if limits.ClientFactory != nil {
+		clientFactory = limits.ClientFactory
+	}
 	startingCapacity := limits.StartingCapacity
 	if startingCapacity == 0 {
 		startingCapacity = 128
 	}
 	pool, err := NewSessionPool(SessionPoolConfig{
-		Identity: identity, Schedule: schedule, Catalog: catalog, Factory: factory, Syncer: engineSyncer{},
+		Identity: identity, Schedule: schedule, Catalog: catalog, Factory: clientFactory, Syncer: engineSyncer{},
 		Verifier: verifier, Clock: clock, DeviceID: "engine-test", StartingCapacity: startingCapacity,
 	})
 	if err != nil {
@@ -7196,11 +7259,15 @@ func newEngineTestFixture(t testing.TB, limits engineTestLimits) engineTestFixtu
 	if inflightCapacity == 0 {
 		inflightCapacity = 64
 	}
+	retryCapacity := limits.RetryCapacity
+	if retryCapacity == 0 {
+		retryCapacity = 64
+	}
 	engine, err := NewEngine(EngineConfig{
 		Clock: clock, Sessions: pool, Schedule: schedule, Graph: graph, Traffic: traffic,
 		Generator: generator, Retry: retry, Verifier: verifier, Evidence: evidence,
 		WorkerID: limits.WorkerID, WorkerCount: workerCount,
-		CommandCapacity: commandCapacity, WorkCapacity: workCapacity, RetryCapacity: 64,
+		CommandCapacity: commandCapacity, WorkCapacity: workCapacity, RetryCapacity: retryCapacity,
 		InflightCapacity: inflightCapacity, MaxWorkPerAdvance: maxWork, AttemptTimeout: attemptTimeout,
 		ColdAttemptTimeout:        coldAttemptTimeout,
 		ActivityEligibilityWindow: activityEligibilityWindow,

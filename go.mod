@@ -5,6 +5,7 @@ go 1.25.0
 toolchain go1.25.11
 
 require (
+	github.com/RaduBerinde/btreemap v0.0.0-20250419174037-3d62b7205d54
 	github.com/WuKongIM/wklog v0.0.0-20250123094253-32484fb54d05
 	github.com/WuKongIM/wkrpc v0.0.0-20250312122115-5e44de72d2c8
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.2
@@ -62,7 +63,6 @@ require (
 require (
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/RaduBerinde/axisds v0.1.0 // indirect
-	github.com/RaduBerinde/btreemap v0.0.0-20250419174037-3d62b7205d54 // indirect
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108 // indirect
 	github.com/alibabacloud-go/alibabacloud-gateway-pop v0.0.8 // indirect
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5 // indirect

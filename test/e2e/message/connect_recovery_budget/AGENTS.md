@@ -31,8 +31,9 @@ unchanged protocol budgets. Require public readiness and stable actual Slot
 Raft leaders. Public Manager inventory plus the public routing hash primitive
 selects a fresh UID whose authority differs from ingress1 in the three-node case.
 Provision an independent receiver first, then the target Token; arm the proxy
-only before the target's one CONNECT. Delay only the first target SID14/op11
-request350ms. SID13/op1 counts remote Register invocations. Match only a bounded
+only before the target's one CONNECT. Delay only the first target SID14/op11 legacy UID read or Full WKVG/v1
+SID14 Begin/Page for its exact Hash Slot by350ms. SID13/op1 counts remote
+Register invocations in the matched legacy or Full protocol. Match only a bounded
 fixture-UID byte pattern; never retain or print UID/token/body/error text.
 
 Use the optional generic upstream copy seam in suite.ClusterTCPPartition. Keep
@@ -61,3 +62,22 @@ vocabulary, binary SHA, numeric topology/placement/budget/timing/counters,
 recognized CONNACK reason and final client/copy/process cleanup booleans. They
 are written0600 after cleanup, capped16KiB. No arbitrary error, UID, device,
 Token, payload or raw frame enters them. Keep old baseline RED evidence intact.
+
+## Full-protocol relay adaptation failure controls
+
+Before adapting the matcher, retain these controls: a version-1 `WKVG` Begin
+(op4) or Page (op5) for the target Hash Slot contains no target UID, must still
+receive the single 350ms owner-read hold, and must preserve every original
+transport byte. Count exact target Register through either legacy `WKVP` or
+Full `WKVG` (op1), without replay. Other Hash Slots, versions, services, End,
+malformed claim prefixes and same-node traffic must not consume the delay.
+Cancellation still joins delayed work; original request budgets, body cap,
+3s activation/5s client budgets, one-shot fault and single-node control remain.
+
+The full-slot fixture must exclude the independent receiver and the suite's
+known authenticated readiness UIDs from target Hash Slot selection. Otherwise
+those successful CONNECTs may already complete the whole target slot, making
+an absent Begin a fixture miss. The relay reports which protocol/operation was
+actually held; an unhit old fault is never a candidate pass. It recognizes only
+the fixed public wire selector and forwards untouched; product handlers retain
+full request validation. It does not import entry/runtime packages.

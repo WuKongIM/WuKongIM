@@ -30,8 +30,8 @@ const (
 	// lifecycleApprovalReplayCapacity covers every member of the one fixed
 	// cohort completing inside the same retained retry window.
 	lifecycleApprovalReplayCapacity = lifecycleCohortSize
-	// completionFairnessQuantum bounds consecutive SEND work before the engine
-	// yields one scheduler turn to session drains and rechecks completions.
+	// completionFairnessQuantum bounds each completion batch and consecutive
+	// SEND work before yielding to session drains and rechecking completions.
 	completionFairnessQuantum = 32
 	// grantDispatchTolerance permits ten subsecond scheduler intervals of
 	// jitter. Older primary arrivals become explicit under-delivery instead of
@@ -48,7 +48,7 @@ var (
 	errGroupRouteUnavailable = errors.New("chat lifecycle engine: group route is temporarily unavailable")
 )
 
-// EngineConfig fixes every local retained-state and per-advance CPU bound.
+// EngineConfig fixes every local retained-state and per-advance work bound.
 type EngineConfig struct {
 	Clock     SessionClock
 	Sessions  *SessionPool
@@ -123,18 +123,21 @@ type EngineSnapshot struct {
 	FutureCurrent             int
 	ActivityCurrent           int
 	// DeferredGroupRoutes counts accepted primary grants waiting for a fixed-roster route.
-	DeferredGroupRoutes        int
-	ActivityUnderDelivered     uint64
-	ActivityFutureCanceled     uint64
-	ActivityPlannedCanceled    uint64
-	QueuePeak                  int
-	QueueCapacity              int
-	RetryQueueDepth            int
-	RetryQueuePeak             int
-	RetryQueueCapacity         int
-	InflightCurrent            int
-	InflightPeak               int
-	InflightCapacity           int
+	DeferredGroupRoutes     int
+	ActivityUnderDelivered  uint64
+	ActivityFutureCanceled  uint64
+	ActivityPlannedCanceled uint64
+	QueuePeak               int
+	QueueCapacity           int
+	RetryQueueDepth         int
+	RetryQueuePeak          int
+	RetryQueueCapacity      int
+	InflightCurrent         int
+	InflightPeak            int
+	InflightCapacity        int
+	// AdmissionPending owns queued or executing local SDK submissions until
+	// their result rejoins the owner; queued submissions are not verifier SENDs.
+	AdmissionPending           int
 	TransportQueueDepth        int
 	TransportQueueCapacity     int
 	TransportInflight          int
@@ -836,9 +839,16 @@ type Engine struct {
 	scheduler        sessionScheduler
 	schedulerMetrics sessionSchedulerMetrics
 
-	activeLoops       atomic.Int64
-	activeSteps       atomic.Int64
-	commandSaturation atomic.Uint64
+	activeLoops atomic.Int64
+	// Dispatcher tickets retain work credit until the SDK result rejoins.
+	// These counters and the first failure are mutated only by the owner.
+	dispatcher             *engineDispatcher
+	admissionQueued        int
+	admissionInitialQueued int
+	admissionOutstanding   int
+	admissionError         error
+	activeSteps            atomic.Int64
+	commandSaturation      atomic.Uint64
 
 	// The fields below are owned exclusively by the active command loop.
 	work          engineWorkHeap
@@ -890,8 +900,8 @@ type Engine struct {
 	grantSenders       map[string]struct{}
 	grantRoutingActive bool
 	// externalGrantsApplied keeps only the generation-local control sequence.
-	// The first pre-clock grant drains synchronously; later grants only admit
-	// bounded work so data-plane pressure cannot consume the one-second RPC.
+	// The first pre-clock grant queues immediately; later grants retain their
+	// seeded due times. Neither waits for local SDK calls in the grant RPC.
 	externalGrantsApplied   uint64
 	retryAttempts           uint64
 	finalFailures           uint64
@@ -1072,6 +1082,10 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.externalGrantsApplied = 0
 	e.workPeak = 0
 	e.queuedSends = 0
+	e.admissionQueued = 0
+	e.admissionInitialQueued = 0
+	e.admissionOutstanding = 0
+	e.admissionError = nil
 	e.inflightPeak = 0
 	e.nextOrder = 0
 	e.nextClientSeq = 0
@@ -1116,15 +1130,20 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.accepting = true
 	e.stopping = false
 	e.cached = e.emptySnapshot(true)
-	// One owner loop plus one bounded session-expiry cleanup loop are active for
-	// the generation; neither scales with users or Channels.
-	e.activeLoops.Add(2)
+	// Admission workers are fixed and joined; no loop scales with online users.
+	workers := min(engineAdmissionWorkers, e.workCapacity, e.inflightCapacity)
+	commands, generationCtx := e.commands, e.generationCtx
+	e.dispatcher = newEngineDispatcher(e.workCapacity, workers,
+		func(a *engineAdmission) { e.runAdmission(a, commands, generationCtx) },
+		func() { e.activeLoops.Add(-1) })
+	e.activeLoops.Add(int64(2 + workers))
 	go e.loop(e.commands, e.stop, e.done)
+	e.dispatcher.start()
 	return nil
 }
 
-// Stop fences admission, joins generation-bound Step, session, login, and
-// public Tick operations, then joins every session drain and the owner loop.
+// Stop fences admission, joins generation-bound operations and SDK executors,
+// then joins every session drain and the owner loop before allowing restart.
 func (e *Engine) Stop() error {
 	if e == nil {
 		return nil
@@ -1154,6 +1173,7 @@ func (e *Engine) Stop() error {
 	// Tick waits last because Tick, Step, and Advance share stepMu. Generation
 	// cancellation lets a waiting Tick leave after the earlier holder finishes.
 	e.tickOps.Wait()
+	e.dispatcher.closeAndWait()
 	e.sessions.stopExpiryCleanup()
 	e.activeLoops.Add(-1)
 	// Context-aware calls may return before their already-admitted owner
@@ -1165,7 +1185,9 @@ func (e *Engine) Stop() error {
 	closeErr := e.sessions.CloseAll()
 	barrier := make(chan struct{}, 1)
 	e.commands <- engineCommand{run: func() {
-		e.drainCompletions()
+		// All producers have joined, so one complete queue-capacity batch is
+		// the exact terminal drain rather than an unbounded runtime loop.
+		e.drainCompletionBatch(cap(e.completions))
 		barrier <- struct{}{}
 	}}
 	<-barrier
@@ -1899,7 +1921,8 @@ func (e *Engine) scheduleReturningCandidate(candidate ReturningCandidate, loginO
 	return <-response
 }
 
-// Advance processes due heaps with a fixed CPU work budget.
+// Advance processes due heaps with a fixed work budget. SEND work transfers to
+// the bounded dispatcher; return does not prove SDK completion or SENDACK.
 func (e *Engine) Advance(now time.Time) (int, error) {
 	generationCtx, ok := e.beginSessionOp()
 	if !ok {
@@ -2437,7 +2460,7 @@ func (e *Engine) FencePlannedShutdown(ctx context.Context) error {
 		e.drainCompletions()
 		drain := e.verifier.DrainSnapshot()
 		if drain.PendingUnfinished != 0 || drain.CorrelationOutstanding != 0 || len(e.inflight) != 0 || e.queuedSends != 0 ||
-			e.retries.Snapshot().Depth != 0 || e.deferredGroupRoutes != 0 {
+			e.retries.Snapshot().Depth != 0 || e.deferredGroupRoutes != 0 || e.admissionOutstanding != 0 {
 			response <- errEngineNotDrained
 			return
 		}
@@ -2866,7 +2889,7 @@ func (e *Engine) newEligibilityDeadline(due time.Time) (time.Time, error) {
 	return deadline, nil
 }
 
-func (e *Engine) futureCount() int { return len(e.work) + len(e.activity) }
+func (e *Engine) futureCount() int { return len(e.work) + len(e.activity) + e.admissionOutstanding }
 
 func (e *Engine) observeWorkPeak() {
 	if current := e.futureCount(); current > e.workPeak {
@@ -2891,7 +2914,7 @@ func (e *Engine) advance(ctx context.Context, now time.Time, turn *driverTurn) a
 		turn.record.CorrelationsExpired += uint64(expired)
 	}
 	e.drainDriverCompletions(turn, driverDrainInitial)
-	var result advanceResult
+	result := advanceResult{err: e.admissionError}
 	sentWorkSinceYield := 0
 	generationTerminal := false
 	for result.processed < e.maxWork {
@@ -2946,14 +2969,23 @@ func (e *Engine) advance(ctx context.Context, now time.Time, turn *driverTurn) a
 }
 
 func (e *Engine) drainCompletions() {
-	for {
+	e.drainCompletionBatch(completionFairnessQuantum)
+}
+
+// drainCompletionBatch gives completion work a fixed share of an owner turn.
+// A busy producer cannot keep an already-admitted grant or SEND out forever.
+func (e *Engine) drainCompletionBatch(limit int) uint64 {
+	var count uint64
+	for count < uint64(limit) {
 		select {
 		case completion := <-e.completions:
 			e.observeCompletion(completion)
+			count++
 		default:
-			return
+			return count
 		}
 	}
+	return count
 }
 
 func (e *Engine) observeCompletion(completion engineCompletion) {
@@ -2995,7 +3027,7 @@ func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Tim
 				e.releaseUnstartedSendLease(work.intent),
 			)
 		}
-		return e.processAttempt(ctx, work.intent, work.attempt, now)
+		return e.queueAttempt(work.intent, work.attempt, now, work.dispatchDeadline)
 	case engineWorkTimeout:
 		inflight := e.inflight[work.intent.Logical.ClientMsgNo]
 		if inflight == nil || inflight.attempt != work.attempt || inflight.currentClientSeq != work.clientSeq {
@@ -3547,31 +3579,43 @@ func (e *Engine) completeLifecycleTimer(work *engineWork, now time.Time) error {
 }
 
 func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attempt uint8, now time.Time) error {
-	turn := e.driverTurn
-	if turn != nil {
-		turn.record.Attempts++
-		if attempt > 0 {
-			turn.record.Retries++
-		}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	logical := intent.Logical
-	inflight := e.inflight[logical.ClientMsgNo]
+	return e.queueAttempt(intent, attempt, now, time.Time{})
+}
+
+// startSDKAttempt runs on the owner only when an executor can call the SDK.
+// Queued tickets have no verifier SEND or attempt clock before this transition.
+func (e *Engine) startSDKAttempt(intent TrafficIntent, attempt uint8, now, dispatchDeadline time.Time) engineAdmissionStart {
+	// The execution deadline and attempt registration share one fresh sample,
+	// avoiding both an extra clock read and different admission origins.
 	attemptAt := e.clock.Now()
 	if attemptAt.Before(now) {
 		attemptAt = now
 	}
+	if !dispatchDeadline.IsZero() && attemptAt.After(dispatchDeadline) {
+		e.activityUnderDelivered++
+		e.completeMetaCreate(intent, false)
+		return engineAdmissionStart{err: errors.Join(
+			e.recordUnderDelivery(FailureCodeOfferedDispatchFreshDeadline, 1),
+			e.settleLifecycleInitialActivity(intent),
+			e.releaseUnstartedSendLease(intent),
+		)}
+	}
+	logical := intent.Logical
+	inflight := e.inflight[logical.ClientMsgNo]
 	if attempt == 0 {
 		if inflight != nil {
-			return errors.Join(errEngineConfig, e.releaseUnstartedSendLease(intent))
+			return engineAdmissionStart{err: errors.Join(errEngineConfig, e.releaseUnstartedSendLease(intent))}
 		}
 		if len(e.inflight) >= e.inflightCapacity {
-			return errors.Join(
+			return engineAdmissionStart{err: errors.Join(
 				e.recordRuntimeFailure(RuntimeFailureInflightSaturated, uint64(e.inflightCapacity)),
-				e.releaseUnstartedSendLease(intent),
-			)
+				e.releaseUnstartedSendLease(intent))}
 		}
 		if err := e.verifier.RegisterSend(logical, attemptAt, sendLatencyClassForIntent(intent)); err != nil {
-			return errors.Join(err, e.releaseUnstartedSendLease(intent))
+			return engineAdmissionStart{err: errors.Join(err, e.releaseUnstartedSendLease(intent))}
 		}
 		inflight = &engineInflight{intent: intent, senderLeaseUID: logical.Sender}
 		e.inflight[logical.ClientMsgNo] = inflight
@@ -3579,15 +3623,15 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 			e.inflightPeak = len(e.inflight)
 		}
 	} else if inflight == nil {
-		return nil
+		return engineAdmissionStart{}
 	}
 	inflight.retryScheduled = false
 	attemptPlan, err := e.retry.Attempt(logical, attempt)
 	if err != nil {
-		return e.abortHarness(inflight, err)
+		return engineAdmissionStart{err: e.abortHarness(inflight, err)}
 	}
 	if intent.Packet == nil || e.nextClientSeq >= math.MaxUint32 {
-		return e.abortHarness(inflight, errEngineConfig)
+		return engineAdmissionStart{err: e.abortHarness(inflight, errEngineConfig)}
 	}
 	e.nextClientSeq++
 	clientSeq := e.nextClientSeq
@@ -3598,13 +3642,13 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	}
 	completion, err := e.verifier.admitEngineAttemptWithDeadline(logical, attemptPlan, clientSeq, deadline, registration)
 	if err != nil {
-		return e.abortHarness(inflight, err)
+		return engineAdmissionStart{err: e.abortHarness(inflight, err)}
 	}
 	if completion != nil {
-		return e.settleVerifiedSendCompletion(inflight, completion)
+		return engineAdmissionStart{err: e.settleVerifiedSendCompletion(inflight, completion)}
 	}
 	if !inflight.registerClientSeq(clientSeq, attemptAt) {
-		return e.abortHarness(inflight, errEngineConfig)
+		return engineAdmissionStart{err: e.abortHarness(inflight, errEngineConfig)}
 	}
 	inflight.attempt = attempt
 	inflight.currentClientSeq = clientSeq
@@ -3613,17 +3657,19 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	}
 	packet := *intent.Packet
 	packet.ClientSeq = clientSeq
-	sdkStarted := e.driverNow(turn)
-	sendErr := e.sessions.TrySend(ctx, logical.Sender, &packet)
-	if turn != nil {
-		duration := e.driverElapsed(turn, sdkStarted)
-		turn.record.SDKAdmission += duration
-		if duration > turn.record.SDKAdmissionMax {
-			turn.record.SDKAdmissionMax = duration
-		}
+	return engineAdmissionStart{packet: &packet, inflight: inflight, attemptAt: attemptAt, deadline: deadline}
+}
+
+// finishSDKAttempt rejoins the owner. An ACK may already have settled the exact
+// inflight object, so a delayed SDK return must not recreate a timeout or retry.
+func (e *Engine) finishSDKAttempt(ctx context.Context, intent TrafficIntent, attempt uint8, started engineAdmissionStart, sendErr error) error {
+	logical := intent.Logical
+	inflight := started.inflight
+	if e.inflight[logical.ClientMsgNo] != inflight {
+		return nil
 	}
 	if err := sendErr; err != nil {
-		if ctx != nil && ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		if ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 			return e.cancelAttempt(inflight)
 		}
 		resolve := e.verifier.ResolveAttemptErrorAt
@@ -3632,12 +3678,18 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 			resolve = e.verifier.ResolveAttemptLocalAdmissionErrorAt
 			cause = retryExhaustedLocalAdmission
 		}
-		return errors.Join(resolve(logical.ClientMsgNo, clientSeq, e.clock.Now()), e.scheduleRetry(inflight, attemptAt, cause))
+		return errors.Join(resolve(logical.ClientMsgNo, started.packet.ClientSeq, e.clock.Now()), e.scheduleRetry(inflight, started.attemptAt, cause))
 	}
-	if deadline.Before(attemptAt) {
+	// The session drain may resolve a nonterminal transport error before this
+	// call returns. Its retry already owns the next transition; do not recreate
+	// the resolved attempt's timeout or consume another work credit.
+	if inflight.retryScheduled {
+		return nil
+	}
+	if started.deadline.Before(started.attemptAt) {
 		return e.abortHarness(inflight, errEngineConfig)
 	}
-	timeout := &engineWork{due: deadline, kind: engineWorkTimeout, intent: intent, attempt: attempt, clientSeq: clientSeq}
+	timeout := &engineWork{due: started.deadline, kind: engineWorkTimeout, intent: intent, attempt: attempt, clientSeq: started.packet.ClientSeq}
 	if err := e.addWork(timeout); err != nil {
 		return e.abortHarness(inflight, err)
 	}
@@ -3688,7 +3740,7 @@ func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time, cause re
 		return nil
 	}
 	e.cancelAttemptTimeout(inflight)
-	retry, err := e.retries.Schedule(inflight.intent, inflight.attempt, now)
+	retry, err := e.retries.scheduleWithRetained(inflight.intent, inflight.attempt, now, e.admissionQueued-e.admissionInitialQueued)
 	if err == nil {
 		_ = retry
 		inflight.retryScheduled = true
@@ -4724,14 +4776,16 @@ func (e *Engine) snapshotFromSessions(sessions SessionPoolSnapshot, running bool
 		SendWriteToAckLatency:      sessions.SendWriteToAckLatency,
 		MetaCreatePersonByHashSlot: e.metaCreatePersonByHashSlot,
 		MetaCreateGroupByHashSlot:  e.metaCreateGroupByHashSlot,
-		QueueCurrent:               e.queuedSends + e.deferredGroupRoutes, FutureCurrent: e.futureCount(),
+		QueueCurrent:               e.queuedSends + e.deferredGroupRoutes + e.admissionInitialQueued, FutureCurrent: e.futureCount(),
 		ActivityCurrent: len(e.activity), DeferredGroupRoutes: e.deferredGroupRoutes,
 		ActivityUnderDelivered:  e.activityUnderDelivered,
 		ActivityFutureCanceled:  e.activityFutureCanceled,
 		ActivityPlannedCanceled: e.activityPlannedCanceled,
 		QueuePeak:               e.workPeak, QueueCapacity: e.workCapacity,
-		RetryQueueDepth: retries.Depth, RetryQueuePeak: retries.Peak, RetryQueueCapacity: e.retryCapacity,
+		RetryQueueDepth: retries.Depth + e.admissionQueued - e.admissionInitialQueued,
+		RetryQueuePeak:  retries.Peak, RetryQueueCapacity: e.retryCapacity,
 		InflightCurrent: len(e.inflight), InflightPeak: e.inflightPeak, InflightCapacity: e.inflightCapacity,
+		AdmissionPending:    e.admissionOutstanding,
 		TransportQueueDepth: sessions.QueueDepth, TransportQueueCapacity: sessions.QueueCapacity,
 		TransportInflight: sessions.TransportInflight, TransportAdmissionRejected: sessions.TransportAdmissionRejected,
 		RelationshipLookback:  MaxForwardRelationships,

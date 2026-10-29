@@ -124,6 +124,10 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		result = sm.applyReplaceScheduledBackupState(next, cmd)
 	case command.KindReplaceOpsMCPState:
 		result = sm.applyReplaceOpsMCPState(next, cmd)
+	case command.KindEnsurePresenceOwnerSet:
+		result = sm.applyEnsurePresenceOwnerSet(next, raftIndex, cmd)
+	case command.KindClaimPresenceGeneration:
+		result = sm.applyClaimPresenceGeneration(next, raftIndex, cmd)
 	case command.KindUpsertSlotAssignmentAndTask:
 		result = sm.applyUpsertSlotAssignmentAndTask(next, cmd)
 	case command.KindUpsertSlotReplicaMoveTask:

@@ -121,8 +121,10 @@ reader returns. These internal policies do not change CONNECT's configured
 activation deadline or chat-lifecycle correctness/latency gates; they do not
 establish Linux capacity or explain a cloud scheduler stall.
 
-The production presence-recovery provider reads Controller-local snapshots and
-owner-local online indexes; it does not itself invoke a Slot/DB read barrier.
+Legacy presence recovery reads Controller-local snapshots and owner-local
+online indexes. Full mode commits rare G/M claims through Controller Raft and
+checks actual Slot authority; warm lookups and touch forwarding use published
+local gates and add no per-SEND Controller transaction.
 Its owner-call interval includes encoding, RPC and decoding unless separate
 evidence proves a narrower phase. Shared recovery execution has no single
 caller trace parent; a provider failure's physical-round timing cannot be
@@ -1417,7 +1419,7 @@ specification, runbook, report, or module documentation; link to them when neede
   routes are volatile, UID-authority-fenced projections; concrete sessions remain
   owner-local. Authority changes require bounded reconstruction before an empty
   route can be treated as offline, never a scan of every session.
-- Cold presence recovery coalesces UID proofs by the five-field distributed
+- Legacy cold presence recovery coalesces UID proofs by the five-field distributed
   identity, excluding local revision/AuthorityEpoch counters. Sixteen caller-owned
   cohorts bound retained keys to 8,192 and owned UID clones to an independent
   128 MiB (32 MiB per new subset), matching the node-wide 16-round owner-read
@@ -1430,6 +1432,25 @@ specification, runbook, report, or module documentation; link to them when neede
   directly propagate their typed failure. Follower cancellation is isolated;
   canceled leaders leave live followers typed not-ready under the existing outer
   retry policy.
+- Full Presence uses a committed per-Hash-Slot generation G and owner-set epoch
+  M; diagnostic revision/AuthorityEpoch and random boot identities cannot order
+  generations. Begin and receipt promotion share an owner Slot lock. Pending
+  CONNECTs never block scans. All required owners, including non-data nodes,
+  must end bounded pages before Complete can prove an absent UID offline.
+  Unknown/old peer capabilities, missing pages, cancellation and capacity failure
+  stay not-ready; node health does not prove owner fencing. Production activation
+  requires protocol support across Controller participants and ingress owners.
+  TTL-expired known identities enter a separate bounded suspect ledger rather
+  than becoming false negatives; only real owner activity refreshes LastSeen.
+  The 8,192-identity / 128 MiB suspect ledger and independent decoded-page credits
+  exclude live Directory/index storage, wire buffers, allocator overhead and RSS.
+  Ordinary backup restore retains Controller G history; replacing every Controller
+  disk with an older image has no external anti-rollback proof in this protocol.
+- SEND permission RPCs compare semantic Slot authority and derived Hash Slot,
+  not another node's diagnostic Controller revision. Receivers retain their own
+  nonzero AuthorityEpoch across the fresh barrier/snapshot to reject observed
+  topology ABA. The epoch comes from the same immutable local publication, stays
+  stable for revision-only updates, never crosses the wire and does not replace G.
 - Every online route, including advisory EVENT hints, must preserve device ID,
   flag and level along with the exact owner/session identity. The final session
   fence rejects a route with missing or stale device fields.
