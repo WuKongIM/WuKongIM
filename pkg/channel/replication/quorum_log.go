@@ -370,7 +370,9 @@ func (l *quorumLog) commitLocked(ctx context.Context, state *quorumChannel, prop
 // until durability. A nil return transfers exactly one complete callback,
 // possibly inline; an error transfers none. The Channel sequencer stays owned
 // by the round until its terminal result and is released before complete runs,
-// so complete may re-enter this log for the same Channel.
+// permitting already-durable same-Channel retries. A completion handler must
+// not synchronously wait for an operation requiring a subsequent peer completion
+// on that Channel; return control to its existing owner before such a wait.
 func (l *quorumLog) SubmitCommit(ctx context.Context, proposal Proposal, complete func(Receipt, error)) error {
 	if complete == nil || !l.validProposal(ctx, proposal) {
 		return ch.ErrInvalidConfig

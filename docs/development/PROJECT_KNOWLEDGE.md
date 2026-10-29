@@ -2307,11 +2307,17 @@ specification, runbook, report, or module documentation; link to them when neede
   joins the actual getter return before client close. Errors remain errors, not
   zero gauges. Snapshot itself does not hold worker advanceMu; blocking the
   Engine can indirectly stall ticks and later grants that do hold it.
-- Peer callback delivery still occupies the existing bounded target worker after
-  I/O ownership is released. Track that phase separately from in-flight keys so
-  independently ready work can use spare existing target slots. Count callback
-  owners in the unchanged target limit, retire phase on panic, preserve initial
-  single-owner coalescing, and join admitted callbacks during Runtime.Close.
+- Peer exchange and callback delivery use independent bounded pools. Callback
+  workers derive from the existing PeerWorkers count; no per-Channel goroutine
+  is created. The complete admitted envelope remains charged through callback
+  return, including Fetch's declared reply budget. Publishing returned results
+  precedes release of the network key fence; callbacks retain target+Channel
+  order while one-envelope turns yield through a global ready FIFO. Clear moved
+  batch references so one held callback cannot retain siblings after their
+  credit is released. A caller's Close deadline ends only its wait: the same
+  supervised cleanup owner retains results, retry responsibility and dependencies.
+  Node preserves that Runtime and its store on an unfinished join, reports the
+  existing StopIncomplete contract and joins the same owner on a later Stop.
 - A reduced chat-lifecycle SEND rate must still cover the online population's
   mandatory bootstrap relationship activity inside its eligibility window.
   Reducing only the rate can make a local profile intrinsically undeliverable,

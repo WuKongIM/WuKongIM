@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Isolate Channel replication callbacks from network workers, retaining bounded
+  result ownership and storage dependencies until shutdown has fully joined.
+  / Channel 复制回调与网络工作协程分离；结果仍受容量约束，关闭超时后继续保留
+  清理所有权与存储依赖，直至全部工作退出。
+
 - Add bounded, optional wall timing around benchmark owner fairness yields,
   keeping dispatch deadlines and acceptance gates unchanged.
   / 压测可选记录 owner 公平调度让出期间的有界墙钟时长，保留原派发截止时间与验收门禁。

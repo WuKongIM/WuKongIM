@@ -13,7 +13,7 @@ import (
 
 func readyTestBatcher(t *testing.T, executor *manualPeerExecutor, link PeerLink) *peerBatcher {
 	t.Helper()
-	b, err := newPeerBatcher(peerBatcherConfig{Link: link, Executor: executor, OwnerContext: context.Background(), ExchangeTimeout: time.Minute, MaxBatchItems: 4, MaxBatchBytes: 4096, MaxTargetFlight: 2, MaxQueuedItems: 16, MaxQueuedBytes: 16384, MaxTargetQueuedItems: 8, MaxTargetQueuedBytes: 8192})
+	b, err := newManualPeerBatcher(peerBatcherConfig{Link: link, Executor: executor, OwnerContext: context.Background(), ExchangeTimeout: time.Minute, MaxBatchItems: 4, MaxBatchBytes: 4096, MaxTargetFlight: 2, MaxQueuedItems: 16, MaxQueuedBytes: 16384, MaxTargetQueuedItems: 8, MaxTargetQueuedBytes: 8192})
 	require.NoError(t, err)
 	return b
 }
