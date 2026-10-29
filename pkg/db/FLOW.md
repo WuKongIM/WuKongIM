@@ -68,6 +68,8 @@ It does not own product policy or expose Pebble-specific APIs to callers.
   buffers remain queue time; closing queued work never invents a physical phase.
   Group reconstruction retains repeated build intervals, not extra fsync claims;
   caller cancellation and early trace completion cannot cancel admitted storage work.
+  Sampled message preparation also retains frontier/item wall totals and attempted
+  counts on its existing span; invalid/unfinished categories remain unknown, not CPU.
   Background owner contexts transport the same three pre-build waits through
   bounded sampled owner handles, excluding an already timed context Trace.
   They reuse physical cohort observations instead of duplicating physical spans

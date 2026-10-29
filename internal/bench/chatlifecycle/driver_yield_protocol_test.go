@@ -76,7 +76,7 @@ func driverYieldTestDecode(t *testing.T, snapshot *DriverDiagnosticsSnapshot) dr
 }
 
 func TestDriverYieldProtocol15LegacyAbsenceAndKnownOptionalRoundTrip(t *testing.T) {
-	if workerProtocolVersion != 15 || ReportSchemaVersion != "wukongim/chat-lifecycle-report/v7" {
+	if workerProtocolVersion != 15 || ReportSchemaVersion != "wukongim/chat-lifecycle-report/v8" {
 		t.Fatal("yield observation changed the native protocol/report version")
 	}
 	legacy := driverValidSnapshotFixture()

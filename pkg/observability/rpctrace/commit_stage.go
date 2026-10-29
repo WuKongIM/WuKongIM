@@ -6,6 +6,8 @@ package rpctrace
 type CommitSpan struct {
 	owners *commitObservationOwners
 	slots  [MaxCommitObservationOwners]uint8
+	// prepareDetail is owner-created only for an already admitted preparation parent.
+	prepareDetail *storePrepareDetailRecorder
 }
 
 // BeginStage uses the existing per-Trace span limit and relative clock. excluded
@@ -35,6 +37,15 @@ func (o CommitObservation) BeginStage(stage Stage, excluded *Trace) CommitSpan {
 // late physical work cannot reopen or mutate a published request sample.
 func (s CommitSpan) End(result Result) {
 	if s.owners == nil {
+		return
+	}
+	if s.prepareDetail != nil {
+		detail := s.prepareDetail.seal()
+		for i := 0; i < int(s.owners.count); i++ {
+			if index := s.slots[i]; index != 0 {
+				(Span{trace: s.owners.traces[i], index: int(index) - 1}).endStorePrepare(result, detail)
+			}
+		}
 		return
 	}
 	for i := 0; i < int(s.owners.count); i++ {

@@ -221,6 +221,8 @@ type VerdictSnapshot struct {
 	LatencyAnomalyCount uint64
 	LatencyAnomalies    []LatencyAnomaly
 	Retention           VerdictWindowRetention
+	// LatencyGate is actual negative-gate state; nil means unavailable.
+	LatencyGate *VerdictLatencyGateSnapshot
 }
 
 // VerdictWindowRetention exposes only fixed reducer sizes for bounded-memory
@@ -280,6 +282,9 @@ type VerdictEvaluator struct {
 	latencyBaselineAt    time.Time
 	latencyLastAt        time.Time
 	latencyWindowInvalid bool
+	// frozenLatencyGate retains only the first terminal native gate cut. Base
+	// evaluator timestamps, counters and cleanup behavior keep their semantics.
+	frozenLatencyGate *VerdictLatencyGateSnapshot
 	// A gap longer than the statistics window restarts positive qualification only.
 	latencyQualificationStart time.Time
 	latencyQualification      [3]*CounterWindow
@@ -899,6 +904,7 @@ func (v *VerdictEvaluator) setTerminal(outcome VerdictOutcome, cause VerdictCaus
 		return
 	}
 	v.snapshot = VerdictSnapshot{Outcome: outcome, Cause: cause, Terminal: true}
+	v.frozenLatencyGate = v.buildLatencyGateEvidence(true)
 }
 
 // Finalize freezes a passing run if no earlier terminal evidence exists.
@@ -982,6 +988,7 @@ func (v *VerdictEvaluator) Snapshot() VerdictSnapshot {
 		return VerdictSnapshot{}
 	}
 	snapshot := v.snapshot
+	snapshot.LatencyGate = v.latencyGateEvidence()
 	snapshot.CleanupErrorCount = v.cleanupCount
 	snapshot.CleanupErrors = make([]VerdictCleanupErrorCode, v.cleanupSize)
 	for index := 0; index < v.cleanupSize; index++ {

@@ -26,6 +26,12 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Export exact rolling latency gate evidence in lifecycle report v8, preserving
+  terminal snapshots and existing thresholds; retain sampled storage preparation
+  detail without attributing shared wall time to CPU or physical commit.
+  / 生命周期报告升级为 v8，保留精确滚动延迟门禁及冻结终态，原阈值不变；
+  采样细分存储准备耗时，共享墙钟时长不冒充 CPU 或物理提交耗时。
+
 - Let lifecycle benchmark SDK and control commands progress between bounded
   work slices, retaining original deadlines and joined shutdown after caller
   cancellation; optionally retain bounded SDK handoff timings.

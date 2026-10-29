@@ -37,7 +37,7 @@ func sdkAdmissionWire(t *testing.T, snapshot WorkerSnapshot, child any) []byte {
 }
 
 func TestDriverSDKAdmissionProtocolLegacyAndExactEmitter(t *testing.T) {
-	if workerProtocolVersion != 15 || ReportSchemaVersion != "wukongim/chat-lifecycle-report/v7" {
+	if workerProtocolVersion != 15 || ReportSchemaVersion != "wukongim/chat-lifecycle-report/v8" {
 		t.Fatal("observation changed native protocol/report version")
 	}
 	legacy := driverValidSnapshotFixture()

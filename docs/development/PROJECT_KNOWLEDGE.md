@@ -68,7 +68,8 @@ Worker-evidence v2 carries the appended vocabulary; terminal readers retain v1's
 original 1–36 range. Full snapshot/status capture is bounded at 256 KiB and
 three-worker terminal evidence at 1 MiB. The earlier 8/16 KiB local capture caps
 could reject legal retained samples; that collection defect alone does not
-explain an engine under-delivery event. Report v7 / threshold v2 remain unchanged.
+explain an engine under-delivery event. Threshold v2 remains unchanged; current
+reports use v8 to retain the native rolling latency gate independently.
 Worker protocol v13 / worker-evidence v3 appends CONNECT codes 47–53: their Value
 is a closed kind (0 unknown, 1–10 fixed kinds), except rejection's recognized
 protocol reason (0 unknown). Legacy code 30 and all previous units stay unchanged;
@@ -2732,7 +2733,7 @@ completion, installation and provider-reference release.
   Benchmark opt-in is independent, retains the first 16 confirmed-late originals per
   worker generation and publishes detached live/final optional protocol-v15
   diagnostics. Optional malformed evidence cannot alter native counters,
-  Evidence v3, Report v7, deadlines or gates. A successful write callback is not
+  Evidence v3, native report counters, deadlines or gates. A successful write callback is not
   socket flush/client receipt; missing clocks and identity bridges remain unknown.
   Summary stage timestamps project existing monotonic offsets onto ingress wall
   time; they are not independent post-clock-adjustment wall observations.
@@ -2754,6 +2755,16 @@ completion, installation and provider-reference release.
   later-rejected items, while actual cohort membership remains prepared-only.
   Preparation ends before ownership/pin/MQTT preparation and Submit; remaining
   gaps are unknown, never automatically RPC queueing, CPU time or fsync.
+  Its optional fixed numeric child totals outer frontier and item-preparation
+  calls on the admitted parent span. Invalid or unfinished categories stay
+  unknown; finished samples and clones are detached. These are shared group
+  wall intervals, not individual request CPU or physical commit durations.
+- Lifecycle report v8 retains the exact native five-minute latency sums,
+  threshold fractions and continuous-breach state for three fixed operations.
+  The first terminal cut freezes this child; later cleanup cannot refresh it.
+  Positive ten-minute qualification remains separate, and no numerical gate
+  changes. Legacy v7 without this child is readable as unknown diagnostic proof;
+  current terminal handoff requires v8. Missing evidence never becomes pass.
 - Chat-lifecycle code38 is a fresh-clock dispatch miss before SDK admission,
   not an accepted product SEND or a delivery-loss proof. Optional driver timing
   retains the first 16 numeric prefixes per generation, stops extra timing at
@@ -2784,7 +2795,7 @@ completion, installation and provider-reference release.
   Expiry regions include synchronization and scheduling; Go Running intervals
   are wall time and may include OS/VM descheduling. No CPU profiler is enabled,
   so remaining Running time cannot be called pure scan CPU. These artifacts
-  do not change protocol15, Report v7, Evidence v3 or acceptance thresholds.
+  do not change protocol15, native report counters, Evidence v3 or acceptance thresholds.
 - Optional Linux worker CPU bounds require both private driver diagnostics and
   `WK_CHAT_LIFECYCLE_DRIVER_CPU_DIAGNOSTICS=1`. A MONOTONIC / PROCESS_CPUTIME_ID /
   MONOTONIC sample at actual owner entry and the first native code37/38 miss

@@ -115,13 +115,13 @@ passing 72-hour formal generation -> same aged dataset and process proof
   class, and a cut at most five seconds old. Counter deltas belong to their end
   cut; a gap over ten minutes resets positive qualification, not negative breaches.
   The numerical five-minute breach rule and correctness gates remain unchanged.
-- Report v7 / threshold v2 binds local-diagnostic, rehearsal, or formal-protocol
-  scope to validated configuration. Formal-protocol scope still requires external
-  Linux topology/hardware evidence. Elapsed rehearsal time alone cannot pass,
-  and missing/stale latency qualification cannot yield a successful report.
-  Baseline/start/end elapsed positions share one monotonic process clock;
-  duration/order/freshness use them after serialization. Wall times are audit
-  fields; readers never reconstruct missing offsets or upgrade old reports.
+- Report v8 / threshold v2 binds local-diagnostic, rehearsal, or formal-protocol scope to validated configuration.
+  Formal scope still needs external Linux hardware/topology; elapsed rehearsal and missing/stale positive latency evidence cannot pass.
+  Baseline/start/end elapsed positions share one monotonic clock; serialized duration/order/freshness use them. Wall times are audit fields.
+  Diagnostic readers never reconstruct offsets or upgrade old reports; legacy v7 without a gate stays unknown. Current result and capacity admission requires v8; old strict readers cannot consume v8.
+  The fixed three-class native latency_gate copies actual five-minute sums, continuous breach state and unchanged threshold fractions.
+  Its first terminal cut freezes only the child; captured latency_age/status do not claim publication freshness (report elapsed minus evaluated elapsed).
+  Absent/null proof stays unknown; present proof is strict and bounded, independently of positive ten-minute qualification; no new clock or numerical gate.
 - Reports and control responses use closed reason vocabularies, fixed arrays,
   checked arithmetic, and bounded redacted samples. Raw UIDs, Channel IDs,
   payloads, credentials, endpoint bodies, and arbitrary errors are forbidden.
