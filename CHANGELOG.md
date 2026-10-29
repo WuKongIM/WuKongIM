@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve sampled request timing across background storage commits, separating
+  append lock/preparation and commit admission/queue/collection waits.
+  / 后台存储提交保留原请求采样关联，区分追加锁与准备、提交准入、排队及收集等待。
+
 - Reduce temporary allocation for partially filled worker batches, including
   local quorum writes, while preserving batching and admission limits.
   / 减少工作队列未满批次（包括本节点 quorum 写入）的临时内存分配，保持组批及准入上限。

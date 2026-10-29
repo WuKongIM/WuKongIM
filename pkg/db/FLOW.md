@@ -68,6 +68,10 @@ It does not own product policy or expose Pebble-specific APIs to callers.
   buffers remain queue time; closing queued work never invents a physical phase.
   Group reconstruction retains repeated build intervals, not extra fsync claims;
   caller cancellation and early trace completion cannot cancel admitted storage work.
+  Background owner contexts transport the same three pre-build waits through
+  bounded sampled owner handles, excluding an already timed context Trace.
+  They reuse physical cohort observations instead of duplicating physical spans
+  or increasing the 32-span per-Trace limit.
   A completed nonempty native commit also supplies seven owned native timings to
   that physical batch event. Missing, empty or natively rejected calls supply no
   sample; later seal/publication errors retain an already completed observation.
