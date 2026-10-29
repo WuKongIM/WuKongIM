@@ -33,7 +33,8 @@ move those entries into a version section named for that exact tag.
 - Fence presence activation to committed authority generations and reconstruct
   complete Hash Slots through bounded owner pages; expired uncertain routes stay
   unavailable until verified. / 在线路由激活绑定已提交的权威代际，按有界 owner
-  分页恢复整槽；过期但未核清的路由不会被误判为离线。
+  分页恢复整槽；过期但未核清的路由不会被误判为离线。能力校验支持集群公布地址
+  与本节点监听地址不同的代理及 NAT 部署。
 
 - Isolate slow benchmark-client submission from the lifecycle scheduling owner,
   retaining per-session order, original dispatch deadlines and retry capacity.

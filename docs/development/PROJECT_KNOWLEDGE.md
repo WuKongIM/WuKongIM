@@ -1462,6 +1462,9 @@ specification, runbook, report, or module documentation; link to them when neede
   Unknown/old peer capabilities, missing pages, cancellation and capacity failure
   stay not-ready; node health does not prove owner fencing. Production activation
   requires protocol support across Controller participants and ingress owners.
+  Self capability proof binds the configured Join advertisement or static voter
+  endpoint, falling back to the listener only without a configured self endpoint;
+  a relay/NAT membership address need not equal the socket listen address.
   TTL-expired known identities enter a separate bounded suspect ledger rather
   than becoming false negatives; only real owner activity refreshes LastSeen.
   The 8,192-identity / 128 MiB suspect ledger and independent decoded-page credits

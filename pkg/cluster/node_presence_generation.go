@@ -305,7 +305,20 @@ func (n *Node) probePresenceCapabilities(ctx context.Context, nodeID uint64, add
 		return controller.PresenceCapabilities{}, controller.ErrPresenceGenerationNotReady
 	}
 	if nodeID == n.cfg.NodeID {
-		if addr != n.cfg.ListenAddr {
+		// Membership may advertise a relay or NAT endpoint instead of the local
+		// listener. Bind self proof to the configured membership identity only.
+		selfAddr := n.cfg.ListenAddr
+		if n.cfg.seedJoinMode() {
+			selfAddr = n.cfg.Join.AdvertiseAddr
+		} else {
+			for _, voter := range n.cfg.Control.Voters {
+				if voter.NodeID == nodeID {
+					selfAddr = voter.Addr
+					break
+				}
+			}
+		}
+		if addr != selfAddr {
 			return controller.PresenceCapabilities{}, controller.ErrPresenceGenerationNotReady
 		}
 		return n.PresenceCapabilities(), nil
