@@ -2,6 +2,7 @@ package raft
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"sync"
@@ -79,8 +80,14 @@ type Service struct {
 	stepCh   chan raftpb.Message
 	proposal chan proposalRequest
 	compact  chan compactRequest
-	err      error
-	store    *raftstore.Store
+	// Read requests are bounded across their full Raft token lifetime.
+	readRequests chan *readBarrierRequest
+	readPermits  chan struct{}
+	readWake     chan struct{}
+	readStartID  [16]byte
+	readSequence atomic.Uint64
+	err          error
+	store        *raftstore.Store
 
 	statusMu sync.RWMutex
 	status   Status
@@ -164,6 +171,15 @@ func (s *Service) Start(ctx context.Context) error {
 		return err
 	}
 
+	var readStartID [16]byte
+	if _, err := rand.Read(readStartID[:]); err != nil {
+		_ = store.Close()
+		s.store = nil
+		return fmt.Errorf("controller/raft: read start identity: %w", err)
+	}
+	readRequests := make(chan *readBarrierRequest)
+	readWake := make(chan struct{}, 1)
+	readPermits := make(chan struct{}, maxReadBarriers)
 	stopCh := make(chan struct{})
 	doneCh := make(chan struct{})
 	stepCh := make(chan raftpb.Message, 1024)
@@ -171,7 +187,7 @@ func (s *Service) Start(ctx context.Context) error {
 	compactCh := make(chan compactRequest)
 	initCh := make(chan error, 1)
 	goroutine.SafeGo(s.cfg.Goroutines, goroutine.TaskControllerRaftRun, func() {
-		s.run(store, startup, stopCh, doneCh, stepCh, proposalCh, compactCh, initCh)
+		s.run(store, startup, stopCh, doneCh, stepCh, proposalCh, compactCh, readRequests, readWake, initCh)
 	})
 	if err := <-initCh; err != nil {
 		close(stopCh)
@@ -186,6 +202,10 @@ func (s *Service) Start(ctx context.Context) error {
 	s.stepCh = stepCh
 	s.proposal = proposalCh
 	s.compact = compactCh
+	s.readRequests = readRequests
+	s.readWake = readWake
+	s.readPermits = readPermits
+	s.readStartID = readStartID
 	s.started = true
 	return nil
 }
@@ -222,6 +242,9 @@ func (s *Service) Stop() error {
 	s.stepCh = nil
 	s.proposal = nil
 	s.compact = nil
+	s.readRequests = nil
+	s.readPermits = nil
+	s.readWake = nil
 	s.store = nil
 	s.mu.Unlock()
 
@@ -382,6 +405,10 @@ func (s *Service) Step(ctx context.Context, msg raftpb.Message) error {
 	}
 	if msg.To != 0 && msg.To != s.cfg.NodeID {
 		return nil
+	}
+	// Peer-forwarded reads would bypass the local token bound and term guard.
+	if msg.Type == raftpb.MsgReadIndex || msg.Type == raftpb.MsgReadIndexResp {
+		return ErrReadBarrierForwardingUnsupported
 	}
 	s.mu.Lock()
 	if !s.started {

@@ -99,12 +99,20 @@ func (s *applyScheduler) stop() error {
 }
 
 func (s *applyScheduler) enqueue(ctx context.Context, job toApply) error {
+	return s.enqueueWithStop(ctx, job, nil)
+}
+
+// enqueueWithStop preserves bounded ownership when the service stops while
+// the asynchronous apply queue is full.
+func (s *applyScheduler) enqueueWithStop(ctx context.Context, job toApply, stop <-chan struct{}) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	select {
 	case s.jobs <- job:
 		return nil
+	case <-stop:
+		return ErrStopped
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-s.ctx.Done():

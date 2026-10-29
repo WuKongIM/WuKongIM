@@ -72,6 +72,15 @@ not depend on `pkg/cluster`.
 - `Revision` versions logical cluster state; `AppliedRaftIndex` versions Raft
   materialization. Empty probes and health reports may advance applied state
   without advancing logical revision.
+- Presence control reads use leader-only quorum ReadIndex, then wait for the
+  actual FSM save and durable applied marker; RawNode Advance is not that proof.
+  The current term must commit before issuing reads. At most 64 protocol tokens
+  exist, including canceled issued tokens until quorum retirement or term reset;
+  tombstones retain no caller context. Peer-forwarded read requests/responses
+  are unsupported. Known leadership loss retires reads before any blocking
+  Ready work. Stop and apply failure close pending reads, including waits
+  inside apply-queue admission or configuration application. ProbePropose keeps
+  its distinct write-path probing contract.
 - State normalization, validation, checksums, clone, snapshot, and sync must
   cover every durable section, including bounded operations MCP and scheduled
   backup state.
@@ -106,6 +115,10 @@ not depend on `pkg/cluster`.
   a new M after such change. Claim also retains its exact per-Hash-Slot
   predecessor and mapping fence. Older format capability, missing stamp and
   snapshot high-water rollback fail closed; there is no automatic downgrade.
+- With an unchanged activated roster stamp and exact fresh capabilities, Ensure
+  returns M from its quorum read cut without a noop proposal. Concurrent later
+  M may supersede that read result; it never rewrites the later vector and cannot
+  authorize a subsequent Claim or owner Begin using the superseded M.
 - Optional Presence state participates in clone, normalization, checksums,
   snapshots and mirror sync. Existing-state snapshot install rejects known G/M
   rollback. Ordinary backup restore replaces data while preserving Controller

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controller/command"
@@ -12,7 +13,7 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposalCh <-chan proposalRequest, compactCh <-chan compactRequest, initCh chan<- error) {
+func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposalCh <-chan proposalRequest, compactCh <-chan compactRequest, readRequests <-chan *readBarrierRequest, readWake chan struct{}, initCh chan<- error) {
 	defer close(doneCh)
 	defer store.Close()
 	rawNode, err := s.newRawNode(store, startup)
@@ -29,6 +30,10 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 		}
 	}
 
+	reads := newReadBarrierTracker()
+	defer reads.fail(ErrStopped)
+	var durableApplied atomic.Uint64
+	durableApplied.Store(startup.AppliedIndex)
 	tracker := newProposalTracker()
 	var trackerMu sync.Mutex
 	membershipInFlight := false
@@ -45,7 +50,18 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 	}
 	scheduler := newApplyScheduler(applySchedulerConfig{MaxEntries: s.cfg.MaxApplyBatchEntries, MaxBytes: s.cfg.MaxApplyBatchBytes, MaxDelay: s.cfg.MaxApplyDelay}, s.cfg.StateMachine, store, complete)
 	scheduler.completeMembership = completeMembership
-	scheduler.onApplied = func(ctx context.Context, index uint64) error { return s.maybeSnapshot(ctx, store, index) }
+	scheduler.onApplied = func(ctx context.Context, index uint64) error {
+		if err := s.maybeSnapshot(ctx, store, index); err != nil {
+			return err
+		}
+		// This callback runs only after FSM/save and the applied marker both succeed.
+		durableApplied.Store(index)
+		select {
+		case readWake <- struct{}{}:
+		default:
+		}
+		return nil
+	}
 	if s.cfg.TaskTransitionObserver != nil {
 		scheduler.onTaskTransitions = s.cfg.TaskTransitionObserver.ObserveControllerTaskTransitions
 	}
@@ -59,6 +75,7 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 	defer ticker.Stop()
 
 	failAll := func(err error) {
+		reads.fail(err)
 		trackerMu.Lock()
 		tracker.failAll(err)
 		membershipInFlight = false
@@ -68,6 +85,8 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 		if rawNode.Status().RaftState == etcdraft.StateLeader {
 			return
 		}
+		// Retire reads before processReady can wait on an unrelated blocked apply.
+		reads.fail(ErrNotLeader)
 		trackerMu.Lock()
 		tracker.failAll(ErrNotLeader)
 		membershipInFlight = false
@@ -98,15 +117,26 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 			if confCount > 0 {
 				job.confChangeC = make(chan confChangeRequest, confCount)
 			}
-			if err := scheduler.enqueue(context.Background(), job); err != nil {
+			if err := scheduler.enqueueWithStop(context.Background(), job, stopCh); err != nil {
 				failAll(err)
 				return err
 			}
 			for i := 0; i < confCount; i++ {
-				req := <-job.confChangeC
+				var req confChangeRequest
+				select {
+				case req = <-job.confChangeC:
+				case <-scheduler.done:
+					err := scheduler.currentError()
+					failAll(err)
+					return err
+				case <-stopCh:
+					failAll(ErrStopped)
+					return ErrStopped
+				}
 				cs, err := applyConfChange(rawNode, req.entry)
 				req.resp <- confChangeResult{state: cs, err: err}
 			}
+			reads.accept(ready.ReadStates)
 			rawNode.Advance(ready)
 			s.updateStatus(rawNode, nil)
 			failOnLeaderLoss()
@@ -115,11 +145,41 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 	}
 
 	for {
-		if err := processReady(); err != nil {
+		// Apply failure must wake pending reads even if there is no next Ready.
+		select {
+		case <-scheduler.done:
+			err := scheduler.currentError()
+			failAll(err)
 			s.setRunError(err)
+			return
+		default:
+		}
+		if err := processReady(); err != nil {
+			if !errors.Is(err, ErrStopped) {
+				s.setRunError(err)
+			}
 			return
 		}
 		select {
+		case <-scheduler.done:
+			err := scheduler.currentError()
+			failAll(err)
+			s.setRunError(err)
+			return
+		default:
+		}
+		if reads.advance(rawNode, store, durableApplied.Load()) {
+			continue
+		}
+		select {
+		case <-scheduler.done:
+			err := scheduler.currentError()
+			failAll(err)
+			s.setRunError(err)
+			return
+		case <-readWake:
+		case req := <-readRequests:
+			reads.add(req, rawNode.BasicStatus().Term)
 		case <-stopCh:
 			failAll(ErrStopped)
 			return

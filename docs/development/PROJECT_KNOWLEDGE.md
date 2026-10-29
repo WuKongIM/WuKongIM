@@ -1445,6 +1445,15 @@ specification, runbook, report, or module documentation; link to them when neede
   complete owner coverage, snapshot rollback rejection and missing-stamp
   failure remain required. Health and unrelated slot progress do not change
   that semantic cut, and no new SEND retry or larger deadline is granted.
+- Rare Presence control reads use leader quorum ReadIndex plus successful durable
+  apply, without appending empty log entries. The 64-token bound includes issued
+  canceled requests until their Raft context retires; requests retain no parent
+  context values. Current-term commit is required before issue, and unsupported
+  peer-forwarded ReadIndex messages are rejected. Stop, known leadership loss and
+  apply failure end pending reads without waiting for unrelated configuration work.
+  An unchanged Ensure may return M from its fresh read cut without another write;
+  owner/roster changes and generation claims still require actual commit receipts.
+  This mechanism does not guarantee the same cold-control latency on every host.
 - Full Presence uses a committed per-Hash-Slot generation G and owner-set epoch
   M; diagnostic revision/AuthorityEpoch and random boot identities cannot order
   generations. Begin and receipt promotion share an owner Slot lock. Pending

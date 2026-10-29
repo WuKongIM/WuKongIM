@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controller/command"
@@ -71,6 +72,18 @@ func (r *Runtime) EnsurePresenceOwnerSet(ctx context.Context) (PresenceOwnerSet,
 	proofs, err := r.presenceCapabilities(ctx, st)
 	if err != nil {
 		return PresenceOwnerSet{}, err
+	}
+	// An unchanged activated M is a linearizable read of the quorum cut above,
+	// not a mutation. Fresh capabilities must still match every required owner;
+	// a roster high-water advance or boot change always goes through the CAS.
+	if st.Presence != nil && st.PresenceRosterCurrent(st.Presence.OwnerSet.Owners) {
+		owners, proofErr := st.PresenceOwnersFromCapabilities(proofs)
+		if proofErr == nil && reflect.DeepEqual(owners, st.Presence.OwnerSet.Owners) {
+			if err := ctx.Err(); err != nil {
+				return PresenceOwnerSet{}, err
+			}
+			return st.Presence.OwnerSet.Clone(), nil
+		}
 	}
 	result, err := r.raftService().ProposeResult(ctx, command.Command{
 		Kind: command.KindEnsurePresenceOwnerSet, IssuedAt: r.cfg.Now().UTC(),
@@ -143,14 +156,14 @@ func (r *Runtime) GetPresenceGeneration(ctx context.Context, hashSlot uint16) (P
 	return out, nil
 }
 
-// The existing committed empty probe supplies a quorum/applied barrier. It is
-// deliberately confined to rare control operations, never hot presence reads.
+// A quorum ReadIndex plus successful durable apply supplies a fresh committed
+// cut without an empty log write. It is confined to rare control operations.
 func (r *Runtime) presenceCommittedState(ctx context.Context) (ClusterState, error) {
 	service := r.raftService()
 	if service == nil {
 		return ClusterState{}, ErrNotStarted
 	}
-	if err := service.ProbePropose(ctx); err != nil {
+	if _, err := service.ReadBarrier(ctx); err != nil {
 		return ClusterState{}, err
 	}
 	r.mu.RLock()
