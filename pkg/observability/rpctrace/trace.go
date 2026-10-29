@@ -74,6 +74,9 @@ const (
 	StageCommitBuild             Stage = "commit_build"
 	StageCommitDurable           Stage = "commit_durable"
 	StageCommitPublish           Stage = "commit_publish"
+	// Store append stages describe one engine/class group, not each item CPU.
+	StageStoreAppendLocks   Stage = "store_append_locks"
+	StageStoreAppendPrepare Stage = "store_append_prepare"
 )
 
 // Channel authority stages retain a bounded first-effect view within the
@@ -735,6 +738,7 @@ func validStage(stage Stage) bool {
 		StageRecoveryAdmission, StageRecoveryFlight, StageRecoveryOwners, StageRecoveryOwner, StageRecoveryInstall,
 		StagePermissionAdmission, StagePermissionBarrier, StagePermissionSnapshot, StagePermissionAuthority,
 		StageCommitAdmission, StageCommitQueue, StageCommitCollect, StageCommitBuild, StageCommitDurable, StageCommitPublish,
+		StageStoreAppendLocks, StageStoreAppendPrepare,
 		StageChannelSubmit, StageChannelFutureWait, StageChannelPrepareWait, StageChannelPrepare,
 		StageChannelFirstAppendPending, StageChannelFirstAppendQueue, StageChannelFirstAppend, StageChannelAfterFirstAppend:
 		return true

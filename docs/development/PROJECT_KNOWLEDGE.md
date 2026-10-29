@@ -2661,6 +2661,15 @@ completion, installation and provider-reference release.
   and checkpoint batches share the same all-or-release acquisition helper.
   Cancellation before commit ownership is definitely-not-written; admitted
   mutation locks and pins remain owned until terminal finalization.
+- Background storage workers use an owner context, not the caller context.
+  Their optional CommitObservation must transport admission, queue and collect
+  timings to sampled request owners even when context tracing is absent. Direct
+  context traces keep their original physical spans; typed owners use the
+  existing cohort for physical work to preserve the 32-span bound. Message
+  append lock/preparation spans cover an engine/class group and may include
+  later-rejected items, while actual cohort membership remains prepared-only.
+  Preparation ends before ownership/pin/MQTT preparation and Submit; remaining
+  gaps are unknown, never automatically RPC queueing, CPU time or fsync.
 - Chat-lifecycle code38 is a fresh-clock dispatch miss before SDK admission,
   not an accepted product SEND or a delivery-loss proof. Optional driver timing
   retains the first 16 numeric prefixes per generation, stops extra timing at
