@@ -67,9 +67,9 @@ passing 72-hour formal generation -> same aged dataset and process proof
   its first successful SENDACK; metadata-create vectors and hot/first-create/
   reheat latency evidence advance from those exact successful boundaries.
 - Worker protocol v15 keeps deadline registration, exact-result coverage and confirmed observed-late first-attempt counts separate.
-  Only the original clocked transport result resolves its deadline; missing/unknown/canceled/expired results remain unknown.
-  Fixed attempt slots and the bounded late-receipt map bound retention. Private opt-in retains 16 fresh-dispatch timing prefixes per generation.
+  Only the original clocked transport result resolves its deadline; missing/unknown/canceled/expired results remain unknown. Fixed attempt slots and the bounded late-receipt map bound retention. Private opt-in retains 16 fresh-dispatch timing prefixes per generation.
   Added clock reads are diagnostic overhead; codes, units and gates stay fixed.
+  A fixed optional yield count/wall prefix independently brackets completed owner Gosched calls; it overlaps unchanged Residual, is not actor CPU, and keeps invalid clocks unknown. Only the named optional child is sanitized; original driver/native JSON stays strict, with same-source v15 peers required for the added diagnostic field. Default-off paths add no clock reads.
   Owner timing excludes asynchronous SDK execution and keeps identical bounded completion batches with diagnostics disabled. Optional CPU bounds retain16 failed owner turns, keep invalid clocks unknown, and export once through a nonblocking post-join channel; process-wide CPU is not actor-only attribution.
   Driver timing records cross only after generation Stop joins, into their bounded terminal sidecar. A separate strict attempt-link opt-in copies at most16 confirmed-late original keys, connection scopes and reused SDK timings per generation into detached live/final control cuts. Its separately bounded64KiB atomic sidecar uses existing worker fences/sequence/uptime and never enters native evidence, counts or gates; malformed optional data is discarded independently.
 - A nil-by-default local callback notifies only after an authenticated, current, valid, uncanceled harness-failure Snapshot GET or coordinator Checkpoint POST, including cached final Snapshot GETs, outside the lifecycle mutex.

@@ -738,6 +738,20 @@ phase evidence and closed operation names. It does not change workload TOML,
 Absent diagnostics provide no cause attribution. Worker protocol v15 is
 required on both coordinator and workers.
 
+The optional `yield_wall` child freezes only completed calls to the existing
+owner fairness `Gosched` before that same dispatch miss: `count`, independent
+monotonic `wall_nanos`, and `clock_valid`. Missing data is unknown; invalid
+clock readings retain the count with unknown wall, not measured zero. These
+two additional reads per yield occur only with driver diagnostics enabled and
+while its original retention remains open. They do not enable tracing or CPU
+profiling, change the fairness quantum or use the business clock. The interval
+overlaps the original `residual`; do not add them, subtract across clock domains,
+or interpret yield wall as Runnable time or actor CPU. Records and final copies
+remain bounded and independent. Use the same source on coordinator and workers:
+the new reader accepts legacy absent fields, but older strict protocol v15
+readers reject the new enabled diagnostic child. Default-off wire output stays
+unchanged; malformed optional children are discarded independently.
+
 For the separate bounded attempt diagnostic, set `WK_CHAT_LIFECYCLE_ATTEMPT_LINK_DIAGNOSTICS=1` (or `true`) on each worker process and opt the product into `diagnostics.attempt_link_enable`. Empty/`0`/`false` disables this private worker option; other values fail configuration. The driver option does not enable it. The existing live cuts and final cut may export `attempt-link-diagnostics.json` (at most64KiB) with the first16 confirmed-late original attempt keys per worker generation. This optional evidence preserves native reportv7, Evidencev3, counters, retry/deadline behavior and all original gates. Missing/reused connection identity, multiple Gateway invocations or expired samples remain unknown; a normal WriteFrame callback is not flush or client receipt. Diagnostic CPU/memory/control-response overhead remains a confound.
 
 ### Private Linux driver CPU bounds

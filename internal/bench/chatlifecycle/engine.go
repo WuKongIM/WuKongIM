@@ -65,6 +65,10 @@ type EngineConfig struct {
 	// DriverCPUClockProbe is an optional independent process-CPU observation.
 	// It requires the explicit driver diagnostic opt-in and is nil by default.
 	DriverCPUClockProbe func() DriverCPUClockSample
+	// DriverYieldClockProbe optionally supplies nonblocking monotonic nanoseconds
+	// for owner-only Gosched observation. It requires driver diagnostics; nil
+	// uses an enabled-only monotonic origin, outside the business SessionClock.
+	DriverYieldClockProbe func() (int64, bool)
 	// WorkerID is this engine's zero-based worker partition.
 	WorkerID uint64
 	// WorkerCount must match the workload and identity partition count.
@@ -923,7 +927,7 @@ type Engine struct {
 
 // NewEngine wires the existing deterministic models and bounded verifier.
 func NewEngine(config EngineConfig) (*Engine, error) {
-	if (config.DriverCPUClockProbe != nil && !config.EnableDriverDiagnostics) ||
+	if ((config.DriverCPUClockProbe != nil || config.DriverYieldClockProbe != nil) && !config.EnableDriverDiagnostics) ||
 		config.Clock == nil || config.Sessions == nil || config.Schedule.identity == nil ||
 		config.Graph.identity == nil || config.Traffic.identity == nil || config.Generator == nil ||
 		config.Retry.identity == nil || config.Verifier == nil || config.Evidence == nil ||
@@ -970,7 +974,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		},
 	}
 	if config.EnableDriverDiagnostics {
-		engine.driverDiagnostics = &engineDriverRecorder{}
+		engine.driverDiagnostics = newEngineDriverRecorder(config.DriverYieldClockProbe)
 	}
 	if config.DriverCPUClockProbe != nil {
 		engine.driverCPURecorder = &engineDriverCPURecorder{probe: config.DriverCPUClockProbe}
@@ -1042,7 +1046,7 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 		return errEngineConfig
 	}
 	if e.driverDiagnostics != nil {
-		e.driverDiagnostics = &engineDriverRecorder{}
+		e.driverDiagnostics = newEngineDriverRecorder(e.driverDiagnostics.yieldProbe)
 	}
 	if e.driverCPURecorder != nil {
 		e.driverCPURecorder = &engineDriverCPURecorder{probe: e.driverCPURecorder.probe}
@@ -2956,7 +2960,9 @@ func (e *Engine) advance(ctx context.Context, now time.Time, turn *driverTurn) a
 		}
 		if sentWorkSinceYield >= completionFairnessQuantum {
 			if len(e.inflight) > 0 {
+				yieldStarted, yieldClockOK := e.beginDriverYield(turn)
 				runtime.Gosched()
+				e.endDriverYield(turn, yieldStarted, yieldClockOK)
 				e.drainDriverCompletions(turn, driverDrainFairness)
 			}
 			sentWorkSinceYield = 0

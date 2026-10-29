@@ -2736,6 +2736,10 @@ completion, installation and provider-reference release.
   retains the first 16 numeric prefixes per generation, stops extra timing at
   saturation, and marks clock regressions unknown. Final-only protocol-v15
   records and their terminal sidecar do not alter five-field Evidence or gates.
+  The opt-in completed-Gosched wall aggregate uses an independent monotonic
+  probe and overlaps unchanged Residual; absence or invalid clocks stay unknown.
+  It proves neither actor CPU nor Runnable time. The named optional JSON child
+  is isolated without weakening native strictness and requires same-source peers.
 - Worker expiry validates cleanup lifecycle and reservation state before using
   a conservative atomic deadline bound to skip the online-table lock and scan.
   The bound includes leased non-anchor sessions; a pinned overdue deadline

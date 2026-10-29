@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Add bounded, optional wall timing around benchmark owner fairness yields,
+  keeping dispatch deadlines and acceptance gates unchanged.
+  / 压测可选记录 owner 公平调度让出期间的有界墙钟时长，保留原派发截止时间与验收门禁。
+
 - Keep fresh SEND permission reads valid across unrelated control metadata
   updates while retaining exact authority and local migration guards.
   / 控制元数据更新不再误拒绝新鲜的 SEND 权限读取，保留精确权威与本节点迁移校验。

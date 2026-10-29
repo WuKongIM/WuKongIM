@@ -244,6 +244,8 @@ func validTypedWorkerResponse(response any) bool {
 		// worker evidence or make an active snapshot into terminal evidence.
 		if value.Phase != WorkerPhaseFinal || !validDriverDiagnostics(value.DriverDiagnostics, value.Generation) {
 			value.DriverDiagnostics = nil
+		} else {
+			value.DriverDiagnostics = copyDriverDiagnostics(value.DriverDiagnostics)
 		}
 		return validWorkerSnapshot(*value)
 	case *WorkerStatus:
@@ -298,8 +300,8 @@ func validWorkerErrorCode(code WorkerErrorCode) bool {
 }
 
 func decodeStrictWorkerResponse(encoded []byte, destination any) bool {
-	// Only this new named optional field is decoded independently. Unknown
-	// native fields still pass through the original strict decoder below.
+	// Attempt-link data and DriverDeadlineMiss's named yield child have
+	// independent decoders. All other native fields remain strict below.
 	var optional json.RawMessage
 	if _, ok := destination.(*WorkerSnapshot); ok {
 		var fields map[string]json.RawMessage
