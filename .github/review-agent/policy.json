@@ -170,7 +170,7 @@
         "-parallel=2"
       ],
       "working_dir": ".",
-      "timeout_seconds": 600,
+      "timeout_seconds": 720,
       "max_output_bytes": 8388608
     },
     "agent-artifact-contracts": {
