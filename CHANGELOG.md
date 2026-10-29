@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Give hot lifecycle SEND attempts a separate two-second wait budget, including
+  retries; retain five seconds for cold attempts and the existing latency limits.
+  / 生命周期压测的热消息尝试（含重试）独立等待两秒；冷消息仍为五秒，延迟门禁不变。
+
 - Export exact rolling latency gate evidence in lifecycle report v8, preserving
   terminal snapshots and existing thresholds; retain sampled storage preparation
   detail without attributing shared wall time to CPU or physical commit.

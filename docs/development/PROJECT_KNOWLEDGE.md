@@ -60,6 +60,14 @@ gap does not prove all first attempts met their deadline. Retry counts and
 explicit failures cannot substitute for or be summed with this lower bound.
 No new timeout-rate gate is introduced. Fixed attempt slots and bounded late
 receipts retain evidence without an unbounded message history.
+The lifecycle hot attempt wait is configured independently as
+`thresholds.latency.hot_attempt_timeout`: current Formal runs use two seconds
+for each hot attempt, including retries. Cold attempts retain their five-second
+wait. Hot P99 remains 400ms and P999 remains 1s; first-attempt timeout counts and
+latency breaches therefore describe different boundaries. Legacy zero/missing
+budget inherits its original P999 only for diagnosis or custom non-formal profiles;
+it cannot select a current Formal run. Reports retain the explicit budget and
+configuration digest, and archived one-second results keep their original meaning.
 Worker protocol v12 adds closed under-delivery emitter codes 37–46 without
 changing the five evidence-example fields, original numeric units, 100ms dispatch
 or five-minute eligibility semantics. Historical code 27 has unknown emitter;

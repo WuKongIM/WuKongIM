@@ -1288,7 +1288,7 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 		WorkerID: assignment.WorkerID, WorkerCount: assignment.WorkerCount,
 		CommandCapacity: limits.command, WorkCapacity: limits.work, RetryCapacity: limits.retry,
 		InflightCapacity: limits.inflight, MaxWorkPerAdvance: limits.maxWork,
-		AttemptTimeout:            config.Thresholds.Latency.HotSendACK.P999,
+		AttemptTimeout:            config.Thresholds.Latency.hotAttemptTimeout(),
 		ColdAttemptTimeout:        config.Thresholds.Latency.Cold.P999,
 		ActivityEligibilityWindow: config.Thresholds.Latency.SustainedBreachWindow,
 	})

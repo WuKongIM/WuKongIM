@@ -23,6 +23,9 @@ func TestCurrentReportCapacityCLIParsingRequiresV8(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if schema == "wukongim/chat-lifecycle-report/v7" {
+				body = currentReportLegacyHotBudgetJSON(t, body)
+			}
 			if err := os.WriteFile(reportPath, body, 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -55,6 +58,29 @@ func TestCurrentReportCapacityCLIParsingRequiresV8(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Strip only the field that real historicalv7 writers could not emit.
+func currentReportLegacyHotBudgetJSON(t *testing.T, body []byte) []byte {
+	t.Helper()
+	var root, thresholds, latency map[string]json.RawMessage
+	if err := json.Unmarshal(body, &root); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(root["thresholds"], &thresholds); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(thresholds["latency"], &latency); err != nil {
+		t.Fatal(err)
+	}
+	delete(latency, "hot_attempt_timeout")
+	thresholds["latency"], _ = json.Marshal(latency)
+	root["thresholds"], _ = json.Marshal(thresholds)
+	result, err := json.Marshal(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
 }
 
 // The fixture starts at the existing public producer boundary. Its test-only

@@ -84,7 +84,8 @@ type EngineConfig struct {
 	RetryCapacity     int
 	InflightCapacity  int
 	MaxWorkPerAdvance int
-	// AttemptTimeout is the hot SENDACK retry deadline.
+	// AttemptTimeout is the wait budget for each hot SENDACK attempt and retry,
+	// independently of the percentile latency limits.
 	AttemptTimeout time.Duration
 	// ColdAttemptTimeout is the retry deadline for the deterministic first
 	// person-channel create and an all-node-proven cold reheat.
@@ -3688,7 +3689,7 @@ func sendLatencyClassForIntent(intent TrafficIntent) SendLatencyClass {
 	return SendLatencyHot
 }
 
-// attemptTimeoutFor selects the bounded first-attempt deadline from the
+// attemptTimeoutFor selects the bounded wait for each attempt from the
 // intent's already-proven hot or cold lifecycle classification.
 func (e *Engine) attemptTimeoutFor(intent TrafficIntent) time.Duration {
 	if intent.ColdAttempt || intent.MetaCreateCandidate || intent.Domain == LogicalDomainRevisit {

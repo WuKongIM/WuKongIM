@@ -21,7 +21,15 @@ func TestCurrentReportRehearsalCommandRequiresV8(t *testing.T) {
 			candidate := report
 			candidate.SchemaVersion = schema
 			directory := t.TempDir()
-			reportPath := writeJSONFile(t, directory, "final.json", candidate)
+			var wire any = candidate
+			if schema == "wukongim/chat-lifecycle-report/v7" {
+				encoded, err := json.Marshal(candidate)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wire = json.RawMessage(currentReportLegacyHotBudgetJSON(t, encoded))
+			}
+			reportPath := writeJSONFile(t, directory, "final.json", wire)
 			startPath := writeJSONFile(t, directory, "run-start.json", receipt)
 			// The archived decoder remains deliberately readable for diagnostics.
 			if decoded, err := chatlifecycle.ReadReport(reportPath); err != nil || decoded.SchemaVersion != schema || decoded.Verdict.LatencyGate != nil {
@@ -44,6 +52,30 @@ func TestCurrentReportRehearsalCommandRequiresV8(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Historicalv7 never contained the new attempt-budget field. Keep every old
+// case/assertion while removing only that pending key from its wire fixture.
+func currentReportLegacyHotBudgetJSON(t *testing.T, body []byte) []byte {
+	t.Helper()
+	var root, thresholds, latency map[string]json.RawMessage
+	if err := json.Unmarshal(body, &root); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(root["thresholds"], &thresholds); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(thresholds["latency"], &latency); err != nil {
+		t.Fatal(err)
+	}
+	delete(latency, "hot_attempt_timeout")
+	thresholds["latency"], _ = json.Marshal(latency)
+	root["thresholds"], _ = json.Marshal(thresholds)
+	result, err := json.Marshal(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
 }
 
 func TestCurrentReportFormalChainRequiresV8ForEveryCut(t *testing.T) {

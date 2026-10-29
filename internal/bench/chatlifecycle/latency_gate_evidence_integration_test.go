@@ -456,6 +456,9 @@ func TestLatencyGateEvidenceReportOptionalCompatibilityAndStrictParsing(t *testi
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			body := m01InsertGate(t, m01ReportVersion(t, base, test.version), test.child)
+			if test.version == legacyReportSchemaVersion {
+				body = hotAttemptBudgetRewriteJSON(t, body, nil)
+			}
 			loaded, err := m01ReadBody(t, body)
 			if err != nil {
 				t.Fatalf("compatible optional evidence rejected: %v", err)
@@ -478,7 +481,8 @@ func TestLatencyGateEvidenceReportOptionalCompatibilityAndStrictParsing(t *testi
 		})
 	}
 	t.Run("legacy_v7_cannot_carry_new_native_proof", func(t *testing.T) {
-		if _, err := m01ReadBody(t, m01InsertGate(t, m01ReportVersion(t, base, "wukongim/chat-lifecycle-report/v7"), valid)); err == nil {
+		body := hotAttemptBudgetRewriteJSON(t, m01InsertGate(t, m01ReportVersion(t, base, "wukongim/chat-lifecycle-report/v7"), valid), nil)
+		if _, err := m01ReadBody(t, body); err == nil {
 			t.Fatal("legacy v7 silently accepted/reheadered new latency gate proof")
 		}
 	})

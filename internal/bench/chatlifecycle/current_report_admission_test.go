@@ -57,6 +57,7 @@ func TestCurrentReportLegacyDiagnosticReadRemainsUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	encoded = hotAttemptBudgetRewriteJSON(t, encoded, nil)
 	for _, wholeNull := range []bool{false, true} {
 		t.Run(map[bool]string{false: "absent", true: "null"}[wholeNull], func(t *testing.T) {
 			body := encoded

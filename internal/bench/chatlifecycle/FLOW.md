@@ -114,11 +114,11 @@ passing 72-hour formal generation -> same aged dataset and process proof
   needs a rolling ten-minute interval, 1,000 samples in each hot/cold/full-sync
   class, and a cut at most five seconds old. Counter deltas belong to their end
   cut; a gap over ten minutes resets positive qualification, not negative breaches.
-  The numerical five-minute breach rule and correctness gates remain unchanged.
+  The five-minute breach/correctness gates stay fixed; hot attempt/retry wait is2s independently of400ms/1sSLOs, cold wait5s.
 - Report v8 / threshold v2 binds local-diagnostic, rehearsal, or formal-protocol scope to validated configuration.
   Formal scope still needs external Linux hardware/topology; elapsed rehearsal and missing/stale positive latency evidence cannot pass.
   Baseline/start/end elapsed positions share one monotonic clock; serialized duration/order/freshness use them. Wall times are audit fields.
-  Diagnostic readers never reconstruct offsets or upgrade old reports; legacy v7 without a gate stays unknown. Current result and capacity admission requires v8; old strict readers cannot consume v8.
+  Diagnostic readers never reconstruct offsets or upgrade old reports; legacy v7 has no hot-budget override and stays original/unknown. Current result/capacity requires v8; Formal v8 declares2s; old strict readers cannot consume v8.
   The fixed three-class native latency_gate copies actual five-minute sums, continuous breach state and unchanged threshold fractions.
   Its first terminal cut freezes only the child; captured latency_age/status do not claim publication freshness (report elapsed minus evaluated elapsed).
   Absent/null proof stays unknown; present proof is strict and bounded, independently of positive ten-minute qualification; no new clock or numerical gate.
