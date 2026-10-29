@@ -115,7 +115,7 @@ func TestGenerationWireNeverSilentlyDropsActivationProof(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := decodeGenerationResponse(data)
+		got, err := decodeGenerationResponse(data, generationRegister)
 		if err != nil || !reflect.DeepEqual(result, got.Register) {
 			t.Fatalf("activation proof dropped: %+v %v", got, err)
 		}

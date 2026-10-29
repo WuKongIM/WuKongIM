@@ -307,9 +307,9 @@ func encodeGenerationResponse(resp generationResponse) ([]byte, error) {
 
 // scanGenerationResponse validates the entire bounded response before any route
 // backing or strings are decoded. Page responses cannot hide activation arrays.
-func scanGenerationResponse(body []byte) (generationResponse, int, uint64, uint64, error) {
+func scanGenerationResponse(body []byte, expectedOp byte) (generationResponse, int, uint64, uint64, error) {
 	var resp generationResponse
-	if len(body) < 6 || len(body) > generationMaxWire || !hasMagic(body, generationResponseMagic) || !generationOperation(body[5]) {
+	if len(body) < 6 || len(body) > generationMaxWire || !hasMagic(body, generationResponseMagic) || !generationOperation(body[5]) || body[5] != expectedOp {
 		return resp, 0, 0, 0, errGenerationWire
 	}
 	resp.Op = body[5]
@@ -333,11 +333,12 @@ func scanGenerationResponse(body []byte) (generationResponse, int, uint64, uint6
 		return resp, 0, 0, 0, errGenerationWire
 	}
 	resp.Exhausted = exhausted[0] == 1
-	activationFields := resp.Op != generationPage && resp.Op != generationReadUIDs
-	resp.Receipt = readGenerationReceipt(&c, activationFields)
-	resp.Register.Receipt = readGenerationReceipt(&c, activationFields)
+	// The expected operation is caller-owned. An untrusted response cannot
+	// select a more permissive decoder before its operation echo is checked.
+	resp.Receipt = readGenerationReceipt(&c, resp.Op == generationCommit && resp.Status == rpcStatusOK)
+	resp.Register.Receipt = readGenerationReceipt(&c, resp.Op == generationRegister && resp.Status == rpcStatusOK)
 	flag := c.take(1)
-	if len(flag) != 1 || flag[0] > 1 {
+	if len(flag) != 1 || flag[0] > 1 || (flag[0] != 0 && (resp.Op != generationRegister || resp.Status != rpcStatusOK)) {
 		return resp, 0, 0, 0, errGenerationWire
 	}
 	if flag[0] == 1 {
@@ -345,7 +346,7 @@ func scanGenerationResponse(body []byte) (generationResponse, int, uint64, uint6
 		resp.Register.PendingClaim = &claim
 	}
 	tokenBytes := c.text()
-	if (resp.Op == generationPage || resp.Op == generationReadUIDs) && len(tokenBytes) != 0 {
+	if len(tokenBytes) != 0 && (resp.Op != generationRegister || resp.Status != rpcStatusOK) {
 		return resp, 0, 0, 0, errGenerationWire
 	}
 	resp.Register.PendingToken = presence.PendingRouteToken(tokenBytes)
@@ -381,7 +382,7 @@ func scanGenerationResponse(body []byte) (generationResponse, int, uint64, uint6
 	}
 	routesOffset := c.offset
 	rows := c.unsigned()
-	if rows > 4096 {
+	if rows > 4096 || (rows != 0 && resp.Op != generationPage && resp.Op != generationReadUIDs) {
 		return resp, 0, 0, 0, errGenerationWire
 	}
 	bytes := uint64(unsafe.Sizeof(presence.OwnedSlotPage{})) + rows*uint64(unsafe.Sizeof(presence.Route{}))
@@ -409,8 +410,8 @@ func scanGenerationResponse(body []byte) (generationResponse, int, uint64, uint6
 	}
 	return resp, routesOffset, rows, bytes, nil
 }
-func decodeGenerationResponse(body []byte) (generationResponse, error) {
-	resp, offset, _, _, err := scanGenerationResponse(body)
+func decodeGenerationResponse(body []byte, expectedOp byte) (generationResponse, error) {
+	resp, offset, _, _, err := scanGenerationResponse(body, expectedOp)
 	if err != nil {
 		return resp, err
 	}
@@ -446,7 +447,7 @@ func decodeGenerationPage(ctx context.Context, body []byte, req authority.SlotPa
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	resp, offset, rows, bytes, err := scanGenerationResponse(body)
+	resp, offset, rows, bytes, err := scanGenerationResponse(body, generationPage)
 	if err != nil {
 		return nil, err
 	}

@@ -156,7 +156,7 @@ func (c *Client) callGeneration(ctx context.Context, nodeID uint64, service uint
 	if err != nil {
 		return generationResponse{}, err
 	}
-	resp, err := decodeGenerationResponse(body)
+	resp, err := decodeGenerationResponse(body, req.Op)
 	if err == nil {
 		err = requireGenerationOperation(resp, req.Op)
 	}
@@ -241,7 +241,7 @@ func (c *Client) ReadPresenceGenerationUIDs(ctx context.Context, claim presence.
 	if err != nil {
 		return nil, err
 	}
-	resp, offset, rows, bytes, err := scanGenerationResponse(body)
+	resp, offset, rows, bytes, err := scanGenerationResponse(body, generationReadUIDs)
 	if err != nil {
 		return nil, err
 	}
