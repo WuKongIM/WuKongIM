@@ -15,6 +15,9 @@ const (
 	maxGenerationPageRows = 4096
 	maxSuspectRows        = 8192
 	maxSuspectBytes       = 128 << 20
+	// Preserve the original logical per-row structure allowance. This is not
+	// an estimate of Go's exact map bucket allocation or total process RSS.
+	suspectRowStructureBytes = 256
 )
 
 type generationOwner struct {
@@ -34,6 +37,11 @@ type slotGeneration struct {
 	owners      map[uint64]*generationOwner
 	suspects    map[identityKey]Route
 	suspectUIDs map[string]int
+	// Retained map tables keep their structural high-water debit even after
+	// deletes. Only whole-table retirement refunds this reservation.
+	suspectHighWater uint64
+	// Payload debit follows live borrowed strings, independently of table size.
+	suspectPayloadBytes uint64
 }
 
 // suspectLedger is acquired only while a shard is held, never in reverse order.
@@ -42,8 +50,8 @@ type suspectLedger struct {
 	rows, bytes uint64
 }
 
-func suspectBytes(r Route) uint64 {
-	return uint64(256 + len(r.UID) + len(r.DeviceID) + len(r.Listener))
+func suspectPayloadBytes(r Route) uint64 {
+	return uint64(len(r.UID) + len(r.DeviceID) + len(r.Listener))
 }
 
 // BeginGeneration installs a previously validated committed claim and exact
@@ -81,7 +89,7 @@ func (d *Directory) BeginGeneration(claim GenerationClaim, owners []OwnerCut) er
 		slot.ownerSeq = previous.ownerSeq
 		slot.tombstoneSeq = previous.tombstoneSeq
 	}
-	slot.generation = &slotGeneration{claim: claim, state: generationScanning, owners: vector, suspects: make(map[identityKey]Route), suspectUIDs: make(map[string]int)}
+	slot.generation = &slotGeneration{claim: claim, state: generationScanning, owners: vector}
 	d.dropGenerationLocked(shard.slots[claim.Target.HashSlot])
 	shard.highWater[claim.Target.HashSlot] = claim
 	shard.slots[claim.Target.HashSlot] = slot
@@ -449,9 +457,33 @@ func (d *Directory) removeSuspectLocked(g *slotGeneration, key identityKey) {
 	if g.suspectUIDs[key.uid] == 0 {
 		delete(g.suspectUIDs, key.uid)
 	}
+	payload := suspectPayloadBytes(route)
+	g.suspectPayloadBytes -= payload
 	d.suspects.mu.Lock()
 	d.suspects.rows--
-	d.suspects.bytes -= suspectBytes(route)
+	d.suspects.bytes -= payload
+	d.suspects.mu.Unlock()
+}
+
+// retireEmptySuspectBackingLocked runs only after any table iteration has
+// ended. Deleting a map entry does not retire its retained table allocation.
+func (d *Directory) retireEmptySuspectBackingLocked(g *slotGeneration) {
+	if len(g.suspects) == 0 {
+		d.dropSuspectBackingLocked(g)
+	}
+}
+
+// dropSuspectBackingLocked drops all generation-owned table references before
+// refunding their live payload and retained structural debits. It does not walk
+// the tables or rebuild them on each delete.
+func (d *Directory) dropSuspectBackingLocked(g *slotGeneration) {
+	rows := uint64(len(g.suspects))
+	bytes := g.suspectHighWater*suspectRowStructureBytes + g.suspectPayloadBytes
+	g.suspects, g.suspectUIDs = nil, nil
+	g.suspectHighWater, g.suspectPayloadBytes = 0, 0
+	d.suspects.mu.Lock()
+	d.suspects.rows -= rows
+	d.suspects.bytes -= bytes
 	d.suspects.mu.Unlock()
 }
 
@@ -459,10 +491,7 @@ func (d *Directory) dropGenerationLocked(slot *authoritySlot) {
 	if slot == nil || slot.generation == nil {
 		return
 	}
-	g := slot.generation
-	for key := range g.suspects {
-		d.removeSuspectLocked(g, key)
-	}
+	d.dropSuspectBackingLocked(slot.generation)
 }
 
 func (d *Directory) expireGenerationLocked(slot *authoritySlot, route Route) {
@@ -481,7 +510,9 @@ func (d *Directory) expireGenerationLocked(slot *authoritySlot, route Route) {
 	if _, exists := g.suspects[key]; exists {
 		return
 	}
-	bytes := suspectBytes(route)
+	payload := suspectPayloadBytes(route)
+	highWater := max(g.suspectHighWater, uint64(len(g.suspects))+1)
+	bytes := payload + (highWater-g.suspectHighWater)*suspectRowStructureBytes
 	d.suspects.mu.Lock()
 	if d.suspects.rows >= maxSuspectRows || bytes > maxSuspectBytes-d.suspects.bytes {
 		d.suspects.mu.Unlock()
@@ -492,6 +523,12 @@ func (d *Directory) expireGenerationLocked(slot *authoritySlot, route Route) {
 	d.suspects.rows++
 	d.suspects.bytes += bytes
 	d.suspects.mu.Unlock()
+	g.suspectHighWater = highWater
+	g.suspectPayloadBytes += payload
+	if g.suspects == nil {
+		g.suspects = make(map[identityKey]Route)
+		g.suspectUIDs = make(map[string]int)
+	}
 	g.suspects[key] = route
 	g.suspectUIDs[route.UID]++
 }
@@ -538,5 +575,7 @@ func (d *Directory) ReconcileSuspect(claim GenerationClaim, uids []string, route
 			slot.touchLocked(current)
 		}
 	}
+	// The map iterator no longer owns the retired tables when credit is returned.
+	d.retireEmptySuspectBackingLocked(g)
 	return nil
 }

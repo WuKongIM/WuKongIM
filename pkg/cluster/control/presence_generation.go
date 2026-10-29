@@ -91,59 +91,82 @@ func (c *PresenceControlClient) call(ctx context.Context, nodeID uint64, req pre
 	}
 }
 
-// NewPresenceControlHandler bounds inputs and rejects unknown formats before dispatch.
+// NewPresenceControlHandler retains caller cancellation for committed reads,
+// while admitted durable Ensure/Claim mutations keep their execution ownership.
 func NewPresenceControlHandler(backend PresenceControl) clusternet.Handler {
-	return clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
-		var req presenceControlRequest
-		if err := decodePresenceControl(payload, &req); err != nil {
-			return nil, err
-		}
-		if req.Version != 1 || backend == nil {
+	return presenceControlHandler{backend: backend}
+}
+
+type presenceControlHandler struct{ backend PresenceControl }
+
+// CancelRunningFor uses the same bounded request decoder as dispatch. Unknown
+// versions, fields, shapes and operations never acquire read cancellation policy.
+func (h presenceControlHandler) CancelRunningFor(payload []byte) bool {
+	var req presenceControlRequest
+	if h.backend == nil || decodePresenceControl(payload, &req) != nil || req.Version != 1 || req.Claim != nil {
+		return false
+	}
+	switch req.Operation {
+	case "capabilities":
+		return req.HashSlot == 0
+	case "get":
+		return true
+	default:
+		return false
+	}
+}
+
+func (h presenceControlHandler) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	backend := h.backend
+	var req presenceControlRequest
+	if err := decodePresenceControl(payload, &req); err != nil {
+		return nil, err
+	}
+	if req.Version != 1 || backend == nil {
+		return nil, controller.ErrPresenceGenerationNotReady
+	}
+	var out presenceControlResponse
+	out.Version = 1
+	var err error
+	switch req.Operation {
+	case "capabilities":
+		if req.Claim != nil || req.HashSlot != 0 {
 			return nil, controller.ErrPresenceGenerationNotReady
 		}
-		var out presenceControlResponse
-		out.Version = 1
-		var err error
-		switch req.Operation {
-		case "capabilities":
-			if req.Claim != nil || req.HashSlot != 0 {
-				return nil, controller.ErrPresenceGenerationNotReady
-			}
-			out.Capabilities = backend.PresenceCapabilities()
-		case "ensure":
-			if req.Claim != nil || req.HashSlot != 0 {
-				return nil, controller.ErrPresenceGenerationNotReady
-			}
-			out.Owners, err = backend.EnsurePresenceOwnerSet(ctx)
-		case "claim":
-			if req.Claim == nil || req.HashSlot != 0 {
-				return nil, controller.ErrPresenceGenerationNotReady
-			}
-			out.Generation, err = backend.ClaimPresenceGeneration(ctx, *req.Claim)
-		case "get":
-			if req.Claim != nil {
-				return nil, controller.ErrPresenceGenerationNotReady
-			}
-			out.Snapshot, err = backend.GetPresenceGeneration(ctx, req.HashSlot)
+		out.Capabilities = backend.PresenceCapabilities()
+	case "ensure":
+		if req.Claim != nil || req.HashSlot != 0 {
+			return nil, controller.ErrPresenceGenerationNotReady
+		}
+		out.Owners, err = backend.EnsurePresenceOwnerSet(ctx)
+	case "claim":
+		if req.Claim == nil || req.HashSlot != 0 {
+			return nil, controller.ErrPresenceGenerationNotReady
+		}
+		out.Generation, err = backend.ClaimPresenceGeneration(ctx, *req.Claim)
+	case "get":
+		if req.Claim != nil {
+			return nil, controller.ErrPresenceGenerationNotReady
+		}
+		out.Snapshot, err = backend.GetPresenceGeneration(ctx, req.HashSlot)
+	default:
+		return nil, controller.ErrPresenceGenerationNotReady
+	}
+	if err != nil {
+		switch {
+		case errors.Is(err, controller.ErrPresenceGenerationConflict):
+			out.Error = "conflict"
+		case errors.Is(err, controller.ErrNotLeader):
+			out.Error = "not_leader"
 		default:
-			return nil, controller.ErrPresenceGenerationNotReady
+			out.Error = "not_ready"
 		}
-		if err != nil {
-			switch {
-			case errors.Is(err, controller.ErrPresenceGenerationConflict):
-				out.Error = "conflict"
-			case errors.Is(err, controller.ErrNotLeader):
-				out.Error = "not_leader"
-			default:
-				out.Error = "not_ready"
-			}
-		}
-		result, err := json.Marshal(out)
-		if len(result) > presenceControlMaxBytes {
-			return nil, controller.ErrPresenceGenerationNotReady
-		}
-		return result, err
-	})
+	}
+	result, err := json.Marshal(out)
+	if len(result) > presenceControlMaxBytes {
+		return nil, controller.ErrPresenceGenerationNotReady
+	}
+	return result, err
 }
 func decodePresenceControl(data []byte, out any) error {
 	if len(data) == 0 || len(data) > presenceControlMaxBytes {

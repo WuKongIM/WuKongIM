@@ -88,8 +88,11 @@ scheduled backup or restore
   Bounded readers reject unknown statuses as malformed; existing codecs and bytes
   remain unchanged. Singleton legacy reads use op9, multi-target reads use op10.
 - Presence read-only classifiers verify the `WKVP` version-2 header, selecting
-  authority operations 5/8 and owner operations 9/10/11 only. Full body validation
-  remains in handlers; malformed reads never dispatch an owner mutation.
+  authority operations 5/8 and owner operations 9/10/11. Full `WKVG` format-1
+  Begin/Page/End/ReadUIDs retain the original caller's deadline/cancellation;
+  temporary cut work is joined or aborted, never given a fresh service budget.
+  Exact Abort cleanup and durable authority mutations remain detached.
+  Unknown headers retain non-read policy; handlers still validate complete bodies.
 - The owner diagnostic classifier declares only version-2 header operations
   7/9/10/11 for selected server RPC samples. Unknown/truncated headers stay zero;
   the declaration grants neither full-body validation nor cancellation authority.

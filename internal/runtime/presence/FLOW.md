@@ -55,6 +55,10 @@ this node. It stores virtual gateway-owner routes, never concrete sessions.
    nonwaiting 8,192 identity / 128 MiB metadata ledger bounds suspects; overflow
    revokes the affected slot before releasing uncertainty. Unrelated UIDs do
    not wait on a suspect UID. Legacy TTL expiry invalidates its UID proof too.
+   Deletes refund live rows and string lengths; each generation retains the
+   original 256-byte logical structure allowance at its table high water until
+   both tables are retired. Partial tables can therefore conservatively exhaust
+   the same byte limit. This is not an exact Go allocator or RSS measurement.
 
 ## Invariants and Failure Semantics
 

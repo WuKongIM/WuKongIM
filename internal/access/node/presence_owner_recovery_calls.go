@@ -70,9 +70,19 @@ func PresenceAuthorityReadOnly(payload []byte) bool {
 	return op == presenceOpEndpointsByUIDID || op == presenceOpEndpointsByTargetsID
 }
 
-// PresenceOwnerReadOnly verifies the wire-v2 header before selecting only owner
-// reads. Unknown versions and operations retain mutation cancellation semantics.
+// PresenceOwnerReadOnly verifies the exact protocol header before selecting
+// owner reads and temporary Full scan work. Begin cleans up a canceled cut;
+// End grants no success after cancellation. Exact Abort cleanup and durable
+// mutations remain detached, as do unknown versions and operations.
 func PresenceOwnerReadOnly(payload []byte) bool {
+	if len(payload) >= len(generationRequestMagic)+1 && hasMagic(payload, generationRequestMagic) {
+		switch payload[len(generationRequestMagic)] {
+		case generationBegin, generationPage, generationEnd, generationReadUIDs:
+			return true
+		default:
+			return false
+		}
+	}
 	if len(payload) < len(presenceRPCRequestMagic)+1 || !isPresenceRPCRequestBinary(payload) {
 		return false
 	}

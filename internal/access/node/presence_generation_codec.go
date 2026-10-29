@@ -96,7 +96,7 @@ func appendGenerationReceipt(dst []byte, r *authority.ActivationReceipt) []byte 
 	dst = appendPresenceRouteIdentity(dst, r.Identity)
 	return appendUvarint(dst, r.OwnerSeq)
 }
-func readGenerationReceipt(c *ownerPageCursor) *authority.ActivationReceipt {
+func readGenerationReceipt(c *ownerPageCursor, allowed bool) *authority.ActivationReceipt {
 	flag := c.take(1)
 	if len(flag) != 1 {
 		return nil
@@ -104,7 +104,9 @@ func readGenerationReceipt(c *ownerPageCursor) *authority.ActivationReceipt {
 	if flag[0] == 0 {
 		return nil
 	}
-	if flag[0] != 1 {
+	// Page/UID replies may not carry activation state. Reject their flag before
+	// decoding the receipt identity, whose string is not result-budget prepaid.
+	if flag[0] != 1 || !allowed {
 		c.err = errGenerationWire
 		return nil
 	}
@@ -331,8 +333,9 @@ func scanGenerationResponse(body []byte) (generationResponse, int, uint64, uint6
 		return resp, 0, 0, 0, errGenerationWire
 	}
 	resp.Exhausted = exhausted[0] == 1
-	resp.Receipt = readGenerationReceipt(&c)
-	resp.Register.Receipt = readGenerationReceipt(&c)
+	activationFields := resp.Op != generationPage && resp.Op != generationReadUIDs
+	resp.Receipt = readGenerationReceipt(&c, activationFields)
+	resp.Register.Receipt = readGenerationReceipt(&c, activationFields)
 	flag := c.take(1)
 	if len(flag) != 1 || flag[0] > 1 {
 		return resp, 0, 0, 0, errGenerationWire

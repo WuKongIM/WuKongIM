@@ -1444,6 +1444,14 @@ specification, runbook, report, or module documentation; link to them when neede
   than becoming false negatives; only real owner activity refreshes LastSeen.
   The 8,192-identity / 128 MiB suspect ledger and independent decoded-page credits
   exclude live Directory/index storage, wire buffers, allocator overhead and RSS.
+  Suspect table structure retains its logical 256-byte-per-identity high-water
+  debit across partial deletion; only live payload/row debits return immediately.
+  Empty or retired generations drop both tables before returning structure credit.
+  This conservative ownership allowance is not an exact Go allocator measurement.
+  Full owner Begin/Page/End/ReadUIDs and Controller Get inherit the original
+  caller budget and cancellation; exact Abort cleanup and durable Ensure/Claim
+  retain independent execution. Forbidden page receipts fail at their flag before
+  identity strings can be decoded outside the result ledger.
   Ordinary backup restore retains Controller G history; replacing every Controller
   disk with an older image has no external anti-rollback proof in this protocol.
 - SEND permission RPCs compare semantic Slot authority and derived Hash Slot,

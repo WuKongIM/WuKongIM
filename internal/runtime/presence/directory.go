@@ -212,6 +212,7 @@ func (d *Directory) unregisterLocked(slot *authoritySlot, identity RouteIdentity
 	if g := slot.generation; g != nil {
 		if suspect, ok := g.suspects[key]; ok && suspect.OwnerSeq <= ownerSeq {
 			d.removeSuspectLocked(g, key)
+			d.retireEmptySuspectBackingLocked(g)
 		}
 	}
 	if ownerSeq > slot.tombstoneSeq[key] {
@@ -261,6 +262,7 @@ func (d *Directory) touchLocked(slot *authoritySlot, routes []Route) {
 					continue
 				}
 				d.removeSuspectLocked(g, key)
+				d.retireEmptySuspectBackingLocked(g)
 			}
 		}
 		slot.touchLocked(route)
