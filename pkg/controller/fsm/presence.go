@@ -35,7 +35,7 @@ func (sm *StateMachine) applyEnsurePresenceOwnerSet(next *state.ClusterState, in
 				return reject(ReasonPresenceOwnerObligation)
 			}
 		}
-		if reflect.DeepEqual(next.Presence.OwnerSet.Owners, owners) {
+		if next.Presence.RosterRevision <= next.Presence.OwnerSet.Epoch && reflect.DeepEqual(next.Presence.OwnerSet.Owners, owners) {
 			set := next.Presence.OwnerSet.Clone()
 			result := noop(ReasonNoChange)
 			result.PresenceOwnerSet = &set
@@ -44,7 +44,7 @@ func (sm *StateMachine) applyEnsurePresenceOwnerSet(next *state.ClusterState, in
 	}
 	before := next.Clone()
 	if next.Presence == nil {
-		next.Presence = &state.PresenceState{}
+		next.Presence = &state.PresenceState{RosterRevision: index}
 	}
 	next.Presence.OwnerSet = state.PresenceOwnerSet{Epoch: index, Owners: owners}
 	result := validateChanged(next, before, cmd)
@@ -57,6 +57,9 @@ func (sm *StateMachine) applyEnsurePresenceOwnerSet(next *state.ClusterState, in
 
 func (sm *StateMachine) applyClaimPresenceGeneration(next *state.ClusterState, index uint64, cmd command.Command) ApplyResult {
 	claim := cmd.PresenceClaim
+	if next.Presence == nil || !next.PresenceRosterCurrent(next.Presence.OwnerSet.Owners) {
+		return reject(ReasonPresenceNotReady)
+	}
 	if claim == nil || next.Presence == nil || cmd.ExpectedRevision == nil || claim.OwnerSetEpoch == 0 || claim.OwnerSetEpoch != next.Presence.OwnerSet.Epoch || claim.ServingBoot == 0 {
 		return reject(ReasonPresenceNotReady)
 	}
@@ -143,6 +146,9 @@ func preservePresenceHighWater(current, next state.ClusterState) error {
 	if current.Presence == nil {
 		return nil
 	}
+	if next.Presence != nil && (next.Presence.RosterRevision < current.Presence.RosterRevision || (current.Presence.RosterRevision > 0 && next.Presence.RosterRevision == current.Presence.RosterRevision && !next.PresenceRosterMatches(current.PresenceAdmissionBasis()))) {
+		return fmt.Errorf("controller: presence roster high-water rollback")
+	}
 	if next.Presence == nil || next.ClusterID != current.ClusterID || next.Presence.OwnerSet.Epoch < current.Presence.OwnerSet.Epoch {
 		return fmt.Errorf("controller: presence snapshot high-water rollback")
 	}
@@ -176,5 +182,5 @@ func presenceNodeAdmission(st state.ClusterState, node state.Node, proof *state.
 			return true
 		}
 	}
-	return proof != nil && proof.NodeID == node.NodeID && proof.BootID != 0 && proof.ControllerStateVersion == 1 && proof.ControllerCommandVersion == 1 && proof.PresenceProtocolVersion == state.PresenceProtocolVersion
+	return proof != nil && proof.NodeID == node.NodeID && proof.BootID != 0 && proof.ControllerStateVersion == state.PresenceControllerFormatVersion && proof.ControllerCommandVersion == state.PresenceControllerFormatVersion && proof.PresenceProtocolVersion == state.PresenceProtocolVersion
 }

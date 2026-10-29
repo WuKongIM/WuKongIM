@@ -147,7 +147,7 @@ func presenceRetirementFixture(t *testing.T) (*Node, *retirementController, cont
 	sibling.Fence.HashSlot = 38
 	sibling.Generation = 13
 	sibling.AppliedRaftIndex = 13
-	snapshot.Presence = &state.PresenceState{OwnerSet: controller.PresenceOwnerSet{Epoch: 10, Owners: []controller.PresenceOwner{{NodeID: 1, Addr: "127.0.0.1:1001", JoinState: controller.NodeJoinStateActive, CapabilityGeneration: 123}}}, Generations: []controller.PresenceGeneration{current, sibling}}
+	snapshot.Presence = &state.PresenceState{RosterRevision: 10, OwnerSet: controller.PresenceOwnerSet{Epoch: 10, Owners: []controller.PresenceOwner{{NodeID: 1, Addr: "127.0.0.1:1001", JoinState: controller.NodeJoinStateActive, CapabilityGeneration: 123}}}, Generations: []controller.PresenceGeneration{current, sibling}}
 	snapshot.PresenceRosterCurrent = true
 	n.controlSnapshot = snapshot.Clone()
 	n.publishPresenceSnapshot(snapshot)
@@ -170,9 +170,9 @@ func TestPresenceCommittedGetPublishesBeforeLaggingMirror(t *testing.T) {
 	owners.Epoch = 19
 	backend.get = func(slot uint16) (controller.PresenceGenerationSnapshot, error) {
 		if slot == 39 {
-			return controller.PresenceGenerationSnapshot{Revision: 30, OwnerSet: owners}, nil
+			return controller.PresenceGenerationSnapshot{RosterRevision: 10, Revision: 30, OwnerSet: owners}, nil
 		}
-		return controller.PresenceGenerationSnapshot{Revision: 30, OwnerSet: owners, Generation: next}, nil
+		return controller.PresenceGenerationSnapshot{RosterRevision: 10, Revision: 30, OwnerSet: owners, Generation: next}, nil
 	}
 	if _, err := n.GetPresenceGeneration(context.Background(), 37); err != nil {
 		t.Fatal(err)

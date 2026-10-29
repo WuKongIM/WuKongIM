@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 type slotFlightKey struct {
@@ -318,7 +319,7 @@ func (r *SlotRecovery) ensure(ctx context.Context, target RouteTarget) error {
 		physical, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		f = &slotRecoveryFlight{target: target, ctx: physical, cancel: cancel, done: make(chan struct{})}
 		r.flights[key] = f
-		go r.run(key, f)
+		goroutine.SafeGo(nil, goroutine.TaskPresenceRecoveryScheduler, func() { r.run(key, f) })
 	}
 	f.users++
 	r.mu.Unlock()

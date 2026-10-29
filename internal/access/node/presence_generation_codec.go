@@ -305,8 +305,9 @@ func encodeGenerationResponse(resp generationResponse) ([]byte, error) {
 	return b, nil
 }
 
-// scanGenerationResponse validates the entire bounded response before any route
-// backing or strings are decoded. Page responses cannot hide activation arrays.
+// scanGenerationResponse verifies the caller's operation before decoding its
+// fields. Recovery route strings are scanned without allocating decoded backing;
+// page and metadata replies cannot hide activation or ignored route payloads.
 func scanGenerationResponse(body []byte, expectedOp byte) (generationResponse, int, uint64, uint64, error) {
 	var resp generationResponse
 	if len(body) < 6 || len(body) > generationMaxWire || !hasMagic(body, generationResponseMagic) || !generationOperation(body[5]) || body[5] != expectedOp {

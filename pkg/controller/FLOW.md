@@ -94,6 +94,18 @@ not depend on `pkg/cluster`.
   a private bounded probe client does not publish an unaccepted endpoint to
   discovery. Removing an old owner without a separate drain proof remains
   not-ready. Health does not discharge ownership.
+- Presence format 2 binds capability responses to the full semantic membership
+  cut, including removed tombstones, endpoints, join states, roles and voters.
+  Unrelated logical revisions do not invalidate this cut. Only first activation
+  from absent Presence may use its zero M/stamp basis; normal lifecycle forbids
+  endpoint/NodeID reuse and requires external drain before removal. This does
+  not prove arbitrary pre-activation raw-mutation ABA or a legacy owner's drain.
+- After activation, semantic membership mutations advance a durable roster
+  high water, including ABA. A stamp newer than M closes old serving gates.
+  Ensure binds observed M and stamp; even a restored identical vector requires
+  a new M after such change. Claim also retains its exact per-Hash-Slot
+  predecessor and mapping fence. Older format capability, missing stamp and
+  snapshot high-water rollback fail closed; there is no automatic downgrade.
 - Optional Presence state participates in clone, normalization, checksums,
   snapshots and mirror sync. Existing-state snapshot install rejects known G/M
   rollback. Ordinary backup restore replaces data while preserving Controller

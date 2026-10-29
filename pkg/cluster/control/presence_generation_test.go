@@ -57,7 +57,7 @@ type presenceControlFixture struct {
 }
 
 func (*presenceControlFixture) PresenceCapabilities() controller.PresenceCapabilities {
-	return controller.PresenceCapabilities{NodeID: 3, BootID: 13, ControllerStateVersion: 1, ControllerCommandVersion: 1}
+	return controller.PresenceCapabilities{NodeID: 3, BootID: 13, ControllerStateVersion: 2, ControllerCommandVersion: 2}
 }
 func (*presenceControlFixture) EnsurePresenceOwnerSet(context.Context) (controller.PresenceOwnerSet, error) {
 	return controller.PresenceOwnerSet{}, controller.ErrPresenceGenerationNotReady

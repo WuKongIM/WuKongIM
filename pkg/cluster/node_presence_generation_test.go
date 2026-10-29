@@ -11,7 +11,7 @@ import (
 
 func TestPresenceCapabilityRequiresExplicitBusinessWiring(t *testing.T) {
 	n := &Node{cfg: Config{NodeID: 1}, presenceBoot: 123}
-	if got := n.PresenceCapabilities(); got.PresenceProtocolVersion != 0 || got.ControllerStateVersion != 1 || got.BootID != 123 {
+	if got := n.PresenceCapabilities(); got.PresenceProtocolVersion != 0 || got.ControllerStateVersion != 2 || got.BootID != 123 {
 		t.Fatalf("unwired caps=%+v", got)
 	}
 	if err := n.EnablePresenceProtocol(2); err == nil {
@@ -49,7 +49,7 @@ func TestPresenceLocalCheckRequiresCommittedGenerationAndActualSlot(t *testing.T
 	}
 	status := multiraft.Status{SlotID: 1, NodeID: 1, LeaderID: 1, Term: 7, Role: multiraft.RoleLeader}
 	n.slotStatusRuntime = slotStatusReaderFunc(func(multiraft.SlotID) (multiraft.Status, error) { return status, nil })
-	snap.Presence = &state.PresenceState{OwnerSet: controller.PresenceOwnerSet{Epoch: 10, Owners: []controller.PresenceOwner{{NodeID: 1, Addr: "node-1", JoinState: controller.NodeJoinStateActive, CapabilityGeneration: 123}}}, Generations: []controller.PresenceGeneration{claim}}
+	snap.Presence = &state.PresenceState{RosterRevision: 10, OwnerSet: controller.PresenceOwnerSet{Epoch: 10, Owners: []controller.PresenceOwner{{NodeID: 1, Addr: "node-1", JoinState: controller.NodeJoinStateActive, CapabilityGeneration: 123}}}, Generations: []controller.PresenceGeneration{claim}}
 	snap.PresenceRosterCurrent = true
 	n.publishPresenceSnapshot(snap)
 	if err := n.CheckPresenceGeneration(claim); err != nil {

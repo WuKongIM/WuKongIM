@@ -18,11 +18,12 @@ import (
 // presenceReadView is bounded by configured HashSlotCount and published atomically.
 // It is local committed knowledge, not instantaneous global revocation proof.
 type presenceReadView struct {
-	revision    uint64
-	epoch       uint64
-	owners      controller.PresenceOwnerSet
-	ready       bool
-	generations []controller.PresenceGeneration
+	revision       uint64
+	rosterRevision uint64
+	epoch          uint64
+	owners         controller.PresenceOwnerSet
+	ready          bool
+	generations    []controller.PresenceGeneration
 }
 
 // presenceRetiredView keeps a bounded immutable per-HashSlot high water. Only
@@ -58,7 +59,7 @@ func (n *Node) PresenceCapabilities() controller.PresenceCapabilities {
 	if n == nil {
 		return controller.PresenceCapabilities{}
 	}
-	return controller.PresenceCapabilities{NodeID: n.cfg.NodeID, BootID: n.presenceBoot, ControllerStateVersion: 1, ControllerCommandVersion: 1, PresenceProtocolVersion: n.presenceProtocol.Load()}
+	return controller.PresenceCapabilities{NodeID: n.cfg.NodeID, BootID: n.presenceBoot, ControllerStateVersion: controller.PresenceControllerFormatVersion, ControllerCommandVersion: controller.PresenceControllerFormatVersion, PresenceProtocolVersion: n.presenceProtocol.Load()}
 }
 
 // EnsurePresenceOwnerSet activates the exact ingress roster through Controller consensus.
@@ -266,9 +267,10 @@ func (n *Node) publishPresenceSnapshot(snapshot control.Snapshot) {
 	view := &presenceReadView{revision: snapshot.Revision}
 	if snapshot.Presence != nil && snapshot.HashSlots.Count > 0 {
 		view.generations = make([]controller.PresenceGeneration, int(snapshot.HashSlots.Count))
+		view.rosterRevision = snapshot.Presence.RosterRevision
 		view.epoch = snapshot.Presence.OwnerSet.Epoch
 		view.owners = snapshot.Presence.OwnerSet.Clone()
-		view.ready = snapshot.PresenceRosterCurrent && !snapshot.Maintenance
+		view.ready = snapshot.PresenceRosterCurrent && view.rosterRevision > 0 && view.rosterRevision <= view.epoch && !snapshot.Maintenance
 		for _, generation := range snapshot.Presence.Generations {
 			if int(generation.Fence.HashSlot) < len(view.generations) {
 				view.generations[generation.Fence.HashSlot] = generation
@@ -430,7 +432,7 @@ func (n *Node) GetLocalPresenceGeneration(hashSlot uint16) (controller.PresenceG
 	if err := n.CheckPresenceOwnerGeneration(claim); err != nil {
 		return controller.PresenceGenerationSnapshot{}, err
 	}
-	return controller.PresenceGenerationSnapshot{Revision: view.revision, Generation: claim, OwnerSet: view.owners.Clone()}, nil
+	return controller.PresenceGenerationSnapshot{RosterRevision: view.rosterRevision, Revision: view.revision, Generation: claim, OwnerSet: view.owners.Clone()}, nil
 }
 
 // A rare linearizable owner Begin may arrive before the mirror watch. Publish
@@ -445,7 +447,7 @@ func (n *Node) publishPresenceCut(cut controller.PresenceGenerationSnapshot) {
 // A committed Get can explicitly prove an unclaimed slot (G=0). Its M is still
 // usable for the first CAS, but GetLocal/Check never turn zero into completeness.
 func (n *Node) publishPresenceCutAt(hashSlot uint16, cut controller.PresenceGenerationSnapshot) {
-	if cut.Revision == 0 || cut.OwnerSet.Epoch == 0 || (cut.Generation.Generation != 0 && cut.Generation.Fence.HashSlot != hashSlot) {
+	if cut.RosterRevision == 0 || cut.RosterRevision > cut.OwnerSet.Epoch || cut.Revision == 0 || cut.OwnerSet.Epoch == 0 || (cut.Generation.Generation != 0 && cut.Generation.Fence.HashSlot != hashSlot) {
 		return
 	}
 	n.mu.RLock()
@@ -459,7 +461,7 @@ func (n *Node) publishPresenceCutAt(hashSlot uint16, cut controller.PresenceGene
 		if old != nil && old.revision > cut.Revision {
 			return
 		}
-		view := &presenceReadView{revision: cut.Revision, epoch: cut.OwnerSet.Epoch, owners: cut.OwnerSet.Clone(), ready: true, generations: make([]controller.PresenceGeneration, int(count))}
+		view := &presenceReadView{rosterRevision: cut.RosterRevision, revision: cut.Revision, epoch: cut.OwnerSet.Epoch, owners: cut.OwnerSet.Clone(), ready: true, generations: make([]controller.PresenceGeneration, int(count))}
 		if old != nil && old.epoch == view.epoch {
 			copy(view.generations, old.generations)
 		}

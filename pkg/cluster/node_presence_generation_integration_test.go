@@ -45,6 +45,12 @@ func TestPresenceGenerationAcrossRealClusterAndRemoteOwner(t *testing.T) {
 	if authority == nil || remote == nil {
 		t.Fatal("missing cluster participants")
 	}
+	// The caller uses the same committed Get as the production generation adapter;
+	// Ensure on another node does not prove this authority has observed its mirror.
+	cut, err := authority.GetPresenceGeneration(ctx, route.HashSlot)
+	if err != nil || cut.OwnerSet.Epoch != owners.Epoch {
+		t.Fatalf("authority committed cut: %+v/%v", cut, err)
+	}
 	claim, err := authority.ClaimPresenceGeneration(ctx, controller.ClaimPresenceGenerationRequest{Fence: controller.PresenceFence{HashSlot: route.HashSlot, SlotID: route.SlotID, LeaderNodeID: route.Leader, LeaderTerm: route.LeaderTerm, ConfigEpoch: route.ConfigEpoch}, OwnerSetEpoch: owners.Epoch, ServingBoot: authority.PresenceBootID()})
 	if err != nil {
 		t.Fatalf("claim:%v", err)

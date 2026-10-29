@@ -96,6 +96,10 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		if stale, handled := handleTaskProgressRevisionMismatch(next, cmd); handled {
 			return stale
 		}
+	case command.KindEnsurePresenceOwnerSet, command.KindClaimPresenceGeneration:
+		if cmd.ExpectedRevision == nil || !next.PresenceBasisCurrent(cmd.PresenceBasis) {
+			return reject(ReasonPresenceNotReady)
+		}
 	case command.KindReportNodeHealth:
 		if cmd.ExpectedRevision != nil && *cmd.ExpectedRevision != currentRevision {
 			return reject(ReasonExpectedRevisionMismatch)
@@ -109,6 +113,13 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		}
 	}
 
+	var previousRoster *state.PresenceBasis
+	if next.Presence != nil {
+		switch cmd.Kind {
+		case command.KindUpsertNode, command.KindUpdateControllerVoters, command.KindPromoteControllerVoter:
+			previousRoster = next.PresenceAdmissionBasis()
+		}
+	}
 	beforeTasks := cloneTasks(next.Tasks)
 	var result ApplyResult
 	switch cmd.Kind {
@@ -148,6 +159,9 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		result = reject(ReasonInvalidCommand)
 	}
 	if result.Changed {
+		if previousRoster != nil && !next.PresenceRosterMatches(previousRoster) {
+			next.Presence.RosterRevision = raftIndex
+		}
 		transitions := taskTransitionsForCommand(raftIndex, raftTerm, cmd, beforeTasks, next.Tasks)
 		if len(transitions) > 0 {
 			result.TaskTransitions = transitions

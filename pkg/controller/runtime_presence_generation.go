@@ -31,6 +31,9 @@ type (
 
 const PresenceProtocolVersion = state.PresenceProtocolVersion
 
+// PresenceControllerFormatVersion includes semantic membership high-water fencing.
+const PresenceControllerFormatVersion = state.PresenceControllerFormatVersion
+
 var (
 	// ErrPresenceGenerationNotReady preserves unknown capability, membership or authority.
 	ErrPresenceGenerationNotReady = errors.New("controller: presence generation not ready")
@@ -48,6 +51,8 @@ type ClaimPresenceGenerationRequest struct {
 
 // PresenceGenerationSnapshot returns the generation and owner set from one committed cut.
 type PresenceGenerationSnapshot struct {
+	// RosterRevision is the durable semantic-membership high water; it must not exceed M.
+	RosterRevision uint64 `json:"roster_revision"`
 	// Revision orders locally published committed cuts; it is not generation G.
 	Revision   uint64             `json:"revision"`
 	Generation PresenceGeneration `json:"generation"`
@@ -69,7 +74,7 @@ func (r *Runtime) EnsurePresenceOwnerSet(ctx context.Context) (PresenceOwnerSet,
 	}
 	result, err := r.raftService().ProposeResult(ctx, command.Command{
 		Kind: command.KindEnsurePresenceOwnerSet, IssuedAt: r.cfg.Now().UTC(),
-		ExpectedRevision: &st.Revision, PresenceCapabilities: proofs,
+		ExpectedRevision: &st.Revision, PresenceBasis: st.PresenceAdmissionBasis(), PresenceCapabilities: proofs,
 	})
 	if err != nil {
 		return PresenceOwnerSet{}, presenceProposalError(err)
@@ -101,7 +106,7 @@ func (r *Runtime) ClaimPresenceGeneration(ctx context.Context, req ClaimPresence
 	}
 	result, err := r.raftService().ProposeResult(ctx, command.Command{
 		Kind: command.KindClaimPresenceGeneration, IssuedAt: r.cfg.Now().UTC(),
-		ExpectedRevision: &st.Revision, PresenceCapabilities: proofs,
+		ExpectedRevision: &st.Revision, PresenceBasis: st.PresenceAdmissionBasis(), PresenceCapabilities: proofs,
 		PresenceClaim: &command.ClaimPresenceGeneration{Fence: req.Fence, OwnerSetEpoch: req.OwnerSetEpoch, ServingBoot: req.ServingBoot, ExpectedGeneration: req.ExpectedGeneration},
 	})
 	if err != nil {
@@ -128,7 +133,7 @@ func (r *Runtime) GetPresenceGeneration(ctx context.Context, hashSlot uint16) (P
 	if st.Presence == nil || hashSlot >= st.Config.HashSlotCount || !st.PresenceRosterCurrent(st.Presence.OwnerSet.Owners) {
 		return PresenceGenerationSnapshot{}, ErrPresenceGenerationNotReady
 	}
-	out := PresenceGenerationSnapshot{Revision: st.Revision, OwnerSet: st.Presence.OwnerSet.Clone()}
+	out := PresenceGenerationSnapshot{RosterRevision: st.Presence.RosterRevision, Revision: st.Revision, OwnerSet: st.Presence.OwnerSet.Clone()}
 	for _, generation := range st.Presence.Generations {
 		if generation.Fence.HashSlot == hashSlot {
 			out.Generation = generation

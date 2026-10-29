@@ -13,7 +13,7 @@ func TestPresenceSnapshotRestoreRejectsKnownHighWaterRollback(t *testing.T) {
 	ctx := context.Background()
 	sm, _ := initializedStateMachine(t, 1)
 	current := sm.Snapshot(ctx)
-	current.Presence = &state.PresenceState{OwnerSet: state.PresenceOwnerSet{Epoch: 2, Owners: []state.PresenceOwner{{NodeID: 1, Addr: "node-1", JoinState: state.NodeJoinStateActive, CapabilityGeneration: 7}}}, Generations: []state.PresenceGeneration{{Fence: state.PresenceFence{HashSlot: 1, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 1, ConfigEpoch: 1}, OwnerSetEpoch: 2, ServingBoot: 7, Generation: 3, AppliedRaftIndex: 3}}}
+	current.Presence = &state.PresenceState{RosterRevision: 2, OwnerSet: state.PresenceOwnerSet{Epoch: 2, Owners: []state.PresenceOwner{{NodeID: 1, Addr: "node-1", JoinState: state.NodeJoinStateActive, CapabilityGeneration: 7}}}, Generations: []state.PresenceGeneration{{Fence: state.PresenceFence{HashSlot: 1, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 1, ConfigEpoch: 1}, OwnerSetEpoch: 2, ServingBoot: 7, Generation: 3, AppliedRaftIndex: 3}}}
 	current.AppliedRaftIndex = 3
 	if err := sm.Restore(ctx, current); err != nil {
 		t.Fatal(err)

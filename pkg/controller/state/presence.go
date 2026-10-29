@@ -1,12 +1,17 @@
 package state
 
-import "sort"
+import (
+	"reflect"
+	"sort"
+)
 
 const (
 	// MaxPresenceOwners bounds capability probes and durable owner obligations.
 	MaxPresenceOwners = 256
 	// PresenceProtocolVersion identifies the committed-generation protocol.
 	PresenceProtocolVersion uint32 = 1
+	// PresenceControllerFormatVersion proves semantic roster fencing support.
+	PresenceControllerFormatVersion uint32 = 2
 )
 
 // PresenceFence is actual Slot authority; diagnostic route revisions are excluded.
@@ -70,9 +75,30 @@ type PresenceGeneration struct {
 	AppliedRaftIndex uint64 `json:"applied_raft_index"`
 }
 
+// PresenceMember freezes semantic membership, retaining removed tombstones.
+// Health, names and placement weights do not authorize a different endpoint.
+type PresenceMember struct {
+	NodeID    uint64        `json:"node_id"`
+	Addr      string        `json:"addr"`
+	JoinState NodeJoinState `json:"join_state"`
+	Roles     []NodeRole    `json:"roles"`
+}
+
+// PresenceBasis binds capability responses to the committed cut that selected
+// their endpoints. Before first activation its two high-water fields are zero.
+type PresenceBasis struct {
+	RosterRevision uint64            `json:"roster_revision"`
+	OwnerSetEpoch  uint64            `json:"owner_set_epoch"`
+	Members        []PresenceMember  `json:"members"`
+	Controllers    []ControllerVoter `json:"controllers"`
+}
+
 // PresenceState holds bounded high-water marks, never UID or Session history.
 type PresenceState struct {
-	OwnerSet PresenceOwnerSet `json:"owner_set"`
+	// RosterRevision is the last committed semantic membership change. It never
+	// falls after activation; a value above M closes old generation admission.
+	RosterRevision uint64           `json:"roster_revision,omitempty"`
+	OwnerSet       PresenceOwnerSet `json:"owner_set"`
 	// Generations retains at most one high-water mark per configured Hash Slot.
 	Generations []PresenceGeneration `json:"generations"`
 }
@@ -121,7 +147,7 @@ func (s ClusterState) PresenceOwnersFromCapabilities(proofs []PresenceCapabiliti
 	}
 	byID := make(map[uint64]PresenceCapabilities, len(proofs))
 	for _, proof := range proofs {
-		if proof.NodeID == 0 || proof.BootID == 0 || proof.ControllerStateVersion != 1 || proof.ControllerCommandVersion != 1 || proof.PresenceProtocolVersion != PresenceProtocolVersion {
+		if proof.NodeID == 0 || proof.BootID == 0 || proof.ControllerStateVersion != PresenceControllerFormatVersion || proof.ControllerCommandVersion != PresenceControllerFormatVersion || proof.PresenceProtocolVersion != PresenceProtocolVersion {
 			return nil, invalid("presence capability is unsupported")
 		}
 		if _, duplicate := byID[proof.NodeID]; duplicate {
@@ -147,6 +173,9 @@ func (s ClusterState) PresenceOwnersFromCapabilities(proofs []PresenceCapabiliti
 
 // PresenceRosterCurrent checks durable membership without treating health as absence.
 func (s ClusterState) PresenceRosterCurrent(owners []PresenceOwner) bool {
+	if s.Presence == nil || s.Presence.RosterRevision == 0 || s.Presence.RosterRevision > s.Presence.OwnerSet.Epoch {
+		return false
+	}
 	participants, err := s.PresenceParticipants()
 	if err != nil {
 		return false
@@ -188,4 +217,44 @@ func validatePresence(s ClusterState) error {
 		previousSlot = f.HashSlot
 	}
 	return nil
+}
+
+// PresenceAdmissionBasis captures immutable endpoint-selection evidence. Removed
+// members remain in this vector: a transient member cannot disappear at bootstrap.
+func (s ClusterState) PresenceAdmissionBasis() *PresenceBasis {
+	b := &PresenceBasis{Members: make([]PresenceMember, 0, len(s.Nodes)), Controllers: append([]ControllerVoter(nil), s.Controllers...)}
+	for _, n := range s.Nodes {
+		roles := append([]NodeRole(nil), n.Roles...)
+		sort.Slice(roles, func(i, j int) bool { return roles[i] < roles[j] })
+		b.Members = append(b.Members, PresenceMember{NodeID: n.NodeID, Addr: n.Addr, JoinState: n.JoinState, Roles: roles})
+	}
+	sort.Slice(b.Members, func(i, j int) bool { return b.Members[i].NodeID < b.Members[j].NodeID })
+	sort.Slice(b.Controllers, func(i, j int) bool { return b.Controllers[i].NodeID < b.Controllers[j].NodeID })
+	if s.Presence != nil {
+		b.RosterRevision = s.Presence.RosterRevision
+		b.OwnerSetEpoch = s.Presence.OwnerSet.Epoch
+	}
+	return b
+}
+
+// PresenceRosterMatches compares the exact semantic member/voter vector, never
+// health, placement load, names or unrelated cluster-state revisions.
+func (s ClusterState) PresenceRosterMatches(b *PresenceBasis) bool {
+	if b == nil {
+		return false
+	}
+	current := s.PresenceAdmissionBasis()
+	return reflect.DeepEqual(current.Members, b.Members) && reflect.DeepEqual(current.Controllers, b.Controllers)
+}
+
+// PresenceBasisCurrent rejects an old capability cut even after roster ABA or
+// a competing boot update. A missing activated-format stamp never means fresh.
+func (s ClusterState) PresenceBasisCurrent(b *PresenceBasis) bool {
+	if !s.PresenceRosterMatches(b) {
+		return false
+	}
+	if s.Presence == nil {
+		return b.RosterRevision == 0 && b.OwnerSetEpoch == 0
+	}
+	return s.Presence.RosterRevision > 0 && b.RosterRevision == s.Presence.RosterRevision && b.OwnerSetEpoch == s.Presence.OwnerSet.Epoch
 }

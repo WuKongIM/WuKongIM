@@ -82,6 +82,8 @@ type Command struct {
 	ScheduledBackup *state.ScheduledBackupState `json:"scheduled_backup,omitempty"`
 	// OpsMCP contains replacement embedded operations MCP desired state.
 	OpsMCP *state.OpsMCPState `json:"ops_mcp,omitempty"`
+	// PresenceBasis freezes the semantic roster, M and its change high water.
+	PresenceBasis *state.PresenceBasis `json:"presence_basis,omitempty"`
 	// PresenceCapabilities covers every voter and mirror before new state is written.
 	PresenceCapabilities []state.PresenceCapabilities `json:"presence_capabilities,omitempty"`
 	// PresenceJoiningCapability binds a new endpoint to an actual capability response.

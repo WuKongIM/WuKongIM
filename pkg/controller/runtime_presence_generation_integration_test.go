@@ -29,8 +29,8 @@ func TestPresenceGenerationCommitsCASAcrossControllerRestart(t *testing.T) {
 				return controller.PresenceCapabilities{}, errors.New("unexpected capability target")
 			}
 			return controller.PresenceCapabilities{
-				NodeID: 1, BootID: 101, ControllerStateVersion: 1,
-				ControllerCommandVersion: 1, PresenceProtocolVersion: 1,
+				NodeID: 1, BootID: 101, ControllerStateVersion: 2,
+				ControllerCommandVersion: 2, PresenceProtocolVersion: 1,
 			}, nil
 		},
 	}

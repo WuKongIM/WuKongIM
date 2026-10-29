@@ -1432,6 +1432,19 @@ specification, runbook, report, or module documentation; link to them when neede
   directly propagate their typed failure. Follower cancellation is isolated;
   canceled leaders leave live followers typed not-ready under the existing outer
   retry policy.
+- Presence Controller format 2 commits against a frozen semantic member/voter
+  cut instead of unrelated logical revisions. It includes removed tombstones
+  and exact addresses, join states and roles. First activation alone may start
+  with zero M/stamp, under the existing one-way node lifecycle, non-reusable
+  NodeID/endpoint and external drain contract; it does not certify pre-upgrade
+  removed-owner drain or arbitrary pre-activation raw-state ABA. Once active,
+  every semantic roster mutation advances persisted high water. A stamp newer
+  than M keeps old G closed even when the roster returns to its previous value;
+  Ensure compares observed M/stamp and commits a new M before reactivation.
+  Claims retain per-slot predecessor/mapping CAS. Actual capability format 2,
+  complete owner coverage, snapshot rollback rejection and missing-stamp
+  failure remain required. Health and unrelated slot progress do not change
+  that semantic cut, and no new SEND retry or larger deadline is granted.
 - Full Presence uses a committed per-Hash-Slot generation G and owner-set epoch
   M; diagnostic revision/AuthorityEpoch and random boot identities cannot order
   generations. Begin and receipt promotion share an owner Slot lock. Pending

@@ -123,7 +123,7 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 		if probeErr != nil {
 			return JoinNodeResult{}, errors.Join(ErrPresenceGenerationNotReady, probeErr)
 		}
-		if proof.NodeID != node.NodeID || proof.BootID == 0 || proof.ControllerStateVersion != 1 || proof.ControllerCommandVersion != 1 || proof.PresenceProtocolVersion != PresenceProtocolVersion {
+		if proof.NodeID != node.NodeID || proof.BootID == 0 || proof.ControllerStateVersion != PresenceControllerFormatVersion || proof.ControllerCommandVersion != PresenceControllerFormatVersion || proof.PresenceProtocolVersion != PresenceProtocolVersion {
 			return JoinNodeResult{}, ErrPresenceGenerationNotReady
 		}
 		joiningCapability = &proof

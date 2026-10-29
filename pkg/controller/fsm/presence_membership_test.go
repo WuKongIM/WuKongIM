@@ -20,10 +20,10 @@ func TestPresenceMembershipRequiresCapabilitiesAndRetainsOwnerObligations(t *tes
 	}
 	proofs := make([]state.PresenceCapabilities, 0, len(st.Nodes))
 	for _, node := range st.Nodes {
-		proofs = append(proofs, state.PresenceCapabilities{NodeID: node.NodeID, BootID: node.NodeID + 100, ControllerStateVersion: 1, ControllerCommandVersion: 1, PresenceProtocolVersion: 1})
+		proofs = append(proofs, state.PresenceCapabilities{NodeID: node.NodeID, BootID: node.NodeID + 100, ControllerStateVersion: 2, ControllerCommandVersion: 2, PresenceProtocolVersion: 1})
 	}
 	revision := st.Revision
-	incomplete := command.Command{Kind: command.KindEnsurePresenceOwnerSet, ExpectedRevision: &revision, PresenceCapabilities: proofs[:len(proofs)-1]}
+	incomplete := command.Command{Kind: command.KindEnsurePresenceOwnerSet, ExpectedRevision: &revision, PresenceBasis: st.PresenceAdmissionBasis(), PresenceCapabilities: proofs[:len(proofs)-1]}
 	result, err := sm.Apply(ctx, 2, incomplete)
 	if err != nil || !result.Rejected || sm.Snapshot(ctx).Presence != nil {
 		t.Fatalf("incomplete proof=%+v/%v", result, err)
@@ -42,7 +42,7 @@ func TestPresenceMembershipRequiresCapabilitiesAndRetainsOwnerObligations(t *tes
 	if err != nil || !result.Rejected {
 		t.Fatalf("unproved post-activation join=%+v/%v", result, err)
 	}
-	join.PresenceJoiningCapability = &state.PresenceCapabilities{NodeID: 5, BootID: 105, ControllerStateVersion: 1, ControllerCommandVersion: 1, PresenceProtocolVersion: 1}
+	join.PresenceJoiningCapability = &state.PresenceCapabilities{NodeID: 5, BootID: 105, ControllerStateVersion: 2, ControllerCommandVersion: 2, PresenceProtocolVersion: 1}
 	applyOK(t, sm, 5, join)
 	st = sm.Snapshot(ctx)
 	for i := range st.Nodes {
@@ -51,6 +51,7 @@ func TestPresenceMembershipRequiresCapabilitiesAndRetainsOwnerObligations(t *tes
 		}
 	}
 	st.AppliedRaftIndex = 6
+	st.Presence.RosterRevision = 6
 	if err := sm.Restore(ctx, st); err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +59,7 @@ func TestPresenceMembershipRequiresCapabilitiesAndRetainsOwnerObligations(t *tes
 	// Removing a member cannot silently declare its old sessions absent.
 	remaining := append([]state.PresenceCapabilities(nil), proofs[:3]...)
 	remaining = append(remaining, *join.PresenceJoiningCapability)
-	result, err = sm.Apply(ctx, 7, command.Command{Kind: command.KindEnsurePresenceOwnerSet, ExpectedRevision: &revision, PresenceCapabilities: remaining})
+	result, err = sm.Apply(ctx, 7, command.Command{Kind: command.KindEnsurePresenceOwnerSet, ExpectedRevision: &revision, PresenceBasis: st.PresenceAdmissionBasis(), PresenceCapabilities: remaining})
 	if err != nil || !result.Rejected || result.Reason != ReasonPresenceOwnerObligation {
 		t.Fatalf("owner removal=%+v/%v", result, err)
 	}
