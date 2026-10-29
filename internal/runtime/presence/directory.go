@@ -2,6 +2,7 @@ package presence
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -305,9 +306,28 @@ func (d *Directory) EndpointsByUIDs(target RouteTarget, uids []string) ([]Route,
 }
 
 func (s *authoritySlot) endpointsByUIDsLocked(uids []string) []Route {
-	var routes []Route
+	routeCount := 0
 	for _, uid := range uids {
-		routes = append(routes, s.endpointsByUIDLocked(uid)...)
+		routeCount += len(s.byUID[uid])
+	}
+	if routeCount == 0 {
+		return nil
+	}
+	return s.appendEndpointsByUIDsLocked(make([]Route, 0, routeCount), uids)
+}
+
+// appendEndpointsByUIDsLocked fills call-owned backing in UID input order.
+// The caller holds the shard read lock and reserves capacity for all routes;
+// sorting each UID segment needs no per-recipient temporary slice.
+func (s *authoritySlot) appendEndpointsByUIDsLocked(routes []Route, uids []string) []Route {
+	for _, uid := range uids {
+		start := len(routes)
+		for key := range s.byUID[uid] {
+			if route, ok := s.active[key]; ok {
+				routes = append(routes, route)
+			}
+		}
+		sortRoutes(routes[start:])
 	}
 	return routes
 }
@@ -368,27 +388,17 @@ func (d *Directory) EndpointsByTargets(groups []EndpointLookupGroup) []EndpointL
 			}
 		}
 
-		shardRoutes := make([]Route, routeCount)
-		writeIndex := 0
+		shardRoutes := make([]Route, 0, routeCount)
 		for _, groupIndex := range groupIndexes {
 			if results[groupIndex].Err != nil {
 				continue
 			}
 			group := groups[groupIndex]
 			slot := shard.slots[group.Target.HashSlot]
-			groupStart := writeIndex
-			for _, uid := range group.UIDs {
-				uidStart := writeIndex
-				for key := range slot.byUID[uid] {
-					if route, ok := slot.active[key]; ok {
-						shardRoutes[writeIndex] = route
-						writeIndex++
-					}
-				}
-				sortRoutes(shardRoutes[uidStart:writeIndex])
-			}
-			if writeIndex > groupStart {
-				results[groupIndex].Routes = shardRoutes[groupStart:writeIndex:writeIndex]
+			groupStart := len(shardRoutes)
+			shardRoutes = slot.appendEndpointsByUIDsLocked(shardRoutes, group.UIDs)
+			if groupEnd := len(shardRoutes); groupEnd > groupStart {
+				results[groupIndex].Routes = shardRoutes[groupStart:groupEnd:groupEnd]
 			}
 		}
 		shard.mu.RUnlock()
@@ -397,18 +407,7 @@ func (d *Directory) EndpointsByTargets(groups []EndpointLookupGroup) []EndpointL
 }
 
 func (s *authoritySlot) endpointsByUIDLocked(uid string) []Route {
-	keys := s.byUID[uid]
-	if len(keys) == 0 {
-		return nil
-	}
-	routes := make([]Route, 0, len(keys))
-	for key := range keys {
-		if route, ok := s.active[key]; ok {
-			routes = append(routes, route)
-		}
-	}
-	sortRoutes(routes)
-	return routes
+	return s.endpointsByUIDsLocked([]string{uid})
 }
 
 // Identity returns the immutable identity fields for this route.
@@ -669,10 +668,15 @@ func sortRoutes(routes []Route) {
 	if len(routes) < 2 {
 		return
 	}
-	sort.Slice(routes, func(i, j int) bool {
-		left := makeRouteIdentityKey(routes[i])
-		right := makeRouteIdentityKey(routes[j])
-		return lessIdentityKey(left, right)
+	slices.SortFunc(routes, func(left, right Route) int {
+		leftKey, rightKey := makeRouteIdentityKey(left), makeRouteIdentityKey(right)
+		if lessIdentityKey(leftKey, rightKey) {
+			return -1
+		}
+		if lessIdentityKey(rightKey, leftKey) {
+			return 1
+		}
+		return 0
 	})
 }
 

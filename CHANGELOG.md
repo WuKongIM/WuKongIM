@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Reduce temporary allocations when reading presence route snapshots, including
+  recovery readback and multiple devices, while preserving route order and ownership.
+  / 减少在线路由快照查询（含恢复读回和多设备）的临时分配，保留路由顺序与结果独立性。
+
 - Preserve sampled request timing across background storage commits, separating
   append lock/preparation and commit admission/queue/collection waits.
   / 后台存储提交保留原请求采样关联，区分追加锁与准备、提交准入、排队及收集等待。
