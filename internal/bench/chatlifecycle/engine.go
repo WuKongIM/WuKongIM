@@ -7,7 +7,6 @@ import (
 	"errors"
 	"math"
 	"math/bits"
-	"runtime"
 	"runtime/trace"
 	"sort"
 	"strconv"
@@ -69,6 +68,12 @@ type EngineConfig struct {
 	// for owner-only Gosched observation. It requires driver diagnostics; nil
 	// uses an enabled-only monotonic origin, outside the business SessionClock.
 	DriverYieldClockProbe func() (int64, bool)
+	// EnableDriverAdmissionDiagnostics selects the independent SDK child and
+	// requires the explicit driver parent; it never changes workload admission.
+	EnableDriverAdmissionDiagnostics bool
+	// DriverAdmissionClockProbe is a trusted nonblocking, concurrency-safe
+	// monotonic observation, independent of SessionClock and the yield probe.
+	DriverAdmissionClockProbe func() (int64, bool)
 	// WorkerID is this engine's zero-based worker partition.
 	WorkerID uint64
 	// WorkerCount must match the workload and identity partition count.
@@ -793,7 +798,10 @@ type Engine struct {
 	onlineTarget int
 	// driverDiagnostics is nil by default; driverTurn is active-owner-only.
 	driverDiagnostics *engineDriverRecorder
-	driverTurn        *driverTurn
+	// driverSDKAdmission has independent bounded retention and probe ownership.
+	// Its generation is replaced only after the previous dispatcher/owner join.
+	driverSDKAdmission *engineSDKAdmissionRecorder
+	driverTurn         *driverTurn
 	// driverCPURecorder is a separate opt-in numeric observation. Its mutable
 	// records stay on the owner until Stop joins; they never enter native wire.
 	driverCPURecorder *engineDriverCPURecorder
@@ -815,8 +823,8 @@ type Engine struct {
 	bootstrapActivityOrigin  time.Time
 
 	lifecycleMu sync.Mutex
-	// stepMu serializes every session-expiry and owner-advance transaction so
-	// concurrent fake-clock inputs cannot overtake or rewind one another.
+	// stepMu covers the caller's complete time transaction and any accepted
+	// owner continuation, even when a canceled caller returns before its job.
 	stepMu           sync.Mutex
 	running          bool
 	accepting        bool
@@ -836,6 +844,9 @@ type Engine struct {
 	// sessionOps also joins generation-bound snapshot probes before client close.
 	sessionOps sync.WaitGroup
 	stepOps    sync.WaitGroup
+	// logicalJobs joins accepted advances after their callers may have exited.
+	// Add shares the accepting fence; Stop waits before closing the dispatcher.
+	logicalJobs sync.WaitGroup
 	// tickOps leases public Tick calls to their admission generation, including
 	// time spent waiting for the shared time-transaction boundary.
 	tickOps          sync.WaitGroup
@@ -855,6 +866,8 @@ type Engine struct {
 	commandSaturation      atomic.Uint64
 
 	// The fields below are owned exclusively by the active command loop.
+	// advanceJob is the one generation-owned continuation, never a public queue.
+	advanceJob    *engineAdvanceJob
 	work          engineWorkHeap
 	activity      engineWorkHeap
 	retries       *RetryScheduler
@@ -928,6 +941,8 @@ type Engine struct {
 // NewEngine wires the existing deterministic models and bounded verifier.
 func NewEngine(config EngineConfig) (*Engine, error) {
 	if ((config.DriverCPUClockProbe != nil || config.DriverYieldClockProbe != nil) && !config.EnableDriverDiagnostics) ||
+		(config.EnableDriverAdmissionDiagnostics && !config.EnableDriverDiagnostics) ||
+		(config.DriverAdmissionClockProbe != nil && !config.EnableDriverAdmissionDiagnostics) ||
 		config.Clock == nil || config.Sessions == nil || config.Schedule.identity == nil ||
 		config.Graph.identity == nil || config.Traffic.identity == nil || config.Generator == nil ||
 		config.Retry.identity == nil || config.Verifier == nil || config.Evidence == nil ||
@@ -975,6 +990,11 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	}
 	if config.EnableDriverDiagnostics {
 		engine.driverDiagnostics = newEngineDriverRecorder(config.DriverYieldClockProbe)
+	}
+	if config.EnableDriverAdmissionDiagnostics {
+		// The generation start initializes its default origin, without a probe
+		// or clock read merely for constructing the configured Engine.
+		engine.driverSDKAdmission = &engineSDKAdmissionRecorder{configuredProbe: config.DriverAdmissionClockProbe}
 	}
 	if config.DriverCPUClockProbe != nil {
 		engine.driverCPURecorder = &engineDriverCPURecorder{probe: config.DriverCPUClockProbe}
@@ -1048,6 +1068,9 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	if e.driverDiagnostics != nil {
 		e.driverDiagnostics = newEngineDriverRecorder(e.driverDiagnostics.yieldProbe)
 	}
+	if e.driverSDKAdmission != nil {
+		e.driverSDKAdmission = newEngineSDKAdmissionRecorder(e.driverSDKAdmission.configuredProbe)
+	}
 	if e.driverCPURecorder != nil {
 		e.driverCPURecorder = &engineDriverCPURecorder{probe: e.driverCPURecorder.probe}
 	}
@@ -1090,6 +1113,7 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.admissionInitialQueued = 0
 	e.admissionOutstanding = 0
 	e.admissionError = nil
+	e.advanceJob = nil
 	e.inflightPeak = 0
 	e.nextOrder = 0
 	e.nextClientSeq = 0
@@ -1177,6 +1201,9 @@ func (e *Engine) Stop() error {
 	// Tick waits last because Tick, Step, and Advance share stepMu. Generation
 	// cancellation lets a waiting Tick leave after the earlier holder finishes.
 	e.tickOps.Wait()
+	// A canceled Step caller may have left stepOps while its accepted advance
+	// still creates tickets. Keep dispatcher admission open until that job joins.
+	e.logicalJobs.Wait()
 	e.dispatcher.closeAndWait()
 	e.sessions.stopExpiryCleanup()
 	e.activeLoops.Add(-1)
@@ -1307,8 +1334,8 @@ func (e *Engine) ApplyGrant(ctx context.Context, now time.Time, released uint64)
 	defer e.tickOps.Done()
 	admissionCtx, cancel := mergeGenerationContext(generationCtx, ctx)
 	defer cancel()
-	e.stepMu.Lock()
-	defer e.stepMu.Unlock()
+	lease := e.lockTimeTransaction(generationCtx)
+	defer lease.release()
 	if err := e.awaitOwnerTimeAdmission(admissionCtx, now); err != nil {
 		return EngineGrantResult{}, err
 	}
@@ -1323,7 +1350,7 @@ func (e *Engine) ApplyGrant(ctx context.Context, now time.Time, released uint64)
 	snapshot, first, err := e.applyGrant(generationCtx, now, released)
 	result.Snapshot = snapshot
 	if err == nil && first {
-		_, err = e.advanceWithContext(generationCtx, now)
+		_, err = e.advanceWithContext(generationCtx, now, lease)
 	}
 	if generationCtx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 		return result, errEngineNotRunning
@@ -1934,10 +1961,10 @@ func (e *Engine) Advance(now time.Time) (int, error) {
 	}
 	defer e.sessionOps.Done()
 	turn := e.beginDriverTurn(now, "advance")
-	e.stepMu.Lock()
+	lease := e.lockTimeTransaction(generationCtx)
+	defer lease.release()
 	e.driverLockAcquired(turn)
-	defer e.stepMu.Unlock()
-	return e.advanceWithSessionExpiry(generationCtx, generationCtx, now, turn)
+	return e.advanceWithSessionExpiry(generationCtx, generationCtx, now, turn, lease)
 }
 
 // AdvanceContext is the cancelable form used by bounded worker drain.
@@ -1950,17 +1977,17 @@ func (e *Engine) AdvanceContext(ctx context.Context, now time.Time) (int, error)
 	advanceCtx, cancel := mergeGenerationContext(generationCtx, ctx)
 	defer cancel()
 	turn := e.beginDriverTurn(now, "advance")
-	e.stepMu.Lock()
+	lease := e.lockTimeTransaction(generationCtx)
+	defer lease.release()
 	e.driverLockAcquired(turn)
-	defer e.stepMu.Unlock()
-	return e.advanceWithSessionExpiry(advanceCtx, generationCtx, now, turn)
+	return e.advanceWithSessionExpiry(advanceCtx, generationCtx, now, turn, lease)
 }
 
-func (e *Engine) advanceWithContext(ctx context.Context, now time.Time) (int, error) {
-	return e.enqueueAdvance(ctx, now)
+func (e *Engine) advanceWithContext(ctx context.Context, now time.Time, lease *engineTimeLease) (int, error) {
+	return e.enqueueAdvance(ctx, now, lease)
 }
 
-func (e *Engine) advanceWithSessionExpiry(admissionCtx, generationCtx context.Context, now time.Time, turn *driverTurn) (int, error) {
+func (e *Engine) advanceWithSessionExpiry(admissionCtx, generationCtx context.Context, now time.Time, turn *driverTurn, lease *engineTimeLease) (int, error) {
 	if err := e.awaitOwnerTimeAdmissionWithDriver(admissionCtx, now, turn); err != nil {
 		return 0, err
 	}
@@ -1993,7 +2020,7 @@ func (e *Engine) advanceWithSessionExpiry(admissionCtx, generationCtx context.Co
 	if expiryErr != nil {
 		return 0, expiryErr
 	}
-	processed, err := e.enqueueAdvanceWithDriver(generationCtx, now, turn)
+	processed, err := e.enqueueAdvanceWithDriver(generationCtx, now, turn, lease)
 	if generationCtx.Err() != nil &&
 		(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 		return processed, errEngineNotRunning
@@ -2046,26 +2073,26 @@ func (e *Engine) validateOwnerTime(now time.Time) error {
 	return nil
 }
 
-func (e *Engine) enqueueAdvance(ctx context.Context, now time.Time) (int, error) {
-	return e.enqueueAdvanceWithDriver(ctx, now, nil)
+func (e *Engine) enqueueAdvance(ctx context.Context, now time.Time, lease *engineTimeLease) (int, error) {
+	return e.enqueueAdvanceWithDriver(ctx, now, nil, lease)
 }
 
-func (e *Engine) enqueueAdvanceWithDriver(ctx context.Context, now time.Time, turn *driverTurn) (int, error) {
+func (e *Engine) enqueueAdvanceWithDriver(ctx context.Context, now time.Time, turn *driverTurn, lease *engineTimeLease) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
 	queuedAt := e.driverNow(turn)
 	response := make(chan advanceResult, 1)
+	job := &engineAdvanceJob{ctx: ctx, now: now, queuedAt: queuedAt, turn: turn, lease: lease, response: response}
+	if err := e.registerLogicalJob(lease); err != nil {
+		return 0, err
+	}
 	if err := e.enqueue(engineCommand{run: func() {
-		if err := ctx.Err(); err != nil {
-			response <- advanceResult{err: err}
-			return
-		}
-		if turn != nil {
-			turn.record.AdvanceWait += e.driverElapsed(turn, queuedAt)
-		}
-		response <- e.advance(ctx, now, turn)
+		e.startAdvanceJob(job)
 	}}); err != nil {
+		// No command was published, so no owner finalizer can release this half.
+		lease.release()
+		e.logicalJobs.Done()
 		return 0, err
 	}
 	select {
@@ -2094,9 +2121,9 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	stepCtx, cancel := mergeGenerationContext(generationCtx, ctx)
 	defer cancel()
 	turn := e.beginDriverTurn(now, "step")
-	e.stepMu.Lock()
+	lease := e.lockTimeTransaction(generationCtx)
+	defer lease.release()
 	e.driverLockAcquired(turn)
-	defer e.stepMu.Unlock()
 	if err := stepCtx.Err(); err != nil {
 		return EngineStepSnapshot{}, err
 	}
@@ -2238,7 +2265,7 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	if turn != nil {
 		turn.record.StepPreparation += e.driverElapsed(turn, prepareStarted)
 	}
-	advanced, advanceErr := e.enqueueAdvanceWithDriver(stepCtx, now, turn)
+	advanced, advanceErr := e.enqueueAdvanceWithDriver(stepCtx, now, turn, lease)
 	result.Advanced = advanced
 	resultErr = errors.Join(resultErr, advanceErr)
 	resultErr = errors.Join(resultErr, e.drainLoginResults(now, &result))
@@ -2641,6 +2668,19 @@ func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done 
 		close(done)
 	}()
 	for {
+		if e.advanceJob != nil {
+			// Freeze one FIFO prefix. New commands cannot extend this share and
+			// starve the same private continuation under sustained control load.
+			prefix := min(len(commands), completionFairnessQuantum)
+			for range prefix {
+				command := <-commands
+				command.run()
+			}
+			if e.advanceJob != nil {
+				e.runAdvanceSlice(e.advanceJob)
+			}
+			continue
+		}
 		select {
 		case command := <-commands:
 			command.run()
@@ -2901,79 +2941,6 @@ func (e *Engine) observeWorkPeak() {
 	}
 }
 
-func (e *Engine) advance(ctx context.Context, now time.Time, turn *driverTurn) advanceResult {
-	if err := ctx.Err(); err != nil {
-		return advanceResult{err: err}
-	}
-	e.driverTurn = turn
-	defer func() { e.driverTurn = nil }()
-	e.beginDriverCPUOwnerTurn(turn)
-	e.now = now
-	verifierStarted := e.driverNow(turn)
-	expired := e.verifier.expireCorrelations(now, func(clientMsgNo string) {
-		e.sessions.releaseCorrelationLease(clientMsgNo)
-	})
-	if turn != nil {
-		turn.record.VerifierExpiry += e.driverElapsed(turn, verifierStarted)
-		turn.record.CorrelationsExpired += uint64(expired)
-	}
-	e.drainDriverCompletions(turn, driverDrainInitial)
-	result := advanceResult{err: e.admissionError}
-	sentWorkSinceYield := 0
-	generationTerminal := false
-	for result.processed < e.maxWork {
-		workDue := len(e.work) > 0 && !e.work[0].due.After(now)
-		retryDue := e.retries != nil && e.retries.due(now)
-		if !workDue && !retryDue {
-			break
-		}
-		workStarted := e.driverNow(turn)
-		processedSend := false
-		var workErr error
-		if retryDue && (!workDue || !e.work[0].due.Before(e.retries.entries[0].Due)) {
-			retries := e.retries.PopDue(now, 1)
-			if len(retries) == 1 {
-				processedSend = true
-				workErr = e.processAttempt(ctx, retries[0].Intent, retries[0].Attempt.Attempt, now)
-			}
-		} else {
-			work := heap.Pop(&e.work).(*engineWork)
-			if work.kind == engineWorkSend {
-				e.queuedSends--
-				processedSend = true
-			}
-			workErr = e.processWork(ctx, work, now)
-		}
-		if turn != nil {
-			turn.record.WorkExecution += e.driverElapsed(turn, workStarted)
-			turn.record.Processed++
-		}
-		result.err = errors.Join(result.err, workErr)
-		result.processed++
-		e.drainDriverCompletions(turn, driverDrainAfterWork)
-		if runtimeFailureTerminatesGeneration(workErr) {
-			generationTerminal = true
-			break
-		}
-		if processedSend {
-			sentWorkSinceYield++
-		}
-		if sentWorkSinceYield >= completionFairnessQuantum {
-			if len(e.inflight) > 0 {
-				yieldStarted, yieldClockOK := e.beginDriverYield(turn)
-				runtime.Gosched()
-				e.endDriverYield(turn, yieldStarted, yieldClockOK)
-				e.drainDriverCompletions(turn, driverDrainFairness)
-			}
-			sentWorkSinceYield = 0
-		}
-	}
-	if !generationTerminal && ((len(e.work) > 0 && !e.work[0].due.After(now)) || (e.retries != nil && e.retries.due(now))) {
-		result.err = errors.Join(result.err, e.recordRuntimeFailure(RuntimeFailureEngineCPUSaturated, uint64(e.maxWork)))
-	}
-	return result
-}
-
 func (e *Engine) drainCompletions() {
 	e.drainCompletionBatch(completionFairnessQuantum)
 }
@@ -3033,7 +3000,8 @@ func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Tim
 				e.releaseUnstartedSendLease(work.intent),
 			)
 		}
-		return e.queueAttempt(work.intent, work.attempt, now, work.dispatchDeadline)
+		return e.queueAttempt(work.intent, work.attempt, now, work.dispatchDeadline,
+			e.newDriverSDKAdmissionTrace(work.due, now, work.dispatchDeadline))
 	case engineWorkTimeout:
 		inflight := e.inflight[work.intent.Logical.ClientMsgNo]
 		if inflight == nil || inflight.attempt != work.attempt || inflight.currentClientSeq != work.clientSeq {
@@ -3588,26 +3556,29 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return e.queueAttempt(intent, attempt, now, time.Time{})
+	return e.queueAttempt(intent, attempt, now, time.Time{}, nil)
 }
 
 // startSDKAttempt runs on the owner only when an executor can call the SDK.
 // Queued tickets have no verifier SEND or attempt clock before this transition.
-func (e *Engine) startSDKAttempt(intent TrafficIntent, attempt uint8, now, dispatchDeadline time.Time) engineAdmissionStart {
+func (e *Engine) startSDKAttempt(intent TrafficIntent, attempt uint8, now, dispatchDeadline time.Time, diagnostic *driverSDKAdmissionTrace) engineAdmissionStart {
 	// The execution deadline and attempt registration share one fresh sample,
 	// avoiding both an extra clock read and different admission origins.
 	attemptAt := e.clock.Now()
+	rawAttemptAt := attemptAt
 	if attemptAt.Before(now) {
 		attemptAt = now
 	}
 	if !dispatchDeadline.IsZero() && attemptAt.After(dispatchDeadline) {
 		e.activityUnderDelivered++
 		e.completeMetaCreate(intent, false)
-		return engineAdmissionStart{err: errors.Join(
+		err := errors.Join(
 			e.recordUnderDelivery(FailureCodeOfferedDispatchFreshDeadline, 1),
 			e.settleLifecycleInitialActivity(intent),
 			e.releaseUnstartedSendLease(intent),
-		)}
+		)
+		e.recordDriverSDKAdmissionMiss(diagnostic, rawAttemptAt, attemptAt, dispatchDeadline)
+		return engineAdmissionStart{err: err}
 	}
 	logical := intent.Logical
 	inflight := e.inflight[logical.ClientMsgNo]

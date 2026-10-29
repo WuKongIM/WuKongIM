@@ -129,6 +129,40 @@ type DriverDiagnosticsSnapshot struct {
 	Generation uint64               `json:"generation"`
 	Dropped    uint64               `json:"dropped"`
 	Records    []DriverDeadlineMiss `json:"records"`
+	// SDKAdmission is independent of owner Turns, CPU and yield prefixes.
+	// An absent or malformed child supplies no SDK admission attribution.
+	SDKAdmission *DriverSDKAdmissionSnapshot `json:"sdk_admission,omitempty"`
+}
+
+// UnmarshalJSON isolates only the named SDK child. All original base fields
+// remain strict, including the original record's separate yield child decoder.
+func (d *DriverDiagnosticsSnapshot) UnmarshalJSON(encoded []byte) error {
+	type plainDriverDiagnosticsSnapshot DriverDiagnosticsSnapshot
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		return err
+	}
+	optional, exists := fields["sdk_admission"]
+	if exists {
+		delete(fields, "sdk_admission")
+		var err error
+		encoded, err = json.Marshal(fields)
+		if err != nil {
+			return err
+		}
+	}
+	var plain plainDriverDiagnosticsSnapshot
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&plain); err != nil {
+		return err
+	}
+	*d = DriverDiagnosticsSnapshot(plain)
+	d.SDKAdmission = nil
+	if exists {
+		d.SDKAdmission = decodeDriverSDKAdmission(optional)
+	}
+	return nil
 }
 
 // engineDriverRecorder allocates only when explicitly enabled. Record storage
@@ -313,11 +347,12 @@ func (e *Engine) finalDriverDiagnostics() *DriverDiagnosticsSnapshot {
 		return nil
 	}
 	d := e.driverDiagnostics
-	return copyDriverDiagnostics(&DriverDiagnosticsSnapshot{Generation: e.generation, Dropped: d.dropped, Records: d.records[:d.count]})
+	return copyDriverDiagnostics(&DriverDiagnosticsSnapshot{Generation: e.generation, Dropped: d.dropped, Records: d.records[:d.count],
+		SDKAdmission: e.finalDriverSDKAdmission()})
 }
 
 // copyDriverDiagnostics detaches final records and their optional children.
-// Invalid yield data is independently omitted without erasing original rows.
+// Invalid children are independently omitted without erasing original rows.
 func copyDriverDiagnostics(d *DriverDiagnosticsSnapshot) *DriverDiagnosticsSnapshot {
 	if d == nil {
 		return nil
@@ -332,6 +367,13 @@ func copyDriverDiagnostics(d *DriverDiagnosticsSnapshot) *DriverDiagnosticsSnaps
 			wall := *record.YieldWall
 			record.YieldWall = &wall
 		}
+	}
+	if !validDriverSDKAdmission(d.SDKAdmission) {
+		out.SDKAdmission = nil
+	} else if d.SDKAdmission != nil {
+		child := *d.SDKAdmission
+		child.Records = append([]DriverSDKAdmissionMiss{}, d.SDKAdmission.Records...)
+		out.SDKAdmission = &child
 	}
 	return &out
 }

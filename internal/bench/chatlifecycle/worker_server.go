@@ -1137,15 +1137,16 @@ func writeWorkerJSON(response http.ResponseWriter, status int, value any) {
 
 type engineWorkerGenerationFactory struct {
 	// benchToken stays in the worker process and never enters assignments or reports.
-	benchToken                   string
-	enableDriverDiagnostics      bool
-	enableAttemptLinkDiagnostics bool
-	driverCPUClockProbe          func() DriverCPUClockSample
-	driverCPUReports             chan<- DriverCPUReport
-	clock                        SessionClock
-	newSessionFactory            func(WorkerAssignment) (SessionClientFactory, error)
-	newSyncer                    func(WorkerAssignment) (ConversationSyncer, error)
-	newTicker                    func(time.Duration) workerGenerationTicker
+	benchToken                       string
+	enableDriverDiagnostics          bool
+	enableDriverAdmissionDiagnostics bool
+	enableAttemptLinkDiagnostics     bool
+	driverCPUClockProbe              func() DriverCPUClockSample
+	driverCPUReports                 chan<- DriverCPUReport
+	clock                            SessionClock
+	newSessionFactory                func(WorkerAssignment) (SessionClientFactory, error)
+	newSyncer                        func(WorkerAssignment) (ConversationSyncer, error)
+	newTicker                        func(time.Duration) workerGenerationTicker
 }
 
 // NewEngineWorkerGenerationFactory composes the existing deterministic models,
@@ -1168,10 +1169,11 @@ func NewEngineWorkerGenerationFactoryWithAttemptLinkDiagnostics(token string, dr
 }
 
 func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerGeneration, error) {
-	// CPU observation is one explicit pair; reject incomplete opt-ins before
-	// constructing runtime collaborators or sampling the optional probe.
+	// CPU observation stays one explicit pair. Independent SDK observation also
+	// requires its driver parent before constructing runtime collaborators.
 	if (f.driverCPUClockProbe != nil) != (f.driverCPUReports != nil) ||
-		(f.driverCPUClockProbe != nil && !f.enableDriverDiagnostics) {
+		(f.driverCPUClockProbe != nil && !f.enableDriverDiagnostics) ||
+		(f.enableDriverAdmissionDiagnostics && !f.enableDriverDiagnostics) {
 		return nil, errWorkerServerConfig
 	}
 	if !validWorkerAssignment(assignment) || assignment.Generation > maxLogicalGeneration {
@@ -1279,9 +1281,10 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 	}
 	engine, err := NewEngine(EngineConfig{
 		Clock: clock, Sessions: sessions, Schedule: schedule, Graph: graph, Traffic: traffic,
-		EnableDriverDiagnostics: f.enableDriverDiagnostics,
-		DriverCPUClockProbe:     f.driverCPUClockProbe,
-		Generator:               generator, Retry: retry, Verifier: verifier, Evidence: evidence,
+		EnableDriverDiagnostics:          f.enableDriverDiagnostics,
+		EnableDriverAdmissionDiagnostics: f.enableDriverAdmissionDiagnostics,
+		DriverCPUClockProbe:              f.driverCPUClockProbe,
+		Generator:                        generator, Retry: retry, Verifier: verifier, Evidence: evidence,
 		WorkerID: assignment.WorkerID, WorkerCount: assignment.WorkerCount,
 		CommandCapacity: limits.command, WorkCapacity: limits.work, RetryCapacity: limits.retry,
 		InflightCapacity: limits.inflight, MaxWorkPerAdvance: limits.maxWork,

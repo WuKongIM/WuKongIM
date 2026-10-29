@@ -88,6 +88,23 @@ VerificationError after mutation. Stop cleanup must consume exactly that result
 before release; unknown, wrapped or generator errors remain harness failures.
 This distinction cannot erase a product failure observed before Stop.
 
+The lifecycle Engine retains one generation-owned advance across slices of
+32 total work items and frozen FIFO prefixes of at most 32 commands. Its time
+cut and total maxWork budget remain fixed; SEND-based Gosched accounting is
+independent. Snapshots may observe partial logical progress. A time transaction
+releases stepMu only after caller postprocessing and its accepted logical job
+both finish. Job registration shares the lifecycle admission fence; Stop joins
+these jobs before closing the dispatcher. An ordinary inter-slice owner barrier
+does not prove a logical job has joined.
+
+`WK_CHAT_LIFECYCLE_DRIVER_ADMISSION_DIAGNOSTICS=1` requires the explicit driver
+diagnostic opt-in and retains at most16 anonymous SDK-start/code38 prefixes per
+generation. Queue-offer to executor pickup, pickup to command offer, and offer
+to owner handling use a separate monotonic probe; they are not CPU, pure queue
+time, or additive parts of the native due/fresh clock. Unknown clocks remain
+unknown. The final sidecar keeps its64KiB cap and existing owner/yield evidence;
+enabled diagnostics require same-source v15 peers.
+
 Channel append eligibility partitions must preserve input cardinality and order
 with disjoint active/inactive ownership. A nil active slice cannot indicate
 whether filtering has begun: a leading invalid item leaves an empty prefix.

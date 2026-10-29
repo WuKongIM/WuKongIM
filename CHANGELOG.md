@@ -26,6 +26,12 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Let lifecycle benchmark SDK and control commands progress between bounded
+  work slices, retaining original deadlines and joined shutdown after caller
+  cancellation; optionally retain bounded SDK handoff timings.
+  / 生命周期压测器在有界工作分段之间处理 SDK 与控制命令，保留原截止时间
+  及调用方取消后的完整退出所有权，可选记录有界 SDK 交接等待。
+
 - Isolate Channel replication callbacks from network workers, retaining bounded
   result ownership and storage dependencies until shutdown has fully joined.
   / Channel 复制回调与网络工作协程分离；结果仍受容量约束，关闭超时后继续保留

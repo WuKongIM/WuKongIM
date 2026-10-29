@@ -19,6 +19,16 @@ type engineAdmission struct {
 	due      time.Time
 	deadline time.Time
 	next     *engineAdmission
+	// diagnostic is nil by default; an accepted ticket bounds its lifetime.
+	diagnostic *driverSDKAdmissionTrace
+}
+
+// newEngineAdmission samples queue-offer before the ticket is published. The
+// interval includes dispatcher admission; it is not an exact enqueue timestamp.
+func newEngineAdmission(intent TrafficIntent, attempt uint8, due, deadline time.Time, diagnostic *driverSDKAdmissionTrace) *engineAdmission {
+	admission := &engineAdmission{intent: intent, attempt: attempt, due: due, deadline: deadline, diagnostic: diagnostic}
+	diagnostic.observe(driverSDKQueueOffer)
+	return admission
 }
 
 type engineAdmissionLane struct {
@@ -122,6 +132,7 @@ func (d *engineDispatcher) loop() {
 		admission.next = nil
 		d.mu.Unlock()
 
+		admission.diagnostic.observe(driverSDKExecutorPickup)
 		d.run(admission)
 
 		d.mu.Lock()
@@ -164,12 +175,10 @@ type engineAdmissionStart struct {
 
 // queueAttempt is owner-only. Future work retains its credit until execution;
 // moving it here does not increment verifier Sent or start an attempt deadline.
-func (e *Engine) queueAttempt(intent TrafficIntent, attempt uint8, due, deadline time.Time) error {
+func (e *Engine) queueAttempt(intent TrafficIntent, attempt uint8, due, deadline time.Time, diagnostic *driverSDKAdmissionTrace) error {
 	// Initial work has released its heap credit; a retry arriving from the
 	// separate retry heap must also reserve the shared retained-work bound.
-	if e.futureCount() >= e.workCapacity || !e.dispatcher.submit(&engineAdmission{
-		intent: intent, attempt: attempt, due: due, deadline: deadline,
-	}) {
+	if e.futureCount() >= e.workCapacity || !e.dispatcher.submit(newEngineAdmission(intent, attempt, due, deadline, diagnostic)) {
 		err := e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
 		if attempt == 0 {
 			return errors.Join(err, e.releaseUnstartedSendLease(intent))
@@ -189,7 +198,9 @@ func (e *Engine) queueAttempt(intent TrafficIntent, attempt uint8, due, deadline
 // call nor its result wait occupies Advance, stepMu or worker advanceMu.
 func (e *Engine) runAdmission(admission *engineAdmission, commands chan<- engineCommand, ctx context.Context) {
 	started := make(chan engineAdmissionStart, 1)
+	diagnostic := admission.diagnostic.startOfferCopy()
 	commands <- engineCommand{run: func() {
+		diagnostic.observe(driverSDKOwnerHandle)
 		e.admissionQueued--
 		if admission.attempt == 0 {
 			e.admissionInitialQueued--
@@ -201,7 +212,7 @@ func (e *Engine) runAdmission(admission *engineAdmission, commands chan<- engine
 				result.err = e.releaseUnstartedSendLease(admission.intent)
 			}
 		default:
-			result = e.startSDKAttempt(admission.intent, admission.attempt, admission.due, admission.deadline)
+			result = e.startSDKAttempt(admission.intent, admission.attempt, admission.due, admission.deadline, diagnostic)
 		}
 		started <- result
 	}}

@@ -14,6 +14,8 @@ type DriverCPUReport struct {
 type WorkerDiagnosticOptions struct {
 	Driver      bool
 	AttemptLink bool
+	// Admission enables the independent SDK child only with explicit Driver.
+	Admission bool
 	// CPUClockProbe requires Driver and a CPUReports inbox; nil preserves the
 	// existing diagnostic path without reading any additional OS clocks.
 	CPUClockProbe func() DriverCPUClockSample
@@ -25,11 +27,12 @@ type WorkerDiagnosticOptions struct {
 // NewEngineWorkerGenerationFactoryWithDiagnostics configures the existing runtime.
 func NewEngineWorkerGenerationFactoryWithDiagnostics(token string, options WorkerDiagnosticOptions) WorkerGenerationFactory {
 	return engineWorkerGenerationFactory{
-		benchToken:                   token,
-		enableDriverDiagnostics:      options.Driver,
-		enableAttemptLinkDiagnostics: options.AttemptLink,
-		driverCPUClockProbe:          options.CPUClockProbe,
-		driverCPUReports:             options.CPUReports,
+		benchToken:                       token,
+		enableDriverDiagnostics:          options.Driver,
+		enableDriverAdmissionDiagnostics: options.Admission,
+		enableAttemptLinkDiagnostics:     options.AttemptLink,
+		driverCPUClockProbe:              options.CPUClockProbe,
+		driverCPUReports:                 options.CPUReports,
 	}
 }
 

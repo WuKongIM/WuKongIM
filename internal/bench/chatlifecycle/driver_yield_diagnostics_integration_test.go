@@ -122,7 +122,10 @@ func driverYieldPrimeInflight(t *testing.T, f engineTestFixture, uid string, at 
 	}
 }
 
-func driverYieldQueue(t *testing.T, f engineTestFixture, uid string, at time.Time, count int) {
+// An absent filter preserves the original all-paced controls. A filter keeps
+// only the selected owner fresh-check targets paced; other tickets use the
+// existing legal unpaced route, so later SDK starts cannot add deadline misses.
+func driverYieldQueue(t *testing.T, f engineTestFixture, uid string, at time.Time, count int, pacedIndices ...int) {
 	t.Helper()
 	result := make(chan error, 1)
 	if err := f.engine.enqueueBlocking(engineCommand{run: func() {
@@ -132,7 +135,16 @@ func driverYieldQueue(t *testing.T, f engineTestFixture, uid string, at time.Tim
 				return
 			}
 			intent := f.intent(t, uid, "yield-private-channel", uint64(10000+i), TrafficGroup)
-			if err := f.engine.addLeasedSendWorkBefore(intent, 0, at, at.Add(100*time.Millisecond)); err != nil {
+			deadline := at.Add(100 * time.Millisecond)
+			if len(pacedIndices) > 0 {
+				deadline = time.Time{}
+				for _, index := range pacedIndices {
+					if i == index {
+						deadline = at.Add(100 * time.Millisecond)
+					}
+				}
+			}
+			if err := f.engine.addLeasedSendWorkBefore(intent, 0, at, deadline); err != nil {
 				result <- err
 				return
 			}
@@ -188,15 +200,22 @@ func driverYieldFinal(t *testing.T, f engineTestFixture) driverYieldTestSnapshot
 
 func TestDriverYieldActualCode38RetainsCompletedBoundaryPrefix(t *testing.T) {
 	probe := &driverYieldProbeScript{reads: []driverYieldProbeRead{{1000, true}, {45_864_372, true}}}
-	f, clock, uid, at, available := newDriverYieldFixture(t, probe.read, nil)
+	f, _, uid, at, available := newDriverYieldFixture(t, probe.read, nil)
 	driverYieldPrimeInflight(t, f, uid, at)
-	driverYieldQueue(t, f, uid, at, 41)
-	driverYieldMissScript(clock, at, []int{40}, true, true)
+	driverYieldQueue(t, f, uid, at, 41, 40)
+	// Move business time only after the real first32-SEND yield completes.
+	// The independent probe's scripted wall remains a measurement contract,
+	// not a physical scheduler reproduction or a SessionClock read counter.
+	probe.onRead = func(index int) {
+		if index == 1 {
+			f.clock.Set(at.Add(101 * time.Millisecond))
+		}
+	}
 	_, err := f.engine.AdvanceContext(context.Background(), at)
 	assertRuntimeFailure(t, err, RuntimeFailureUnderDelivery)
 	waitForEngineAdmissions(t, f.engine)
 	// Confirm native RED first, independently of optional interface availability.
-	assertUnderDeliveryFeedbackJSON(t, f.evidence.Snapshot(), FailureCode(38), 41)
+	assertUnderDeliveryFeedbackJSON(t, f.evidence.Snapshot(), FailureCode(38), 1)
 	t.Log("native_code38_confirmed before asserting optional yield evidence; not a new product RED")
 	snapshot := driverYieldFinal(t, f)
 	if len(snapshot.Records) != 1 || snapshot.Records[0].Processed != 40 {
@@ -220,8 +239,34 @@ func TestDriverYieldOriginalQuantumAndInflightControls(t *testing.T) {
 			t.Run(fmt.Sprintf("prior%d/inflight%t", prior, inflight), func(t *testing.T) {
 				probe := &driverYieldProbeScript{}
 				f, clock, uid, at, available := newDriverYieldFixture(t, probe.read, nil)
+				var observed [4]struct {
+					activeTurn bool
+					processed  uint64
+					inflight   bool
+				}
+				probeOverflow := false
 				if inflight {
 					driverYieldPrimeInflight(t, f, uid, at)
+				} else {
+					initial, err := f.engine.Snapshot()
+					if err != nil || initial.InflightCurrent != 0 {
+						t.Fatalf("initial inflight is not empty: inflight=%d err=%v", initial.InflightCurrent, err)
+					}
+					// Observe only the existing probe calls on the owner. SDK
+					// commands may create inflight between slices; initial empty
+					// is not an assertion that it stays empty for the whole job.
+					probe.onRead = func(index int) {
+						if index >= len(observed) {
+							probeOverflow = true
+							return
+						}
+						turn := f.engine.driverTurn
+						observed[index].activeTurn = turn != nil
+						if turn != nil {
+							observed[index].processed = turn.record.Processed
+						}
+						observed[index].inflight = len(f.engine.inflight) > 0
+					}
 				}
 				driverYieldQueue(t, f, uid, at, prior+1)
 				driverYieldMissScript(clock, at, []int{prior}, true, inflight)
@@ -234,6 +279,26 @@ func TestDriverYieldOriginalQuantumAndInflightControls(t *testing.T) {
 				wantCount, wantReads := uint64(0), 0
 				if inflight {
 					wantCount, wantReads = uint64(prior/32), 2*((prior+1)/32)
+				} else {
+					reads := probe.count()
+					if probeOverflow || reads > len(observed) || reads%2 != 0 {
+						t.Fatalf("unbounded or incomplete owner yield observations: overflow=%t reads=%d", probeOverflow, reads)
+					}
+					var previous uint64
+					for pair := 0; pair < reads/2; pair++ {
+						before, after := observed[2*pair], observed[2*pair+1]
+						if !before.activeTurn || !after.activeTurn || before.processed != after.processed || !before.inflight || !after.inflight || (before.processed != 32 && before.processed != 64) || before.processed <= previous {
+							t.Fatalf("yield bypassed original owner quantum/inflight predicate: before=%+v after=%+v previous=%d", before, after, previous)
+						}
+						if before.processed == 32 {
+							t.Fatal("initially empty inflight yielded before any SDK-start command could run")
+						}
+						if before.processed <= snapshot.Records[0].Processed {
+							wantCount++
+						}
+						previous = before.processed
+						wantReads += 2
+					}
 				}
 				wall := snapshot.Records[0].YieldWall
 				if wall.Count != wantCount || !wall.ClockValid || wall.WallNanos != int64(wantCount)*1000 || probe.count() != wantReads {
@@ -279,10 +344,22 @@ func TestDriverYieldEarlierMissCannotObserveLaterSameTurnYieldOrSnapshotMutation
 	probe := &driverYieldProbeScript{reads: []driverYieldProbeRead{{1000, true}, {1050, true}, {1100, true}, {1170, true}}}
 	f, clock, uid, at, available := newDriverYieldFixture(t, probe.read, nil)
 	driverYieldPrimeInflight(t, f, uid, at)
-	driverYieldQueue(t, f, uid, at, 65)
-	// Regressing only the business test clock after a fresh rejection lets the
-	// same real turn complete another original yield before a second miss.
-	driverYieldMissScript(clock, at, []int{32, 64}, false, true)
+	driverYieldQueue(t, f, uid, at, 65, 32, 64)
+	// Only the two target SENDs retain the original100ms deadline. Changes
+	// follow completed real yields instead of global business-read offsets.
+	probe.onRead = func(index int) {
+		switch index {
+		case 1:
+			f.clock.Set(at.Add(101 * time.Millisecond))
+		case 3:
+			// The unchanged fairness drain immediately brackets its bounded
+			// completion batch with these two owner reads. Regress only that
+			// business-clock span; all later reads keep the101ms base time.
+			clock.mu.Lock()
+			clock.script, clock.scriptIndex = []time.Time{at, at.Add(101 * time.Millisecond)}, 0
+			clock.mu.Unlock()
+		}
+	}
 	_, err := f.engine.AdvanceContext(context.Background(), at)
 	assertRuntimeFailure(t, err, RuntimeFailureUnderDelivery)
 	waitForEngineAdmissions(t, f.engine)
