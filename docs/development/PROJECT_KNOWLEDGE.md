@@ -1433,6 +1433,13 @@ specification, runbook, report, or module documentation; link to them when neede
 - Every online route, including advisory EVENT hints, must preserve device ID,
   flag and level along with the exact owner/session identity. The final session
   fence rejects a route with missing or stale device fields.
+- Presence Directory snapshots count and fill one call-owned route backing per
+  single-target read (including recovery readback), or one per shard for grouped
+  reads. UID input order, duplicate UID entries and per-UID identity sorting are
+  preserved. Sorting must not allocate one temporary result per online UID;
+  returned snapshots must never alias mutable Directory state. This reduces
+  allocation work without changing proof residency, authority fences or recovery
+  admission limits.
 - Post-commit handoff reserves bounded capacity before append and may reject busy
   work before durability. Once committed, SENDACK completes independently of
   best-effort terminal delivery/plugin/webhook failures. Completion and capacity

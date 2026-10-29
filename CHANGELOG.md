@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Reduce temporary allocations when reading presence route snapshots, including
+  recovery readback and multiple devices, while preserving route order and ownership.
+  / 减少在线路由快照查询（含恢复读回和多设备）的临时分配，保留路由顺序与结果独立性。
+
 - Allow cold Go compilation within the scripts integration check's outer budget,
   retaining the full test set and its existing test deadlines.
   / 脚本集成检查的外层预算计入 Go 冷编译开销，保留完整测试集与现有测试截止时间。
