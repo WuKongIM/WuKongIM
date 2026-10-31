@@ -48,7 +48,23 @@ func (a *Adapter) handlePresenceGeneration(ctx context.Context, body []byte, own
 	}
 	resp := generationResponse{Op: req.Op, Status: rpcStatusOK}
 	fail := func(err error) ([]byte, error) {
-		return encodeGenerationResponse(generationResponse{Op: req.Op, Status: generationStatus(generationOwnerError(err))})
+		status := generationStatus(generationOwnerError(err))
+		// Full activation loses source/provider details in the same compatible
+		// status as legacy activation. Reuse its bounded local log before encoding;
+		// ordinary owner reads, mutations and unknown causes add no event.
+		if !owner && status == rpcStatusRouteNotReady {
+			var op string
+			switch req.Op {
+			case generationRegister:
+				op = presenceOpRegisterRoute
+			case generationCommit:
+				op = presenceOpCommitRoute
+			}
+			if op != "" {
+				a.logPresenceAuthorityError(presenceRPCRequest{Op: op, Target: req.Claim.Target, Route: req.Route}, status, err)
+			}
+		}
+		return encodeGenerationResponse(generationResponse{Op: req.Op, Status: status})
 	}
 	if err = ctx.Err(); err != nil {
 		return fail(err)

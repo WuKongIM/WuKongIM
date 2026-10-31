@@ -26,6 +26,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve bounded authority-side failure details for Full Presence registration and commit, improving diagnosis of rejected connections without changing protocol results. / Full Presence 注册和提交失败时保留有界的权威节点诊断信息，便于定位连接拒绝原因，协议结果不变。
+
 - Add bounded local post-workload SEND/RPC evidence export for slow-message diagnosis, preserving workload outcomes and cleanup. / 增加本机负载结束后的有界 SEND/RPC 证据导出，辅助慢消息诊断并保留原负载结果和清理责任。
 
 - Add opt-in bounded samples for successful hot SENDs above configured P99, preserving original timeout evidence and acceptance gates. / 为超过配置 P99 的成功热消息补充可选、有界采样，保留原超时证据和验收门禁。
