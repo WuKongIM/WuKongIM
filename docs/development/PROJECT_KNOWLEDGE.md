@@ -17,7 +17,7 @@ two 64KiB buffers per connection. Memory-allocation regressions and connected
 factory tests retain fragmented-frame, EOF and payload-ownership controls;
 their heap deltas do not certify full-workload RSS or performance acceptance.
 
-Chat-lifecycle report v7 / threshold contract v2 separates `local_diagnostic`,
+Chat-lifecycle report v8 / threshold contract v2 separates `local_diagnostic`,
 `rehearsal`, and `formal_protocol` scope. A formal-protocol report still requires
 same-source/run/Lease external Linux hardware, independent-host and disk proof;
 configuration names cannot certify the environment. Mac pressure diagnostics do
@@ -37,7 +37,8 @@ run with insufficient evidence, but elapsed rehearsal time alone cannot pass.
 Qualification persists baseline/start/end elapsed positions from one monotonic
 process clock; duration, order and freshness use those positions. Serialized
 wall timestamps are audit fields, not a reconstructed qualification clock.
-Readers reject missing offsets and older schemas without modifying old evidence.
+Current result and capacity consumers require v8 and reject missing offsets;
+historical v7 reports remain available for diagnosis without upgrading old evidence.
 
 Lifecycle runtime probes are asynchronous node-local reads, not snapshots at a
 ticker instant. Each batch retains only its client request start/end interval,
