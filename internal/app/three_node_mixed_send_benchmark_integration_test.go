@@ -150,7 +150,7 @@ func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, shape threeNodeMixedSha
 		stopWarmupCounters()
 		complete := arrival.ReportWarmup(b, warm)
 		if !complete || sink.failures.Load() != 0 || sink.successes.Load() != uint64(warmup) {
-			b.Fatalf("sustained warmup incomplete: sends=%d success_ACKs=%d failed_ACKs=%d reasons=%v observations=%v stages=%v", warmup, sink.successes.Load(), sink.failures.Load(), sink.failureReasons(), threeNodeMixedSendackFailures(b, apps), snapshotThreeNodeMixedStages(b, apps))
+			b.Fatalf("sustained warmup incomplete: sends=%d success_ACKs=%d failed_ACKs=%d reasons=%v client_seqs=%v observations=%v stages=%v", warmup, sink.successes.Load(), sink.failures.Load(), sink.failureReasons(), sink.failureClientSeqs(), threeNodeMixedSendackFailures(b, apps), snapshotThreeNodeMixedStages(b, apps))
 		}
 		sink.successes.Store(0)
 		waitThreeNodeMixedPersonDirectoryDrain(b, nodes, 10*time.Second)

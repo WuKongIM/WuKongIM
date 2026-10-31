@@ -69,7 +69,8 @@ func writeJSON(b testing.TB, path string, value any) {
 }
 
 // Snapshot owns one bounded, process-wide boundary observation. Families contain
-// only fixed storage/replication series; differences exclude completed setup.
+// only fixed storage, replication and permission/SENDACK series; differences
+// exclude completed setup. Entity identities never become retained labels.
 type Snapshot struct {
 	At       time.Time           `json:"at"`
 	System   map[string]string   `json:"system"`
@@ -134,7 +135,12 @@ func ReadSnapshot(gatherers ...prometheus.Gatherer) (Snapshot, error) {
 				"wukongim_channelv2_replication_stage_duration_seconds",
 				"wukongim_channelv2_worker_task_duration_seconds",
 				"wukongim_storage_commit_batch_duration_seconds",
-				"wukongim_storage_commit_request_duration_seconds":
+				"wukongim_storage_commit_request_duration_seconds",
+				"wukongim_message_permission_duration_seconds",
+				"wukongim_message_permission_counts_total",
+				"wukongim_message_permission_cohort_owned",
+				"wukongim_message_permission_inflight",
+				"wukongim_gateway_sendacks_total":
 				s.Families = append(s.Families, family)
 			}
 		}

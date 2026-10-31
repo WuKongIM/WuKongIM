@@ -17,6 +17,12 @@ two 64KiB buffers per connection. Memory-allocation regressions and connected
 factory tests retain fragmented-frame, EOF and payload-ownership controls;
 their heap deltas do not certify full-workload RSS or performance acceptance.
 
+Mixed-SEND boundary evidence retains fixed permission stage/result, admission
+ownership and SENDACK metric families, within the existing 4MiB artifact cap.
+Warmup failures include at most 32 synthetic client sequences. These boundary
+reads add no per-SEND work or retry; a route-not-ready label alone cannot prove
+admission pressure, leader movement or a persistence cause.
+
 Chat-lifecycle report v8 / threshold contract v2 separates `local_diagnostic`,
 `rehearsal`, and `formal_protocol` scope. A formal-protocol report still requires
 same-source/run/Lease external Linux hardware, independent-host and disk proof;

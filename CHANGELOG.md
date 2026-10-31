@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Retain fixed permission classifications and bounded failed SEND sequences in
+  mixed benchmark warmup evidence without changing acceptance gates.
+  / 混合压测预热证据保留固定权限阶段分类和有界失败发送序号，验收门禁保持不变。
+
 - Reduce lifecycle benchmark connection memory with a single adaptive WKProto
   read buffer and an 8KiB initial size, preserving large frames and receive backpressure.
   / 生命周期压测连接改用单个按需扩容的 WKProto 读缓冲，初始为 8KiB，保留大帧和接收背压。
