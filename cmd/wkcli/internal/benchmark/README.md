@@ -837,6 +837,22 @@ original SDK observation clock. Retries, duplicates, cold SENDs and unknown
 clocks cannot create these anchors. Generation reset clears both sets. The
 64KiB optional artifact uses schema v2; live peers require worker protocol17.
 Malformed new child evidence stays absent without erasing the original late
-prefix or changing native evidence or gates. Server attempt/RPC records still
-need a bounded lookup before product teardown; anchors alone are not a causal
+prefix or changing native evidence or gates. Anchors alone are not a causal
 diagnosis.
+
+For a separately identified local diagnostic run, an owning launcher may invoke
+`scripts/chat-lifecycle/capture-local-send-observations.py` after joining the
+coordinator and before tearing down the three product nodes. Supply the exact
+report directory, run ID, exited coordinator PID, original exit-status file,
+three literal loopback API ports and a fresh output path. Pass the existing
+configured bench bearer only through `WK_LOCAL_SEND_OBSERVATION_TOKEN`.
+The exporter verifies final native fences and takes at most48 latest slow-hot
+anchors from the terminal five-minute window. It queries only the existing
+anonymous-attempt endpoint, then at most16 derived SID21 RPC identities on the
+three nodes. Requests never redirect or retry; capture has an eight-second,
+18-request and4MiB artifact bound. Export errors leave the original workload
+exit/cleanup with its owner. The output is private0600, created atomically and
+never overwritten. Unsupported, expired, ambiguous or missing evidence remains
+explicit; one candidate is never called unique. Do not invoke this exporter
+during load. Enabled diagnostics add overhead, so this run cannot replace an
+ordinary performance acceptance run.
