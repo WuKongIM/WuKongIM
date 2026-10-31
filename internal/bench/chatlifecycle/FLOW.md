@@ -64,8 +64,8 @@ passing 72-hour formal generation -> same aged dataset and process proof
   existing ACK settlement while its callback is queued. Missing state proves nothing;
   strict public registration, real terminal errors and correctness budgets remain.
 - Initial SENDs settle a timer-local pending count before revisit leasing, so late successful ACKs advance the fence before cohort selection.
-- The first measured grant reserves distinct person/group/canary senders at formal population.
-  Channels become hot at their first successful SENDACK; metadata-create vectors and hot/first-create/reheat evidence follow that boundary.
+- At formal population first grants reserve distinct person/group/canary senders; first SENDACK starts hot/meta-create/first-create/reheat accounting.
+  Worker-aligned fixed rosters keep sampled pairs local; padding has no membership. Group counts, member sizes and eligibility deadlines stay fixed.
 - Worker protocol v15 keeps deadline registration, exact-result coverage and confirmed observed-late first-attempt counts separate.
   Only the original clocked transport result resolves its deadline; missing/unknown/canceled/expired results remain unknown. Fixed attempt slots and the bounded late-receipt map bound retention. Private opt-in retains 16 fresh-dispatch timing prefixes per generation.
   Added clock reads are diagnostic overhead; codes, units and gates stay fixed.

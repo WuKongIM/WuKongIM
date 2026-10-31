@@ -1,5 +1,14 @@
 # Project Knowledge
 
+Chat-lifecycle fixed group rosters align their member stride with the worker
+count. Otherwise a 2,000-group/three-worker catalog needs member ordinal three
+before a group owner sees a second member: reducing online users from 10,000 to
+5,000 then strands sampled group work until its unchanged eligibility deadline.
+The aligned layout retains group sizes, traffic shares, UID ownership and bounded
+O(1) membership reconstruction; padding residues are not group members. Fresh
+runs prepare the resulting roster. Old runs and their evidence retain their
+original source/layout and are never resumed or relabeled.
+
 Lifecycle bootstrap retains its global 100-login/s clock and bounded Starting
 sessions. The production three-worker composition admits four full HTTP syncs
 per generation (twelve total), including all pages and existing endpoint
