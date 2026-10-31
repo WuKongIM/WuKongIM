@@ -2928,3 +2928,5 @@ completion, installation and provider-reference release.
   sixteen physical turns and original scan/owner deadlines, with no synthetic UID.
   Partial/unknown coverage is not global readiness or offline evidence; seed-join
   pre-activation and restore maintenance defer this pass. Stop joins late providers.
+
+- Chat-lifecycle attempt-link diagnostics preserve first16 confirmed-late keys and an independent latest16 ring of original hot successes strictly above configuredP99 and before the first deadline. Both borrow SDK clocks and opaque attempt keys; no UID history or native counter is added. Worker protocol17 isolates peers, reportv8/16hist remain unchanged, and the64KiB v2 optional sidecar omits malformed new children independently. Anchors alone do not prove a product substage or archive server traces; exact node-local attempt/RPC lookup must finish before product teardown.

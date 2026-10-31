@@ -265,8 +265,8 @@ func TestWorkerServerAdvertisesWorkerProtocolV16(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode info: %v", err)
 	}
-	if info.ProtocolVersion != 16 {
-		t.Fatalf("protocol version = %d, want 16", info.ProtocolVersion)
+	if info.ProtocolVersion != 17 {
+		t.Fatalf("protocol version = %d, want 17", info.ProtocolVersion)
 	}
 }
 

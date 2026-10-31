@@ -786,6 +786,10 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 			return v.recordUnknownSendackLocked(pending.logical.LogicalSend, ack)
 		}
 	}
+	// Only the first observed original response can anchor a timely success.
+	// The optional path borrows the existing ACK clock and changes no counters.
+	captureSlowHot := v.attemptLinkEnabled() && positiveSuccess && attempt != nil && attempt.attempt == 0 &&
+		!attempt.firstDeadline.resultObserved && !attempt.firstDeadline.deadline.IsZero()
 	if attempt != nil {
 		v.observeFirstAttemptResultLocked(&attempt.firstDeadline, completedAt, false, attemptLinkObservation{message: ack.ClientMsgNo, seq: ack.ClientSeq, result: resultEvidence})
 	}
@@ -840,6 +844,9 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 			latency := completedAt.Sub(pending.registeredAt)
 			recordWorkerLatency(&v.hotSendackLatency, latency)
 			recordLatencyThresholdCounters(&v.hotSendackThresholds, latency)
+			if captureSlowHot {
+				v.recordSlowHotSuccessLocked(&attempt.firstDeadline, completedAt, latency, attemptLinkObservation{message: ack.ClientMsgNo, seq: ack.ClientSeq, result: resultEvidence})
+			}
 		case SendLatencyColdFirstCreate:
 			recordWorkerLatency(&v.coldFirstCreateSendackLatency, completedAt.Sub(pending.registeredAt))
 		case SendLatencyLifecycleReheat:

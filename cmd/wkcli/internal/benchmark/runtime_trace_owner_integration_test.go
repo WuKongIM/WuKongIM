@@ -136,7 +136,7 @@ func TestWorkerRuntimeTraceBlockedWriterPreservesWorkerLifetime(t *testing.T) {
 			defer client.CloseIdleConnections()
 			var info chatlifecycle.WorkerInfo
 			r28OwnerHTTP(t, client, addr, http.MethodGet, "/v1/info", nil, &info)
-			if info.ProtocolVersion != 16 {
+			if info.ProtocolVersion != 17 {
 				t.Fatalf("wire version changed: %d", info.ProtocolVersion)
 			}
 			config := chatlifecycle.LocalConfig()

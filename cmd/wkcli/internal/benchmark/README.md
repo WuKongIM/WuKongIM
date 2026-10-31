@@ -828,3 +828,15 @@ profiler is started. Parked synchronization stacks, runnable waits and GC
 overlap can guide diagnosis, while missing or evicted events remain unknown.
 Recording and export add diagnostic overhead, so a new capture cannot by
 itself establish the cause of an earlier run.
+
+Successful hot SENDs above configuredP99 and before the original first-attempt
+deadline can be sampled with the existing private attempt-link opt-in. The
+unchanged first16 confirmed-late records are separate from the latest16
+original slow-success anchors, which borrow opaque exact-attempt keys and the
+original SDK observation clock. Retries, duplicates, cold SENDs and unknown
+clocks cannot create these anchors. Generation reset clears both sets. The
+64KiB optional artifact uses schema v2; live peers require worker protocol17.
+Malformed new child evidence stays absent without erasing the original late
+prefix or changing native evidence or gates. Server attempt/RPC records still
+need a bounded lookup before product teardown; anchors alone are not a causal
+diagnosis.

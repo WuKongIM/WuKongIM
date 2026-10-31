@@ -43,11 +43,14 @@ type AttemptLinkDiagnosticsSnapshot struct {
 	Generation uint64              `json:"generation"`
 	Dropped    uint64              `json:"dropped"`
 	Records    []AttemptLinkRecord `json:"records"`
+	// SlowHotSuccess is independent of the original confirmed-late prefix.
+	SlowHotSuccess *SlowHotSuccessDiagnosticsSnapshot `json:"slow_hot_success,omitempty"`
 }
 type verifierAttemptLinkRecorder struct {
 	records [attemptLinkDiagnosticCapacity]AttemptLinkRecord
 	count   int
 	dropped uint64
+	slowHot slowHotSuccessRecorder
 }
 type attemptLinkObservation struct {
 	message string
@@ -87,14 +90,24 @@ func (v *Verifier) recordAttemptLinkLocked(deadline *firstAttemptDeadline, obser
 		}
 		return
 	}
-	if observation.seq == 0 || observation.seq > math.MaxUint32 || observation.message == "" {
+	row, ok := makeAttemptLinkRecord(deadline, observedAt, observation, uint64(d.count+1))
+	if !ok {
 		return
+	}
+	d.records[d.count] = row
+	d.count++
+}
+
+// makeAttemptLinkRecord shares only fixed identity and borrowed SDK clocks.
+func makeAttemptLinkRecord(deadline *firstAttemptDeadline, observedAt time.Time, observation attemptLinkObservation, ordinal uint64) (AttemptLinkRecord, bool) {
+	if observation.seq == 0 || observation.seq > math.MaxUint32 || observation.message == "" {
+		return AttemptLinkRecord{}, false
 	}
 	kind := observation.result.Kind
 	if kind != "sendack_success" && kind != "sendack_rejected" && kind != "transport_error" {
 		kind = "transport_error"
 	}
-	row := AttemptLinkRecord{Ordinal: uint64(d.count + 1), Key: sendtrace.AttemptKey{MessageFingerprint: sendtrace.MessageFingerprint(observation.message), ClientSeq: uint32(observation.seq), ConnectFingerprint: deadline.connectFingerprint}, Kind: kind, Attribution: "connection_unknown", DeadlineAfterRegistration: deadline.deadline.Sub(deadline.registeredAt), ObservedAfterRegistration: observedAt.Sub(deadline.registeredAt)}
+	row := AttemptLinkRecord{Ordinal: ordinal, Key: sendtrace.AttemptKey{MessageFingerprint: sendtrace.MessageFingerprint(observation.message), ClientSeq: uint32(observation.seq), ConnectFingerprint: deadline.connectFingerprint}, Kind: kind, Attribution: "connection_unknown", DeadlineAfterRegistration: deadline.deadline.Sub(deadline.registeredAt), ObservedAfterRegistration: observedAt.Sub(deadline.registeredAt)}
 	if deadline.connectFingerprint != [16]byte{} && deadline.connectFingerprint == observation.result.ConnectFingerprint {
 		row.Attribution = "candidate"
 	}
@@ -104,8 +117,7 @@ func (v *Verifier) recordAttemptLinkLocked(deadline *firstAttemptDeadline, obser
 		row.SDKWriteToObserved = observedAt.Sub(timing.WriteStartedAt)
 		row.TimingMask = 3
 	}
-	d.records[d.count] = row
-	d.count++
+	return row, true
 }
 
 // AttemptLinkDiagnostics returns a detached prefix on existing control cuts.
@@ -116,7 +128,7 @@ func (v *Verifier) AttemptLinkDiagnostics(generation uint64) *AttemptLinkDiagnos
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	d := v.attemptLinkDiagnostics
-	return &AttemptLinkDiagnosticsSnapshot{Generation: generation, Dropped: d.dropped, Records: append([]AttemptLinkRecord{}, d.records[:d.count]...)}
+	return &AttemptLinkDiagnosticsSnapshot{Generation: generation, Dropped: d.dropped, Records: append([]AttemptLinkRecord{}, d.records[:d.count]...), SlowHotSuccess: v.slowHotSuccessSnapshotLocked()}
 }
 func validAttemptLinkDiagnostics(d *AttemptLinkDiagnosticsSnapshot, generation uint64) bool {
 	if d == nil {
@@ -150,7 +162,7 @@ func decodeAttemptLinkDiagnostics(raw []byte, generation uint64) *AttemptLinkDia
 	if d.Decode(&out) != nil || d.Decode(new(any)) != io.EOF || !validAttemptLinkDiagnostics(&out, generation) {
 		return nil
 	}
-	return &out
+	return copyAttemptLinkDiagnostics(&out)
 }
 
 // writeAttemptLinkDiagnostics publishes only detached bounded control evidence.
@@ -183,7 +195,7 @@ func (r *liveDiagnosticRecorder) writeAttemptLinkDiagnostics(at time.Time, snaps
 		RunID   string                         `json:"run_id"`
 		At      time.Time                      `json:"at"`
 		Workers [coordinatorWorkerCount]worker `json:"workers"`
-	}{Schema: "wukongim/chat-lifecycle-attempt-link-diagnostics/v1", RunID: r.runID, At: at}
+	}{Schema: "wukongim/chat-lifecycle-attempt-link-diagnostics/v2", RunID: r.runID, At: at}
 	for _, s := range snapshots {
 		if s.WorkerID >= coordinatorWorkerCount {
 			continue
@@ -192,8 +204,14 @@ func (r *liveDiagnosticRecorder) writeAttemptLinkDiagnostics(at time.Time, snaps
 		if !validAttemptLinkDiagnostics(d, s.Generation) || (s.Phase != WorkerPhaseRunning && s.Phase != WorkerPhaseFinal) {
 			d = nil
 		}
-		document.Workers[s.WorkerID] = worker{WorkerID: s.WorkerID, AssignmentID: s.AssignmentID, Generation: s.Generation, SnapshotSequence: s.SnapshotSequence, Uptime: s.Uptime, Phase: s.Phase, Diagnostics: d}
+		document.Workers[s.WorkerID] = worker{WorkerID: s.WorkerID, AssignmentID: s.AssignmentID, Generation: s.Generation, SnapshotSequence: s.SnapshotSequence, Uptime: s.Uptime, Phase: s.Phase, Diagnostics: copyAttemptLinkDiagnostics(d)}
 	}
 	_ = live // Phase already carries the existing periodic/final ownership fence.
-	return writeBoundedDiagnosticDocument(filepath.Join(filepath.Dir(r.path), "attempt-link-diagnostics.json"), document, 64<<10)
+	// Compact v2 keeps both complete bounded sets inside the original64KiB cap.
+	// Native evidence keeps its existing indented representation.
+	body, err := json.Marshal(document)
+	if err != nil {
+		return err
+	}
+	return writeBoundedDiagnosticBytes(filepath.Join(filepath.Dir(r.path), "attempt-link-diagnostics.json"), body, 64<<10)
 }

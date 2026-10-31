@@ -26,6 +26,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Add opt-in bounded samples for successful hot SENDs above configured P99, preserving original timeout evidence and acceptance gates. / 为超过配置 P99 的成功热消息补充可选、有界采样，保留原超时证据和验收门禁。
+
 - Measure configured benchmark hot-message latency limits, including 600ms,
   exactly instead of rejecting limits between histogram buckets.
   / 精确统计压测热消息延迟门限，支持 600ms 等位于直方图桶间的配置，避免观测校验提前失败。

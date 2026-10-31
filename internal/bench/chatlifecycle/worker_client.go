@@ -239,6 +239,8 @@ func validTypedWorkerResponse(response any) bool {
 	case *WorkerSnapshot:
 		if !validAttemptLinkDiagnostics(value.AttemptLinkDiagnostics, value.Generation) {
 			value.AttemptLinkDiagnostics = nil
+		} else {
+			value.AttemptLinkDiagnostics = copyAttemptLinkDiagnostics(value.AttemptLinkDiagnostics)
 		}
 		// Optional diagnostics fail independently; they cannot change native
 		// worker evidence or make an active snapshot into terminal evidence.
