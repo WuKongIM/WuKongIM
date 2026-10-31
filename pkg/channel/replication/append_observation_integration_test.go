@@ -145,7 +145,7 @@ func TestAppendObservationLocalAndPeerGatesStayOwnerAligned(t *testing.T) {
 		require.Zero(t, s.ended)
 	}
 	executor := &manualPeerExecutor{}
-	peers, err := newPeerBatcher(peerBatcherConfig{Link: peer, Executor: executor, MaxTargetFlight: 1, OwnerContext: owner, ExchangeTimeout: time.Second, MaxBatchItems: 4, MaxBatchBytes: 4096, MaxQueuedItems: 8, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 4, MaxTargetQueuedBytes: 4096})
+	peers, err := newManualPeerBatcher(peerBatcherConfig{Link: peer, Executor: executor, MaxTargetFlight: 1, OwnerContext: owner, ExchangeTimeout: time.Second, MaxBatchItems: 4, MaxBatchBytes: 4096, MaxQueuedItems: 8, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 4, MaxTargetQueuedBytes: 4096})
 	require.NoError(t, err)
 	dispatcher := &batchingDurabilityDispatcher{ownerContext: owner, peers: peers, repairs: discardFollowerRepairSink{}}
 	peerDone := make(chan durabilityCompletion, 2)

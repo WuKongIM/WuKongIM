@@ -723,6 +723,7 @@ start_service() {
     WK_MANAGER_LISTEN_ADDR="127.0.0.1:$(manager_port "$node")" \
     WK_GATEWAY_LISTENERS="$gateway_listeners" \
     WK_PLUGIN_SOCKET_PATH="${TMPDIR:-/tmp}/wkcl-$$-$node.sock" \
+    WK_TOP_API_ENABLE=false \
     WK_METRICS_ENABLE=true \
     WK_DEBUG_API_ENABLE=true \
     WK_BENCH_API_ENABLE=true \

@@ -199,6 +199,10 @@ type Snapshot struct {
 	Maintenance bool
 	// OpsMCP contains desired state for the embedded operations MCP.
 	OpsMCP *OpsMCPState
+	// Presence is the immutable committed generation section.
+	Presence *controller.PresenceState
+	// PresenceRosterCurrent preserves membership invalidation independently of health.
+	PresenceRosterCurrent bool
 	// ChannelDataPlaneLease is this node's local append-admission visibility lease.
 	ChannelDataPlaneLease ChannelDataPlaneLease
 }

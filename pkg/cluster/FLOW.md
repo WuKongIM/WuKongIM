@@ -4,10 +4,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 ---
 
 # Cluster Runtime Flow
-
 ## Responsibility
 `Node` composes cluster runtimes and owns lifecycle, readiness and bounded snapshots.
-
 ## Boundaries
 - `control` adapts Controller state, writes, Raft transport, and snapshots;
   `routing` publishes hash-Slot authority; `slots` and `propose` own Slot
@@ -16,7 +14,6 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - `Node` delegates validated intents; Manager policy, drain safety, DTOs and response shaping stay in `internal`.
 - Typed RPC routes opaque DTOs by registered service; cluster may fence maintenance/ownership but does not absorb delivery or Manager logic. Service 107 reserves exact MQTT owner quiescence for the access/runtime adapter; it never substitutes for Slot ownership.
 - Controller, Slot, Channel, transport and storage stay behind public facades and neutral errors.
-
 ## Main Flows
 1. Node construction records format identity only for fresh directories; startup rechecks
    supported markers before writable runtimes. Lifecycle starts transport and Controller, installs control routes, reconciles
@@ -83,15 +80,20 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    creation, preserve semantic CAS errors and task identity through typed RPC;
    task-result RPC carries executor progress and terminal observations.
 
+7. [Presence generations](node_presence_generation.go) use bounded control RPC108; Get/Capabilities retain caller cancellation, while admitted Ensure/Claim stay detached. Unknown requests never acquire read policy. Format-2 roster high water newer than M closes published gates even after membership ABA; a missing stamp cannot publish a fresh committed cut.
+   app binds protocol/boot before advertisement and capability-proved G/M commits; self proof checks configured membership advertisement, which may differ from the listener.
+   Actual Slot F surrounds claims; per-HashSlot retirement closes the proven old G
+   before submit; failed/stale publication cannot reopen it. Fresh Get publishes same-cut G/M; hot checks stay local.
 ## Invariants and Failure Semantics
 - `pkg/dataformat` owns immutable format/creator metadata; nonempty unregistered
   directories and corrupt or unsupported markers fail before storage opens.
 - Offline generation seals reject incomplete imports and mismatched bootstrap
   configuration before native startup.
 - Event sequence reads route to the Slot leader and include durable projections.
-- Route authority is `(HashSlot, SlotID, LeaderNodeID, LeaderTerm,
-  ConfigEpoch, RouteRevision)` from one immutable publication. Local
-  `AuthorityEpoch` is diagnostic only and never a distributed fence.
+- Routed observations carry `(HashSlot, SlotID, LeaderNodeID, LeaderTerm,
+  ConfigEpoch)` plus diagnostic revision. Receiver-local `AuthorityEpoch` guards
+  observed topology ABA during one fresh SEND read; revision-only updates retain
+  it. Route and epoch share one publication; local epochs never replace committed G.
 - Scalar Slot mapping reads the current foreground table without copying
   placement peers or looking up an unused diagnostic epoch; lifecycle,
   missing-mapping and observed-Leader checks remain the same as full routing.
@@ -103,9 +105,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Write readiness validates every routed Slot's live leader/term and Channel
   placement on each call. Concurrent noop proposal batches coalesce per node;
   successful write proof is reusable for at most two seconds from proposal start
-  under unchanged route revision, mapping and leaders/terms. Maintenance,
-  restart and observed readiness failures invalidate proof. Reuse does not renew
-  the proof window or the Channel data-plane lease; Propose-only overrides
+  under unchanged mapping, replicas, config, leaders/terms and local ABA epochs;
+  unrelated logical revisions do not revoke proof. Incomplete publication,
+  maintenance, restart and observed readiness failures invalidate proof. Reuse does not renew the proof window or the Channel data-plane lease; Propose-only overrides
   without live Slot status evidence always perform their writes.
 - When healthy readiness cannot be published, the data-plane lease expires; local Channel leaders reject new writes without discarding admitted work.
 - Slot and Channel metadata are authoritative at their current owners. Caches, hints, codecs and local replicas
@@ -141,10 +143,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 Aggregate MQTT capacity uses one hash-Slot escrow row and immutable Controller storage rosters, including joining/leaving data nodes. Startup debt must be registered on every required node before growth. The existing periodic health owner reports health first, then maintains/refunds capacity with a separate bounded context and nonwaiting restore/apply ownership; no per-Channel task is added.
 
 - Send-permission routing seals bounded concurrent caller batches before one immutable authority publication and node-batched Slot queries. Every group holds admission through a fresh Slot barrier, pinned snapshot and final authority check. Stop/rollback joins transport owners before ingress batches and metadata/storage; business evaluation stays in the usecase.
-
 ## Read First
 - [Public API](api.go), [Node ownership](node.go), [Lifecycle](node_lifecycle.go), [Routing](routing/router.go), [Channels](channels/service.go)
-
 ## Update Triggers
 
 Update for lifecycle, readiness, ownership, route/authority, typed RPC or maintenance/backup changes.

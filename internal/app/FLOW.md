@@ -39,7 +39,7 @@ validated Config + build identity -> format guard and fresh-directory provenance
 Start
   -> cluster/control readiness
   -> internal producers and post-commit consumers
-  -> API and Manager
+  -> bounded initial Full Presence preparation, then API and Manager
   -> Prometheus and Gateway admission
 
 Stop or startup rollback
@@ -114,8 +114,9 @@ Stop or startup rollback
   edits cannot change the content used to prove a send retry.
 - Startup failure rolls back completed components in reverse order. Constructor
   failure releases constructor-owned pools, sinks, and audit resources.
-- Presence wiring shares one owner boot identity between session activation and
-  recovery replies and owns bounded UID recovery; Stop/rollback joins it before cluster close, and retry rebuilds a drained cohort.
+- Full Presence shares the Node capability boot, monotonic sequence and receipts.
+  Bound RPCs precede finite local-authority preparation; partial coverage is not a global readiness gate. Stop/rollback joins caller and slot
+  ownership before cluster close; reopening atomically replaces stable forwarding.
 - Gateway admission opens only after cluster write routing and required runtime
   readiness. Joining nodes remain fenced until observed membership permits it.
 - Backup RPC binds one target-local Controller repository resolver to all four
@@ -123,7 +124,7 @@ Stop or startup rollback
 - Restore maintenance keeps Manager reachable while product traffic is fenced;
   restore-sensitive caches and side-effect runtimes are reactivated before
   Controller clears maintenance.
-- Observability is bounded and low-cardinality; MQTT SUB/UNSUB entry closure observations use 34 fixed operation/reason series and supply no isolation or retry proof. Runtime labels must not contain UIDs, Channel IDs, client message IDs, addresses, or secret material. Transport publishes exact bounded-label counter batches and one-in-32 latency samples, separating handler, service-queue and complete client RPC time. Its retained-memory gauge includes queued and executing request owners. Fixed direction/lane payload-byte counters retain Raft versus non-Raft traffic; they exclude wire headers and network overhead and materialize zero series. Channel-create coalescer gauges and closed delivery/post-commit terminal result partitions must materialize true zero series rather than imply them. - A Slot replica match index may exceed commit while replication is pending; its committed-entry lag is zero, not invalid or an unsigned underflow.
+- With Top disabled, metrics-only sampling refreshes resource/storage gauges without retaining Top history, cluster snapshots or alerts. Observability is bounded and low-cardinality; MQTT SUB/UNSUB entry closure observations use 34 fixed operation/reason series and supply no isolation or retry proof. Runtime labels must not contain UIDs, Channel IDs, client message IDs, addresses, or secret material. Transport publishes exact bounded-label counter batches and one-in-32 latency samples, separating handler, service-queue and complete client RPC time. Its retained-memory gauge includes queued and executing request owners. Fixed direction/lane payload-byte counters retain Raft versus non-Raft traffic; they exclude wire headers and network overhead and materialize zero series. Channel-create coalescer gauges and closed delivery/post-commit terminal result partitions must materialize true zero series rather than imply them. - A Slot replica match index may exceed commit while replication is pending; its committed-entry lag is zero, not invalid or an unsigned underflow.
 - Issue/Review Agent composition keeps read, verification, signed-state, and
   publication credentials separated and never joins the product cluster.
 - Message edits wire Slot storage, online hints and one bounded repair worker. Start/stop and restore maintenance join the worker before its dependencies close; resume restarts it with fresh scan cursors. HTTP content epochs and edit cursors reuse the Controller successful-restore generation. A packed atomic maintenance-transition stamp fences response assembly across successful and failed restore cycles without an extra distributed read.
@@ -139,8 +140,7 @@ Top ACK-binding counts use independent atomic publication while delivery seriali
 - `diagnostics.attempt_link_enable` is separately default-off and requires general diagnostics. It composes the fixed65536 invocation summary rows and two separately bounded indexes only when enabled, leaving ordinary diagnostic retention unchanged. The sink maps existing original forward events through fixed upper TraceID bindings; the API receives detached summary and local RPC read ports. These observations do not alter admission, durability, deadlines or gates.
 
 ## Read First
-- [app.go](app.go)
-- [FLOW_PRODUCT_RUNTIME.md](FLOW_PRODUCT_RUNTIME.md)
+- [app.go](app.go), [Presence wiring](presence_generation.go)
 - [backup.go](backup.go)
 - [issue_agent.go](issue_agent.go)
 - [review_agent.go](review_agent.go)

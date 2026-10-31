@@ -36,7 +36,10 @@ not depend on `pkg/cluster`.
 ## Main Flows
 
 1. Raft Ready persists HardState, entries, and snapshots before message send and
-   FIFO apply; the scheduler batches commands, applies FSM semantics, saves one
+   FIFO apply. Already-waiting proposals and peer Steps use separate bounded
+   Ready batches; kinds never mix, preserving exact local future association.
+   Charge original peer bytes before Raft can rewrite shared entry headers.
+   The scheduler batches commands, applies FSM semantics, saves one
    final state file, publishes it, then persists the applied boundary.
 2. Startup restores the latest snapshot when materialized state is absent or older, replays the
    committed suffix, and automatic/manual compaction snapshots only applied
@@ -44,6 +47,13 @@ not depend on `pkg/cluster`.
 3. Planner, lifecycle, and task APIs propose versioned fenced commands through
    Raft, while non-voter mirrors refresh the complete state file and watchers
    publish latest-state wakeups.
+4. Rare `EnsurePresenceOwnerSet` and `GetPresenceGeneration` use fresh quorum/apply
+   read barriers. `ClaimPresenceGeneration` uses a materialized proposal basis,
+   rechecks the full semantic CAS at apply and returns only its own durable Raft
+   receipt, without a redundant read quorum. `G` and owner epoch `M` use committed
+   Raft indexes; boot IDs are equality identities only. Controller validates desired
+   mapping, while the Node facade separately checks actual Slot leadership/term.
+   No UID, Session, or per-SEND record enters this section.
 
 ## Invariants and Failure Semantics
 
@@ -62,9 +72,24 @@ not depend on `pkg/cluster`.
   alone may be truncated and synced; legacy recovery probes never truncate.
 - Offline bootstrap inspection reads bounded WAL and snapshot artifacts without
   truncation or startup repair; even an incomplete newest tail fails verification.
+- Raft storage readers capture one immutable last-successful durable cut and never
+  acquire the writer's I/O lock. Entry headers and all ConfState slices are private;
+  payloads and cloned snapshots stay immutable, with detached public results.
+  Successful persistence publishes the cut; failed writes and empty/no-op paths
+  do not. Applied-only publication reuses the suffix. ReadIndex still waits for
+  fresh quorum and the successful FSM/durable-applied watermark.
 - `Revision` versions logical cluster state; `AppliedRaftIndex` versions Raft
   materialization. Empty probes and health reports may advance applied state
   without advancing logical revision.
+- Presence control reads use leader-only quorum ReadIndex, then wait for the
+  actual FSM save and durable applied marker; RawNode Advance is not that proof.
+  The current term must commit before issuing reads. At most 64 protocol tokens
+  exist, including canceled issued tokens until quorum retirement or term reset;
+  tombstones retain no caller context. Peer-forwarded read requests/responses
+  are unsupported. Known leadership loss retires reads before any blocking
+  Ready work. Stop and apply failure close pending reads, including waits
+  inside apply-queue admission or configuration application. ProbePropose keeps
+  its distinct write-path probing contract.
 - State normalization, validation, checksums, clone, snapshot, and sync must
   cover every durable section, including bounded operations MCP and scheduled
   backup state.
@@ -80,6 +105,34 @@ not depend on `pkg/cluster`.
   observers and diagnostics must never stall apply.
 - Startup publishes the Raft service under the runtime mutex; inbound Step
   captures it under that mutex and releases the lock before Raft execution.
+- A capability-proven, bounded Presence owner vector includes non-data ingress
+  nodes and retains leaving/down obligations. Unknown schema, command or
+  business-protocol support prevents activation. Once active, new/readdressed
+  member endpoints must prove those capabilities before their membership CAS;
+  a private bounded probe client does not publish an unaccepted endpoint to
+  discovery. Removing an old owner without a separate drain proof remains
+  not-ready. Health does not discharge ownership.
+- Presence format 2 binds capability responses to the full semantic membership
+  cut, including removed tombstones, endpoints, join states, roles and voters.
+  Unrelated logical revisions do not invalidate this cut. Only first activation
+  from absent Presence may use its zero M/stamp basis; normal lifecycle forbids
+  endpoint/NodeID reuse and requires external drain before removal. This does
+  not prove arbitrary pre-activation raw-mutation ABA or a legacy owner's drain.
+- After activation, semantic membership mutations advance a durable roster
+  high water, including ABA. A stamp newer than M closes old serving gates.
+  Ensure binds observed M and stamp; even a restored identical vector requires
+  a new M after such change. Claim also retains its exact per-Hash-Slot
+  predecessor and mapping fence. Older format capability, missing stamp and
+  snapshot high-water rollback fail closed; there is no automatic downgrade.
+- With an unchanged activated roster stamp and exact fresh capabilities, Ensure
+  returns M from its quorum read cut without a noop proposal. Concurrent later
+  M may supersede that read result; it never rewrites the later vector and cannot
+  authorize a subsequent Claim or owner Begin using the superseded M.
+- Optional Presence state participates in clone, normalization, checksums,
+  snapshots and mirror sync. Existing-state snapshot install rejects known G/M
+  rollback. Ordinary backup restore replaces data while preserving Controller
+  history. Replacing all Controller history with an old disk image cannot prove
+  monotonicity and is not an identity-preserving generation recovery protocol.
 
 ## Read First
 

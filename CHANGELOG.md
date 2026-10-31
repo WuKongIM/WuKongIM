@@ -26,6 +26,98 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Attempt bounded initial Presence recovery before opening business entries,
+  reducing contention between first logins and durable token provisioning.
+  Unavailable targets retain the existing fail-closed recovery path and deadlines.
+  / 业务入口开放前执行有界 Presence 初始恢复，减少首次登录与令牌写入竞争；
+  未完成分区仍按原有校验和期限处理。
+
+- Avoid a redundant Controller read-quorum round before fenced Presence claims;
+  successful claims still require their own durable Raft apply receipt.
+  / Presence 代号提交减少一次重复的一致性读等待，成功仍以自身 Raft 持久化回执为准。
+
+- Overlap independent Presence owner Begin checks within the original node-wide
+  control-call bound, retaining owner deadlines and late-provider cleanup.
+  / Presence 各节点恢复确认在原节点总并发上限内重叠执行，保留原有期限与延迟返回的清理责任。
+
+- Bound Presence recovery turns by page, row and byte work so small owner pages
+  can finish without repeated queue waits; original deadlines and credits remain.
+  / Presence 恢复按页数、行数和字节量限制执行量子，减少小页反复排队，
+  保留原有期限与资源额度。
+
+- Batch already-waiting Controller proposals and peer messages separately before
+  durable Ready processing,
+  keeping bounded turns, exact results, and the original durability checks.
+  / Controller 已排队提案与节点间消息分别合批持久化，限制每轮处理量，
+  保留逐请求结果与原持久性校验。
+
+- Keep Controller Raft reads progressing during slow metadata persistence, with
+  publication after durable success and unchanged quorum/applied checks.
+  / Controller Raft 读取不再等待慢元数据写入；仍在持久化成功后发布，保留 quorum 与 apply 校验。
+
+- Keep write readiness stable during unrelated Presence control updates while
+  preserving real route-change and restart fences. / Presence 控制状态更新不再
+  误伤写就绪探测，真实路由变化和重启的保护保持有效。
+
+- Bound lifecycle benchmark full-sync concurrency across login bursts, retain
+  queue wait in sync latency, and explicitly disable Top history in local runs.
+  / 生命周期压测限制登录突发时的全量同步并发，等待时间计入同步延迟，
+  本地测试明确关闭 Top 历史采集。
+
+- Stop retaining hidden Top history when Top is disabled, while keeping resource
+  and storage metrics fresh. / 关闭 Top 时不再保留隐藏历史，资源与存储指标继续更新。
+
+- Reuse bounded transport observation batches to reduce temporary allocations,
+  preserving exact counters and detached latency samples.
+  / 传输观测复用有界事件批次，减少临时分配，保留精确计数和独立延迟样本。
+
+- Retain fixed permission classifications and bounded failed SEND sequences in
+  mixed benchmark warmup evidence without changing acceptance gates.
+  / 混合压测预热证据保留固定权限阶段分类和有界失败发送序号，验收门禁保持不变。
+
+- Reduce lifecycle benchmark connection memory with a single adaptive WKProto
+  read buffer and an 8KiB initial size, preserving large frames and receive backpressure.
+  / 生命周期压测连接改用单个按需扩容的 WKProto 读缓冲，初始为 8KiB，保留大帧和接收背压。
+
+- Give hot lifecycle SEND attempts a separate two-second wait budget, including
+  retries; retain five seconds for cold attempts and the existing latency limits.
+  / 生命周期压测的热消息尝试（含重试）独立等待两秒；冷消息仍为五秒，延迟门禁不变。
+
+- Export exact rolling latency gate evidence in lifecycle report v8, preserving
+  terminal snapshots and existing thresholds; retain sampled storage preparation
+  detail without attributing shared wall time to CPU or physical commit.
+  / 生命周期报告升级为 v8，保留精确滚动延迟门禁及冻结终态，原阈值不变；
+  采样细分存储准备耗时，共享墙钟时长不冒充 CPU 或物理提交耗时。
+
+- Let lifecycle benchmark SDK and control commands progress between bounded
+  work slices, retaining original deadlines and joined shutdown after caller
+  cancellation; optionally retain bounded SDK handoff timings.
+  / 生命周期压测器在有界工作分段之间处理 SDK 与控制命令，保留原截止时间
+  及调用方取消后的完整退出所有权，可选记录有界 SDK 交接等待。
+
+- Isolate Channel replication callbacks from network workers, retaining bounded
+  result ownership and storage dependencies until shutdown has fully joined.
+  / Channel 复制回调与网络工作协程分离；结果仍受容量约束，关闭超时后继续保留
+  清理所有权与存储依赖，直至全部工作退出。
+
+- Add bounded, optional wall timing around benchmark owner fairness yields,
+  keeping dispatch deadlines and acceptance gates unchanged.
+  / 压测可选记录 owner 公平调度让出期间的有界墙钟时长，保留原派发截止时间与验收门禁。
+
+- Keep fresh SEND permission reads valid across unrelated control metadata
+  updates while retaining exact authority and local migration guards.
+  / 控制元数据更新不再误拒绝新鲜的 SEND 权限读取，保留精确权威与本节点迁移校验。
+
+- Fence presence activation to committed authority generations and reconstruct
+  complete Hash Slots through bounded owner pages; expired uncertain routes stay
+  unavailable until verified. / 在线路由激活绑定已提交的权威代际，按有界 owner
+  分页恢复整槽；过期但未核清的路由不会被误判为离线。能力校验支持集群公布地址
+  与本节点监听地址不同的代理及 NAT 部署。
+
+- Isolate slow benchmark-client submission from the lifecycle scheduling owner,
+  retaining per-session order, original dispatch deadlines and retry capacity.
+  / 生命周期压测隔离慢客户端发送准入，保留会话顺序、原始派发截止时间与重试容量。
+
 - Reduce temporary allocations when reading presence route snapshots, including
   recovery readback and multiple devices, while preserving route order and ownership.
   / 减少在线路由快照查询（含恢复读回和多设备）的临时分配，保留路由顺序与结果独立性。

@@ -32,6 +32,9 @@ type PresenceAuthorityClient struct {
 	node PresenceNode
 	// local handles authority calls when this node is the current leader.
 	local accessnode.PresenceAuthority
+	// fullGeneration is fixed before serving; localGeneration preserves final activation receipts.
+	fullGeneration  bool
+	localGeneration accessnode.PresenceGenerationAuthority
 	// localOwner handles conflict actions owned by this node.
 	localOwner accessnode.PresenceOwner
 	// remote adapts authority calls to access/node RPC for non-local leaders.
@@ -109,6 +112,8 @@ type PresenceEndpointLookupObserver interface {
 type pendingRouteRef struct {
 	uid      string
 	rawToken string
+	claim    *presence.GenerationClaim
+	route    presence.Route
 }
 
 // NewPresenceAuthorityClient creates an internal presence authority client.
@@ -198,6 +203,9 @@ func (c *PresenceAuthorityClient) ResolveRouteTargets(ctx context.Context, uids 
 
 // RegisterRoute registers one owner route on the UID authority leader.
 func (c *PresenceAuthorityClient) RegisterRoute(ctx context.Context, route presence.Route) (presence.RegisterResult, error) {
+	if c.fullGeneration {
+		return c.registerGeneration(ctx, route)
+	}
 	var result presence.RegisterResult
 	err := c.withFreshTarget(ctx, route.UID, func(target presence.RouteTarget) error {
 		authority, err := c.authorityForTarget(target)
@@ -220,6 +228,9 @@ func (c *PresenceAuthorityClient) RegisterRoute(ctx context.Context, route prese
 
 // CommitRoute commits one pending route token against a freshly resolved target.
 func (c *PresenceAuthorityClient) CommitRoute(ctx context.Context, token presence.PendingRouteToken) error {
+	if c.fullGeneration {
+		return authoritypresence.ErrSlotIncomplete
+	}
 	ref, ok := c.pendingRef(token)
 	if !ok {
 		return authoritypresence.ErrRouteNotReady
@@ -239,6 +250,9 @@ func (c *PresenceAuthorityClient) CommitRoute(ctx context.Context, token presenc
 
 // AbortRoute aborts one pending route token against a freshly resolved target.
 func (c *PresenceAuthorityClient) AbortRoute(ctx context.Context, token presence.PendingRouteToken) error {
+	if c.fullGeneration {
+		return c.abortGeneration(ctx, token)
+	}
 	ref, ok := c.pendingRef(token)
 	if !ok {
 		return authoritypresence.ErrRouteNotReady
@@ -258,6 +272,9 @@ func (c *PresenceAuthorityClient) AbortRoute(ctx context.Context, token presence
 
 // UnregisterRoute removes or tombstones one exact owner route on its UID authority.
 func (c *PresenceAuthorityClient) UnregisterRoute(ctx context.Context, identity presence.RouteIdentity, ownerSeq uint64) error {
+	if c.fullGeneration {
+		return c.unregisterGeneration(ctx, identity, ownerSeq)
+	}
 	return c.withFreshTarget(ctx, identity.UID, func(target presence.RouteTarget) error {
 		authority, err := c.authorityForTarget(target)
 		if err != nil {
@@ -784,6 +801,9 @@ func (c *PresenceAuthorityClient) endpointsByExactTarget(ctx context.Context, gr
 
 // TouchRoutesTo refreshes owner routes in a specific observed authority epoch.
 func (c *PresenceAuthorityClient) TouchRoutesTo(ctx context.Context, target presence.RouteTarget, routes []presence.Route) error {
+	if c.fullGeneration {
+		return c.touchGeneration(ctx, target, routes)
+	}
 	authority, err := c.authorityForTarget(target)
 	if err != nil {
 		return err
@@ -947,6 +967,9 @@ func wrapPendingToken(token presence.PendingRouteToken, uid string, c *PresenceA
 }
 
 func shouldRetryPresenceRoute(err error) bool {
+	if isGenerationRetryable(err) {
+		return true
+	}
 	return errors.Is(err, authoritypresence.ErrStaleRoute) ||
 		errors.Is(err, authoritypresence.ErrNotLeader)
 }

@@ -18,7 +18,7 @@ func attemptLinkSnapshotFixture() WorkerSnapshot {
 		AttemptLinkDiagnostics: &AttemptLinkDiagnosticsSnapshot{Generation: 1, Records: []AttemptLinkRecord{{Ordinal: 1, Key: sendtrace.AttemptKey{MessageFingerprint: [16]byte{1}, ClientSeq: 1, ConnectFingerprint: [16]byte{2}}, Kind: "sendack_success", Attribution: "candidate", DeadlineAfterRegistration: time.Second, ObservedAfterRegistration: time.Second}}}}
 }
 func TestAttemptLinkV15OptionalLiveAndFinalDiagnosticSanitizesIndependently(t *testing.T) {
-	if ReportSchemaVersion != "wukongim/chat-lifecycle-report/v7" {
+	if ReportSchemaVersion != "wukongim/chat-lifecycle-report/v8" {
 		t.Fatal("attempt diagnostics changed native report schema")
 	}
 	if workerProtocolVersion != 15 {

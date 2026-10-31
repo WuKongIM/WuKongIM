@@ -20,7 +20,7 @@ func TestPeerCallbackDoesNotHoldIndependentTargetFlight(t *testing.T) {
 	owner, cancel := context.WithCancel(context.Background())
 	executor := &manualPeerExecutor{}
 	link := &recordingPeerLink{}
-	b, err := newPeerBatcher(peerBatcherConfig{
+	b, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor, OwnerContext: owner,
 		ExchangeTimeout: time.Second, MaxTargetFlight: 16,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
@@ -91,7 +91,7 @@ func TestPeerCallbackDoesNotHoldIndependentTargetFlight(t *testing.T) {
 	require.NoError(t, held.err)
 	require.Equal(t, ReplicateDurable, held.result.Status)
 	require.Zero(t, held.inflight, "the reproduction starts only after A's physical exchange has released its Channel")
-	require.Zero(t, held.owned, "A's accepted item credit must already have been returned")
+	require.Equal(t, 1, held.owned, "A's retained item credit must remain owned until its callback returns")
 	require.Less(t, held.workers, 16, "the target must have remaining configured flight capacity")
 	independent := testReplicateRequest(t, "1:callback-owner-B", "callback-owner-B", 2, []byte("b"))
 	require.NotEqual(t, a.ChannelKey, independent.ChannelKey)

@@ -247,7 +247,7 @@ func (r *productionChatLifecycleRunner) Run(ctx context.Context) (chatLifecycleR
 	defer r.controller.Close()
 	result := r.coordinator.Run(ctx, r.cfg)
 	finalPath := filepath.Join(r.outputDir, "final.json")
-	if report, err := chatlifecycle.ReadReport(finalPath); err == nil {
+	if report, err := chatlifecycle.ReadCurrentReport(finalPath); err == nil {
 		verdict := chatlifecycle.VerdictSnapshot{
 			Outcome: report.Verdict.Outcome, Cause: report.Verdict.Cause, Terminal: report.Verdict.Terminal,
 			CleanupErrorCount: report.Verdict.CleanupErrorCount,

@@ -287,6 +287,7 @@ func projectReportVerdict(snapshot VerdictSnapshot) ReportVerdictEvidence {
 		CleanupErrorCount: snapshot.CleanupErrorCount, CleanupErrors: append([]VerdictCleanupErrorCode(nil), snapshot.CleanupErrors...),
 		LatencyWarnings:     ReportLatencyWarnings{Hot: snapshot.LatencyWarnings.Hot, Cold: snapshot.LatencyWarnings.Cold, Sync: snapshot.LatencyWarnings.Sync},
 		LatencyAnomalyCount: snapshot.LatencyAnomalyCount, LatencyAnomalies: anomalies, Retention: projectReportRetention(snapshot.Retention),
+		LatencyGate: cloneVerdictLatencyGate(snapshot.LatencyGate),
 	}
 }
 

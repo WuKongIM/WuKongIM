@@ -184,6 +184,37 @@ func driverAssertNative(t *testing.T, f engineTestFixture, err error, n uint64) 
 	t.Logf("native_code38_confirmed count=%d value=1 classification=harness_invalid", n)
 }
 
+// The existing owner gate isolates an owner-prefix miss from asynchronous SDK
+// execution. Every delay is at the injected clock; the real wait only joins it.
+func driverAdvanceAfterOwnerDelay(t *testing.T, f engineTestFixture, at time.Time, step bool) error {
+	t.Helper()
+	entered, release := blockEngineOwner(t, f.engine)
+	<-entered
+	var once sync.Once
+	open := func() { once.Do(func() { close(release) }) }
+	defer open()
+	done := make(chan error, 1)
+	go func() {
+		var err error
+		if step {
+			_, err = f.engine.Step(context.Background(), at, nil)
+		} else {
+			_, err = f.engine.AdvanceContext(context.Background(), at)
+		}
+		done <- err
+	}()
+	waitForEngineQueuedCommand(t, f.engine)
+	f.clock.Set(at.Add(101 * time.Millisecond))
+	open()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(time.Second):
+		t.Fatal("owner-delayed turn did not join")
+		return nil
+	}
+}
+
 func TestDriverDiagnosticsOwnerWaitActualCode38PrefixAndCap(t *testing.T) {
 	f, _, uid, at := newDriverTestFixture(t, true, nil)
 	driverQueueSends(t, f, uid, at, 18)
@@ -237,21 +268,21 @@ func TestDriverDiagnosticsOwnerWaitActualCode38PrefixAndCap(t *testing.T) {
 	}
 }
 
-func TestDriverDiagnosticsPrecedingSDKActualCode38(t *testing.T) {
+func TestDriverDiagnosticsAsyncSDKDoesNotClaimOwnerPrefix(t *testing.T) {
 	f, _, uid, at := newDriverTestFixture(t, true, func(clock *sessionFakeClock, at time.Time) { clock.Set(at.Add(101 * time.Millisecond)) })
 	driverQueueSends(t, f, uid, at, 2)
+	if _, err := f.engine.AdvanceContext(context.Background(), at); err != nil {
+		t.Fatal(err)
+	}
+	waitForEngineAdmissions(t, f.engine)
 	_, err := f.engine.AdvanceContext(context.Background(), at)
 	driverAssertNative(t, f, err, 1)
 	if f.factory.sentCount() != 1 {
 		t.Fatalf("SEND count=%d want only preceding admitted SEND", f.factory.sentCount())
 	}
 	s := driverFinal(t, f)
-	if s == nil || len(s.Records) != 1 {
-		t.Fatal("actual code38 lacks preceding-SDK diagnostic")
-	}
-	r := s.Records[0]
-	if r.SDKAdmission != 101*time.Millisecond || r.SDKAdmissionMax != 101*time.Millisecond || r.WorkExecution != 101*time.Millisecond || r.Processed != 1 || r.Attempts != 1 || r.FreshAfterDue != 101*time.Millisecond || r.AdmissionWait != 0 {
-		t.Fatalf("wrong preceding-work prefix: %+v", r)
+	if s == nil || len(s.Records) != 0 {
+		t.Fatalf("asynchronous SDK time fabricated an owner prefix: %+v", s)
 	}
 }
 
@@ -262,8 +293,9 @@ func TestDriverDiagnosticsDefaultOffPreservesFreshClockReads(t *testing.T) {
 	if _, err := f.engine.AdvanceContext(context.Background(), at); err != nil {
 		t.Fatal(err)
 	}
+	waitForEngineAdmissions(t, f.engine)
 	if reads := clock.count() - before; reads != 2 {
-		t.Fatalf("disabled Advance reads=%d, want original fresh-check + attempt-at only", reads)
+		t.Fatalf("disabled dispatch reads=%d, want owner fresh-check + execution-at only", reads)
 	}
 	if s := driverFinal(t, f); s != nil {
 		t.Fatalf("disabled diagnostic=%+v", s)
@@ -278,6 +310,7 @@ func TestDriverDiagnosticsSampledDeadlineAndEqualityRemainUnchanged(t *testing.T
 			f.clock.Set(at.Add(late))
 			_, err := f.engine.AdvanceContext(context.Background(), at.Add(late))
 			if late == 100*time.Millisecond {
+				waitForEngineAdmissions(t, f.engine)
 				if err != nil || f.factory.sentCount() != 1 {
 					t.Fatalf("deadline equality err=%v sends=%d", err, f.factory.sentCount())
 				}
@@ -337,9 +370,9 @@ func TestDriverDiagnosticsCanceledAdmissionAndGenerationReset(t *testing.T) {
 }
 
 func TestDriverDiagnosticsFinalSnapshotsAreDetached(t *testing.T) {
-	f, _, uid, at := newDriverTestFixture(t, true, func(clock *sessionFakeClock, at time.Time) { clock.Set(at.Add(101 * time.Millisecond)) })
-	driverQueueSends(t, f, uid, at, 2)
-	_, err := f.engine.AdvanceContext(context.Background(), at)
+	f, _, uid, at := newDriverTestFixture(t, true, nil)
+	driverQueueSends(t, f, uid, at, 1)
+	err := driverAdvanceAfterOwnerDelay(t, f, at, false)
 	driverAssertNative(t, f, err, 1)
 	if err := f.engine.Stop(); err != nil {
 		t.Fatal(err)
@@ -374,33 +407,27 @@ func TestDriverDiagnosticsFinalSnapshotsAreDetached(t *testing.T) {
 // Review coverage extension, written after initial implementation: two actual
 // code38 turns in the same generation must not share IDs or prefix totals.
 func TestDriverDiagnosticsDistinctTurnsResetPrefixesWithinGeneration(t *testing.T) {
-	f, _, uid, at := newDriverTestFixture(t, true, func(clock *sessionFakeClock, _ time.Time) { clock.Set(clock.Now().Add(101 * time.Millisecond)) })
-	driverQueueSends(t, f, uid, at, 2)
-	_, err := f.engine.AdvanceContext(context.Background(), at)
+	f, _, uid, at := newDriverTestFixture(t, true, nil)
+	driverQueueSends(t, f, uid, at, 1)
+	err := driverAdvanceAfterOwnerDelay(t, f, at, false)
 	driverAssertNative(t, f, err, 1)
 	secondAt := at.Add(time.Second)
 	f.clock.Set(secondAt)
 	queued := make(chan error, 1)
 	if err := f.engine.enqueueBlocking(engineCommand{run: func() {
-		for i := 0; i < 2; i++ {
-			if !f.pool.acquireSendLease(uid) {
-				queued <- errors.New("second-turn sender lease unavailable")
-				return
-			}
-			intent := f.intent(t, uid, "second-driver-private-channel", uint64(2000+i), TrafficGroup)
-			if err := f.engine.addLeasedSendWorkBefore(intent, 0, secondAt, secondAt.Add(100*time.Millisecond)); err != nil {
-				queued <- err
-				return
-			}
+		if !f.pool.acquireSendLease(uid) {
+			queued <- errors.New("second-turn sender lease unavailable")
+			return
 		}
-		queued <- nil
+		intent := f.intent(t, uid, "second-driver-private-channel", 2000, TrafficGroup)
+		queued <- f.engine.addLeasedSendWorkBefore(intent, 0, secondAt, secondAt.Add(100*time.Millisecond))
 	}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := <-queued; err != nil {
 		t.Fatal(err)
 	}
-	_, err = f.engine.Step(context.Background(), secondAt, nil)
+	err = driverAdvanceAfterOwnerDelay(t, f, secondAt, true)
 	driverAssertNative(t, f, err, 2)
 	s := driverFinal(t, f)
 	if s == nil || s.Generation != 1 || len(s.Records) != 2 || s.Dropped != 0 {
@@ -411,7 +438,7 @@ func TestDriverDiagnosticsDistinctTurnsResetPrefixesWithinGeneration(t *testing.
 		t.Fatalf("distinct same-generation turn IDs/operations: first=%+v second=%+v", first, second)
 	}
 	for i, r := range s.Records {
-		if !r.ClockValid || r.Attempts != 1 || r.SDKAdmission != 101*time.Millisecond || r.WorkExecution != 101*time.Millisecond || r.FreshAfterDue != 101*time.Millisecond || r.SampledAfterDue != 0 || r.DeadlineAfterDue != 100*time.Millisecond {
+		if !r.ClockValid || r.Attempts != 0 || r.SDKAdmission != 0 || r.WorkExecution != 0 || r.AdmissionWait != 101*time.Millisecond || r.Processed != 0 || r.FreshAfterDue != 101*time.Millisecond || r.SampledAfterDue != 0 || r.DeadlineAfterDue != 100*time.Millisecond {
 			t.Fatalf("turn %d retained another turn's prefix: %+v", i, r)
 		}
 	}
@@ -502,8 +529,8 @@ func TestDriverDiagnosticsFullCapStopsSameTurnDiagnosticClockReads(t *testing.T)
 }
 
 // Late review coverage uses the existing blocking SDK port, not a production
-// hook. Caller cancellation after admission cannot release its owner storage;
-// Stop must join that owner before a final diagnostic copy is available.
+// hook. Caller cancellation after dispatch does not own the SDK lifetime;
+// Stop must join the executor before a final diagnostic copy is available.
 func TestDriverDiagnosticsCanceledAfterAdmissionStopJoinsFinalCopy(t *testing.T) {
 	f, _, uid, at := newDriverTestFixture(t, true, nil)
 	f.factory.sendStarted = make(chan context.Context, 1)
@@ -544,8 +571,11 @@ func TestDriverDiagnosticsCanceledAfterAdmissionStopJoinsFinalCopy(t *testing.T)
 	select {
 	case err := <-advanceDone:
 		advanceJoined = true
-		t.Fatalf("post-admission caller released owner before SDK return: %v", err)
-	default:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("dispatch caller result: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Advance still waits for the SDK call")
 	}
 	stopStarted = true
 	go func() { stopDone <- f.engine.Stop() }()
@@ -565,20 +595,6 @@ func TestDriverDiagnosticsCanceledAfterAdmissionStopJoinsFinalCopy(t *testing.T)
 	}
 	close(f.factory.sendReturn)
 	select {
-	case err := <-advanceDone:
-		advanceJoined = true
-		// Generation cancellation may return the caller before its admitted
-		// owner finishes; Stop, not this caller response, joins that owner.
-		if err != nil && !errors.Is(err, errEngineNotRunning) && !errors.Is(err, context.Canceled) {
-			var runtimeErr *RuntimeError
-			if !errors.As(err, &runtimeErr) || runtimeErr.Code() != RuntimeFailureUnderDelivery {
-				t.Fatalf("unexpected admitted stop result: %v", err)
-			}
-		}
-	case <-time.After(time.Second):
-		t.Fatal("admitted Advance did not join after SDK release")
-	}
-	select {
 	case err := <-stopDone:
 		stopJoined = true
 		if err != nil {
@@ -587,9 +603,11 @@ func TestDriverDiagnosticsCanceledAfterAdmissionStopJoinsFinalCopy(t *testing.T)
 	case <-time.After(time.Second):
 		t.Fatal("Stop did not join after SDK release")
 	}
-	assertUnderDeliveryFeedbackJSON(t, f.evidence.Snapshot(), FailureCode(38), 1)
+	if evidence := f.evidence.Snapshot(); evidence.Classification != "" {
+		t.Fatalf("generation cancellation manufactured dispatch evidence: %+v", evidence)
+	}
 	first := driverFinal(t, f)
-	if first == nil || len(first.Records) != 1 || first.Records[0].SDKAdmission != 101*time.Millisecond {
+	if first == nil || len(first.Records) != 0 {
 		t.Fatalf("joined final prefix=%+v", first)
 	}
 	second := driverFinal(t, f)

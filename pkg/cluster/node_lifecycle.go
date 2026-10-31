@@ -158,6 +158,9 @@ func (n *Node) Stop(ctx context.Context) error {
 			return errors.Join(errs...)
 		}
 	}
+	if err := n.stopPresenceProbe(ctx); err != nil {
+		return errors.Join(errors.Join(errs...), err)
+	}
 	// Controller.Stop rejects an expired context before releasing its backend.
 	// A completed transport join does not authorize disposing that live runtime.
 	if err := ctxErr(ctx); err != nil && (n.started.Load() || n.group.HasStarted()) {
@@ -180,14 +183,20 @@ func (n *Node) Stop(ctx context.Context) error {
 		}
 	}
 	if n.defaultChannels {
-		n.channels = nil
-		n.defaultChannels = false
 		if n.defaultChannelReplication != nil {
 			if err := n.defaultChannelReplication.Close(ctx); err != nil {
+				// Accepted peer work and callbacks may still use storage after
+				// this caller's budget expires. Keep the default marker and exact
+				// owners so Stop or Start can rejoin before disposing dependencies.
+				if lifecycle.IsStopIncomplete(err) {
+					return errors.Join(errors.Join(errs...), &nodeStopIncompleteError{cause: err})
+				}
 				errs = append(errs, err)
 			}
 			n.defaultChannelReplication = nil
 		}
+		n.channels = nil
+		n.defaultChannels = false
 		if err := n.closeDefaultChannelStore(); err != nil {
 			errs = append(errs, err)
 		}

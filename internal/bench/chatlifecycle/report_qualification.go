@@ -70,10 +70,19 @@ func validReportQualification(report Report) bool {
 }
 
 func validReportFormalProtocol(report Report) bool {
+	// No historical v7 profile emitted a hot-attempt budget override. Reading
+	// those records preserves zero and their original P999/digest unchanged.
+	if report.SchemaVersion == legacyReportSchemaVersion && report.Thresholds.Latency.HotAttemptTimeout != 0 {
+		return false
+	}
 	if report.Profile != ProfileFormal {
 		return true
 	}
-	return report.Thresholds == FormalConfig().Thresholds && report.Topology.LogicalSlotGroups == formalLogicalSlotGroups &&
+	expected := FormalConfig().Thresholds
+	if report.SchemaVersion == legacyReportSchemaVersion {
+		expected.Latency.HotAttemptTimeout = 0
+	}
+	return report.Thresholds == expected && report.Topology.LogicalSlotGroups == formalLogicalSlotGroups &&
 		report.Topology.HashSlots == formalHashSlots && report.Topology.SlotReplicas == formalReplicas && report.Topology.ChannelReplicas == formalReplicas
 }
 

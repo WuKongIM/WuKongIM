@@ -135,6 +135,7 @@ scrape_interval = "15s"
 scrape_targets = []
 
 [top]
+# Disabling Top also disables its history. Resource/storage metrics remain available.
 api_enable = true
 collect_interval = "1s"
 history_window = "5m"

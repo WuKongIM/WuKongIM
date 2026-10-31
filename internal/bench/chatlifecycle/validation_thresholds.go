@@ -32,6 +32,9 @@ func validateThresholds(t ThresholdsConfig) error {
 	if err := validateLatencyLimit("thresholds.latency.hot_sendack", t.Latency.HotSendACK); err != nil {
 		return err
 	}
+	if t.Latency.HotAttemptTimeout < 0 {
+		return fieldError("thresholds.latency.hot_attempt_timeout", "must not be negative")
+	}
 	if err := validateLatencyLimit("thresholds.latency.cold", t.Latency.Cold); err != nil {
 		return err
 	}

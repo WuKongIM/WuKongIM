@@ -268,7 +268,7 @@ func validateCapacityCheckpoint(cfg Config, admission CapacityAdmission) error {
 	checkpoint := admission.Checkpoint
 	if cfg.Profile != ProfileFormal || cfg.Mode != ModeCapacity || cfg.Stage != StageFormal || cfg.Validate() != nil ||
 		admission.Reference != cfg.Capacity.AgedCheckpoint.Reference ||
-		!validReportHash(checkpoint.DatasetDigest) || validateReport(checkpoint) != nil ||
+		checkpoint.SchemaVersion != ReportSchemaVersion || !validReportHash(checkpoint.DatasetDigest) || validateReport(checkpoint) != nil ||
 		checkpoint.Profile != ProfileFormal || checkpoint.Mode != ModeSoak || checkpoint.Stage != StageFormal ||
 		checkpoint.Kind != CheckpointFinal || !checkpoint.Final || checkpoint.Continue ||
 		!checkpoint.Verdict.Terminal || checkpoint.Verdict.Outcome != VerdictPass || checkpoint.Verdict.Cause != VerdictCauseCompleted ||

@@ -14,7 +14,9 @@ import (
 
 const (
 	// ReportSchemaVersion identifies the persisted JSON and Markdown contract.
-	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v7"
+	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v8"
+	// Legacy reports remain readable only without new native latency-gate proof.
+	legacyReportSchemaVersion = "wukongim/chat-lifecycle-report/v7"
 	// ReportThresholdVersion binds reports to the reviewed exact threshold semantics.
 	ReportThresholdVersion = "wukongim/chat-lifecycle-thresholds/v2"
 	// ReportDesignProfile identifies the approved lifecycle-soak design baseline.
@@ -287,6 +289,9 @@ type ReportVerdictEvidence struct {
 	LatencyAnomalyCount uint64                    `json:"latency_anomaly_count"`
 	LatencyAnomalies    []ReportLatencyAnomaly    `json:"latency_anomalies,omitempty"`
 	Retention           ReportWindowRetention     `json:"retention"`
+	// LatencyGate is optional exact native state; absent/null is unavailable,
+	// never a healthy window inferred from warnings or cumulative histograms.
+	LatencyGate *VerdictLatencyGateSnapshot `json:"latency_gate,omitempty"`
 }
 
 // Report is the complete identity-free persisted checkpoint contract.
@@ -413,7 +418,7 @@ func WriteReportAtomic(path string, report Report, format ReportFormat) error {
 }
 
 func validateReport(report Report) error {
-	if report.SchemaVersion != ReportSchemaVersion || report.ThresholdVersion != ReportThresholdVersion ||
+	if !validReportLatencyGate(report) || report.ThresholdVersion != ReportThresholdVersion ||
 		report.DesignProfile != ReportDesignProfile || !validReportHash(report.ConfigDigest) || !validReportHash(report.DatasetDigest) ||
 		validateThresholds(report.Thresholds) != nil ||
 		(report.Profile != ProfileFormal && report.Profile != ProfileLocal) ||

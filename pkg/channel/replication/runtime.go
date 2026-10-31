@@ -88,12 +88,19 @@ type Runtime struct {
 
 	localPool *workqueue.BoundedBatchPool[localDurabilityItem]
 	peerPool  *workqueue.BoundedPool[func()]
-	repairs   *runtimeRepairOwner
-	peers     *peerBatcher
+	// callbackPool owns terminal execution independently from peer network I/O.
+	callbackPool *workqueue.BoundedPool[func()]
+	repairs      *runtimeRepairOwner
+	peers        *peerBatcher
 	// deferredFlushDone joins the one runtime-scoped trailing-follower timer.
 	deferredFlushDone chan struct{}
 
 	closeTimeout time.Duration
+	// cleanupDone publishes the one cleanup owner's final result; caller
+	// deadlines only stop waiting and cannot cancel accepted durability owners.
+	cleanupDone  chan struct{}
+	cleanupRetry time.Duration
+	goroutines   *goruntimeregistry.Registry
 	closed       atomic.Bool
 	closeOnce    sync.Once
 	closeErr     error
@@ -189,7 +196,10 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		return nil, ch.ErrInvalidConfig
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	runtime := &Runtime{ctx: ctx, cancel: cancel, closeTimeout: cfg.CloseTimeout}
+	runtime := &Runtime{
+		ctx: ctx, cancel: cancel, closeTimeout: cfg.CloseTimeout,
+		cleanupDone: make(chan struct{}), cleanupRetry: cfg.TrailingFlushInterval, goroutines: cfg.Goroutines,
+	}
 
 	peerPool, err := workqueue.NewBoundedPool(workqueue.BoundedPoolConfig{
 		Name: "channel_quorum_peer", Goroutines: cfg.Goroutines, Task: goruntimeregistry.TaskChannelQuorumOwner,
@@ -203,10 +213,24 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		return nil, err
 	}
 	runtime.peerPool = peerPool
+	callbackPool, err := workqueue.NewBoundedPool(workqueue.BoundedPoolConfig{
+		Name: "channel_quorum_callback", Goroutines: cfg.Goroutines, Task: goruntimeregistry.TaskChannelQuorumOwner,
+		Workers: cfg.PeerWorkers, QueueSize: cfg.QueueItems, ReleaseTimeout: cfg.CloseTimeout,
+	}, func(_ context.Context, task func()) error {
+		task()
+		return nil
+	})
+	if err != nil {
+		cancel()
+		_ = peerPool.Close(context.Background())
+		return nil, err
+	}
+	runtime.callbackPool = callbackPool
 	executor := runtimePeerExecutor{pool: peerPool}
 	stageObserver := newSampledStageObserver(cfg.Observer, defaultRuntimeStageSampleEvery)
 	peers, err := newPeerBatcher(peerBatcherConfig{
 		Link: cfg.Link, Executor: executor, OwnerContext: ctx, ExchangeTimeout: cfg.ExchangeTimeout, Observer: stageObserver,
+		CallbackExecutor: runtimePeerExecutor{pool: callbackPool}, CallbackWorkers: cfg.PeerWorkers,
 		MaxTargetFlight: cfg.PeerTargetFlight,
 		MaxBatchItems:   cfg.BatchItems,
 		MaxBatchBytes:   cfg.BatchBytes,
@@ -215,6 +239,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	})
 	if err != nil {
 		cancel()
+		_ = callbackPool.Close(context.Background())
 		_ = peerPool.Close(context.Background())
 		return nil, err
 	}
@@ -226,6 +251,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	})
 	if err != nil {
 		cancel()
+		_ = callbackPool.Close(context.Background())
 		_ = peerPool.Close(context.Background())
 		return nil, err
 	}
@@ -248,6 +274,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	if err != nil {
 		cancel()
 		_ = repairs.Close(context.Background())
+		_ = callbackPool.Close(context.Background())
 		_ = peerPool.Close(context.Background())
 		return nil, err
 	}
@@ -275,6 +302,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		cancel()
 		_ = localPool.Close(context.Background())
 		_ = repairs.Close(context.Background())
+		_ = callbackPool.Close(context.Background())
 		_ = peerPool.Close(context.Background())
 		return nil, err
 	}
@@ -285,6 +313,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		cancel()
 		_ = localPool.Close(context.Background())
 		_ = repairs.Close(context.Background())
+		_ = callbackPool.Close(context.Background())
 		_ = peerPool.Close(context.Background())
 		return nil, err
 	}
@@ -382,7 +411,8 @@ func (r *Runtime) ExchangeServer() *ExchangeServer {
 	return r.server
 }
 
-// Close permanently closes admission and joins all accepted work.
+// Close closes admission once and joins the same cleanup owner on every call.
+// A caller deadline does not revoke accepted I/O or terminal callback ownership.
 func (r *Runtime) Close(ctx context.Context) error {
 	if r == nil {
 		return nil
@@ -393,29 +423,78 @@ func (r *Runtime) Close(ctx context.Context) error {
 	r.closeOnce.Do(func() {
 		r.closed.Store(true)
 		if r.peers != nil {
+			r.peers.stopAdmission()
 			_ = r.peers.flushDeferred()
 		}
 		r.cancel()
-		var errs []error
-		if r.deferredFlushDone != nil {
+		goruntimeregistry.SafeGo(r.goroutines, goruntimeregistry.TaskChannelQuorumOwner, r.cleanup)
+	})
+	select {
+	case <-r.cleanupDone:
+		return r.closeErr
+	default:
+	}
+	select {
+	case <-r.cleanupDone:
+		return r.closeErr
+	case <-ctx.Done():
+		select {
+		case <-r.cleanupDone:
+			return r.closeErr
+		default:
+			return &runtimeStopIncompleteError{cause: ctx.Err()}
+		}
+	}
+}
+
+// runtimeStopIncompleteError distinguishes an expired waiter from a completed
+// cleanup with diagnostics, so callers retain dependencies until a later join.
+type runtimeStopIncompleteError struct{ cause error }
+
+func (e *runtimeStopIncompleteError) Error() string {
+	return "channel replication: stop incomplete: " + e.cause.Error()
+}
+
+func (e *runtimeStopIncompleteError) Unwrap() error        { return e.cause }
+func (e *runtimeStopIncompleteError) StopIncomplete() bool { return true }
+
+// cleanup is the sole owner of executor shutdown. It never uses a Close
+// caller's context, and keeps retrying retained terminal debt before closing
+// either pool's admission. One fixed ticker replaces the stopped flusher.
+func (r *Runtime) cleanup() {
+	if r.deferredFlushDone != nil {
+		<-r.deferredFlushDone
+	}
+	if r.peers != nil {
+		interval := r.cleanupRetry
+		if interval <= 0 {
+			interval = defaultRuntimeTrailingFlush
+		}
+		ticker := time.NewTicker(interval)
+		for !r.peers.drainAccepted() {
 			select {
-			case <-r.deferredFlushDone:
-			case <-ctx.Done():
-				errs = append(errs, ctx.Err())
+			case <-r.peers.progress:
+			case <-ticker.C:
 			}
 		}
-		if err := r.repairs.Close(ctx); err != nil {
-			errs = append(errs, err)
-		}
-		if err := r.peerPool.Close(ctx); err != nil {
-			errs = append(errs, err)
-		}
-		if err := r.localPool.Close(ctx); err != nil {
-			errs = append(errs, err)
-		}
-		r.closeErr = errors.Join(errs...)
-	})
-	return r.closeErr
+		ticker.Stop()
+	}
+	ctx := context.Background()
+	var errs []error
+	if err := r.repairs.Close(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	if err := r.peerPool.Close(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	if err := r.callbackPool.Close(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	if err := r.localPool.Close(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	r.closeErr = errors.Join(errs...)
+	close(r.cleanupDone)
 }
 
 func (l *runtimeLocalDurability) submitLocal(ctx context.Context, proposal durableProposal, complete func(durabilityCompletion)) error {

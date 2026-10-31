@@ -5,6 +5,7 @@ package chatlifecycle
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -89,9 +90,7 @@ func TestWorkerRuntimeSnapshotQueueGaugeCannotHoldPrimaryAdvance(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("queue gauge held the primary scheduler owner despite a still-valid arrival deadline")
 	}
-	if sent := fixture.factory.sentCount(); sent == 0 {
-		t.Fatal("Advance returned without dispatching due primary work while the queue gauge was held")
-	}
+	awaitSnapshotIndependentPrimarySend(t, fixture.factory)
 	select {
 	case snapshotErr := <-snapshotDone:
 		snapshotJoined = true
@@ -192,9 +191,7 @@ func TestWorkerRunnerSnapshotQueueGaugeCannotHoldPrimaryTick(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("queue gauge held the worker tick despite a still-valid primary arrival deadline")
 	}
-	if fixture.factory.sentCount() == 0 {
-		t.Fatal("worker tick returned without dispatching due primary work")
-	}
+	awaitSnapshotIndependentPrimarySend(t, fixture.factory)
 	select {
 	case snapshotErr := <-snapshotDone:
 		snapshotJoined = true
@@ -210,6 +207,19 @@ func TestWorkerRunnerSnapshotQueueGaugeCannotHoldPrimaryTick(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("worker snapshot ignored caller cancellation")
+	}
+}
+
+// Advance transfers work to the dispatcher. Wait for the same SDK port while
+// the gauge remains held; no extra tick, SEND credit or business time is added.
+func awaitSnapshotIndependentPrimarySend(t *testing.T, factory *engineFakeFactory) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for factory.sentCount() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("queue gauge blocked asynchronous primary SDK admission")
+		}
+		runtime.Gosched()
 	}
 }
 

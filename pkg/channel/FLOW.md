@@ -17,14 +17,12 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
 - Product permission, authority selection, subscriber fanout, and SENDACK
   orchestration stay above this package.
 - `store/channel_adapter.go` is the only Channel file allowed to import message
-  DB compatibility DTOs; other packages use Channel contracts.
-  Storage-neutral proposal and entry identities live in the leaf `pkg/quorumlog`
+  DB compatibility DTOs; other packages use Channel contracts. Storage-neutral proposal and entry identities live in the leaf `pkg/quorumlog`
   contract rather than depending on Channel or MessageDB implementations.
 - Reactor goroutines decide state transitions but never perform blocking store
   or transport I/O. Typed workers execute that work and return fenced results.
 - Recent-record caches, PullHint, batching, and benchmark controls are
-  performance or observation mechanisms, never sources of durable truth.
-  Durable-quorum commits do not duplicate payloads in the legacy pull cache;
+  performance or observation mechanisms, never sources of durable truth. Durable-quorum commits do not duplicate payloads in the legacy pull cache;
   the quorum runtime owns replication and repair.
 
 ## Main Flows
@@ -33,14 +31,11 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
    role, epochs, optional exact durable route, write admission and capacity, while workers durably
    append in order and local or quorum progress completes aligned futures. Optional first-effect observation separately times reserve, submit and future wait; the wait includes reactor/quorum completion and preserves each original owner's item outcome, never implying pure storage time.
    Borrowed payload and publication-metadata bytes are cloned at admission; an adapter-owned append
-   may explicitly transfer immutable payloads that downstream state, quorum,
-   and storage submissions share while copying record metadata.
-   With `DurableQuorumLog`, leader activation first installs a recovered
-   authority frontier and current-term barrier, then each caller append is one
+   may explicitly transfer immutable payloads that downstream state, quorum, and storage submissions share while copying record metadata.
+   With `DurableQuorumLog`, leader activation first installs a recovered authority frontier and current-term barrier, then each caller append is one
    immutable exact quorum proposal rather than a transient worker batch. Optional sampled storage ownership follows each mutation and both batch/fallback Adapters; filtering never shifts owners. Exact DB preparation chooses request membership. A capped local cohort sidecar does not enter peer frames or change quorum/durability; partial or dropped observation remains unknown.
 2. Followers pull continuous records, apply and return ACK progress, and use a
-   bounded checkpoint path; idle leaders and caught-up followers coordinate
-   checkpointed stop before either runtime can be evicted.
+   bounded checkpoint path; idle leaders and caught-up followers coordinate checkpointed stop before either runtime can be evicted.
    In durable-log mode, authority installation seeds non-voting learner catch-up
    from the quorum-proved frontier; fixed repair workers retain one-page progress.
    Tail growth preserves that cursor; new gap/authority fence it. Unavailable prefixes resume only after a bounded peer probe matches the local exact tail identity under an unchanged frontier.
@@ -58,8 +53,13 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   Exact manifests and closed durable/already-durable/absent/conflict/unknown outcomes make ambiguous commits safely retryable after cancellation or restart; caller cancellation cannot revoke admitted durability. A definitive local conflict reaches durable command lookup without waiting for missing peers or retaining an impossible local pending proposal. A valid newer durable authority invalidates a resumed former leader and returns stale metadata; same-authority, missing, or malformed evidence remains a conflict.
 - The node-owned replication runtime bounds local mutation batches, per-target exchange, recovery probes, and follower repair without per-Channel goroutines.
   On-demand committed replica refresh replays the installed sequencer's tail through existing repair workers, including under an unchanged write fence. Exact authority is required; caller HW and scheduling supply no durability receipt.
-  Peer owners run only executable queue items, preserving first-kind and per-Channel barriers; blocked-only queues do not reschedule empty owners. Completed exchanges release item/Channel credit atomically with callback-phase entry.
-  Callback delivery retains the counted worker and Close join. Deferred phase cleanup precedes worker reuse/retirement even on panic; independent ready queued or new work may use spare bounded flight, while initial batching and class reserves remain unchanged.
+  Peer I/O owners preserve first-kind, batching and per-Channel flight barriers; blocked-only queues do not reschedule empty owners.
+  Entire normalized batches publish terminal envelopes before releasing I/O fences. Independent fixed callback workers share the old
+  item/byte budget through actual callback return; they do not consume target I/O flight. Each task executes one per-Channel FIFO head,
+  then requeues its tail behind globally ready cold keys. Rejected execution retains the exact envelope for supervised retry.
+  Per-item transfer and retirement clear batch/FIFO references, including panic unwinding; held siblings cannot retain released bodies.
+  Runtime Close callers join one background cleanup owner. An expired waiter returns stop-incomplete without closing executors or
+  discarding accepted debt; cleanup retries while admission is sealed, joins callbacks, then closes pools and publishes its final result.
   Install preserves every observed suffix, proves compatible voter tails on one
   exact hash chain, and copies at most one bounded page before yielding for a fresh proof. Probe rounds
   consume arrived evidence plus the local result, then use a quorum without waiting

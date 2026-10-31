@@ -26,7 +26,7 @@ func TestPeerCallbackRetirementPreservesNextQueuedWave(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			owner, cancel := context.WithCancel(context.Background())
 			executor := &manualPeerExecutor{}
-			b, err := newPeerBatcher(peerBatcherConfig{
+			b, err := newManualPeerBatcher(peerBatcherConfig{
 				Link: &recordingPeerLink{}, Executor: executor, OwnerContext: owner,
 				ExchangeTimeout: time.Second, MaxTargetFlight: 16,
 				MaxBatchItems: 4, MaxBatchBytes: 4096,

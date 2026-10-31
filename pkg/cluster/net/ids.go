@@ -165,6 +165,8 @@ const (
 	RPCSlotMQTTMetadata uint8 = 106 + iota
 	// RPCMQTTOwner requests exact MQTT owner execution quiescence.
 	RPCMQTTOwner
+	// RPCPresenceControl proves capability and commits bounded Presence generations.
+	RPCPresenceControl
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -293,6 +295,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "message update hint"
 	case RPCSlotMQTTMetadata:
 		return "slot mqtt metadata"
+	case RPCPresenceControl:
+		return "presence control"
 	case RPCMQTTOwner:
 		return "mqtt owner"
 	case RPCChannelMQTTSource:

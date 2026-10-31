@@ -26,6 +26,10 @@ type peerBatcherConfig struct {
 	Link     PeerLink
 	Executor peerExecutor
 	Observer StageObserver
+	// CallbackExecutor accepts terminal tasks independently from network I/O.
+	CallbackExecutor peerExecutor
+	// CallbackWorkers declares the global bound for callback-owner execution.
+	CallbackWorkers int
 	// OwnerContext and ExchangeTimeout bound accepted work independently from
 	// the caller that submitted it.
 	OwnerContext    context.Context
@@ -51,6 +55,12 @@ type peerBatcher struct {
 	ownedItems int
 	ownedBytes int
 	nextID     atomic.Uint64
+	// callbackReady is a global FIFO of eligible Channel heads. Accepted and
+	// executing tasks share callbackOwners until the original callback returns.
+	callbackReady  []peerCallbackKey
+	callbackOwners int
+	stopping       bool
+	progress       chan struct{}
 }
 
 type peerTargetQueue struct {
@@ -59,12 +69,29 @@ type peerTargetQueue struct {
 	background        []queuedPeerItem
 	urgentWorkers     int
 	backgroundWorkers int
-	// urgentCallbacks counts still-owned workers delivering completed exchanges.
-	// It is protected by b.mu and never releases a target flight or Close join.
-	urgentCallbacks int
-	inflight        map[ch.ChannelKey]struct{}
-	ownedItems      int
-	ownedBytes      int
+	inflight          map[ch.ChannelKey]struct{}
+	ownedItems        int
+	ownedBytes        int
+	// callbacks retains each exact terminal envelope through callback return.
+	callbacks map[ch.ChannelKey]*peerCallbackQueue
+}
+
+type peerCallbackKey struct {
+	node    ch.NodeID
+	channel ch.ChannelKey
+}
+
+type peerCallbackQueue struct {
+	items   []*peerCallbackEnvelope
+	running bool
+	ready   bool
+}
+
+// peerCallbackEnvelope owns only one returned item, never its sibling batch.
+type peerCallbackEnvelope struct {
+	item   queuedPeerItem
+	result peerExchangeResult
+	err    error
 }
 
 type peerWorkClass uint8
@@ -120,15 +147,21 @@ func newPeerBatcher(cfg peerBatcherConfig) (*peerBatcher, error) {
 	if cfg.MaxTargetFlight == 0 {
 		cfg.MaxTargetFlight = defaultRuntimePeerTargetFlight
 	}
+	if cfg.CallbackExecutor == nil {
+		cfg.CallbackExecutor = cfg.Executor
+	}
+	if cfg.CallbackWorkers == 0 {
+		cfg.CallbackWorkers = defaultRuntimePeerWorkers
+	}
 	if cfg.Link == nil || cfg.Executor == nil || cfg.OwnerContext == nil || cfg.OwnerContext.Err() != nil || cfg.ExchangeTimeout <= 0 ||
-		cfg.MaxTargetFlight <= 0 ||
+		cfg.MaxTargetFlight <= 0 || cfg.CallbackExecutor == nil || cfg.CallbackWorkers <= 0 ||
 		cfg.MaxBatchItems <= 0 || cfg.MaxBatchBytes <= 0 ||
 		cfg.MaxQueuedItems < cfg.MaxBatchItems || cfg.MaxQueuedBytes < cfg.MaxBatchBytes ||
 		cfg.MaxTargetQueuedItems < cfg.MaxBatchItems || cfg.MaxTargetQueuedItems > cfg.MaxQueuedItems-cfg.MaxBatchItems ||
 		cfg.MaxTargetQueuedBytes < cfg.MaxBatchBytes || cfg.MaxTargetQueuedBytes > cfg.MaxQueuedBytes-cfg.MaxBatchBytes {
 		return nil, ch.ErrInvalidConfig
 	}
-	return &peerBatcher{cfg: cfg, targets: make(map[ch.NodeID]*peerTargetQueue)}, nil
+	return &peerBatcher{cfg: cfg, targets: make(map[ch.NodeID]*peerTargetQueue), progress: make(chan struct{}, 1)}, nil
 }
 
 // submit admits one immutable follower write. A nil result transfers exactly
@@ -198,17 +231,22 @@ func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPe
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if b.cfg.OwnerContext.Err() != nil {
+	if b.cfg.OwnerContext.Err() != nil || b.stopping {
 		return ch.ErrClosed
 	}
+	if b.ownedItems >= b.cfg.MaxQueuedItems || b.ownedBytes+item.bytes > b.cfg.MaxQueuedBytes {
+		return ch.ErrBackpressured
+	}
 	target := b.targets[node]
+	if target != nil && (target.ownedItems >= b.cfg.MaxTargetQueuedItems || target.ownedBytes+item.bytes > b.cfg.MaxTargetQueuedBytes) {
+		return ch.ErrBackpressured
+	}
 	if target == nil {
+		if item.bytes > b.cfg.MaxTargetQueuedBytes {
+			return ch.ErrBackpressured
+		}
 		target = &peerTargetQueue{}
 		b.targets[node] = target
-	}
-	if b.ownedItems >= b.cfg.MaxQueuedItems || b.ownedBytes+item.bytes > b.cfg.MaxQueuedBytes ||
-		target.ownedItems >= b.cfg.MaxTargetQueuedItems || target.ownedBytes+item.bytes > b.cfg.MaxTargetQueuedBytes {
-		return ch.ErrBackpressured
 	}
 	item.requestID = b.nextID.Add(1)
 	item.queuedAt = time.Now()
@@ -228,7 +266,9 @@ func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPe
 		if target.urgentWorkers > 0 {
 			return nil
 		}
-		target.urgent = target.urgent[:len(target.urgent)-1]
+		last := len(target.urgent) - 1
+		target.urgent[last] = queuedPeerItem{}
+		target.urgent = target.urgent[:last]
 		target.ownedItems--
 		target.ownedBytes -= item.bytes
 		b.ownedItems--
@@ -253,17 +293,57 @@ func (b *peerBatcher) flushDeferred() error {
 	if b.cfg.OwnerContext.Err() != nil {
 		return ch.ErrClosed
 	}
+	return b.progressPendingLocked()
+}
+
+// progressPendingLocked retries only already-accepted work. The cleanup owner
+// may use it after I/O cancellation while both executors are still open.
+func (b *peerBatcher) progressPendingLocked() error {
 	var flushErr error
 	for node, target := range b.targets {
 		if len(target.deferred) > 0 {
 			target.background = append(target.background, target.deferred...)
-			target.deferred = target.deferred[:0]
+			clear(target.deferred)
+			target.deferred = nil
 		}
 		if err := b.ensureTargetWorkersLocked(node, target); err != nil {
 			flushErr = errors.Join(flushErr, err)
 		}
 	}
+	if err := b.scheduleCallbacksLocked(); err != nil {
+		flushErr = errors.Join(flushErr, err)
+	}
 	return flushErr
+}
+
+func (b *peerBatcher) stopAdmission() {
+	b.mu.Lock()
+	b.stopping = true
+	b.mu.Unlock()
+}
+
+// drainAccepted keeps the original cleanup owner until every accepted I/O and
+// terminal task has returned. Executor refusal retains debt for the next retry.
+func (b *peerBatcher) drainAccepted() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	_ = b.progressPendingLocked()
+	if b.ownedItems != 0 || b.ownedBytes != 0 || b.callbackOwners != 0 {
+		return false
+	}
+	for _, target := range b.targets {
+		if target.workerCount() != 0 || len(target.inflight) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func (b *peerBatcher) signalProgress() {
+	select {
+	case b.progress <- struct{}{}:
+	default:
+	}
 }
 
 func (b *peerBatcher) runDeferredFlusher(interval time.Duration) {
@@ -328,7 +408,7 @@ func (b *peerBatcher) ensureTargetWorkersLocked(node ch.NodeID, target *peerTarg
 	if target.backgroundWorkers > 0 || len(target.background) > 0 {
 		urgentLimit--
 	}
-	if urgentWasScheduled && urgentReady && (len(target.inflight) > 0 || target.urgentCallbacks > 0) &&
+	if urgentWasScheduled && urgentReady && len(target.inflight) > 0 &&
 		target.urgentWorkers < urgentLimit && target.workerCount() < b.cfg.MaxTargetFlight {
 		if err := b.scheduleTargetLocked(node, target, peerWorkUrgent); err != nil {
 			scheduleErr = errors.Join(scheduleErr, err)
@@ -359,27 +439,10 @@ func (b *peerBatcher) drainTarget(node ch.NodeID, class peerWorkClass) {
 			}
 		}
 		observeReplicationStage(b.cfg.Observer, exchangeStage, exchangeErr, exchangeFinished.Sub(exchangeStarted))
-		b.release(node, class, items)
-		func() {
-			// Clear delivery ownership before retiring the worker, including when
-			// a callback panics. Callback order and the panic policy stay unchanged.
-			defer b.finishCallbacks(node, class)
-			for index := range items {
-				observeReplicationStage(b.cfg.Observer, endToEndStage, errs[index], exchangeFinished.Sub(items[index].queuedAt))
-				switch items[index].kind {
-				case ExchangeReplicate, ExchangeStoragePrepare, ExchangeStorageCancel:
-					if items[index].kind == ExchangeReplicate {
-						items[index].completeReplicate(results[index].replicate, errs[index])
-					} else {
-						items[index].completeFunding(results[index].funding, errs[index])
-					}
-				case ExchangeProbe:
-					items[index].completeProbe(results[index].probe, errs[index])
-				case ExchangeFetch:
-					items[index].completeFetch(results[index].fetch, errs[index])
-				}
-			}
-		}()
+		for index := range items {
+			observeReplicationStage(b.cfg.Observer, endToEndStage, errs[index], exchangeFinished.Sub(items[index].queuedAt))
+		}
+		b.publishCallbacks(node, items, results, errs)
 	}
 }
 
@@ -404,6 +467,7 @@ func (b *peerBatcher) finishTargetWorker(node ch.NodeID, class peerWorkClass) {
 	if target.workerCount() == 0 && target.ownedItems == 0 {
 		delete(b.targets, node)
 	}
+	b.signalProgress()
 }
 
 // peerQueueHasReadyItem mirrors takeBatch's first-item kind and per-Channel
@@ -493,8 +557,10 @@ func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) []queuedPee
 		target.inflight[channelKey] = struct{}{}
 	}
 	if class == peerWorkBackground {
+		clear(queue[len(remaining):])
 		target.background = remaining
 	} else {
+		clear(queue[len(remaining):])
 		target.urgent = remaining
 	}
 	return items
@@ -631,41 +697,136 @@ func invalidExchangeResults(items []queuedPeerItem, results []peerExchangeResult
 	return results, errs
 }
 
-// release atomically moves a completed exchange into callback delivery while
-// retaining its counted worker, so independent ready work can use spare flight.
-func (b *peerBatcher) release(node ch.NodeID, class peerWorkClass, items []queuedPeerItem) {
+// publishCallbacks transfers each terminal envelope before releasing any I/O
+// fence. Later same-Channel exchanges cannot publish ahead of this batch.
+func (b *peerBatcher) publishCallbacks(node ch.NodeID, items []queuedPeerItem, results []peerExchangeResult, errs []error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	target := b.targets[node]
 	if target == nil {
-		return
+		panic("channel replication: terminal result has no retained target")
 	}
-	for _, item := range items {
-		delete(target.inflight, item.channelKey())
-		target.ownedItems--
-		target.ownedBytes -= item.bytes
-		b.ownedItems--
-		b.ownedBytes -= item.bytes
+	if target.callbacks == nil {
+		target.callbacks = make(map[ch.ChannelKey]*peerCallbackQueue)
 	}
-	if class == peerWorkUrgent {
-		target.urgentCallbacks++
+	keys := make([]ch.ChannelKey, len(items))
+	for i := range items {
+		key := items[i].channelKey()
+		keys[i] = key
+		queue := target.callbacks[key]
+		if queue == nil {
+			queue = &peerCallbackQueue{}
+			target.callbacks[key] = queue
+		}
+		envelope := &peerCallbackEnvelope{item: items[i], result: results[i], err: errs[i]}
+		queue.items = append(queue.items, envelope)
+		items[i] = queuedPeerItem{}
+		results[i] = peerExchangeResult{}
+		errs[i] = nil
+		b.readyCallbackLocked(peerCallbackKey{node: node, channel: key}, queue)
 	}
-	// An owner for the other class may have retired while this Channel was
-	// in flight. Releasing ownership is the event that makes it runnable again.
+	for _, key := range keys {
+		delete(target.inflight, key)
+	}
 	_ = b.ensureTargetWorkersLocked(node, target)
+	_ = b.scheduleCallbacksLocked()
+	b.signalProgress()
 }
 
-// finishCallbacks removes only callback-phase state; the owner remains counted
-// until it takes another batch or finishTargetWorker retires its join ownership.
-func (b *peerBatcher) finishCallbacks(node ch.NodeID, class peerWorkClass) {
-	if class != peerWorkUrgent {
+func (b *peerBatcher) readyCallbackLocked(key peerCallbackKey, queue *peerCallbackQueue) {
+	if queue.running || queue.ready || len(queue.items) == 0 {
 		return
 	}
+	queue.ready = true
+	b.callbackReady = append(b.callbackReady, key)
+}
+
+// scheduleCallbacksLocked counts queued and executing tasks alike. Refusal
+// restores the exact FIFO head; the supervised retry never loses ownership.
+func (b *peerBatcher) scheduleCallbacksLocked() error {
+	for b.callbackOwners < b.cfg.CallbackWorkers && len(b.callbackReady) > 0 {
+		key := b.callbackReady[0]
+		target := b.targets[key.node]
+		var queue *peerCallbackQueue
+		if target != nil {
+			queue = target.callbacks[key.channel]
+		}
+		if queue == nil || !queue.ready || queue.running || len(queue.items) == 0 {
+			b.popReadyCallbackLocked()
+			continue
+		}
+		envelope := queue.items[0]
+		queue.running, queue.ready = true, false
+		b.callbackOwners++
+		if err := b.cfg.CallbackExecutor.Submit(func() { b.runCallback(key, envelope) }); err != nil {
+			b.callbackOwners--
+			queue.running, queue.ready = false, true
+			return err
+		}
+		queue.items[0] = nil
+		queue.items = queue.items[1:]
+		if len(queue.items) == 0 {
+			queue.items = nil
+		}
+		b.popReadyCallbackLocked()
+	}
+	return nil
+}
+
+func (b *peerBatcher) popReadyCallbackLocked() {
+	b.callbackReady[0] = peerCallbackKey{}
+	b.callbackReady = b.callbackReady[1:]
+	if len(b.callbackReady) == 0 {
+		b.callbackReady = nil
+	}
+}
+
+// runCallback executes one envelope, never a hot Channel's entire tail. The
+// initial lock waits for its admission transaction before invoking user code.
+// Callbacks must not synchronously await a later callback on this target+Channel.
+func (b *peerBatcher) runCallback(key peerCallbackKey, envelope *peerCallbackEnvelope) {
+	b.mu.Lock()
+	b.mu.Unlock()
+	defer b.finishCallback(key, envelope)
+	switch envelope.item.kind {
+	case ExchangeReplicate:
+		envelope.item.completeReplicate(envelope.result.replicate, envelope.err)
+	case ExchangeStoragePrepare, ExchangeStorageCancel:
+		envelope.item.completeFunding(envelope.result.funding, envelope.err)
+	case ExchangeProbe:
+		envelope.item.completeProbe(envelope.result.probe, envelope.err)
+	case ExchangeFetch:
+		envelope.item.completeFetch(envelope.result.fetch, envelope.err)
+	}
+}
+
+// finishCallback releases retained bytes only after the callback returns,
+// including panic unwinding, then puts this Channel's next head behind cold keys.
+func (b *peerBatcher) finishCallback(key peerCallbackKey, envelope *peerCallbackEnvelope) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if target := b.targets[node]; target != nil && target.urgentCallbacks > 0 {
-		target.urgentCallbacks--
+	bytes := envelope.item.bytes
+	*envelope = peerCallbackEnvelope{}
+	b.callbackOwners--
+	b.ownedItems--
+	b.ownedBytes -= bytes
+	if target := b.targets[key.node]; target != nil {
+		target.ownedItems--
+		target.ownedBytes -= bytes
+		if queue := target.callbacks[key.channel]; queue != nil {
+			queue.running = false
+			if len(queue.items) == 0 {
+				delete(target.callbacks, key.channel)
+			} else {
+				b.readyCallbackLocked(key, queue)
+			}
+		}
+		if target.ownedItems == 0 && target.workerCount() == 0 {
+			delete(b.targets, key.node)
+		}
 	}
+	_ = b.scheduleCallbacksLocked()
+	b.signalProgress()
 }
 
 func (b *peerBatcher) submitFunding(ctx context.Context, node ch.NodeID, request ReplicateRequest, nonce uint64, cancel bool, complete func(StorageFundingResult, error)) error {

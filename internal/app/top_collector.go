@@ -58,6 +58,9 @@ type topCollectorOptions struct {
 	CollectInterval time.Duration
 	// HistoryWindow bounds retained in-memory samples.
 	HistoryWindow time.Duration
+	// MetricsOnly samples resource/storage gauges without retaining Top history.
+	// Composition never binds detailed Top observers in this mode.
+	MetricsOnly bool
 	// ClusterSnapshot returns the latest local cluster readiness snapshot.
 	ClusterSnapshot func() cluster.Snapshot
 	// MetricsEnabled reports whether the optional Prometheus endpoint is enabled.
@@ -156,13 +159,17 @@ func newTopCollector(options topCollectorOptions) *topCollector {
 		sampler := defaultTopGopsutilResourceSampler()
 		options.ResourceSampler = sampler.sample
 	}
+	var ring []topSample
+	if !options.MetricsOnly {
+		ring = make([]topSample, topRingCapacity(options.CollectInterval, options.HistoryWindow))
+	}
 	return &topCollector{
 		options:  options,
 		counters: make(map[string]uint64),
 		gauges:   make(map[string]int64),
 		histos:   make(map[string][]float64),
 		alerts:   make(map[string]*topAlertState),
-		ring:     make([]topSample, topRingCapacity(options.CollectInterval, options.HistoryWindow)),
+		ring:     ring,
 	}
 }
 
@@ -488,6 +495,11 @@ func (c *topCollector) observeValue(key string, value float64) {
 
 func (c *topCollector) recordSampleAt(at time.Time) {
 	if c == nil {
+		return
+	}
+	if c.options.MetricsOnly {
+		c.observeResourceMetrics(c.resourceSample())
+		c.observeStorageMetrics()
 		return
 	}
 	c.mu.Lock()

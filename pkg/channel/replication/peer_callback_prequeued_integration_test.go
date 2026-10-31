@@ -16,7 +16,7 @@ import (
 func TestPeerCallbackAlreadyQueuedWorkUsesRemainingTargetFlight(t *testing.T) {
 	owner, cancel := context.WithCancel(context.Background())
 	executor := &manualPeerExecutor{}
-	b, err := newPeerBatcher(peerBatcherConfig{
+	b, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: &recordingPeerLink{}, Executor: executor, OwnerContext: owner,
 		ExchangeTimeout: time.Second, MaxTargetFlight: 16,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
@@ -88,10 +88,20 @@ func TestPeerCallbackAlreadyQueuedWorkUsesRemainingTargetFlight(t *testing.T) {
 	inflight, owned := len(b.targets[2].inflight), b.targets[2].ownedItems
 	b.mu.Unlock()
 	require.Zero(t, inflight, "A's physical exchange has released its Channel")
-	require.Equal(t, 1, owned, "independent B remains accepted and queued")
-	require.Equal(t, 1, executor.Len(), "already queued B must receive spare flight before A's callback returns")
+	require.Equal(t, 2, owned, "held callback A and queued independent B both retain accepted item credit")
+	// The independent I/O may now finish before this explicit callback pump
+	// enters A. Either stage must retain accepted ownership for B's progress.
+	require.True(t, executor.Len() > 0 || executor.CallbackLen() > 0, "prequeued B must retain an executable I/O or returned-callback owner")
+	require.LessOrEqual(t, executor.Len(), 1)
 	joinedB = make(chan struct{})
-	go func() { defer close(joinedB); executor.RunNext() }()
+	go func() {
+		defer close(joinedB)
+		if executor.Len() > 0 {
+			executor.RunNext()
+		} else {
+			executor.RunCallbacks()
+		}
+	}()
 	select {
 	case c := <-bCompleted:
 		require.NoError(t, c.err)

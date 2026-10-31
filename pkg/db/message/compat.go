@@ -978,6 +978,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 	}
 	locksPhase.End(rpctrace.ResultOK)
 	preparePhase := groupObservation.BeginStage(rpctrace.StageStoreAppendPrepare, nil)
+	prepareDetail := preparePhase.StorePrepareDetail()
 	locked := make(map[*channelEntry]struct{}, len(entries))
 	lockedCheckpoints := make(map[*channelEntry]struct{}, len(checkpointEntries))
 	for _, entry := range entries {
@@ -1017,7 +1018,9 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 			delete(locked, entry)
 			continue
 		}
+		frontierDetail := prepareDetail.BeginFrontier()
 		physicalLEO, err := items[entryIndexes[0]].Store.log.loadLEOLocked(ctx)
+		frontierDetail.End()
 		if err != nil {
 			err = toChannelError(err)
 			for _, index := range entryIndexes {
@@ -1051,6 +1054,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 			}
 			var prepared preparedCommitRows
 			var prepareErr error
+			itemDetail := prepareDetail.BeginItemPrepare()
 			if item.ExactBaseOffset {
 				switch {
 				case item.ExpectedBaseOffset > virtualLEO:
@@ -1075,6 +1079,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 					prepared, prepareErr = item.Store.prepareAppendRecordsLocked(ctx, item.Records, mode)
 				}
 			}
+			itemDetail.End()
 			if prepareErr != nil {
 				results[index].Err = prepareErr
 				results[index].Outcome = appendOutcomeForPreCommitError(prepareErr)

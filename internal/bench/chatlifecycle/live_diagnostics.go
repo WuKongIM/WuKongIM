@@ -365,6 +365,8 @@ func (r *liveDiagnosticRecorder) writeTerminalDriverDiagnostics(at time.Time, sn
 		diagnostics := snapshot.DriverDiagnostics
 		if snapshot.Phase != WorkerPhaseFinal || !validDriverDiagnostics(diagnostics, snapshot.Generation) {
 			diagnostics = nil
+		} else {
+			diagnostics = copyDriverDiagnostics(diagnostics)
 		}
 		document.Workers[snapshot.WorkerID] = workerDriver{WorkerID: snapshot.WorkerID, Generation: snapshot.Generation, Diagnostics: diagnostics}
 	}

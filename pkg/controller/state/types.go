@@ -218,6 +218,8 @@ type ClusterState struct {
 	ScheduledBackup *ScheduledBackupState `json:"scheduled_backup,omitempty"`
 	// OpsMCP stores bounded desired state for the embedded read-only operations MCP.
 	OpsMCP *OpsMCPState `json:"ops_mcp,omitempty"`
+	// Presence stores capability-activated owner obligations and committed generation high-water marks.
+	Presence *PresenceState `json:"presence,omitempty"`
 	// Checksum protects the canonical JSON payload excluding this field.
 	Checksum string `json:"checksum"`
 }

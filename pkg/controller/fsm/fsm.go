@@ -29,6 +29,10 @@ type ApplyResult struct {
 	AppliedRaftIndex uint64
 	// TaskTransitions lists active task state edges produced by this command.
 	TaskTransitions []TaskTransition
+	// PresenceOwnerSet is the exact owner-set result of this applied command.
+	PresenceOwnerSet *state.PresenceOwnerSet
+	// PresenceGeneration is the exact claim result, never a later state reread.
+	PresenceGeneration *state.PresenceGeneration
 }
 
 // AppliedCommand binds a decoded Controller command to its committed Raft position.
@@ -109,6 +113,9 @@ func (sm *StateMachine) Restore(ctx context.Context, st state.ClusterState) erro
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	next := st.Clone()
+	if err := preservePresenceHighWater(sm.state, next); err != nil {
+		return err
+	}
 	if next.Revision != 0 {
 		checksum, err := state.Checksum(next)
 		if err != nil {

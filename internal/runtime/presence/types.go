@@ -108,6 +108,11 @@ type PendingRouteToken string
 
 // RegisterResult describes immediate or pending authority registration work.
 type RegisterResult struct {
+	// Receipt is present only after a strict generation's final activation commit.
+	Receipt *ActivationReceipt
+	// PendingClaim binds a staged conflict to the actual authority that accepted
+	// it. Clients must not reconstruct it from a later route resolution.
+	PendingClaim *GenerationClaim
 	// PendingToken is set when a conflicting route must be committed later.
 	PendingToken PendingRouteToken
 	// Actions are owner-side operations required before committing a pending route.

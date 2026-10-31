@@ -18,7 +18,7 @@ func TestReportV7RejectsLegacyV5ThresholdV1(t *testing.T) {
 	}
 }
 
-func TestReportV7CarriesScopeAndSeparateLatencyWarmup(t *testing.T) {
+func TestReportV8CarriesScopeAndSeparateLatencyWarmup(t *testing.T) {
 	report := reportFixture(t)
 	body, err := MarshalReport(report, ReportFormatJSON)
 	if err != nil {
@@ -28,7 +28,7 @@ func TestReportV7CarriesScopeAndSeparateLatencyWarmup(t *testing.T) {
 	if err := json.Unmarshal(body, &raw); err != nil {
 		t.Fatal(err)
 	}
-	if string(raw["schema_version"]) != `"wukongim/chat-lifecycle-report/v7"` || string(raw["threshold_version"]) != `"wukongim/chat-lifecycle-thresholds/v2"` {
+	if string(raw["schema_version"]) != `"wukongim/chat-lifecycle-report/v8"` || string(raw["threshold_version"]) != `"wukongim/chat-lifecycle-thresholds/v2"` {
 		t.Fatalf("versions = %s / %s", raw["schema_version"], raw["threshold_version"])
 	}
 	if len(raw["qualification"]) == 0 {

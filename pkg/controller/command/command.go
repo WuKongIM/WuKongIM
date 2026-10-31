@@ -40,6 +40,10 @@ const (
 	KindReplaceScheduledBackupState Kind = "replace_scheduled_backup_state"
 	// KindReplaceOpsMCPState replaces bounded embedded operations MCP desired state.
 	KindReplaceOpsMCPState Kind = "replace_ops_mcp_state"
+	// KindEnsurePresenceOwnerSet activates an exactly capability-proven owner roster.
+	KindEnsurePresenceOwnerSet Kind = "ensure_presence_owner_set"
+	// KindClaimPresenceGeneration commits one predecessor-fenced generation claim.
+	KindClaimPresenceGeneration Kind = "claim_presence_generation"
 )
 
 // Command is the versioned payload replicated through Controller Raft.
@@ -78,6 +82,22 @@ type Command struct {
 	ScheduledBackup *state.ScheduledBackupState `json:"scheduled_backup,omitempty"`
 	// OpsMCP contains replacement embedded operations MCP desired state.
 	OpsMCP *state.OpsMCPState `json:"ops_mcp,omitempty"`
+	// PresenceBasis freezes the semantic roster, M and its change high water.
+	PresenceBasis *state.PresenceBasis `json:"presence_basis,omitempty"`
+	// PresenceCapabilities covers every voter and mirror before new state is written.
+	PresenceCapabilities []state.PresenceCapabilities `json:"presence_capabilities,omitempty"`
+	// PresenceJoiningCapability binds a new endpoint to an actual capability response.
+	PresenceJoiningCapability *state.PresenceCapabilities `json:"presence_joining_capability,omitempty"`
+	// PresenceClaim is a rare authority-generation transition, never a SEND command.
+	PresenceClaim *ClaimPresenceGeneration `json:"presence_claim,omitempty"`
+}
+
+// ClaimPresenceGeneration compares the exact predecessor and owner-set epoch at apply.
+type ClaimPresenceGeneration struct {
+	Fence              state.PresenceFence `json:"fence"`
+	OwnerSetEpoch      uint64              `json:"owner_set_epoch"`
+	ServingBoot        uint64              `json:"serving_boot"`
+	ExpectedGeneration uint64              `json:"expected_generation"`
 }
 
 // ControllerVoterPromotion records a proven promotion of one node into Controller Raft voting membership.

@@ -271,6 +271,8 @@ func TestDriverCPUClockDefaultOffAndEnabledKeepBusinessClockReadsAndNativeEviden
 	var native [3][]byte
 	// Original default-off, existing driver timing alone, then the same timing
 	// configuration plus CPU observation. Only the latter two are CPU parity.
+	// A controlled owner delay keeps both misses within the measured owner
+	// prefix; asynchronous SDK work must not manufacture that attribution.
 	for index := 0; index < 3; index++ {
 		enabled := index == 2
 		entry, miss := driverCPUValidPair()
@@ -279,14 +281,14 @@ func TestDriverCPUClockDefaultOffAndEnabledKeepBusinessClockReadsAndNativeEviden
 		if enabled {
 			sample = probe.read
 		}
-		f, clock, uid, at := newDriverCPUFixture(t, sample, index > 0, func(clock *sessionFakeClock, at time.Time) { clock.Set(at.Add(101 * time.Millisecond)) })
+		f, clock, uid, at := newDriverCPUFixture(t, sample, index > 0, nil)
 		driverQueueSends(t, f, uid, at, 2)
 		before := clock.count()
-		_, err := f.engine.AdvanceContext(context.Background(), at)
+		err := driverAdvanceAfterOwnerDelay(t, f, at, false)
 		readCounts[index] = clock.count() - before
 		assertRuntimeFailure(t, err, RuntimeFailureUnderDelivery)
-		assertUnderDeliveryFeedbackJSON(t, f.evidence.Snapshot(), FailureCode(38), 1)
-		if f.factory.sentCount() != 1 {
+		assertUnderDeliveryFeedbackJSON(t, f.evidence.Snapshot(), FailureCode(38), 2)
+		if f.factory.sentCount() != 0 {
 			t.Fatalf("diagnostic changed original admitted SEND count: %d", f.factory.sentCount())
 		}
 		native[index], err = json.Marshal(f.evidence.Snapshot())
@@ -321,7 +323,7 @@ func TestDriverCPUClockDefaultOffAndEnabledKeepBusinessClockReadsAndNativeEviden
 			}
 		}
 	}
-	if readCounts[0] != 3 || readCounts[1] != readCounts[2] {
+	if readCounts[0] != 2 || readCounts[1] != readCounts[2] {
 		t.Fatalf("CPU observation changed clock reads: original=%d driver-only=%d driver+CPU=%d", readCounts[0], readCounts[1], readCounts[2])
 	}
 	if string(native[0]) != string(native[1]) || string(native[1]) != string(native[2]) || workerProtocolVersion != 15 {

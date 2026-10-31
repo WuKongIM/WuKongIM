@@ -15,7 +15,7 @@ import (
 func TestDurableRoundUsesDataBearingPeerBatcherCompletionAsDurableVote(t *testing.T) {
 	executor := &manualPeerExecutor{submitted: make(chan struct{}, 1)}
 	link := &recordingPeerLink{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 4, MaxBatchBytes: 4096,
@@ -81,7 +81,7 @@ func TestPeerBatcherCarriesRecordsAndCoalescesReadyWorkForOneTarget(t *testing.T
 	executor := &manualPeerExecutor{}
 	link := &recordingPeerLink{}
 	observer := &recordingReplicationStageObserver{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor, Observer: observer,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 4, MaxBatchBytes: 4096,
@@ -145,7 +145,7 @@ func TestPeerBatcherDefaultSchedulesSixteenIndependentQuorumFlightsPerTarget(t *
 		started:  make(chan struct{}),
 		release:  make(chan struct{}),
 	}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
@@ -191,7 +191,7 @@ func TestPeerBatcherDefaultSchedulesSixteenIndependentQuorumFlightsPerTarget(t *
 func TestPeerBatcherCoalescesDeferredReplicasOnlyAfterFlush(t *testing.T) {
 	executor := &manualPeerExecutor{}
 	link := &recordingPeerLink{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 4, MaxBatchBytes: 4096,
@@ -229,7 +229,7 @@ func TestPeerBatcherUrgentReplicaOvertakesQueuedTrailingReplica(t *testing.T) {
 		started:  make(chan struct{}),
 		release:  make(chan struct{}),
 	}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxTargetFlight: 2,
@@ -277,7 +277,7 @@ func TestPeerBatcherUrgentReplicaOvertakesQueuedTrailingReplica(t *testing.T) {
 func TestPeerBatcherCarriesBoundedRecoveryProbes(t *testing.T) {
 	executor := &manualPeerExecutor{}
 	link := &recordingPeerLink{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 4, MaxBatchBytes: 4096,
@@ -346,7 +346,7 @@ func TestPeerBatcherCarriesAndValidatesBoundedRecoveryFetch(t *testing.T) {
 		Proposals: []RecoveryProposal{{Manifest: replicate.Manifest, Records: replicate.Records}},
 	}
 	link := &recordingPeerLink{fetches: map[ch.ChannelKey]FetchResult{request.ChannelKey: want}}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 2, MaxBatchBytes: 4096,
@@ -374,7 +374,7 @@ func TestPeerBatcherCarriesAndValidatesBoundedRecoveryFetch(t *testing.T) {
 
 func TestPeerBatcherRejectsProbeProofForAnotherChannel(t *testing.T) {
 	executor := &manualPeerExecutor{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: swappedProbeProofPeerLink{}, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 2, MaxBatchBytes: 4096,
@@ -402,7 +402,7 @@ func TestPeerBatcherSeparatesReadAndWriteForSameChannel(t *testing.T) {
 	identity := recoveryIdentity(1, 1)
 	probeResult := recoveryReport(2, 1, 1, []EntryProbe{{Index: 1, Present: true, Identity: identity}}).Result
 	link := &recordingPeerLink{probes: map[ch.ChannelKey]ProbeResult{"1:mixed": probeResult}}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 4, MaxBatchBytes: 4096,
@@ -436,7 +436,7 @@ func TestPeerBatcherCoalescesSameKindAcrossIndependentChannelInterleaving(t *tes
 	probeIdentity := recoveryIdentity(1, 1)
 	probeResult := recoveryReport(2, 1, 1, []EntryProbe{{Index: 1, Present: true, Identity: probeIdentity}}).Result
 	link := &recordingPeerLink{probes: map[ch.ChannelKey]ProbeResult{"1:probe": probeResult}}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 4, MaxBatchBytes: 4096,
@@ -479,7 +479,7 @@ func TestPeerBatcherDoesNotReorderOneChannelAcrossKinds(t *testing.T) {
 	probeIdentity := recoveryIdentity(1, 1)
 	probeResult := recoveryReport(2, 1, 1, []EntryProbe{{Index: 1, Present: true, Identity: probeIdentity}}).Result
 	link := &recordingPeerLink{probes: map[ch.ChannelKey]ProbeResult{"1:ordered": probeResult}}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 4, MaxBatchBytes: 4096,
@@ -518,7 +518,7 @@ func TestPeerBatcherDoesNotReorderOneChannelAcrossKinds(t *testing.T) {
 func TestDurableRoundOwnsOneImmutablePayloadCopyAcrossFollowers(t *testing.T) {
 	executor := &manualPeerExecutor{submitted: make(chan struct{}, 2)}
 	link := &recordingPeerLink{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 2, MaxBatchBytes: 4096,
@@ -565,7 +565,7 @@ func TestDurableRoundOwnsOneImmutablePayloadCopyAcrossFollowers(t *testing.T) {
 func TestDurableRoundSharesDeclaredImmutablePayloadAcrossFollowers(t *testing.T) {
 	executor := &manualPeerExecutor{submitted: make(chan struct{}, 2)}
 	link := &recordingPeerLink{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor, OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 2, MaxBatchBytes: 4096,
 		MaxQueuedItems: 4, MaxQueuedBytes: 8192, MaxTargetQueuedItems: 2, MaxTargetQueuedBytes: 4096,
@@ -609,7 +609,7 @@ func TestDurableRoundSharesDeclaredImmutablePayloadAcrossFollowers(t *testing.T)
 func TestPeerBatcherSplitsOneTargetWithoutASecondCollectionTimer(t *testing.T) {
 	executor := &manualPeerExecutor{}
 	link := &recordingPeerLink{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		// This case verifies serial [2,1] draining, not the default parallel
 		// handoff that lets another ready Channel advance during callbacks.
@@ -640,7 +640,7 @@ func TestPeerBatcherSplitsOneTargetWithoutASecondCollectionTimer(t *testing.T) {
 func TestPeerBatcherBoundsAcceptedOwnershipUntilCompletion(t *testing.T) {
 	executor := &manualPeerExecutor{}
 	link := &recordingPeerLink{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 2, MaxBatchBytes: 4096,
@@ -678,7 +678,7 @@ func TestPeerBatcherCorrelatesOutOfOrderResultsAndRejectsDuplicates(t *testing.T
 		t.Run(tc.name, func(t *testing.T) {
 			executor := &manualPeerExecutor{}
 			link := &reorderingPeerLink{duplicate: tc.duplicate}
-			batcher, err := newPeerBatcher(peerBatcherConfig{
+			batcher, err := newManualPeerBatcher(peerBatcherConfig{
 				Link: link, Executor: executor,
 				OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 				MaxBatchItems: 2, MaxBatchBytes: 4096,
@@ -717,7 +717,7 @@ func TestPeerBatcherCorrelatesOutOfOrderResultsAndRejectsDuplicates(t *testing.T
 func TestPeerBatcherRejectsDurableResultForAnotherManifest(t *testing.T) {
 	executor := &manualPeerExecutor{}
 	link := &wrongProofPeerLink{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
@@ -744,7 +744,7 @@ func TestPeerBatcherRejectsDurableResultForAnotherManifest(t *testing.T) {
 
 func TestPeerBatcherRejectsCanceledCallerBeforeAdmission(t *testing.T) {
 	executor := &manualPeerExecutor{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: &recordingPeerLink{}, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
@@ -768,7 +768,7 @@ func TestPeerBatcherOwnerCancellationReleasesHungExchange(t *testing.T) {
 	owner, cancelOwner := context.WithCancel(context.Background())
 	link := &blockingPeerLink{started: make(chan struct{})}
 	executor := &manualPeerExecutor{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: owner, ExchangeTimeout: time.Minute,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
@@ -808,7 +808,7 @@ func TestPeerBatcherOwnerCancellationReleasesHungExchange(t *testing.T) {
 
 func TestPeerBatcherBoundsOneTargetWithoutBlockingAnother(t *testing.T) {
 	executor := &manualPeerExecutor{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: &recordingPeerLink{}, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
@@ -835,7 +835,7 @@ func TestPeerBatcherBoundsOneTargetWithoutBlockingAnother(t *testing.T) {
 }
 
 func TestPeerBatcherRequiresGlobalHeadroomForAnotherTarget(t *testing.T) {
-	_, err := newPeerBatcher(peerBatcherConfig{
+	_, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: &recordingPeerLink{}, Executor: &manualPeerExecutor{},
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
@@ -848,7 +848,7 @@ func TestPeerBatcherRequiresGlobalHeadroomForAnotherTarget(t *testing.T) {
 
 func TestDurableRoundRetainsFollowerNeedFromWithoutClassifyingGapAsConflict(t *testing.T) {
 	executor := &manualPeerExecutor{submitted: make(chan struct{}, 1)}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: needFromPeerLink{}, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
@@ -896,7 +896,7 @@ func TestTrailingFollowerNeedFromReachesOwnedRepairSinkAfterQuorumReturns(t *tes
 	followers := []ch.NodeID{2, 3}
 	primary := followers[preferredFollowerIndex(request.ChannelKey, len(followers))]
 	trailing := followers[1-preferredFollowerIndex(request.ChannelKey, len(followers))]
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: splitFollowerPeerLink{durable: primary}, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
@@ -940,7 +940,7 @@ func TestTrailingFollowerNeedFromReachesOwnedRepairSinkAfterQuorumReturns(t *tes
 func TestHedgedFollowerFailureReachesOwnedRepairSinkAfterRoundCanReturn(t *testing.T) {
 	executor := &manualPeerExecutor{submitted: make(chan struct{}, 1)}
 	request := testReplicateRequest(t, "1:hedged-failure", "hedged-failure", 1, []byte("payload"))
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: panicPeerLink{}, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
@@ -977,7 +977,7 @@ func TestHedgedFollowerFailureReachesOwnedRepairSinkAfterRoundCanReturn(t *testi
 
 func TestPeerBatcherMapsPeerPanicToOutcomeUnknownAndReleasesOwnership(t *testing.T) {
 	executor := &manualPeerExecutor{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: panicPeerLink{}, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 1, MaxBatchBytes: 4096,
@@ -1020,6 +1020,7 @@ type manualPeerExecutor struct {
 	mu        sync.Mutex
 	tasks     []func()
 	submitted chan struct{}
+	callbacks *manualPeerCallbackExecutor
 }
 
 func (e *manualPeerExecutor) Submit(task func()) error {
@@ -1041,9 +1042,77 @@ func (e *manualPeerExecutor) Len() int {
 func (e *manualPeerExecutor) RunNext() {
 	e.mu.Lock()
 	task := e.tasks[0]
+	e.tasks[0] = nil
 	e.tasks = e.tasks[1:]
 	e.mu.Unlock()
 	task()
+	e.RunCallbacks()
+}
+
+// RunCallbacks explicitly drives accepted callback tasks after an I/O step.
+// Len and submitted deliberately retain their original I/O-only meaning.
+func (e *manualPeerExecutor) RunCallbacks() {
+	e.mu.Lock()
+	callbacks := e.callbacks
+	e.mu.Unlock()
+	if callbacks != nil {
+		callbacks.pump()
+	}
+}
+
+func (e *manualPeerExecutor) CallbackLen() int {
+	e.mu.Lock()
+	callbacks := e.callbacks
+	e.mu.Unlock()
+	if callbacks == nil {
+		return 0
+	}
+	callbacks.mu.Lock()
+	defer callbacks.mu.Unlock()
+	return len(callbacks.tasks)
+}
+
+// manualPeerCallbackExecutor replaces only the executor boundary. Submit never
+// invokes a task; explicit pumps may run concurrently without duplicating work.
+type manualPeerCallbackExecutor struct {
+	mu    sync.Mutex
+	tasks []func()
+}
+
+func (e *manualPeerCallbackExecutor) Submit(task func()) error {
+	e.mu.Lock()
+	e.tasks = append(e.tasks, task)
+	e.mu.Unlock()
+	return nil
+}
+
+func (e *manualPeerCallbackExecutor) pump() {
+	for {
+		e.mu.Lock()
+		if len(e.tasks) == 0 {
+			e.mu.Unlock()
+			return
+		}
+		task := e.tasks[0]
+		e.tasks[0] = nil
+		e.tasks = e.tasks[1:]
+		e.mu.Unlock()
+		// A panic intentionally propagates to the same test executor owner;
+		// later accepted tasks remain available to another explicit pump.
+		task()
+	}
+}
+
+func newManualPeerBatcher(cfg peerBatcherConfig) (*peerBatcher, error) {
+	if executor, ok := cfg.Executor.(*manualPeerExecutor); ok && cfg.CallbackExecutor == nil {
+		executor.mu.Lock()
+		if executor.callbacks == nil {
+			executor.callbacks = &manualPeerCallbackExecutor{}
+		}
+		cfg.CallbackExecutor = executor.callbacks
+		executor.mu.Unlock()
+	}
+	return newPeerBatcher(cfg)
 }
 
 type recordingPeerLink struct {

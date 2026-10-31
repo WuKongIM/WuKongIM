@@ -35,11 +35,14 @@ type observerState struct {
 type ObserverDrain struct {
 	// aggregates batch counters without queueing a goroutine wakeup per event.
 	aggregates [16]observerAggregateShard
-	dropped    atomic.Uint64
-	target     Observer
-	events     chan Event
-	stateReady chan struct{}
-	done       chan struct{}
+	// aggregateBatch belongs only to the drain goroutine. Its finite key set
+	// bounds retained delivery storage; delivered references are cleared.
+	aggregateBatch []Event
+	dropped        atomic.Uint64
+	target         Observer
+	events         chan Event
+	stateReady     chan struct{}
+	done           chan struct{}
 
 	// stateMu protects source revisions, latest values and pending membership.
 	stateMu sync.Mutex

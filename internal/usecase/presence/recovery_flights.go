@@ -66,10 +66,14 @@ type recoveryMember struct {
 // recoveryWork owns the newly missing subset of one original call. Workers
 // publish it before callers join old flights, so overlapping calls cannot cycle.
 type recoveryWork struct {
-	creator *recoveryMember
-	groups  []EndpointLookupGroup
-	flights []*recoveryUIDFlight
-	bytes   int
+	// preparation is a finite control task in this same FIFO and ownership ledger.
+	preparation *recoveryPreparation
+	// slotCall retains Full status/ownership between physical page turns.
+	slotCall *slotRecoveryCall
+	creator  *recoveryMember
+	groups   []EndpointLookupGroup
+	flights  []*recoveryUIDFlight
+	bytes    int
 	// started closes at dispatch or queued termination, not provider return.
 	started chan struct{}
 	// queuedWait records FIFO/capacity waiting, excluding an idle dispatch turn.
@@ -84,9 +88,10 @@ type recoveryWork struct {
 // installation and response references finish. Only all-member cancellation or
 // Close cancels its root; no member supplies a shared execution deadline.
 type recoveryExecution struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	works  []*recoveryWork
+	slotTurn *slotRecoveryTurn
+	ctx      context.Context
+	cancel   context.CancelFunc
+	works    []*recoveryWork
 	// usage is a mu-protected observation, never an admission reservation.
 	usage RecoveryResultUsage
 }
@@ -103,12 +108,22 @@ func (r *AuthorityRecovery) Close(ctx context.Context) error {
 		for m := range r.members {
 			close(m.stop)
 		}
-		for len(r.queue) > 0 {
-			r.finishWorkLocked(r.queue[0], nil)
+		if r.fullSlots != nil {
+			r.fullSlots.stop()
+			for _, w := range r.queue {
+				r.updateSlotCallLiveLocked(w, map[*recoveryMember]bool{})
+			}
+		} else {
+			for len(r.queue) > 0 {
+				r.finishWorkLocked(r.queue[0], nil)
+			}
+			r.queue = nil
 		}
-		r.queue = nil
 		for e := range r.active {
 			e.cancel()
+		}
+		if r.fullSlots != nil {
+			r.dispatchSlotStepsLocked()
 		}
 		r.maybeDrainedLocked()
 	}
@@ -340,8 +355,11 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 	workBytes := 0
 	if len(newKeys) > 0 {
 		workBytes = 256 + len(missing)*128 + len(newKeys)*256 + cloneBytes
+		if r.fullSlots != nil {
+			workBytes += 128 + len(missing)*128
+		}
 	}
-	if len(r.members) >= recoveryMaxMembers || len(newKeys) > recoveryMaxKeys-len(r.inFlight) || memberBytes+workBytes > recoveryMaxUIDBytes-r.ownedUIDBytes {
+	if len(r.members) >= recoveryMaxMembers || len(newKeys) > recoveryMaxKeys-len(r.inFlight)-r.preparationKeys || memberBytes+workBytes > recoveryMaxUIDBytes-r.ownedUIDBytes {
 		markRecoveryAdmissionFailures(results, indexes)
 		return results, nil, waits, readbacks
 	}
@@ -392,6 +410,9 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 		}
 	}
 	if m.work != nil {
+		if r.fullSlots != nil {
+			m.work.slotCall = newSlotRecoveryCall(m.work.groups)
+		}
 		m.work.queuedWait = len(r.queue) > 0 || len(r.active) == recoveryMaxCohorts || (r.boundedOwners == nil && r.resultCalls == recoveryMaxResultCalls)
 		r.queue = append(r.queue, m.work)
 	}
@@ -414,6 +435,9 @@ func (r *AuthorityRecovery) returnMember(m *recoveryMember) {
 	defer r.mu.Unlock()
 	m.returned = true
 	works := make(map[*recoveryWork]struct{})
+	if m.work != nil && m.work.preparation != nil {
+		works[m.work] = struct{}{}
+	}
 	for _, f := range m.flights {
 		delete(f.users, m)
 		// Historical follower peaks must not retain an uncharged large map after
@@ -437,9 +461,14 @@ func (r *AuthorityRecovery) returnMember(m *recoveryMember) {
 		if w.finished {
 			continue
 		}
+		if r.fullSlots != nil {
+			r.updateSlotCallLiveLocked(w, states)
+		}
 		if w.execution == nil {
 			if !r.workHasUsersLocked(w, states) {
-				r.finishWorkLocked(w, nil)
+				if w.slotCall == nil || !w.slotCall.owned() {
+					r.finishWorkLocked(w, nil)
+				}
 			}
 		} else {
 			executions[w.execution] = struct{}{}
@@ -481,6 +510,9 @@ func recoveryMemberLive(m *recoveryMember, states map[*recoveryMember]bool) bool
 	return live
 }
 func (r *AuthorityRecovery) workHasUsersLocked(w *recoveryWork, states map[*recoveryMember]bool) bool {
+	if w.preparation != nil {
+		return recoveryMemberLive(w.creator, states)
+	}
 	for _, f := range w.flights {
 		for m := range f.users {
 			if recoveryMemberLive(m, states) {
@@ -520,7 +552,7 @@ func (r *AuthorityRecovery) liveRecoveryUIDs(w *recoveryWork, g EndpointLookupGr
 // kickLocked gives already-ready admissions and completions one dispatch
 // owner. It adds no collection timer and exits after taking currently ready work.
 func (r *AuthorityRecovery) kickLocked() {
-	if r.closed || r.dispatchPending {
+	if (r.closed && r.fullSlots == nil) || r.dispatchPending {
 		return
 	}
 	r.dispatchPending = true
@@ -537,6 +569,10 @@ func (r *AuthorityRecovery) kickLocked() {
 // Legacy providers retain the sixteen-call guard. Bounded providers reserve
 // before each allocation, without waiting while holding partial resources.
 func (r *AuthorityRecovery) dispatchLocked() {
+	if r.fullSlots != nil {
+		r.dispatchSlotStepsLocked()
+		return
+	}
 	for !r.closed && len(r.queue) > 0 && len(r.active) < recoveryMaxCohorts && (r.boundedOwners != nil || r.resultCalls < recoveryMaxResultCalls) {
 		works := make([]*recoveryWork, 0, 16)
 		groups, uids := 0, 0
@@ -572,7 +608,7 @@ func (r *AuthorityRecovery) dispatchLocked() {
 		e := &recoveryExecution{ctx: executionCtx, cancel: cancel, works: works}
 		for _, w := range works {
 			w.execution = e
-			close(w.started)
+			markRecoveryStarted(w)
 		}
 		r.active[e] = struct{}{}
 		r.resultCalls += len(works)
@@ -802,11 +838,18 @@ func (r *AuthorityRecovery) finishWorkLocked(w *recoveryWork, outcomes map[recov
 				break
 			}
 		}
-		close(w.started)
+		markRecoveryStarted(w)
 	}
 	var defaultErr error
 	if outcomes == nil {
 		defaultErr = WrapActivationPhase(ActivationPhaseRecoveryAdmission, authority.ErrRouteNotReady)
+	}
+	if w.preparation != nil {
+		if outcomes == nil {
+			w.preparation.err = defaultErr
+		}
+		r.preparationKeys--
+		close(w.preparation.done)
 	}
 	for _, f := range w.flights {
 		key := f.key
@@ -828,6 +871,10 @@ func (r *AuthorityRecovery) finishWorkLocked(w *recoveryWork, outcomes map[recov
 		close(f.done)
 	}
 	w.groups = nil
+	if w.slotCall != nil {
+		r.fullSlots.releaseSlotCall(w.slotCall)
+		w.slotCall = nil
+	}
 	w.flights = nil
 	creator := w.creator
 	w.creator = nil
