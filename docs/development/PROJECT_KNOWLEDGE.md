@@ -1,5 +1,12 @@
 # Project Knowledge
 
+Transport observation flushes reuse one drain-owned event batch rather than
+allocating a new slice every tick. The existing finite aggregate-key population
+bounds its growth; delivery clears references, while duration samples remain
+detached for observers that retain them. Counters arriving during a slow callback
+stay in their shards and Stop joins their final delivery. This reduces one measured
+allocation source; it does not establish full-workload heap or RSS attribution.
+
 `BoundedBatchPool` sizes a new backing array from ready queue depth rather than
 the maximum batch size. This depth is an allocation hint, not an admission or
 batch limit: late arrivals may still grow the batch during collection and

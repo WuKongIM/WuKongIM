@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Reuse bounded transport observation batches to reduce temporary allocations,
+  preserving exact counters and detached latency samples.
+  / 传输观测复用有界事件批次，减少临时分配，保留精确计数和独立延迟样本。
+
 - Retain fixed permission classifications and bounded failed SEND sequences in
   mixed benchmark warmup evidence without changing acceptance gates.
   / 混合压测预热证据保留固定权限阶段分类和有界失败发送序号，验收门禁保持不变。
