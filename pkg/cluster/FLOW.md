@@ -105,9 +105,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Write readiness validates every routed Slot's live leader/term and Channel
   placement on each call. Concurrent noop proposal batches coalesce per node;
   successful write proof is reusable for at most two seconds from proposal start
-  under unchanged route revision, mapping and leaders/terms. Maintenance,
-  restart and observed readiness failures invalidate proof. Reuse does not renew
-  the proof window or the Channel data-plane lease; Propose-only overrides
+  under unchanged mapping, replicas, config, leaders/terms and local ABA epochs;
+  unrelated logical revisions do not revoke proof. Incomplete publication,
+  maintenance, restart and observed readiness failures invalidate proof. Reuse does not renew the proof window or the Channel data-plane lease; Propose-only overrides
   without live Slot status evidence always perform their writes.
 - When healthy readiness cannot be published, the data-plane lease expires; local Channel leaders reject new writes without discarding admitted work.
 - Slot and Channel metadata are authoritative at their current owners. Caches, hints, codecs and local replicas

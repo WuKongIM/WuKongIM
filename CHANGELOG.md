@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Keep write readiness stable during unrelated Presence control updates while
+  preserving real route-change and restart fences. / Presence 控制状态更新不再
+  误伤写就绪探测，真实路由变化和重启的保护保持有效。
+
 - Bound lifecycle benchmark full-sync concurrency across login bursts, retain
   queue wait in sync latency, and explicitly disable Top history in local runs.
   / 生命周期压测限制登录突发时的全量同步并发，等待时间计入同步延迟，

@@ -2855,3 +2855,11 @@ completion, installation and provider-reference release.
   Post-join detached records cross a nonblocking channel into one private
   asynchronous64KiB CLI sidecar per process. Stop never waits for its IO.
   Neither protocol15 nor native evidence, reports, counters or gates include it.
+
+- Write-readiness proof uses actual hash mapping, replica/config fences, live
+  leader/term and node-local authority epochs, with one internally consistent
+  publication per cut. Presence generation claims may advance Controller logical
+  revision without changing this authority. Such revisions must not revoke or
+  renew the original two-second proof; observed authority ABA still revokes it.
+  This mechanism is regression-tested; the Mac full-scale startup/2h result
+  remains a separate verification, not implied by a passing seam test.
