@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Bound lifecycle benchmark full-sync concurrency across login bursts, retain
+  queue wait in sync latency, and explicitly disable Top history in local runs.
+  / 生命周期压测限制登录突发时的全量同步并发，等待时间计入同步延迟，
+  本地测试明确关闭 Top 历史采集。
+
 - Stop retaining hidden Top history when Top is disabled, while keeping resource
   and storage metrics fresh. / 关闭 Top 时不再保留隐藏历史，资源与存储指标继续更新。
 

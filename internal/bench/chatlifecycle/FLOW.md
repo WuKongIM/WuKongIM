@@ -12,8 +12,7 @@ continuous observation, natural Channel lifecycle proof, evidence reduction, and
 
 ## Boundaries
 
-Production composition injects public HTTP, WKProto, worker-control, metrics,
-host-observation, clock, and report ports; `internal/bench/wkproto` owns transport.
+Production composition injects public HTTP, WKProto, worker-control, metrics, host-observation, clock, and report ports; `internal/bench/wkproto` owns transport.
 Cloud orchestration owns paid infrastructure and cleanup; this package consumes immutable cost, expiry, topology, and dataset evidence.
 
 ## Main Flows
@@ -48,6 +47,7 @@ passing 72-hour formal generation -> same aged dataset and process proof
   SEND deadlines. Frequent due-work advancement does not advance the one-second
   login or rate-allocation clock; overdue planned SENDs remain explicit underdelivery.
 - Before CONNECT, each login upserts its APP token through the authenticated Bench API within five seconds and the session concurrency bound. Failure blocks CONNECT; Bench secrets stay worker-local and no UID history is kept.
+- Full HTTP sync has four active callers per generation (twelve across the validated three workers). Remaining callers retain bounded Starting ownership and their original context; waiting is included in sync latency. CONNECT/SEND clocks, endpoint fallback, failure evidence and retries stay unchanged.
 - Each workload connection starts with one 8KiB owned read buffer, with incomplete
   frames growing on demand. Queue capacities and deadline/acceptance gates remain unchanged.
 - The measured clock starts only after all users finish real CONNECT plus a fresh zero-coverage conversation sync and all workers accept the first grant.

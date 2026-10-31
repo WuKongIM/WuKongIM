@@ -8,6 +8,25 @@ import (
 	"testing"
 )
 
+func TestChatLifecycleShakeoutDisablesTopHistoryButKeepsMetrics(t *testing.T) {
+	script := readFile(t, filepath.Join(repoRoot(t), "scripts", "run-wukongim-three-node-chat-lifecycle-shakeout.sh"))
+	_, body, ok := strings.Cut(script, "start_service() {")
+	if !ok {
+		t.Fatal("service launch function missing")
+	}
+	body, _, ok = strings.Cut(body, "\nstart_worker() {")
+	if !ok {
+		t.Fatal("service launch boundary missing")
+	}
+	// Explicit env assignments on the service command override both inherited
+	// settings and the shared node TOML's normal operator-facing Top default.
+	for _, assignment := range []string{"WK_TOP_API_ENABLE=false \\\n", "WK_METRICS_ENABLE=true \\\n"} {
+		if !strings.Contains(body, assignment) {
+			t.Fatalf("performance service command missing explicit %q", assignment)
+		}
+	}
+}
+
 func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 	root := repoRoot(t)
 	scriptPath := filepath.Join(root, "scripts", "run-wukongim-three-node-chat-lifecycle-shakeout.sh")

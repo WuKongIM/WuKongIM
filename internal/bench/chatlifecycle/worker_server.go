@@ -1245,7 +1245,10 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 	newSyncer := f.newSyncer
 	if newSyncer == nil {
 		newSyncer = func(assignment WorkerAssignment) (ConversationSyncer, error) {
-			return target.NewClient(target.Config{APIAddrs: assignment.Config.Observation.APIAddrs}), nil
+			return &workerConversationSyncer{
+				next:      target.NewClient(target.Config{APIAddrs: assignment.Config.Observation.APIAddrs}),
+				admission: make(chan struct{}, workerFullSyncConcurrency),
+			}, nil
 		}
 	}
 	syncer, err := newSyncer(assignment)

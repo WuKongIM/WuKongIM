@@ -1,5 +1,14 @@
 # Project Knowledge
 
+Lifecycle bootstrap retains its global 100-login/s clock and bounded Starting
+sessions. The production three-worker composition admits four full HTTP syncs
+per generation (twelve total), including all pages and existing endpoint
+fallback, below one node's sixteen active list requests. Waiting remains inside
+the original caller context and native sync latency. No extra goroutine, retry,
+history or product admission change is introduced; cancellation never dispatches
+a queued sync after its permit becomes available. This does not prove the exact
+unrecorded cause of historical CI sync failures.
+
 Tests disable Top history with `WK_TOP_API_ENABLE=false` while retaining
 `WK_METRICS_ENABLE=true`. In this mode the hidden sampler refreshes resource and
 storage gauges without allocating a Top ring, collecting cluster snapshots or
