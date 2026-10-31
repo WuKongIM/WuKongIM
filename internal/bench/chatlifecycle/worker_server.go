@@ -1229,9 +1229,30 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 	newSessionFactory := f.newSessionFactory
 	if newSessionFactory == nil {
 		newSessionFactory = func(assignment WorkerAssignment) (SessionClientFactory, error) {
-			gatewayAddress := assignment.Config.Observation.GatewayTCPAddrs[int(assignment.WorkerID)%len(assignment.Config.Observation.GatewayTCPAddrs)]
+			gateways := append([]string(nil), assignment.Config.Observation.GatewayTCPAddrs...)
+			workerID, workerCount := assignment.WorkerID, assignment.WorkerCount
+			gatewayAddress := gateways[workerID%uint64(len(gateways))]
 			return engineWorkerSessionFactory{
 				address: gatewayAddress, ackTimeout: assignment.Config.Thresholds.Latency.SingleAnomaly,
+				gatewayForUID: func(uid string) (string, error) {
+					index, ok := identity.IndexFromUID(uid)
+					owner, _ := identity.Owner(index)
+					if !ok || owner != workerID {
+						return "", errWorkerServerConfig
+					}
+					group, ordinal, member, err := catalog.GroupForMemberIndex(index)
+					if err != nil {
+						return "", errWorkerServerConfig
+					}
+					if !member {
+						return gatewayAddress, nil
+					}
+					// Keep the original member-ordinal gateway projection while
+					// its driver owns an aligned roster for sampled verification.
+					// Catalog/member bounds cap this virtual index below 200M.
+					originalIndex := group.Index + uint64(ordinal)*uint64(catalog.Count())
+					return gateways[(originalIndex%workerCount)%uint64(len(gateways))], nil
+				},
 				enableAttemptLinkDiagnostics: f.enableAttemptLinkDiagnostics,
 				runID:                        assignment.RunID, assignmentID: assignment.AssignmentID,
 				tokens: target.NewClient(target.Config{APIAddrs: assignment.Config.Observation.APIAddrs, Token: f.benchToken, HTTPClient: &http.Client{Timeout: 5 * time.Second}}),
@@ -1453,10 +1474,13 @@ func (t *wallWorkerGenerationTicker) Stop() { t.ticker.Stop() }
 
 type engineWorkerSessionFactory struct {
 	// tokens persists one device credential before its CONNECT; the session pool bounds concurrent logins.
-	tokens                       *target.Client
-	runID                        string
-	assignmentID                 string
-	address                      string
+	tokens       *target.Client
+	runID        string
+	assignmentID string
+	address      string
+	// gatewayForUID decouples fixed roster ownership from product-node placement.
+	// Nil retains the direct single-endpoint adapter used by connected tests.
+	gatewayForUID                func(string) (string, error)
 	ackTimeout                   time.Duration
 	enableAttemptLinkDiagnostics bool
 }
@@ -1467,6 +1491,14 @@ func (f engineWorkerSessionFactory) NewSession(ctx context.Context, uid, token s
 	}
 	if f.tokens == nil {
 		return nil, errWorkerServerConfig
+	}
+	address := f.address
+	if f.gatewayForUID != nil {
+		var err error
+		address, err = f.gatewayForUID(uid)
+		if err != nil {
+			return nil, err
+		}
 	}
 	// Repeated and returning logins upsert the same credential without retaining
 	// an unbounded history of prepared UIDs. APP/slave matches the WKProto client.
@@ -1486,7 +1518,7 @@ func (f engineWorkerSessionFactory) NewSession(ctx context.Context, uid, token s
 	}
 
 	client, err := wkproto.NewClient(wkproto.ClientConfig{
-		Addr: f.address, Token: token, EnableAttemptLinkDiagnostics: f.enableAttemptLinkDiagnostics,
+		Addr: address, Token: token, EnableAttemptLinkDiagnostics: f.enableAttemptLinkDiagnostics,
 		OperationTimeout: 5 * time.Second, AckTimeout: f.ackTimeout,
 		// Large frames grow on demand; each online user initially retains only 8KiB.
 		SendQueueCapacity: 32, MaxInflight: 32, ReadBufferSize: 8 << 10, FrameBufferSize: 32,

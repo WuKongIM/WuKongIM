@@ -27,8 +27,10 @@ move those entries into a version section named for that exact tag.
 ### 🐛 Bug Fixes / 问题修复
 
 - Keep benchmark group members on their group's worker so reducing the online
-  population does not strand sampled group messages before latency measurement.
-  / 压测群成员与群所属进程对齐，避免降低在线人数后抽样群消息无法发送、提前中断延迟测试。
+  population does not strand sampled group messages before latency measurement;
+  preserve their original product gateway distribution across nodes.
+  / 压测群成员与群所属进程对齐，避免降低在线人数后抽样群消息无法发送、提前中断延迟测试，
+  同时保留群成员原有的跨节点网关分布。
 
 - Attempt bounded initial Presence recovery before opening business entries,
   reducing contention between first logins and durable token provisioning.

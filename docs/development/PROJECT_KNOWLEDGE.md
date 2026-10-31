@@ -8,6 +8,10 @@ The aligned layout retains group sizes, traffic shares, UID ownership and bounde
 O(1) membership reconstruction; padding residues are not group members. Fresh
 runs prepare the resulting roster. Old runs and their evidence retain their
 original source/layout and are never resumed or relabeled.
+Driver ownership does not choose a group's product gateway: each member retains
+the original catalog-ordinal gateway projection, avoiding same-node fanout after
+roster alignment. The copied endpoint pool is fixed per generation; route
+selection is O(1) before the existing token upsert, with no added RPC or history.
 
 Lifecycle bootstrap retains its global 100-login/s clock and bounded Starting
 sessions. The production three-worker composition admits four full HTTP syncs
