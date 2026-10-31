@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Reduce lifecycle benchmark connection memory with a single adaptive WKProto
+  read buffer and an 8KiB initial size, preserving large frames and receive backpressure.
+  / 生命周期压测连接改用单个按需扩容的 WKProto 读缓冲，初始为 8KiB，保留大帧和接收背压。
+
 - Give hot lifecycle SEND attempts a separate two-second wait budget, including
   retries; retain five seconds for cold attempts and the existing latency limits.
   / 生命周期压测的热消息尝试（含重试）独立等待两秒；冷消息仍为五秒，延迟门禁不变。

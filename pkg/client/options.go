@@ -51,7 +51,8 @@ type Config struct {
 	BatchMaxBytes int
 	// BatchMaxWait bounds the time spent collecting nearby SEND frames.
 	BatchMaxWait time.Duration
-	// ReadBufferSize is the socket read buffer size used by the reader loop.
+	// ReadBufferSize is the initial owned socket read buffer size. Incomplete
+	// frames grow on demand; small suffixes return to this base after decoding.
 	ReadBufferSize int
 	// InboundFrameBufferSize is the inbound RECV queue size before socket backpressure.
 	InboundFrameBufferSize int

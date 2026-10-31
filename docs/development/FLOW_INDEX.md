@@ -82,7 +82,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/channel/FLOW.md](../../pkg/channel/FLOW.md) | `subtree` | Implements the reusable multi-reactor Channel log runtime, replication, persistence ports, transport, services, and bounded workers. | 150 | warning |
 | [pkg/channel/reactor/FLOW.md](../../pkg/channel/reactor/FLOW.md) | `package` | Owns Channel-keyed reactor state, event scheduling, replication progress, lifecycle transitions, and fenced worker completion. | 102 | warning |
 | [pkg/channel/worker/FLOW.md](../../pkg/channel/worker/FLOW.md) | `package` | Runs bounded typed Channel store and RPC tasks with fenced completions, class-aware batching, lease cleanup, and observations. | 83 | ok |
-| [pkg/client/FLOW.md](../../pkg/client/FLOW.md) | `package` | Provides a tooling-grade WKProto TCP client with session crypto, bounded SEND/RECV queues, exact ACK matching, and pooling. | 72 | ok |
+| [pkg/client/FLOW.md](../../pkg/client/FLOW.md) | `package` | Provides a tooling-grade WKProto TCP client with session crypto, bounded SEND/RECV queues, exact ACK matching, and pooling. | 75 | ok |
 | [pkg/cluster/FLOW.md](../../pkg/cluster/FLOW.md) | `subtree` | Composes Controller state, Slot Multi-Raft metadata, typed node RPC, routing, and replicated Channel runtimes behind Node. | 150 | warning |
 | [pkg/controller/FLOW.md](../../pkg/controller/FLOW.md) | `subtree` | Implements the canonical Controller Raft runtime, durable cluster state, mirror synchronization, planning, and fenced task transitions. | 140 | warning |
 | [pkg/db/FLOW.md](../../pkg/db/FLOW.md) | `subtree` | Guides node-local storage ownership, root lifecycle, message and metadata domains, snapshots, metrics, and engine isolation. | 117 | warning |

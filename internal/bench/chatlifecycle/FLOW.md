@@ -48,6 +48,8 @@ passing 72-hour formal generation -> same aged dataset and process proof
   SEND deadlines. Frequent due-work advancement does not advance the one-second
   login or rate-allocation clock; overdue planned SENDs remain explicit underdelivery.
 - Before CONNECT, each login upserts its APP token through the authenticated Bench API within five seconds and the session concurrency bound. Failure blocks CONNECT; Bench secrets stay worker-local and no UID history is kept.
+- Each workload connection starts with one 8KiB owned read buffer, with incomplete
+  frames growing on demand. Queue capacities and deadline/acceptance gates remain unchanged.
 - The measured clock starts only after all users finish real CONNECT plus a fresh zero-coverage conversation sync and all workers accept the first grant.
 - Repository YAML keeps reviewed stage durations fixed; only the direct repair rehearsal CLI may inject and report a bounded process duration, and formal or shakeout evidence never accepts it.
 - Engine heaps, maps, queues, correlations, samples, and histories are bounded.
@@ -62,10 +64,8 @@ passing 72-hour formal generation -> same aged dataset and process proof
   existing ACK settlement while its callback is queued. Missing state proves nothing;
   strict public registration, real terminal errors and correctness budgets remain.
 - Initial SENDs settle a timer-local pending count before revisit leasing, so late successful ACKs advance the fence before cohort selection.
-- The first measured grant reserves distinct senders across person, group, and
-  canary traffic at the formal population. A Channel becomes hot only after
-  its first successful SENDACK; metadata-create vectors and hot/first-create/
-  reheat latency evidence advance from those exact successful boundaries.
+- The first measured grant reserves distinct person/group/canary senders at formal population.
+  Channels become hot at their first successful SENDACK; metadata-create vectors and hot/first-create/reheat evidence follow that boundary.
 - Worker protocol v15 keeps deadline registration, exact-result coverage and confirmed observed-late first-attempt counts separate.
   Only the original clocked transport result resolves its deadline; missing/unknown/canceled/expired results remain unknown. Fixed attempt slots and the bounded late-receipt map bound retention. Private opt-in retains 16 fresh-dispatch timing prefixes per generation.
   Added clock reads are diagnostic overhead; codes, units and gates stay fixed.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -17,13 +18,18 @@ func (c *Client) readerLoop(conn net.Conn, pending *pendingTracker, session *wkp
 		return
 	}
 
-	scratch := make([]byte, c.cfg.ReadBufferSize)
 	base := make([]byte, c.cfg.ReadBufferSize)
 	buf := base[:0]
 	for {
-		n, readErr := conn.Read(scratch)
+		// Read into the owned tail instead of retaining a second scratch buffer.
+		// Only a full incomplete frame needs growth; decoded payloads detach below.
+		if len(buf) == cap(buf) {
+			buf = slices.Grow(buf, max(len(buf), c.cfg.ReadBufferSize))
+		}
+		storage := buf[:cap(buf)]
+		n, readErr := conn.Read(storage[len(buf):])
 		if n > 0 {
-			buf = append(buf, scratch[:n]...)
+			buf = storage[:len(buf)+n]
 			for len(buf) > 0 {
 				f, consumed, decodeErr := c.proto.DecodeFrame(buf, frame.LatestVersion)
 				if decodeErr != nil {

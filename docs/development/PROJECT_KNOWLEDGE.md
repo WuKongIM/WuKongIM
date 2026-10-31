@@ -11,6 +11,11 @@ write completion or decoded payload detachment. Writer compaction clears old
 request references; reader compaction returns small suffixes to the configured
 read base instead of retaining a large frame's peak allocation. Decoded payloads
 and pending-message ownership remain independent of these reusable buffers.
+The reader fills a single owned buffer directly, growing only for a full
+incomplete frame. Chat-lifecycle sessions use an 8KiB initial buffer rather than
+two 64KiB buffers per connection. Memory-allocation regressions and connected
+factory tests retain fragmented-frame, EOF and payload-ownership controls;
+their heap deltas do not certify full-workload RSS or performance acceptance.
 
 Chat-lifecycle report v7 / threshold contract v2 separates `local_diagnostic`,
 `rehearsal`, and `formal_protocol` scope. A formal-protocol report still requires

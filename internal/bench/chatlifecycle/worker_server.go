@@ -1485,7 +1485,8 @@ func (f engineWorkerSessionFactory) NewSession(ctx context.Context, uid, token s
 	client, err := wkproto.NewClient(wkproto.ClientConfig{
 		Addr: f.address, Token: token, EnableAttemptLinkDiagnostics: f.enableAttemptLinkDiagnostics,
 		OperationTimeout: 5 * time.Second, AckTimeout: f.ackTimeout,
-		SendQueueCapacity: 32, MaxInflight: 32, ReadBufferSize: 64 << 10, FrameBufferSize: 32,
+		// Large frames grow on demand; each online user initially retains only 8KiB.
+		SendQueueCapacity: 32, MaxInflight: 32, ReadBufferSize: 8 << 10, FrameBufferSize: 32,
 	})
 	if err != nil {
 		return nil, err

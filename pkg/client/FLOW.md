@@ -50,6 +50,9 @@ It does not provision users or channels, choose benchmark policy, or retry sends
   blocked publishers. Discard mode prevents RECV fanout from blocking ACK progress.
   Leased reads keep dequeued handoff ownership visible until the next stage
   accepts it.
+- The reader fills one owned buffer directly. Incomplete frames grow it on
+  demand; after decoding, small suffixes return to the configured initial base.
+  Detached payloads remain valid across compaction and large-buffer release.
 - Ping and RECVACK share the writer so all frames remain serialized.
 - Terminal capability and nonce are redacted and never metric labels. TCP
   half-close, local write completion, malformed/stale ACK, EOF, or post-ACK
