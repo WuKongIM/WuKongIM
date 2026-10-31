@@ -22,6 +22,7 @@ func TestMixedSendBoundaryRetainsPermissionFailureEvidence(t *testing.T) {
 		app.metrics.Message.ObserveSendPermissionCohortOwned("calls", index+1)
 		app.metrics.Message.ObserveSendPermissionInflight(index + 1)
 		app.metrics.Gateway.Sendack("node_not_match", "single_error", "route_not_ready")
+		app.metrics.Slot.ObserveReadBarrier("not_leader", 4*time.Millisecond)
 	}
 	before := mixedSendDiagnosticSnapshot(t, apps)
 	encoded, err := json.Marshal(before)
@@ -38,6 +39,7 @@ func TestMixedSendBoundaryRetainsPermissionFailureEvidence(t *testing.T) {
 		"wukongim_message_permission_cohort_owned",
 		"wukongim_message_permission_inflight",
 		"wukongim_gateway_sendacks_total",
+		"wukongim_slot_read_barrier_duration_seconds",
 	} {
 		if counts[family] != len(apps) {
 			t.Errorf("boundary family %s has %d node projections, want %d", family, counts[family], len(apps))

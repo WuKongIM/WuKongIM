@@ -140,6 +140,7 @@ func ReadSnapshot(gatherers ...prometheus.Gatherer) (Snapshot, error) {
 				"wukongim_message_permission_counts_total",
 				"wukongim_message_permission_cohort_owned",
 				"wukongim_message_permission_inflight",
+				"wukongim_slot_read_barrier_duration_seconds",
 				"wukongim_gateway_sendacks_total":
 				s.Families = append(s.Families, family)
 			}

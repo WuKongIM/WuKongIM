@@ -22,6 +22,12 @@ ownership and SENDACK metric families, within the existing 4MiB artifact cap.
 Warmup failures include at most 32 synthetic client sequences. These boundary
 reads add no per-SEND work or retry; a route-not-ready label alone cannot prove
 admission pressure, leader movement or a persistence cause.
+Counter-enabled mixed benchmarks also retain up to 32 existing gateway failure
+logs as synthetic sequences and closed error-chain categories, in a separate
+64KiB sidecar. Their logger stays debug-disabled and discards identity/error text;
+absence of a captured log is not proof of SEND success. Slot read-barrier result
+histograms separate unavailable read causes at the same boundary, while original
+pre-append stage semantics remain unchanged for failed directory admission.
 
 Chat-lifecycle report v8 / threshold contract v2 separates `local_diagnostic`,
 `rehearsal`, and `formal_protocol` scope. A formal-protocol report still requires
