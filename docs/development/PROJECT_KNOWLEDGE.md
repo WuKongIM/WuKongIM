@@ -1,5 +1,11 @@
 # Project Knowledge
 
+Tests disable Top history with `WK_TOP_API_ENABLE=false` while retaining
+`WK_METRICS_ENABLE=true`. In this mode the hidden sampler refreshes resource and
+storage gauges without allocating a Top ring, collecting cluster snapshots or
+running Top history alerts. This test policy does not relabel earlier runs or
+change their latency/correctness gates; enabled Top keeps its existing history.
+
 Transport observation flushes reuse one drain-owned event batch rather than
 allocating a new slice every tick. The existing finite aggregate-key population
 bounds its growth; delivery clears references, while duration samples remain

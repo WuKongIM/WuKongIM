@@ -256,6 +256,7 @@ func (a *App) ensureTopCollector(nodeID uint64, exposeProvider bool) *topCollect
 		return collector
 	}
 	collector := newTopCollector(topCollectorOptions{
+		MetricsOnly:     !a.cfg.Top.APIEnabled,
 		NodeID:          nodeID,
 		NodeName:        fmt.Sprintf("node-%d", nodeID),
 		CollectInterval: a.cfg.Top.CollectInterval,

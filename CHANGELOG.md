@@ -26,6 +26,9 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Stop retaining hidden Top history when Top is disabled, while keeping resource
+  and storage metrics fresh. / 关闭 Top 时不再保留隐藏历史，资源与存储指标继续更新。
+
 - Reuse bounded transport observation batches to reduce temporary allocations,
   preserving exact counters and detached latency samples.
   / 传输观测复用有界事件批次，减少临时分配，保留精确计数和独立延迟样本。
