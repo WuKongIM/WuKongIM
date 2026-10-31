@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
@@ -14,6 +15,12 @@ import (
 // Store persists Controller Raft WAL, snapshots, and applied metadata.
 type Store struct {
 	mu sync.RWMutex
+	// readState publishes a complete successful durable cut independently of
+	// writer I/O. Readers never retain file ownership or mutable writer headers.
+	readState atomic.Pointer[storageReadView]
+	// entriesDirty is writer-owned and survives failed persistence. Empty
+	// operations never publish it or retire the previously durable read cut.
+	entriesDirty bool
 
 	cfg      Config
 	wal      *wal
@@ -92,11 +99,12 @@ func Open(ctx context.Context, cfg Config) (*Store, error) {
 		meta.ConfState = cloneConfState(snapshot.Metadata.ConfState)
 	}
 	entries := trimEntriesAfter(cloneEntries(replayed.Entries), snapshot.Metadata.Index)
-	store := &Store{cfg: cfg, wal: w, metaPath: metaPath, snapDir: snapDir, meta: meta, snapshot: snapshot, entries: entries}
+	store := &Store{cfg: cfg, wal: w, metaPath: metaPath, snapDir: snapDir, meta: meta, snapshot: snapshot, entries: entries, entriesDirty: true}
 	if err := saveMetadata(ctx, metaPath, meta); err != nil {
 		_ = w.close()
 		return nil, err
 	}
+	store.publishReadViewLocked()
 	return store, nil
 }
 
@@ -110,11 +118,13 @@ func (s *Store) Close() error {
 
 // SaveReady persists a Raft Ready's durable state and updates the in-memory storage view.
 func (s *Store) SaveReady(ctx context.Context, hs raftpb.HardState, entries []raftpb.Entry, snap raftpb.Snapshot) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// Heartbeat/read-index Ready can contain no durable state. It must not
+	// wait behind unrelated applied metadata I/O, or publish a failed writer cut.
 	if raft.IsEmptyHardState(hs) && len(entries) == 0 && raft.IsEmptySnap(snap) {
 		return nil
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	meta := raftpb.SnapshotMetadata{}
 	if !raft.IsEmptySnap(snap) {
 		meta = cloneSnapshotMetadata(snap.Metadata)
@@ -132,6 +142,7 @@ func (s *Store) SaveReady(ctx context.Context, hs raftpb.HardState, entries []ra
 		}
 		s.snapshot = cloneSnapshot(snap)
 		s.entries = trimEntriesAfter(s.entries, snap.Metadata.Index)
+		s.entriesDirty = true
 		s.meta.Snapshot = snapshotMeta{Index: snap.Metadata.Index, Term: snap.Metadata.Term, Path: path}
 		s.meta.ConfState = cloneConfState(snap.Metadata.ConfState)
 	}
@@ -144,13 +155,18 @@ func (s *Store) SaveReady(ctx context.Context, hs raftpb.HardState, entries []ra
 			}
 		}
 		s.entries = append(kept, cloneEntries(entries)...)
+		s.entriesDirty = true
 		for _, entry := range entries {
 			if err := applyConfEntry(&s.meta.ConfState, entry); err != nil {
 				return err
 			}
 		}
 	}
-	return saveMetadata(ctx, s.metaPath, s.meta)
+	if err := saveMetadata(ctx, s.metaPath, s.meta); err != nil {
+		return err
+	}
+	s.publishReadViewLocked()
+	return nil
 }
 
 // MarkAppliedBatch durably advances the local applied index.
@@ -164,7 +180,11 @@ func (s *Store) MarkAppliedBatch(ctx context.Context, index uint64) error {
 		return err
 	}
 	s.meta.AppliedIndex = index
-	return saveMetadata(ctx, s.metaPath, s.meta)
+	if err := saveMetadata(ctx, s.metaPath, s.meta); err != nil {
+		return err
+	}
+	s.publishReadViewLocked()
+	return nil
 }
 
 // SaveSnapshot persists a Controller snapshot and records it in the WAL.
@@ -180,12 +200,17 @@ func (s *Store) SaveSnapshot(ctx context.Context, snap raftpb.Snapshot) error {
 	}
 	s.snapshot = cloneSnapshot(snap)
 	s.entries = trimEntriesAfter(s.entries, snap.Metadata.Index)
+	s.entriesDirty = true
 	s.meta.Snapshot = snapshotMeta{Index: snap.Metadata.Index, Term: snap.Metadata.Term, Path: path}
 	s.meta.ConfState = cloneConfState(snap.Metadata.ConfState)
 	if s.meta.HardState.Commit < snap.Metadata.Index {
 		s.meta.HardState.Commit = snap.Metadata.Index
 	}
-	return saveMetadata(ctx, s.metaPath, s.meta)
+	if err := saveMetadata(ctx, s.metaPath, s.meta); err != nil {
+		return err
+	}
+	s.publishReadViewLocked()
+	return nil
 }
 
 // Compact removes entries at or below compactTo from the in-memory suffix and old WAL segments.
@@ -199,101 +224,11 @@ func (s *Store) Compact(ctx context.Context, compactTo uint64) error {
 		return fmt.Errorf("controller/raftstore: compaction exceeds durable snapshot")
 	}
 	s.entries = trimEntriesAfter(s.entries, compactTo)
-	return s.wal.releaseBefore(compactTo + 1)
-}
-
-// AppliedIndex returns the durable local applied Raft index.
-func (s *Store) AppliedIndex() uint64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.meta.AppliedIndex
-}
-
-// InitialState returns the durable Raft hard state and latest known conf state.
-func (s *Store) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.meta.HardState, cloneConfState(s.meta.ConfState), nil
-}
-
-// Entries returns a range of Raft log entries.
-func (s *Store) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if lo <= s.snapshot.Metadata.Index {
-		return nil, raft.ErrCompacted
+	s.entriesDirty = true
+	if err := s.wal.releaseBefore(compactTo + 1); err != nil {
+		return err
 	}
-	if hi <= lo {
-		return nil, nil
-	}
-	out := make([]raftpb.Entry, 0, hi-lo)
-	var size uint64
-	for _, entry := range s.entries {
-		if entry.Index < lo {
-			continue
-		}
-		if entry.Index >= hi {
-			break
-		}
-		if maxSize > 0 && len(out) > 0 && size+uint64(entry.Size()) > maxSize {
-			break
-		}
-		size += uint64(entry.Size())
-		out = append(out, cloneEntry(entry))
-	}
-	if len(out) == 0 && hi > lo {
-		return nil, raft.ErrUnavailable
-	}
-	if out[0].Index != lo {
-		return nil, raft.ErrUnavailable
-	}
-	return out, nil
-}
-
-// Term returns the term for a Raft log index.
-func (s *Store) Term(index uint64) (uint64, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if index == s.snapshot.Metadata.Index {
-		return s.snapshot.Metadata.Term, nil
-	}
-	if index < s.snapshot.Metadata.Index {
-		return 0, raft.ErrCompacted
-	}
-	for _, entry := range s.entries {
-		if entry.Index == index {
-			return entry.Term, nil
-		}
-	}
-	return 0, raft.ErrUnavailable
-}
-
-// FirstIndex returns the first available log index after the snapshot.
-func (s *Store) FirstIndex() (uint64, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.snapshot.Metadata.Index > 0 {
-		return s.snapshot.Metadata.Index + 1, nil
-	}
-	if len(s.entries) > 0 {
-		return s.entries[0].Index, nil
-	}
-	return 1, nil
-}
-
-// LastIndex returns the last available log index or snapshot index.
-func (s *Store) LastIndex() (uint64, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if len(s.entries) > 0 {
-		return s.entries[len(s.entries)-1].Index, nil
-	}
-	return s.snapshot.Metadata.Index, nil
-}
-
-// Snapshot returns the latest durable snapshot.
-func (s *Store) Snapshot() (raftpb.Snapshot, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return cloneSnapshot(s.snapshot), nil
+	// SaveSnapshot already published the logical compaction boundary. Physical
+	// prefix removal cannot publish metadata left dirty by an earlier failure.
+	return nil
 }

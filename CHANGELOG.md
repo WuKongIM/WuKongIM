@@ -26,6 +26,16 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Batch already-waiting Controller proposals and peer messages separately before
+  durable Ready processing,
+  keeping bounded turns, exact results, and the original durability checks.
+  / Controller 已排队提案与节点间消息分别合批持久化，限制每轮处理量，
+  保留逐请求结果与原持久性校验。
+
+- Keep Controller Raft reads progressing during slow metadata persistence, with
+  publication after durable success and unchanged quorum/applied checks.
+  / Controller Raft 读取不再等待慢元数据写入；仍在持久化成功后发布，保留 quorum 与 apply 校验。
+
 - Keep write readiness stable during unrelated Presence control updates while
   preserving real route-change and restart fences. / Presence 控制状态更新不再
   误伤写就绪探测，真实路由变化和重启的保护保持有效。

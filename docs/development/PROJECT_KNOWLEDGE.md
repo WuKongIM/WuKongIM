@@ -2863,3 +2863,21 @@ completion, installation and provider-reference release.
   renew the original two-second proof; observed authority ABA still revokes it.
   This mechanism is regression-tested; the Mac full-scale startup/2h result
   remains a separate verification, not implied by a passing seam test.
+
+- Controller Raft Store publishes one immutable last-successful durable read cut.
+  Storage reads and empty Ready avoid the writer I/O mutex; fresh quorum and the
+  actual FSM/durable-applied watermark remain required for ReadBarrier success.
+  The view owns entry headers and every ConfState slice, sharing only immutable
+  record/snapshot payload. Applied-only publication reuses headers/payloads.
+  Failed persistence and later no-op returns never publish dirty writer state;
+  this is not a live repair protocol after a fatal storage error.
+
+- Controller Raft coalesces already-waiting local proposals or buffered peer
+  Steps in separate homogeneous turns, up to 128 admissions and a 4MiB
+  accumulated encoded-byte fairness cut. The final received input may cross
+  that cut once; this is not a payload or hard memory limit. A Step turn never
+  admits a local future before its Ready is persisted/bound; the existing
+  FIFO/type tracker must not confuse peer/election entries with local proposals.
+  Every Step still updates role and retires reads on leader loss before I/O.
+  Tick, read/control scheduling and all durability/deadline checks remain.
+  Cold CONNECT and native 2h qualification require independent actual results.

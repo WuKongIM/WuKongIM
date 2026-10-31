@@ -36,7 +36,10 @@ not depend on `pkg/cluster`.
 ## Main Flows
 
 1. Raft Ready persists HardState, entries, and snapshots before message send and
-   FIFO apply; the scheduler batches commands, applies FSM semantics, saves one
+   FIFO apply. Already-waiting proposals and peer Steps use separate bounded
+   Ready batches; kinds never mix, preserving exact local future association.
+   Charge original peer bytes before Raft can rewrite shared entry headers.
+   The scheduler batches commands, applies FSM semantics, saves one
    final state file, publishes it, then persists the applied boundary.
 2. Startup restores the latest snapshot when materialized state is absent or older, replays the
    committed suffix, and automatic/manual compaction snapshots only applied
@@ -69,6 +72,12 @@ not depend on `pkg/cluster`.
   alone may be truncated and synced; legacy recovery probes never truncate.
 - Offline bootstrap inspection reads bounded WAL and snapshot artifacts without
   truncation or startup repair; even an incomplete newest tail fails verification.
+- Raft storage readers capture one immutable last-successful durable cut and never
+  acquire the writer's I/O lock. Entry headers and all ConfState slices are private;
+  payloads and cloned snapshots stay immutable, with detached public results.
+  Successful persistence publishes the cut; failed writes and empty/no-op paths
+  do not. Applied-only publication reuses the suffix. ReadIndex still waits for
+  fresh quorum and the successful FSM/durable-applied watermark.
 - `Revision` versions logical cluster state; `AppliedRaftIndex` versions Raft
   materialization. Empty probes and health reports may advance applied state
   without advancing logical revision.
