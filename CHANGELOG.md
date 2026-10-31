@@ -26,6 +26,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Bound Presence recovery turns by page, row and byte work so small owner pages
+  can finish without repeated queue waits; original deadlines and credits remain.
+  / Presence 恢复按页数、行数和字节量限制执行量子，减少小页反复排队，
+  保留原有期限与资源额度。
+
 - Batch already-waiting Controller proposals and peer messages separately before
   durable Ready processing,
   keeping bounded turns, exact results, and the original durability checks.

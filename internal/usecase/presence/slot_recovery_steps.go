@@ -9,7 +9,16 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
 )
 
-// A turn ends after one installed page (and its terminal End when exhausted).
+// A cooperative turn bounds useful work without waiting for a batch to fill.
+// Pages have a hard count cut; rows/bytes may cross their cut on the final
+// already-received page. These are fairness cuts, not new payload/RSS limits.
+const (
+	slotTurnMaxPages = 4
+	slotTurnMaxRows  = 4096
+	slotTurnMaxBytes = uint64(4 << 20)
+)
+
+// A turn ends at its work cut, including terminal End for exhausted pages.
 // Paused scan goroutines own prepaid staging, not an active execution slot.
 // Their count is bounded by admitted keys and the shared staging byte ledger.
 type slotTurnResult struct {

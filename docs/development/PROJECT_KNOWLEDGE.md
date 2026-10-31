@@ -2881,3 +2881,12 @@ completion, installation and provider-reference release.
   Every Step still updates role and retires reads on leader loss before I/O.
   Tick, read/control scheduling and all durability/deadline checks remain.
   Cold CONNECT and native 2h qualification require independent actual results.
+
+- Full Presence cooperative recovery retains its original FIFO and sixteen
+  physical executors, but a turn may process up to four pages. Cumulative 4,096
+  rows or 4MiB logical route bytes cause earlier yielding; the last received
+  validated page can cross a soft cut once. Save these numeric costs before
+  releasing/clearing the owned page. A full page still yields immediately;
+  empty/small owner pages can finish without repeatedly queueing behind Claim.
+  Resume clears work counters only. The original owner1s/scan2s deadlines,
+  exact owner Ends/final validation and all credits remain, including queue wait.

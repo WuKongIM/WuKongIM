@@ -42,8 +42,10 @@ Entry-independent orchestration connects the online registry and UID authority; 
 5. Full-mode wiring uses `NewSlotRecovery(directory, source, owners)` as both
    ports of `NewAuthorityRecovery(slots, slots)`. This preserves the original
    caller/input admission and shares the same decoded result ledger across
-   staging, owner pages and original-call output. Sixteen physical page turns
-   execute; after each page a continuation returns to the original FIFO tail.
+   staging, owner pages and original-call output. Sixteen physical turns execute;
+   each processes at most four pages before returning to the same FIFO tail.
+   Cumulative 4,096 rows or 4 MiB cause earlier yielding, with the final page
+   allowed to cross either work cut once. Individual page limits stay unchanged.
    Same-slot followers share one scan; paused scans retain prepaid staging and
    original caller/key credits. No unbounded waiter queue is added. Each scan
    has one fixed two-second deadline and each owner one fixed one-second budget
@@ -86,9 +88,8 @@ Entry-independent orchestration connects the online registry and UID authority; 
   known proof survives residency eviction within that request, while original
   misses need current proof and the same local authority instance. Wrappers keep
   their original read contract. Capture metadata is charged to caller admission.
-  Shared execution has its own cancel root: caller cancellation cannot cancel
-  live UID followers or other
-  batch members, and every caller still returns on its own original context.
+  Shared execution has its own cancel root: canceling a caller cannot cancel
+  live UID followers or other batch members; every caller keeps its own context.
   Only all-member cancellation or Close cancels actual execution. UID proofs
   with no live owner are not installed; exact authority fences still govern all
   installation. Old and new peer compatibility never merges per-call route caps.
@@ -135,9 +136,8 @@ Entry-independent orchestration connects the online registry and UID authority; 
   are not interpreted as empty legacy pages. Negotiating a separate legacy
   generation is outside `SlotRecovery`; no implicit same-generation downgrade
   is implemented. Membership/boot changes must invalidate the old serving gate.
-- Shutdown closes the outer `AuthorityRecovery` and then `SlotRecovery`, joining
-  actual provider ownership before releasing its shared result credits. A caller
-  returning on cancellation alone is not that join.
+- Shutdown closes outer `AuthorityRecovery`, then `SlotRecovery`, joining real
+  provider ownership before releasing shared credits; caller cancellation is not that join.
 
 ## Read First
 - [Activation](activate.go)

@@ -439,6 +439,8 @@ func (r *SlotRecovery) scan(f *slotRecoveryFlight) (err error) {
 		requests[i] = SlotPageRequest{Claim: claim, Owner: cut, Sequence: 1, MaxRows: 4096, MaxBytes: 4 << 20}
 	}
 	remaining := len(cuts)
+	turnPages, turnRows := 0, 0
+	var turnBytes uint64
 	for remaining > 0 {
 		// One page per owner per round; no owner monopolizes a slot's progress.
 		for i := range requests {
@@ -459,12 +461,19 @@ func (r *SlotRecovery) scan(f *slotRecoveryFlight) (err error) {
 				return authority.ErrSlotIncomplete
 			}
 			page := owned.Page
-			if !page.Claim.Equal(claim) || page.Owner != requests[i].Owner || page.Sequence != requests[i].Sequence || page.AfterSessionID != requests[i].AfterSessionID || len(page.Routes) > requests[i].MaxRows || slotRouteBytes(page.Routes) > uint64(requests[i].MaxBytes) {
+			if !page.Claim.Equal(claim) || page.Owner != requests[i].Owner || page.Sequence != requests[i].Sequence || page.AfterSessionID != requests[i].AfterSessionID || len(page.Routes) > requests[i].MaxRows {
+				owned.Release()
+				return authority.ErrSlotIncomplete
+			}
+			// Capture validated work before releasing the owned page. Invalid row
+			// counts fail before the bounded string-size walk, as they did before.
+			pageRows, pageBytes := len(page.Routes), slotRouteBytes(page.Routes)
+			if pageBytes > uint64(requests[i].MaxBytes) {
 				owned.Release()
 				return authority.ErrSlotIncomplete
 			}
 			if err = f.ctx.Err(); err == nil {
-				err = staging.TryGrow(uint64(len(page.Routes)), slotRouteBytes(page.Routes))
+				err = staging.TryGrow(uint64(pageRows), pageBytes)
 			}
 			if err == nil {
 				err = r.directory.InstallSlotPage(page)
@@ -489,11 +498,17 @@ func (r *SlotRecovery) scan(f *slotRecoveryFlight) (err error) {
 				requests[i].Sequence++
 				requests[i].AfterSessionID = last
 			}
-			if remaining > 0 && f.cooperative {
+			turnPages++
+			turnRows += pageRows
+			turnBytes += pageBytes
+			if remaining > 0 && f.cooperative && (turnPages >= slotTurnMaxPages || turnRows >= slotTurnMaxRows || turnBytes >= slotTurnMaxBytes) {
 				// Ownership and the original chain/owner deadlines survive a yield.
 				// Cleanup also waits for an actual outer executor permit.
 				f.turn <- slotTurnResult{pending: true}
 				<-f.permit
+				// Only work accounting restarts; original chain/owner deadlines and
+				// all ownership credits continue aging through the FIFO wait.
+				turnPages, turnRows, turnBytes = 0, 0, 0
 			}
 		}
 	}
