@@ -269,6 +269,35 @@ func (s *Service) ProposeResult(ctx context.Context, cmd command.Command) (Propo
 	return s.submitProposal(ctx, proposalRequest{cmd: cmd})
 }
 
+// CheckProposalAdmission checks local lifecycle and known leadership only. It
+// performs no I/O, reserves no capacity and proves no current quorum. A later
+// ProposeResult must still recheck admission and obtain its real apply receipt.
+func (s *Service) CheckProposalAdmission(ctx context.Context) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	if s == nil {
+		return ErrNotStarted
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.err != nil {
+		return s.err
+	}
+	if !s.started || s.stopping {
+		if s.stopped || s.stopping {
+			return ErrStopped
+		}
+		return ErrNotStarted
+	}
+	if s.leaderID.Load() != s.cfg.NodeID {
+		return ErrNotLeader
+	}
+	return nil
+}
+
 // ProbePropose appends an empty Raft entry and waits until it is applied.
 // It verifies the Controller proposal write path without mutating Controller cluster state.
 func (s *Service) ProbePropose(ctx context.Context) error {

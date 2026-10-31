@@ -1520,6 +1520,11 @@ specification, runbook, report, or module documentation; link to them when neede
   An unchanged Ensure may return M from its fresh read cut without another write;
   owner/roster changes and generation claims still require actual commit receipts.
   This mechanism does not guarantee the same cold-control latency on every host.
+  Claim mutations instead use the last materialized FSM cut only as a proposal
+  basis. Their full roster/M/boot/mapping/predecessor CAS still runs at apply;
+  success requires that command's own majority-committed durable apply receipt.
+  They do not need a separate ReadIndex before the fenced write. Read-only Get
+  and potentially unchanged Ensure retain their fresh quorum-read proof.
 - Full Presence uses a committed per-Hash-Slot generation G and owner-set epoch
   M; diagnostic revision/AuthorityEpoch and random boot identities cannot order
   generations. Begin and receipt promotion share an owner Slot lock. Pending
@@ -1543,6 +1548,10 @@ specification, runbook, report, or module documentation; link to them when neede
   caller budget and cancellation; exact Abort cleanup and durable Ensure/Claim
   retain independent execution. Forbidden page receipts fail at their flag before
   identity strings can be decoded outside the result ledger.
+  Independent owner Begin checks overlap through at most four joined workers per
+  scan. Claim and Begin share sixteen node-wide actual-provider permits; waiting
+  workers start no owner timer. Admitted owner deadlines never refresh; valid
+  late cuts retain cleanup ownership until actual provider return and exact Abort.
   Ordinary backup restore retains Controller G history; replacing every Controller
   disk with an older image has no external anti-rollback proof in this protocol.
 - SEND permission RPCs compare semantic Slot authority and derived Hash Slot,
@@ -2890,3 +2899,10 @@ completion, installation and provider-reference release.
   empty/small owner pages can finish without repeatedly queueing behind Claim.
   Resume clears work counters only. The original owner1s/scan2s deadlines,
   exact owner Ends/final validation and all credits remain, including queue wait.
+
+- Full Presence startup attempts each currently routed local authority once before
+  business HTTP/Gateway admission, sharing the initial 30-second readiness budget.
+  Preparation uses ordinary recovery FIFO/member/key/metadata/result ownership,
+  sixteen physical turns and original scan/owner deadlines, with no synthetic UID.
+  Partial/unknown coverage is not global readiness or offline evidence; seed-join
+  pre-activation and restore maintenance defer this pass. Stop joins late providers.

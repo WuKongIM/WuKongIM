@@ -106,7 +106,7 @@ func (r *Runtime) EnsurePresenceOwnerSet(ctx context.Context) (PresenceOwnerSet,
 func (r *Runtime) ClaimPresenceGeneration(ctx context.Context, req ClaimPresenceGenerationRequest) (PresenceGeneration, error) {
 	ctx, cancel := presenceOperationContext(ctx)
 	defer cancel()
-	st, err := r.presenceCommittedState(ctx)
+	st, err := r.presenceClaimState(ctx)
 	if err != nil {
 		return PresenceGeneration{}, err
 	}
@@ -166,6 +166,30 @@ func (r *Runtime) presenceCommittedState(ctx context.Context) (ClusterState, err
 	if _, err := service.ReadBarrier(ctx); err != nil {
 		return ClusterState{}, err
 	}
+	return r.presenceAppliedState(ctx)
+}
+
+// presenceClaimState supplies only a proposal basis, never a fresh read proof.
+// Claim's full semantic roster/M, mapping, capabilities and predecessor CAS are
+// rechecked at apply. Only its own majority-committed durable proposal receipt
+// can succeed; a separate preceding ReadIndex would duplicate quorum waiting.
+func (r *Runtime) presenceClaimState(ctx context.Context) (ClusterState, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ClusterState{}, err
+	}
+	service := r.raftService()
+	if service == nil {
+		return ClusterState{}, ErrNotStarted
+	}
+	if err := service.CheckProposalAdmission(ctx); err != nil {
+		return ClusterState{}, err
+	}
+	return r.presenceAppliedState(ctx)
+}
+
+// presenceAppliedState clones the last materialized FSM cut. Callers must add
+// their own read quorum or fenced proposal proof before returning authority.
+func (r *Runtime) presenceAppliedState(ctx context.Context) (ClusterState, error) {
 	r.mu.RLock()
 	sm := r.sm
 	r.mu.RUnlock()

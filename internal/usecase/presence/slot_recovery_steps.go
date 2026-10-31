@@ -219,6 +219,9 @@ func (r *AuthorityRecovery) updateSlotCallLiveLocked(w *recoveryWork, states map
 	for i, g := range w.groups {
 		live := false
 		if !r.closed {
+			if w.preparation != nil {
+				live = recoveryMemberLive(w.creator, states)
+			}
 			for _, uid := range g.UIDs {
 				f := r.inFlight[recoveryKey(g.Target, uid)]
 				if f == nil || f.work != w {
@@ -307,6 +310,11 @@ func (r *AuthorityRecovery) executeSlotStep(e *recoveryExecution) {
 }
 
 func (r *AuthorityRecovery) finishSlotWorkLocked(w *recoveryWork) {
+	if w.preparation != nil {
+		w.preparation.err = recoveryExecutionFailure(ActivationPhaseRecoveryProvider, w.slotCall.groups[0].err)
+		r.finishWorkLocked(w, map[recoveryUIDKey]error{})
+		return
+	}
 	outcomes := make(map[recoveryUIDKey]error, len(w.flights))
 	total := 0
 	for _, g := range w.slotCall.groups {

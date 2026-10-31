@@ -121,6 +121,9 @@ type SlotRecovery struct {
 	source    SlotGenerationSource
 	owners    SlotGenerationOwners
 	budget    *RecoveryResultBudget
+	// control bounds actual Claim/Begin providers together at the original
+	// sixteen-scan I/O ceiling. Waiting workers own no provider or owner timer.
+	control chan struct{}
 	// admission is bound once by NewAuthorityRecovery before exposure to callers.
 	admission   *AuthorityRecovery
 	mu          sync.Mutex
@@ -132,7 +135,7 @@ type SlotRecovery struct {
 }
 
 func NewSlotRecovery(directory *authority.Directory, source SlotGenerationSource, owners SlotGenerationOwners) *SlotRecovery {
-	return &SlotRecovery{directory: directory, source: source, owners: owners, budget: NewRecoveryResultBudget(RecoveryResultMaxRows, RecoveryResultMaxBytes), flights: make(map[slotFlightKey]*slotRecoveryFlight), drained: make(chan struct{}), rechecks: make(map[*slotRecheck]context.CancelFunc)}
+	return &SlotRecovery{directory: directory, source: source, owners: owners, budget: NewRecoveryResultBudget(RecoveryResultMaxRows, RecoveryResultMaxBytes), control: make(chan struct{}, 16), flights: make(map[slotFlightKey]*slotRecoveryFlight), drained: make(chan struct{}), rechecks: make(map[*slotRecheck]context.CancelFunc)}
 }
 
 // RecoveryResultBudget is shared by task staging, decoded pages and original
@@ -360,6 +363,108 @@ func (r *SlotRecovery) run(key slotFlightKey, f *slotRecoveryFlight) {
 	}
 }
 
+// beginSlotOwners overlaps independent freshness checks with at most four
+// actual providers per physical scan (sixteen scans already bound admission).
+// Results retain owner-vector order. Every provider joins before return, even
+// after cancellation; valid late cuts remain exact cleanup obligations.
+func (r *SlotRecovery) beginSlotOwners(ctx context.Context, claim GenerationClaim, ids []uint64) ([]OwnerCut, []context.Context, []context.CancelFunc, error) {
+	seen := make(map[uint64]bool, len(ids))
+	for _, id := range ids {
+		if id == 0 || seen[id] {
+			return nil, nil, nil, authority.ErrStaleGeneration
+		}
+		seen[id] = true
+	}
+	cuts := make([]OwnerCut, len(ids))
+	contexts := make([]context.Context, len(ids))
+	cancels := make([]context.CancelFunc, len(ids))
+	var mu sync.Mutex
+	var workers sync.WaitGroup
+	next := 0
+	var firstErr error
+	failed := make(chan struct{})
+	fail := func(err error) {
+		if firstErr == nil {
+			firstErr = err
+			close(failed)
+			for _, cancel := range cancels {
+				if cancel != nil {
+					cancel()
+				}
+			}
+		}
+	}
+	width := min(4, len(ids))
+	workers.Add(width)
+	for range width {
+		goroutine.SafeGo(nil, goroutine.TaskPresenceRecoveryScheduler, func() {
+			defer workers.Done()
+			for {
+				mu.Lock()
+				if err := ctx.Err(); err != nil {
+					fail(err)
+				}
+				if firstErr != nil || next == len(ids) {
+					mu.Unlock()
+					return
+				}
+				i := next
+				next++
+				mu.Unlock()
+				select {
+				case r.control <- struct{}{}:
+				case <-failed:
+					return
+				case <-ctx.Done():
+					mu.Lock()
+					fail(ctx.Err())
+					mu.Unlock()
+					return
+				}
+				mu.Lock()
+				if err := ctx.Err(); err != nil {
+					fail(err)
+				}
+				if firstErr != nil {
+					<-r.control
+					mu.Unlock()
+					return
+				}
+				// The same fixed budget spans Begin, every page and End. It is
+				// never refreshed after waiting for another owner or FIFO turn.
+				ownerCtx, cancel := context.WithTimeout(ctx, time.Second)
+				contexts[i], cancels[i] = ownerCtx, cancel
+				mu.Unlock()
+				cut, err := r.owners.BeginSlot(ownerCtx, claim, ids[i])
+				if err == nil && (!cut.Valid() || cut.NodeID != ids[i]) {
+					err = authority.ErrStaleGeneration
+				}
+				mu.Lock()
+				if err == nil {
+					cuts[i] = cut
+				} else {
+					fail(err)
+				}
+				<-r.control
+				mu.Unlock()
+			}
+		})
+	}
+	workers.Wait()
+	if firstErr != nil {
+		// Failed scans need no aligned page contexts, but cleanup must include
+		// every successful provider, including those returning after failure.
+		valid := cuts[:0]
+		for _, cut := range cuts {
+			if cut.Valid() {
+				valid = append(valid, cut)
+			}
+		}
+		cuts = valid
+	}
+	return cuts, contexts, cancels, firstErr
+}
+
 func (r *SlotRecovery) scan(f *slotRecoveryFlight) (err error) {
 	if err = f.ctx.Err(); err != nil {
 		return err
@@ -374,19 +479,31 @@ func (r *SlotRecovery) scan(f *slotRecoveryFlight) (err error) {
 		return err
 	}
 	defer staging.Release()
+	select {
+	case r.control <- struct{}{}:
+	case <-f.ctx.Done():
+		return f.ctx.Err()
+	}
+	if err = f.ctx.Err(); err != nil {
+		<-r.control
+		return err
+	}
 	claim, ids, err := r.source.ClaimSlotGeneration(f.ctx, f.target)
+	<-r.control
 	if err != nil {
 		return err
 	}
 	if !claim.Valid() || generationKey(claim.Target) != generationKey(f.target) || len(ids) == 0 || len(ids) > 256 {
 		return authority.ErrStaleGeneration
 	}
-	cuts := make([]OwnerCut, 0, len(ids))
-	ownerContexts := make([]context.Context, 0, len(ids))
-	ownerCancels := make([]context.CancelFunc, 0, len(ids))
+	var cuts []OwnerCut
+	var ownerContexts []context.Context
+	var ownerCancels []context.CancelFunc
 	defer func() {
 		for _, cancel := range ownerCancels {
-			cancel()
+			if cancel != nil {
+				cancel()
+			}
 		}
 	}()
 	installed, complete := false, false
@@ -405,26 +522,9 @@ func (r *SlotRecovery) scan(f *slotRecoveryFlight) (err error) {
 			_ = r.owners.AbortSlot(cleanup, claim, cut)
 		}
 	}()
-	seen := make(map[uint64]bool, len(ids))
-	for _, id := range ids {
-		if id == 0 || seen[id] {
-			return authority.ErrStaleGeneration
-		}
-		seen[id] = true
-		if err = f.ctx.Err(); err != nil {
-			return err
-		}
-		ownerCtx, ownerCancel := context.WithTimeout(f.ctx, time.Second)
-		ownerContexts = append(ownerContexts, ownerCtx)
-		ownerCancels = append(ownerCancels, ownerCancel)
-		cut, e := r.owners.BeginSlot(ownerCtx, claim, id)
-		if e != nil {
-			return e
-		}
-		if !cut.Valid() || cut.NodeID != id {
-			return authority.ErrStaleGeneration
-		}
-		cuts = append(cuts, cut)
+	cuts, ownerContexts, ownerCancels, err = r.beginSlotOwners(f.ctx, claim, ids)
+	if err != nil {
+		return err
 	}
 	if err = r.source.ValidateSlotGeneration(f.ctx, claim); err != nil {
 		return err

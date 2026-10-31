@@ -4,6 +4,7 @@ package controller_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -13,19 +14,24 @@ import (
 // The capability port changes real committed state after the operation's quorum
 // cut. No private mutation or invented receipt is used to create the interleave.
 func TestPresenceGenerationSemanticCASPreservesIndependentProgress(t *testing.T) {
-	for _, mode := range []string{"ensure_unrelated_revision", "claim_other_slot_generation", "health_report_control", "participant_join_rejected"} {
+	for _, mode := range []string{"ensure_unrelated_revision", "claim_other_slot_generation", "health_report_control", "participant_join_rejected", "claim_owner_epoch_advance_rejected", "claim_same_slot_successor_rejected"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 			defer cancel()
 			var runtime *controller.Runtime
 			var hook func(context.Context)
+			boot := uint64(101)
 			cfg := controller.RuntimeConfig{NodeID: 1, Addr: "semantic-presence-1", StateDir: t.TempDir(), ClusterID: "semantic-presence", Role: controller.RuntimeRoleVoter, Voters: []controller.Voter{{NodeID: 1, Addr: "semantic-presence-1"}}, AllowBootstrap: true, InitialSlotCount: 1, HashSlotCount: 256, ReplicaCount: 1, TickInterval: 5 * time.Millisecond,
 				PresenceCapabilityProbe: func(ctx context.Context, id uint64, addr string) (controller.PresenceCapabilities, error) {
+					observedBoot := uint64(100) + id
+					if id == 1 {
+						observedBoot = boot
+					}
 					if f := hook; f != nil {
 						hook = nil
 						f(ctx)
 					}
-					return controller.PresenceCapabilities{NodeID: id, BootID: 100 + id, ControllerStateVersion: 2, ControllerCommandVersion: 2, PresenceProtocolVersion: 1}, nil
+					return controller.PresenceCapabilities{NodeID: id, BootID: observedBoot, ControllerStateVersion: 2, ControllerCommandVersion: 2, PresenceProtocolVersion: 1}, nil
 				},
 			}
 			var err error
@@ -119,6 +125,31 @@ func TestPresenceGenerationSemanticCASPreservesIndependentProgress(t *testing.T)
 				}
 				if _, e := runtime.ClaimPresenceGeneration(ctx, request); e == nil {
 					t.Fatal("proof from old participant cut accepted after joining mirror appeared")
+				}
+			case "claim_owner_epoch_advance_rejected":
+				hook = func(ctx context.Context) {
+					boot = 303
+					newer, e := runtime.EnsurePresenceOwnerSet(ctx)
+					if e != nil {
+						t.Fatal(e)
+					}
+					changed = newer.Epoch > owners.Epoch
+				}
+				if _, e := runtime.ClaimPresenceGeneration(ctx, request); !errors.Is(e, controller.ErrPresenceGenerationNotReady) {
+					t.Fatalf("claim basis survived a newer committed M/boot: %v", e)
+				}
+			case "claim_same_slot_successor_rejected":
+				hook = func(ctx context.Context) {
+					newer := request
+					newer.Fence.LeaderTerm++
+					g, e := runtime.ClaimPresenceGeneration(ctx, newer)
+					if e != nil {
+						t.Fatal(e)
+					}
+					changed = g.Generation > 0
+				}
+				if _, e := runtime.ClaimPresenceGeneration(ctx, request); !errors.Is(e, controller.ErrPresenceGenerationConflict) {
+					t.Fatalf("old basis survived another same-Hash-Slot fence: %v", e)
 				}
 			}
 			if !changed {

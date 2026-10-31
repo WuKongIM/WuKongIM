@@ -49,6 +49,12 @@ profiles run in release windows.
 
 ## Maintenance Rules
 
+The cold CONNECT reduction also accepts the fixed `WK_E2E_COLD_CONNECT_ARRIVAL=one_second_burst` control. Only arrival spacing changes; its300-user result never qualifies the full bootstrap or original-scale workload.
+Its independent `WK_E2E_COLD_CONNECT_TOKEN_TIMING=on_arrival` control overlaps public token preparation with CONNECT, preserving separate original5s budgets and recording preparation outcomes; it does not reproduce native Bench API/full-sync work.
+The fixed `WK_E2E_COLD_CONNECT_POPULATION=10000` control retains10k clients at the same100firstCONNECT/s (use `-timeout=5m` and on-arrival tokens), without full-sync, groups or business SEND; it stays diagnostic and caps the joined JSON at4MiB.
+`WK_E2E_COLD_CONNECT_STARTUP_STACKS=1` adds only two joined2s/4s diagnostic cuts of three bounded aggregate-stack reads. Instrumented outcomes remain separate from unprofiled qualification.
+Existing cold-CONNECT before/after metric cuts include the fixed gateway async-auth pressure families; no scrape or traffic-window request is added.
+
 The `message_updates` recovery scenario registers bounded process diagnostics
 before initial HTTP readiness, covering startup exits as well as workload failures.
 

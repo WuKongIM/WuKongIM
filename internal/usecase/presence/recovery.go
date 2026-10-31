@@ -71,6 +71,8 @@ type AuthorityRecovery struct {
 	mu sync.Mutex
 	// inFlight owns fenced UID clones until their provider and installation join.
 	inFlight map[recoveryUIDKey]*recoveryUIDFlight
+	// preparationKeys shares the existing key ceiling without fabricating UIDs.
+	preparationKeys int
 	// ownedUIDBytes covers UID clones and conservative caller/index metadata.
 	ownedUIDBytes int
 	// members charges waiting and active callers together, including canceled

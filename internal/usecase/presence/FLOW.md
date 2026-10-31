@@ -10,8 +10,7 @@ Entry-independent orchestration connects the online registry and UID authority; 
 
 ## Boundaries
 - It does not import gateway/protocol frames, cluster runtimes, access or app.
-- Concrete sessions remain local; authority calls use route projections/exact targets.
-- The app touch worker batches dirty routes instead of one RPC per client ping.
+- Sessions stay local; authority uses exact targets. The app batches dirty touches instead of RPC per ping.
 
 ## Main Flows
 1. Activate resolves the UID Hash Slot, registers the local session pending,
@@ -46,11 +45,13 @@ Entry-independent orchestration connects the online registry and UID authority; 
    each processes at most four pages before returning to the same FIFO tail.
    Cumulative 4,096 rows or 4 MiB cause earlier yielding, with the final page
    allowed to cross either work cut once. Individual page limits stay unchanged.
-   Same-slot followers share one scan; paused scans retain prepaid staging and
-   original caller/key credits. No unbounded waiter queue is added. Each scan
-   has one fixed two-second deadline and each owner one fixed one-second budget
-   across Begin/pages/End. Every owner End and current applied claim must validate
-   before publication. A failed attempt needs a new G.
+   Same-slot followers share one scan and retain prepaid staging/caller credits.
+   Up to four joined Begin workers overlap independent owners; Claim and Begin
+   share sixteen actual control-call permits. Each scan has a fixed two-second
+   deadline; owner one-second budgets span Begin/pages/End. Every End and claim validate
+   before publication. A failed attempt needs a new G. Finite initial `Prepare`
+   control tasks share FIFO, caller/key/metadata limits and physical turns without UIDs;
+   partial coverage confers no offline proof. Cancellation retains providers/credits until joined.
 6. `SlotRecovery` owns strict registration, commit, abort, touch and unregister
    orchestration. Infrastructure forwards these DTOs; it must not rebuild an
    activation receipt or pending claim from a later route resolution. Strict
@@ -141,10 +142,9 @@ Entry-independent orchestration connects the online registry and UID authority; 
 
 ## Read First
 - [Activation](activate.go)
-- [Recovery admission](recovery_flights.go)
-- [Full-slot recovery and strict mutations](slot_recovery.go)
+- [Recovery admission](recovery_flights.go) and [Full-slot recovery](slot_recovery.go)
 - [Owner generation validation](owner_generation.go)
 - [Generation ports and result lifetimes](generation_ports.go)
 
 ## Update Triggers
-Update when activation, conflicts, observation, deactivation, touch, lookup or imports change.
+Update when activation, preparation, conflicts, observation, deactivation, touch, lookup or imports change.

@@ -26,6 +26,20 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Attempt bounded initial Presence recovery before opening business entries,
+  reducing contention between first logins and durable token provisioning.
+  Unavailable targets retain the existing fail-closed recovery path and deadlines.
+  / 业务入口开放前执行有界 Presence 初始恢复，减少首次登录与令牌写入竞争；
+  未完成分区仍按原有校验和期限处理。
+
+- Avoid a redundant Controller read-quorum round before fenced Presence claims;
+  successful claims still require their own durable Raft apply receipt.
+  / Presence 代号提交减少一次重复的一致性读等待，成功仍以自身 Raft 持久化回执为准。
+
+- Overlap independent Presence owner Begin checks within the original node-wide
+  control-call bound, retaining owner deadlines and late-provider cleanup.
+  / Presence 各节点恢复确认在原节点总并发上限内重叠执行，保留原有期限与延迟返回的清理责任。
+
 - Bound Presence recovery turns by page, row and byte work so small owner pages
   can finish without repeated queue waits; original deadlines and credits remain.
   / Presence 恢复按页数、行数和字节量限制执行量子，减少小页反复排队，

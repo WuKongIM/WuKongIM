@@ -47,10 +47,10 @@ not depend on `pkg/cluster`.
 3. Planner, lifecycle, and task APIs propose versioned fenced commands through
    Raft, while non-voter mirrors refresh the complete state file and watchers
    publish latest-state wakeups.
-4. Rare `EnsurePresenceOwnerSet`, `ClaimPresenceGeneration` and
-   `GetPresenceGeneration` calls use committed quorum/apply barriers. Claims CAS
-   against the preceding Hash Slot generation and return their exact FSM apply
-   receipt through the Raft proposal future. `G` and owner epoch `M` use committed
+4. Rare `EnsurePresenceOwnerSet` and `GetPresenceGeneration` use fresh quorum/apply
+   read barriers. `ClaimPresenceGeneration` uses a materialized proposal basis,
+   rechecks the full semantic CAS at apply and returns only its own durable Raft
+   receipt, without a redundant read quorum. `G` and owner epoch `M` use committed
    Raft indexes; boot IDs are equality identities only. Controller validates desired
    mapping, while the Node facade separately checks actual Slot leadership/term.
    No UID, Session, or per-SEND record enters this section.

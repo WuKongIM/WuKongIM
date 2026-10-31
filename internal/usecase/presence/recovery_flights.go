@@ -66,6 +66,8 @@ type recoveryMember struct {
 // recoveryWork owns the newly missing subset of one original call. Workers
 // publish it before callers join old flights, so overlapping calls cannot cycle.
 type recoveryWork struct {
+	// preparation is a finite control task in this same FIFO and ownership ledger.
+	preparation *recoveryPreparation
 	// slotCall retains Full status/ownership between physical page turns.
 	slotCall *slotRecoveryCall
 	creator  *recoveryMember
@@ -357,7 +359,7 @@ func (r *AuthorityRecovery) admitRecoveryPage(ctx context.Context, groups []Endp
 			workBytes += 128 + len(missing)*128
 		}
 	}
-	if len(r.members) >= recoveryMaxMembers || len(newKeys) > recoveryMaxKeys-len(r.inFlight) || memberBytes+workBytes > recoveryMaxUIDBytes-r.ownedUIDBytes {
+	if len(r.members) >= recoveryMaxMembers || len(newKeys) > recoveryMaxKeys-len(r.inFlight)-r.preparationKeys || memberBytes+workBytes > recoveryMaxUIDBytes-r.ownedUIDBytes {
 		markRecoveryAdmissionFailures(results, indexes)
 		return results, nil, waits, readbacks
 	}
@@ -433,6 +435,9 @@ func (r *AuthorityRecovery) returnMember(m *recoveryMember) {
 	defer r.mu.Unlock()
 	m.returned = true
 	works := make(map[*recoveryWork]struct{})
+	if m.work != nil && m.work.preparation != nil {
+		works[m.work] = struct{}{}
+	}
 	for _, f := range m.flights {
 		delete(f.users, m)
 		// Historical follower peaks must not retain an uncharged large map after
@@ -505,6 +510,9 @@ func recoveryMemberLive(m *recoveryMember, states map[*recoveryMember]bool) bool
 	return live
 }
 func (r *AuthorityRecovery) workHasUsersLocked(w *recoveryWork, states map[*recoveryMember]bool) bool {
+	if w.preparation != nil {
+		return recoveryMemberLive(w.creator, states)
+	}
 	for _, f := range w.flights {
 		for m := range f.users {
 			if recoveryMemberLive(m, states) {
@@ -835,6 +843,13 @@ func (r *AuthorityRecovery) finishWorkLocked(w *recoveryWork, outcomes map[recov
 	var defaultErr error
 	if outcomes == nil {
 		defaultErr = WrapActivationPhase(ActivationPhaseRecoveryAdmission, authority.ErrRouteNotReady)
+	}
+	if w.preparation != nil {
+		if outcomes == nil {
+			w.preparation.err = defaultErr
+		}
+		r.preparationKeys--
+		close(w.preparation.done)
 	}
 	for _, f := range w.flights {
 		key := f.key

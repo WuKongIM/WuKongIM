@@ -39,7 +39,7 @@ validated Config + build identity -> format guard and fresh-directory provenance
 Start
   -> cluster/control readiness
   -> internal producers and post-commit consumers
-  -> API and Manager
+  -> bounded initial Full Presence preparation, then API and Manager
   -> Prometheus and Gateway admission
 
 Stop or startup rollback
@@ -115,7 +115,7 @@ Stop or startup rollback
 - Startup failure rolls back completed components in reverse order. Constructor
   failure releases constructor-owned pools, sinks, and audit resources.
 - Full Presence shares the Node capability boot, monotonic sequence and receipts.
-  Support is advertised after handlers bind. Stop/rollback joins caller and slot
+  Bound RPCs precede finite local-authority preparation; partial coverage is not a global readiness gate. Stop/rollback joins caller and slot
   ownership before cluster close; reopening atomically replaces stable forwarding.
 - Gateway admission opens only after cluster write routing and required runtime
   readiness. Joining nodes remain fenced until observed membership permits it.

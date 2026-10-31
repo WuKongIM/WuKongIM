@@ -24,13 +24,14 @@ import (
 )
 
 type connectOutcome struct {
-	Category     string `json:"category"`
-	Phase        string `json:"phase,omitempty"`
-	Kind         string `json:"kind,omitempty"`
-	ReasonKnown  bool   `json:"reason_known"`
-	Reason       uint8  `json:"reason"`
-	ArrivalLagNS int64  `json:"arrival_lag_ns"`
-	ElapsedNS    int64  `json:"elapsed_ns"`
+	Category       string `json:"category"`
+	Phase          string `json:"phase,omitempty"`
+	Kind           string `json:"kind,omitempty"`
+	ReasonKnown    bool   `json:"reason_known"`
+	Reason         uint8  `json:"reason"`
+	ArrivalLagNS   int64  `json:"arrival_lag_ns"`
+	ElapsedNS      int64  `json:"elapsed_ns"`
+	TokenElapsedNS int64  `json:"token_elapsed_ns"`
 }
 
 // TestColdConnect keeps the first result of every fixed-arrival authenticated login.
@@ -40,8 +41,22 @@ func TestColdConnect(t *testing.T) {
 	}
 	dir := os.Getenv("WK_E2E_COLD_CONNECT_REPORT_DIR")
 	require.NotEmpty(t, dir, "one explicit artifact directory required")
+	arrival := os.Getenv("WK_E2E_COLD_CONNECT_ARRIVAL")
+	if arrival == "" {
+		arrival = "paced"
+	}
+	require.Contains(t, []string{"paced", "one_second_burst"}, arrival, "fixed diagnostic arrival shape required")
+	tokenTiming := os.Getenv("WK_E2E_COLD_CONNECT_TOKEN_TIMING")
+	if tokenTiming == "" {
+		tokenTiming = "preprovisioned"
+	}
+	require.Contains(t, []string{"preprovisioned", "on_arrival"}, tokenTiming, "fixed diagnostic token timing required")
 	require.NoError(t, os.MkdirAll(dir, 0700))
-	const users = 300
+	users := 300
+	if population := os.Getenv("WK_E2E_COLD_CONNECT_POPULATION"); population != "" {
+		require.Equal(t, "10000", population, "only the fixed10k population control is supported")
+		users = 10000
+	}
 	var cluster *suite.StartedCluster
 	var processes []*suite.NodeProcess
 	clients := make([]*suite.WKProtoClient, users)
@@ -63,13 +78,15 @@ func TestColdConnect(t *testing.T) {
 			t.Error("process cleanup incomplete")
 		}
 		report := map[string]any{"schema": "cold-connect-native/v1", "phase": phase,
-			"scope": "300 cold CONNECT diagnostic, not original-scale or2h acceptance",
+			"scope": "cold CONNECT diagnostic without business SEND or full-sync, not2h acceptance",
 			"nodes": 3, "hash_slots": 256, "logical_slots": 12, "replicas": 3,
 			"planned_users": users, "first_connect_per_second": 100, "server_activation_seconds": 3,
+			"arrival_shape": arrival,
+			"token_timing":  tokenTiming, "token_api": "public_user_token",
 			"client_seconds": 5, "retry_count": 0, "top_history": false, "binary_sha256": binarySHA,
 			"outcomes": outcomes, "cohort_joined": cohortJoined, "clients_closed": clientsClosed,
 			"processes_exited": exited, "process_groups_joined": joined, "passed": !t.Failed() && cohortJoined && clientsClosed && exited && joined}
-		writeJSON(t, filepath.Join(dir, "final.json"), report, 64<<10)
+		writeJSON(t, filepath.Join(dir, "final.json"), report, 4<<20)
 	})
 	opts := []suite.Option{suite.WithManagerHTTP(), suite.WithWorkspaceRootDir(filepath.Join(dir, "workspace"))}
 	for i := 1; i <= 3; i++ {
@@ -104,7 +121,11 @@ func TestColdConnect(t *testing.T) {
 	require.NoError(t, closeErr)
 	require.LessOrEqual(t, n, int64(128<<20))
 	binarySHA = hex.EncodeToString(h.Sum(nil))
-	ctx, cancel := context.WithTimeout(context.Background(), 110*time.Second)
+	budget := 110 * time.Second
+	if users == 10000 {
+		budget = 180 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
 	ready, done := context.WithTimeout(ctx, 35*time.Second)
 	require.NoError(t, cluster.WaitClusterReady(ready), "cluster readiness failed")
@@ -112,21 +133,62 @@ func TestColdConnect(t *testing.T) {
 	done()
 	require.NoError(t, err, "Slot authority did not stabilize")
 	phase = "token_setup"
-	for i := 0; i < users; i++ {
+	prepareToken := func(i int) error {
 		uid := fmt.Sprintf("cold-native-%04d", i)
 		call, stop := context.WithTimeout(ctx, 5*time.Second)
-		_, err = suite.PostJSON(call, "http://"+cluster.MustNode(uint64(i%3+1)).APIAddr()+"/user/token", map[string]any{"uid": uid, "token": "cold-fixture-" + uid, "device_flag": int(frame.APP), "device_level": 0}, nil)
-		stop()
-		require.True(t, err == nil, "public token setup failed")
+		defer stop()
+		_, err := suite.PostJSON(call, "http://"+cluster.MustNode(uint64(i%3+1)).APIAddr()+"/user/token", map[string]any{"uid": uid, "token": "cold-fixture-" + uid, "device_flag": int(frame.APP), "device_level": 0}, nil)
+		return err
+	}
+	for i := 0; i < users; i++ {
+		if tokenTiming == "preprovisioned" {
+			require.True(t, prepareToken(i) == nil, "public token setup failed")
+		}
 		clients[i], err = suite.NewWKProtoClient()
 		require.NoError(t, err)
 	}
 	captureMetrics(t, ctx, cluster, dir, "before")
 	phase = "first_connect"
 	start := time.Now()
+	var probes sync.WaitGroup
+	probeCtx, stopProbes := context.WithCancel(ctx)
+	defer stopProbes()
+	if os.Getenv("WK_E2E_COLD_CONNECT_STARTUP_STACKS") == "1" {
+		probes.Add(1)
+		go func() {
+			defer probes.Done()
+			for _, offset := range []time.Duration{2 * time.Second, 4 * time.Second} {
+				timer := time.NewTimer(max(time.Until(start.Add(offset)), 0))
+				select {
+				case <-timer.C:
+				case <-probeCtx.Done():
+					timer.Stop()
+					return
+				}
+				var nodes sync.WaitGroup
+				for node := 1; node <= 3; node++ {
+					nodes.Add(1)
+					go func(node int) {
+						defer nodes.Done()
+						call, stop := context.WithTimeout(probeCtx, 2*time.Second)
+						defer stop()
+						began := time.Since(start)
+						path := filepath.Join(dir, fmt.Sprintf("startup-%ds-stacks-node%d.txt", int(offset/time.Second), node))
+						e := writeStackSummary(call, "http://"+cluster.MustNode(uint64(node)).APIAddr(), path)
+						writeJSON(t, path+".receipt.json", map[string]any{"available": e == nil, "possibly_truncated": true,
+							"began_elapsed_ns": began.Nanoseconds(), "ended_elapsed_ns": time.Since(start).Nanoseconds(), "scope": "diagnostic_only_not_unprofiled_qualification"}, 1024)
+					}(node)
+				}
+				nodes.Wait()
+			}
+		}()
+	}
 	var wg sync.WaitGroup
 	for i := 0; i < users; i++ {
 		planned := start.Add(time.Duration(i) * 10 * time.Millisecond)
+		if arrival == "one_second_burst" {
+			planned = start.Add(time.Duration(i/100) * time.Second)
+		}
 		if wait := time.Until(planned); wait > 0 {
 			timer := time.NewTimer(wait)
 			select {
@@ -140,11 +202,21 @@ func TestColdConnect(t *testing.T) {
 			defer wg.Done()
 			began := time.Now()
 			out := connectOutcome{Category: "transport_other", ArrivalLagNS: began.Sub(planned).Nanoseconds()}
+			if tokenTiming == "on_arrival" {
+				err := prepareToken(i)
+				out.TokenElapsedNS = time.Since(began).Nanoseconds()
+				if err != nil {
+					out.Category = "token_preparation_failed"
+					outcomes[i] = out
+					return
+				}
+			}
+			connectBegan := time.Now()
 			call, stop := context.WithTimeout(ctx, 5*time.Second)
 			defer stop()
 			uid := fmt.Sprintf("cold-native-%04d", i)
 			ack, e := clients[i].ConnectWithTokenContext(call, cluster.MustNode(uint64(i%3+1)).GatewayAddr(), uid, "cold-device", "cold-fixture-"+uid)
-			out.ElapsedNS = time.Since(began).Nanoseconds()
+			out.ElapsedNS = time.Since(connectBegan).Nanoseconds()
 			if e == nil && ack != nil {
 				out.Category = "ok"
 				out.ReasonKnown = true
@@ -176,6 +248,8 @@ func TestColdConnect(t *testing.T) {
 	}
 	wg.Wait()
 	cohortJoined = true
+	stopProbes()
+	probes.Wait()
 	captureMetrics(t, ctx, cluster, dir, "after")
 	succeeded := 0
 	for _, out := range outcomes {
@@ -211,7 +285,8 @@ func captureMetrics(t *testing.T, ctx context.Context, cluster *suite.StartedClu
 		stop()
 		selected := make([]suite.MetricSample, 0, 256)
 		for _, sample := range samples {
-			if strings.HasPrefix(sample.Name, "wukongim_presence_") || strings.HasPrefix(sample.Name, "wukongim_gateway_auth_") || strings.HasPrefix(sample.Name, "wukongim_rpc_") || strings.HasPrefix(sample.Name, "wukongim_transport_") {
+			authPressure := strings.HasPrefix(sample.Name, "wukongim_runtime_") && sample.Labels["component"] == "gateway" && sample.Labels["pool"] == "async_auth"
+			if authPressure || strings.HasPrefix(sample.Name, "wukongim_presence_") || strings.HasPrefix(sample.Name, "wukongim_gateway_auth_") || strings.HasPrefix(sample.Name, "wukongim_rpc_") || strings.HasPrefix(sample.Name, "wukongim_transport_") {
 				selected = append(selected, sample)
 			}
 		}
