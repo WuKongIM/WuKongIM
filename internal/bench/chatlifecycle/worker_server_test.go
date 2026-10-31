@@ -241,7 +241,7 @@ func TestWorkerServerLifecycleReheatRejectsFenceMissingAndHonorsCancellation(t *
 	}
 }
 
-func TestWorkerServerAdvertisesWorkerProtocolV15(t *testing.T) {
+func TestWorkerServerAdvertisesWorkerProtocolV16(t *testing.T) {
 	t.Parallel()
 
 	server, err := NewWorkerServer(WorkerServerConfig{
@@ -265,8 +265,8 @@ func TestWorkerServerAdvertisesWorkerProtocolV15(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode info: %v", err)
 	}
-	if info.ProtocolVersion != 15 {
-		t.Fatalf("protocol version = %d, want 15", info.ProtocolVersion)
+	if info.ProtocolVersion != 16 {
+		t.Fatalf("protocol version = %d, want 16", info.ProtocolVersion)
 	}
 }
 
@@ -855,6 +855,7 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	engineGeneration.engine.lifecycleMu.Unlock()
 	engineGeneration.verifier.sendMu.Lock()
 	recordWorkerLatency(&engineGeneration.verifier.hotSendackLatency, 2*time.Second)
+	recordLatencyThresholdCounters(&engineGeneration.verifier.hotSendackThresholds, 2*time.Second)
 	engineGeneration.verifier.sendMu.Unlock()
 	engineGeneration.verifier.recvMu.Lock()
 	recordWorkerLatency(&engineGeneration.verifier.recvackLatency, 50*time.Millisecond)

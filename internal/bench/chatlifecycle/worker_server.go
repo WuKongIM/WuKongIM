@@ -1037,6 +1037,9 @@ func validWorkerMessageSnapshot(messages WorkerMessageSnapshot) bool {
 }
 
 func validWorkerSnapshot(snapshot WorkerSnapshot) bool {
+	if !validWorkerHotThresholds(snapshot) {
+		return false
+	}
 	terminal, terminalOK := snapshot.Messages.TerminalReasons.total()
 	if !validWorkerMessageSnapshot(snapshot.Messages) || !terminalOK || terminal != snapshot.Messages.Terminal {
 		return false
@@ -1213,6 +1216,7 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 		return nil, err
 	}
 	verifier, err := NewVerifier(traffic, VerifierConfig{
+		HotLatency:                   config.Thresholds.Latency.HotSendACK,
 		PendingCapacity:              limits.pending,
 		SequenceCapacity:             limits.sequence,
 		CorrelationCapacity:          limits.correlation,
@@ -1822,6 +1826,7 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 			Thresholds: engine.ConversationSyncThresholds,
 		},
 		HotSendackLatency:             verification.HotSendackLatency,
+		HotSendackThresholds:          verification.HotSendackThresholds,
 		ColdFirstCreateSendackLatency: verification.ColdFirstCreateSendackLatency,
 		LifecycleReheatSendackLatency: verification.LifecycleReheatSendackLatency,
 		RecvackLatency:                verification.RecvackLatency,

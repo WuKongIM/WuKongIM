@@ -158,13 +158,7 @@ func (r *liveDiagnosticRecorder) Observe(at time.Time, cut CoordinatorCutKind, s
 // Invalid latency input stays absent here; authoritative worker-evidence validation
 // retains responsibility for the failure stage and verdict.
 func (r *liveDiagnosticRecorder) hotLatencyCounters(snapshots []WorkerSnapshot) *hotLatencyDiagnosticCounters {
-	hot := newWorkerHistogramSnapshot()
-	for _, snapshot := range snapshots {
-		if err := addCoordinatorHistogram(&hot, snapshot.HotSendackLatency); err != nil {
-			return nil
-		}
-	}
-	counters, err := histogramThresholdCounters(hot, r.hotLimits)
+	counters, err := aggregateWorkerHotThresholds(snapshots, r.hotLimits)
 	if err != nil {
 		return nil
 	}

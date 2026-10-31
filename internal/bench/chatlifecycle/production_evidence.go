@@ -18,7 +18,6 @@ func projectWorkerVerdictEvidence(
 		return CorrectnessCounters{}, LatencyCounters{}, nil, errProductionEvidence
 	}
 	var correctness CorrectnessCounters
-	hot := newWorkerHistogramSnapshot()
 	syncCounters := LatencyThresholdCounters{
 		P99Limit: cfg.Thresholds.Latency.Sync.P99, P999Limit: cfg.Thresholds.Latency.Sync.P999,
 	}
@@ -48,9 +47,6 @@ func projectWorkerVerdictEvidence(
 			}
 			*pair[0] += *pair[1]
 		}
-		if err := addCoordinatorHistogram(&hot, snapshot.HotSendackLatency); err != nil {
-			return CorrectnessCounters{}, LatencyCounters{}, nil, errProductionEvidence
-		}
 		thresholds := snapshot.Sync.Thresholds
 		if thresholds.P99Limit != syncCounters.P99Limit || thresholds.P999Limit != syncCounters.P999Limit ||
 			thresholds.AboveP99 > thresholds.Count || thresholds.AboveP999 > thresholds.AboveP99 ||
@@ -68,7 +64,7 @@ func projectWorkerVerdictEvidence(
 		}
 		classification = mergeSyncClassification(classification, snapshot.Harness.Classification, snapshot.Evidence.Classification)
 	}
-	hotCounters, err := histogramThresholdCounters(hot, cfg.Thresholds.Latency.HotSendACK)
+	hotCounters, err := aggregateWorkerHotThresholds(snapshots, cfg.Thresholds.Latency.HotSendACK)
 	if err != nil {
 		return CorrectnessCounters{}, LatencyCounters{}, nil, err
 	}

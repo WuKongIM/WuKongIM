@@ -26,6 +26,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Measure configured benchmark hot-message latency limits, including 600ms,
+  exactly instead of rejecting limits between histogram buckets.
+  / 精确统计压测热消息延迟门限，支持 600ms 等位于直方图桶间的配置，避免观测校验提前失败。
+
 - Keep benchmark group members on their group's worker so reducing the online
   population does not strand sampled group messages before latency measurement;
   preserve their original product gateway distribution across nodes.

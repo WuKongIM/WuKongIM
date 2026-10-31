@@ -21,8 +21,8 @@ func TestAttemptLinkV15OptionalLiveAndFinalDiagnosticSanitizesIndependently(t *t
 	if ReportSchemaVersion != "wukongim/chat-lifecycle-report/v8" {
 		t.Fatal("attempt diagnostics changed native report schema")
 	}
-	if workerProtocolVersion != 15 {
-		t.Fatalf("private protocol=%d want15", workerProtocolVersion)
+	if workerProtocolVersion != 16 {
+		t.Fatalf("private protocol=%d want16", workerProtocolVersion)
 	}
 	for _, phase := range []WorkerPhase{WorkerPhaseRunning, WorkerPhaseFinal} {
 		s := attemptLinkSnapshotFixture()
@@ -55,6 +55,7 @@ func TestAttemptLinkV15OptionalLiveAndFinalDiagnosticSanitizesIndependently(t *t
 func TestAttemptLinkMaximumEncodingFitsEveryExistingEnvelope(t *testing.T) {
 	s := attemptLinkSnapshotFixture()
 	fillEvidenceBudgetScalars(reflect.ValueOf(&s).Elem())
+	setMaximumWidthHotEvidence(&s)
 	s.RunID = strings.Repeat("\x01", 128)
 	s.AssignmentID = s.RunID
 	s.Generation = math.MaxUint64

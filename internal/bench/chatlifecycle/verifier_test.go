@@ -547,6 +547,7 @@ func TestVerifierAcknowledgesButExcludesExternalDemoTraffic(t *testing.T) {
 	}
 	if snapshot := verifier.Snapshot(); snapshot != (VerifierSnapshot{
 		HotSendackLatency: newWorkerHistogramSnapshot(), ColdFirstCreateSendackLatency: newWorkerHistogramSnapshot(),
+		HotSendackThresholds:          LatencyThresholdCounters{P99Limit: 400 * time.Millisecond, P999Limit: time.Second},
 		LifecycleReheatSendackLatency: newWorkerHistogramSnapshot(),
 		RecvackLatency:                newWorkerHistogramSnapshot(),
 	}) {

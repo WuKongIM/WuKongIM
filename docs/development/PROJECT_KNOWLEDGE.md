@@ -1,5 +1,14 @@
 # Project Knowledge
 
+Chat-lifecycle worker protocol v16 records fixed exact hot-SENDACK threshold
+counters using the same ACK duration as its unchanged sixteen-bucket histogram.
+This supports configured limits such as 600ms without interpolating the
+400ms/1s bucket. Native verdicts and passive logs share checked aggregation;
+wrong limits, sample-count mismatch, regression and overflow fail closed.
+Legacy 400ms evidence may use its exact histogram boundary; absent 600ms
+counters cannot qualify. Report v8 and timeout/correctness gates stay unchanged.
+No extra clock, RPC or retained message history is introduced.
+
 Chat-lifecycle fixed group rosters align their member stride with the worker
 count. Otherwise a 2,000-group/three-worker catalog needs member ordinal three
 before a group owner sees a second member: reducing online users from 10,000 to
