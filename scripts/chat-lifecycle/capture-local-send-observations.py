@@ -264,7 +264,7 @@ def anchors(args):
     require(all(integer(w['worker_id'], 2) for w in workers)
             and all(integer(w['worker_index'], 2) for w in generations))
     by_id = {w['worker_index']: w for w in generations}
-    selected, seen_keys = [], set()
+    selected, seen_keys, retention_policies = [], set(), []
     for worker in workers:
         peer = by_id[worker['worker_id']]
         require(worker['phase'] == peer['phase'] == 'final'
@@ -282,12 +282,28 @@ def anchors(args):
                 if percentile == 95 else 'percentile' not in slow)
         rows = slow['records']
         require(slow['limit_nanos'] == limit and integer(slow['seen'])
+                and integer(slow['overwritten'])
                 and len(rows) == min(slow['seen'], 16)
                 and slow['overwritten'] == slow['seen']-len(rows))
+        policy = slow.get('retention_policy', '')
+        require(type(policy) is str)
+        if policy:
+            require(policy == 'p999_reserve8/v1' and integer(slow['tail_limit_nanos'])
+                    and integer(hot['p999']) and slow['tail_limit_nanos'] == hot['p999']
+                    and slow['tail_limit_nanos'] >= limit)
+            retention_policies.append(dict(worker_id=worker['worker_id'], policy=policy,
+                                           tail_limit_nanos=slow['tail_limit_nanos']))
+        else:
+            require('tail_limit_nanos' not in slow)
         for i, row in enumerate(rows):
             require(set(row) == {'ordinal', 'key', 'kind', 'attribution', 'deadline_after_registration',
                                 'observed_after_registration', 'sdk_pending_to_write', 'sdk_write_to_observed', 'timing_mask', 'observed_at'})
-            require(integer(row['ordinal']) and row['ordinal'] == slow['seen']-len(rows)+i+1
+            ordinal_valid = row['ordinal'] == slow['seen']-len(rows)+i+1
+            if policy:
+                ordinal_valid = (0 < row['ordinal'] <= slow['seen']
+                                 and (i == 0 or row['ordinal'] > rows[i-1]['ordinal'])
+                                 and (i != len(rows)-1 or row['ordinal'] == slow['seen']))
+            require(integer(row['ordinal']) and ordinal_valid
                     and DURATION(row['sdk_pending_to_write']) and DURATION(row['sdk_write_to_observed'])
                     and integer(row['timing_mask'], 3))
             observed = stamp(row['observed_at'])
@@ -315,7 +331,7 @@ lifecycle_product_failure lifecycle_harness_invalid meta_create_product_failure 
 insufficient_evidence'''.split()+[''])
     return selected, dict(run_start_sha256=start_hash, final_sha256=final_hash, sidecar_sha256=side_hash,
                          fence=final['fence'], original_outcome={k: verdict[k] for k in ('terminal', 'outcome', 'cause') if k in verdict},
-                         terminal_at=final['window']['end'])
+                         terminal_at=final['window']['end'], anchor_retention_policies=retention_policies)
 
 
 def response_valid(data, body, node):

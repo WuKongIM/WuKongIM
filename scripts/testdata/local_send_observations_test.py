@@ -256,10 +256,68 @@ class CaptureTests(unittest.TestCase):
         self.assertLess(time.monotonic()-before, 10.5)
         return data
 
+    def test_p999_priority_retention_preserves_gapped_keys_and_rejects_bad_policy(self):
+        original = copy.deepcopy(self.side)
+        self.final['thresholds']['latency']['hot_sendack']['p999'] = 1000000000
+        for case in ['valid', 'unsupported', 'wrong-tail', 'bool-tail', 'bool-seen', 'bool-overwritten', 'duplicate', 'regressing', 'above-seen', 'missing-newest', 'legacy-gap']:
+            with self.subTest(case=case):
+                self.side = copy.deepcopy(original)
+                for worker in self.side['workers']:
+                    slow = worker['attempt_link_diagnostics']['slow_hot_success']
+                    slow.update(retention_policy='p999_reserve8/v1', tail_limit_nanos=1000000000, seen=17, overwritten=1)
+                    template = slow['records'][0]
+                    rows = []
+                    for ordinal in [1]+list(range(3,18)):
+                        row = copy.deepcopy(template)
+                        row.update(ordinal=ordinal, key=dict(KEY, client_seq=ordinal+worker['worker_id']*100),
+                                   observed_after_registration=1100000000 if ordinal == 1 else 700000000,
+                                   sdk_write_to_observed=1099000000 if ordinal == 1 else 699000000)
+                        rows.append(row)
+                    slow['records'] = rows
+                    if case == 'unsupported': slow['retention_policy'] = 'unknown'
+                    if case == 'wrong-tail': slow['tail_limit_nanos'] = 600000000
+                    if case == 'bool-tail': slow['tail_limit_nanos'] = True
+                    if case == 'bool-seen': slow['seen'] = True
+                    if case == 'bool-overwritten': slow['overwritten'] = True
+                    if case == 'duplicate': rows[1]['ordinal'] = 1
+                    if case == 'regressing': rows[1]['ordinal'],rows[2]['ordinal'] = 4,3
+                    if case == 'above-seen': rows[-1]['ordinal'] = 18
+                    if case == 'missing-newest': rows[-1]['ordinal'] = 16
+                    if case == 'legacy-gap':
+                        del slow['retention_policy'],slow['tail_limit_nanos']
+                data = self.capture()
+                if case == 'valid':
+                    self.assertEqual(data['status'],'captured')
+                    self.assertEqual(data['anchor_count'],48)
+                    self.assertEqual(sum(a['observed_after_registration']>1000000000 for a in data['anchors']),3)
+                    self.assertEqual(data['binding']['anchor_retention_policies'],[
+                        dict(worker_id=i,policy='p999_reserve8/v1',tail_limit_nanos=1000000000) for i in range(3)])
+                    self.assertLessEqual(len(self.calls),18)
+                else:
+                    self.assertEqual(data['status'],'unknown')
+                    self.assertEqual(self.calls,[])
+                self.calls.clear()
+                (self.root/'observations.json').unlink()
+
     def test_cross_assignment_sidecar_prevents_http(self):
         self.side['workers'][0]['assignment_id'] = 'another-assignment'
         self.assertEqual(self.capture()['status'],'unknown')
         self.assertEqual(self.calls,[])
+
+    def test_falsy_policy_types_are_not_legacy_absence(self):
+        original = copy.deepcopy(self.side)
+        for invalid in [False,0,None,[],{}]:
+            with self.subTest(policy=invalid):
+                (self.root/'observations.json').unlink(missing_ok=True)
+                self.calls.clear()
+                self.side = copy.deepcopy(original)
+                for worker in self.side['workers']:
+                    worker['attempt_link_diagnostics']['slow_hot_success']['retention_policy'] = invalid
+                data = self.capture()
+                self.assertEqual(data['status'],'unknown')
+                self.assertEqual(self.calls,[])
+                self.calls.clear()
+                (self.root/'observations.json').unlink()
 
     def test_duplicate_native_keys_and_boolean_ids_are_not_fences(self):
         def duplicate():

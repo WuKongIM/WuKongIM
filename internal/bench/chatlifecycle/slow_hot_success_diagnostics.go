@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"io"
 	"math"
+	"slices"
 	"time"
 )
+
+const slowHotTailRetention = "p999_reserve8/v1"
 
 // SlowHotSuccessRecord borrows the original SDK observation clock and opaque
 // exact-attempt identity. It never represents a timeout or a durability proof.
@@ -15,8 +18,8 @@ type SlowHotSuccessRecord struct {
 	ObservedAt time.Time `json:"observed_at"`
 }
 
-// SlowHotSuccessDiagnosticsSnapshot retains the latest fixed-size hot tail so
-// a long run does not lose the failure window to an immutable startup prefix.
+// SlowHotSuccessDiagnosticsSnapshot retains bounded original hot ACK samples.
+// Selection is diagnostic and never represents a population percentile.
 type SlowHotSuccessDiagnosticsSnapshot struct {
 	// Percentile binds opt-in P95 selection; absent retains the legacy P99 meaning.
 	Percentile  uint64                 `json:"percentile,omitempty"`
@@ -24,6 +27,10 @@ type SlowHotSuccessDiagnosticsSnapshot struct {
 	Seen        uint64                 `json:"seen"`
 	Overwritten uint64                 `json:"overwritten"`
 	Records     []SlowHotSuccessRecord `json:"records"`
+	// Empty RetentionPolicy preserves the historical latest-sixteen contract.
+	RetentionPolicy string `json:"retention_policy,omitempty"`
+	// TailLimitNanos binds reserved samples to the configured independent P999.
+	TailLimitNanos time.Duration `json:"tail_limit_nanos,omitempty"`
 }
 
 // slowHotSuccessRecorder shares the existing optional verifier owner/lock.
@@ -32,7 +39,6 @@ type slowHotSuccessRecorder struct {
 	records [attemptLinkDiagnosticCapacity]SlowHotSuccessRecord
 	seen    uint64
 	count   int
-	next    int
 }
 
 func (v *Verifier) recordSlowHotSuccessLocked(deadline *firstAttemptDeadline, at time.Time, latency time.Duration, observation attemptLinkObservation) {
@@ -49,29 +55,58 @@ func (v *Verifier) recordSlowHotSuccessLocked(deadline *firstAttemptDeadline, at
 		return
 	}
 	d.seen++
-	d.records[d.next] = SlowHotSuccessRecord{AttemptLinkRecord: row, ObservedAt: at}
-	d.next = (d.next + 1) % attemptLinkDiagnosticCapacity
+	slot := d.count
 	if d.count < attemptLinkDiagnosticCapacity {
 		d.count++
+	} else {
+		slot = d.replacementSlot(row.ObservedAfterRegistration, v.config.HotLatency.P999)
 	}
+	d.records[slot] = SlowHotSuccessRecord{AttemptLinkRecord: row, ObservedAt: at}
+}
+
+// replacementSlot reserves eight recent P999 violations against primary-only
+// churn. The remaining slots retain recency; only sixteen owned rows are read.
+func (d *slowHotSuccessRecorder) replacementSlot(incoming, tailLimit time.Duration) int {
+	tailCount := 0
+	for _, row := range d.records {
+		if row.ObservedAfterRegistration > tailLimit {
+			tailCount++
+		}
+	}
+	// Above the reserve, a fresh primary sample can reclaim a tail slot. A fresh
+	// tail replaces its oldest peer once the reserve has already been filled.
+	replaceTail := tailCount > attemptLinkDiagnosticCapacity/2 ||
+		(incoming > tailLimit && tailCount >= attemptLinkDiagnosticCapacity/2)
+	oldest := -1
+	for i, row := range d.records {
+		if (row.ObservedAfterRegistration > tailLimit) == replaceTail &&
+			(oldest == -1 || row.Ordinal < d.records[oldest].Ordinal) {
+			oldest = i
+		}
+	}
+	return oldest // The full array always contains a row in the selected class.
 }
 
 func (v *Verifier) slowHotSuccessSnapshotLocked() *SlowHotSuccessDiagnosticsSnapshot {
 	d := &v.attemptLinkDiagnostics.slowHot
 	records := make([]SlowHotSuccessRecord, d.count)
-	first := 0
-	if d.count == attemptLinkDiagnosticCapacity {
-		first = d.next
-	}
-	for i := range records {
-		records[i] = d.records[(first+i)%attemptLinkDiagnosticCapacity]
-	}
+	copy(records, d.records[:d.count])
+	slices.SortFunc(records, func(a, b SlowHotSuccessRecord) int {
+		if a.Ordinal < b.Ordinal {
+			return -1
+		}
+		if a.Ordinal > b.Ordinal {
+			return 1
+		}
+		return 0
+	})
 	var percentile uint64
 	if v.config.HotLatency.P95 != 0 {
 		percentile = 95
 	}
 	return &SlowHotSuccessDiagnosticsSnapshot{Percentile: percentile, LimitNanos: v.config.HotLatency.primaryLimit(), Seen: d.seen,
-		Overwritten: d.seen - uint64(d.count), Records: records}
+		Overwritten: d.seen - uint64(d.count), Records: records,
+		RetentionPolicy: slowHotTailRetention, TailLimitNanos: v.config.HotLatency.P999}
 }
 
 func validSlowHotSuccess(d *SlowHotSuccessDiagnosticsSnapshot) bool {
@@ -83,9 +118,19 @@ func validSlowHotSuccess(d *SlowHotSuccessDiagnosticsSnapshot) bool {
 		d.Overwritten != d.Seen-count {
 		return false
 	}
+	if (d.RetentionPolicy == "" && d.TailLimitNanos != 0) ||
+		(d.RetentionPolicy != "" && (d.RetentionPolicy != slowHotTailRetention || d.TailLimitNanos < d.LimitNanos)) {
+		return false
+	}
 	for i, r := range d.Records {
 		// Subtract before adding, so a saturated Seen never wraps to zero.
-		if r.Ordinal != d.Seen-count+uint64(i)+1 || r.ObservedAt.IsZero() ||
+		ordinalValid := r.Ordinal == d.Seen-count+uint64(i)+1
+		if d.RetentionPolicy == slowHotTailRetention {
+			ordinalValid = r.Ordinal > 0 && r.Ordinal <= d.Seen &&
+				(i == 0 || r.Ordinal > d.Records[i-1].Ordinal) &&
+				(i != len(d.Records)-1 || r.Ordinal == d.Seen)
+		}
+		if !ordinalValid || r.ObservedAt.IsZero() ||
 			r.Key.ClientSeq == 0 || r.Key.MessageFingerprint == [16]byte{} ||
 			r.ObservedAfterRegistration <= d.LimitNanos || r.ObservedAfterRegistration >= r.DeadlineAfterRegistration ||
 			r.Kind != "sendack_success" || r.SDKPendingToWrite < 0 || r.SDKWriteToObserved < 0 || r.TimingMask > 3 ||
@@ -98,6 +143,47 @@ func validSlowHotSuccess(d *SlowHotSuccessDiagnosticsSnapshot) bool {
 }
 
 func decodeSlowHotSuccess(raw []byte) *SlowHotSuccessDiagnosticsSnapshot {
+	// A JSON null must not become an omitted zero value and thereby acquire
+	// historical legacy semantics after this optional child is re-exported.
+	scanner := json.NewDecoder(bytes.NewReader(raw))
+	if token, err := scanner.Token(); err != nil || token != json.Delim('{') {
+		return nil
+	}
+	fields := make(map[string]json.RawMessage)
+	for scanner.More() {
+		token, err := scanner.Token()
+		key, ok := token.(string)
+		if err != nil || !ok {
+			return nil
+		}
+		// Keep raw checks and the typed decoder on one canonical field set;
+		// encoding/json would otherwise accept case-insensitive aliases.
+		switch key {
+		case "percentile", "limit_nanos", "seen", "overwritten", "records", "retention_policy", "tail_limit_nanos":
+		default:
+			return nil
+		}
+		if _, duplicate := fields[key]; duplicate {
+			return nil
+		}
+		var value json.RawMessage
+		if scanner.Decode(&value) != nil {
+			return nil
+		}
+		fields[key] = value
+	}
+	if token, err := scanner.Token(); err != nil || token != json.Delim('}') || scanner.Decode(new(any)) != io.EOF {
+		return nil
+	}
+	var policy *string
+	if value, present := fields["retention_policy"]; present {
+		if json.Unmarshal(value, &policy) != nil || policy == nil {
+			return nil
+		}
+	}
+	if _, present := fields["tail_limit_nanos"]; present && (policy == nil || *policy != slowHotTailRetention) {
+		return nil
+	}
 	var out SlowHotSuccessDiagnosticsSnapshot
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()
