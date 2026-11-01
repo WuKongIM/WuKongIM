@@ -96,13 +96,14 @@ scheduled backup or restore
 - The owner diagnostic classifier declares only version-2 header operations
   7/9/10/11 for selected server RPC samples. Unknown/truncated headers stay zero;
   the declaration grants neither full-body validation nor cancellation authority.
-- Failed legacy and Full presence Register/Commit with route-not-ready log a closed source phase,
+- Failed legacy and Full presence Register/Commit with route-not-ready or deadline status log a closed source phase,
   numeric target and optional immutable physical-round provider evidence. Known
   masks preserve missing stages; RPC bytes stay unchanged and lookups add no
   event. The shared `internal/observability/presencelog` formatter preserves these
   fields for both node and gateway adapters. Raw causes, UID/session identities
   and tokens remain excluded from the added evidence. Register hashes the decoded
   original Route for gateway correlation; token-only Commit keeps that hash unknown.
+  Deadline failures use a distinct fixed event; cancellation and unknown errors add no activation event.
 - Full presence uses independent `WKVG`/`WKVg` format-1 frames over services
   13/14. Register and final conflict Commit carry the actual generation receipt;
   pending candidates retain its claim. Begin/Page/End/Abort and UID rechecks bind

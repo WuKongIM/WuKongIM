@@ -617,13 +617,20 @@ func (a *Adapter) logPresenceAuthorityError(req presenceRPCRequest, status strin
 	// Activation failures retain their closed authority-side phase because the
 	// compatible RPC status intentionally omits source errors. Exclude lookups,
 	// identities and cause text so recipient fanout cannot amplify these logs.
-	if status == rpcStatusRouteNotReady && (req.Op == presenceOpRegisterRoute || req.Op == presenceOpCommitRoute) {
+	if (status == rpcStatusRouteNotReady || status == rpcStatusContextDeadlineExceeded) &&
+		(req.Op == presenceOpRegisterRoute || req.Op == presenceOpCommitRoute) {
+		event := "internal.access.node.presence_activation_not_ready"
+		message := "presence activation authority not ready"
+		if status == rpcStatusContextDeadlineExceeded {
+			event = "internal.access.node.presence_activation_deadline"
+			message = "presence activation authority deadline"
+		}
 		phase := presence.ActivationFailurePhase(err).String()
 		if phase == "" {
 			phase = "unknown"
 		}
 		fields := []wklog.Field{
-			wklog.Event("internal.access.node.presence_activation_not_ready"),
+			wklog.Event(event),
 			wklog.String("op", req.Op), wklog.String("status", status),
 			wklog.String("activation_phase", phase),
 			wklog.Int("hashSlot", int(req.Target.HashSlot)),
@@ -633,7 +640,7 @@ func (a *Adapter) logPresenceAuthorityError(req presenceRPCRequest, status strin
 				fields = append(fields, wklog.String("activation_route_hash", fmt.Sprintf("%x", hash)))
 			}
 		}
-		a.rpcLogger().Warn("presence activation authority not ready", presencelog.AppendRecoveryProviderFailure(fields, err)...)
+		a.rpcLogger().Warn(message, presencelog.AppendRecoveryProviderFailure(fields, err)...)
 		return
 	}
 	if status != rpcStatusRejected {

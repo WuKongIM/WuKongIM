@@ -49,10 +49,10 @@ func (a *Adapter) handlePresenceGeneration(ctx context.Context, body []byte, own
 	resp := generationResponse{Op: req.Op, Status: rpcStatusOK}
 	fail := func(err error) ([]byte, error) {
 		status := generationStatus(generationOwnerError(err))
-		// Full activation loses source/provider details in the same compatible
-		// status as legacy activation. Reuse its bounded local log before encoding;
+		// Full activation loses source/provider details in compatible not-ready
+		// and deadline statuses. Reuse the bounded local log before encoding;
 		// ordinary owner reads, mutations and unknown causes add no event.
-		if !owner && status == rpcStatusRouteNotReady {
+		if !owner && (status == rpcStatusRouteNotReady || status == rpcStatusContextDeadlineExceeded) {
 			var op string
 			switch req.Op {
 			case generationRegister:
