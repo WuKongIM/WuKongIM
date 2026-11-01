@@ -48,7 +48,7 @@ func projectWorkerVerdictEvidence(
 			*pair[0] += *pair[1]
 		}
 		thresholds := snapshot.Sync.Thresholds
-		if thresholds.P99Limit != syncCounters.P99Limit || thresholds.P999Limit != syncCounters.P999Limit ||
+		if thresholds.P95Limit != 0 || thresholds.AboveP95 != 0 || thresholds.P99Limit != syncCounters.P99Limit || thresholds.P999Limit != syncCounters.P999Limit ||
 			thresholds.AboveP99 > thresholds.Count || thresholds.AboveP999 > thresholds.AboveP99 ||
 			thresholds.Above10Seconds > thresholds.AboveP999 {
 			return CorrectnessCounters{}, LatencyCounters{}, nil, errProductionEvidence

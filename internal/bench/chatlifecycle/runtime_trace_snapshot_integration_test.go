@@ -131,7 +131,7 @@ func TestWorkerRuntimeTraceSnapshotNotifiesDispatchDeadlineEvidence(t *testing.T
 			}
 			status, raw := r28HTTP(t, client, httpServer.URL, http.MethodGet, "/v1/info", "control-secret", nil)
 			var info WorkerInfo
-			if status != http.StatusOK || json.Unmarshal(raw, &info) != nil || info.ProtocolVersion != 17 {
+			if status != http.StatusOK || json.Unmarshal(raw, &info) != nil || info.ProtocolVersion != 18 {
 				t.Fatal("worker wire version changed")
 			}
 			status, _ = r28HTTP(t, client, httpServer.URL, http.MethodPost, "/v1/chat-lifecycle/stop", "control-secret", WorkerStopRequest{WorkerFence: fence})

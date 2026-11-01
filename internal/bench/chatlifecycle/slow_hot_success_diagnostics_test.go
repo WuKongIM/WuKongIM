@@ -300,8 +300,8 @@ func TestSlowHotSuccessMaximumOrdinalWireAndUnknownConnectionStayExplicit(t *tes
 }
 
 func TestSlowHotSuccessRequiresSameSourceWorkerProtocol(t *testing.T) {
-	if workerProtocolVersion != 17 {
-		t.Fatalf("new optional evidence must isolate old live peers: protocol=%d want17", workerProtocolVersion)
+	if workerProtocolVersion != 18 {
+		t.Fatalf("new optional evidence must isolate old live peers: protocol=%d want18", workerProtocolVersion)
 	}
 }
 

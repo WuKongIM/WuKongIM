@@ -236,7 +236,7 @@ func TestWorkerRuntimeTraceCheckpointRealEngineEvidenceAndNilDefault(t *testing.
 		t.Run(name, func(t *testing.T) {
 			f := newCheckpointRuntimeEngine(t, enabled, nil)
 			info, err := f.client.Info(context.Background())
-			if err != nil || info.ProtocolVersion != 17 {
+			if err != nil || info.ProtocolVersion != 18 {
 				t.Fatal("native worker protocol16 changed")
 			}
 			var prior WorkerSnapshot

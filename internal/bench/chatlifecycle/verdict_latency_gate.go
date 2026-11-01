@@ -4,6 +4,7 @@ import "time"
 
 const (
 	verdictLatencyGateSchema       = "wukongim/chat-lifecycle-latency-gate/v1"
+	verdictP95LatencyGateSchema    = "wukongim/chat-lifecycle-latency-gate/v2"
 	verdictLatencyGateNotEvaluated = "not_evaluated"
 	verdictLatencyGateCurrent      = "current"
 	verdictLatencyGateStale        = "stale"
@@ -14,7 +15,12 @@ const (
 // sums remain separate because an invalid observation may have updated only one.
 // BreachSinceElapsed is nil when no continuous breach is active.
 type VerdictLatencyGateClass struct {
-	Operation          LatencyOperation    `json:"operation"`
+	Operation LatencyOperation `json:"operation"`
+	// P95 fields belong only to the explicit local-v9 primary quantile.
+	P95Limit           time.Duration       `json:"p95_limit,omitempty"`
+	P95Count           uint64              `json:"p95_count,omitempty"`
+	P95Above           uint64              `json:"p95_above,omitempty"`
+	P95Samples         int                 `json:"p95_samples,omitempty"`
 	P99Limit           time.Duration       `json:"p99_limit"`
 	P999Limit          time.Duration       `json:"p999_limit"`
 	P99Count           uint64              `json:"p99_count"`
@@ -47,6 +53,7 @@ type VerdictLatencyGateSnapshot struct {
 	WindowDuration          time.Duration              `json:"window_duration"`
 	MaxAge                  time.Duration              `json:"max_age"`
 	P99FractionDenominator  uint64                     `json:"p99_fraction_denominator"`
+	P95FractionDenominator  uint64                     `json:"p95_fraction_denominator,omitempty"`
 	P999FractionDenominator uint64                     `json:"p999_fraction_denominator"`
 	WindowCapacity          int                        `json:"window_capacity"`
 	Classes                 [3]VerdictLatencyGateClass `json:"classes"`
@@ -69,6 +76,10 @@ func (v *VerdictEvaluator) buildLatencyGateEvidence(terminal bool) *VerdictLaten
 		MaxAge:         verdictLatencyQualificationMaxAge, WindowCapacity: verdictLatencyWindowSamples,
 		P99FractionDenominator: 100, P999FractionDenominator: 1_000,
 	}
+	if v.thresholds.Latency.HotSendACK.P95 != 0 {
+		evidence.SchemaVersion = verdictP95LatencyGateSchema
+		evidence.P95FractionDenominator = 20
+	}
 	if !v.last.IsZero() {
 		evidence.EvaluatedElapsed = v.last.Sub(v.start)
 	}
@@ -88,7 +99,12 @@ func (v *VerdictEvaluator) buildLatencyGateEvidence(terminal bool) *VerdictLaten
 		row.P99Above, row.P99Count = state.p99.Sum()
 		row.P999Above, row.P999Count = state.p999.Sum()
 		row.P99Samples, row.P999Samples = state.p99.Len(), state.p999.Len()
-		measured = measured || row.P99Samples > 0 || row.P999Samples > 0
+		if limits[index].P95 != 0 {
+			row.P95Limit = limits[index].P95
+			row.P95Above, row.P95Count, row.P95Samples = row.P99Above, row.P99Count, row.P99Samples
+			row.P99Above, row.P99Count, row.P99Samples = 0, 0, 0
+		}
+		measured = measured || row.P95Samples > 0 || row.P99Samples > 0 || row.P999Samples > 0
 		row.Breached = state.breachSince != nil
 		row.BreachAttribution = state.breachAttribution
 		if state.breachSince != nil {

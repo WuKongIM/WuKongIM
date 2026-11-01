@@ -113,6 +113,9 @@ func fillEvidenceBudgetScalars(value reflect.Value) {
 // hot/histogram schema. Blindly setting every bucket to MaxUint64 overflows its
 // total, so it cannot represent a legal native evidence envelope.
 func setMaximumWidthHotEvidence(snapshot *WorkerSnapshot) {
+	// Sync retains its original P99 schema; inactive P95 fields must be zero.
+	snapshot.Sync.Thresholds.P95Limit = 0
+	snapshot.Sync.Thresholds.AboveP95 = 0
 	histogram := newWorkerHistogramSnapshot()
 	for i := range histogram.Buckets {
 		histogram.Buckets[i] = math.MaxUint64 / uint64(len(histogram.Buckets))

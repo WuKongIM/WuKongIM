@@ -80,7 +80,7 @@ func ReadCurrentReport(path string) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
-	if report.SchemaVersion != ReportSchemaVersion {
+	if report.SchemaVersion != ReportSchemaVersion && report.SchemaVersion != localP95ReportSchemaVersion {
 		return Report{}, fmt.Errorf("validate current chat-lifecycle checkpoint: %w", ErrReportInvalid)
 	}
 	return report, nil

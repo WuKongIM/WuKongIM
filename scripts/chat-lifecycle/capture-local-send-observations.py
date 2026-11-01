@@ -227,7 +227,7 @@ def anchors(args):
     final, final_hash = bounded_json(args.report_dir/'final.json', 1 << 20)
     side, side_hash = bounded_json(args.report_dir/'attempt-link-diagnostics.json', 64 << 10)
     require(start['schema'] == 'wukongim.chat_lifecycle.run_start/v1'
-            and final['schema_version'] == 'wukongim/chat-lifecycle-report/v8'
+            and final['schema_version'] in ('wukongim/chat-lifecycle-report/v8', 'wukongim/chat-lifecycle-report/v9')
             and final['kind'] == 'final' and final['final'] is True
             and final['continue'] is False and final['verdict']['terminal'] is True)
     require(start['run_hash'] == 'sha256:'+hashlib.sha256(args.run_id.encode()).hexdigest())
@@ -237,8 +237,23 @@ def anchors(args):
     begin, end = stamp(start['started_at']), stamp(final['window']['end'])
     require(begin == stamp(final['window']['start']) and begin <= end)
     require(-5 <= (dt.datetime.now(dt.timezone.utc)-end).total_seconds() <= 60)
-    limit = final['thresholds']['latency']['hot_sendack']['p99']
+    latency = final['thresholds']['latency']
+    hot = latency['hot_sendack']
+    percentile = 99
+    if final['schema_version'] == 'wukongim/chat-lifecycle-report/v9':
+        percentile = 95
+        require(final['threshold_version'] == 'wukongim/chat-lifecycle-thresholds/v3'
+                and final['profile'] == 'local' and final['stage'] == 'shakeout' and final['mode'] == 'soak'
+                and final['qualification']['scope'] == 'local_diagnostic'
+                and final['qualification']['external_linux_evidence_required'] is False
+                and set(hot) == {'p95','p999'} and hot['p999'] == 1000000000)
+        require(all('p95' not in latency.get(key,{}) for key in ('cold','sync')))
+    else:
+        require('p95' not in hot)
+    limit = hot['p95' if percentile == 95 else 'p99']
     deadline = final['thresholds']['latency']['hot_attempt_timeout']
+    if percentile == 95:
+        require(all(integer(value) for value in (limit, hot['p999'], deadline)))
     require(limit == 600000000 and deadline == 2000000000)
     require(side['schema'] == 'wukongim/chat-lifecycle-attempt-link-diagnostics/v2'
             and side['run_id'] == args.run_id and stamp(side['at']) == end)
@@ -263,6 +278,8 @@ def anchors(args):
         diagnostic = worker['attempt_link_diagnostics']
         require(diagnostic['generation'] == worker['generation'])
         slow = diagnostic['slow_hot_success']
+        require((type(slow.get('percentile')) is int and slow['percentile'] == 95)
+                if percentile == 95 else 'percentile' not in slow)
         rows = slow['records']
         require(slow['limit_nanos'] == limit and integer(slow['seen'])
                 and len(rows) == min(slow['seen'], 16)

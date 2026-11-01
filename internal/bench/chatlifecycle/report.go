@@ -418,7 +418,7 @@ func WriteReportAtomic(path string, report Report, format ReportFormat) error {
 }
 
 func validateReport(report Report) error {
-	if !validReportLatencyGate(report) || report.ThresholdVersion != ReportThresholdVersion ||
+	if !validReportVersions(report) || !validReportLatencyGate(report) ||
 		report.DesignProfile != ReportDesignProfile || !validReportHash(report.ConfigDigest) || !validReportHash(report.DatasetDigest) ||
 		validateThresholds(report.Thresholds) != nil ||
 		(report.Profile != ProfileFormal && report.Profile != ProfileLocal) ||

@@ -28,6 +28,9 @@ func (c Config) Validate() error {
 	if err := validateThresholds(c.Thresholds); err != nil {
 		return err
 	}
+	if c.Thresholds.Latency.HotSendACK.P95 != 0 && (c.Profile != ProfileLocal || c.Stage != StageShakeout || c.Mode != ModeSoak) {
+		return fieldError("thresholds.latency.hot_sendack.p95", "is allowed only for local shakeout soak")
+	}
 	if c.Profile == ProfileFormal {
 		if err := validateFormalDefaults(c); err != nil {
 			return err

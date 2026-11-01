@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Allow an explicit P95 hot-message latency policy in custom local lifecycle tests, with independent P99.9 protection and correctly labelled reports. / 本地生命周期测试可显式使用热消息 P95 门禁，保留独立 P99.9 保护并准确标注报告。
+
 ### 📚 Documentation / 文档
 
 - Update Flutter EasySDK tutorials to 1.2.1 and add bilingual streaming examples

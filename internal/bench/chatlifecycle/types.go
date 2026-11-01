@@ -317,9 +317,11 @@ func (t LatencyThresholds) hotAttemptTimeout() time.Duration {
 	return t.HotAttemptTimeout
 }
 
-// LatencyLimit bounds p99 and p99.9 latency for one operation class.
+// LatencyLimit bounds one primary percentile and P99.9. P95 is opt-in for
+// local hot SENDACK only; exactly one of P95/P99 must be positive.
 type LatencyLimit struct {
-	P99  time.Duration `json:"p99" yaml:"p99"`
+	P95  time.Duration `json:"p95,omitempty" yaml:"p95,omitempty"`
+	P99  time.Duration `json:"p99,omitempty" yaml:"p99,omitempty"`
 	P999 time.Duration `json:"p999" yaml:"p999"`
 }
 

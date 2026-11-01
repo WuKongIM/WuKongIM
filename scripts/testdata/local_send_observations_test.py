@@ -397,6 +397,53 @@ class CaptureTests(unittest.TestCase):
                 self.calls.clear()
                 (self.root/'observations.json').unlink()
 
+    def p95_native_fixture(self):
+        self.final.update(schema_version='wukongim/chat-lifecycle-report/v9',
+                          threshold_version='wukongim/chat-lifecycle-thresholds/v3',
+                          profile='local',mode='soak',stage='shakeout',
+                          qualification=dict(scope='local_diagnostic',external_linux_evidence_required=False))
+        self.final['thresholds']['latency']['hot_sendack'] = dict(p95=600000000,p999=1000000000)
+        for worker in self.side['workers']:
+            worker['attempt_link_diagnostics']['slow_hot_success']['percentile'] = 95
+
+    def test_p95_native_report_uses_explicit_new_contract_and_same_bounded_capture(self):
+        self.p95_native_fixture()
+        data = self.capture()
+        self.assertEqual(data['status'],'captured')
+        self.assertEqual(data['anchor_count'],3)
+        self.assertLessEqual(len(self.calls),18)
+        self.assertEqual(data['original_exit_status'],7)
+        self.assertEqual(data['causal_verdict'],'unverified')
+
+    def test_p95_native_contract_rejects_mixed_or_relabelled_legacy_evidence(self):
+        for mode in ['both','missing95','wrong_threshold_version','legacy_header','formal_scope','cold95','side99','side_missing','wrong_tail','wrong_first','float95','float999','float_first']:
+            with self.subTest(mode=mode):
+                self.calls.clear()
+                (self.root/'observations.json').unlink(missing_ok=True)
+                self.p95_native_fixture()
+                hot = self.final['thresholds']['latency']['hot_sendack']
+                if mode=='both': hot['p99']=600000000
+                if mode=='missing95': del hot['p95']
+                if mode=='wrong_threshold_version': self.final['threshold_version']='wukongim/chat-lifecycle-thresholds/v2'
+                if mode=='legacy_header': self.final['schema_version']='wukongim/chat-lifecycle-report/v8'
+                if mode=='formal_scope': self.final['profile']='formal'
+                if mode=='cold95': self.final['thresholds']['latency']['cold']=dict(p95=2000000000,p999=5000000000)
+                if mode=='wrong_tail': hot['p999']=2000000000
+                if mode=='wrong_first': self.final['thresholds']['latency']['hot_attempt_timeout']=1000000000
+                if mode=='float95': hot['p95']=600000000.0
+                if mode=='float999': hot['p999']=1e9
+                if mode=='float_first': self.final['thresholds']['latency']['hot_attempt_timeout']=2e9
+                for worker in self.side['workers']:
+                    slow = worker['attempt_link_diagnostics']['slow_hot_success']
+                    if mode=='side99': slow['percentile']=99
+                    if mode=='side_missing': del slow['percentile']
+                data = self.capture()
+                self.assertEqual(data['status'],'unknown')
+                self.assertEqual(self.calls,[])
+                # No malformed case may poison the next fresh fixture.
+                self.final['thresholds']['latency'].pop('cold',None)
+                self.final['thresholds']['latency']['hot_attempt_timeout']=2000000000
+
     def test_exact_opaque_postload_join(self):
         data = self.capture()
         self.assertEqual(data['status'],'captured')

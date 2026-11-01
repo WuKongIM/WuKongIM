@@ -829,13 +829,13 @@ overlap can guide diagnosis, while missing or evicted events remain unknown.
 Recording and export add diagnostic overhead, so a new capture cannot by
 itself establish the cause of an earlier run.
 
-Successful hot SENDs above configuredP99 and before the original first-attempt
+Successful hot SENDs above configuredP99 (or explicit localP95) and before the original first-attempt
 deadline can be sampled with the existing private attempt-link opt-in. The
 unchanged first16 confirmed-late records are separate from the latest16
 original slow-success anchors, which borrow opaque exact-attempt keys and the
 original SDK observation clock. Retries, duplicates, cold SENDs and unknown
 clocks cannot create these anchors. Generation reset clears both sets. The
-64KiB optional artifact uses schema v2; live peers require worker protocol17.
+64KiB optional artifact uses schema v2; live peers require worker protocol18.
 Malformed new child evidence stays absent without erasing the original late
 prefix or changing native evidence or gates. Anchors alone are not a causal
 diagnosis.
@@ -856,3 +856,18 @@ never overwritten. Unsupported, expired, ambiguous or missing evidence remains
 explicit; one candidate is never called unique. Do not invoke this exporter
 during load. Enabled diagnostics add overhead, so this run cannot replace an
 ordinary performance acceptance run.
+
+### Custom local hot P95 policy
+
+Only a local shakeout soak may replace `thresholds.latency.hot_sendack.p99`
+with `p95: 600ms`; do not configure both. Keep `p999: 1s` and the independently
+configured `hot_attempt_timeout: 2s`. Exactly5% strictly above600ms is allowed;
+more than5% breaches the primary gate. P99.9 still fails when more than0.1%
+exceeds1s. Cold/sync policies, five-minute persistence and ten-minute positive
+qualification remain unchanged. This changes the acceptance policy, not product
+performance.
+
+P95 emits local reportv9/thresholdv3 and explicitly P95-named gatev2 evidence.
+Existing P99 runs keep reportv8/thresholdv2/gatev1, and old artifacts are never
+reheadered or reclassified. Local v9 evidence cannot qualify formal or capacity
+continuation. Use matched worker-protocol18 binaries for the new scalar schema.

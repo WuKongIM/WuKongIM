@@ -8,10 +8,10 @@ func validWorkerHotThresholds(snapshot WorkerSnapshot) bool {
 	c := snapshot.HotSendackThresholds
 	return c == (LatencyThresholdCounters{}) ||
 		(validCoordinatorHistogram(snapshot.HotSendackLatency) &&
-			c.P99Limit > 0 && c.P999Limit >= c.P99Limit &&
-			c.Count == snapshot.HotSendackLatency.Count && c.AboveP99 <= c.Count &&
-			c.AboveP999 <= c.AboveP99 && c.Above10Seconds <= c.Count &&
-			hotCountWithinHistogram(snapshot.HotSendackLatency, c.P99Limit, c.AboveP99) &&
+			c.validPrimarySchema() &&
+			c.Count == snapshot.HotSendackLatency.Count && c.primaryAbove() <= c.Count &&
+			c.AboveP999 <= c.primaryAbove() && c.Above10Seconds <= c.Count &&
+			hotCountWithinHistogram(snapshot.HotSendackLatency, c.primaryLimit(), c.primaryAbove()) &&
 			hotCountWithinHistogram(snapshot.HotSendackLatency, c.P999Limit, c.AboveP999) &&
 			hotCountWithinHistogram(snapshot.HotSendackLatency, 10*time.Second, c.Above10Seconds))
 }
@@ -19,8 +19,8 @@ func validWorkerHotThresholds(snapshot WorkerSnapshot) bool {
 // aggregateWorkerHotThresholds is shared by native verdicts and passive logs.
 // Legacy evidence can use exact histogram boundaries, never interpolation.
 func aggregateWorkerHotThresholds(snapshots []WorkerSnapshot, limits LatencyLimit) (LatencyThresholdCounters, error) {
-	total := LatencyThresholdCounters{P99Limit: limits.P99, P999Limit: limits.P999}
-	if limits.P99 <= 0 || limits.P999 < limits.P99 {
+	total := latencyThresholdCounters(limits)
+	if validateHotLatencyLimit("hot_latency", limits) != nil {
 		return total, errProductionEvidence
 	}
 	histogram := newWorkerHistogramSnapshot()
@@ -31,13 +31,16 @@ func aggregateWorkerHotThresholds(snapshots []WorkerSnapshot, limits LatencyLimi
 		}
 		counters := snapshot.HotSendackThresholds
 		if counters == (LatencyThresholdCounters{}) {
+			if limits.P95 != 0 {
+				return total, errProductionEvidence
+			}
 			var err error
 			counters, err = histogramThresholdCounters(snapshot.HotSendackLatency, limits)
 			if err != nil {
 				return total, err
 			}
 		}
-		if counters.P99Limit != limits.P99 || counters.P999Limit != limits.P999 ||
+		if counters.P95Limit != limits.P95 || counters.P99Limit != limits.P99 || counters.P999Limit != limits.P999 ||
 			addCoordinatorLatencyThresholds(&total, counters) != nil {
 			return total, errProductionEvidence
 		}
@@ -48,7 +51,8 @@ func aggregateWorkerHotThresholds(snapshots []WorkerSnapshot, limits LatencyLimi
 // hotThresholdsRegressed also rejects a schema/presence change within one
 // generation; old 400ms evidence stays old rather than acquiring new limits.
 func hotThresholdsRegressed(current, previous LatencyThresholdCounters) bool {
-	return current.P99Limit != previous.P99Limit || current.P999Limit != previous.P999Limit ||
+	return current.P95Limit != previous.P95Limit || current.P99Limit != previous.P99Limit || current.P999Limit != previous.P999Limit ||
+		current.AboveP95 < previous.AboveP95 ||
 		current.Count < previous.Count || current.AboveP99 < previous.AboveP99 ||
 		current.AboveP999 < previous.AboveP999 || current.Above10Seconds < previous.Above10Seconds
 }

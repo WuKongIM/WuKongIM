@@ -2651,7 +2651,7 @@ func (a *CoordinatorSnapshotAggregator) Aggregate(snapshots []WorkerSnapshot) (C
 			ordered[workerID].Sync.Thresholds.P999Limit != thresholdSchema.P999Limit {
 			return CoordinatorSnapshot{}, ErrCoordinatorHistogramSchema
 		}
-		if ordered[workerID].HotSendackThresholds.P99Limit != hotSchema.P99Limit ||
+		if ordered[workerID].HotSendackThresholds.P95Limit != hotSchema.P95Limit || ordered[workerID].HotSendackThresholds.P99Limit != hotSchema.P99Limit ||
 			ordered[workerID].HotSendackThresholds.P999Limit != hotSchema.P999Limit {
 			return CoordinatorSnapshot{}, ErrCoordinatorHistogramSchema
 		}
@@ -3015,14 +3015,15 @@ func addCoordinatorSync(total *WorkerSyncSnapshot, value WorkerSyncSnapshot) err
 }
 
 func addCoordinatorLatencyThresholds(total *LatencyThresholdCounters, value LatencyThresholdCounters) error {
-	if total.P99Limit == 0 && total.P999Limit == 0 {
-		total.P99Limit, total.P999Limit = value.P99Limit, value.P999Limit
+	if total.P95Limit == 0 && total.P99Limit == 0 && total.P999Limit == 0 {
+		total.P95Limit, total.P99Limit, total.P999Limit = value.P95Limit, value.P99Limit, value.P999Limit
 	}
-	if total.P99Limit != value.P99Limit || total.P999Limit != value.P999Limit {
+	if total.P95Limit != value.P95Limit || total.P99Limit != value.P99Limit || total.P999Limit != value.P999Limit {
 		return ErrCoordinatorHistogramSchema
 	}
-	fields := [4]struct{ destination, source *uint64 }{
+	fields := [5]struct{ destination, source *uint64 }{
 		{&total.Count, &value.Count}, {&total.AboveP99, &value.AboveP99},
+		{&total.AboveP95, &value.AboveP95},
 		{&total.AboveP999, &value.AboveP999}, {&total.Above10Seconds, &value.Above10Seconds},
 	}
 	return addCoordinatorUint64Fields(fields[:])

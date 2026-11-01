@@ -533,7 +533,7 @@ func NewVerifier(model TrafficModel, config VerifierConfig, evidence *EvidenceRe
 	}
 	if model.identity == nil || evidence == nil || !validVerifierCapacity(config.PendingCapacity) ||
 		!validVerifierCapacity(config.SequenceCapacity) || !validVerifierCapacity(config.CorrelationCapacity) ||
-		config.CorrelationDeadline <= 0 || validateLatencyLimit("hot_latency", config.HotLatency) != nil {
+		config.CorrelationDeadline <= 0 || validateHotLatencyLimit("hot_latency", config.HotLatency) != nil {
 		return nil, errVerifierConfig
 	}
 	v := &Verifier{
@@ -545,7 +545,7 @@ func NewVerifier(model TrafficModel, config VerifierConfig, evidence *EvidenceRe
 		correlations:                  make(map[string]*sampledCorrelation),
 		releasedAttempts:              make(map[releasedAttemptKey]*releasedAttempt),
 		hotSendackLatency:             newWorkerHistogramSnapshot(),
-		hotSendackThresholds:          LatencyThresholdCounters{P99Limit: config.HotLatency.P99, P999Limit: config.HotLatency.P999},
+		hotSendackThresholds:          latencyThresholdCounters(config.HotLatency),
 		coldFirstCreateSendackLatency: newWorkerHistogramSnapshot(),
 		lifecycleReheatSendackLatency: newWorkerHistogramSnapshot(),
 		recvackLatency:                newWorkerHistogramSnapshot(),
@@ -1531,7 +1531,7 @@ func (v *Verifier) resetRuntime() {
 		*v.attemptLinkDiagnostics = verifierAttemptLinkRecorder{}
 	}
 	v.hotSendackLatency = newWorkerHistogramSnapshot()
-	v.hotSendackThresholds = LatencyThresholdCounters{P99Limit: v.config.HotLatency.P99, P999Limit: v.config.HotLatency.P999}
+	v.hotSendackThresholds = latencyThresholdCounters(v.config.HotLatency)
 	v.coldFirstCreateSendackLatency = newWorkerHistogramSnapshot()
 	v.lifecycleReheatSendackLatency = newWorkerHistogramSnapshot()
 	v.sendMu.Unlock()

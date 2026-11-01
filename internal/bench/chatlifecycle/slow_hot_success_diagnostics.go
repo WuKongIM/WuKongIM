@@ -18,6 +18,8 @@ type SlowHotSuccessRecord struct {
 // SlowHotSuccessDiagnosticsSnapshot retains the latest fixed-size hot tail so
 // a long run does not lose the failure window to an immutable startup prefix.
 type SlowHotSuccessDiagnosticsSnapshot struct {
+	// Percentile binds opt-in P95 selection; absent retains the legacy P99 meaning.
+	Percentile  uint64                 `json:"percentile,omitempty"`
 	LimitNanos  time.Duration          `json:"limit_nanos"`
 	Seen        uint64                 `json:"seen"`
 	Overwritten uint64                 `json:"overwritten"`
@@ -35,7 +37,7 @@ type slowHotSuccessRecorder struct {
 
 func (v *Verifier) recordSlowHotSuccessLocked(deadline *firstAttemptDeadline, at time.Time, latency time.Duration, observation attemptLinkObservation) {
 	if !v.attemptLinkEnabled() || deadline == nil || at.IsZero() || deadline.registeredAt.IsZero() ||
-		latency <= v.config.HotLatency.P99 || !at.Before(deadline.deadline) {
+		latency <= v.config.HotLatency.primaryLimit() || !at.Before(deadline.deadline) {
 		return
 	}
 	d := &v.attemptLinkDiagnostics.slowHot
@@ -64,7 +66,11 @@ func (v *Verifier) slowHotSuccessSnapshotLocked() *SlowHotSuccessDiagnosticsSnap
 	for i := range records {
 		records[i] = d.records[(first+i)%attemptLinkDiagnosticCapacity]
 	}
-	return &SlowHotSuccessDiagnosticsSnapshot{LimitNanos: v.config.HotLatency.P99, Seen: d.seen,
+	var percentile uint64
+	if v.config.HotLatency.P95 != 0 {
+		percentile = 95
+	}
+	return &SlowHotSuccessDiagnosticsSnapshot{Percentile: percentile, LimitNanos: v.config.HotLatency.primaryLimit(), Seen: d.seen,
 		Overwritten: d.seen - uint64(d.count), Records: records}
 }
 
@@ -73,7 +79,7 @@ func validSlowHotSuccess(d *SlowHotSuccessDiagnosticsSnapshot) bool {
 		return true
 	}
 	count := uint64(len(d.Records))
-	if d.LimitNanos <= 0 || count != min(d.Seen, uint64(attemptLinkDiagnosticCapacity)) ||
+	if (d.Percentile != 0 && d.Percentile != 95) || d.LimitNanos <= 0 || count != min(d.Seen, uint64(attemptLinkDiagnosticCapacity)) ||
 		d.Overwritten != d.Seen-count {
 		return false
 	}

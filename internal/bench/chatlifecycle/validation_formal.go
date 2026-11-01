@@ -356,6 +356,9 @@ func validateExactFailureRate(path string, got, want FailureRateLimit) error {
 }
 
 func validateExactLatency(path string, got, want LatencyLimit) error {
+	if got.P95 != want.P95 {
+		return formalError(path + ".p95")
+	}
 	if got.P99 != want.P99 {
 		return formalError(path + ".p99")
 	}

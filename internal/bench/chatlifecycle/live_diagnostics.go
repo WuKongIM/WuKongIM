@@ -24,6 +24,8 @@ const (
 
 // hotLatencyDiagnosticCounters retains exact configured-threshold counts, not an interpolated percentile.
 type hotLatencyDiagnosticCounters struct {
+	// Percentile is explicit only for the opt-in P95 shape; legacy logs stay unchanged.
+	Percentile uint64 `json:"percentile,omitempty"`
 	LimitNanos uint64 `json:"limit_nanos"`
 	Count      uint64 `json:"count"`
 	AboveLimit uint64 `json:"above_limit"`
@@ -162,7 +164,11 @@ func (r *liveDiagnosticRecorder) hotLatencyCounters(snapshots []WorkerSnapshot) 
 	if err != nil {
 		return nil
 	}
-	return &hotLatencyDiagnosticCounters{LimitNanos: uint64(counters.P99Limit), Count: counters.Count, AboveLimit: counters.AboveP99}
+	var percentile uint64
+	if r.hotLimits.P95 != 0 {
+		percentile = 95
+	}
+	return &hotLatencyDiagnosticCounters{Percentile: percentile, LimitNanos: uint64(counters.primaryLimit()), Count: counters.Count, AboveLimit: counters.primaryAbove()}
 }
 
 func (r *liveDiagnosticRecorder) writeLog(document liveDiagnosticStatus, messages WorkerMessageSnapshot, hot *hotLatencyDiagnosticCounters) {

@@ -177,7 +177,7 @@ func TestConfiguredHotMeterProjectionAndLiveLogShareExactCounters(t *testing.T) 
 	if len(s[0].HotSendackLatency.BucketUpper) != 16 || ReportSchemaVersion != "wukongim/chat-lifecycle-report/v8" {
 		t.Fatal("legacy histogram/report shape changed")
 	}
-	if workerProtocolVersion != 17 {
+	if workerProtocolVersion != 18 {
 		t.Fatalf("new native evidence did not isolate old peers: protocol=%d", workerProtocolVersion)
 	}
 	round := hotCounterWire(t, s[0], "hot_sendack_thresholds")

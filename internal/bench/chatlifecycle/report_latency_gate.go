@@ -63,11 +63,23 @@ func (r *ReportVerdictEvidence) UnmarshalJSON(encoded []byte) error {
 // UnmarshalJSON requires the complete bounded child contract. Struct decoding
 // alone accepts null scalars, case-folded keys and short/overlong fixed arrays.
 func (g *VerdictLatencyGateSnapshot) UnmarshalJSON(encoded []byte) error {
-	fields, err := strictLatencyGateFields(encoded, "", []string{
+	var header struct {
+		SchemaVersion string `json:"schema_version"`
+	}
+	if err := json.Unmarshal(encoded, &header); err != nil {
+		return ErrReportInvalid
+	}
+	names := []string{
 		"schema_version", "status", "evaluated_elapsed", "last_latency_elapsed", "latency_age", "terminal_frozen",
 		"baseline_elapsed", "window_start_elapsed", "window_end_elapsed", "warmup_duration", "window_duration",
 		"max_age", "p99_fraction_denominator", "p999_fraction_denominator", "window_capacity", "classes",
-	})
+	}
+	if header.SchemaVersion == verdictP95LatencyGateSchema {
+		names = append(names, "p95_fraction_denominator")
+	} else if header.SchemaVersion != verdictLatencyGateSchema {
+		return ErrReportInvalid
+	}
+	fields, err := strictLatencyGateFields(encoded, "", names)
 	if err != nil {
 		return err
 	}
@@ -104,10 +116,22 @@ func (g *VerdictLatencyGateSnapshot) UnmarshalJSON(encoded []byte) error {
 // UnmarshalJSON rejects malformed row observations rather than converting
 // missing or null values into an observed zero/false result.
 func (r *VerdictLatencyGateClass) UnmarshalJSON(encoded []byte) error {
-	if _, err := strictLatencyGateFields(encoded, "breach_since_elapsed", []string{
+	var primary struct {
+		P95Limit json.RawMessage `json:"p95_limit"`
+	}
+	if err := json.Unmarshal(encoded, &primary); err != nil {
+		return ErrReportInvalid
+	}
+	names := []string{
 		"operation", "p99_limit", "p999_limit", "p99_count", "p99_above", "p999_count", "p999_above",
 		"p99_samples", "p999_samples", "breached", "breach_since_elapsed", "breach_attribution",
-	}); err != nil {
+	}
+	if len(primary.P95Limit) > 0 {
+		for i, name := range names {
+			names[i] = strings.Replace(name, "p99_", "p95_", 1)
+		}
+	}
+	if _, err := strictLatencyGateFields(encoded, "breach_since_elapsed", names); err != nil {
 		return err
 	}
 	type plainLatencyGateClass VerdictLatencyGateClass
@@ -175,13 +199,23 @@ func validReportLatencyGate(report Report) bool {
 	if report.SchemaVersion == legacyReportSchemaVersion {
 		return gate == nil
 	}
-	if report.SchemaVersion != ReportSchemaVersion {
+	if report.SchemaVersion != ReportSchemaVersion && report.SchemaVersion != localP95ReportSchemaVersion {
+		return false
+	}
+	p95 := report.Thresholds.Latency.HotSendACK.P95 != 0
+	if p95 != (report.SchemaVersion == localP95ReportSchemaVersion) {
 		return false
 	}
 	if gate == nil {
 		return true
 	}
-	if gate.SchemaVersion != verdictLatencyGateSchema || gate.WarmupDuration != report.Thresholds.Timeline.LatencyWarmup ||
+	wantSchema := verdictLatencyGateSchema
+	var want95 uint64
+	if p95 {
+		wantSchema = verdictP95LatencyGateSchema
+		want95 = 20
+	}
+	if gate.SchemaVersion != wantSchema || gate.P95FractionDenominator != want95 || gate.WarmupDuration != report.Thresholds.Timeline.LatencyWarmup ||
 		gate.WindowDuration != report.Thresholds.Latency.SustainedBreachWindow || gate.WindowDuration != 5*time.Minute ||
 		gate.MaxAge != verdictLatencyQualificationMaxAge || gate.WindowCapacity != verdictLatencyWindowSamples ||
 		gate.P99FractionDenominator != 100 || gate.P999FractionDenominator != 1_000 ||
@@ -204,15 +238,19 @@ func validReportLatencyGate(report Report) bool {
 	limits := [...]LatencyLimit{report.Thresholds.Latency.HotSendACK, report.Thresholds.Latency.Cold, report.Thresholds.Latency.Sync}
 	operations := [...]LatencyOperation{LatencyHotSendACK, LatencyColdSendACK, LatencyFullSync}
 	for index, row := range gate.Classes {
-		if row.Operation != operations[index] || row.P99Limit != limits[index].P99 || row.P999Limit != limits[index].P999 ||
-			row.P99Samples < 0 || row.P99Samples > gate.WindowCapacity || row.P999Samples < 0 || row.P999Samples > gate.WindowCapacity ||
-			row.P99Above > row.P99Count || row.P999Above > row.P999Count ||
-			(row.P99Samples == 0 && (row.P99Count != 0 || row.P99Above != 0)) ||
+		above, count, samples := row.primaryObservation()
+		if row.Operation != operations[index] || row.P95Limit != limits[index].P95 || row.P99Limit != limits[index].P99 || row.P999Limit != limits[index].P999 ||
+			(index > 0 && row.P95Limit != 0) ||
+			(row.P95Limit == 0 && (row.P95Above != 0 || row.P95Count != 0 || row.P95Samples != 0)) ||
+			(row.P95Limit != 0 && (row.P99Above != 0 || row.P99Count != 0 || row.P99Samples != 0)) ||
+			samples < 0 || samples > gate.WindowCapacity || row.P999Samples < 0 || row.P999Samples > gate.WindowCapacity ||
+			above > count || row.P999Above > row.P999Count ||
+			(samples == 0 && (count != 0 || above != 0)) ||
 			(row.P999Samples == 0 && (row.P999Count != 0 || row.P999Above != 0)) ||
 			row.Breached != (row.BreachSinceElapsed != nil) {
 			return false
 		}
-		measured = measured || row.P99Samples > 0 || row.P999Samples > 0
+		measured = measured || samples > 0 || row.P999Samples > 0
 		if !row.Breached {
 			if row.BreachAttribution != CapacityAttributionNone {
 				return false
@@ -224,8 +262,8 @@ func validReportLatencyGate(report Report) bool {
 		}
 		// Invalid partial reducers remain explicit unknown evidence; do not
 		// repair their independently retained sums or active breach state.
-		if gate.Status != verdictLatencyGateInvalid && (row.P99Count != row.P999Count || row.P99Samples != row.P999Samples ||
-			row.P999Above > row.P99Above || row.Breached != (ratioAboveUnitFraction(row.P99Above, row.P99Count, 100) || ratioAboveUnitFraction(row.P999Above, row.P999Count, 1_000))) {
+		if gate.Status != verdictLatencyGateInvalid && (count != row.P999Count || samples != row.P999Samples ||
+			row.P999Above > above || row.Breached != (ratioAboveUnitFraction(above, count, limits[index].primaryFractionDenominator()) || ratioAboveUnitFraction(row.P999Above, row.P999Count, 1_000))) {
 			return false
 		}
 	}
