@@ -17,8 +17,12 @@ const (
 	// StageGatewaySessionPublicationWait excludes the publication callback itself.
 	StageGatewaySessionPublicationWait Stage = "gateway.session_publication_wait"
 	// StageMessageResultPublicationWait measures an original ready result's session-order wait.
-	StageMessageResultPublicationWait  Stage = "message.result_publication_wait"
-	StageMessageSendDurable            Stage = "message.send_durable"
+	StageMessageResultPublicationWait Stage = "message.result_publication_wait"
+	StageMessageSendDurable           Stage = "message.send_durable"
+	// StageMessagePermissionBatch is the original item's shared policy-batch interval.
+	StageMessagePermissionBatch Stage = "message.permission_batch"
+	// StageMessagePreAppend is shared preparation up to the item's ready-lane submission.
+	StageMessagePreAppend              Stage = "message.pre_append"
 	StageChannelAppendLocal            Stage = "channel.append.local"
 	StageChannelAppendForward          Stage = "channel.append.forward"
 	StageReplicaLeaderQueueWait        Stage = "replica.leader.queue_wait"

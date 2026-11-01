@@ -16,8 +16,8 @@ import (
 
 const attemptSummaryCapacity = 65536
 const attemptIndexCapacity = 2 * attemptSummaryCapacity
-const attemptPhaseCount = 5
-const attemptDurablePhaseIndex = attemptPhaseCount - 1
+const attemptPhaseCount = 7
+const attemptDurablePhaseIndex = 4
 
 // AttemptStoreOptions opts into separate fixed diagnostic storage. Disabled
 // construction returns before randomness, allocation, clocks or background work.
@@ -205,12 +205,16 @@ func attemptPhaseIndex(stage sendtrace.Stage) int {
 		return 3
 	case sendtrace.StageMessageSendDurable:
 		return attemptDurablePhaseIndex
+	case sendtrace.StageMessagePermissionBatch:
+		return 5
+	case sendtrace.StageMessagePreAppend:
+		return 6
 	}
 	return -1
 }
 
-var attemptStages = [attemptPhaseCount]sendtrace.Stage{sendtrace.StageGatewayAsyncDispatchWait, sendtrace.StageGatewayMessagesSend, sendtrace.StageGatewayWriteSendack, sendtrace.StageGatewaySessionPublicationWait, sendtrace.StageMessageSendDurable}
-var attemptBoundaries = [attemptPhaseCount]string{"enqueue_to_dispatch", "message_call_to_result", "write_frame_callback", "ready_to_publication_attempt", "diagnostic_event_duration"}
+var attemptStages = [attemptPhaseCount]sendtrace.Stage{sendtrace.StageGatewayAsyncDispatchWait, sendtrace.StageGatewayMessagesSend, sendtrace.StageGatewayWriteSendack, sendtrace.StageGatewaySessionPublicationWait, sendtrace.StageMessageSendDurable, sendtrace.StageMessagePermissionBatch, sendtrace.StageMessagePreAppend}
+var attemptBoundaries = [attemptPhaseCount]string{"enqueue_to_dispatch", "message_call_to_result", "write_frame_callback", "ready_to_publication_attempt", "diagnostic_event_duration", "shared_permission_batch", "shared_pre_append_until_submit"}
 
 func attemptResultCode(result sendtrace.Result) uint8 {
 	switch result {
@@ -235,7 +239,7 @@ func attemptResultCode(result sendtrace.Result) uint8 {
 var attemptResults = [8]sendtrace.Result{"", sendtrace.ResultOK, sendtrace.ResultError, sendtrace.ResultTimeout, sendtrace.ResultCanceled, sendtrace.ResultPartial, sendtrace.ResultDropped, sendtrace.ResultSkipped}
 
 // RecordAttemptPhase retains the first valid fact for an exact live token.
-// Gateway phases borrow existing start clocks; durable is duration-only because
+// Gateway and shared preparation borrow existing start clocks; durable is duration-only because
 // its retry-segment sum does not establish a continuous start or end.
 func (s *AttemptStore) RecordAttemptPhase(token sendtrace.AttemptToken, phase sendtrace.AttemptPhase) {
 	if s == nil || !token.Valid() {

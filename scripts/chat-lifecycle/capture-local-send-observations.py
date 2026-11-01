@@ -169,14 +169,27 @@ RPC_SAMPLE = object_shape(dict(trace_id=RPC_ID, side=one_of('client', 'server'),
                                dropped_spans=UINT, recorder_dropped=UINT, barrier_groups=UINT, dropped_barrier_groups=UINT,
                                barrier_coverage=nullable(BARRIER), receive_prefix=nullable(RECEIVE),
                                dispatch=nullable(DISPATCH), commit_cohorts=nullable(COHORTS)))
-PHASE = object_shape(dict(observed=BOOLEAN, stage=one_of('gateway.async_dispatch_wait', 'gateway.messages_send',
-                     'gateway.write_sendack', 'gateway.session_publication_wait', 'message.send_durable'),
+ATTEMPT_PHASE_IDENTITIES = (
+    ('gateway.async_dispatch_wait', 'enqueue_to_dispatch'),
+    ('gateway.messages_send', 'message_call_to_result'),
+    ('gateway.write_sendack', 'write_frame_callback'),
+    ('gateway.session_publication_wait', 'ready_to_publication_attempt'),
+    ('message.send_durable', 'diagnostic_event_duration'),
+    ('message.permission_batch', 'shared_permission_batch'),
+    ('message.pre_append', 'shared_pre_append_until_submit'))
+PHASE = object_shape(dict(observed=BOOLEAN, stage=one_of(*(stage for stage, _ in ATTEMPT_PHASE_IDENTITIES)),
                          started_at=timestamp_valid, duration=DURATION, result=SEND_RESULT,
-                         boundary=one_of('enqueue_to_dispatch', 'message_call_to_result', 'write_frame_callback',
-                                         'ready_to_publication_attempt', 'diagnostic_event_duration'), end_derived=BOOLEAN))
+                         boundary=one_of(*(boundary for _, boundary in ATTEMPT_PHASE_IDENTITIES)), end_derived=BOOLEAN))
 REFERENCE = object_shape(dict(state=one_of('bound', 'unbound', 'recorder_disabled', 'recorder_exhausted', 'local_untraced', 'remote_untraced'),
                               trace_id=lambda v: type(v) is str and (v == '' or RPC_ID(v) or (v.startswith('local/') and RPC_ID(v[6:])))))
-CANDIDATE = object_shape(dict(token=object_shape(dict(epoch=FINGERPRINT, ordinal=UINT)), phases=array_shape(PHASE, 5, 5)),
+def attempt_phases_valid(value):
+    """Accept complete legacy/new fixed lists, with the same closed phase DTO."""
+    return (type(value) is list and len(value) in (5, 7)
+            and all(PHASE(phase) and (phase['stage'], phase['boundary']) == identity
+                    for phase, identity in zip(value, ATTEMPT_PHASE_IDENTITIES)))
+
+
+CANDIDATE = object_shape(dict(token=object_shape(dict(epoch=FINGERPRINT, ordinal=UINT)), phases=attempt_phases_valid),
                          dict(upper_trace_id=FINGERPRINT, trace_ambiguous=BOOLEAN, rpc_overflow=BOOLEAN,
                               rpc_references=array_shape(REFERENCE, 2)))
 

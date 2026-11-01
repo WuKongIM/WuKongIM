@@ -25,6 +25,17 @@ TRACE = '1'*32+'/1'
 KEY = dict(message_fingerprint='1'*32, client_seq=1, connect_packet_fingerprint='2'*32)
 
 
+def legacy_attempt_phases():
+    pairs = [('gateway.async_dispatch_wait','enqueue_to_dispatch'),
+             ('gateway.messages_send','message_call_to_result'),
+             ('gateway.write_sendack','write_frame_callback'),
+             ('gateway.session_publication_wait','ready_to_publication_attempt'),
+             ('message.send_durable','diagnostic_event_duration')]
+    return [dict(observed=i != 4,stage=stage,started_at=START if i != 4 else '0001-01-01T00:00:00Z',
+                 duration=700000000 if i == 1 else 0,result='ok' if i != 4 else '',
+                 boundary=boundary,end_derived=i != 4) for i,(stage,boundary) in enumerate(pairs)]
+
+
 class CaptureTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -57,8 +68,35 @@ class CaptureTests(unittest.TestCase):
                 if body.get('keys'):
                     response['node_id'] = self.server.node
                     for key in body['keys']:
-                        candidate = dict(token=dict(epoch='3'*32, ordinal=1), phases=[dict(observed=True, stage='gateway.messages_send', started_at=START, duration=700000000, result='ok', boundary='message_call_to_result', end_derived=True)]*5,
+                        candidate = dict(token=dict(epoch='3'*32, ordinal=1), phases=legacy_attempt_phases(),
                                          rpc_references=[dict(state='bound', trace_id=TRACE)])
+                        if fixture.mode.startswith('preparation'):
+                            candidate['phases'] += [dict(observed=True, stage='message.permission_batch', started_at=START, duration=300000000, result='ok', boundary='shared_permission_batch', end_derived=True),
+                                                    dict(observed=True, stage='message.pre_append', started_at=START, duration=2000000, result='ok', boundary='shared_pre_append_until_submit', end_derived=True)]
+                            phase = candidate['phases'][-1]
+                            if fixture.mode == 'preparation-private':
+                                phase['raw_uid'] = 'raw-user-fixture'
+                            if fixture.mode == 'preparation-unknown':
+                                phase['stage'] = 'private-unbounded-stage'
+                            if fixture.mode == 'preparation-bool-duration':
+                                phase['duration'] = True
+                            if fixture.mode == 'preparation-missing-start':
+                                del phase['started_at']
+                            if fixture.mode == 'preparation-over-cap':
+                                candidate['phases'].append(copy.deepcopy(phase))
+                        if fixture.mode == 'legacy-duplicate':
+                            candidate['phases'][1] = copy.deepcopy(candidate['phases'][0])
+                        if fixture.mode == 'legacy-reordered':
+                            candidate['phases'][0],candidate['phases'][1] = candidate['phases'][1],candidate['phases'][0]
+                        if fixture.mode == 'preparation-duplicate':
+                            candidate['phases'][-1] = copy.deepcopy(candidate['phases'][-2])
+                        if fixture.mode == 'preparation-missing-legacy':
+                            candidate['phases'] = candidate['phases'][:3]+candidate['phases'][5:]
+                        if fixture.mode == 'preparation-wrong-boundary':
+                            candidate['phases'][-1]['boundary'] = 'message_call_to_result'
+                        if fixture.mode == 'preparation-unknown-values':
+                            for phase in candidate['phases'][5:]:
+                                phase.update(observed=False,started_at='0001-01-01T00:00:00Z',duration=0,result='',end_derived=True)
                         response['results'].append(dict(key=key, status='candidate', candidates=[candidate]))
                 else:
                     response['rpc_results'] = [dict(selector=s, status='retained', sample=dict(trace_id=s['trace_id'], side=s['side'], service_id=s['service_id'], at=END, duration=650000000, result='ok', spans=[dict(stage='service_queue', offset=0, duration=620000000, result='ok')])) for s in body['rpc_selectors']]
@@ -273,6 +311,62 @@ class CaptureTests(unittest.TestCase):
         self.assertTrue(all(s['service_id']==21 for c in rpc for s in c[3]['rpc_selectors']))
         self.assertIn('service_queue',json.dumps(data))
         self.assertEqual(data['causal_verdict'],'unverified')
+
+    def test_preparation_phases_preserve_legacy_and_exact_bounded_facts(self):
+        for mode,count in [('ok',5),('preparation',7)]:
+            with self.subTest(mode=mode):
+                self.mode = mode
+                data = self.capture()
+                self.assertEqual(data['status'],'captured')
+                summaries = [q for q in data['queries'] if q['request'].get('keys')]
+                for query in summaries:
+                    for row in query['response']['results']:
+                        phases = row['candidates'][0]['phases']
+                        self.assertEqual(len(phases),count)
+                        if mode == 'preparation':
+                            self.assertEqual(phases[-2]['duration'],300000000)
+                            self.assertEqual(phases[-2]['boundary'],'shared_permission_batch')
+                            self.assertEqual(phases[-1]['boundary'],'shared_pre_append_until_submit')
+                self.assertLessEqual(len(self.calls),18)
+                self.assertEqual(data['causal_verdict'],'unverified')
+                self.calls.clear()
+                (self.root/'observations.json').unlink()
+
+    def test_preparation_private_unknown_or_invalid_children_remain_unknown(self):
+        for mode in ['preparation-private','preparation-unknown','preparation-bool-duration',
+                     'preparation-missing-start','preparation-over-cap']:
+            with self.subTest(mode=mode):
+                self.mode = mode
+                data = self.capture()
+                self.assertEqual(data['status'],'partial')
+                self.assertEqual(data['causal_verdict'],'unverified')
+                self.assertNotIn('raw-user-fixture',json.dumps(data))
+                self.calls.clear()
+                (self.root/'observations.json').unlink()
+
+    def test_complete_phase_order_and_corresponding_boundaries_are_required(self):
+        for mode in ['legacy-duplicate','legacy-reordered','preparation-duplicate',
+                     'preparation-missing-legacy','preparation-wrong-boundary']:
+            with self.subTest(mode=mode):
+                self.mode = mode
+                try:
+                    data = self.capture()
+                    self.assertEqual(data['status'],'partial')
+                    self.assertEqual(data['causal_verdict'],'unverified')
+                finally:
+                    self.calls.clear()
+                    (self.root/'observations.json').unlink(missing_ok=True)
+
+    def test_complete_unknown_preparation_stays_unknown_without_filling(self):
+        self.mode = 'preparation-unknown-values'
+        data = self.capture()
+        self.assertEqual(data['status'],'captured')
+        for query in data['queries']:
+            if query['request'].get('keys'):
+                for row in query['response']['results']:
+                    phases = row['candidates'][0]['phases'][5:]
+                    self.assertEqual(len(phases),2)
+                    self.assertTrue(all(not p['observed'] and p['duration'] == 0 and p['result'] == '' for p in phases))
 
     def test_invalid_fences_prevent_all_http(self):
         changes = [lambda: self.final.update(final=False),lambda: self.final['fence'].update(generation=2),

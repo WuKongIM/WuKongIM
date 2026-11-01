@@ -10,6 +10,7 @@ import (
 	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 const (
@@ -239,6 +240,9 @@ func (a *App) sendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 	}
 	permissionDuration := time.Since(permissionStartedAt)
 	a.observeSendBatchStage(sendBatchStagePermission, permissionResult, len(items), permissionDuration)
+	for _, item := range items {
+		recordPreparationAttempt(item.Context, sendtrace.StageMessagePermissionBatch, permissionStartedAt, permissionDuration, permissionResult)
+	}
 	for i := range items {
 		if !allowedItems[i] {
 			finalize(i, results[i])
@@ -390,6 +394,7 @@ func (a *App) sendBatchEachOne(item SendBatchItem, emit func(int, SendBatchItemR
 	}
 	permissionDuration := time.Since(permissionStartedAt)
 	a.observeSendBatchStage(sendBatchStagePermission, permissionResult, 1, permissionDuration)
+	recordPreparationAttempt(ctx, sendtrace.StageMessagePermissionBatch, permissionStartedAt, permissionDuration, permissionResult)
 	if outcome.err != nil || outcome.reason != ReasonSuccess {
 		return emit(0, SendBatchItemResult{
 			Result: SendResult{Reason: outcome.reason},
@@ -409,12 +414,15 @@ func (a *App) sendBatchEachOne(item SendBatchItem, emit func(int, SendBatchItemR
 		if err != nil {
 			preAppendResult = sendBatchStageResultErr
 		}
-		a.observeSendBatchStage(sendBatchStagePreAppend, preAppendResult, 1, time.Since(preAppendStartedAt))
+		preAppendDuration := time.Since(preAppendStartedAt)
+		a.observeSendBatchStage(sendBatchStagePreAppend, preAppendResult, 1, preAppendDuration)
+		recordPreparationAttempt(ctx, sendtrace.StageMessagePreAppend, preAppendStartedAt, preAppendDuration, preAppendResult)
 		return errors.Join(emit(0, SendBatchItemResult{Result: SendResult{Reason: reason}, Err: err}), invariantErr)
 	}
 	item.Command = cmd
 	preAppendDuration := time.Since(preAppendStartedAt)
 	a.observeSendBatchStage(sendBatchStagePreAppend, sendBatchStageResultOK, 1, preAppendDuration)
+	recordPreparationAttempt(ctx, sendtrace.StageMessagePreAppend, preAppendStartedAt, preAppendDuration, sendBatchStageResultOK)
 
 	submitterStartedAt := time.Now()
 	result, invalidSubmission := a.submitSingleBatchItem(item)
@@ -647,6 +655,9 @@ func (a *App) submitSendBatchLane(
 	}
 	preAppendDuration := time.Since(preAppendStartedAt)
 	a.observeSendBatchStage(sendBatchStagePreAppend, preAppendResult, len(indexes), preAppendDuration)
+	for _, index := range indexes {
+		recordPreparationAttempt(contexts[index], sendtrace.StageMessagePreAppend, preAppendStartedAt, preAppendDuration, preAppendResult)
+	}
 	if len(allowed) == 0 {
 		return
 	}
