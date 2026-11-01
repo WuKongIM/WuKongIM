@@ -140,7 +140,7 @@ func recordLatencyThresholdCounters(counters *LatencyThresholdCounters, latency 
 			counters.AboveP99 = saturatingIncrement(counters.AboveP99)
 		}
 	}
-	if latency > counters.P999Limit {
+	if counters.P999Limit > 0 && latency > counters.P999Limit {
 		counters.AboveP999 = saturatingIncrement(counters.AboveP999)
 	}
 	if latency > 10*time.Second {
@@ -154,7 +154,7 @@ func LatencyCountersForThresholds(thresholds LatencyThresholds) LatencyCounters 
 	return LatencyCounters{
 		Hot:  latencyThresholdCounters(thresholds.HotSendACK),
 		Cold: LatencyThresholdCounters{P99Limit: thresholds.Cold.P99, P999Limit: thresholds.Cold.P999},
-		Sync: LatencyThresholdCounters{P99Limit: thresholds.Sync.P99, P999Limit: thresholds.Sync.P999},
+		Sync: latencyThresholdCounters(thresholds.Sync),
 	}
 }
 
@@ -486,7 +486,7 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 					aboveP99, countP99 := state.p99.Sum()
 					aboveP999, countP999 := state.p999.Sum()
 					limits := [...]LatencyLimit{v.thresholds.Latency.HotSendACK, v.thresholds.Latency.Cold, v.thresholds.Latency.Sync}
-					breached := ratioAboveUnitFraction(aboveP99, countP99, limits[index].primaryFractionDenominator()) || ratioAboveUnitFraction(aboveP999, countP999, 1_000)
+					breached := ratioAboveUnitFraction(aboveP99, countP99, limits[index].primaryFractionDenominator()) || (limits[index].P999 > 0 && ratioAboveUnitFraction(aboveP999, countP999, 1_000))
 					if !breached {
 						state.breachSince = nil
 						state.breachAttribution = CapacityAttributionNone
@@ -755,13 +755,13 @@ func verdictHourlyWindowCapacity(span time.Duration) (int, error) {
 
 func validLatencyCounters(counters LatencyCounters, thresholds LatencyThresholds) bool {
 	if counters.Hot.P95Limit != thresholds.HotSendACK.P95 || counters.Hot.P99Limit != thresholds.HotSendACK.P99 || counters.Hot.P999Limit != thresholds.HotSendACK.P999 ||
-		counters.Cold.P95Limit != 0 || counters.Sync.P95Limit != 0 ||
+		counters.Cold.P95Limit != 0 || counters.Sync.P95Limit != thresholds.Sync.P95 ||
 		counters.Cold.P99Limit != thresholds.Cold.P99 || counters.Cold.P999Limit != thresholds.Cold.P999 ||
 		counters.Sync.P99Limit != thresholds.Sync.P99 || counters.Sync.P999Limit != thresholds.Sync.P999 {
 		return false
 	}
 	for _, operation := range [...]LatencyThresholdCounters{counters.Hot, counters.Cold, counters.Sync} {
-		if !operation.validPrimarySchema() || operation.primaryAbove() > operation.Count || operation.AboveP999 > operation.primaryAbove() || operation.Above10Seconds > operation.AboveP999 {
+		if !operation.validObservedCounts() {
 			return false
 		}
 	}
@@ -770,7 +770,7 @@ func validLatencyCounters(counters LatencyCounters, thresholds LatencyThresholds
 
 func validLatencyDelta(delta LatencyCounters) bool {
 	for _, counters := range [...]LatencyThresholdCounters{delta.Hot, delta.Cold, delta.Sync} {
-		if !counters.validPrimarySchema() || counters.primaryAbove() > counters.Count || counters.AboveP999 > counters.primaryAbove() || counters.Above10Seconds > counters.AboveP999 {
+		if !counters.validObservedCounts() {
 			return false
 		}
 	}
@@ -781,12 +781,12 @@ func latencyCountersRegressed(current, previous LatencyCounters) bool {
 	currentValues := [...]uint64{
 		current.Hot.Count, current.Hot.AboveP95, current.Hot.AboveP99, current.Hot.AboveP999, current.Hot.Above10Seconds,
 		current.Cold.Count, current.Cold.AboveP99, current.Cold.AboveP999, current.Cold.Above10Seconds,
-		current.Sync.Count, current.Sync.AboveP99, current.Sync.AboveP999, current.Sync.Above10Seconds,
+		current.Sync.Count, current.Sync.AboveP95, current.Sync.AboveP99, current.Sync.AboveP999, current.Sync.Above10Seconds,
 	}
 	previousValues := [...]uint64{
 		previous.Hot.Count, previous.Hot.AboveP95, previous.Hot.AboveP99, previous.Hot.AboveP999, previous.Hot.Above10Seconds,
 		previous.Cold.Count, previous.Cold.AboveP99, previous.Cold.AboveP999, previous.Cold.Above10Seconds,
-		previous.Sync.Count, previous.Sync.AboveP99, previous.Sync.AboveP999, previous.Sync.Above10Seconds,
+		previous.Sync.Count, previous.Sync.AboveP95, previous.Sync.AboveP99, previous.Sync.AboveP999, previous.Sync.Above10Seconds,
 	}
 	for index := range currentValues {
 		if currentValues[index] < previousValues[index] {

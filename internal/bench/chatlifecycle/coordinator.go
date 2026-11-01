@@ -2647,7 +2647,7 @@ func (a *CoordinatorSnapshotAggregator) Aggregate(snapshots []WorkerSnapshot) (C
 	thresholdSchema := ordered[0].Sync.Thresholds
 	hotSchema := ordered[0].HotSendackThresholds
 	for workerID := 1; workerID < coordinatorWorkerCount; workerID++ {
-		if ordered[workerID].Sync.Thresholds.P99Limit != thresholdSchema.P99Limit ||
+		if ordered[workerID].Sync.Thresholds.P95Limit != thresholdSchema.P95Limit || ordered[workerID].Sync.Thresholds.P99Limit != thresholdSchema.P99Limit ||
 			ordered[workerID].Sync.Thresholds.P999Limit != thresholdSchema.P999Limit {
 			return CoordinatorSnapshot{}, ErrCoordinatorHistogramSchema
 		}
@@ -2819,6 +2819,8 @@ func coordinatorSnapshotRegressed(
 		}
 	}
 	return hotThresholdsRegressed(current.HotSendackThresholds, previous.HotSendackThresholds) ||
+		((current.Sync.Thresholds.P95Limit != 0 || previous.Sync.Thresholds.P95Limit != 0) &&
+			hotThresholdsRegressed(current.Sync.Thresholds, previous.Sync.Thresholds)) ||
 		coordinatorHistogramRegressed(current.Sync.ConnectLatency, previous.Sync.ConnectLatency) ||
 		coordinatorHistogramRegressed(current.Sync.Latency, previous.Sync.Latency) ||
 		coordinatorHistogramRegressed(current.HotSendackLatency, previous.HotSendackLatency) ||

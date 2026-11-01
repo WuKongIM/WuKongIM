@@ -326,7 +326,7 @@ func TestDriverCPUClockDefaultOffAndEnabledKeepBusinessClockReadsAndNativeEviden
 	if readCounts[0] != 2 || readCounts[1] != readCounts[2] {
 		t.Fatalf("CPU observation changed clock reads: original=%d driver-only=%d driver+CPU=%d", readCounts[0], readCounts[1], readCounts[2])
 	}
-	if string(native[0]) != string(native[1]) || string(native[1]) != string(native[2]) || workerProtocolVersion != 18 {
+	if string(native[0]) != string(native[1]) || string(native[1]) != string(native[2]) || workerProtocolVersion != 19 {
 		t.Fatal("optional CPU observation changed original native evidence or protocol15")
 	}
 }

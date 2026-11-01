@@ -317,12 +317,13 @@ func (t LatencyThresholds) hotAttemptTimeout() time.Duration {
 	return t.HotAttemptTimeout
 }
 
-// LatencyLimit bounds one primary percentile and P99.9. P95 is opt-in for
-// local hot SENDACK only; exactly one of P95/P99 must be positive.
+// LatencyLimit bounds one primary percentile and an optional P99.9 limit.
+// P95 is local-only. The paired local policy folds the redundant hot1s P95
+// into its stricter600ms P95 and retains the independent sync3s P99.9.
 type LatencyLimit struct {
 	P95  time.Duration `json:"p95,omitempty" yaml:"p95,omitempty"`
 	P99  time.Duration `json:"p99,omitempty" yaml:"p99,omitempty"`
-	P999 time.Duration `json:"p999" yaml:"p999"`
+	P999 time.Duration `json:"p999,omitempty" yaml:"p999,omitempty"`
 }
 
 // ResourceThresholds bounds long-window forced-GC heap and goroutine growth.

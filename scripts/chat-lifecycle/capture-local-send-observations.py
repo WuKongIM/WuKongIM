@@ -228,7 +228,7 @@ def anchors(args):
     final, final_hash = bounded_json(args.report_dir/'final.json', 1 << 20)
     side, side_hash = bounded_json(args.report_dir/'attempt-link-diagnostics.json', 64 << 10)
     require(start['schema'] == 'wukongim.chat_lifecycle.run_start/v1'
-            and final['schema_version'] in ('wukongim/chat-lifecycle-report/v8', 'wukongim/chat-lifecycle-report/v9')
+            and final['schema_version'] in ('wukongim/chat-lifecycle-report/v8', 'wukongim/chat-lifecycle-report/v9', 'wukongim/chat-lifecycle-report/v10')
             and final['kind'] == 'final' and final['final'] is True
             and final['continue'] is False and final['verdict']['terminal'] is True)
     require(start['run_hash'] == 'sha256:'+hashlib.sha256(args.run_id.encode()).hexdigest())
@@ -241,20 +241,28 @@ def anchors(args):
     latency = final['thresholds']['latency']
     hot = latency['hot_sendack']
     percentile = 99
-    if final['schema_version'] == 'wukongim/chat-lifecycle-report/v9':
+    paired = final['schema_version'] == 'wukongim/chat-lifecycle-report/v10'
+    if final['schema_version'] in ('wukongim/chat-lifecycle-report/v9', 'wukongim/chat-lifecycle-report/v10'):
         percentile = 95
-        require(final['threshold_version'] == 'wukongim/chat-lifecycle-thresholds/v3'
+        require(final['threshold_version'] == ('wukongim/chat-lifecycle-thresholds/v4' if paired else 'wukongim/chat-lifecycle-thresholds/v3')
                 and final['profile'] == 'local' and final['stage'] == 'shakeout' and final['mode'] == 'soak'
                 and final['qualification']['scope'] == 'local_diagnostic'
-                and final['qualification']['external_linux_evidence_required'] is False
-                and set(hot) == {'p95','p999'} and hot['p999'] == 1000000000)
-        require(all('p95' not in latency.get(key,{}) for key in ('cold','sync')))
+                and final['qualification']['external_linux_evidence_required'] is False)
+        if paired:
+            require(set(hot) == {'p95'})
+            for key, fields in (('sync',dict(p95=1000000000,p999=3000000000)),
+                                ('cold',dict(p99=2000000000,p999=5000000000))):
+                require(type(latency.get(key)) is dict and set(latency[key]) == set(fields)
+                        and all(integer(latency[key][k]) and latency[key][k] == value for k,value in fields.items()))
+        else:
+            require(set(hot) == {'p95','p999'} and integer(hot['p999']) and hot['p999'] == 1000000000)
+            require(all('p95' not in latency.get(key,{}) for key in ('cold','sync')))
     else:
         require('p95' not in hot)
     limit = hot['p95' if percentile == 95 else 'p99']
-    deadline = final['thresholds']['latency']['hot_attempt_timeout']
+    deadline = latency['hot_attempt_timeout']
     if percentile == 95:
-        require(all(integer(value) for value in (limit, hot['p999'], deadline)))
+        require(integer(limit) and integer(deadline))
     require(limit == 600000000 and deadline == 2000000000)
     require(side['schema'] == 'wukongim/chat-lifecycle-attempt-link-diagnostics/v2'
             and side['run_id'] == args.run_id and stamp(side['at']) == end)
@@ -289,7 +297,7 @@ def anchors(args):
         policy = slow.get('retention_policy', '')
         require(type(policy) is str)
         if policy:
-            require(policy == 'p999_reserve8/v1' and integer(slow['tail_limit_nanos'])
+            require(not paired and policy == 'p999_reserve8/v1' and integer(slow['tail_limit_nanos'])
                     and integer(hot['p999']) and slow['tail_limit_nanos'] == hot['p999']
                     and slow['tail_limit_nanos'] >= limit)
             retention_policies.append(dict(worker_id=worker['worker_id'], policy=policy,

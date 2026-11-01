@@ -329,8 +329,8 @@ func TestHotP95CheckedAggregationRegressionAndPositiveQualification(t *testing.T
 }
 
 func TestHotP95PassiveDiagnosticSelectionAndProtocolBound(t *testing.T) {
-	if workerProtocolVersion != 18 {
-		t.Fatalf("new P95 live counters need exactsame-source protocol18, got%d", workerProtocolVersion)
+	if workerProtocolVersion != 19 {
+		t.Fatalf("new P95 live counters need exactsame-source protocol19, got%d", workerProtocolVersion)
 	}
 	model := newTestTrafficModel(t, FormalConfig())
 	evidence, _ := NewEvidenceRecorder(2, 2)

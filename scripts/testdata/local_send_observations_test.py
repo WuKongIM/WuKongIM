@@ -487,6 +487,52 @@ class CaptureTests(unittest.TestCase):
         for worker in self.side['workers']:
             worker['attempt_link_diagnostics']['slow_hot_success']['percentile'] = 95
 
+    def paired_p95_native_fixture(self):
+        self.p95_native_fixture()
+        self.final.update(schema_version='wukongim/chat-lifecycle-report/v10',
+                          threshold_version='wukongim/chat-lifecycle-thresholds/v4')
+        self.final['thresholds']['latency'].update(hot_sendack=dict(p95=600000000),
+                                                  sync=dict(p95=1000000000,p999=3000000000),
+                                                  cold=dict(p99=2000000000,p999=5000000000))
+
+    def test_paired_p95_native_contract_roundtrip_and_bounded_http(self):
+        self.paired_p95_native_fixture()
+        data = self.capture()
+        self.assertEqual(data['status'],'captured')
+        self.assertEqual(data['anchor_count'],3)
+        self.assertLessEqual(len(self.calls),18)
+        self.assertEqual(data['original_exit_status'],7)
+        self.assertEqual(data['causal_verdict'],'unverified')
+
+    def test_paired_p95_rejects_half_policy_false_types_and_stale_tail(self):
+        for mode in ['old_report','old_threshold','formal','sync99','sync_both','missing_sync','float_sync95','bool_sync95','zero_sync95','null_sync95','wrong_sync_tail','bool_sync_tail','hot_tail','cold95','reserved_side']:
+            with self.subTest(mode=mode):
+                self.calls.clear()
+                (self.root/'observations.json').unlink(missing_ok=True)
+                self.paired_p95_native_fixture()
+                latency=self.final['thresholds']['latency']
+                if mode=='old_report': self.final['schema_version']='wukongim/chat-lifecycle-report/v9'
+                if mode=='old_threshold': self.final['threshold_version']='wukongim/chat-lifecycle-thresholds/v3'
+                if mode=='formal': self.final['profile']='formal'
+                if mode=='sync99': latency['sync']=dict(p99=1000000000,p999=3000000000)
+                if mode=='sync_both': latency['sync']['p99']=1000000000
+                if mode=='missing_sync': del latency['sync']
+                if mode in ('float_sync95','bool_sync95','zero_sync95','null_sync95'):
+                    latency['sync']['p95']={'float_sync95':1e9,'bool_sync95':True,'zero_sync95':0,'null_sync95':None}[mode]
+                if mode=='wrong_sync_tail': latency['sync']['p999']=2000000000
+                if mode=='bool_sync_tail': latency['sync']['p999']=True
+                if mode=='hot_tail': latency['hot_sendack']['p999']=1000000000
+                if mode=='cold95': latency['cold']=dict(p95=2000000000,p999=5000000000)
+                if mode=='reserved_side':
+                    for w in self.side['workers']:
+                        w['attempt_link_diagnostics']['slow_hot_success'].update(retention_policy='p999_reserve8/v1',tail_limit_nanos=1000000000)
+                data=self.capture()
+                self.assertEqual(data['status'],'unknown')
+                self.assertEqual(self.calls,[])
+                for w in self.side['workers']:
+                    slow=w['attempt_link_diagnostics']['slow_hot_success']
+                    slow.pop('retention_policy',None);slow.pop('tail_limit_nanos',None)
+
     def test_p95_native_report_uses_explicit_new_contract_and_same_bounded_capture(self):
         self.p95_native_fixture()
         data = self.capture()

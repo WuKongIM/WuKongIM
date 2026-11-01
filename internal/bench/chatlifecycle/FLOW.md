@@ -7,8 +7,7 @@ summary: Runs the fenced chat-lifecycle workload, evidence pipeline, and aged-da
 
 ## Responsibility
 
-This package owns deterministic chat-lifecycle planning, its three-worker protocol, bounded session/traffic engine,
-continuous observation, natural Channel lifecycle proof, evidence reduction, and versioned reports. It neither provisions infrastructure nor persists credentials or bypasses public APIs.
+This package owns deterministic chat-lifecycle planning, its three-worker protocol, bounded session/traffic engine, continuous observation, natural Channel lifecycle proof, evidence reduction, and versioned reports. It neither provisions infrastructure nor persists credentials or bypasses public APIs.
 
 ## Boundaries
 
@@ -66,12 +65,12 @@ passing 72-hour formal generation -> same aged dataset and process proof
 - Initial SENDs settle a timer-local pending count before revisit leasing, so late successful ACKs advance the fence before cohort selection.
 - At formal population first grants reserve distinct person/group/canary senders; first SENDACK starts hot/meta-create/first-create/reheat accounting.
   Worker-aligned rosters keep sampled pairs local; padding has no membership. Per-member gateways retain the original cross-node placement; group sizes and eligibility deadlines stay fixed.
-- Worker protocol v18 keeps deadline coverage and observed-late first attempts separate; exact configured hot counters share ACK durations with the unchanged histogram.
+- Worker protocol v19 keeps deadline coverage and observed-late first attempts separate; exact configured hot counters share ACK durations with the unchanged histogram.
   Only the original clocked transport result resolves its deadline; missing/unknown/canceled/expired results remain unknown. Fixed attempt slots and the bounded late-receipt map bound retention. Private opt-in retains 16 fresh-dispatch timing prefixes per generation.
   Added clock reads are diagnostic overhead; codes, units and gates stay fixed.
-  A fixed optional yield count/wall prefix independently brackets completed owner Gosched calls; it overlaps unchanged Residual, is not actor CPU, and keeps invalid clocks unknown. Only the named optional child is sanitized; original driver/native JSON stays strict, with same-source v18 peers required for the added diagnostic field. Default-off paths add no clock reads.
+  A fixed optional yield count/wall prefix independently brackets completed owner Gosched calls; it overlaps unchanged Residual, is not actor CPU, and keeps invalid clocks unknown. Only the named optional child is sanitized; original driver/native JSON stays strict, with same-source v19 peers required for the added diagnostic field. Default-off paths add no clock reads.
   Owner timing covers active slices and bounded completion batches; logical Residual/CPU envelopes may include interleaved work. Optional CPU bounds retain16 failed logical turns with unknown clocks preserved, exported post-join; process CPU is not actor CPU. A separate default-off SDK child retains16 exact SDK-start/code38 misses using independent queue-offer/pickup/command-offer/owner clocks; unknown stays unknown, no clock is added to native time, and the final64KiB cap remains.
-  Driver timing records cross only after generation Stop joins, into their bounded terminal sidecar. A strict attempt-link opt-in preserves the first16 confirmed-late keys and independently retains16 original hot successes before firstdeadline, reserving8 recent strict P999 violations against primary-only churn with explicit policy/ordinal gaps, using existing SDK clocks and opaque keys. Its v2 sidecar stays64KiB, shares worker fences/sequence/uptime, and never enters native evidence/counts/gates; malformed new children are independently omitted, retaining the original late prefix.
+  Driver timing records cross only after generation Stop joins, into their bounded terminal sidecar. A strict attempt-link opt-in preserves the first16 confirmed-late keys and independently retains16 original hot successes before firstdeadline, reserving8 recent strict P999 violations against primary-only churn with explicit policy/ordinal gaps when that gate is active; P95-only hot samples instead retain latest16 primary recency without a tail label, using existing SDK clocks and opaque keys. Its v2 sidecar stays64KiB, shares worker fences/sequence/uptime, and never enters native evidence/counts/gates; malformed new children are independently omitted, retaining the original late prefix.
 - A nil-by-default local callback notifies only after an authenticated, current, valid, uncanceled harness-failure Snapshot GET or coordinator Checkpoint POST, including cached final Snapshot GETs, outside the lifecycle mutex.
   The worker CLI owns its independent opt-in recorder and one asynchronous export; Snapshot, Stop and UnexpectedExit never join that diagnostic writer.
   Enabled runtime tracing adds only static regions around the two existing session-expiry calls and an existing anonymous turn when available.
@@ -114,12 +113,13 @@ passing 72-hour formal generation -> same aged dataset and process proof
   needs a rolling ten-minute interval, 1,000 samples in each hot/cold/full-sync
   class, and a cut at most five seconds old. Counter deltas belong to their end
   cut; a gap over ten minutes resets positive qualification, not negative breaches.
-  Five-minute persistence/correctness stay fixed; explicit local hotP95 uses5% instead of1%; P999 stays0.1%, hot attempts2s and cold wait5s.
-- P99 reportv8/thresholdv2 retains original semantics; explicit local hotP95 emits reportv9/thresholdv3 with closed numeric limit keys, never formal/capacity.
+  Five-minute persistence/correctness stay fixed; explicit local P95 uses5% instead of1%; active P999 stays0.1%, hot attempts2s and cold wait5s.
+- P99 reportv8/thresholdv2 retains original semantics; local hotP95 with its independent P999 emits reportv9/thresholdv3.
+  Paired local shakeout/soak hotP95-only and syncP95/P999 emits reportv10/thresholdv4/gatev3: the stricter hot600ms P95 covers1s P95, sync1s uses5% while sync3s P999/cold/first2s stay fixed. Half-configurations are invalid. All use closed numeric limit keys, never formal/capacity.
   Formal scope still needs external Linux hardware/topology; elapsed rehearsal and missing/stale positive latency evidence cannot pass.
   Baseline/start/end elapsed positions share one monotonic clock; serialized duration/order/freshness use them. Wall times are audit fields.
-  Diagnostic readers never reconstruct offsets or upgrade old reports; legacy v7 has no hot-budget override and stays original/unknown. Current local P95 result accepts v9; capacity/formal stay v8 with2s; no historical report is reinterpreted.
-  The fixed three-class native latency_gate copies actual five-minute sums, continuous breach state and declared fractions; local gatev2 namesP95 with denominator20, cold/sync remainP99/100.
+  Diagnostic readers never reconstruct offsets or upgrade old reports; legacy v7 has no hot-budget override and stays original/unknown. Current local P95 results accept their exact v9 or v10 contracts; capacity/formal stay v8 with2s; no historical report is reinterpreted.
+  The fixed three-class native latency_gate copies actual five-minute sums, continuous breach state and declared fractions; local gatev2 names hotP95 with denominator20; paired gatev3 also names syncP95 and omits inactive hotP999 fields. Cold remainsP99/100.
   Its first terminal cut freezes only the child; captured latency_age/status do not claim publication freshness (report elapsed minus evaluated elapsed).
   Absent/null proof stays unknown; present proof is strict and bounded, independently of positive ten-minute qualification; no new clock or numerical gate.
 - Reports and control responses use closed reason vocabularies, fixed arrays,

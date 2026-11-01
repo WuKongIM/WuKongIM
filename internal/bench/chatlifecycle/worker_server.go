@@ -1044,11 +1044,7 @@ func validWorkerSnapshot(snapshot WorkerSnapshot) bool {
 	if !validWorkerMessageSnapshot(snapshot.Messages) || !terminalOK || terminal != snapshot.Messages.Terminal {
 		return false
 	}
-	thresholds := snapshot.Sync.Thresholds
-	if thresholds != (LatencyThresholdCounters{}) &&
-		(thresholds.P95Limit != 0 || thresholds.AboveP95 != 0 || thresholds.P99Limit <= 0 || thresholds.P999Limit < thresholds.P99Limit ||
-			thresholds.AboveP99 > thresholds.Count || thresholds.AboveP999 > thresholds.AboveP99 ||
-			thresholds.Above10Seconds > thresholds.AboveP999) {
+	if !validWorkerSyncThresholds(snapshot.Sync) {
 		return false
 	}
 	if len(snapshot.Evidence.Classes) > int(FailureClassHarness) {

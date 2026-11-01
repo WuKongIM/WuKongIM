@@ -3,12 +3,13 @@ package chatlifecycle
 import "time"
 
 const (
-	verdictLatencyGateSchema       = "wukongim/chat-lifecycle-latency-gate/v1"
-	verdictP95LatencyGateSchema    = "wukongim/chat-lifecycle-latency-gate/v2"
-	verdictLatencyGateNotEvaluated = "not_evaluated"
-	verdictLatencyGateCurrent      = "current"
-	verdictLatencyGateStale        = "stale"
-	verdictLatencyGateInvalid      = "invalid"
+	verdictLatencyGateSchema          = "wukongim/chat-lifecycle-latency-gate/v1"
+	verdictP95LatencyGateSchema       = "wukongim/chat-lifecycle-latency-gate/v2"
+	verdictPairedP95LatencyGateSchema = "wukongim/chat-lifecycle-latency-gate/v3"
+	verdictLatencyGateNotEvaluated    = "not_evaluated"
+	verdictLatencyGateCurrent         = "current"
+	verdictLatencyGateStale           = "stale"
+	verdictLatencyGateInvalid         = "invalid"
 )
 
 // VerdictLatencyGateClass copies one native negative-window reducer. Its two
@@ -16,7 +17,7 @@ const (
 // BreachSinceElapsed is nil when no continuous breach is active.
 type VerdictLatencyGateClass struct {
 	Operation LatencyOperation `json:"operation"`
-	// P95 fields belong only to the explicit local-v9 primary quantile.
+	// P95 fields belong only to explicitly versioned local quantiles.
 	P95Limit           time.Duration       `json:"p95_limit,omitempty"`
 	P95Count           uint64              `json:"p95_count,omitempty"`
 	P95Above           uint64              `json:"p95_above,omitempty"`
@@ -79,6 +80,9 @@ func (v *VerdictEvaluator) buildLatencyGateEvidence(terminal bool) *VerdictLaten
 	if v.thresholds.Latency.HotSendACK.P95 != 0 {
 		evidence.SchemaVersion = verdictP95LatencyGateSchema
 		evidence.P95FractionDenominator = 20
+		if v.thresholds.Latency.pairedP95Policy() {
+			evidence.SchemaVersion = verdictPairedP95LatencyGateSchema
+		}
 	}
 	if !v.last.IsZero() {
 		evidence.EvaluatedElapsed = v.last.Sub(v.start)
@@ -103,6 +107,9 @@ func (v *VerdictEvaluator) buildLatencyGateEvidence(terminal bool) *VerdictLaten
 			row.P95Limit = limits[index].P95
 			row.P95Above, row.P95Count, row.P95Samples = row.P99Above, row.P99Count, row.P99Samples
 			row.P99Above, row.P99Count, row.P99Samples = 0, 0, 0
+			if limits[index].P999 == 0 {
+				row.P999Above, row.P999Count, row.P999Samples = 0, 0, 0
+			}
 		}
 		measured = measured || row.P95Samples > 0 || row.P99Samples > 0 || row.P999Samples > 0
 		row.Breached = state.breachSince != nil

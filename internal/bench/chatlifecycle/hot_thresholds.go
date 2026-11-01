@@ -12,7 +12,7 @@ func validWorkerHotThresholds(snapshot WorkerSnapshot) bool {
 			c.Count == snapshot.HotSendackLatency.Count && c.primaryAbove() <= c.Count &&
 			c.AboveP999 <= c.primaryAbove() && c.Above10Seconds <= c.Count &&
 			hotCountWithinHistogram(snapshot.HotSendackLatency, c.primaryLimit(), c.primaryAbove()) &&
-			hotCountWithinHistogram(snapshot.HotSendackLatency, c.P999Limit, c.AboveP999) &&
+			(c.P999Limit == 0 || hotCountWithinHistogram(snapshot.HotSendackLatency, c.P999Limit, c.AboveP999)) &&
 			hotCountWithinHistogram(snapshot.HotSendackLatency, 10*time.Second, c.Above10Seconds))
 }
 

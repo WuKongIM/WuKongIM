@@ -67,6 +67,15 @@ func (v *Verifier) recordSlowHotSuccessLocked(deadline *firstAttemptDeadline, at
 // replacementSlot reserves eight recent P999 violations against primary-only
 // churn. The remaining slots retain recency; only sixteen owned rows are read.
 func (d *slowHotSuccessRecorder) replacementSlot(incoming, tailLimit time.Duration) int {
+	if tailLimit <= 0 {
+		oldest := 0
+		for i := range d.records {
+			if d.records[i].Ordinal < d.records[oldest].Ordinal {
+				oldest = i
+			}
+		}
+		return oldest
+	}
 	tailCount := 0
 	for _, row := range d.records {
 		if row.ObservedAfterRegistration > tailLimit {
@@ -104,9 +113,13 @@ func (v *Verifier) slowHotSuccessSnapshotLocked() *SlowHotSuccessDiagnosticsSnap
 	if v.config.HotLatency.P95 != 0 {
 		percentile = 95
 	}
+	policy := ""
+	if v.config.HotLatency.P999 > 0 {
+		policy = slowHotTailRetention
+	}
 	return &SlowHotSuccessDiagnosticsSnapshot{Percentile: percentile, LimitNanos: v.config.HotLatency.primaryLimit(), Seen: d.seen,
 		Overwritten: d.seen - uint64(d.count), Records: records,
-		RetentionPolicy: slowHotTailRetention, TailLimitNanos: v.config.HotLatency.P999}
+		RetentionPolicy: policy, TailLimitNanos: v.config.HotLatency.P999}
 }
 
 func validSlowHotSuccess(d *SlowHotSuccessDiagnosticsSnapshot) bool {

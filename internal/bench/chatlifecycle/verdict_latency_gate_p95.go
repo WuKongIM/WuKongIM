@@ -22,9 +22,25 @@ type p95LatencyGateClass struct {
 	BreachAttribution  CapacityAttribution `json:"breach_attribution"`
 }
 
+// p95OnlyLatencyGateClass makes the folded hot policy explicit without changing
+// the mandatory zero-valued P999 fields of historical v2 rows.
+type p95OnlyLatencyGateClass struct {
+	Operation          LatencyOperation    `json:"operation"`
+	P95Limit           time.Duration       `json:"p95_limit"`
+	P95Count           uint64              `json:"p95_count"`
+	P95Above           uint64              `json:"p95_above"`
+	P95Samples         int                 `json:"p95_samples"`
+	Breached           bool                `json:"breached"`
+	BreachSinceElapsed *time.Duration      `json:"breach_since_elapsed"`
+	BreachAttribution  CapacityAttribution `json:"breach_attribution"`
+}
+
 // MarshalJSON chooses only a declared row shape, never percentile interpolation.
 func (r VerdictLatencyGateClass) MarshalJSON() ([]byte, error) {
 	if r.P95Limit != 0 {
+		if r.P999Limit == 0 {
+			return json.Marshal(p95OnlyLatencyGateClass{Operation: r.Operation, P95Limit: r.P95Limit, P95Count: r.P95Count, P95Above: r.P95Above, P95Samples: r.P95Samples, Breached: r.Breached, BreachSinceElapsed: r.BreachSinceElapsed, BreachAttribution: r.BreachAttribution})
+		}
 		return json.Marshal(p95LatencyGateClass{Operation: r.Operation, P95Limit: r.P95Limit, P999Limit: r.P999Limit, P95Count: r.P95Count, P95Above: r.P95Above, P999Count: r.P999Count, P999Above: r.P999Above, P95Samples: r.P95Samples, P999Samples: r.P999Samples, Breached: r.Breached, BreachSinceElapsed: r.BreachSinceElapsed, BreachAttribution: r.BreachAttribution})
 	}
 	type plain VerdictLatencyGateClass

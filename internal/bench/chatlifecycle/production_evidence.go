@@ -18,9 +18,7 @@ func projectWorkerVerdictEvidence(
 		return CorrectnessCounters{}, LatencyCounters{}, nil, errProductionEvidence
 	}
 	var correctness CorrectnessCounters
-	syncCounters := LatencyThresholdCounters{
-		P99Limit: cfg.Thresholds.Latency.Sync.P99, P999Limit: cfg.Thresholds.Latency.Sync.P999,
-	}
+	syncCounters := latencyThresholdCounters(cfg.Thresholds.Latency.Sync)
 	seen := [coordinatorWorkerCount]bool{}
 	classification := SyncClassification("")
 	for _, snapshot := range snapshots {
@@ -48,13 +46,13 @@ func projectWorkerVerdictEvidence(
 			*pair[0] += *pair[1]
 		}
 		thresholds := snapshot.Sync.Thresholds
-		if thresholds.P95Limit != 0 || thresholds.AboveP95 != 0 || thresholds.P99Limit != syncCounters.P99Limit || thresholds.P999Limit != syncCounters.P999Limit ||
-			thresholds.AboveP99 > thresholds.Count || thresholds.AboveP999 > thresholds.AboveP99 ||
-			thresholds.Above10Seconds > thresholds.AboveP999 {
+		if thresholds.P95Limit != syncCounters.P95Limit || thresholds.P99Limit != syncCounters.P99Limit || thresholds.P999Limit != syncCounters.P999Limit ||
+			!validWorkerSyncThresholds(snapshot.Sync) {
 			return CorrectnessCounters{}, LatencyCounters{}, nil, errProductionEvidence
 		}
 		for _, pair := range [][2]*uint64{
 			{&syncCounters.Count, &thresholds.Count}, {&syncCounters.AboveP99, &thresholds.AboveP99},
+			{&syncCounters.AboveP95, &thresholds.AboveP95},
 			{&syncCounters.AboveP999, &thresholds.AboveP999}, {&syncCounters.Above10Seconds, &thresholds.Above10Seconds},
 		} {
 			if math.MaxUint64-*pair[0] < *pair[1] {

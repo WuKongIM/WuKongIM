@@ -13,9 +13,15 @@ func (l *LatencyLimit) UnmarshalJSON(encoded []byte) error {
 	if err := json.Unmarshal(encoded, &fields); err != nil {
 		return err
 	}
+	p95, secondary := false, false
 	for key := range fields {
 		if strings.EqualFold(key, "p95") {
-			if _, err := strictLatencyGateFields(encoded, "", []string{"p95", "p999"}); err != nil {
+			p95 = true
+			names := []string{"p95"}
+			if _, secondary = fields["p999"]; secondary {
+				names = append(names, "p999")
+			}
+			if _, err := strictLatencyGateFields(encoded, "", names); err != nil {
 				return err
 			}
 			break
@@ -27,6 +33,9 @@ func (l *LatencyLimit) UnmarshalJSON(encoded []byte) error {
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&value); err != nil {
 		return err
+	}
+	if p95 && (value.P95 <= 0 || (secondary && value.P999 <= 0)) {
+		return ErrReportInvalid
 	}
 	*l = LatencyLimit(value)
 	return nil
