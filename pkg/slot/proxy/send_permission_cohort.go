@@ -7,6 +7,7 @@ import (
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 const (
@@ -380,12 +381,14 @@ func (s *Store) runSendPermissionCohort(c *sendPermissionCohort) {
 	s.permissionCohortMu.Unlock()
 	execution, cancel := context.WithDeadline(c.ctx, deadline)
 	defer cancel()
+	var attempts sendtrace.PermissionAttempts
 	unique := make([]PermissionMetadataRead, 0, c.inputs)
 	indexes := make(map[PermissionMetadataRead]int, c.inputs)
 	for _, m := range members {
 		if m.ctx.Err() != nil {
 			continue
 		}
+		attempts.AddContext(m.ctx)
 		m.indexes = make([]int, len(m.reads))
 		for i, r := range m.reads {
 			index, ok := indexes[r]
@@ -402,6 +405,7 @@ func (s *Store) runSendPermissionCohort(c *sendPermissionCohort) {
 	s.permissionCount("cohort_facts", len(unique))
 	// This existing reader retains per-Slot routing, independent failures and
 	// the one stale-group retry. No cache or additional RPC retry is introduced.
+	execution = attempts.WithContext(execution)
 	facts := s.readSendPermissionMetadataBatch(execution, unique)
 	s.permissionCohortMu.Lock()
 	for _, m := range members {

@@ -20,6 +20,8 @@ import time
 QUERY_PATH = '/debug/diagnostics/send-attempts/query'
 # ChannelAppendRPCServiceID = clusternet.RPCChannelAuthoritySend, not replication86.
 APPEND_SERVICE_ID = 21
+# clusternet.RPCNodeSendPermissions, distinct from append and legacy Slot reads.
+PERMISSION_SERVICE_ID = 91
 MAX_REQUESTS = 18
 MAX_ARTIFACT = 4 << 20
 HEX = re.compile(r'[0-9a-f]{32}')
@@ -180,8 +182,22 @@ ATTEMPT_PHASE_IDENTITIES = (
 PHASE = object_shape(dict(observed=BOOLEAN, stage=one_of(*(stage for stage, _ in ATTEMPT_PHASE_IDENTITIES)),
                          started_at=timestamp_valid, duration=DURATION, result=SEND_RESULT,
                          boundary=one_of(*(boundary for _, boundary in ATTEMPT_PHASE_IDENTITIES)), end_derived=BOOLEAN))
-REFERENCE = object_shape(dict(state=one_of('bound', 'unbound', 'recorder_disabled', 'recorder_exhausted', 'local_untraced', 'remote_untraced'),
-                              trace_id=lambda v: type(v) is str and (v == '' or RPC_ID(v) or (v.startswith('local/') and RPC_ID(v[6:])))))
+REFERENCE_SHAPE = object_shape(dict(state=one_of('bound', 'unbound', 'recorder_disabled', 'recorder_exhausted', 'local_untraced', 'remote_untraced'),
+                                    trace_id=lambda v: type(v) is str))
+
+
+def reference_valid(value):
+    """Mirror sendtrace.RPCReference.Valid, including closed state/ID pairing."""
+    if not REFERENCE_SHAPE(value):
+        return False
+    state, trace = value['state'], value['trace_id']
+    if state == 'bound':
+        return RPC_ID(trace)
+    if state == 'unbound':
+        return trace.startswith('local/') and RPC_ID(trace[6:])
+    return trace == ''
+
+
 def attempt_phases_valid(value):
     """Accept complete legacy/new fixed lists, with the same closed phase DTO."""
     return (type(value) is list and len(value) in (5, 7)
@@ -191,7 +207,8 @@ def attempt_phases_valid(value):
 
 CANDIDATE = object_shape(dict(token=object_shape(dict(epoch=FINGERPRINT, ordinal=UINT)), phases=attempt_phases_valid),
                          dict(upper_trace_id=FINGERPRINT, trace_ambiguous=BOOLEAN, rpc_overflow=BOOLEAN,
-                              rpc_references=array_shape(REFERENCE, 2)))
+                              rpc_references=array_shape(reference_valid, 2),
+                              permission_rpc_overflow=BOOLEAN, permission_rpc_references=array_shape(reference_valid, 2)))
 
 
 def process_alive(pid):
@@ -354,7 +371,8 @@ class QueryBudget:
 
 def collect(budget, selected):
     keys = [row['key'] for row in selected]
-    references, source_nodes = [], {}
+    categories = {APPEND_SERVICE_ID: [], PERMISSION_SERVICE_ID: []}
+    source_nodes = {}
     for node in (1, 2, 3):
         for offset in range(0, len(keys), 16):
             data = budget.query(node, dict(version=1, keys=keys[offset:offset+16]))
@@ -364,21 +382,35 @@ def collect(budget, selected):
                 if item['status'] != 'candidate' or len(item['candidates']) != 1:
                     continue
                 candidate = item['candidates'][0]
-                if candidate.get('trace_ambiguous') or candidate.get('rpc_overflow'):
+                if candidate.get('trace_ambiguous'):
                     continue
-                for ref in candidate.get('rpc_references') or []:
-                    trace = ref.get('trace_id', '')
-                    if ref.get('state') != 'bound' or not TRACE.fullmatch(trace) or int(trace.split('/')[1], 16) == 0:
+                for field, overflow, service in (
+                        ('rpc_references', 'rpc_overflow', APPEND_SERVICE_ID),
+                        ('permission_rpc_references', 'permission_rpc_overflow', PERMISSION_SERVICE_ID)):
+                    if candidate.get(overflow):
                         continue
-                    if trace not in source_nodes:
-                        if len(references) == 16:
+                    for ref in candidate.get(field) or []:
+                        trace = ref.get('trace_id', '')
+                        if ref.get('state') != 'bound' or not TRACE.fullmatch(trace) or int(trace.split('/')[1], 16) == 0:
                             continue
-                        references.append(trace)
-                        source_nodes[trace] = set()
-                    source_nodes[trace].add(node)
+                        key = (service, trace)
+                        if key not in source_nodes:
+                            # Keep at most16 candidates per category before the shared16 cut.
+                            if len(categories[service]) == 16:
+                                continue
+                            categories[service].append(key)
+                            source_nodes[key] = set()
+                        source_nodes[key].add(node)
+    # Round-robin closed categories; a missing category lends its unused budget.
+    references = []
+    for i in range(16):
+        for service in (APPEND_SERVICE_ID, PERMISSION_SERVICE_ID):
+            if i < len(categories[service]) and len(references) < 16:
+                references.append(categories[service][i])
     for node in (1, 2, 3):
-        selectors = [dict(trace_id=trace, side='client', service_id=APPEND_SERVICE_ID) for trace in references if node in source_nodes[trace]]
-        selectors += [dict(trace_id=trace, side='server', service_id=APPEND_SERVICE_ID) for trace in references]
+        selectors = [dict(trace_id=trace, side='client', service_id=service)
+                     for service, trace in references if node in source_nodes[(service, trace)]]
+        selectors += [dict(trace_id=trace, side='server', service_id=service) for service, trace in references]
         for offset in range(0, len(selectors), 16):
             budget.query(node, dict(version=1, rpc_selectors=selectors[offset:offset+16]))
 

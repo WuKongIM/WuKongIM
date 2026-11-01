@@ -13,6 +13,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
@@ -336,6 +337,19 @@ func (s *Store) callSendPermission(ctx context.Context, q sendPermissionRequest)
 	}
 	s.permissionCount("node_envelopes", 1)
 	s.permissionCount("request_bytes", len(raw))
+	// Each physical envelope gets its own passive capture on the existing owner.
+	// Shared originals receive a detached identity only after this call returns.
+	var attempts sendtrace.PermissionAttempts
+	attempts.AddContext(ctx)
+	if attempts.Enabled() {
+		var capture *rpctrace.TerminalCapture
+		ctx, capture = rpctrace.WithPassiveTerminalCapture(ctx)
+		defer func() {
+			if ref := sendtrace.RPCReferenceForTerminal(capture.Snapshot()); ref != nil {
+				attempts.RecordRPC(*ref)
+			}
+		}()
+	}
 	body, err := s.cluster.RPCService(ctx, multiraft.NodeID(q.Groups[0].Fence.LeaderNodeID), 0, sendPermissionRPCServiceID, raw)
 	if err != nil {
 		return sendPermissionReply{}, err

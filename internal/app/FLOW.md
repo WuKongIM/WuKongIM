@@ -137,7 +137,7 @@ The app configures aggregate MQTT storage on every product node, including when 
 
 Top ACK-binding counts use independent atomic publication while delivery serializes ACK mutations; publication never acquires the shared Top ingestion/control mutex. Sampling and cloning capture the current count, including zero; historical samples remain immutable. Other Top observations keep their existing locks.
 
-- `diagnostics.attempt_link_enable` is separately default-off and requires general diagnostics. It composes the fixed65536 invocation summary rows and two separately bounded indexes only when enabled, leaving ordinary diagnostic retention unchanged. The sink maps existing original forward events through fixed upper TraceID bindings; the API receives detached summary and local RPC read ports. These observations do not alter admission, durability, deadlines or gates.
+- `diagnostics.attempt_link_enable` is separately default-off and requires general diagnostics. It composes the fixed65536 invocation summary rows and two separately bounded indexes only when enabled, retaining two permission RPC references separately from two append references, with separate overflow and unchanged ordinary retention. The sink maps existing original forward events through fixed upper TraceID bindings; the API receives detached summary and local RPC read ports. These observations do not alter admission, durability, deadlines or gates.
 
 ## Read First
 - [app.go](app.go), [Presence wiring](presence_generation.go)

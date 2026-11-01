@@ -91,6 +91,8 @@ SEND hooks, directory writes or append; delayed publications must authorize agai
   Independently enabled invocation summaries borrow existing permission and
   pre-append clocks through original context tokens. These are shared batch/lane
   intervals, not exclusive per-item CPU; absent measurements remain unknown.
+  Shared raw-read contexts carry at most64 original value tokens for passive
+  permission RPC linkage, without borrowing member cancellation or Trace parents.
 - Terminal source-Channel checks are authoritative and bypass stale permission
   cache state.
 - Page preparation never rewrites a caller start sequence to enforce visibility;

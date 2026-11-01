@@ -34,6 +34,13 @@ func TestAttemptLinkCompositionKeepsGenericDiagnosticsOffAndWiresExplicitCapabil
 			if !token.Valid() || len(result.Results) != 1 || len(result.Results[0].Candidates) != 1 {
 				t.Fatalf("explicit capability not composed: %+v", result)
 			}
+			var permissions sendtrace.PermissionAttempts
+			permissions.AddContext(sendtrace.WithGatewayAttempt(context.Background(), token))
+			permissions.RecordRPC(sendtrace.RPCReference{State: "bound", TraceID: "00112233445566778899aabbccddeeff/1"})
+			linked := app.QuerySendAttempts(context.Background(), []sendtrace.AttemptKey{key})
+			if len(linked.Results[0].Candidates[0].PermissionRPCReferences) != 1 {
+				t.Fatal("composition dropped original permission RPC identity")
+			}
 		})
 	}
 }

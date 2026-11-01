@@ -25,14 +25,14 @@ func TestAttemptStoreDefaultOffAndPhysicalBound(t *testing.T) {
 	if NewAttemptStore(AttemptStoreOptions{NodeID: 1}) != nil {
 		t.Fatal("disabled capability allocated a ring")
 	}
-	if got := unsafe.Sizeof(attemptSummaryRow{}); got > 288 {
-		t.Fatalf("summary row=%d bytes want<=288", got)
+	if got := unsafe.Sizeof(attemptSummaryRow{}); got > 352 {
+		t.Fatalf("summary row=%d bytes want<=352", got)
 	}
 	s := attemptStoreFixture(t)
 	if len(s.rows) != 65536 || len(s.index) != 131072 || len(s.traceIndex) != 131072 {
 		t.Fatalf("unfrozen row/index capacity %d/%d", len(s.rows), len(s.index))
 	}
-	// The two added fixed intervals raise the row ceiling to 18MiB. Index size
+	// The separate two permission RPC references cap rows at22MiB. Index size
 	// is separately reported; this opt-in raw bound is not a heap/RSS bound.
 	t.Logf("retained arrays: row_size=%d row_capacity=%d index_entry_size=%d index_capacity=%d key_index_bytes=%d trace_index_entry=%d trace_index_bytes=%d raw_total_bytes=%d", unsafe.Sizeof(attemptSummaryRow{}), len(s.rows), unsafe.Sizeof(attemptIndexEntry{}), len(s.index), uintptr(len(s.index))*unsafe.Sizeof(attemptIndexEntry{}), unsafe.Sizeof(attemptTraceIndexEntry{}), uintptr(len(s.traceIndex))*unsafe.Sizeof(attemptTraceIndexEntry{}), uintptr(len(s.rows))*unsafe.Sizeof(attemptSummaryRow{})+uintptr(len(s.index))*unsafe.Sizeof(attemptIndexEntry{})+uintptr(len(s.traceIndex))*unsafe.Sizeof(attemptTraceIndexEntry{}))
 	key := attemptStoreKey(1)

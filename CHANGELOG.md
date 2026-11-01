@@ -26,6 +26,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Link shared permission-read RPC diagnostics to original SEND attempts using existing samples, without changing permission decisions or RPC sampling. / 共享权限读取可关联到原始 SEND 的既有 RPC 样本，便于定位等待，不改变权限决策或 RPC 采样。
+
 - Extend opt-in SEND attempt diagnostics with bounded shared permission and pre-append timings to locate slow-message preparation. / 可选 SEND 诊断增加有界的共享权限与追加前准备计时，辅助定位慢消息。
 
 - Preserve bounded authority-side failure details for Full Presence registration and commit, improving diagnosis of rejected connections without changing protocol results. / Full Presence 注册和提交失败时保留有界的权威节点诊断信息，便于定位连接拒绝原因，协议结果不变。

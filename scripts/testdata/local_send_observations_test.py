@@ -97,6 +97,43 @@ class CaptureTests(unittest.TestCase):
                         if fixture.mode == 'preparation-unknown-values':
                             for phase in candidate['phases'][5:]:
                                 phase.update(observed=False,started_at='0001-01-01T00:00:00Z',duration=0,result='',end_derived=True)
+                        if fixture.mode.startswith('permission'):
+                            suffix = key['client_seq']*100+self.server.node*10
+                            candidate['permission_rpc_references'] = [dict(state='bound', trace_id='6'*32+'/'+format(suffix+1,'x'))]
+                            if fixture.mode == 'permission-many':
+                                candidate['rpc_references'] = [dict(state='bound',trace_id='1'*32+'/'+format(suffix+i,'x')) for i in (2,3)]
+                                candidate['permission_rpc_references'] += [dict(state='bound',trace_id='6'*32+'/'+format(suffix+4,'x'))]
+                            if fixture.mode == 'permission-same-trace':
+                                candidate['permission_rpc_references'][0]['trace_id'] = TRACE
+                            if fixture.mode == 'permission-overflow':
+                                candidate['permission_rpc_overflow'] = True
+                            if fixture.mode == 'permission-over-cap':
+                                candidate['permission_rpc_references'] *= 3
+                            if fixture.mode == 'permission-private':
+                                candidate['permission_rpc_references'][0]['raw_uid'] = 'raw-user-fixture'
+                            if fixture.mode == 'permission-invalid-state':
+                                candidate['permission_rpc_references'][0]['state'] = 'latest'
+                            if fixture.mode == 'permission-bool-overflow':
+                                candidate['permission_rpc_overflow'] = 1
+                            reference_cases = {
+                                'permission-ref-bound-empty': ('bound',''),
+                                'permission-ref-bound-local': ('bound','local/'+TRACE),
+                                'permission-ref-unbound-remote': ('unbound',TRACE),
+                                'permission-ref-unbound-empty': ('unbound',''),
+                                'permission-ref-disabled-id': ('recorder_disabled',TRACE),
+                                'permission-ref-exhausted-id': ('recorder_exhausted',TRACE),
+                                'permission-ref-local-id': ('local_untraced',TRACE),
+                                'permission-ref-remote-id': ('remote_untraced',TRACE),
+                                'permission-ref-zero-request': ('bound','6'*32+'/0'),
+                                'permission-ref-valid-unbound': ('unbound','local/'+TRACE),
+                                'permission-ref-valid-disabled': ('recorder_disabled',''),
+                                'permission-ref-valid-exhausted': ('recorder_exhausted',''),
+                                'permission-ref-valid-local': ('local_untraced',''),
+                                'permission-ref-valid-remote': ('remote_untraced',''),
+                            }
+                            if fixture.mode in reference_cases:
+                                state, trace = reference_cases[fixture.mode]
+                                candidate['permission_rpc_references'] = [dict(state=state,trace_id=trace)]
                         response['results'].append(dict(key=key, status='candidate', candidates=[candidate]))
                 else:
                     response['rpc_results'] = [dict(selector=s, status='retained', sample=dict(trace_id=s['trace_id'], side=s['side'], service_id=s['service_id'], at=END, duration=650000000, result='ok', spans=[dict(stage='service_queue', offset=0, duration=620000000, result='ok')])) for s in body['rpc_selectors']]
@@ -297,6 +334,66 @@ class CaptureTests(unittest.TestCase):
                 data = self.capture()
                 self.assertEqual(data['status'],'partial')
                 self.assertEqual(data['causal_verdict'],'unverified')
+                self.calls.clear()
+                (self.root/'observations.json').unlink()
+
+    def test_permission_refs_keep_service_identity_and_share_total_budget(self):
+        for mode in ['permission','permission-same-trace','permission-many']:
+            with self.subTest(mode=mode):
+                self.mode = mode
+                data = self.capture()
+                self.assertEqual(data['status'],'captured')
+                selectors = [s for q in data['queries'] for s in q['request'].get('rpc_selectors',[])]
+                identities = {(s['service_id'],s['trace_id']) for s in selectors}
+                self.assertEqual({s[0] for s in identities},{21,91})
+                self.assertLessEqual(len(identities),16)
+                self.assertLessEqual(len(self.calls),18)
+                if mode == 'permission-many':
+                    self.assertEqual(sum(s[0]==21 for s in identities),8)
+                    self.assertEqual(sum(s[0]==91 for s in identities),8)
+                if mode == 'permission-same-trace':
+                    self.assertIn((21,TRACE),identities)
+                    self.assertIn((91,TRACE),identities)
+                self.calls.clear()
+                (self.root/'observations.json').unlink()
+
+    def test_permission_missing_overflow_and_invalid_refs_are_not_append(self):
+        for mode in ['permission-overflow','permission-over-cap','permission-private','permission-invalid-state','permission-bool-overflow']:
+            with self.subTest(mode=mode):
+                self.mode = mode
+                data = self.capture()
+                selectors = [s for q in data['queries'] for s in q['request'].get('rpc_selectors',[])]
+                if mode == 'permission-overflow':
+                    self.assertEqual(data['status'],'captured')
+                    self.assertTrue(selectors)
+                    self.assertTrue(all(s['service_id']==21 for s in selectors))
+                else:
+                    self.assertEqual(data['status'],'partial')
+                self.assertNotIn('raw-user-fixture',json.dumps(data))
+                self.calls.clear()
+                (self.root/'observations.json').unlink()
+
+    def test_permission_reference_state_identity_pairs_fail_closed(self):
+        for suffix in ['bound-empty','bound-local','unbound-remote','unbound-empty','disabled-id','exhausted-id','local-id','remote-id','zero-request']:
+            with self.subTest(case=suffix):
+                self.calls.clear()
+                (self.root/'observations.json').unlink(missing_ok=True)
+                self.mode = 'permission-ref-'+suffix
+                data = self.capture()
+                self.assertEqual(data['status'],'partial')
+                self.assertTrue(all(q['status'] == 'unknown' for q in data['queries']))
+                self.calls.clear()
+                (self.root/'observations.json').unlink()
+
+    def test_permission_reference_explicit_missing_and_unbound_stay_compatible(self):
+        for suffix in ['unbound','disabled','exhausted','local','remote']:
+            with self.subTest(case=suffix):
+                self.mode = 'permission-ref-valid-'+suffix
+                data = self.capture()
+                self.assertEqual(data['status'],'captured')
+                selectors = [s for q in data['queries'] for s in q['request'].get('rpc_selectors',[])]
+                self.assertTrue(selectors)
+                self.assertTrue(all(s['service_id']==21 for s in selectors))
                 self.calls.clear()
                 (self.root/'observations.json').unlink()
 

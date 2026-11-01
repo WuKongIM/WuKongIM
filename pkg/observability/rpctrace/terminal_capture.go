@@ -78,8 +78,17 @@ func terminalHex(s string) bool {
 // TerminalCapture is one exact Call's observation, never a sample registry.
 // It is single-use: the first terminal publication wins, including missing evidence.
 type TerminalCapture struct {
+	// passive observes existing sampling without requesting an additional sample.
+	passive bool
+	// active preserves one pre-existing explicit request; never a context or chain.
+	active   *TerminalCapture
 	mu       sync.Mutex
 	identity TerminalIdentity
+}
+
+// RequestsSample preserves explicit active capture without promoting passive observers.
+func (c *TerminalCapture) RequestsSample() bool {
+	return c != nil && (!c.passive || c.active != nil)
 }
 
 type terminalCaptureKey struct{}
@@ -90,6 +99,22 @@ func WithTerminalCapture(ctx context.Context) (context.Context, *TerminalCapture
 		ctx = context.Background()
 	}
 	c := &TerminalCapture{}
+	return context.WithValue(ctx, terminalCaptureKey{}, c), c
+}
+
+// WithPassiveTerminalCapture observes only the existing RPC sampling decision.
+// A recorder is never constructed or forced; an unsampled call stays unknown.
+// It preserves any explicit active request, while retaining a fresh exact-call
+// result of its own. Nested passive wrappers flatten to that one active observer.
+func WithPassiveTerminalCapture(ctx context.Context) (context.Context, *TerminalCapture) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	active := TerminalCaptureFrom(ctx)
+	if active != nil && active.passive {
+		active = active.active
+	}
+	c := &TerminalCapture{passive: true, active: active}
 	return context.WithValue(ctx, terminalCaptureKey{}, c), c
 }
 
@@ -144,8 +169,13 @@ func (c *TerminalCapture) record(identity TerminalIdentity) {
 		return
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.identity.State == TerminalTraceUnknown {
 		c.identity = identity
+	}
+	c.mu.Unlock()
+	// The companion is immutable and non-passive; publication never recurses
+	// through wrapper chains or holds two capture locks at once.
+	if c.active != nil {
+		c.active.record(identity)
 	}
 }
