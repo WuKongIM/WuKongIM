@@ -22,6 +22,7 @@ type permissionAttemptSink struct {
 	mu      sync.Mutex
 	enabled bool
 	refs    map[sendtrace.AttemptToken][]sendtrace.RPCReference
+	phases  map[sendtrace.AttemptToken][]sendtrace.AttemptPhase
 }
 
 type permissionTraceDiscovery string
@@ -93,9 +94,15 @@ func (s *permissionAttemptSink) AttemptLinkEnabled() bool      { return s.enable
 func (*permissionAttemptSink) BeginSendAttempt(sendtrace.AttemptKey, time.Time) sendtrace.AttemptToken {
 	return sendtrace.AttemptToken{}
 }
-func (*permissionAttemptSink) BindAttemptTrace(sendtrace.AttemptToken, string)                   {}
-func (*permissionAttemptSink) RecordAttemptRPC(sendtrace.AttemptToken, sendtrace.RPCReference)   {}
-func (*permissionAttemptSink) RecordAttemptPhase(sendtrace.AttemptToken, sendtrace.AttemptPhase) {}
+func (*permissionAttemptSink) BindAttemptTrace(sendtrace.AttemptToken, string)                 {}
+func (*permissionAttemptSink) RecordAttemptRPC(sendtrace.AttemptToken, sendtrace.RPCReference) {}
+func (s *permissionAttemptSink) RecordAttemptPhase(token sendtrace.AttemptToken, phase sendtrace.AttemptPhase) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.phases != nil {
+		s.phases[token] = append(s.phases[token], phase)
+	}
+}
 func (s *permissionAttemptSink) RecordAttemptPermissionRPC(t sendtrace.AttemptToken, r sendtrace.RPCReference) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -119,9 +126,9 @@ func TestPermissionAttemptRealSharedCohortKeepsOriginalOwners(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	for _, mode := range []string{"shared_success", "one_cancel", "cancel_before_seal", "all_cancel", "close", "disabled", "local", "unsampled"} {
+	for _, mode := range []string{"shared_success", "one_cancel", "one_deadline", "cancel_before_seal", "all_cancel", "close", "disabled", "local", "unsampled", "no_metric"} {
 		t.Run(mode, func(t *testing.T) {
-			sink := &permissionAttemptSink{enabled: mode != "disabled", refs: make(map[sendtrace.AttemptToken][]sendtrace.RPCReference)}
+			sink := &permissionAttemptSink{enabled: mode != "disabled", refs: make(map[sendtrace.AttemptToken][]sendtrace.RPCReference), phases: make(map[sendtrace.AttemptToken][]sendtrace.AttemptPhase)}
 			restore := sendtrace.SetSink(sink)
 			defer restore()
 			db := boundaryDB(t)
@@ -172,9 +179,16 @@ func TestPermissionAttemptRealSharedCohortKeepsOriginalOwners(t *testing.T) {
 				caller = serving
 			}
 			defer caller.CloseSendPermissionReads()
+			if mode != "no_metric" {
+				caller.SetSendPermissionObserver(&permissionEnvelopeMetric{})
+			}
 			caller.permissionCohortWindow = time.Hour
 			tokens := [2]sendtrace.AttemptToken{{Epoch: [16]byte{9}, Ordinal: 1}, {Epoch: [16]byte{9}, Ordinal: 2}}
 			a, cancelA := context.WithCancel(context.Background())
+			if mode == "one_deadline" {
+				cancelA()
+				a, cancelA = context.WithTimeout(context.Background(), 500*time.Millisecond)
+			}
 			defer cancelA()
 			b, cancelB := context.WithTimeout(context.Background(), time.Hour)
 			defer cancelB()
@@ -212,6 +226,11 @@ func TestPermissionAttemptRealSharedCohortKeepsOriginalOwners(t *testing.T) {
 					t.Error("caller cancellation changed")
 				}
 			}
+			if mode == "one_deadline" {
+				if !errors.Is(awaitBoundaryResult(t, first)[0].Err, context.DeadlineExceeded) {
+					t.Error("one caller deadline changed")
+				}
+			}
 			if mode == "all_cancel" {
 				cancelA()
 				cancelB()
@@ -221,7 +240,7 @@ func TestPermissionAttemptRealSharedCohortKeepsOriginalOwners(t *testing.T) {
 			} else {
 				unblock()
 			}
-			if mode != "one_cancel" && mode != "cancel_before_seal" {
+			if mode != "one_cancel" && mode != "one_deadline" && mode != "cancel_before_seal" {
 				r := awaitBoundaryResult(t, first)
 				if mode == "all_cancel" || mode == "close" {
 					if r[0].Err == nil {
@@ -242,6 +261,7 @@ func TestPermissionAttemptRealSharedCohortKeepsOriginalOwners(t *testing.T) {
 			requireCohortDrained(t, caller)
 			sink.mu.Lock()
 			counts := [2]int{len(sink.refs[tokens[0]]), len(sink.refs[tokens[1]])}
+			phaseCounts := [2]int{len(sink.phases[tokens[0]]), len(sink.phases[tokens[1]])}
 			var refs []sendtrace.RPCReference
 			for _, x := range sink.refs {
 				refs = append(refs, x...)
@@ -260,6 +280,13 @@ func TestPermissionAttemptRealSharedCohortKeepsOriginalOwners(t *testing.T) {
 				}
 			} else if counts[0] != expected {
 				t.Errorf("original1 refs=%d want%d", counts[0], expected)
+			}
+			expectedPhase := 1
+			if mode == "disabled" || mode == "local" || mode == "no_metric" {
+				expectedPhase = 0
+			}
+			if phaseCounts[1] != expectedPhase || (mode == "cancel_before_seal" && phaseCounts[0] != 0) || (mode != "cancel_before_seal" && phaseCounts[0] != expectedPhase) {
+				t.Errorf("original RPC clock counts=%v want live%d", phaseCounts, expectedPhase)
 			}
 			for _, ref := range refs {
 				if !ref.Valid() || ref.State != "bound" || ref.TraceID != "07000000000000000000000000000000/1" {
@@ -280,7 +307,7 @@ func TestPermissionAttemptRealSharedCohortKeepsOriginalOwners(t *testing.T) {
 			} else if calls != 1 {
 				t.Errorf("RPC count=%d want1", calls)
 			}
-			evidence = append(evidence, map[string]any{"case": mode, "reference_counts": counts, "RPC_calls": calls, "shared_parent_trace": parentTrace, "capture_seen": captureSeen, "joined": true})
+			evidence = append(evidence, map[string]any{"case": mode, "reference_counts": counts, "origin_RPC_phase_counts": phaseCounts, "RPC_calls": calls, "shared_parent_trace": parentTrace, "capture_seen": captureSeen, "joined": true})
 		})
 	}
 }

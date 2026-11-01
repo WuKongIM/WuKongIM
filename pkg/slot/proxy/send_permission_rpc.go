@@ -330,7 +330,14 @@ func (s *Store) callSendPermission(ctx context.Context, q sendPermissionRequest)
 		return s.serveSendPermissions(ctx, q)
 	}
 	started := s.permissionStart()
-	defer func() { s.permissionStage("rpc", sendPermissionErrorClass(err), started) }()
+	var attempts sendtrace.PermissionAttempts
+	invoked := false
+	defer func() {
+		duration := s.permissionStage("rpc", sendPermissionErrorClass(err), started)
+		if invoked {
+			attempts.RecordRPCEnvelope(started, duration, sendtrace.Result(rpctrace.ResultFor(err)))
+		}
+	}()
 	raw, err := json.Marshal(q)
 	if err != nil || len(raw) > sendPermissionMaxBytes {
 		return sendPermissionReply{}, metadb.ErrInvalidArgument
@@ -339,7 +346,6 @@ func (s *Store) callSendPermission(ctx context.Context, q sendPermissionRequest)
 	s.permissionCount("request_bytes", len(raw))
 	// Each physical envelope gets its own passive capture on the existing owner.
 	// Shared originals receive a detached identity only after this call returns.
-	var attempts sendtrace.PermissionAttempts
 	attempts.AddContext(ctx)
 	if attempts.Enabled() {
 		var capture *rpctrace.TerminalCapture
@@ -350,6 +356,7 @@ func (s *Store) callSendPermission(ctx context.Context, q sendPermissionRequest)
 			}
 		}()
 	}
+	invoked = true
 	body, err := s.cluster.RPCService(ctx, multiraft.NodeID(q.Groups[0].Fence.LeaderNodeID), 0, sendPermissionRPCServiceID, raw)
 	if err != nil {
 		return sendPermissionReply{}, err

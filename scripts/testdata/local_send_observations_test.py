@@ -97,6 +97,28 @@ class CaptureTests(unittest.TestCase):
                         if fixture.mode == 'preparation-unknown-values':
                             for phase in candidate['phases'][5:]:
                                 phase.update(observed=False,started_at='0001-01-01T00:00:00Z',duration=0,result='',end_derived=True)
+                        if fixture.mode.startswith('preparation-envelope'):
+                            phase = dict(observed=True,stage='message.permission_rpc',started_at=START,duration=250000000,
+                                         result='ok',boundary='longest_origin_rpc91',end_derived=True)
+                            candidate['phases'].append(phase)
+                            if fixture.mode == 'preparation-envelope-unknown':
+                                phase.update(observed=False,started_at='0001-01-01T00:00:00Z',duration=0,result='')
+                            if fixture.mode == 'preparation-envelope-private':
+                                phase['raw_uid'] = 'raw-user-fixture'
+                            if fixture.mode == 'preparation-envelope-bool':
+                                phase['duration'] = True
+                            if fixture.mode == 'preparation-envelope-negative':
+                                phase['duration'] = -1
+                            if fixture.mode == 'preparation-envelope-wrong-boundary':
+                                phase['boundary'] = 'shared_permission_batch'
+                            if fixture.mode == 'preparation-envelope-unsupported':
+                                phase['stage'] = 'permission.service999'
+                            if fixture.mode == 'preparation-envelope-missing':
+                                del phase['started_at']
+                            if fixture.mode == 'preparation-envelope-over-cap':
+                                candidate['phases'].append(copy.deepcopy(phase))
+                            if fixture.mode == 'preparation-envelope-reordered':
+                                candidate['phases'][-2],candidate['phases'][-1] = candidate['phases'][-1],candidate['phases'][-2]
                         if fixture.mode.startswith('permission'):
                             suffix = key['client_seq']*100+self.server.node*10
                             candidate['permission_rpc_references'] = [dict(state='bound', trace_id='6'*32+'/'+format(suffix+1,'x'))]
@@ -205,7 +227,8 @@ class CaptureTests(unittest.TestCase):
             server.node = i+1
             server.daemon_threads = True
             self.servers.append(server)
-            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            # Bound fixture teardown latency without changing exporter deadlines.
+            thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval':0.01}, daemon=True)
             thread.start()
             self.addCleanup(server.server_close)
             self.addCleanup(server.shutdown)
@@ -569,6 +592,42 @@ class CaptureTests(unittest.TestCase):
                     phases = row['candidates'][0]['phases'][5:]
                     self.assertEqual(len(phases),2)
                     self.assertTrue(all(not p['observed'] and p['duration'] == 0 and p['result'] == '' for p in phases))
+
+    def test_permission_envelope_eighth_phase_preserves_exact_and_unknown(self):
+        for mode in ['preparation-envelope','preparation-envelope-unknown']:
+            with self.subTest(mode=mode):
+                self.mode = mode
+                try:
+                    data = self.capture()
+                    self.assertEqual(data['status'],'captured')
+                    for query in data['queries']:
+                        if query['request'].get('keys'):
+                            for row in query['response']['results']:
+                                self.assertEqual(len(row['candidates'][0]['phases']),8)
+                                phase = row['candidates'][0]['phases'][-1]
+                                self.assertEqual(phase['stage'],'message.permission_rpc')
+                                self.assertEqual(phase['boundary'],'longest_origin_rpc91')
+                                self.assertEqual(phase['observed'],mode == 'preparation-envelope')
+                                self.assertEqual(phase['duration'],250000000 if mode == 'preparation-envelope' else 0)
+                    self.assertLessEqual(len(self.calls),18)
+                    self.assertEqual(data['causal_verdict'],'unverified')
+                finally:
+                    self.calls.clear()
+                    (self.root/'observations.json').unlink(missing_ok=True)
+
+    def test_permission_envelope_malformed_phase_is_unknown(self):
+        for suffix in ['private','bool','negative','wrong-boundary','unsupported','missing','over-cap','reordered']:
+            with self.subTest(case=suffix):
+                self.mode = 'preparation-envelope-'+suffix
+                try:
+                    data = self.capture()
+                    self.assertEqual(data['status'],'partial')
+                    self.assertEqual(data['causal_verdict'],'unverified')
+                    self.assertNotIn('raw-user-fixture',json.dumps(data))
+                    self.assertLessEqual(len(self.calls),18)
+                finally:
+                    self.calls.clear()
+                    (self.root/'observations.json').unlink(missing_ok=True)
 
     def test_invalid_fences_prevent_all_http(self):
         changes = [lambda: self.final.update(final=False),lambda: self.final['fence'].update(generation=2),

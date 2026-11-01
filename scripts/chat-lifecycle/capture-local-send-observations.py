@@ -178,7 +178,8 @@ ATTEMPT_PHASE_IDENTITIES = (
     ('gateway.session_publication_wait', 'ready_to_publication_attempt'),
     ('message.send_durable', 'diagnostic_event_duration'),
     ('message.permission_batch', 'shared_permission_batch'),
-    ('message.pre_append', 'shared_pre_append_until_submit'))
+    ('message.pre_append', 'shared_pre_append_until_submit'),
+    ('message.permission_rpc', 'longest_origin_rpc91'))
 PHASE = object_shape(dict(observed=BOOLEAN, stage=one_of(*(stage for stage, _ in ATTEMPT_PHASE_IDENTITIES)),
                          started_at=timestamp_valid, duration=DURATION, result=SEND_RESULT,
                          boundary=one_of(*(boundary for _, boundary in ATTEMPT_PHASE_IDENTITIES)), end_derived=BOOLEAN))
@@ -200,7 +201,7 @@ def reference_valid(value):
 
 def attempt_phases_valid(value):
     """Accept complete legacy/new fixed lists, with the same closed phase DTO."""
-    return (type(value) is list and len(value) in (5, 7)
+    return (type(value) is list and len(value) in (5, 7, 8)
             and all(PHASE(phase) and (phase['stage'], phase['boundary']) == identity
                     for phase, identity in zip(value, ATTEMPT_PHASE_IDENTITIES)))
 

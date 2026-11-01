@@ -41,7 +41,7 @@ func TestAttemptPreparationStoreFixedClockAndDetachedOriginals(t *testing.T) {
 			t.Fatalf("shared preparation fact lost existing clock/result: %+v", got)
 		}
 		query := s.QuerySendAttempts(context.Background(), []sendtrace.AttemptKey{key})
-		if len(query.Results[0].Candidates[0].Phases) != 7 || query.Results[0].Candidates[0].Phases[4].Stage != sendtrace.StageMessageSendDurable {
+		if len(query.Results[0].Candidates[0].Phases) != 8 || query.Results[0].Candidates[0].Phases[4].Stage != sendtrace.StageMessageSendDurable {
 			t.Fatal("new bounded phases displaced the five original phase identities")
 		}
 		encoded, err := json.Marshal(query)

@@ -1,6 +1,9 @@
 package sendtrace
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // PermissionAttempts retains at most 64 original value tokens for a shared read.
 // It never retains member contexts, a parent Trace, policy facts or cancellation.
@@ -76,6 +79,21 @@ func (s PermissionAttempts) RecordRPC(ref RPCReference) {
 	if observer := activePermissionAttemptObserver(); observer != nil {
 		for i := uint8(0); i < s.count; i++ {
 			observer.RecordAttemptPermissionRPC(s.tokens[i], ref)
+		}
+	}
+}
+
+// RecordRPCEnvelope copies one actual remote SEND-permission service91 wrapper
+// interval to its original tokens. It borrows the existing metric clock; missing
+// metric clocks stay unknown. This is not server, network or exclusive CPU time.
+func (s PermissionAttempts) RecordRPCEnvelope(startedAt time.Time, duration time.Duration, result Result) {
+	if startedAt.IsZero() || duration < 0 {
+		return
+	}
+	if observer := activeAttemptObserver(); observer != nil {
+		phase := AttemptPhase{Stage: StageMessagePermissionRPC, StartedAt: startedAt, Duration: duration, Result: result, Boundary: "longest_origin_rpc91", EndDerived: true}
+		for i := uint8(0); i < s.count; i++ {
+			observer.RecordAttemptPhase(s.tokens[i], phase)
 		}
 	}
 }

@@ -21,6 +21,9 @@ const (
 	StageMessageSendDurable           Stage = "message.send_durable"
 	// StageMessagePermissionBatch is the original item's shared policy-batch interval.
 	StageMessagePermissionBatch Stage = "message.permission_batch"
+	// StageMessagePermissionRPC borrows an original remote service91 wrapper clock.
+	// Invocation summaries retain its longest envelope, never a sum or peer time.
+	StageMessagePermissionRPC Stage = "message.permission_rpc"
 	// StageMessagePreAppend is shared preparation up to the item's ready-lane submission.
 	StageMessagePreAppend              Stage = "message.pre_append"
 	StageChannelAppendLocal            Stage = "channel.append.local"

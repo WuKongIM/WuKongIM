@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Optional SEND diagnostics now show the longest original permission RPC interval using existing clocks, including when RPC sampling is off; permission policy and sampling stay unchanged. / 可选 SEND 诊断复用现有时钟显示原请求最长权限 RPC 区间，RPC 采样关闭时也可观测，权限策略和采样行为不变。
+
 - Preserve independent P99.9 hot-message tail samples in optional local diagnostics without increasing sample capacity or changing latency gates. / 本地可选诊断在原有采样容量内保留独立 P99.9 热消息尾样本，延迟门禁不变。
 
 - Allow an explicit P95 hot-message latency policy in custom local lifecycle tests, with independent P99.9 protection and correctly labelled reports. / 本地生命周期测试可显式使用热消息 P95 门禁，保留独立 P99.9 保护并准确标注报告。
