@@ -34,6 +34,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Retain bounded clock evidence when lifecycle grant ticks are rejected, preserving their original timing guards, verdicts, and cleanup. / 生命周期压测拒绝发放 tick 时保留有界时钟证据，原时间校验、判定和清理行为保持不变。
+
 - Retain bounded authority-side source phases for timed-out Presence registration and commit, preserving protocol outcomes and deadlines. / Presence 注册和提交超时时保留有界的权威节点阶段信息，协议结果与期限保持不变。
 
 - Link shared permission-read RPC diagnostics to original SEND attempts using existing samples, without changing permission decisions or RPC sampling. / 共享权限读取可关联到原始 SEND 的既有 RPC 样本，便于定位等待，不改变权限决策或 RPC 采样。

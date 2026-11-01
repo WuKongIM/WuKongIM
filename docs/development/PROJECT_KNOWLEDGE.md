@@ -1,5 +1,15 @@
 # Project Knowledge
 
+Lifecycle grant tick failures retain one failure-only record of the actual
+rejected guard, closed predicate, prior-tick presence and signed age/interval.
+Observed flags distinguish missing clocks from measured zero; capacity phase-end
+rejection is not cadence attribution. The CLI exports one bounded sanitized line
+without raw times or identities and preserves its original summary and exit.
+Capture reuses existing clock values; the 10ms cadence tolerance, 1.25s age and
+coverage budgets, grants, latency gates and joined cleanup remain unchanged.
+These observations distinguish clock-boundary hypotheses, not CPU, network or
+product causes; historical missing evidence is never reconstructed.
+
 Chat-lifecycle worker protocol v16 records fixed exact hot-SENDACK threshold
 counters using the same ACK duration as its unchanged sixteen-bucket histogram.
 This supports configured limits such as 600ms without interpolating the

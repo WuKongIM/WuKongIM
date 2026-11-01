@@ -120,6 +120,8 @@ type CoordinatorResult struct {
 	Code    CoordinatorCode
 	// GrantFailure retains the bounded grant-stage reason when a grant round fails.
 	GrantFailure CoordinatorGrantFailureCode
+	// GrantTickFailure copies only the already rejected clock boundary.
+	GrantTickFailure CoordinatorGrantTickFailure
 	// GrantFailures retains only the terminal attempt of each failed worker;
 	// it is a local diagnostic, not a native report or worker wire extension.
 	GrantFailures CoordinatorGrantFailures
@@ -802,6 +804,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 		now := c.clock.Now()
 		if !validCoordinatorGrantTick(now, tickAt, lastGrantTickAt, haveGrantTick) {
 			result.GrantFailure = CoordinatorGrantFailureTick
+			result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "scheduled_grant")
 			return coordinatorRoundStageFailed
 		}
 		if capacityRateReady > 0 && tickAt.After(capacityRateReadyAt) {
@@ -885,6 +888,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				now := c.clock.Now()
 				if tickAt.IsZero() || tickAt.After(now) {
 					result.GrantFailure = CoordinatorGrantFailureTick
+					result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "pending_status")
 					return joinAfterGrantFailure(coordinatorRoundStageFailed)
 				}
 				if !tickAt.Before(observationDeadline) {
@@ -1120,6 +1124,10 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 					now = c.clock.Now()
 					if tickAt.IsZero() || tickAt.After(now) || tickAt.After(snapshot.PhaseEnd) {
 						result.GrantFailure = CoordinatorGrantFailureTick
+						result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "capacity_phase_end")
+						if !tickAt.IsZero() && !tickAt.After(now) {
+							result.GrantTickFailure.Reason = "phase_end"
+						}
 						failureCode = CoordinatorCodeGrant
 						goto observationFailure
 					}
@@ -1249,6 +1257,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 					now = c.clock.Now()
 					if tickAt.IsZero() || tickAt.After(now) {
 						result.GrantFailure = CoordinatorGrantFailureTick
+						result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "capacity_status_poll")
 						failureCode = CoordinatorCodeGrant
 						goto observationFailure
 					}
@@ -1337,6 +1346,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				now = c.clock.Now()
 				if tickAt.IsZero() || tickAt.After(now) {
 					result.GrantFailure = CoordinatorGrantFailureTick
+					result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "cutoff_poll")
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
@@ -1406,6 +1416,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				now = c.clock.Now()
 				if tickAt.IsZero() || tickAt.After(now) {
 					result.GrantFailure = CoordinatorGrantFailureTick
+					result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "status_poll")
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
@@ -1473,6 +1484,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 			if !now.Before(observationDeadline) && !tickAt.Before(observationDeadline) {
 				if tickAt.IsZero() || tickAt.After(now) {
 					result.GrantFailure = CoordinatorGrantFailureTick
+					result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "cutoff_wait")
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}

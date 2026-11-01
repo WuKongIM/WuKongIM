@@ -103,8 +103,8 @@ passing 72-hour formal generation -> same aged dataset and process proof
 - Observer rounds retain resource source time; only late verdict order rebases, preserving exact-hour evidence.
 - Failure cleanup fences new work and independently bounds every worker Stop, preserving the original cause.
   Exact product TerminalSend errors permit release; other terminal mutation errors stay harness failures. Stop preserves earlier failures.
-- Grant failures retain three fixed worker sequence/attempt/closed-boundary entries.
-  Only observed HTTP/context causes enter one bounded CLI line; summary, retries, deadlines, cleanup and reports stay unchanged.
+- Grant delivery failures retain three fixed worker sequence/attempt/closed-boundary entries; rejected ticks retain one clock/presence record without extra clock reads.
+  CLI emits only closed observed fields on bounded lines; original summary, tolerances, retries, cleanup, verdicts and reports stay unchanged.
 - Verdict precedence is product, infrastructure, harness, then operator stop.
   Missing, stale, regressing, partial, overflowing, or unbounded evidence can
   never produce pass.
