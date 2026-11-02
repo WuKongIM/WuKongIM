@@ -563,6 +563,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Message durability and recovery
 
+- Quorum completion does not join every trailing-voter callback. Sequencer
+  Release must retain exact repair authority until admitted peer callbacks and
+  pending follower repairs finish, then remove the retired identity. Peer
+  flight alone is insufficient: terminal callbacks own the item budget until
+  return. Order retirement with reinstall, including the same authority ID.
 - Persistent SENDACK requires the exact proposal to be crash-safe locally and on
   an intersecting voter write quorum. Learners do not vote. Never acknowledge
   before synchronous durability or expose message append `NoSync` as configuration.

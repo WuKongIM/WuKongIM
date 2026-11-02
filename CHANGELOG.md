@@ -6,6 +6,11 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Reclaim idle Channel replication authority state after admitted callbacks and
+  follower repairs complete, preventing historical Channels from accumulating
+  in memory while preserving durable recovery.
+  / 通道卸载后，在已接收回调与副本补齐完成时回收复制权限状态，避免历史通道持续占用内存，并保留持久化恢复能力。
+
 - Custom local lifecycle tests can pair hot P95 with full-sync P95 while retaining full-sync P99.9, with separately versioned reports. / 本地生命周期测试可成对使用热消息与完整同步 P95，保留完整同步 P99.9，并以独立版本报告门禁。
 
 - Optional SEND diagnostics now show the longest original permission RPC interval using existing clocks, including when RPC sampling is off; permission policy and sampling stay unchanged. / 可选 SEND 诊断复用现有时钟显示原请求最长权限 RPC 区间，RPC 采样关闭时也可观测，权限策略和采样行为不变。

@@ -30,6 +30,9 @@ type peerBatcherConfig struct {
 	CallbackExecutor peerExecutor
 	// CallbackWorkers declares the global bound for callback-owner execution.
 	CallbackWorkers int
+	// OnChannelIdle runs outside mu after the last admitted item, including its
+	// terminal callback, retires. It grants no durability or authority evidence.
+	OnChannelIdle func(ch.ChannelKey)
 	// OwnerContext and ExchangeTimeout bound accepted work independently from
 	// the caller that submitted it.
 	OwnerContext    context.Context
@@ -54,7 +57,10 @@ type peerBatcher struct {
 	targets    map[ch.NodeID]*peerTargetQueue
 	ownedItems int
 	ownedBytes int
-	nextID     atomic.Uint64
+	// ownedByChannel shares the existing item bound and retains a key only
+	// through its last queued, in-flight or callback-owned peer item.
+	ownedByChannel map[ch.ChannelKey]int
+	nextID         atomic.Uint64
 	// callbackReady is a global FIFO of eligible Channel heads. Accepted and
 	// executing tasks share callbackOwners until the original callback returns.
 	callbackReady  []peerCallbackKey
@@ -161,7 +167,7 @@ func newPeerBatcher(cfg peerBatcherConfig) (*peerBatcher, error) {
 		cfg.MaxTargetQueuedBytes < cfg.MaxBatchBytes || cfg.MaxTargetQueuedBytes > cfg.MaxQueuedBytes-cfg.MaxBatchBytes {
 		return nil, ch.ErrInvalidConfig
 	}
-	return &peerBatcher{cfg: cfg, targets: make(map[ch.NodeID]*peerTargetQueue), progress: make(chan struct{}, 1)}, nil
+	return &peerBatcher{cfg: cfg, targets: make(map[ch.NodeID]*peerTargetQueue), ownedByChannel: make(map[ch.ChannelKey]int), progress: make(chan struct{}, 1)}, nil
 }
 
 // submit admits one immutable follower write. A nil result transfers exactly
@@ -259,6 +265,7 @@ func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPe
 	target.ownedBytes += item.bytes
 	b.ownedItems++
 	b.ownedBytes += item.bytes
+	b.ownedByChannel[item.channelKey()]++
 	if deferred {
 		return nil
 	}
@@ -273,6 +280,7 @@ func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPe
 		target.ownedBytes -= item.bytes
 		b.ownedItems--
 		b.ownedBytes -= item.bytes
+		b.releaseChannelItemLocked(item.channelKey())
 		if target.ownedItems == 0 {
 			delete(b.targets, node)
 		}
@@ -804,12 +812,19 @@ func (b *peerBatcher) runCallback(key peerCallbackKey, envelope *peerCallbackEnv
 // including panic unwinding, then puts this Channel's next head behind cold keys.
 func (b *peerBatcher) finishCallback(key peerCallbackKey, envelope *peerCallbackEnvelope) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
+	idle := false
+	defer func() {
+		b.mu.Unlock()
+		if idle && b.cfg.OnChannelIdle != nil {
+			b.cfg.OnChannelIdle(key.channel)
+		}
+	}()
 	bytes := envelope.item.bytes
 	*envelope = peerCallbackEnvelope{}
 	b.callbackOwners--
 	b.ownedItems--
 	b.ownedBytes -= bytes
+	idle = b.releaseChannelItemLocked(key.channel)
 	if target := b.targets[key.node]; target != nil {
 		target.ownedItems--
 		target.ownedBytes -= bytes
@@ -827,6 +842,22 @@ func (b *peerBatcher) finishCallback(key peerCallbackKey, envelope *peerCallback
 	}
 	_ = b.scheduleCallbacksLocked()
 	b.signalProgress()
+}
+
+func (b *peerBatcher) releaseChannelItemLocked(key ch.ChannelKey) bool {
+	if b.ownedByChannel[key] <= 1 {
+		delete(b.ownedByChannel, key)
+		return true
+	}
+	b.ownedByChannel[key]--
+	return false
+}
+
+// hasChannelWork includes terminal callbacks, unlike the network flight fence.
+func (b *peerBatcher) hasChannelWork(key ch.ChannelKey) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.ownedByChannel[key] != 0
 }
 
 func (b *peerBatcher) submitFunding(ctx context.Context, node ch.NodeID, request ReplicateRequest, nonce uint64, cancel bool, complete func(StorageFundingResult, error)) error {

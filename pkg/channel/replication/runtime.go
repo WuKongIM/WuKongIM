@@ -172,11 +172,15 @@ type runtimeRepairAuthority struct {
 	channelID ch.ChannelID
 	id        AuthorityID
 	replicas  []ch.NodeID
+	// released retires resident ownership only after admitted peer callbacks
+	// and follower repairs have completed; neither can lose its authority early.
+	released bool
 }
 
 type followerRepairAuthorityOwner interface {
 	RecordFollowerRepair(followerRepair)
 	InstallAuthority(Authority)
+	ReleaseAuthority(ch.ChannelKey, AuthorityID)
 }
 
 // NewRuntime creates the complete bounded durable replication owner for one
@@ -231,6 +235,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	peers, err := newPeerBatcher(peerBatcherConfig{
 		Link: cfg.Link, Executor: executor, OwnerContext: ctx, ExchangeTimeout: cfg.ExchangeTimeout, Observer: stageObserver,
 		CallbackExecutor: runtimePeerExecutor{pool: callbackPool}, CallbackWorkers: cfg.PeerWorkers,
+		OnChannelIdle:   func(key ch.ChannelKey) { runtime.repairs.retireReleasedAuthority(key) },
 		MaxTargetFlight: cfg.PeerTargetFlight,
 		MaxBatchItems:   cfg.BatchItems,
 		MaxBatchBytes:   cfg.BatchBytes,
@@ -699,6 +704,8 @@ func (o *runtimeRepairOwner) InstallAuthority(authority Authority) {
 			return
 		}
 		if comparison == 0 && current.channelID == authority.ChannelID {
+			current.released = false
+			o.authorities[authority.Key] = current
 			o.mu.Unlock()
 			return
 		}
@@ -721,6 +728,48 @@ func (o *runtimeRepairOwner) InstallAuthority(authority Authority) {
 	o.ready = kept
 	o.mu.Unlock()
 	o.signal()
+}
+
+// ReleaseAuthority retires only the exact quiesced resident authority. Accepted
+// peer callbacks may still discover repair debt after a quorum receipt, so the
+// record survives until both peer ownership and every follower repair retire.
+func (o *runtimeRepairOwner) ReleaseAuthority(key ch.ChannelKey, expected AuthorityID) {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	current, ok := o.authorities[key]
+	if !ok || current.id != expected {
+		return
+	}
+	current.released = true
+	o.authorities[key] = current
+	o.retireReleasedAuthorityLocked(key)
+}
+
+func (o *runtimeRepairOwner) retireReleasedAuthority(key ch.ChannelKey) {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.retireReleasedAuthorityLocked(key)
+}
+
+// Lock order is repair owner then peer owner. Peer idle notifications invoke
+// this only after releasing the peer lock. Membership bounds the pending scan.
+func (o *runtimeRepairOwner) retireReleasedAuthorityLocked(key ch.ChannelKey) {
+	current, ok := o.authorities[key]
+	if !ok || !current.released || o.peers.hasChannelWork(key) {
+		return
+	}
+	for _, follower := range current.replicas {
+		if o.pending[runtimeRepairKey{channel: key, follower: follower}] != nil {
+			return
+		}
+	}
+	delete(o.authorities, key)
 }
 
 func repairAuthorityID(repair followerRepair) AuthorityID {
@@ -855,6 +904,7 @@ func (o *runtimeRepairOwner) finish(key runtimeRepairKey, completed *runtimeRepa
 			entry.queued = true
 			o.ready = append(o.ready, key)
 		}
+		o.retireReleasedAuthorityLocked(key.channel)
 	}
 	o.mu.Unlock()
 	o.signal()

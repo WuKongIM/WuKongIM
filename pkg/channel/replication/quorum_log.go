@@ -238,6 +238,11 @@ func (l *quorumLog) Release(key ch.ChannelKey, expected AuthorityID) bool {
 		state.mu.Unlock()
 		return false
 	}
+	if l.cfg.RepairAuthorities != nil {
+		// Keep this under the sequencer locks: a reinstall of the same durable
+		// authority must not be retired by its predecessor's delayed Release.
+		l.cfg.RepairAuthorities.ReleaseAuthority(key, expected)
+	}
 	state.released = true
 	state.ready = false
 	state.id = ch.ChannelID{}

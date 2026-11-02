@@ -57,7 +57,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   Entire normalized batches publish terminal envelopes before releasing I/O fences. Independent fixed callback workers share the old
   item/byte budget through actual callback return; they do not consume target I/O flight. Each task executes one per-Channel FIFO head,
   then requeues its tail behind globally ready cold keys. Rejected execution retains the exact envelope for supervised retry.
-  Per-item transfer and retirement clear batch/FIFO references, including panic unwinding; held siblings cannot retain released bodies.
+  Per-item transfer and retirement clear batch/FIFO references, including panic unwinding; held siblings cannot retain released bodies. Releasing a quiesced sequencer retires exact repair authority after admitted peer callbacks and follower repairs finish. Per-Channel peer ownership shares the item bound; idle retired identities are removed. Retirement is ordered with reinstall, including the same authority ID.
   Runtime Close callers join one background cleanup owner. An expired waiter returns stop-incomplete without closing executors or
   discarding accepted debt; cleanup retries while admission is sealed, joins callbacks, then closes pools and publishes its final result.
   Install preserves every observed suffix, proves compatible voter tails on one
