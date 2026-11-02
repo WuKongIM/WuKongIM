@@ -15,13 +15,7 @@ import (
 func TestChatLifecycleRepairMonitorStopsAfterRealWorkerProgressStall(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()
-	tool := filepath.Join(directory, "wkchatlifecycle")
-	build := exec.Command("go", "build", "-trimpath", "-o", tool, "./cmd/wkchatlifecycle")
-	build.Dir = root
-	build.Env = append(os.Environ(), "GOWORK=off")
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build wkchatlifecycle: %v\n%s", err, output)
-	}
+	tool := repairSmoke.Path(t, root)
 	state := filepath.Join(directory, "state.json")
 	startedAt := time.Now().UTC().Add(-time.Second).Truncate(time.Second).Format(time.RFC3339)
 	begin := exec.Command(tool,
@@ -120,13 +114,7 @@ fi
 func TestChatLifecycleRepairMonitorRetriesTransientRemoteAndInconsistentCuts(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()
-	tool := filepath.Join(directory, "wkchatlifecycle")
-	build := exec.Command("go", "build", "-trimpath", "-o", tool, "./cmd/wkchatlifecycle")
-	build.Dir = root
-	build.Env = append(os.Environ(), "GOWORK=off")
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build wkchatlifecycle: %v\n%s", err, output)
-	}
+	tool := repairSmoke.Path(t, root)
 	state := filepath.Join(directory, "state.json")
 	startedAt := time.Now().UTC().Add(-time.Second).Truncate(time.Second).Format(time.RFC3339)
 	begin := exec.Command(tool,
@@ -222,13 +210,7 @@ fi
 func TestChatLifecycleRepairMonitorSurvivesOneServiceProbeFailure(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()
-	tool := filepath.Join(directory, "wkchatlifecycle")
-	build := exec.Command("go", "build", "-trimpath", "-o", tool, "./cmd/wkchatlifecycle")
-	build.Dir = root
-	build.Env = append(os.Environ(), "GOWORK=off")
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build wkchatlifecycle: %v\n%s", err, output)
-	}
+	tool := repairSmoke.Path(t, root)
 	state := filepath.Join(directory, "state.json")
 	startedAt := time.Now().UTC().Add(-time.Second).Truncate(time.Second).Format(time.RFC3339)
 	begin := exec.Command(tool,
