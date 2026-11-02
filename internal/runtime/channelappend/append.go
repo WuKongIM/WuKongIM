@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
@@ -94,6 +95,8 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 	}
 
 	active, inactive := activeAppendItems(e.items)
+	active, stale := activeDirectoryAppendItems(e.target, active)
+	inactive = append(inactive, stale...)
 	completion.items = append(completion.items, inactive...)
 	if len(active) == 0 {
 		return completion
@@ -304,6 +307,9 @@ func appendRequest(target AuthorityTarget, active []preparedSend, attempt int) A
 	for _, item := range active {
 		req.ServerAllocatedMessageIDs = req.ServerAllocatedMessageIDs && item.serverAllocatedMessageID
 		cmd := item.Command
+		if cmd.PersonDirectoryFence.Valid() {
+			req.ExpectedRouteGeneration = cmd.PersonDirectoryFence.RouteGeneration
+		}
 		if req.TraceID == "" && cmd.TraceID != "" {
 			req.TraceID = cmd.TraceID
 		}
@@ -730,4 +736,25 @@ func cloneBytes(in []byte) []byte {
 	out := make([]byte, len(in))
 	copy(out, in)
 	return out
+}
+
+// activeDirectoryAppendItems prevents a newer queued item from lending its
+// preparation to an older item after the writer refreshes its authority.
+func activeDirectoryAppendItems(target AuthorityTarget, items []preparedSend) ([]preparedSend, []appendItemCompletion) {
+	var active []preparedSend
+	var rejected []appendItemCompletion
+	for i, item := range items {
+		if item.Command.PersonDirectoryFence != (metadb.PersonDirectoryAppendFence{}) && !preparedCommandMatchesTarget(target, item.Command) {
+			if rejected == nil {
+				active = append([]preparedSend(nil), items[:i]...)
+			}
+			rejected = append(rejected, appendItemErrorCompletion(item, ErrStaleRoute))
+		} else if rejected != nil {
+			active = append(active, item)
+		}
+	}
+	if rejected == nil {
+		return items, nil
+	}
+	return active, rejected
 }

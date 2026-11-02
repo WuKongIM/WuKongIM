@@ -190,7 +190,7 @@ describe('cluster transport catalog', () => {
       }
     }
 
-    expect(nodeTransportServices).toHaveLength(78);
+    expect(nodeTransportServices).toHaveLength(79);
     expect(parsed.sort((a, b) => a.id - b.id)).toEqual(
       nodeTransportServices
         .map(({ id, symbol }) => ({ id, symbol }))
@@ -213,7 +213,6 @@ describe('cluster transport catalog', () => {
       'RPCChannelMQTTRetirement', 'RPCChannelMQTTRetirementSelection',
       'RPCChannelMQTTConsumerRead', 'RPCChannelWillReceipt',
       'RPCChannelMQTTOriginals', 'RPCMQTTWillDispatch',
-      'RPCPresenceControl',
     ];
     expect(sorted(actual)).toEqual(
       sorted(nodeTransportServices

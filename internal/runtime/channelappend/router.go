@@ -325,6 +325,17 @@ func (r *Router) sendSingle(item SendBatchItem) (out SendBatchItemResult) {
 		if err != nil {
 			return SendBatchItemResult{Err: err}
 		}
+		// A refreshed route cannot renew the invocation's directory preparation.
+		if prepared.Command.PersonDirectoryFence.Valid() && !preparedCommandMatchesTarget(target, prepared.Command) {
+			if directoryRouteBehindProof(target, prepared.Command) && canRetryRouterItem(prepared, attempts, r.maxRouteAttempts, time.Now()) {
+				r.invalidateAppendAuthority(routeChannel, target)
+				started = time.Now()
+				r.waitBeforeRetry([]SendBatchItem{prepared}, []int{0})
+				timing.RetryDelay += time.Since(started)
+				continue
+			}
+			return SendBatchItemResult{Result: SendResult{Reason: ReasonNodeNotMatch}, Err: ErrStaleRoute}
+		}
 		result = r.submitSingleTarget(target, prepared, &timing)
 		submissionUnknown = submissionUnknown || errors.Is(result.Err, errRouterSubmissionUnknown)
 		if shouldInvalidateRouterAuthority(result.Err) {
@@ -445,6 +456,15 @@ func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID
 		}
 		group := routerBatchGroup{target: target}
 		for _, index := range indexes {
+			if items[index].Command.PersonDirectoryFence.Valid() && !preparedCommandMatchesTarget(target, items[index].Command) {
+				if directoryRouteBehindProof(target, items[index].Command) && canRetryRouterItem(items[index], attempts[index], r.maxRouteAttempts, time.Now()) {
+					r.invalidateAppendAuthority(channelID, target)
+					nextPending = append(nextPending, index)
+					continue
+				}
+				results[index] = SendBatchItemResult{Result: SendResult{Reason: ReasonNodeNotMatch}, Err: ErrStaleRoute}
+				continue
+			}
 			group.indexes = append(group.indexes, index)
 			group.items = append(group.items, items[index])
 		}

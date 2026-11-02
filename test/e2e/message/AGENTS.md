@@ -9,6 +9,8 @@ This domain covers black-box message and conversation behavior for
 
 ## Scenarios
 
+`first_person_history` diagnoses issue #1066 using 256 hash slots. Run `WK_E2E_1066_REPORT=/absolute/report.json GOWORK=off go test -tags=e2e ./test/e2e/message/first_person_history -count=1 -timeout=5m -v`; set `WK_E2E_1066_NODES=3 WK_E2E_1066_PAIRS=1` for the minimal three-node case. It captures immediate/eventual history and restart survival.
+
 | Scenario | Purpose | Run |
 | --- | --- | --- |
 | `cold_connect` | Opt-in native cold-start reduction:300 first authenticated CONNECTs at100/s on fresh256HashSlot/12Slot/three-replica processes, original activation/client budgets, bounded public metrics and joined JSON; not original-scale acceptance. | `WK_E2E_COLD_CONNECT=1 WK_E2E_BINARY=/absolute/frozen/wukongim WK_E2E_COLD_CONNECT_REPORT_DIR=/absolute/new/report GOWORK=off go test -tags=e2e ./test/e2e/message/cold_connect -count=1 -timeout=3m -p=1 -v` |

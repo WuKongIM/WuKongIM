@@ -93,6 +93,9 @@ func (s *channelState) refreshTargetMetadata(target AuthorityTarget) {
 	if target.LeaderNodeID != 0 {
 		s.target.LeaderNodeID = target.LeaderNodeID
 	}
+	if target.RouteGeneration > s.target.RouteGeneration {
+		s.target.RouteGeneration = target.RouteGeneration
+	}
 	if target.Epoch > s.target.Epoch {
 		s.target.Epoch = target.Epoch
 	}

@@ -61,6 +61,14 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Wait for durable person-channel discovery before accepting the first ordinary
+  persistent message, fixing successful sends temporarily missing from history
+  and conversation sync. Bind readiness to final append authority across
+  deletion/recreation and retries. Ready channels reuse existing permission reads.
+  Upgrade cluster nodes together for preparation RPC and append request version 4.
+  / 修复单聊首条持久化消息发送成功后暂时查不到历史和会话的问题；热会话复用权限读取。
+  目录就绪状态绑定到最终追加代际，防止删除重建与重试越代；内部 RPC 需集群节点配套升级。
+
 - Keep the first chat-lifecycle grant on distinct senders when its active person pool is scarce by preferring other eligible group members. / 生命周期压测首批发放在单聊发送者不足时优先选择其它合格群成员，避免重复占用发送者。
 
 - Retain bounded clock evidence when lifecycle grant ticks are rejected, preserving their original timing guards, verdicts, and cleanup. / 生命周期压测拒绝发放 tick 时保留有界时钟证据，原时间校验、判定和清理行为保持不变。

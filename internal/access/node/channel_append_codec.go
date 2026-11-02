@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
@@ -11,6 +12,7 @@ import (
 )
 
 var (
+	channelAppendDirectoryRequestMagic   = [...]byte{'W', 'K', 'V', 'A', 4}
 	channelAppendPublicationRequestMagic = [...]byte{'W', 'K', 'V', 'A', 3}
 	channelAppendRequestMagic            = [...]byte{'W', 'K', 'V', 'A', 2}
 	channelAppendResponseMagic           = [...]byte{'W', 'K', 'V', 'a', 1}
@@ -61,23 +63,37 @@ type channelAppendResponse struct {
 func encodeChannelAppendRequest(req channelAppendRequest) ([]byte, error) {
 	magic := channelAppendRequestMagic
 	for _, item := range req.Items {
+		if f := item.Command.PersonDirectoryFence; f != (metadb.PersonDirectoryAppendFence{}) {
+			if !f.Valid() {
+				return nil, fmt.Errorf("internal/access/node: incomplete person directory fence")
+			}
+			magic = channelAppendDirectoryRequestMagic
+		}
 		if len(item.Command.PublicationMetadata) == 0 {
 			continue
 		}
 		if _, err := publication.Decode(item.Command.PublicationMetadata); err != nil {
 			return nil, err
 		}
-		magic = channelAppendPublicationRequestMagic
+		if magic[4] < 3 {
+			magic = channelAppendPublicationRequestMagic
+		}
 	}
 	dst := make([]byte, 0, 128)
 	dst = append(dst, magic[:]...)
 	dst = appendChannelAppendTarget(dst, req.Target)
+	if magic[4] >= 4 {
+		if req.Target.RouteGeneration == 0 {
+			return nil, fmt.Errorf("internal/access/node: missing prepared target route")
+		}
+		dst = appendUvarint(dst, req.Target.RouteGeneration)
+	}
 	dst = appendChannelAppendItems(dst, req.Items, magic[4])
 	return dst, nil
 }
 
 func decodeChannelAppendRequest(body []byte) (channelAppendRequest, error) {
-	if !hasMagic(body, channelAppendRequestMagic[:]) && !hasMagic(body, channelAppendPublicationRequestMagic[:]) {
+	if !hasMagic(body, channelAppendRequestMagic[:]) && !hasMagic(body, channelAppendPublicationRequestMagic[:]) && !hasMagic(body, channelAppendDirectoryRequestMagic[:]) {
 		return channelAppendRequest{}, fmt.Errorf("internal/access/node: invalid channel append request codec")
 	}
 	offset := len(channelAppendRequestMagic)
@@ -85,6 +101,14 @@ func decodeChannelAppendRequest(body []byte) (channelAppendRequest, error) {
 	var err error
 	if req.Target, offset, err = readChannelAppendTarget(body, offset); err != nil {
 		return channelAppendRequest{}, err
+	}
+	if body[4] >= 4 {
+		if req.Target.RouteGeneration, offset, err = readUvarint(body, offset); err != nil {
+			return channelAppendRequest{}, err
+		}
+		if req.Target.RouteGeneration == 0 {
+			return channelAppendRequest{}, fmt.Errorf("internal/access/node: missing prepared target route")
+		}
 	}
 	if req.Items, offset, err = readChannelAppendItems(body, offset, body[4]); err != nil {
 		return channelAppendRequest{}, err
@@ -247,8 +271,14 @@ func appendChannelAppendSendCommand(dst []byte, cmd channelappend.SendCommand, v
 	dst = appendString(dst, string(cmd.Origin))
 	dst = appendVarint(dst, int64(cmd.HookDepth))
 	dst = appendChannelAppendBool(dst, cmd.SkipPluginHooks)
-	if version == 3 {
+	if version >= 3 {
 		dst = appendBytes(dst, cmd.PublicationMetadata)
+	}
+	if version >= 4 {
+		f := cmd.PersonDirectoryFence
+		for _, v := range []uint64{f.ChannelEpoch, f.LeaderEpoch, f.RouteGeneration, f.DirectoryGeneration} {
+			dst = appendUvarint(dst, v)
+		}
 	}
 	return dst
 }
@@ -347,9 +377,20 @@ func readChannelAppendSendCommand(body []byte, offset int, version byte) (channe
 	if cmd.SkipPluginHooks, offset, err = readChannelAppendBool(body, offset, "channel append skip plugin hooks"); err != nil {
 		return channelappend.SendCommand{}, offset, err
 	}
-	if version == 3 {
+	if version >= 3 {
 		if cmd.PublicationMetadata, offset, err = readPublicationBytes(body, offset); err != nil {
 			return channelappend.SendCommand{}, offset, err
+		}
+	}
+	if version >= 4 {
+		f := &cmd.PersonDirectoryFence
+		for _, v := range []*uint64{&f.ChannelEpoch, &f.LeaderEpoch, &f.RouteGeneration, &f.DirectoryGeneration} {
+			if *v, offset, err = readUvarint(body, offset); err != nil {
+				return channelappend.SendCommand{}, offset, err
+			}
+		}
+		if *f != (metadb.PersonDirectoryAppendFence{}) && !f.Valid() {
+			return channelappend.SendCommand{}, offset, fmt.Errorf("internal/access/node: incomplete person directory fence")
 		}
 	}
 	return cmd, offset, nil

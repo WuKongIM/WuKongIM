@@ -17,7 +17,7 @@ import (
 	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 )
 
-func TestMessageSendDoesNotSynchronouslyAdmitPersonDirectory(t *testing.T) {
+func TestMessageSendWaitsForPersonDirectoryBeforeAppend(t *testing.T) {
 	cluster := &personDirectoryLifecycleCluster{admissionStarted: make(chan struct{}, 1)}
 	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(nil))
 	if err != nil {
@@ -37,12 +37,11 @@ func TestMessageSendDoesNotSynchronouslyAdmitPersonDirectory(t *testing.T) {
 	select {
 	case <-cluster.admissionStarted:
 		cancel()
-		<-done
-		t.Fatal("person SEND synchronously entered directory admission")
-	case sendErr := <-done:
-		if sendErr != nil {
-			t.Fatalf("Send() error = %v, want append success without directory wait", sendErr)
+		if sendErr := <-done; sendErr == nil {
+			t.Fatal("SEND succeeded after directory preparation was canceled")
 		}
+	case sendErr := <-done:
+		t.Fatalf("SEND returned before directory preparation: %v", sendErr)
 	}
 }
 
@@ -339,9 +338,9 @@ func (c *personDirectoryLifecycleCluster) AdmitPersonDirectoryTasks(ctx context.
 	return results
 }
 
-func (c *personDirectoryLifecycleCluster) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+func (c *personDirectoryLifecycleCluster) PreparePersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, metadb.PersonDirectoryAppendFence, error)) {
 	for i, err := range c.AdmitPersonDirectoryTasks(ctx, tasks) {
-		emit(i, err)
+		emit(i, metadb.PersonDirectoryAppendFence{}, err)
 	}
 }
 

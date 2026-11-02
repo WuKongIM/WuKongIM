@@ -37,8 +37,8 @@ management, plugins, diagnostics, and bounded operations observations.
    Channel append clones payload bytes once and explicitly transfers that
    immutable ownership to the Channel runtime. Mutable recipient metadata is
    reread from the Slot leader per routed batch; only person metadata is cached.
-   First person SENDs commit coalesced Channel directory tasks/runtime metadata;
-   the asynchronous projector later ensures UID memberships and publishes ready.
+   First ordinary persistent person SENDs coalesce source tasks/runtime metadata and directly dispatch projection to the source leader.
+   UID memberships and generation-fenced Ready commit before append; Pending keeps its original captured tail. Ready/epoch/route proof travels to append without renewal; hot permission reads include it in their existing snapshot.
 2. Full presence maps rare Controller claims to usecase generations; actual Slot
    checks and locally published serving gates remain cluster responsibilities.
    Owner calls select local versus independent versioned RPC without a legacy
@@ -107,9 +107,9 @@ management, plugins, diagnostics, and bounded operations observations.
   metadata to routed Channel admission, using the app's message-ID allocator.
   Confirmed runtime absence uses the existing bounded Channel initializer, then
   rereads fresh Slot fences. No business metadata creation, policy retry or authority fallback is allowed.
-- Person-directory batching shares duplicate Channel results, detaches canceled
-  waiters without canceling accepted work. Admission proves a durable task, not
-  committed UID membership; MQTT future-source admission needs a separate barrier.
+- Person-directory preparation shares Channel/generation results and detaches canceled waiters without canceling accepted work.
+  Eight active batches, 4096 mutations/waiters and a 1 ms collection window bound cold preparation; retryable failures precede append.
+  MQTT future-source protection/registration retains its additional barrier; ordinary Ready does not replace it.
 - Mutable request and response payloads crossing runtime ownership boundaries
   are cloned unless the contract explicitly transfers ownership.
 - Node lifecycle, Slot movement, retention, and Controller changes are executed

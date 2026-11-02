@@ -21,6 +21,8 @@ func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
 
 func rpcServiceIDsForTest() map[string]uint8 {
 	return map[string]uint8{
+		"presence_control":               RPCPresenceControl,
+		"person_directory_prepare":       RPCPersonDirectoryPrepare,
 		"msg_slot_raft":                  MsgSlotRaft,
 		"msg_slot_raft_batch":            MsgSlotRaftBatch,
 		"slot_forward_propose":           RPCSlotForwardPropose,

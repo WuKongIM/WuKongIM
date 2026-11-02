@@ -42,6 +42,9 @@ It does not perform permission checks, durable append, routing, or delivery.
   state. Route generation orders cache projection and the durable quorum authority.
 - Append requests carry expected authority/leader epochs and an optional exact durable route.
   Nonzero routes require complete epochs and quorum commit; adapters cannot rewrite intent.
+- Person-directory Ready proofs bind directory generation and runtime epochs/route
+  from one permission snapshot. Commands preserve them through hooks, queues,
+  routing retries and node request 4; a newer route requires a new invocation.
 - Server-allocated message-ID proof applies to every item and skips only
   existing-ID reads; sender/client idempotency remains mandatory.
 - Optional submission failure diagnostics are copied immutable durations without

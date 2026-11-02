@@ -713,10 +713,24 @@ specification, runbook, report, or module documentation; link to them when neede
   messages, not a separate durable conversation row or message-time projection.
   `user_channel_membership` stores join/read/delete boundaries, activation,
   tombstones, and source version; CMD membership uses a separate directory.
-- Steady-state SEND performs no recipient membership writes. The first persistent
-  person SEND durably admits a generation-fenced source projection task; bounded
-  asynchronous work establishes both UID memberships. SENDACK does not guarantee
-  immediate directory or history visibility. Deletion fences delayed projection.
+- Steady-state SEND performs no recipient membership writes or extra directory
+  RPCs: it reads Ready and runtime epochs/route in the same authoritative permission
+  snapshot. The final append revalidates that exact route through the existing
+  fresh metadata barrier; retries, queued batches and node request version 4
+  preserve the proof, and replacement generations require a new invocation. Ordinary
+  persistent person SEND waits for both UID memberships and generation-fenced
+  source Ready before append (issue #1066). Cold tasks dispatch directly to the
+  source leader through bounded RPC 109; periodic scans remain recovery. Pending
+  work preserves its original CommittedTail and user visibility/tombstone state.
+  Timeout/overload before preparation completes cannot append that invocation.
+  Peers must support RPC 109 and append request 4. New callers fail closed against
+  unsupported peers; older callers retain their old semantics until upgraded. Ready withdrawal on deletion/restore prevents cross-request reuse.
+  This removes false-empty first-message reads, not legitimate read-route 503s.
+- HTTP 200 alone is not durable message success: inspect reason and message_seq.
+  Ordinary persisted success acknowledges quorum durable append. Effective
+  NoPersist is online-only (including top-level NoPersist overriding header zero),
+  and SyncOnce has separate CMD discovery semantics. Person channels derive their
+  two canonical UIDs automatically; subscriber_add is not a repair mechanism.
 - Member add/remove changes subscribers before UID memberships/tombstones.
   Partial failure is returned for idempotent caller retry. Valid non-tombstoned
   membership authorizes ordinary history without rechecking subscribers; reads

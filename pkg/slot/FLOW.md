@@ -141,6 +141,7 @@ plugin, migration, message projections, and MQTT session state.
 
 Command 79 adjusts the exact node MQTT storage escrow using revision/bytes CAS, complete Controller roster and cluster limit. Grants remain at zero to prevent ABA. Mismatched limits, stale roster revisions, incomplete startup debt and growth over the cluster sum fail closed. This allocation does not certify Channel content.
 
+Send-permission replies optionally carry a coherent person Ready/runtime proof; partial, wrong-kind or mismatched-generation proofs fail closed. Legacy absence grants policy only.
 ## Read First
 
 - [Boundary](BOUNDARY.md), [Multi-Raft API](multiraft/api.go), [Raft worker](multiraft/slot.go), [FSM](fsm/statemachine.go), [Proxy](proxy/store.go)

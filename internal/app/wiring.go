@@ -33,6 +33,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
@@ -336,6 +337,11 @@ func (a *App) wirePersonDirectoryProjector() error {
 		return fmt.Errorf("internal/app: wire person-directory projector: %w", err)
 	}
 	a.personDirectoryProjector = projector
+	if node, ok := a.cluster.(interface {
+		SetPersonDirectoryPreparation(func(context.Context, []metadb.PersonDirectoryTaskEntry) []error)
+	}); ok {
+		node.SetPersonDirectoryPreparation(projector.Prepare)
+	}
 	return nil
 }
 
@@ -909,7 +915,7 @@ func (a *App) wireMessages() {
 			}
 			messageOpts.ChannelState = channelStore
 			if _, ok := a.cluster.(clusterinfra.PersonDirectoryNode); ok && a.personDirectoryProjector != nil {
-				channelStore.SetPersonDirectoryWake(a.personDirectoryProjector.Wake)
+				messageOpts.PersonDirectory = channelStore
 			}
 		}
 		if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {

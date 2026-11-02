@@ -2,6 +2,7 @@ package channelappend
 
 import (
 	"context"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"time"
 )
 
@@ -94,6 +95,9 @@ type AuthorityTarget struct {
 
 // SendCommand is an entry-agnostic SEND request.
 type SendCommand struct {
+	// PersonDirectoryFence is the immutable Ready proof captured before append.
+	// Router retries and node forwarding must preserve every component.
+	PersonDirectoryFence metadb.PersonDirectoryAppendFence
 	// FromUID is the authenticated sender uid.
 	FromUID string
 	// DeviceID is the authenticated gateway device id, used by trusted system-device sends.
