@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🔧 Improvements / 改进
+
 - Reduce memory used by idle and sparsely used Channels by growing their retry
   receipt caches on demand while preserving the configured command limit.
   / Channel 重试回执缓存按实际使用增长，减少空闲与稀疏驻留内存，保留原配置的命令上限。
