@@ -41,7 +41,9 @@ type storedEvent struct {
 type Store struct {
 	mu       sync.RWMutex
 	events   []storedEvent
-	byID     map[uint64]Event
+	// byID references ring slots; the ring is the sole owner of stored Events.
+	// Lookup validates the event ID before using a possibly recycled slot.
+	byID     map[uint64]int
 	nextSlot int
 	nextID   uint64
 	index    *indexes
@@ -69,7 +71,7 @@ func NewStore(opts StoreOptions) *Store {
 	}
 	return &Store{
 		events:   make([]storedEvent, opts.Capacity),
-		byID:     make(map[uint64]Event, opts.Capacity),
+		byID:     make(map[uint64]int, opts.Capacity),
 		index:    newIndexes(opts.MaxEventsPerKey, opts.MaxKeysPerIndex),
 		nodeID:   opts.NodeID,
 		now:      opts.Now,
@@ -91,7 +93,7 @@ func (s *Store) Record(event Event) {
 	s.nextID++
 	id := s.nextID
 	s.events[s.nextSlot] = storedEvent{id: id, event: event}
-	s.byID[id] = event
+	s.byID[id] = s.nextSlot
 	s.nextSlot = (s.nextSlot + 1) % len(s.events)
 	s.index.add(id, event)
 	s.mu.Unlock()
@@ -175,8 +177,8 @@ func (s *Store) candidateEventsLocked(ids []uint64) []Event {
 	}
 	out := make([]Event, 0, len(ids))
 	for _, id := range ids {
-		if event, ok := s.byID[id]; ok {
-			out = append(out, event)
+		if slot, ok := s.byID[id]; ok && s.events[slot].id == id {
+			out = append(out, s.events[slot].event)
 		}
 	}
 	return out

@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Reduce enabled diagnostics memory by indexing retained events through their
+  ring slots instead of storing duplicate complete events.
+  / 启用诊断时，通过环形缓冲区槽位索引事件，消除完整事件副本的额外内存占用。
+
 - Reclaim idle Channel replication authority state after admitted callbacks and
   follower repairs complete, preventing historical Channels from accumulating
   in memory while preserving durable recovery.

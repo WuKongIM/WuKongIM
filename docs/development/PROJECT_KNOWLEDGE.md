@@ -1,5 +1,13 @@
 # Project Knowledge
 
+The diagnostics Store ring is the sole owner of retained Event values. Its ID
+index stores ring slots and validates each slot's exact event ID under the
+existing lock before lookup, so overwritten IDs cannot resolve a replacement
+event. Public Record/Query memory regression covers a 50,000-event ring through
+150,000 writes with an 8 MiB additional retained-heap budget after construction
+and index warm-up. This removes duplicate Event retention; it does not establish
+that all long-run heap growth is a leak or remove bounded storage-cache warm-up.
+
 Lifecycle grant tick failures retain one failure-only record of the actual
 rejected guard, closed predicate, prior-tick presence and signed age/interval.
 Observed flags distinguish missing clocks from measured zero; capacity phase-end
