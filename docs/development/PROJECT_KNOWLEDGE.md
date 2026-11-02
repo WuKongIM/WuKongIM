@@ -2444,6 +2444,13 @@ specification, runbook, report, or module documentation; link to them when neede
   each caller's fresh barrier and cancellation. Queue count/bytes and the two-second
   wait bound remain unchanged; cross-caller aggregation is tracked by #977.
 
+- First-grant sender deduplication must account for person/group competition.
+  A sparse active-person endpoint pool can be exhausted by earlier group sends
+  even while other eligible group members remain. When that pool is smaller
+  than the first grant, prefer group members outside it before the original
+  bounded fallbacks. Discard the temporary set at grant end; never advance
+  future activity or reduce the admitted rate to satisfy a distinct-sender check.
+
 - Chat-lifecycle grant cadence is an allocation boundary, not a SEND arrival
   timestamp. The bootstrap grant remains immediate; later external grants use
   deterministic subsecond arrivals and independent due-work advancement while

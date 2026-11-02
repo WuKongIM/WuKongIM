@@ -61,6 +61,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Keep the first chat-lifecycle grant on distinct senders when its active person pool is scarce by preferring other eligible group members. / 生命周期压测首批发放在单聊发送者不足时优先选择其它合格群成员，避免重复占用发送者。
+
 - Retain bounded clock evidence when lifecycle grant ticks are rejected, preserving their original timing guards, verdicts, and cleanup. / 生命周期压测拒绝发放 tick 时保留有界时钟证据，原时间校验、判定和清理行为保持不变。
 
 - Retain bounded authority-side source phases for timed-out Presence registration and commit, preserving protocol outcomes and deadlines. / Presence 注册和提交超时时保留有界的权威节点阶段信息，协议结果与期限保持不变。
