@@ -1,5 +1,14 @@
 # Project Knowledge
 
+Full Presence recovery failures retain one immutable closed step/kind receipt
+with step elapsed time and the remaining original context budget at entry.
+Parallel Begin freezes its first actual error before joining late owner cuts;
+normalization keeps the historical not-ready family and the original receipt.
+The shared formatter adds four scalar fields to existing activation failure
+logs without new events, identities, retries or deadline resets. Successful
+steps retain no failure receipt. Generic old provider-phase logs cannot be used
+to reconstruct missing Full substep evidence or establish a physical cause.
+
 The diagnostics Store ring is the sole owner of retained Event values. Its ID
 index stores ring slots and validates each slot's exact event ID under the
 existing lock before lookup, so overwritten IDs cannot resolve a replacement

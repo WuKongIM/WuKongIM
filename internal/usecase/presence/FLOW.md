@@ -66,16 +66,16 @@ Entry-independent orchestration connects the online registry and UID authority; 
    actual activity timestamps and cannot skip unavailable owners.
 
 ## Invariants and Failure Semantics
-- Activation failures retain their original error family through fixed phase
-  wrappers. Diagnostic extraction returns the innermost known phase, never request data.
-  Registration failure may carry an anonymous owner-route digest; malformed or
-  absent owner identity stays unknown. Shared provider failures can reference one
-  actual terminal owner RPC without claiming an exclusive logical caller.
-  Recovery distinguishes admission, provider, validation, installation and
-  Directory readback; execution cancellation keeps its existing not-ready mapping.
-  Immutable provider evidence survives normalization; a later physical-context
-  override keeps only the same global or aligned group failure capture, never
-  another group's cause. Masks distinguish unobserved stages from measured zero.
+- Activation wrappers preserve original errors and innermost known phases,
+  distinguishing admission/provider/validation/install/readback, never request data.
+  Registration route digests exclude malformed/missing identities. Provider references
+  identify actual terminal owner RPCs, not exclusive logical callers. Cancellation
+  keeps not-ready mapping and immutable same-global/aligned-group evidence through
+  context overrides; masks distinguish unobserved stages from measured zero.
+- Failed Full-slot steps freeze closed step/kind, elapsed time and original remaining
+  budget, distinguishing Claim, owner Begin/page/End, validation/publication and admission.
+  Parallel Begin captures its first actual error before joining late owners;
+  cleanup/cancellation cannot replace it, and normalization keeps its not-ready outcome.
 - Failed authority registration removes the pending local session. Failed final
   activation queues exact unregister and removes local state.
 - Status observation is best effort, never adds authority traffic, counts only

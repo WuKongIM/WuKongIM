@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Include bounded Full Presence recovery step, cause and timing evidence in
+  existing activation failure logs while preserving deadlines and protocol results.
+  / 在现有激活失败日志中保留有界的 Full Presence 恢复步骤、原因及计时证据，期限与协议结果不变。
+
 - Reduce enabled diagnostics memory by indexing retained events through their
   ring slots instead of storing duplicate complete events.
   / 启用诊断时，通过环形缓冲区槽位索引事件，消除完整事件副本的额外内存占用。

@@ -368,10 +368,11 @@ func (r *SlotRecovery) run(key slotFlightKey, f *slotRecoveryFlight) {
 // Results retain owner-vector order. Every provider joins before return, even
 // after cancellation; valid late cuts remain exact cleanup obligations.
 func (r *SlotRecovery) beginSlotOwners(ctx context.Context, claim GenerationClaim, ids []uint64) ([]OwnerCut, []context.Context, []context.CancelFunc, error) {
+	admissionStarted, admissionBudget := time.Now(), fullRecoveryBudget(ctx)
 	seen := make(map[uint64]bool, len(ids))
 	for _, id := range ids {
 		if id == 0 || seen[id] {
-			return nil, nil, nil, authority.ErrStaleGeneration
+			return nil, nil, nil, observeFullRecoveryFailure(authority.ErrStaleGeneration, "owner_roster", admissionStarted, admissionBudget)
 		}
 		seen[id] = true
 	}
@@ -385,7 +386,7 @@ func (r *SlotRecovery) beginSlotOwners(ctx context.Context, claim GenerationClai
 	failed := make(chan struct{})
 	fail := func(err error) {
 		if firstErr == nil {
-			firstErr = err
+			firstErr = observeFullRecoveryFailure(err, "owner_begin_admission", admissionStarted, admissionBudget)
 			close(failed)
 			for _, cancel := range cancels {
 				if cancel != nil {
@@ -435,10 +436,12 @@ func (r *SlotRecovery) beginSlotOwners(ctx context.Context, claim GenerationClai
 				ownerCtx, cancel := context.WithTimeout(ctx, time.Second)
 				contexts[i], cancels[i] = ownerCtx, cancel
 				mu.Unlock()
+				beginStarted, beginBudget := time.Now(), fullRecoveryBudget(ownerCtx)
 				cut, err := r.owners.BeginSlot(ownerCtx, claim, ids[i])
 				if err == nil && (!cut.Valid() || cut.NodeID != ids[i]) {
 					err = authority.ErrStaleGeneration
 				}
+				err = observeFullRecoveryFailure(err, "owner_begin", beginStarted, beginBudget)
 				mu.Lock()
 				if err == nil {
 					cuts[i] = cut
@@ -466,35 +469,39 @@ func (r *SlotRecovery) beginSlotOwners(ctx context.Context, claim GenerationClai
 }
 
 func (r *SlotRecovery) scan(f *slotRecoveryFlight) (err error) {
+	checkStarted, checkBudget := time.Now(), fullRecoveryBudget(f.ctx)
 	if err = f.ctx.Err(); err != nil {
-		return err
+		return observeFullRecoveryFailure(err, "scan_context", checkStarted, checkBudget)
 	}
 	if _, err = r.current(f.target); err == nil {
 		return nil
 	}
 	// Fixed maximum owner/cursor metadata is prepaid before obtaining the owner
 	// vector. Staging rows/strings grow atomically and remain charged until publish.
+	reserveStarted, reserveBudget := time.Now(), fullRecoveryBudget(f.ctx)
 	staging, err := r.budget.TryReserve(0, 256*256)
 	if err != nil {
-		return err
+		return observeFullRecoveryFailure(err, "result_reserve", reserveStarted, reserveBudget)
 	}
 	defer staging.Release()
+	controlStarted, controlBudget := time.Now(), fullRecoveryBudget(f.ctx)
 	select {
 	case r.control <- struct{}{}:
 	case <-f.ctx.Done():
-		return f.ctx.Err()
+		return observeFullRecoveryFailure(f.ctx.Err(), "control_admission", controlStarted, controlBudget)
 	}
 	if err = f.ctx.Err(); err != nil {
 		<-r.control
-		return err
+		return observeFullRecoveryFailure(err, "control_admission", controlStarted, controlBudget)
 	}
+	claimStarted, claimBudget := time.Now(), fullRecoveryBudget(f.ctx)
 	claim, ids, err := r.source.ClaimSlotGeneration(f.ctx, f.target)
 	<-r.control
 	if err != nil {
-		return err
+		return observeFullRecoveryFailure(err, "claim", claimStarted, claimBudget)
 	}
 	if !claim.Valid() || generationKey(claim.Target) != generationKey(f.target) || len(ids) == 0 || len(ids) > 256 {
-		return authority.ErrStaleGeneration
+		return observeFullRecoveryFailure(authority.ErrStaleGeneration, "claim", claimStarted, claimBudget)
 	}
 	var cuts []OwnerCut
 	var ownerContexts []context.Context
@@ -522,15 +529,18 @@ func (r *SlotRecovery) scan(f *slotRecoveryFlight) (err error) {
 			_ = r.owners.AbortSlot(cleanup, claim, cut)
 		}
 	}()
+	ownersStarted, ownersBudget := time.Now(), fullRecoveryBudget(f.ctx)
 	cuts, ownerContexts, ownerCancels, err = r.beginSlotOwners(f.ctx, claim, ids)
 	if err != nil {
-		return err
+		return observeFullRecoveryFailure(err, "owner_begin_admission", ownersStarted, ownersBudget)
 	}
+	validateStarted, validateBudget := time.Now(), fullRecoveryBudget(f.ctx)
 	if err = r.source.ValidateSlotGeneration(f.ctx, claim); err != nil {
-		return err
+		return observeFullRecoveryFailure(err, "validate_before", validateStarted, validateBudget)
 	}
+	beginStarted, beginBudget := time.Now(), fullRecoveryBudget(f.ctx)
 	if err = r.directory.BeginGeneration(claim, cuts); err != nil {
-		return err
+		return observeFullRecoveryFailure(err, "directory_begin", beginStarted, beginBudget)
 	}
 	installed = true
 	requests := make([]SlotPageRequest, len(cuts))
@@ -547,36 +557,45 @@ func (r *SlotRecovery) scan(f *slotRecoveryFlight) (err error) {
 			if done[i] {
 				continue
 			}
+			checkStarted, checkBudget = time.Now(), fullRecoveryBudget(f.ctx)
 			if err = f.ctx.Err(); err != nil {
-				return err
+				return observeFullRecoveryFailure(err, "scan_context", checkStarted, checkBudget)
 			}
+			pageStarted, pageBudget := time.Now(), fullRecoveryBudget(ownerContexts[i])
 			owned, e := r.owners.ReadSlotPage(ownerContexts[i], requests[i], r.budget)
 			if e != nil {
+				e = observeFullRecoveryFailure(e, "owner_page", pageStarted, pageBudget)
 				if owned != nil {
 					owned.Release()
 				}
 				return e
 			}
 			if owned == nil {
-				return authority.ErrSlotIncomplete
+				return observeFullRecoveryFailure(authority.ErrSlotIncomplete, "owner_page", pageStarted, pageBudget)
 			}
 			page := owned.Page
 			if !page.Claim.Equal(claim) || page.Owner != requests[i].Owner || page.Sequence != requests[i].Sequence || page.AfterSessionID != requests[i].AfterSessionID || len(page.Routes) > requests[i].MaxRows {
+				failure := observeFullRecoveryFailure(authority.ErrSlotIncomplete, "owner_page", pageStarted, pageBudget)
 				owned.Release()
-				return authority.ErrSlotIncomplete
+				return failure
 			}
 			// Capture validated work before releasing the owned page. Invalid row
 			// counts fail before the bounded string-size walk, as they did before.
 			pageRows, pageBytes := len(page.Routes), slotRouteBytes(page.Routes)
 			if pageBytes > uint64(requests[i].MaxBytes) {
+				failure := observeFullRecoveryFailure(authority.ErrSlotIncomplete, "owner_page", pageStarted, pageBudget)
 				owned.Release()
-				return authority.ErrSlotIncomplete
+				return failure
 			}
+			installStarted, installBudget := time.Now(), fullRecoveryBudget(f.ctx)
 			if err = f.ctx.Err(); err == nil {
 				err = staging.TryGrow(uint64(pageRows), pageBytes)
 			}
+			err = observeFullRecoveryFailure(err, "result_staging", installStarted, installBudget)
 			if err == nil {
+				installStarted, installBudget = time.Now(), fullRecoveryBudget(f.ctx)
 				err = r.directory.InstallSlotPage(page)
+				err = observeFullRecoveryFailure(err, "directory_install", installStarted, installBudget)
 			}
 			exhausted, sequence, last, total := page.Exhausted, page.Sequence, page.NextSessionID, page.RowsTotal
 			owned.Release()
@@ -585,12 +604,14 @@ func (r *SlotRecovery) scan(f *slotRecoveryFlight) (err error) {
 				return err
 			}
 			if exhausted {
+				endStarted, endBudget := time.Now(), fullRecoveryBudget(ownerContexts[i])
 				end, e := r.owners.EndSlot(ownerContexts[i], SlotEndRequest{Claim: claim, Owner: cuts[i], Sequence: sequence, LastSessionID: last, RowsTotal: total})
 				if e != nil {
-					return e
+					return observeFullRecoveryFailure(e, "owner_end", endStarted, endBudget)
 				}
+				directoryEndStarted, directoryEndBudget := time.Now(), fullRecoveryBudget(f.ctx)
 				if err = r.directory.EndGenerationOwner(end); err != nil {
-					return err
+					return observeFullRecoveryFailure(err, "directory_end", directoryEndStarted, directoryEndBudget)
 				}
 				done[i] = true
 				remaining--
@@ -612,9 +633,11 @@ func (r *SlotRecovery) scan(f *slotRecoveryFlight) (err error) {
 			}
 		}
 	}
+	validateStarted, validateBudget = time.Now(), fullRecoveryBudget(f.ctx)
 	if err = r.source.ValidateSlotGeneration(f.ctx, claim); err != nil {
-		return err
+		return observeFullRecoveryFailure(err, "validate_after", validateStarted, validateBudget)
 	}
+	completeStarted, completeBudget := time.Now(), fullRecoveryBudget(f.ctx)
 	r.mu.Lock()
 	if r.closed || f.users == 0 || f.ctx.Err() != nil {
 		err = context.Canceled
@@ -623,7 +646,7 @@ func (r *SlotRecovery) scan(f *slotRecoveryFlight) (err error) {
 		complete = err == nil
 	}
 	r.mu.Unlock()
-	return err
+	return observeFullRecoveryFailure(err, "directory_complete", completeStarted, completeBudget)
 }
 
 func (r *SlotRecovery) recoverGroup(ctx context.Context, g EndpointLookupGroup, lease *RecoveryResultLease) ([]Route, error) {

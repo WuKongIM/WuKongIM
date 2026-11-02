@@ -809,12 +809,16 @@ func (r *AuthorityRecovery) execute(e *recoveryExecution) {
 func recoveryExecutionFailure(phase ActivationPhase, err error) error {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		evidence, observed := RecoveryProviderFailure(err)
+		full, fullObserved := FullRecoveryFailure(err)
 		if inner := ActivationFailurePhase(err); inner.String() != "" {
 			phase = inner
 		}
 		err = authority.ErrRouteNotReady
 		if observed {
 			err = WithRecoveryProviderFailure(err, evidence)
+		}
+		if fullObserved {
+			err = &fullRecoveryFailureError{err: err, evidence: full}
 		}
 	}
 	return WrapActivationPhase(phase, err)
