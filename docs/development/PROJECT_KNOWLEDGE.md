@@ -2444,6 +2444,11 @@ specification, runbook, report, or module documentation; link to them when neede
   each caller's fresh barrier and cancellation. Queue count/bytes and the two-second
   wait bound remain unchanged; cross-caller aggregation is tracked by #977.
 
+- Manual worker ticker readiness joins scheduler advancement, not asynchronous
+  SDK admission. Fake-clock tests must settle public AdmissionPending before
+  reading completed SEND counters or moving to the next tick; otherwise host
+  scheduling can manufacture subsecond underdelivery or dispatch expiry.
+
 - First-grant sender deduplication must account for person/group competition.
   A sparse active-person endpoint pool can be exhausted by earlier group sends
   even while other eligible group members remain. When that pool is smaller
