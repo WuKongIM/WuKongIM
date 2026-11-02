@@ -7,6 +7,10 @@ import (
 	"testing"
 )
 
+// cleanupScriptIntegrationBinaries is registered only by the integration tier.
+// TestMain invokes it after all CLI consumers finish; default tests build nothing.
+var cleanupScriptIntegrationBinaries = func() error { return nil }
+
 // TestMain provides immutable source Codex credentials for shell-script tests.
 // Individual tests still receive isolated runtime homes from analyze.sh, while
 // avoiding process-global t.Setenv calls that would serialize otherwise
@@ -37,6 +41,10 @@ func TestMain(m *testing.M) {
 		os.Exit(2)
 	}
 	code := m.Run()
+	if err := cleanupScriptIntegrationBinaries(); err != nil && code == 0 {
+		fmt.Fprintf(os.Stderr, "remove scripts smoke binary: %v\n", err)
+		code = 2
+	}
 	if err := os.RemoveAll(sourceCodexHome); err != nil && code == 0 {
 		fmt.Fprintf(os.Stderr, "remove scripts test CODEX_HOME: %v\n", err)
 		code = 2

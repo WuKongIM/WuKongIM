@@ -223,6 +223,9 @@ func TestWorkerExternalGrantAdvancesSubsecondWithoutExtraPrimaryCredit(t *testin
 	for tick := 1; tick <= 99; tick++ {
 		fixture.clock.Set(now.Add(time.Duration(tick) * 10 * time.Millisecond))
 		ticker.tickAndWait(t)
+		// A tick joins scheduling, while SDK admission completes asynchronously.
+		// Settle its queued work before sampling SENDs or moving the fake clock.
+		waitForEngineAdmissions(t, fixture.engine)
 		if tick == 50 {
 			sent := fixture.verifier.Snapshot().Sent
 			if sent < 20 || sent > 80 {

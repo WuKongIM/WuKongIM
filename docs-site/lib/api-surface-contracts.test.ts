@@ -81,7 +81,7 @@ describe('operations HTTP surface', () => {
     ].filter((route) => route.includes(' /debug/'));
     const benchActual = parseGinCalls(server, { bench: '/bench/v1' });
 
-    expect(debugHTTP).toHaveLength(9);
+    expect(debugHTTP).toHaveLength(10);
     expect(benchHTTP).toHaveLength(12);
     expect(sorted(debugActual)).toEqual(
       sorted(debugHTTP.map(({ method, path }) => routeKey(method, path))),
@@ -93,6 +93,14 @@ describe('operations HTTP surface', () => {
     expect(server).toMatch(/s\.benchToken == ""[\s\S]*strings\.HasPrefix\(path, "\/debug\/"\)/u);
     expect(server).toContain('if s.benchToken != "" {');
     expect(server).toContain('if s.benchTerminalFence != nil && s.benchToken != "" {');
+  });
+
+  test('keeps retained SEND attempt queries behind a configured bearer', async () => {
+    const query = debugHTTP.find(({ path }) => path === '/debug/diagnostics/send-attempts/query');
+    expect(query).toMatchObject({ method: 'POST', audience: 'operator', stability: 'unstable' });
+    expect(query?.authentication).toContain('non-empty bench.api_token');
+    const handler = await source('../../internal/access/api/send_attempt_query.go');
+    expect(handler).toMatch(/s == nil \|\| s\.benchToken == ""[\s\S]*?http\.StatusNotFound/u);
   });
 });
 
@@ -182,7 +190,7 @@ describe('cluster transport catalog', () => {
       }
     }
 
-    expect(nodeTransportServices).toHaveLength(77);
+    expect(nodeTransportServices).toHaveLength(78);
     expect(parsed.sort((a, b) => a.id - b.id)).toEqual(
       nodeTransportServices
         .map(({ id, symbol }) => ({ id, symbol }))
@@ -198,21 +206,22 @@ describe('cluster transport catalog', () => {
       ([, name, symbol]) => `${name}:${symbol}`,
     );
 
-    // The Go test map covers only part of MQTT; ids.go is the complete authority.
-    const mqttAliasesOutsideTestMap = [
+    // The Go test map is partial; ids.go and its alias switch remain authoritative.
+    const aliasesOutsideTestMap = [
       'RPCChannelMQTTReplay', 'RPCChannelMQTTCopy', 'RPCChannelMQTTAnchor',
       'RPCChannelMQTTPlan', 'RPCChannelMQTTRepair', 'RPCChannelMQTTRecovery',
       'RPCChannelMQTTRetirement', 'RPCChannelMQTTRetirementSelection',
       'RPCChannelMQTTConsumerRead', 'RPCChannelWillReceipt',
       'RPCChannelMQTTOriginals', 'RPCMQTTWillDispatch',
+      'RPCPresenceControl',
     ];
     expect(sorted(actual)).toEqual(
       sorted(nodeTransportServices
-        .filter(({ symbol }) => !mqttAliasesOutsideTestMap.includes(symbol))
+        .filter(({ symbol }) => !aliasesOutsideTestMap.includes(symbol))
         .map(({ name, symbol }) => `${name}:${symbol}`)),
     );
     const ids = await source('../../pkg/cluster/net/ids.go');
-    for (const symbol of mqttAliasesOutsideTestMap) {
+    for (const symbol of aliasesOutsideTestMap) {
       const alias = ids.match(new RegExp(`case ${symbol}:\\s*return "([^"]+)"`))?.[1];
       expect(alias, symbol).toBeDefined();
       expect(nodeTransportServices.find((service) => service.symbol === symbol)?.name)

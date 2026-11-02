@@ -777,7 +777,7 @@ export async function checkStaticOutput() {
     const alignedSurfaceFacts = {
       'operations-http/health-and-readiness': ['/healthz', '/readyz', '503'],
       'operations-http/metrics': ['/metrics', 'Prometheus'],
-      'operations-http/read-only': ['/top/v1/snapshot', '/debug/', '/bench/v1/'],
+      'operations-http/read-only': ['/top/v1/snapshot', '/debug/', '/bench/v1/', '/debug/diagnostics/send-attempts/query'],
       'operations-http/stability': ['auth_on=false', 'Manager', 'Node transport'],
       'webhooks/events': ['msg.notify', 'msg.offline', 'user.onlinestatus'],
       'webhooks/payloads': ['message_idstr', 'compress_to_uids', 'msg.notify'],
@@ -791,7 +791,7 @@ export async function checkStaticOutput() {
         '/contracts/json-rpc.experimental.schema.json',
         'Experimental',
       ],
-      'interface-inventory': ['110', String(nodeTransportServices.length), 'message_event_delivery', 'slot_message_updates', 'message_update_hint', 'slot_identity_metadata', 'manager_node_config_document', 'slot_mqtt_metadata', 'mqtt_owner', '/manager/nodes/:node_id/config/toml', 'cluster_health', '/plugin/start'],
+      'interface-inventory': ['110', String(nodeTransportServices.length), 'message_event_delivery', 'slot_message_updates', 'message_update_hint', 'slot_identity_metadata', 'manager_node_config_document', 'slot_mqtt_metadata', 'mqtt_owner', 'presence_control', '/manager/nodes/:node_id/config/toml', 'cluster_health', '/plugin/start'],
     } as const;
     for (const [page, facts] of Object.entries(alignedSurfaceFacts)) {
       const markdown = await text(`llms.mdx/${locale}/api/${page}/content.md`);
@@ -998,11 +998,11 @@ export async function checkStaticOutput() {
     }
     for (const [page, facts] of Object.entries({
       'operations-http/health-and-readiness': ['/healthz', '/readyz'],
-      'operations-http/read-only': ['/top/v1/snapshot', '/bench/v1/'],
+      'operations-http/read-only': ['/top/v1/snapshot', '/bench/v1/', '/debug/diagnostics/send-attempts/query'],
       'webhooks/events': ['msg.notify', 'msg.offline', 'user.onlinestatus'],
       'webhooks/payloads': ['message_idstr', 'compress_to_uids'],
       'specifications/openapi': ['OpenAPI 3.1', String(productHTTPOpenAPIReferenceOperations.length), 'webhooks'],
-      'interface-inventory': ['110', String(nodeTransportServices.length), 'message_event_delivery', 'slot_message_updates', 'message_update_hint', 'slot_identity_metadata', 'manager_node_config_document', '/plugin/start'],
+      'interface-inventory': ['110', String(nodeTransportServices.length), 'message_event_delivery', 'slot_message_updates', 'message_update_hint', 'slot_identity_metadata', 'manager_node_config_document', 'presence_control', '/plugin/start'],
     })) {
       const pageId = `/${locale}/api/${page}`;
       for (const fact of facts) {

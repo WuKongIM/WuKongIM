@@ -917,6 +917,9 @@ type Engine struct {
 	// between grants and never retains history.
 	grantSenders       map[string]struct{}
 	grantRoutingActive bool
+	// firstGrantPersonSenders preserves scarce active-person endpoints while the
+	// pre-clock grant chooses flexible group members. It is released at grant end.
+	firstGrantPersonSenders map[string]struct{}
 	// externalGrantsApplied keeps only the generation-local control sequence.
 	// The first pre-clock grant queues immediately; later grants retain their
 	// seeded due times. Neither waits for local SDK calls in the grant RPC.
@@ -1395,6 +1398,20 @@ func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64)
 				err      error
 			}{err: refreshErr}
 			return
+		}
+		if e.externalGrantsApplied == 0 {
+			e.firstGrantPersonSenders = make(map[string]struct{}, len(e.activeChannels)*2)
+			for _, active := range e.activeChannels {
+				e.firstGrantPersonSenders[active.edge.OwnerUID] = struct{}{}
+				if active.direction == DirectionAlternating {
+					e.firstGrantPersonSenders[active.edge.PeerUID] = struct{}{}
+				}
+			}
+			// A pool at least as large as the entire grant cannot be exhausted by
+			// its group share, so retain ordinary group selection in that case.
+			if uint64(len(e.firstGrantPersonSenders)) >= released {
+				e.firstGrantPersonSenders = nil
+			}
 		}
 		snapshot, grantErr := e.admitGrantedTraffic(now, released)
 		first := e.externalGrantsApplied == 0
@@ -4334,6 +4351,7 @@ func (e *Engine) beginGrantRouting() {
 }
 
 func (e *Engine) endGrantRouting() {
+	e.firstGrantPersonSenders = nil
 	clear(e.grantSenders)
 	e.grantRoutingActive = false
 }
@@ -4513,19 +4531,30 @@ func (e *Engine) routeGroupGrantCandidate(grant TrafficIntent, now time.Time) (T
 	if err != nil {
 		return TrafficIntent{}, err
 	}
-	excluded := func(uid string) bool { return !e.grantSenderAvailable(uid) }
-	sender, ok := e.sessions.onlineGroupMemberExcluding(group, grant.Logical.LogicalSend, correlate, now, excluded)
-	if !ok && group.Category != GroupVeryLarge {
-		var routedIndex uint64
-		sender, routedIndex, ok = e.sessions.onlineGroupMemberInCategoryExcluding(
-			group.Category, grant.Logical.LogicalSend, correlate, e.workerID, now, excluded,
-		)
-		if ok {
-			group, err = e.generator.catalog.Group(routedIndex)
-			if err != nil {
-				return TrafficIntent{}, err
+	var sender SessionLogin
+	preferOutsidePerson := len(e.firstGrantPersonSenders) != 0
+	for {
+		excluded := func(uid string) bool {
+			_, neededByPerson := e.firstGrantPersonSenders[uid]
+			return !e.grantSenderAvailable(uid) || (preferOutsidePerson && neededByPerson)
+		}
+		sender, ok = e.sessions.onlineGroupMemberExcluding(group, grant.Logical.LogicalSend, correlate, now, excluded)
+		if !ok && group.Category != GroupVeryLarge {
+			var routedIndex uint64
+			sender, routedIndex, ok = e.sessions.onlineGroupMemberInCategoryExcluding(
+				group.Category, grant.Logical.LogicalSend, correlate, e.workerID, now, excluded,
+			)
+			if ok {
+				group, err = e.generator.catalog.Group(routedIndex)
+				if err != nil {
+					return TrafficIntent{}, err
+				}
 			}
 		}
+		if ok || !preferOutsidePerson {
+			break
+		}
+		preferOutsidePerson = false
 	}
 	if !ok && e.grantRoutingActive {
 		sender, ok = e.sessions.onlineGroupMemberExcluding(group, grant.Logical.LogicalSend, correlate, now, nil)

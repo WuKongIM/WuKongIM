@@ -1665,6 +1665,10 @@ specification, runbook, report, or module documentation; link to them when neede
   identity and authorization. Manager, Debug, Bench, and MCP are separate privileged
   surfaces. Bench setup uses gated `/bench/v1/*` APIs and a bearer capability when
   remotely reachable. Operations MCP uses its own token and read-only tool boundary.
+- Documentation Debug and node-transport inventories follow complete Go registrations
+  and aliases; partial Go test maps do not define the complete catalog. The retained
+  SEND attempt query requires a non-empty `bench.api_token` even when compatibility
+  Debug routes permit an empty token.
 - Gateway token authentication compares the stored UID/device Token exactly;
   Product HTTP credential updates have no expiry field and JWT `exp` is not
   interpreted. Application backends own expiry, rotation, and revocation. Device
@@ -2439,6 +2443,25 @@ specification, runbook, report, or module documentation; link to them when neede
   and reply. Independent slow-barrier local/remote burst regressions preserve
   each caller's fresh barrier and cancellation. Queue count/bytes and the two-second
   wait bound remain unchanged; cross-caller aggregation is tracked by #977.
+
+- Script integration smoke cases may share a lazy, process-owned read-only CLI
+  build only for a fixed target, flags and source checkout. Runtime data stays
+  case-local; TestMain joins consumers before deleting the temporary executable.
+  Source-rebuild/worktree probes must continue making their own fresh binaries.
+  This reduces duplicate linking inside the unchanged nine-minute, parallel-two
+  scripts gate; it is not prewarming, skipped coverage or a deadline exception.
+
+- Manual worker ticker readiness joins scheduler advancement, not asynchronous
+  SDK admission. Fake-clock tests must settle public AdmissionPending before
+  reading completed SEND counters or moving to the next tick; otherwise host
+  scheduling can manufacture subsecond underdelivery or dispatch expiry.
+
+- First-grant sender deduplication must account for person/group competition.
+  A sparse active-person endpoint pool can be exhausted by earlier group sends
+  even while other eligible group members remain. When that pool is smaller
+  than the first grant, prefer group members outside it before the original
+  bounded fallbacks. Discard the temporary set at grant end; never advance
+  future activity or reduce the admitted rate to satisfy a distinct-sender check.
 
 - Chat-lifecycle grant cadence is an allocation boundary, not a SEND arrival
   timestamp. The bootstrap grant remains immediate; later external grants use

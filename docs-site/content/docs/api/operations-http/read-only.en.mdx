@@ -21,9 +21,9 @@ A missing provider returns 404, collector warm-up returns 503, and an invalid qu
 
 <OpenAPIPage document="wukongim-operations-http-beta-en" operations={[{"path":"/top/v1/snapshot","method":"get"}]} showDescription />
 
-## Debug: 9 registrations
+## Debug: 10 registrations
 
-All require `observability.debug_api_enable=true`. When `bench.api_token` is configured, every `/debug/*` request also needs that exact Bearer; with an empty token there is no built-in authentication.
+All require `observability.debug_api_enable=true`. When `bench.api_token` is configured, every `/debug/*` request also needs that exact Bearer. Compatibility routes allow unauthenticated access with an empty token; the SEND attempt query below instead requires a non-empty token and returns 404 when it is unset.
 
 | Method | Path | Extra condition |
 | --- | --- | --- |
@@ -32,10 +32,13 @@ All require `observability.debug_api_enable=true`. When `bench.api_token` is con
 | `GET` | `/debug/diagnostics/trace/:trace_id` | Diagnostics store required |
 | `GET` | `/debug/diagnostics/message` | Diagnostics store required |
 | `GET` | `/debug/diagnostics/events` | Diagnostics store required |
+| `POST` | `/debug/diagnostics/send-attempts/query` | Non-empty `bench.api_token` and exact Bearer required |
 | `GET` | `/debug/goroutines` | None |
 | `GET` | `/debug/goroutines/summary` | Returns 404 without a registry provider |
 | `ANY` | `/debug/pprof` | None |
 | `ANY` | `/debug/pprof/*name` | Standard CPU, heap, goroutine, and other pprof subroutes |
+
+The private SEND attempt query reads only this node's already-retained anonymous SEND summaries and exact RPC samples. Version-1 requests allow at most 16 combined selectors in an 8 KiB body; absent providers report `unsupported`. It does not start sampling or query other nodes, and is not a public integration API.
 
 ## Bench: 12 registrations
 

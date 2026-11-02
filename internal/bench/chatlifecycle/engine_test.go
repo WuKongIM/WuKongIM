@@ -4828,6 +4828,14 @@ func TestEngineWorkerSchedulersPartitionFormalOnlineTargetAndUIDs(t *testing.T) 
 }
 
 func TestEngineFormalWorkerAcceptsFirstCoordinatorGrantAfterBootstrap(t *testing.T) {
+	for _, autoAck := range []bool{true, false} {
+		t.Run(fmt.Sprintf("auto-ack-%t", autoAck), func(t *testing.T) {
+			testEngineFormalFirstCoordinatorGrant(t, autoAck)
+		})
+	}
+}
+
+func testEngineFormalFirstCoordinatorGrant(t *testing.T, autoAck bool) {
 	const workerCount = uint64(3)
 	config := FormalConfig()
 	for workerID := uint64(0); workerID < workerCount; workerID++ {
@@ -4844,8 +4852,9 @@ func TestEngineFormalWorkerAcceptsFirstCoordinatorGrantAfterBootstrap(t *testing
 				CommandCapacity: limits.command, WorkCapacity: limits.work,
 				InflightCapacity: limits.inflight, MaxWorkPerAdvance: limits.maxWork,
 				StartingCapacity: limits.starting,
+				VerifierConfig:   &VerifierConfig{PendingCapacity: limits.pending, SequenceCapacity: limits.sequence, CorrelationCapacity: limits.correlation, CorrelationDeadline: time.Minute},
 			})
-			fixture.factory.autoAck = true
+			fixture.factory.autoAck = autoAck
 			if err := fixture.engine.Start(context.Background()); err != nil {
 				t.Fatalf("Start: %v", err)
 			}
@@ -6569,6 +6578,7 @@ func TestEngineLocalThreeNodeTwoThousandQPSFirstGrantUsesDistinctSenders(t *test
 				},
 				WorkCapacity: 32_768, InflightCapacity: 4_096, MaxWorkPerAdvance: 32_768,
 				StartingCapacity: 256,
+				VerifierConfig:   &VerifierConfig{PendingCapacity: 4_096, SequenceCapacity: 4_096, CorrelationCapacity: 512, CorrelationDeadline: time.Minute},
 			})
 			fixture.factory.autoAck = true
 			if err := fixture.engine.Start(context.Background()); err != nil {
@@ -7094,7 +7104,9 @@ func assertUnderDeliveryEvidence(t *testing.T, snapshot EvidenceSnapshot, want u
 
 type engineTestLimits struct {
 	// ClientFactory supplies a transport adapter at the public SessionPool seam.
-	ClientFactory             SessionClientFactory
+	ClientFactory SessionClientFactory
+	// VerifierConfig aligns large-grant fixtures with the bounded worker verifier.
+	VerifierConfig            *VerifierConfig
 	Formal                    bool
 	IdentityRunID             string
 	IdentitySeed              uint64
@@ -7201,9 +7213,13 @@ func newEngineTestFixture(t testing.TB, limits engineTestLimits) engineTestFixtu
 	if err != nil {
 		t.Fatalf("NewEvidenceRecorder: %v", err)
 	}
-	verifier, err := NewVerifier(traffic, VerifierConfig{
+	verifierConfig := VerifierConfig{
 		PendingCapacity: 512, SequenceCapacity: 512, CorrelationCapacity: 512, CorrelationDeadline: time.Minute,
-	}, evidence)
+	}
+	if limits.VerifierConfig != nil {
+		verifierConfig = *limits.VerifierConfig
+	}
+	verifier, err := NewVerifier(traffic, verifierConfig, evidence)
 	if err != nil {
 		t.Fatalf("NewVerifier: %v", err)
 	}
