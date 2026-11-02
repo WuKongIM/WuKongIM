@@ -21,9 +21,9 @@ _openapi:
 
 <OpenAPIPage document="wukongim-operations-http-beta-zh" operations={[{"path":"/top/v1/snapshot","method":"get"}]} showDescription />
 
-## Debug：9 条注册
+## Debug：10 条注册
 
-全部要求 `observability.debug_api_enable=true`。配置了 `bench.api_token` 时，所有 `/debug/*` 还要求精确 Bearer；未配置时没有内建认证。
+全部要求 `observability.debug_api_enable=true`。配置了 `bench.api_token` 时，所有 `/debug/*` 还要求精确 Bearer。兼容路由在空 Token 下允许无认证访问；下方 SEND attempt 查询始终要求非空 Token，未配置时返回 404。
 
 | Method | Path | 附加条件 |
 | --- | --- | --- |
@@ -32,10 +32,13 @@ _openapi:
 | `GET` | `/debug/diagnostics/trace/:trace_id` | 需要 Diagnostics Store |
 | `GET` | `/debug/diagnostics/message` | 需要 Diagnostics Store |
 | `GET` | `/debug/diagnostics/events` | 需要 Diagnostics Store |
+| `POST` | `/debug/diagnostics/send-attempts/query` | 必须配置非空 `bench.api_token` 并提供精确 Bearer |
 | `GET` | `/debug/goroutines` | 无 |
 | `GET` | `/debug/goroutines/summary` | 无 Registry Provider 时返回 404 |
 | `ANY` | `/debug/pprof` | 无 |
 | `ANY` | `/debug/pprof/*name` | CPU、heap、goroutine 等标准 pprof 子路由 |
+
+私有 SEND attempt 查询只读取本节点已经保留的匿名 SEND 摘要和精确 RPC 样本。Version 1 请求最多接受 16 个组合选择器，请求体不超过 8 KiB；缺少 Provider 时报告 `unsupported`。它不触发新采样，也不查询其他节点，不属于公共集成 API。
 
 ## Bench：12 条注册
 

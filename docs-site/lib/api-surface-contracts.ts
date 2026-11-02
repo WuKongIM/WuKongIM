@@ -56,8 +56,8 @@ export const basicOperationsHTTP: readonly HTTPSurface[] = [
   },
 ];
 
-/** Debug routes. Every entry also requires observability.debug_api_enable. */
-export const debugHTTP: readonly HTTPSurface[] = [
+/** Compatibility Debug routes retain their existing empty-token behavior. */
+const compatibilityDebugHTTP: readonly HTTPSurface[] = [
   ['GET', '/debug/config', 'A bounded config provider must also be configured.'],
   ['GET', '/debug/cluster', 'A bounded cluster provider must also be configured.'],
   ['GET', '/debug/diagnostics/trace/:trace_id', 'A diagnostics store must also be configured.'],
@@ -75,6 +75,19 @@ export const debugHTTP: readonly HTTPSurface[] = [
   condition: `Requires observability.debug_api_enable. ${detail}`,
   stability: 'unstable' as const,
 }));
+
+/** Debug routes. Every entry also requires observability.debug_api_enable. */
+export const debugHTTP: readonly HTTPSurface[] = [
+  ...compatibilityDebugHTTP,
+  {
+    method: 'POST',
+    path: '/debug/diagnostics/send-attempts/query',
+    audience: 'operator',
+    authentication: 'Requires non-empty bench.api_token and exact Bearer token; unavailable when unset.',
+    condition: 'Requires observability.debug_api_enable. Read-only query of existing node-local SEND summaries and exact RPC samples; no new collection or remote calls.',
+    stability: 'unstable',
+  },
+];
 
 /** Benchmark-only routes. Every entry also requires bench.api_enable. */
 export const benchHTTP: readonly HTTPSurface[] = [
@@ -414,6 +427,7 @@ export const nodeTransportServices: readonly NodeTransportService[] = [
   nodeService(105, 'RPCMQTTWillDispatch', 'mqtt_will_dispatch'),
   nodeService(106, 'RPCSlotMQTTMetadata', 'slot_mqtt_metadata'),
   nodeService(107, 'RPCMQTTOwner', 'mqtt_owner'),
+  nodeService(108, 'RPCPresenceControl', 'presence_control'),
 ];
 
 export const nodeTransportBoundary =

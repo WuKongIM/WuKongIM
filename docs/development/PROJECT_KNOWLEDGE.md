@@ -1665,6 +1665,10 @@ specification, runbook, report, or module documentation; link to them when neede
   identity and authorization. Manager, Debug, Bench, and MCP are separate privileged
   surfaces. Bench setup uses gated `/bench/v1/*` APIs and a bearer capability when
   remotely reachable. Operations MCP uses its own token and read-only tool boundary.
+- Documentation Debug and node-transport inventories follow complete Go registrations
+  and aliases; partial Go test maps do not define the complete catalog. The retained
+  SEND attempt query requires a non-empty `bench.api_token` even when compatibility
+  Debug routes permit an empty token.
 - Gateway token authentication compares the stored UID/device Token exactly;
   Product HTTP credential updates have no expiry field and JWT `exp` is not
   interpreted. Application backends own expiry, rotation, and revocation. Device

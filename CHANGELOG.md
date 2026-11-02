@@ -39,6 +39,10 @@ move those entries into a version section named for that exact tag.
 
 ### 📚 Documentation / 文档
 
+- Align the private Debug and Presence control interface inventories with source
+  registrations, including the SEND attempt query's mandatory bearer boundary.
+  / 同步私有 Debug 与 Presence 控制接口文档，明确 SEND attempt 查询必须配置 Bearer Token。
+
 - Update Flutter EasySDK tutorials to 1.2.1 and add bilingual streaming examples
   for independent peers, typed stream settings, live events and backend recovery.
   / Flutter EasySDK 教程升级到 1.2.1，补充独立连接、流消息设置、实时事件和后端恢复示例。
