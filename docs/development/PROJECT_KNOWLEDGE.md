@@ -1,5 +1,14 @@
 # Project Knowledge
 
+Lifecycle metrics preserve optional block-cache and memtable-reservation byte
+gauges in fixed channel_log/meta/raft order. Missing, duplicate or invalid optional
+values stay unknown and never weaken original required metrics. Only successful,
+complete existing GC observation rounds may emit storage-memory diagnostics:
+16 lines, each at most4KiB, independently of the64 failure-line budget. No extra
+HTTP/GC requests, timers, profiles or gate changes are introduced. Gauge producer
+age, evicted reader pins, flushable-batch backing and total heap attribution remain
+unknown; configured cache capacity and these gauges are not RSS or process limits.
+
 Full Presence recovery failures retain one immutable closed step/kind receipt
 with step elapsed time and the remaining original context budget at entry.
 Parallel Begin freezes its first actual error before joining late owner cuts;

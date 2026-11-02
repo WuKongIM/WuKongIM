@@ -131,8 +131,12 @@ type MetaCreateSlotCounters struct {
 
 // MetricsSnapshot contains only the low-cardinality families needed by lifecycle observation.
 type MetricsSnapshot struct {
-	GoGoroutines     float64
-	GoHeapAllocBytes float64
+	// StorageMemory preserves optional existing gauges in channel_log/meta/raft order.
+	// Unknown fields remain distinct from observed zero and never affect required metrics.
+	StorageMemory     [3]StorageMemoryMetrics `json:"storage_memory"`
+	storageMemorySeen [2]uint8
+	GoGoroutines      float64
+	GoHeapAllocBytes  float64
 	// GoSchedLatencySumSeconds and GoSchedLatencyCount are the cumulative
 	// go_sched_latencies_seconds endpoints. Their between-scrape delta mean
 	// separates goroutine run-queue delay from application-level stalls.
@@ -1172,6 +1176,9 @@ func parseObservationMetrics(encoded []byte) (MetricsSnapshot, error) {
 			return MetricsSnapshot{}, newMetricsParseError("series_limit")
 		}
 		name := observationMetricName(line)
+		if snapshot.observeStorageMemoryMetric(name, line) {
+			continue
+		}
 		kind := observationMetricKind(name)
 		if kind == 0 {
 			continue

@@ -105,6 +105,9 @@ native local baseline
 - Target and response parsing is bounded and redacted. Reports keep fixed
   counters, histograms, reason codes, and bounded samples without raw UIDs,
   Channel IDs, credentials, response bodies, or arbitrary error text.
+  Existing storage-memory gauges use fixed three-store arrays; missing, repeated,
+  nonfinite or inexact optional bytes stay unknown without changing required
+  metrics. Producer age, retained reader pins and total heap attribution are unknown.
 - Metrics acquisition exposes only closed failure kinds and private typed parser
   guard reasons. Finalization aligns failures and optional parser reasons to
   three declared source positions without exposing metric contents or endpoint

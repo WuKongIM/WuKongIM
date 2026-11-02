@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Preserve bounded storage-cache and memtable byte evidence from existing lifecycle
+  GC observation rounds without adding requests or changing acceptance gates.
+  / 生命周期测试复用已有GC观察轮次保留有界缓存与memtable字节证据，不增加请求或改变验收门槛。
+
 - Include bounded Full Presence recovery step, cause and timing evidence in
   existing activation failure logs while preserving deadlines and protocol results.
   / 在现有激活失败日志中保留有界的 Full Presence 恢复步骤、原因及计时证据，期限与协议结果不变。

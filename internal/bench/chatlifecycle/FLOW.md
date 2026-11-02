@@ -100,7 +100,7 @@ passing 72-hour formal generation -> same aged dataset and process proof
   needs fresh proof by the original deadline; definite early absence and existing
   runtime/watermark/reload gates remain. Approval uses a fresh request cut and
   the worker's strict due-time fence.
-- Observer rounds retain resource source time; only late verdict order rebases, preserving exact-hour evidence.
+- Observer rounds retain source time; only late verdict order rebases. Complete successful existing GC rounds may log fixed storage-memory values (16x4KiB), independently of64 failure lines; no extra requests, clock or gate changes, and producer age stays unknown.
 - Failure cleanup fences new work and independently bounds every worker Stop, preserving the original cause.
   Exact product TerminalSend errors permit release; other terminal mutation errors stay harness failures. Stop preserves earlier failures.
 - Grant delivery failures retain three fixed worker sequence/attempt/closed-boundary entries; rejected ticks retain one clock/presence record without extra clock reads.
