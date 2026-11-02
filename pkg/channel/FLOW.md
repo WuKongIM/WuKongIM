@@ -129,7 +129,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   resolve authoritative metadata and prove local replica membership before
   opening storage. Observational probes report absence and installed native authority without loading or recovering runtimes.
 - Mailboxes, Channel count, append/worker queues, batching, recovery probes,
-  maintenance turns, and result payloads are bounded.
+  maintenance turns, and result payloads are bounded. Retry receipt maps grow on demand; the configured command limit still bounds eviction, and durable lookup remains authoritative after eviction.
 - Write fencing rejects new append admission without discarding already
   accepted work. Lifecycle eviction requires no pending work and current
   fenced checkpoint/replica evidence.

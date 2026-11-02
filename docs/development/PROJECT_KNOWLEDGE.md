@@ -1,5 +1,13 @@
 # Project Knowledge
 
+- Channel quorum retry receipt maps grow on actual use instead of reserving the
+  configured command allowance for every installed empty Channel. The logical
+  retention limit, oldest-command eviction and durable retry lookup are unchanged.
+  The public sparse-resident integration test compares 10,000 live empty Channels
+  with allowances 1 and 64 in both orders under a fixed 8 MiB excess-heap budget;
+  it samples before Release and joins cleanup. This resource regression proves
+  unused-capacity overhead only, not a live workload's complete heap attribution.
+
 Lifecycle metrics preserve optional block-cache and memtable-reservation byte
 gauges in fixed channel_log/meta/raft order. Missing, duplicate or invalid optional
 values stay unknown and never weaken original required metrics. Only successful,

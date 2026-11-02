@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Reduce memory used by idle and sparsely used Channels by growing their retry
+  receipt caches on demand while preserving the configured command limit.
+  / Channel 重试回执缓存按实际使用增长，减少空闲与稀疏驻留内存，保留原配置的命令上限。
+
 - Preserve bounded storage-cache and memtable byte evidence from existing lifecycle
   GC observation rounds without adding requests or changing acceptance gates.
   / 生命周期测试复用已有GC观察轮次保留有界缓存与memtable字节证据，不增加请求或改变验收门槛。

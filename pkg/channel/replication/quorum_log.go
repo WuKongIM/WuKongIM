@@ -139,11 +139,11 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (installed
 				return Installed{Authority: state.authority.ID, LEO: state.frontier.LEO, HW: state.hw}, nil
 			}
 		case 1:
-			fenceQuorumChannel(state, authority, l.cfg.MaxRetainedCommands)
+			fenceQuorumChannel(state, authority)
 			authorityAdvanced = true
 		}
 	} else {
-		fenceQuorumChannel(state, authority, l.cfg.MaxRetainedCommands)
+		fenceQuorumChannel(state, authority)
 		authorityAdvanced = true
 	}
 	if authorityAdvanced && l.cfg.RepairAuthorities != nil {
@@ -201,20 +201,21 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (installed
 	state.hw = installedFrontier.LEO
 	state.ready = true
 	state.pending = nil
-	state.retained = make(map[ch.CommandID]retainedProposal, l.cfg.MaxRetainedCommands)
+	// Empty and sparse Channels pay for current receipts, not future retry headroom.
+	state.retained = make(map[ch.CommandID]retainedProposal)
 	state.order = state.order[:0]
 	l.scheduleLearners(state, 1)
 	return Installed{Authority: authority.ID, LEO: state.frontier.LEO, HW: state.hw}, nil
 }
 
-func fenceQuorumChannel(state *quorumChannel, authority Authority, retainedCapacity int) {
+func fenceQuorumChannel(state *quorumChannel, authority Authority) {
 	state.released = false
 	state.authority = cloneAuthority(authority)
 	state.frontier = ReplicaState{}
 	state.hw = 0
 	state.ready = false
 	state.pending = nil
-	state.retained = make(map[ch.CommandID]retainedProposal, retainedCapacity)
+	state.retained = make(map[ch.CommandID]retainedProposal)
 	state.order = state.order[:0]
 }
 
