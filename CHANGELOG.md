@@ -6,6 +6,12 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🔧 Improvements / 改进
+
+- Separate session lookup from client admission in optional lifecycle worker
+  traces, so a pool lock wait is not mistaken for transport admission time.
+  / 生命周期压测的可选运行时轨迹区分会话查找与客户端提交，避免将会话池锁等待误归因于传输层。
+
 ## [v3.0.0-beta.25] - 2026-11-03
 
 ### 🔒 Security / 安全
