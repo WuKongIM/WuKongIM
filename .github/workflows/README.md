@@ -308,8 +308,14 @@ native-package publication remain separate release requirements.
 
 ## Fixed Linux SEND diagnosis
 
-PR messaging unit/race checks, three-node correctness, and the three 500-QPS
-seams run in independent jobs. The performance matrix uses `fail-fast: false`;
+PR messaging unit/race checks, three-node correctness, and the active 500-QPS
+seams (`mixed-send` and `tcp-sendack`) run in independent jobs. At the operator's
+request, `channel-append` is temporarily removed from the PR, scheduled and
+manual performance matrix pending a controlled performance environment. Its
+benchmark/script and historical failures remain intact; suspension is not a
+passing channel-append qualification. Restore that matrix entry and its static
+contract when the performance environment is ready. The performance matrix uses
+`fail-fast: false`;
 one rejected seam cannot suppress another seam or correctness evidence. The
 existing `PR three-node regression` check remains an always-running aggregate
 that requires unit/correctness success and either fresh performance success or
@@ -323,8 +329,10 @@ A newer matching failure, incomplete run, retry, or missing job forbids reuse;
 it never searches past one for a green result. Missing metadata, API rate
 limits, timeouts or other uncertainty fall back to fresh performance jobs.
 The allowed unrelated paths are explicit in `scripts/ci-500qps-baseline.py`.
-Correctness/unit/race always run, and scheduled/manual qualifications always
-run all performance seams to establish fresh baselines.
+Correctness/unit/race always run. Scheduled/manual qualifications run the active
+performance seams. Baseline reuse still requires all three original seams;
+while channel-append is suspended, new runs cannot establish a reusable full
+baseline and PRs fall back to fresh active performance jobs.
 GitHub-hosted Ubuntu 24.04 remains the execution environment. Performance jobs
 pin Go 1.25.11 and four visible AMD64 CPUs/GOMAXPROCS, and record CPU model,
 kernel, source/binary hashes and the actual data filesystem. CPU model and disk

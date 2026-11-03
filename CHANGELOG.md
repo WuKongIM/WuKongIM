@@ -8,6 +8,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Temporarily suspend the hosted-runner channel-append CI performance check pending
+  a controlled performance environment; retain other checks and prior failure evidence.
+  / 暂停托管 runner 上的 channel-append CI 性能检查，待受控性能环境就绪后恢复；保留其他检查及历史失败证据。
+
 - Reduce memory used by idle and sparsely used Channels by growing their retry
   receipt caches on demand while preserving the configured command limit.
   / Channel 重试回执缓存按实际使用增长，减少空闲与稀疏驻留内存，保留原配置的命令上限。

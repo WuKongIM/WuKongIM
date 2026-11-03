@@ -1,5 +1,13 @@
 # Project Knowledge
 
+- The operator temporarily suspended `channel-append` in the three-node hosted-runner
+  performance matrix pending a controlled performance environment. Mixed SEND, TCP
+  SENDACK, correctness/race and nightly lifecycle checks remain enabled. Existing
+  failures remain failures; absence of this check is not performance qualification.
+  Baseline reuse still requires all three original seams, so suspended runs cannot
+  establish a new full baseline. Restore the matrix entry and its static contract
+  together when re-enabling channel-append.
+
 - Channel quorum retry receipt maps grow on actual use instead of reserving the
   configured command allowance for every installed empty Channel. The logical
   retention limit, oldest-command eviction and durable retry lookup are unchanged.
