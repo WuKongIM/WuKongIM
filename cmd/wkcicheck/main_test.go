@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunRejectsArbitraryReviewCheckSelector(t *testing.T) {
+func TestRunRejectsArbitraryCheckSelector(t *testing.T) {
 	t.Parallel()
 
-	require.EqualError(t, run([]string{"bash", "-c", "true"}), "review check selector is required")
-	require.EqualError(t, run([]string{"merge"}), "unknown Review check selector")
+	require.EqualError(t, run([]string{"bash", "-c", "true"}), "CI check selector is required")
+	require.EqualError(t, run([]string{"merge"}), "unknown CI check selector")
 }
 
 func TestDocumentationCheckPlanIsBoundedAndReproducible(t *testing.T) {

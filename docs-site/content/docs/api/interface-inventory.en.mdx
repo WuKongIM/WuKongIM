@@ -77,7 +77,6 @@ ID `16` is retired-reserved and ID `20` reserves a removed feature; neither may 
 | --- | --- | --- |
 | Operations MCP `POST /mcp` | `cluster_health`, `node_inspect`, `slot_inspect`, `channel_runtime_inspect`, `controller_tasks_query`, `metrics_query_range`, `logs_search`, `logs_context`, `diagnostics_query`, `config_read_redacted`, `backup_inspect`, `pprof_analyze` | Dedicated `wko_*` Bearer; Manager JWT rejected; non-empty Origin rejected; read-only except bounded `pprof_analyze` |
 | Cloud Analysis MCP `POST /mcp` | `run_inspect`, `cluster_snapshot`, `workload_inspect`, `metrics_query_range`, `logs_search`, `logs_context`, `diagnostics_query`, `task_audits_query`, `trace_start`, `trace_query`, `profile_capture`, `profile_top`, `profile_list`, `config_read_redacted` | Non-renewable Analysis Bearer scoped to one live Run; `trace_start` and `profile_capture` are bounded active diagnostics |
-| Review Check stdio MCP | `check_list`, `check_result`, `check_run` | Local credential-free stdio; named checks only, never arbitrary commands, arguments, or paths |
 
 The Cloud Analysis Gateway also exposes unauthenticated `GET /healthz`, unauthenticated `GET /self-check`, and optional GitHub-OIDC `POST /analysis/token`. All are **agent-internal**, not public integration APIs.
 
@@ -87,9 +86,7 @@ Cloud View is an unauthenticated Simulation Viewer reverse proxy. `ANY /cloud-vi
 
 ## Agent and benchmark controls
 
-- `wkissueagent`: `reconcile-github`, `recover-task`, `build-context`, `capture-candidate`, `verify-candidate`, `mint-app-token`, `publish-candidate`.
-- `wkreviewagent`: `normalize-review-result`, `reconcile-github`, `recover-review`, `build-context`, `verify-baseline`, `validate-review-result`, `validate-explanation`, `append-state`, `publish-review`.
-- `wkreviewcheck`: `go-format`, `go-mod-tidy`, `web`, `demo`, `docs`, `docs-integration`, `three-node`.
+- `wkcicheck`: `go-vet`, `flow-doc-contracts`, `agent-artifact-contracts`, `skill-focused-contracts`, `go-format`, `go-mod-tidy`, `web`, `demo`, `docs`, `docs-integration`, `three-node`.
 - Generic benchmark worker: 14 `/healthz` and `/v1/*` control routes; all except Health require a Control Token or explicitly enabled insecure control.
 - Chat-lifecycle worker: 12 `/healthz`, `/v1/info`, and `/v1/chat-lifecycle/*` routes; every endpoint, including Health, requires Bearer authentication.
 

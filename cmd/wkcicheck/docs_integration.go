@@ -90,7 +90,7 @@ func newDocumentationIntegrationReceiptOutput(root string) (string, string, erro
 
 func readAndValidateGoldenPathAttestation(
 	ctx context.Context,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 	root string,
 	receiptPath string,
 ) (goldenPathAttestationSummary, error) {
@@ -98,7 +98,7 @@ func readAndValidateGoldenPathAttestation(
 	if err != nil {
 		return goldenPathAttestationSummary{}, err
 	}
-	revision, err := reviewGitOutput(
+	revision, err := checkGitOutput(
 		ctx, commands, root, "rev-parse", "--verify", "HEAD",
 	)
 	if err != nil || !isLowerHexDigest(revision, 40, 64) {
@@ -298,9 +298,9 @@ func requireJSONEnd(decoder *json.Decoder) error {
 	return nil
 }
 
-func reviewGitOutput(
+func checkGitOutput(
 	ctx context.Context,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 	root string,
 	arguments ...string,
 ) (string, error) {

@@ -1,5 +1,10 @@
-// Command wkreviewcheck runs fixed composite checks from the trusted Review
-// Agent control tree. It accepts a selector, never an arbitrary command.
+// Command wkcicheck is the single source of named CI checks. GitHub Actions
+// and local development invoke the same selector, never an arbitrary command:
+//
+//	go run ./cmd/wkcicheck <selector>
+//
+// Selectors is the complete catalog; .github/workflows/ci.yml references these
+// names instead of copying their commands.
 package main
 
 import (
@@ -21,27 +26,46 @@ func main() {
 
 func run(args []string) error {
 	if len(args) != 1 {
-		return errors.New("review check selector is required")
+		return errors.New("CI check selector is required")
 	}
 	root, err := os.Getwd()
 	if err != nil {
-		return errors.New("resolve Review check workspace")
+		return errors.New("resolve CI check workspace")
 	}
-	return runReviewCheck(
-		context.Background(), root, args[0], execReviewCommandExecutor{},
+	return runCICheck(
+		context.Background(), root, args[0], execCommandExecutor{},
 	)
 }
 
-func runReviewCheck(
+// Selectors lists every named check accepted by wkcicheck.
+var Selectors = []string{
+	"go-format", "go-vet", "go-mod-tidy",
+	"flow-doc-contracts", "agent-artifact-contracts", "skill-focused-contracts",
+	"web", "demo", "docs", "docs-integration", "three-node",
+}
+
+func runCICheck(
 	ctx context.Context,
 	root string,
 	selector string,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("Review check canceled: %w", err)
+		return fmt.Errorf("CI check canceled: %w", err)
 	}
 	switch selector {
+	case "go-vet":
+		return runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off"},
+			"go", "vet", "./cmd/...", "./internal/...", "./pkg/...", "./scripts/...", "./docker/...")
+	case "flow-doc-contracts":
+		return runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off"},
+			"go", "run", "./scripts/flowcheck", "--mode", "check")
+	case "agent-artifact-contracts":
+		return runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off"},
+			"go", "run", "./scripts/skillcheck")
+	case "skill-focused-contracts":
+		return runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off"},
+			"go", "run", "./scripts/skillcheck", "--run-focused")
 	case "go-format":
 		return checkGoFormat(ctx, root, commands)
 	case "go-mod-tidy":
@@ -57,7 +81,7 @@ func runReviewCheck(
 	case "three-node":
 		return checkThreeNode(ctx, root, commands)
 	default:
-		return errors.New("unknown Review check selector")
+		return errors.New("unknown CI check selector")
 	}
 }
 
@@ -68,33 +92,33 @@ type checkStep struct {
 	environment []string
 }
 
-type reviewCommandExecutor interface {
+type commandExecutor interface {
 	Output(context.Context, checkStep) ([]byte, error)
 	Run(context.Context, checkStep) error
 }
 
-type execReviewCommandExecutor struct{}
+type execCommandExecutor struct{}
 
-func (execReviewCommandExecutor) Output(
+func (execCommandExecutor) Output(
 	ctx context.Context,
 	step checkStep,
 ) ([]byte, error) {
-	command := reviewExecCommand(ctx, step)
+	command := checkExecCommand(ctx, step)
 	command.Stderr = os.Stderr
 	return command.Output()
 }
 
-func (execReviewCommandExecutor) Run(
+func (execCommandExecutor) Run(
 	ctx context.Context,
 	step checkStep,
 ) error {
-	command := reviewExecCommand(ctx, step)
+	command := checkExecCommand(ctx, step)
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	return command.Run()
 }
 
-func reviewExecCommand(ctx context.Context, step checkStep) *exec.Cmd {
+func checkExecCommand(ctx context.Context, step checkStep) *exec.Cmd {
 	command := exec.CommandContext(ctx, step.name, step.arguments...)
 	command.Dir = step.directory
 	command.Stdin = nil
@@ -217,7 +241,7 @@ func documentationIntegrationCheckPlan(root, receiptPath string) documentationIn
 func checkDocumentation(
 	ctx context.Context,
 	root string,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 ) error {
 	docsRoot := filepath.Join(root, "docs-site")
 	if err := requireVersion(
@@ -231,7 +255,7 @@ func checkDocumentation(
 func checkDocumentationIntegration(
 	ctx context.Context,
 	root string,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 ) (resultErr error) {
 	docsRoot := filepath.Join(root, "docs-site")
 	sampleRoot := filepath.Join(root, "docs-site", "examples", "javascript-web-quickstart")
@@ -281,7 +305,7 @@ func checkDocumentationIntegration(
 
 func runCheckSteps(
 	ctx context.Context,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 	steps []checkStep,
 ) error {
 	for _, step := range steps {
@@ -302,7 +326,7 @@ func runCheckSteps(
 func checkGoFormat(
 	ctx context.Context,
 	root string,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 ) error {
 	output, err := commands.Output(ctx, checkStep{
 		directory: root,
@@ -341,7 +365,7 @@ func checkGoFormat(
 func checkWeb(
 	ctx context.Context,
 	root string,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 ) error {
 	webRoot := filepath.Join(root, "web")
 	if err := requireVersion(
@@ -374,7 +398,7 @@ func checkWeb(
 func checkDemo(
 	ctx context.Context,
 	root string,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 ) error {
 	demoRoot := filepath.Join(root, "demo", "chatdemo")
 	if err := requireVersion(
@@ -410,14 +434,14 @@ func checkDemo(
 func checkThreeNode(
 	ctx context.Context,
 	root string,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 ) error {
 	if err := commands.Run(ctx, checkStep{
 		directory: root,
 		name:      "bash",
 		arguments: []string{
 			"scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
-			"--out-dir", ".review-agent-output/three-node-smoke",
+			"--out-dir", ".ci-output/three-node-smoke",
 			"--ready-timeout", "180",
 		},
 		environment: []string{
@@ -434,7 +458,7 @@ func checkThreeNode(
 
 func requireVersion(
 	ctx context.Context,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 	directory string,
 	name string,
 	expected string,
@@ -446,17 +470,17 @@ func requireVersion(
 		arguments: arguments,
 	})
 	if err != nil {
-		return fmt.Errorf("run Review check tool %s version: %w", name, err)
+		return fmt.Errorf("run CI check tool %s version: %w", name, err)
 	}
 	if strings.TrimSpace(string(output)) != expected {
-		return fmt.Errorf("unexpected Review check tool %s version", name)
+		return fmt.Errorf("unexpected CI check tool %s version", name)
 	}
 	return nil
 }
 
 func requireCleanBundle(
 	ctx context.Context,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 	root string,
 	bundlePath string,
 ) error {
@@ -482,7 +506,7 @@ func requireCleanBundle(
 
 func runCommand(
 	ctx context.Context,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 	directory string,
 	name string,
 	arguments ...string,
@@ -494,14 +518,14 @@ func runCommand(
 
 func runCommandWithEnvironment(
 	ctx context.Context,
-	commands reviewCommandExecutor,
+	commands commandExecutor,
 	directory string,
 	environment []string,
 	name string,
 	arguments ...string,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("Review check command %s canceled: %w", name, err)
+		return fmt.Errorf("CI check command %s canceled: %w", name, err)
 	}
 	if err := commands.Run(ctx, checkStep{
 		directory:   directory,
@@ -511,10 +535,10 @@ func runCommandWithEnvironment(
 	}); err != nil {
 		if contextErr := ctx.Err(); contextErr != nil {
 			return fmt.Errorf(
-				"Review check command %s canceled: %w", name, contextErr,
+				"CI check command %s canceled: %w", name, contextErr,
 			)
 		}
-		return fmt.Errorf("Review check command %s failed", name)
+		return fmt.Errorf("CI check command %s failed", name)
 	}
 	return nil
 }

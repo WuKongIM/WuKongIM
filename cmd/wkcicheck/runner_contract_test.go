@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -16,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type fakeReviewCommandExecutor struct {
+type fakeCommandExecutor struct {
 	outputs      []checkStep
 	runs         []checkStep
 	output       func(context.Context, checkStep) ([]byte, error)
@@ -28,7 +27,7 @@ type fakeReviewCommandExecutor struct {
 	unexpectedOK bool
 }
 
-func (executor *fakeReviewCommandExecutor) Output(
+func (executor *fakeCommandExecutor) Output(
 	ctx context.Context,
 	step checkStep,
 ) ([]byte, error) {
@@ -41,7 +40,7 @@ func (executor *fakeReviewCommandExecutor) Output(
 	}
 	switch {
 	case step.name == "git" && slices.Contains(step.arguments, "ls-files"):
-		return []byte("cmd/wkreviewcheck/main.go\x00cmd/wkreviewcheck/docs_integration.go\x00"), nil
+		return []byte("cmd/wkcicheck/main.go\x00cmd/wkcicheck/docs_integration.go\x00"), nil
 	case step.name == "gofmt":
 		return nil, nil
 	case step.name == "bun" && slices.Equal(step.arguments, []string{"--version"}):
@@ -61,7 +60,7 @@ func (executor *fakeReviewCommandExecutor) Output(
 	}
 }
 
-func (executor *fakeReviewCommandExecutor) Run(
+func (executor *fakeCommandExecutor) Run(
 	ctx context.Context,
 	step checkStep,
 ) error {
@@ -98,22 +97,8 @@ func cloneCheckStep(step checkStep) checkStep {
 	return step
 }
 
-func TestPolicyBackedSelectorsRemainTheOnlyExecutableEntryPoints(t *testing.T) {
-	policyBody, err := os.ReadFile(filepath.Join("..", "..", ".github", "review-agent", "policy.json"))
-	require.NoError(t, err)
-	var policy struct {
-		TrustedChecks map[string]struct {
-			Arguments []string `json:"arguments"`
-		} `json:"trusted_checks"`
-	}
-	require.NoError(t, json.Unmarshal(policyBody, &policy))
-
-	var selectors []string
-	for _, check := range policy.TrustedChecks {
-		if len(check.Arguments) == 2 && check.Arguments[0] == "review-agent-check" {
-			selectors = append(selectors, check.Arguments[1])
-		}
-	}
+func TestEverySelectorRunsOnlyPinnedTools(t *testing.T) {
+	selectors := slices.Clone(Selectors)
 	slices.Sort(selectors)
 	require.NotEmpty(t, selectors)
 
@@ -127,11 +112,11 @@ func TestPolicyBackedSelectorsRemainTheOnlyExecutableEntryPoints(t *testing.T) {
 	for _, selector := range selectors {
 		selector := selector
 		t.Run(selector, func(t *testing.T) {
-			executor := &fakeReviewCommandExecutor{
+			executor := &fakeCommandExecutor{
 				revision: strings.Repeat("a", 40),
 				lockSHA:  hex.EncodeToString(lockHash[:]),
 			}
-			require.NoError(t, runReviewCheck(context.Background(), root, selector, executor))
+			require.NoError(t, runCICheck(context.Background(), root, selector, executor))
 			require.NotEmpty(t, append(executor.outputs, executor.runs...))
 
 			for _, step := range append(executor.outputs, executor.runs...) {
@@ -146,8 +131,8 @@ func TestPolicyBackedSelectorsRemainTheOnlyExecutableEntryPoints(t *testing.T) {
 func TestThreeNodeSelectorKeepsTheFixedFailSafeScenario(t *testing.T) {
 	t.Parallel()
 
-	executor := &fakeReviewCommandExecutor{}
-	require.NoError(t, runReviewCheck(
+	executor := &fakeCommandExecutor{}
+	require.NoError(t, runCICheck(
 		context.Background(), "/workspace", "three-node", executor,
 	))
 	require.Equal(t, []checkStep{{
@@ -155,7 +140,7 @@ func TestThreeNodeSelectorKeepsTheFixedFailSafeScenario(t *testing.T) {
 		name:      "bash",
 		arguments: []string{
 			"scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
-			"--out-dir", ".review-agent-output/three-node-smoke",
+			"--out-dir", ".ci-output/three-node-smoke",
 			"--ready-timeout", "180",
 		},
 		environment: []string{
@@ -167,15 +152,15 @@ func TestThreeNodeSelectorKeepsTheFixedFailSafeScenario(t *testing.T) {
 	}}, executor.runs)
 }
 
-func TestReviewCheckCancellationStopsBeforeAndBetweenCommands(t *testing.T) {
+func TestCICheckCancellationStopsBeforeAndBetweenCommands(t *testing.T) {
 	t.Parallel()
 
 	t.Run("before selector", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		executor := &fakeReviewCommandExecutor{}
-		err := runReviewCheck(ctx, "/workspace", "go-mod-tidy", executor)
+		executor := &fakeCommandExecutor{}
+		err := runCICheck(ctx, "/workspace", "go-mod-tidy", executor)
 		require.ErrorIs(t, err, context.Canceled)
 		require.Empty(t, executor.outputs)
 		require.Empty(t, executor.runs)
@@ -184,53 +169,53 @@ func TestReviewCheckCancellationStopsBeforeAndBetweenCommands(t *testing.T) {
 	t.Run("between plan steps", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
-		executor := &fakeReviewCommandExecutor{cancelOnRun: 1, cancel: cancel}
-		err := runReviewCheck(ctx, "/workspace", "docs", executor)
+		executor := &fakeCommandExecutor{cancelOnRun: 1, cancel: cancel}
+		err := runCICheck(ctx, "/workspace", "docs", executor)
 		require.ErrorIs(t, err, context.Canceled)
 		require.Len(t, executor.outputs, 1, "the pinned tool version is checked first")
 		require.Len(t, executor.runs, 1, "no command after cancellation may start")
 	})
 }
 
-func TestReviewCheckClassifiesToolAndArtifactFailures(t *testing.T) {
+func TestCICheckClassifiesToolAndArtifactFailures(t *testing.T) {
 	t.Parallel()
 
 	t.Run("pinned version mismatch", func(t *testing.T) {
 		t.Parallel()
-		executor := &fakeReviewCommandExecutor{output: func(_ context.Context, _ checkStep) ([]byte, error) {
+		executor := &fakeCommandExecutor{output: func(_ context.Context, _ checkStep) ([]byte, error) {
 			return []byte("1.4.0\n"), nil
 		}}
-		err := runReviewCheck(context.Background(), "/workspace", "docs", executor)
-		require.EqualError(t, err, "unexpected Review check tool bun version")
+		err := runCICheck(context.Background(), "/workspace", "docs", executor)
+		require.EqualError(t, err, "unexpected CI check tool bun version")
 		require.Empty(t, executor.runs)
 	})
 
 	t.Run("failed command does not leak implementation error", func(t *testing.T) {
 		t.Parallel()
 		sentinel := errors.New("sensitive process detail")
-		executor := &fakeReviewCommandExecutor{
+		executor := &fakeCommandExecutor{
 			revision: strings.Repeat("a", 40),
 			run: func(_ context.Context, _ checkStep) error {
 				return sentinel
 			},
 		}
-		err := runReviewCheck(context.Background(), "/workspace", "go-mod-tidy", executor)
-		require.EqualError(t, err, "Review check command go failed")
+		err := runCICheck(context.Background(), "/workspace", "go-mod-tidy", executor)
+		require.EqualError(t, err, "CI check command go failed")
 		require.NotErrorIs(t, err, sentinel)
 	})
 
 	t.Run("three-node failure has scenario classification", func(t *testing.T) {
 		t.Parallel()
-		executor := &fakeReviewCommandExecutor{run: func(_ context.Context, _ checkStep) error {
+		executor := &fakeCommandExecutor{run: func(_ context.Context, _ checkStep) error {
 			return errors.New("failed")
 		}}
-		err := runReviewCheck(context.Background(), "/workspace", "three-node", executor)
+		err := runCICheck(context.Background(), "/workspace", "three-node", executor)
 		require.EqualError(t, err, "three-node cluster smoke failed")
 	})
 
 	t.Run("stale generated bundle blocks publication", func(t *testing.T) {
 		t.Parallel()
-		executor := &fakeReviewCommandExecutor{output: func(_ context.Context, step checkStep) ([]byte, error) {
+		executor := &fakeCommandExecutor{output: func(_ context.Context, step checkStep) ([]byte, error) {
 			switch {
 			case step.name == "bun":
 				return []byte("1.3.11\n"), nil
@@ -240,7 +225,7 @@ func TestReviewCheckClassifiesToolAndArtifactFailures(t *testing.T) {
 				return nil, fmt.Errorf("unexpected output command %s", step.name)
 			}
 		}}
-		err := runReviewCheck(context.Background(), "/workspace", "web", executor)
+		err := runCICheck(context.Background(), "/workspace", "web", executor)
 		require.EqualError(t, err, "generated embedded bundle is stale")
 	})
 }
@@ -279,7 +264,7 @@ func TestGoFormatSelectorValidatesTheTrackedInventory(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			call := 0
-			executor := &fakeReviewCommandExecutor{output: func(_ context.Context, _ checkStep) ([]byte, error) {
+			executor := &fakeCommandExecutor{output: func(_ context.Context, _ checkStep) ([]byte, error) {
 				index := call
 				call++
 				var output []byte
@@ -292,17 +277,17 @@ func TestGoFormatSelectorValidatesTheTrackedInventory(t *testing.T) {
 				}
 				return output, err
 			}}
-			err := runReviewCheck(context.Background(), "/workspace", "go-format", executor)
+			err := runCICheck(context.Background(), "/workspace", "go-format", executor)
 			require.EqualError(t, err, test.expected)
 			require.Equal(t, test.callCount, call)
 		})
 	}
 }
 
-func TestReviewExecCommandBuildsAnExplicitScopedEnvironment(t *testing.T) {
+func TestCheckExecCommandBuildsAnExplicitScopedEnvironment(t *testing.T) {
 	t.Setenv("WK_REVIEW_CHECK_BOUNDARY", "ambient")
 
-	command := reviewExecCommand(context.Background(), checkStep{
+	command := checkExecCommand(context.Background(), checkStep{
 		directory: "/workspace/docs-site",
 		name:      "bun",
 		arguments: []string{"run", "verify"},
@@ -318,7 +303,7 @@ func TestReviewExecCommandBuildsAnExplicitScopedEnvironment(t *testing.T) {
 	require.Contains(t, command.Env, "WK_REVIEW_CHECK_BOUNDARY=trusted")
 	require.Contains(t, command.Env, "WK_REVIEW_CHECK_EMPTY=")
 
-	inherited := reviewExecCommand(context.Background(), checkStep{name: "go"})
+	inherited := checkExecCommand(context.Background(), checkStep{name: "go"})
 	require.Nil(t, inherited.Env, "nil preserves the subprocess inherited environment")
 }
 
