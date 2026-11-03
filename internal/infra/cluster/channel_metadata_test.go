@@ -40,8 +40,6 @@ func TestChannelMetadataStoreAdmitsPersonDirectoryTaskOnce(t *testing.T) {
 	}
 	cache := NewChannelAppendMetadataCache()
 	store := NewChannelMetadataStore(node, cache, nil)
-	wakes := 0
-	store.SetPersonDirectoryWake(func() { wakes++ })
 	store.personDirectories.collectWait = 0
 
 	if err := store.AdmitPersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
@@ -54,26 +52,21 @@ func TestChannelMetadataStoreAdmitsPersonDirectoryTaskOnce(t *testing.T) {
 	if task.ChannelID != "u1@u2" || task.ChannelType != 1 || task.CommittedTail != 9 || task.CreatedAt <= 0 {
 		t.Fatalf("directory task = %+v", task)
 	}
-	if wakes != 1 {
-		t.Fatalf("projector wakes = %d, want 1 after durable admission", wakes)
-	}
 	metadata, ok := cache.Lookup(channelappend.ChannelID{ID: "u1@u2", Type: 1})
 	if !ok || metadata.DirectoryProjectionState != metadb.DirectoryProjectionPending {
 		t.Fatalf("metadata = %+v ok=%v", metadata, ok)
 	}
-	node.authoritativeChannel.DirectoryProjectionState = metadb.DirectoryProjectionPending
+	node.authoritativeChannel.DirectoryProjectionState = metadb.DirectoryProjectionReady
+	node.authoritativeChannel.DirectoryProjectionGeneration = 1
 	if err := store.AdmitPersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
 		t.Fatalf("AdmitPersonChannelDirectory(authoritative pending): %v", err)
 	}
 	if len(node.directoryTasks) != 1 {
 		t.Fatalf("cached admission repeated writes: tasks=%d", len(node.directoryTasks))
 	}
-	if wakes != 1 {
-		t.Fatalf("cached admission wakes = %d, want unchanged", wakes)
-	}
 }
 
-func TestChannelMetadataStoreAcceptsAuthoritativePendingDirectoryAdmission(t *testing.T) {
+func TestChannelMetadataStorePreparesAuthoritativePendingDirectoryAdmission(t *testing.T) {
 	t.Parallel()
 
 	node := &recordingChannelMetadataNode{
@@ -88,8 +81,11 @@ func TestChannelMetadataStoreAcceptsAuthoritativePendingDirectoryAdmission(t *te
 	if node.localReadCalls != 0 || node.authoritativeReadCalls != 1 {
 		t.Fatalf("directory reads local=%d authoritative=%d, want 0/1", node.localReadCalls, node.authoritativeReadCalls)
 	}
-	if len(node.directoryTasks) != 0 {
-		t.Fatalf("replicated admission proof caused writes: tasks=%d", len(node.directoryTasks))
+	if len(node.directoryTasks) != 1 {
+		t.Fatalf("pending directory skipped preparation: tasks=%d", len(node.directoryTasks))
+	}
+	if node.committedTailCalls != 0 {
+		t.Fatal("pending task tail must not be recaptured")
 	}
 }
 
@@ -488,6 +484,9 @@ func (r *recordingChannelMetadataNode) ReadPermissionMetadataBatchAuthoritative(
 		if read.Kind == slotproxy.PermissionMetadataReadChannel {
 			results[i].Found = true
 			results[i].Channel = r.authoritativeChannel
+			if r.authoritativeChannel.DirectoryProjectionState == metadb.DirectoryProjectionReady {
+				results[i].PersonDirectoryFence = testDirectoryFence()
+			}
 		}
 	}
 	return results
@@ -534,10 +533,10 @@ func (r *recordingChannelMetadataNode) AdmitPersonDirectoryTasks(_ context.Conte
 	return make([]error, len(tasks))
 }
 
-func (r *recordingChannelMetadataNode) AdmitPersonDirectoryTaskWaves(_ context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+func (r *recordingChannelMetadataNode) PreparePersonDirectoryTaskWaves(_ context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, metadb.PersonDirectoryAppendFence, error)) {
 	r.directoryTasks = append(r.directoryTasks, tasks...)
 	for i := range tasks {
-		emit(i, nil)
+		emit(i, testDirectoryFence(), nil)
 	}
 }
 

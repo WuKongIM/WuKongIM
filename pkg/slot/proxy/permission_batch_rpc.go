@@ -48,8 +48,9 @@ type PermissionMetadataRead struct {
 
 // PermissionMetadataReadResult aligns with one PermissionMetadataRead.
 type PermissionMetadataReadResult struct {
-	UserPolicy metadb.SendBanResult
-	Channel    metadb.Channel
+	PersonDirectoryFence metadb.PersonDirectoryAppendFence `json:"PersonDirectoryFence,omitzero"`
+	UserPolicy           metadb.SendBanResult
+	Channel              metadb.Channel
 	// Runtime is present only for an existing runtime in a conversation metadata read.
 	Runtime *metadb.ChannelRuntimeMeta
 	Found   bool

@@ -8,6 +8,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Temporarily suspend the hosted-runner channel-append CI performance check pending
+  a controlled performance environment; retain other checks and prior failure evidence.
+  / 暂停托管 runner 上的 channel-append CI 性能检查，待受控性能环境就绪后恢复；保留其他检查及历史失败证据。
+
 - Reduce memory used by idle and sparsely used Channels by growing their retry
   receipt caches on demand while preserving the configured command limit.
   / Channel 重试回执缓存按实际使用增长，减少空闲与稀疏驻留内存，保留原配置的命令上限。
@@ -60,6 +64,16 @@ move those entries into a version section named for that exact tag.
   同时保留本地启动指南。
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Wait for durable person-channel discovery before accepting the first ordinary
+  persistent message, fixing successful sends temporarily missing from history
+  and conversation sync. Bind readiness to final append authority across
+  deletion/recreation and retries. Queue and coalesce concurrent cold preparations
+  within fixed limits to absorb ingress bursts. Ready channels reuse existing permission reads.
+  Upgrade cluster nodes together for preparation RPC and append request version 4.
+  / 修复单聊首条持久化消息发送成功后暂时查不到历史和会话的问题；热会话复用权限读取。
+  目录就绪状态绑定到最终追加代际，防止删除重建与重试越代；内部 RPC 需集群节点配套升级。
+  冷会话准备在固定容量内排队和合批，减少并发首发突发时的拒绝与积压。
 
 - Keep the first chat-lifecycle grant on distinct senders when its active person pool is scarce by preferring other eligible group members. / 生命周期压测首批发放在单聊发送者不足时优先选择其它合格群成员，避免重复占用发送者。
 

@@ -153,7 +153,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        seam: [channel-append, mixed-send, tcp-sendack]
+        # Operator-paused: channel-append awaits a controlled performance environment.
+        # Keep its benchmark and prior failures; suspension is not qualification.
+        seam: [mixed-send, tcp-sendack]
     env:
       GOWORK: "off"
       GOMAXPROCS: "4"

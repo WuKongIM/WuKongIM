@@ -273,7 +273,7 @@ func (s *Store) readSendPermissionMetadataBatch(ctx context.Context, reads []Per
 						continue
 					}
 					fact := g.Results[k].Fact
-					out[r.Index] = PermissionMetadataReadResult{Channel: fact.Channel, Found: fact.Found, Value: fact.Value, UserPolicy: fact.UserPolicy}
+					out[r.Index] = PermissionMetadataReadResult{PersonDirectoryFence: fact.PersonDirectoryFence, Channel: fact.Channel, Found: fact.Found, Value: fact.Value, UserPolicy: fact.UserPolicy}
 				}
 			}
 		})
@@ -717,6 +717,11 @@ func (s *Store) UpdateChannelInfo(ctx context.Context, q metadb.ChannelInfoMutat
 }
 
 func validSendPermissionFact(q PermissionMetadataRead, f metadb.PermissionFact) bool {
+	if proof := f.PersonDirectoryFence; proof != (metadb.PersonDirectoryAppendFence{}) {
+		if q.Kind != PermissionMetadataReadChannel || q.ChannelType != 1 || !f.Found || !proof.Valid() || f.Channel.DirectoryProjectionState != metadb.DirectoryProjectionReady || proof.DirectoryGeneration != f.Channel.DirectoryProjectionGeneration {
+			return false
+		}
+	}
 	switch q.Kind {
 	case PermissionMetadataReadChannel:
 		if f.Value || f.UserPolicy != (metadb.SendBanResult{}) {

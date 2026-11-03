@@ -167,10 +167,14 @@ const (
 	RPCMQTTOwner
 	// RPCPresenceControl proves capability and commits bounded Presence generations.
 	RPCPresenceControl
+	// RPCPersonDirectoryPrepare waits for source-owned person discovery preparation.
+	RPCPersonDirectoryPrepare
 )
 
 func transportServiceAlias(serviceID uint8) string {
 	switch serviceID {
+	case RPCPersonDirectoryPrepare:
+		return "person directory prepare"
 	case MsgSlotRaft:
 		return "slot raft"
 	case MsgSlotRaftBatch:

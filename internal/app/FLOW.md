@@ -55,7 +55,7 @@ Stop or startup rollback
 - Every product deployment, including one node, uses cluster semantics. Wiring
   must not introduce a local business bypass.
   Real single-node SEND/SENDACK smoke coverage lives in the integration tier and
-  uses the production-default send deadline; native-package preview runs it explicitly.
+  uses the production-default send deadline; native-package preview runs it explicitly. Default HTTP/WKProto composition waits for person-directory Ready before durable append. The app-owned projector serves bounded source-leader preparation (RPC 109) and periodic recovery; preparation owners stop before cluster dependencies.
 - Synchronous before-send Webhook admission is independent of Webhook workers and plugin enablement; configuration errors fail startup.
 - Gateway feedback uses Online Delivery FeedbackHandler directly; disabled delivery leaves that optional port absent.
 - Optional features require all their ports; unavailable capabilities remain explicit.

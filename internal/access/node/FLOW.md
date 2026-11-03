@@ -55,7 +55,7 @@ scheduled backup or restore
 - Enabled SEND diagnostics capture each actual outbound SID21 identity and mark the
   receiver entry explicitly. Each original item keeps its own reference across shared
   work; missing receiver traces stay unknown, and references grant no business proof.
-- Channel append request 3 carries bounded publication metadata. Native-only
+- Channel append request 4 carries the target route generation and immutable person-directory authority proofs; missing/partial proofs never downgrade. Request 3 carries bounded publication metadata. Unfenced native-only
   requests retain version-2 bytes; invalid metadata fails before dispatch.
 - Owner-push request 2 preserves publication metadata, original timestamp and
   message settings. Empty extensions keep version-1 bytes; lossy downgrade is forbidden.

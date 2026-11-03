@@ -13,8 +13,8 @@ import (
 
 func TestPersonDirectoryBatcherUsesBoundedCollectionWindowAndBatch(t *testing.T) {
 	batcher := newPersonDirectoryBatcher(&recordingPersonDirectoryBatchNode{}, nil)
-	if batcher.collectWait != 50*time.Millisecond {
-		t.Fatalf("collect wait = %v, want 50ms", batcher.collectWait)
+	if batcher.collectWait != time.Millisecond {
+		t.Fatalf("collect wait = %v, want 1ms", batcher.collectWait)
 	}
 	if batcher.targetItems != 32 || personDirectoryBatchMaxItems != 128 {
 		t.Fatalf("target/max batch items = %d/%d, want 32/128", batcher.targetItems, personDirectoryBatchMaxItems)
@@ -428,24 +428,24 @@ type stagedIntraBatchPersonDirectoryBatchNode struct {
 	releaseSlow <-chan struct{}
 }
 
-func (n *stagedIntraBatchPersonDirectoryBatchNode) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+func (n *stagedIntraBatchPersonDirectoryBatchNode) PreparePersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, metadb.PersonDirectoryAppendFence, error)) {
 	if len(tasks) > 0 {
-		emit(0, nil)
+		emit(0, testDirectoryFence(), nil)
 	}
 	if len(tasks) < 2 {
 		return
 	}
 	select {
 	case <-ctx.Done():
-		emit(1, ctx.Err())
+		emit(1, metadb.PersonDirectoryAppendFence{}, ctx.Err())
 	case <-n.releaseSlow:
-		emit(1, nil)
+		emit(1, testDirectoryFence(), nil)
 	}
 }
 
 func (n *stagedIntraBatchPersonDirectoryBatchNode) AdmitPersonDirectoryTasks(ctx context.Context, tasks []metadb.PersonDirectoryTask) []error {
 	results := make([]error, len(tasks))
-	n.AdmitPersonDirectoryTaskWaves(ctx, tasks, func(index int, err error) { results[index] = err })
+	n.PreparePersonDirectoryTaskWaves(ctx, tasks, func(index int, _ metadb.PersonDirectoryAppendFence, err error) { results[index] = err })
 	return results
 }
 
@@ -464,7 +464,7 @@ func (n *stagedPersonDirectoryBatchNode) AdmitPersonDirectoryTasks(ctx context.C
 	return results
 }
 
-func (n *stagedPersonDirectoryBatchNode) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+func (n *stagedPersonDirectoryBatchNode) PreparePersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, metadb.PersonDirectoryAppendFence, error)) {
 	emitPersonDirectoryAdmissionResults(n.AdmitPersonDirectoryTasks(ctx, tasks), emit)
 }
 
@@ -478,7 +478,7 @@ func (n *partialPersonDirectoryBatchNode) AdmitPersonDirectoryTasks(_ context.Co
 	return results
 }
 
-func (n *partialPersonDirectoryBatchNode) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+func (n *partialPersonDirectoryBatchNode) PreparePersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, metadb.PersonDirectoryAppendFence, error)) {
 	emitPersonDirectoryAdmissionResults(n.AdmitPersonDirectoryTasks(ctx, tasks), emit)
 }
 
@@ -499,7 +499,7 @@ func (n *blockingPersonDirectoryBatchNode) AdmitPersonDirectoryTasks(ctx context
 	return results
 }
 
-func (n *blockingPersonDirectoryBatchNode) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+func (n *blockingPersonDirectoryBatchNode) PreparePersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, metadb.PersonDirectoryAppendFence, error)) {
 	emitPersonDirectoryAdmissionResults(n.AdmitPersonDirectoryTasks(ctx, tasks), emit)
 }
 
@@ -516,13 +516,13 @@ func (n *recordingPersonDirectoryBatchNode) AdmitPersonDirectoryTasks(_ context.
 	return results
 }
 
-func (n *recordingPersonDirectoryBatchNode) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, error)) {
+func (n *recordingPersonDirectoryBatchNode) PreparePersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, metadb.PersonDirectoryAppendFence, error)) {
 	emitPersonDirectoryAdmissionResults(n.AdmitPersonDirectoryTasks(ctx, tasks), emit)
 }
 
-func emitPersonDirectoryAdmissionResults(results []error, emit func(int, error)) {
+func emitPersonDirectoryAdmissionResults(results []error, emit func(int, metadb.PersonDirectoryAppendFence, error)) {
 	for i, err := range results {
-		emit(i, err)
+		emit(i, testDirectoryFence(), err)
 	}
 }
 
@@ -549,4 +549,8 @@ func directoryOutcomeIndexes(outcomes []personDirectoryBatchOutcome) []int {
 		indexes[i] = outcome.index
 	}
 	return indexes
+}
+
+func testDirectoryFence() metadb.PersonDirectoryAppendFence {
+	return metadb.PersonDirectoryAppendFence{ChannelEpoch: 1, LeaderEpoch: 1, RouteGeneration: 1, DirectoryGeneration: 1}
 }

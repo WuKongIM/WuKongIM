@@ -202,7 +202,7 @@ func (a *App) checkSendPermissionsBatch(ctx context.Context, items []SendBatchIt
 		if item.Command.ChannelType == channelTypePerson && sources[i] != "" {
 			r, e := facts.get(PermissionRead{Kind: PermissionReadChannel, ChannelID: sources[i], ChannelType: int64(channelTypePerson)})
 			if e == nil {
-				out[i].personDirectoryFact = &PersonDirectoryChannelFact{Found: r.Found, Channel: r.Channel}
+				out[i].personDirectoryFact = &PersonDirectoryChannelFact{Found: r.Found, Channel: r.Channel, PersonDirectoryFence: r.PersonDirectoryFence}
 			}
 		}
 	}

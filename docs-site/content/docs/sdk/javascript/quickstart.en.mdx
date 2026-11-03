@@ -52,12 +52,12 @@ If you already have the repository, enter the same example directory. Open [http
 3. Disconnect Bob and send another message from Alice.
 4. Reconnect Bob; confirm the missing message is restored and displayed once.
 
-The first history sync may briefly be empty; the example retries within a finite budget.
+The example retains bounded first-history retries for compatibility with older servers that project directories asynchronously.
 
 <details>
 <summary>Retry details and a different API endpoint</summary>
 
-Person membership is projected asynchronously after a successful SENDACK, so the first history sync can briefly return HTTP 200 with an empty page. The example backend retries an empty latest page (both sequence bounds zero) up to 20 attempts, 250 ms apart. Nonempty results and ordinary cursor pages return immediately. A genuinely empty chat returns an empty list after at most 19 waits: 4.75 seconds plus HTTP request time. Other errors still fail; production integrations need their own consistency and request-deadline policy.
+Servers containing the issue #1066 fix wait for both person-directory memberships before acknowledging an ordinary persistent message; warm channels reuse existing permission reads. Older servers project membership after SENDACK, so their first history sync can briefly return HTTP 200 with an empty page. The example backend retries an empty latest page (both sequence bounds zero) up to 20 attempts, 250 ms apart. Nonempty results and ordinary cursor pages return immediately. A genuinely empty chat returns an empty list after at most 19 waits: 4.75 seconds plus HTTP request time. Other errors still fail; production integrations need their own consistency and request-deadline policy.
 
 
 Node.js uses `http://127.0.0.1:5001` by default. Set `WK_DOCS_QUICKSTART_PRODUCT_HTTP_URL` for a different test API endpoint, for example:

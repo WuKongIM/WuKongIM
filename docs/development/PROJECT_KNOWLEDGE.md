@@ -1,5 +1,13 @@
 # Project Knowledge
 
+- The operator temporarily suspended `channel-append` in the three-node hosted-runner
+  performance matrix pending a controlled performance environment. Mixed SEND, TCP
+  SENDACK, correctness/race and nightly lifecycle checks remain enabled. Existing
+  failures remain failures; absence of this check is not performance qualification.
+  Baseline reuse still requires all three original seams, so suspended runs cannot
+  establish a new full baseline. Restore the matrix entry and its static contract
+  together when re-enabling channel-append.
+
 - Channel quorum retry receipt maps grow on actual use instead of reserving the
   configured command allowance for every installed empty Channel. The logical
   retention limit, oldest-command eviction and durable retry lookup are unchanged.
@@ -713,10 +721,32 @@ specification, runbook, report, or module documentation; link to them when neede
   messages, not a separate durable conversation row or message-time projection.
   `user_channel_membership` stores join/read/delete boundaries, activation,
   tombstones, and source version; CMD membership uses a separate directory.
-- Steady-state SEND performs no recipient membership writes. The first persistent
-  person SEND durably admits a generation-fenced source projection task; bounded
-  asynchronous work establishes both UID memberships. SENDACK does not guarantee
-  immediate directory or history visibility. Deletion fences delayed projection.
+- Steady-state SEND performs no recipient membership writes or extra directory
+  RPCs: it reads Ready and runtime epochs/route in the same authoritative permission
+  snapshot. The final append revalidates that exact route through the existing
+  fresh metadata barrier; retries, queued batches and node request version 4
+  preserve the proof, and replacement generations require a new invocation. Ordinary
+  persistent person SEND waits for both UID memberships and generation-fenced
+  source Ready before append (issue #1066). Cold tasks dispatch directly to the
+  source leader through bounded RPC 109; its eight executions share a 32-request
+  receiver budget, and queue time consumes the original four-second deadline.
+  This absorbs multi-ingress bursts without unbounded waiters or retrying appends.
+  Origin batches keep collecting to their 32-item target while all eight
+  executions are busy; timer expiry alone must not freeze a sparse backlog.
+  If a source task is already gone, capture its completed generation through
+  a storage snapshot: the Channel cache can still expose Pending across task
+  deletion/cache publication. Only the final fresh Slot snapshot grants Ready.
+  Periodic scans remain recovery. Pending
+  work preserves its original CommittedTail and user visibility/tombstone state.
+  Timeout/overload before preparation completes cannot append that invocation.
+  Peers must support RPC 109 and append request 4. New callers fail closed against
+  unsupported peers; older callers retain their old semantics until upgraded. Ready withdrawal on deletion/restore prevents cross-request reuse.
+  This removes false-empty first-message reads, not legitimate read-route 503s.
+- HTTP 200 alone is not durable message success: inspect reason and message_seq.
+  Ordinary persisted success acknowledges quorum durable append. Effective
+  NoPersist is online-only (including top-level NoPersist overriding header zero),
+  and SyncOnce has separate CMD discovery semantics. Person channels derive their
+  two canonical UIDs automatically; subscriber_add is not a repair mechanism.
 - Member add/remove changes subscribers before UID memberships/tombstones.
   Partial failure is returned for idempotent caller retry. Valid non-tombstoned
   membership authorizes ordinary history without rechecking subscribers; reads

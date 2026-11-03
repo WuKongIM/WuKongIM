@@ -17,7 +17,8 @@ type DirectoryProjectionState uint8
 const (
 	// DirectoryProjectionNone means no durable projection task is admitted.
 	DirectoryProjectionNone DirectoryProjectionState = iota
-	// DirectoryProjectionPending means a durable task exists and SEND may proceed.
+	// DirectoryProjectionPending means a durable task exists; it is not a
+	// readiness proof for an ordinary persistent person SEND.
 	DirectoryProjectionPending
 	// DirectoryProjectionReady means both UID memberships exist and the task is gone.
 	DirectoryProjectionReady

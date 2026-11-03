@@ -47,6 +47,8 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 
 ## Catalog
 
+`message/first_person_history` diagnoses issue #1066 through first-person HTTP sends, online receipt/reconnect, immediate/eventual history, and restart survival. See the scenario instructions for its run command and JSON artifact.
+
 The opt-in send-ban sequential diagnostics use a frozen binary and exactly one
 of `WK_E2E_PERMISSION_TIMELINE_SEQUENTIAL=1` or
 `WK_E2E_PERMISSION_SEQUENTIAL_PROFILES=1`. Run

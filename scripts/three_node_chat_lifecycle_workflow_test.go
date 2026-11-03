@@ -79,7 +79,8 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	require.LessOrEqual(t, baseline.TimeoutMinutes, 3)
 	require.Contains(t, workflowRunCommands(baseline.Steps), "scripts/ci-500qps-baseline.py")
 	require.False(t, performance.Strategy.FailFast)
-	require.ElementsMatch(t, []string{"channel-append", "mixed-send", "tcp-sendack"}, performance.Strategy.Matrix.Seam)
+	// The operator paused channel-append on hosted runners pending a controlled performance environment.
+	require.ElementsMatch(t, []string{"mixed-send", "tcp-sendack"}, performance.Strategy.Matrix.Seam)
 	require.Contains(t, workflowRunCommands(performance.Steps), "scripts/run-500qps-seam.sh")
 	require.NotContains(t, string(raw), "continue-on-error")
 	for _, required := range []string{

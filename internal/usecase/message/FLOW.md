@@ -35,11 +35,14 @@ SEND hooks, directory writes or append; delayed publications must authorize agai
 
 1. `SendBatchEach` uses an allocation-tight single-item path at cardinality one;
    larger batches coalesce equivalent raw permission reads. Both evaluate the
-   same legacy policy, establish each accepted person directory once, run hooks
+   same legacy policy, wait for each ordinary persistent person directory's
+   generation-fenced Ready proof plus its coherent runtime authority, run hooks
    in original order, and copy aligned `channelappend` results to original
    indexes. Each session submits its contiguous directory-ready prefix in input
    order; a cold head fences later items. Independent Channel completions may
    arrive out of order, while final publication follows the session chain.
+   Scalar/batched hot sends reuse the current permission Ready fact without a cross-request cache or extra directory RPC.
+   NoPersist, SyncOnce and request-scoped sends keep their existing paths.
    Optional `SubmitBatchEach` joins the same preparation, then transfers append
    completion to an injected bounded admission owner. Admission progress never
    reads completion state; serialized publication and deadline cleanup join both

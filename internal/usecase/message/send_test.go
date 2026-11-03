@@ -736,6 +736,32 @@ func TestSendBatchCarriesAuthoritativePersonChannelFactIntoDirectoryAdmission(t 
 	}
 }
 
+func TestSendCarriesAuthoritativePersonChannelFactIntoDirectoryAdmission(t *testing.T) {
+	base := newFakePermissionStore()
+	permissions := &recordingPermissionBatchStore{base: base}
+	directories := &recordingPersonDirectoryEnsurer{}
+	app := New(Options{
+		PermissionStore: permissions, PermissionBatchStore: permissions,
+		PersonDirectory: directories,
+		Submitter:       &recordingSubmitter{batchResults: []SendBatchItemResult{{Result: SendResult{Reason: ReasonSuccess}}}},
+	})
+
+	_, sendErr := app.Send(context.Background(), SendCommand{
+		FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson,
+	})
+	if sendErr != nil {
+		t.Fatal(sendErr)
+	}
+	directories.mu.Lock()
+	defer directories.mu.Unlock()
+	if len(directories.admissions) != 1 || directories.admissions[0].ChannelFact == nil {
+		t.Fatalf("directory admissions = %#v, want one authoritative channel fact", directories.admissions)
+	}
+	if directories.admissions[0].ChannelFact.Found {
+		t.Fatalf("directory channel fact = %#v, want authoritative missing fact", directories.admissions[0].ChannelFact)
+	}
+}
+
 func TestSendBatchAdmitsDistinctPersonDirectoriesInOneBoundedWave(t *testing.T) {
 	t.Parallel()
 

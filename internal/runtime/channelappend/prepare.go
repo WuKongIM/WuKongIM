@@ -3,6 +3,7 @@ package channelappend
 import (
 	"context"
 	"errors"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"time"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
@@ -101,7 +102,9 @@ type canonicalTerminalResult struct {
 }
 
 func preparedCommandMatchesTarget(target AuthorityTarget, cmd SendCommand) bool {
-	return target.ChannelID.ID == cmd.ChannelID && target.ChannelID.Type == cmd.ChannelType
+	f := cmd.PersonDirectoryFence
+	return target.ChannelID.ID == cmd.ChannelID && target.ChannelID.Type == cmd.ChannelType &&
+		(f == (metadb.PersonDirectoryAppendFence{}) || (f.Valid() && f.ChannelEpoch == target.Epoch && f.LeaderEpoch == target.LeaderEpoch && f.RouteGeneration == target.RouteGeneration))
 }
 
 func prepareItemContext(runtimeCtx context.Context, itemCtx context.Context) (context.Context, context.CancelFunc) {
@@ -304,4 +307,11 @@ func idempotencyPayloadHash(payload []byte) uint64 {
 		hash *= idempotencyFNV64aPrime
 	}
 	return hash
+}
+
+// directoryRouteBehindProof permits cache refresh only toward an already
+// captured proof; it cannot authorize a newer directory/runtime incarnation.
+func directoryRouteBehindProof(target AuthorityTarget, cmd SendCommand) bool {
+	f := cmd.PersonDirectoryFence
+	return f.Valid() && target.ChannelID.ID == cmd.ChannelID && target.ChannelID.Type == cmd.ChannelType && target.RouteGeneration < f.RouteGeneration && target.Epoch <= f.ChannelEpoch && target.LeaderEpoch <= f.LeaderEpoch
 }
