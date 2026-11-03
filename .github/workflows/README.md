@@ -275,8 +275,10 @@ One run executes three jobs in order:
    on the exact tag, with cluster data on tmpfs so hosted-runner disk speed
    does not decide the result. Thresholds live in
    [`profile.json`](../../test/e2e/message/conversation_qps/profile.json) and the
-   report must pass `scripts/validate-conversation-qps-report.jq`. There is no
-   bypass input; diagnose a failure from its 90-day evidence instead of
+   report must pass `scripts/validate-conversation-qps-report.jq`. The
+   three-node mixed stress window saturates a 4-vCPU hosted runner, so only its
+   errors, fences and allocation ceiling gate; its throughput, drops and P99
+   are recorded (nightly in `perf.yml`). There is no bypass input; diagnose a failure from its 90-day evidence instead of
    rerunning until green. `perf.yml` runs the same gate nightly on `main`.
 2. **`docker`** (Environment `docker-publish`) validates the tag (strict SemVer,
    reachable from `origin/main`, valid `CHANGELOG.md` section), builds

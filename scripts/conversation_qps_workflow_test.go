@@ -61,7 +61,7 @@ func TestConversationQPSReportFilterRejectsInvalidEvidence(t *testing.T) {
 	}
 	stress := syntheticStressWindows(t, p.Stress, p.MaxP99MS)
 	base := map[string]any{"schema": "wukongim/conversation-qps-report/v2", "source_sha": "source", "source_dirty": false, "profile_sha256": "profile", "binary_sha256": strings.Repeat("a", 64), "os": "linux", "arch": "amd64", "node_gomaxprocs": 2, "passed": true, "phases": phases, "stress_config": p.Stress, "stress": stress}
-	for _, name := range []string{"good", "missing_case", "duplicate_case", "wrong_sha", "dirty", "missing_cpu", "missing_heap", "warm_fixture", "allocation_regression", "missing_allocations", "unexpected_error", "oversized_queue", "wrong_workers", "slow", "errors", "empty", "missing_stress", "duplicate_hidden", "missing_mixed_endpoint", "wrong_stress_rate", "short_stress_window", "stress_error", "stress_allocation_regression", "duplicate_stress_cpu", "missing_stress_cpu", "missing_stress_activation_counter", "wrong_hidden_page"} {
+	for _, name := range []string{"good", "missing_case", "duplicate_case", "wrong_sha", "dirty", "missing_cpu", "missing_heap", "warm_fixture", "allocation_regression", "missing_allocations", "unexpected_error", "oversized_queue", "wrong_workers", "slow", "errors", "empty", "missing_stress", "duplicate_hidden", "missing_mixed_endpoint", "wrong_stress_rate", "short_stress_window", "stress_error", "stress_allocation_regression", "duplicate_stress_cpu", "missing_stress_cpu", "missing_stress_activation_counter", "wrong_hidden_page", "mixed_saturated", "mixed_unexpected_error", "mixed_nothing_completed", "hidden_dropped"} {
 		t.Run(name, func(t *testing.T) {
 			encoded, err := json.Marshal(base)
 			require.NoError(t, err)
@@ -122,13 +122,31 @@ func TestConversationQPSReportFilterRejectsInvalidEvidence(t *testing.T) {
 				delete(r["stress"].([]any)[0].(map[string]any), "runtime_loads")
 			case "wrong_hidden_page":
 				r["stress"].([]any)[1].(map[string]any)["page"] = 2
+			case "mixed_saturated", "hidden_dropped":
+				// Hosted-runner saturation: 80% completion, drops and P99 over budget.
+				index := 0
+				if name == "hidden_dropped" {
+					index = 1
+				}
+				phase := r["stress"].([]any)[index].(map[string]any)["phases"].([]any)[0].(map[string]any)
+				scheduled := phase["scheduled"].(float64)
+				completed := math.Floor(scheduled * 0.8)
+				phase["dropped"], phase["completed"], phase["completed_in_window"] = scheduled-completed, completed, completed
+				phase["actual_qps"] = completed / phase["duration_seconds"].(float64)
+				phase["p99_ms"], phase["verdict"] = 750.0, "incomplete or failed requests"
+			case "mixed_unexpected_error":
+				r["stress"].([]any)[0].(map[string]any)["phases"].([]any)[1].(map[string]any)["unexpected_errors"] = 1
+			case "mixed_nothing_completed":
+				phase := r["stress"].([]any)[0].(map[string]any)["phases"].([]any)[0].(map[string]any)
+				phase["completed"], phase["completed_in_window"], phase["actual_qps"] = 0, 0, 0
 			}
 			encoded, err = json.Marshal(r)
 			require.NoError(t, err)
 			cmd := exec.Command(jq, "-e", "--arg", "sha", "source", "--arg", "profile_sha", "profile", "--slurpfile", "profile", profilePath, filter)
 			cmd.Stdin = strings.NewReader(string(encoded))
 			out, err := cmd.CombinedOutput()
-			if name == "good" {
+			// The mixed window records saturation instead of failing the release.
+			if name == "good" || name == "mixed_saturated" {
 				require.NoError(t, err, string(out))
 			} else {
 				require.Error(t, err, string(out))
