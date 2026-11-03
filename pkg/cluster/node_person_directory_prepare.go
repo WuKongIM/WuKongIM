@@ -26,22 +26,28 @@ type personPrepareResponse struct {
 }
 
 // SetPersonDirectoryPreparation binds the app-owned bounded projector before
-// start. Both local and remote callers share eight receiver execution permits.
+// start. Local and remote callers share eight execution permits and at most
+// 32 retained requests (8 MiB of payloads). Queue time consumes the same four-
+// second attempt budget; cancellation releases ownership before projection.
 // The callback owns no transport or metadata lifecycle.
 func (n *Node) SetPersonDirectoryPreparation(prepare func(context.Context, []metadb.PersonDirectoryTaskEntry) []error) {
 	gate := make(chan struct{}, 8)
+	owned := make(chan struct{}, 32)
 	n.RegisterRPC(clusternet.RPCPersonDirectoryPrepare, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		if len(payload) > personPrepareMaxBytes || prepare == nil {
 			return nil, metadb.ErrInvalidArgument
 		}
+		ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		defer cancel()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		select {
-		case gate <- struct{}{}:
-			defer func() { <-gate }()
+		case owned <- struct{}{}:
+			defer func() { <-owned }()
 		default:
 			return nil, ErrRouteNotReady
 		}
-		ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
-		defer cancel()
 		if err := n.ensureForeground(); err != nil {
 			return nil, err
 		}
@@ -51,6 +57,15 @@ func (n *Node) SetPersonDirectoryPreparation(prepare func(context.Context, []met
 		}
 		if request.Version != 1 || len(request.Tasks) == 0 || len(request.Tasks) > personPrepareMaxItems {
 			return nil, metadb.ErrInvalidArgument
+		}
+		select {
+		case gate <- struct{}{}:
+			defer func() { <-gate }()
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
 		return n.preparePersonDirectoryLocal(ctx, request.Tasks, prepare)
 	}))
@@ -227,10 +242,19 @@ func (n *Node) preparePersonDirectoryLocal(ctx context.Context, tasks []metadb.P
 			valid[i] = true
 			candidates = append(candidates, metadb.PersonDirectoryTaskEntry{HashSlot: tasks[i].HashSlot, Task: task})
 		} else {
-			channel, err := shard.GetChannel(ctx, tasks[i].ChannelID, 1)
-			if err != nil || channel.DirectoryProjectionState != metadb.DirectoryProjectionReady {
+			// Completion deletes the task and publishes Ready atomically, but a
+			// concurrent Channel cache fill can still retain the earlier Pending
+			// row. Capture the completed generation from storage, not that cache.
+			// This is only a candidate: the fresh authoritative batch below must
+			// still prove the same generation and complete runtime append fence.
+			facts, err := n.defaultSlotMetaDB.ReadPermissionSnapshot(ctx, []metadb.PermissionFactRead{{
+				Kind: metadb.PermissionFactChannel, HashSlot: route.Route.HashSlot,
+				ChannelID: tasks[i].ChannelID, ChannelType: 1,
+			}})
+			if err != nil || len(facts) != 1 || !facts[0].Found || facts[0].Channel.DirectoryProjectionState != metadb.DirectoryProjectionReady {
 				continue
 			}
+			channel := facts[0].Channel
 			expected[i] = channel.DirectoryProjectionGeneration
 			valid[i] = tasks[i].Generation == 0 || tasks[i].Generation == expected[i]
 		}

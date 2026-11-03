@@ -117,7 +117,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   comes from one current revision; every create rereads committed versions, including
   wholly successful batches. First group SENDs and their followers share the hot
   latency domain, so collection is capped at 20 ms. Uncertain proposals retry only authoritatively missing rows.
-- Ordinary UID membership upserts coalesce one immutable route publication into physical-Slot proposals with 128-row/256-KiB/64-KiB-UID limits and at most eight supervised workers. Byte-heavy groups split before submission; admitted work joins after cancellation. Directory-ready cannot hide missing UID membership or append runtime metadata. Person-directory preparation RPC 109 routes cold tasks to their source leaders, accepts at most 64 identities/256 KiB with eight receiver permits and four origin workers per wave, and dispatches exact durable tasks to the app projector. A fresh authoritative Ready/runtime snapshot must match the dispatched generation after projection and returns its immutable append fence; route changes and older peers fail retryably before append. No task tail is recaptured while Pending. Periodic scans still recover lost work.
+- Ordinary UID membership upserts coalesce one immutable route publication into physical-Slot proposals with 128-row/256-KiB/64-KiB-UID limits and at most eight supervised workers. Byte-heavy groups split before submission; admitted work joins after cancellation. Directory-ready cannot hide missing UID membership or append runtime metadata. Person-directory preparation RPC 109 routes cold tasks to their source leaders, accepts at most 64 identities/256 KiB with eight executions, at most 32 retained receiver requests sharing the four-second queue/execution budget, and four origin workers per wave, and dispatches exact durable tasks to the app projector. A fresh authoritative Ready/runtime snapshot must match the dispatched generation after projection and returns its immutable append fence; route changes and older peers fail retryably before append. No task tail is recaptured while Pending. Periodic scans still recover lost work.
+- Direct person preparation captures an already-completed task's generation from a storage snapshot, bypassing a possibly older Channel cache row after task deletion. This preliminary observation never substitutes for the final fresh Slot Ready/runtime proof.
 - Lifecycle, fanout, retries, scans, repairs, tasks and diagnostics stay bounded.
   Repair scans rotate Slots with row cursors under tick/task budgets. Slot
   leadership loss drops its cursor; newly unavailable nodes restart owned Slot
@@ -146,5 +147,4 @@ Aggregate MQTT capacity uses one hash-Slot escrow row and immutable Controller s
 ## Read First
 - [Public API](api.go), [Node ownership](node.go), [Lifecycle](node_lifecycle.go), [Routing](routing/router.go), [Channels](channels/service.go)
 ## Update Triggers
-
 Update for lifecycle, readiness, ownership, route/authority, typed RPC or maintenance/backup changes.

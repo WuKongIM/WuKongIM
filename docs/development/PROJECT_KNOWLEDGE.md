@@ -720,7 +720,15 @@ specification, runbook, report, or module documentation; link to them when neede
   preserve the proof, and replacement generations require a new invocation. Ordinary
   persistent person SEND waits for both UID memberships and generation-fenced
   source Ready before append (issue #1066). Cold tasks dispatch directly to the
-  source leader through bounded RPC 109; periodic scans remain recovery. Pending
+  source leader through bounded RPC 109; its eight executions share a 32-request
+  receiver budget, and queue time consumes the original four-second deadline.
+  This absorbs multi-ingress bursts without unbounded waiters or retrying appends.
+  Origin batches keep collecting to their 32-item target while all eight
+  executions are busy; timer expiry alone must not freeze a sparse backlog.
+  If a source task is already gone, capture its completed generation through
+  a storage snapshot: the Channel cache can still expose Pending across task
+  deletion/cache publication. Only the final fresh Slot snapshot grants Ready.
+  Periodic scans remain recovery. Pending
   work preserves its original CommittedTail and user visibility/tombstone state.
   Timeout/overload before preparation completes cannot append that invocation.
   Peers must support RPC 109 and append request 4. New callers fail closed against

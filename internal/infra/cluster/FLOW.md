@@ -108,7 +108,7 @@ management, plugins, diagnostics, and bounded operations observations.
   Confirmed runtime absence uses the existing bounded Channel initializer, then
   rereads fresh Slot fences. No business metadata creation, policy retry or authority fallback is allowed.
 - Person-directory preparation shares Channel/generation results and detaches canceled waiters without canceling accepted work.
-  Eight active batches, 4096 mutations/waiters and a 1 ms collection window bound cold preparation; retryable failures precede append.
+  Eight active batches and 4096 mutations/waiters bound cold preparation. A 1 ms timer ends initial collection unless the 32-item target seals the batch first; partial batches keep collecting while execution is busy, avoiding a backlog of sealed tiny batches. Retryable failures precede append.
   MQTT future-source protection/registration retains its additional barrier; ordinary Ready does not replace it.
 - Mutable request and response payloads crossing runtime ownership boundaries
   are cloned unless the contract explicitly transfers ownership.

@@ -369,6 +369,18 @@ func (b *personDirectoryBatcher) run(batch *personDirectoryBatch) {
 		}
 	}
 
+	// Keep a partial batch open while all execution slots are occupied. Sealing
+	// on the timer before admission creates an unmergeable backlog of tiny
+	// batches at sustained cold-SEND rates. The target-size admission fence
+	// still seals full batches, and the same bounded owner joins on Stop.
+	acquired := false
+	select {
+	case b.active <- struct{}{}:
+		acquired = true
+		defer func() { <-b.active }()
+	case <-b.ctx.Done():
+	}
+
 	b.mu.Lock()
 	batch.sealed = true
 	if b.current == batch {
@@ -412,13 +424,11 @@ func (b *personDirectoryBatcher) run(batch *personDirectoryBatch) {
 			b.signalCapacityLocked()
 		}
 	}
-	select {
-	case b.active <- struct{}{}:
+	if acquired {
 		ctx, cancel := context.WithTimeout(b.ctx, b.timeout)
 		b.submit(ctx, entries, complete)
 		cancel()
-		<-b.active
-	case <-b.ctx.Done():
+	} else {
 		for i := range entries {
 			complete(i, metadb.PersonDirectoryAppendFence{}, b.ctx.Err())
 		}
