@@ -17,14 +17,16 @@ and the exact protected control revision in `WuKongIM/packages`.
 1. Move the applicable `Unreleased` notes into the exact version section in
    `CHANGELOG.md`. Run the relevant checks and the release-note validation
    described in the Workflow catalog before creating the tag.
-2. Require the fixed conversation QPS/P99 and allocation-regression gate for that exact tag in both publishers.
+2. The tag starts the `Release` workflow (`binary-release-publish.yml`), which
+   runs the fixed conversation QPS/P99 and allocation-regression gate once for
+   that exact tag before publishing anything.
    Verify all 12 single-node/three-node endpoint/page cases plus seven three-node
    mixed/hidden windows (20 endpoint results), clean source SHA,
    profile and binary hashes, zero active runtimes across all roles before/after measurement,
    zero errors/new runtime loads/membership writes, and
    the QPS/P99 floors. Missing evidence or a failed case blocks publication;
    see the Workflow catalog for the fixed profile and retained artifacts.
-   Complete the Docker and binary publishers for that exact tag. Verify the
+   Complete its Docker and binaries jobs for that exact tag. Verify the
    same source SHA and multi-platform digest in all three image registries,
    plus the immutable numeric GitHub Release ID, complete asset set, checksums,
    and provenance. For native publication, retain the source DEB/RPM digests.

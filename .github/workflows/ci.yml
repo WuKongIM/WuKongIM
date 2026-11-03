@@ -79,8 +79,8 @@ jobs:
       - name: actionlint
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 -shellcheck=
       - name: zizmor (Actions security audit)
-        # Older release and cloud workflows are audited when they are rebuilt.
-        run: pipx run zizmor==1.16.3 --offline --min-severity medium .github/workflows/ci.yml .github/workflows/perf.yml .github/workflows/compat.yml
+        # Older cloud workflows are audited when they are rebuilt.
+        run: pipx run zizmor==1.16.3 --offline --min-severity medium .github/workflows/ci.yml .github/workflows/perf.yml .github/workflows/compat.yml .github/workflows/binary-release-publish.yml
       - name: Reject tracked-tree mutation
         if: always()
         run: git diff --exit-code HEAD --

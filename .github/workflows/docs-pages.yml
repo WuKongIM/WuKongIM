@@ -15,7 +15,7 @@ on:
       - "scripts/docs-cdn/verify-pages-origin.sh"
   workflow_run:
     workflows:
-      - Safety Automation - Publish WuKongIM Binaries
+      - Release
     types:
       - completed
   workflow_dispatch:

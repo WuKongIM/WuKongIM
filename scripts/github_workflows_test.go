@@ -16,9 +16,8 @@ var workflowCatalog = map[string]string{
 	"perf.yml":                              "Performance",
 	"compat.yml":                            "Compatibility",
 	"conversation-qps-diagnose.yml":         "Agent Tool - Diagnose Conversation QPS",
-	"conversation-qps-gate.yml":             "Safety Automation - Conversation QPS Release Gate",
 	"easy-sdk-web-docs-sync.yml":            "Safety Automation - Propose Web EasySDK Documentation Upgrade",
-	"binary-release-publish.yml":            "Safety Automation - Publish WuKongIM Binaries",
+	"binary-release-publish.yml":            "Release",
 	"chat-lifecycle-rehearsal.yml":          "Agent Tool - Start Chat Lifecycle Rehearsal",
 	"chat-lifecycle-rehearsal-finalize.yml": "Safety Automation - Finalize Chat Lifecycle Rehearsals",
 	"chat-lifecycle-formal.yml":             "Safety Automation - Start Fresh Formal Chat Lifecycle",
@@ -31,7 +30,6 @@ var workflowCatalog = map[string]string{
 	"cloud-lease-oidc-setup.yml":            "Agent Tool - Configure Cloud Lease OIDC Roles",
 	"cloud-lease-provision.yml":             "Agent Tool - Provision Cloud Lease",
 	"cloud-lease-release.yml":               "Safety Automation - Release Cloud Leases",
-	"docker-image-publish.yml":              "Safety Automation - Publish Docker Images",
 	"docs-cdn-certificate.yml":              "Safety Automation - Renew Documentation CDN Certificate",
 	"docs-pages.yml":                        "Safety Automation - Publish Documentation to GitHub Pages",
 }

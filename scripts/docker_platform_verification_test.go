@@ -17,9 +17,9 @@ func TestDockerCanonicalProbeSelectsUniquePlatformManifests(t *testing.T) {
 	var workflow struct {
 		Jobs map[string]struct{ Steps []struct{ Name, Run string } }
 	}
-	require.NoError(t, yaml.Unmarshal(readWorkflow(t, "docker-image-publish.yml"), &workflow))
+	require.NoError(t, yaml.Unmarshal(readWorkflow(t, "binary-release-publish.yml"), &workflow))
 	var script string
-	for _, step := range workflow.Jobs["publish"].Steps {
+	for _, step := range workflow.Jobs["docker"].Steps {
 		if step.Name == "Verify canonical embedded Prometheus" {
 			script = step.Run
 		}

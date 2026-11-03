@@ -27,7 +27,7 @@ on:
         description: What to run
         type: choice
         default: seams
-        options: [seams, qualification, ab, send-diagnosis]
+        options: [seams, qualification, ab, send-diagnosis, conversation-qps]
       base_ref:
         description: Base revision for suite=ab (default origin/main)
         type: string
@@ -160,6 +160,30 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  conversation-qps:
+    name: Conversation QPS release gate (early warning)
+    # The same gate the release workflow enforces on the exact tag; running it
+    # nightly on main surfaces a failing gate before release day.
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'conversation-qps')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - run: scripts/release/conversation-qps-gate.sh "$RUNNER_TEMP/conversation-qps"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: conversation-qps-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/conversation-qps/
+          if-no-files-found: warn
+          retention-days: 30
+
   send-diagnosis:
     name: Fixed same-host SEND diagnosis
     if: github.event_name == 'workflow_dispatch' && inputs.suite == 'send-diagnosis'
@@ -183,7 +207,7 @@ jobs:
 
   report:
     name: Track nightly failures
-    needs: [seams]
+    needs: [seams, conversation-qps]
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
