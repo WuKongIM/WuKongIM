@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+## [v3.0.0-beta.25] - 2026-11-03
+
 ### 🔧 Improvements / 改进
 
 - Chat-lifecycle benchmarks no longer report a spurious checkpoint failure when an
