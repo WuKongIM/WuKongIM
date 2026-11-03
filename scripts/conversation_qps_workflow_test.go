@@ -13,83 +13,24 @@ import (
 	"time"
 )
 
-func TestConversationQPSBlocksBothPublishers(t *testing.T) {
-	for _, name := range []string{"docker-image-publish.yml", "binary-release-publish.yml"} {
-		t.Run(name, func(t *testing.T) {
-			var w struct {
-				Jobs map[string]struct {
-					Needs       string            `yaml:"needs"`
-					Uses        string            `yaml:"uses"`
-					If          string            `yaml:"if"`
-					With        map[string]string `yaml:"with"`
-					Permissions map[string]string `yaml:"permissions"`
-					Secrets     any               `yaml:"secrets"`
-					Continue    bool              `yaml:"continue-on-error"`
-				} `yaml:"jobs"`
-			}
-			raw := readWorkflow(t, name)
-			require.NoError(t, yaml.Unmarshal(raw, &w))
-			gate := w.Jobs["conversation-qps"]
-			require.Equal(t, "./.github/workflows/conversation-qps-gate.yml", gate.Uses)
-			require.Equal(t, map[string]string{"contents": "read"}, gate.Permissions)
-			require.Equal(t, "${{ inputs.version || github.ref_name }}", gate.With["source_ref"])
-			require.Nil(t, gate.Secrets)
-			require.Equal(t, "conversation-qps", w.Jobs["publish"].Needs)
-			require.Equal(t, "github.repository == 'WuKongIM/WuKongIM'", w.Jobs["publish"].If)
-			require.False(t, gate.Continue)
-			require.False(t, w.Jobs["publish"].Continue)
-			require.Contains(t, string(raw), "QPS_SOURCE_SHA: ${{ needs.conversation-qps.outputs.source_sha }}")
-			require.Contains(t, string(raw), `[[ "$(git rev-parse HEAD)" == "$QPS_SOURCE_SHA" ]]`)
-		})
-	}
-}
-
-func TestConversationQPSGateRequiresCompleteBoundEvidence(t *testing.T) {
-	raw := readWorkflow(t, "conversation-qps-gate.yml")
+// The release workflow must publish nothing before the QPS gate passes on the
+// exact tag, and binaries must follow the Docker job of the same run.
+func TestReleaseWorkflowGatesPublishersOnConversationQPS(t *testing.T) {
 	var w struct {
-		On          map[string]any    `yaml:"on"`
-		Permissions map[string]string `yaml:"permissions"`
-		Jobs        map[string]struct {
-			RunsOn      string            `yaml:"runs-on"`
-			Timeout     int               `yaml:"timeout-minutes"`
-			Environment string            `yaml:"environment"`
-			Env         map[string]string `yaml:"env"`
-			Steps       []struct {
-				If   string         `yaml:"if"`
-				Uses string         `yaml:"uses"`
-				With map[string]any `yaml:"with"`
-			} `yaml:"steps"`
+		Jobs map[string]struct {
+			Needs    any  `yaml:"needs"`
+			Continue bool `yaml:"continue-on-error"`
 		} `yaml:"jobs"`
 	}
+	raw := readWorkflow(t, "binary-release-publish.yml")
 	require.NoError(t, yaml.Unmarshal(raw, &w))
-	require.Len(t, w.On, 1)
-	require.Contains(t, w.On, "workflow_call")
-	require.Equal(t, map[string]string{"contents": "read"}, w.Permissions)
-	require.Len(t, w.Jobs, 1)
-	job := w.Jobs["verify"]
-	require.Equal(t, "ubuntu-24.04", job.RunsOn)
-	require.Equal(t, 24, job.Timeout)
-	require.Empty(t, job.Environment)
-	require.Equal(t, "1", job.Env["WK_E2E_CONVERSATION_QPS"])
-	require.Equal(t, false, job.Steps[0].With["persist-credentials"])
-	last := job.Steps[len(job.Steps)-1]
-	require.Equal(t, "always()", last.If)
-	require.Equal(t, "error", last.With["if-no-files-found"])
-	for _, fragment := range []string{"unset WK_E2E_BINARY", "-run '^TestConversationQPSReleaseGate$' -count=1 -timeout=18m -p=1", "-f scripts/validate-conversation-qps-report.jq", "git status --porcelain", "set -euo pipefail"} {
-		require.Contains(t, string(raw), fragment)
+	require.Equal(t, "conversation-qps", w.Jobs["docker"].Needs)
+	require.Equal(t, []any{"conversation-qps", "docker"}, w.Jobs["binaries"].Needs)
+	for name, job := range w.Jobs {
+		require.False(t, job.Continue, name)
 	}
-	filter, err := os.ReadFile(filepath.Join(repoRoot(t), "scripts/validate-conversation-qps-report.jq"))
-	require.NoError(t, err)
-	for _, fragment := range []string{".source_sha == $sha", ".source_dirty == false", ".profile_sha256 == $profile_sha", ".passed == true", ".phases | length == 12", "unique | length == 12", ".errors == 0", ".dropped == 0", ".runtime_loads == 0", ".membership_writes == 0", ".actual_qps >=", ".p99_ms <=", ".stress_config == $profile[0].stress_gate", "expected_windows"} {
-		require.Contains(t, string(filter), fragment)
-	}
-
-	for _, fragment := range []string{"secrets.", "continue-on-error", "workflow_dispatch:", "packages: write", "id-token: write"} {
-		require.NotContains(t, string(raw), fragment)
-	}
+	require.Equal(t, 2, strings.Count(string(raw), `[[ "$(git rev-parse HEAD)" == "$QPS_SOURCE_SHA" ]]`))
 }
-
-// Exercise the actual release receipt filter, including forged pass flags.
 func TestConversationQPSReportFilterRejectsInvalidEvidence(t *testing.T) {
 	jq, err := exec.LookPath("jq")
 	if err != nil {

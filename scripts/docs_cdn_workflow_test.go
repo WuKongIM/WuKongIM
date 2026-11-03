@@ -19,7 +19,7 @@ func TestDocsPagesPublishesAnAuthenticatedImmutableReleaseSource(t *testing.T) {
 	for _, want := range []string{
 		`- "CHANGELOG.md"`,
 		"workflow_run:",
-		"- Safety Automation - Publish WuKongIM Binaries",
+		"- Release",
 		"github.event.workflow_run.conclusion == 'success'",
 		"github.event.workflow_run.event == 'push'",
 		"github.event.workflow_run.head_repository.full_name == github.repository",
