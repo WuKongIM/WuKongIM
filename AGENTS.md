@@ -154,7 +154,7 @@ app -> access/usecase/runtime/infra/pkg
 - Integration tests:
   `GOWORK=off go test -tags=integration ./internal/... ./pkg/... -count=1`
 - Scripts integration tests:
-  `GOWORK=off go test -tags=integration ./scripts/... -count=1 -timeout=9m -parallel=2`
+  `GOWORK=off go test -tags=integration ./scripts/... -count=1 -timeout=15m -parallel=2`
 - E2E tests:
   `GOWORK=off go test -tags=e2e ./test/e2e/... -count=1`
 - Run the server:

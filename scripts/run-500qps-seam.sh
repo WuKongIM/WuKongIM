@@ -56,6 +56,9 @@ export WK_BENCH_QUALIFY=1 WK_BENCH_ARRIVAL_REPORT="$evidence/arrival.json"
 flight_stage=""
 footprint_sampler=""
 cleanup() {
+  # Only this shell owns the staging and data directories; a forked subshell
+  # running an inherited EXIT trap must not delete them mid-run.
+  [[ "$BASHPID" == "$$" ]] || return 0
   [[ -z "$footprint_sampler" ]] || kill "$footprint_sampler" 2>/dev/null || :
   [[ -z "$flight_stage" ]] || rm -rf -- "$flight_stage"
   [[ "$data_mode" != tmpfs ]] || rm -rf -- "$data_dir"
