@@ -98,7 +98,8 @@ def host_pressure(evidence):
 
 
 def summarize(evidence):
-    footprint = read_text(os.path.join(evidence, "data-footprint-kib.txt"))
+    # Peak growth of the data filesystem during the run (see run-500qps-seam.sh).
+    footprint = read_text(os.path.join(evidence, "data-peak-kib.txt"))
     summary = {
         "schema": "wukongim.perf.seam-summary/v1",
         "status": (load_json(os.path.join(evidence, "result.json")) or {}).get("status"),
