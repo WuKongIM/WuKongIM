@@ -232,7 +232,7 @@ exit 18
 	removed := name != "" && strings.Count(string(calls), "rm --force --volumes "+name+"\n") == 1
 	receipt["exact_container_removed"] = removed
 	if !removed {
-		t.Error("exact fake container removal was not preserved")
+		t.Errorf("exact fake container removal was not preserved; container %q, docker calls:\n%s", name, calls)
 	}
 }
 
