@@ -1463,9 +1463,31 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				goto observationFailure
 			}
 			if c.hooks != nil {
+				// A hook that already finished is not an overlapping round: select
+				// may deliver this status tick before its ready result. Collect it
+				// exactly as the hookResults case does; only a hook still running
+				// fails the checkpoint.
 				if hookResults != nil {
-					failureCode, failureDisposition = CoordinatorCodeCheckpoint, coordinatorRoundStageFailed
-					goto observationFailure
+					select {
+					case hook := <-hookResults:
+						hookResults = nil
+						if hook.disposition != coordinatorRoundSucceeded {
+							failureCode, failureDisposition = CoordinatorCodeCheckpoint, hook.disposition
+							goto observationFailure
+						}
+						if hook.kind == CoordinatorCutQualification {
+							qualificationCaptured = true
+						}
+						if hook.decision != "" {
+							hookPrepareSnapshots, hookTerminalDecision = hook.snapshots, hook.decision
+							finishObservationForCutoff()
+							cutoffOwned = true
+							goto observationComplete
+						}
+					default:
+						failureCode, failureDisposition = CoordinatorCodeCheckpoint, coordinatorRoundStageFailed
+						goto observationFailure
+					}
 				}
 				kind := CoordinatorCutPeriodic
 				if !qualificationCaptured && !statusTickAt.Before(grantBarrierAt.Add(cfg.Thresholds.Timeline.Checkpoint)) {

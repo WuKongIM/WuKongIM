@@ -8,6 +8,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Chat-lifecycle benchmarks no longer report a spurious checkpoint failure when an
+  evidence cut finishes just as the next status round begins.
+  / Chat-lifecycle 压测在证据采集刚好于下一轮状态检查开始时完成，不再误报 checkpoint 失败。
+
 - Temporarily suspend the hosted-runner channel-append CI performance check pending
   a controlled performance environment; retain other checks and prior failure evidence.
   / 暂停托管 runner 上的 channel-append CI 性能检查，待受控性能环境就绪后恢复；保留其他检查及历史失败证据。
