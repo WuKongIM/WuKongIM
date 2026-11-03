@@ -127,7 +127,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       GOFLAGS: "-p=2"
     steps:
@@ -138,7 +138,10 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
-      - run: go test -tags=integration ./scripts/... -count=1 -timeout=9m -parallel=2
+      # The scripts package alone runs about nine minutes (serial sum ~15 min
+      # at -parallel=2); a 9m binary timeout killed whole runs eight times in
+      # October. Keep parallelism at 2: these tests are timing-sensitive.
+      - run: go test -tags=integration ./scripts/... -count=1 -timeout=15m -parallel=2
       - name: Reject tracked-tree mutation
         if: always()
         run: git diff --exit-code HEAD --
