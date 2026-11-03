@@ -5,7 +5,7 @@ umask 077
 
 readonly lego_module="github.com/go-acme/lego/v4"
 readonly lego_version="v4.35.2"
-readonly go_toolchain="go1.25.11"
+readonly go_toolchain="go1.26.10"
 readonly lego_sum="h1:uVQg+KC/yj9R2g7Q9W5wDqhvQvxV5SMu5eqFVoN5xZU="
 readonly lego_go_mod_sum="h1:pX2jN5n8OphMGY1IaMjYm5DAEzguBaKRt8AvJAgJXpc="
 

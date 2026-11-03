@@ -19,7 +19,7 @@ WK_GATEWAY_LISTENERS='[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.
 ./bin/wukongim-mqtt -config ./tmp/mqtt-quickstart/wukongim.toml
 ```
 
-The source toolchain is Go 1.25.11. Keep the default 256 hash slots. Wait for
+The source toolchain is Go 1.26.10. Keep the default 256 hash slots. Wait for
 startup, then register Alice and Bob **from the trusted backend/protected test
 environment**, using WuKongIM HTTP API on loopback:
 

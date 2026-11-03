@@ -8,6 +8,24 @@ move those entries into a version section named for that exact tag.
 
 ## [v3.0.0-beta.25] - 2026-11-03
 
+### 🔒 Security / 安全
+
+- Build release binaries and container images with Go 1.26.10, fixing the
+  `crypto/x509` intermediate-certificate verification issue (CVE-2026-111943);
+  the previously pinned Go 1.25 line no longer receives security fixes.
+  Update `golang.org/x/net` to v0.60.0 (HTTP/2 SETTINGS flood, CVE-2026-78669),
+  `github.com/klauspost/compress` to v1.18.7 (CVE-2026-63209) and
+  `github.com/quic-go/quic-go` to v0.59.1 (GO-2026-5676).
+  / 发布二进制与镜像改用 Go 1.26.10 构建，修复 `crypto/x509` 中间证书校验漏洞（CVE-2026-111943），
+  原先固定的 Go 1.25 已停止安全更新；同时升级 `golang.org/x/net` v0.60.0（CVE-2026-78669）、
+  `klauspost/compress` v1.18.7（CVE-2026-63209）与 `quic-go` v0.59.1（GO-2026-5676）。
+
+### ⬆️ Upgrade Notes / 升级说明
+
+- Building from source now requires Go 1.26 (the repository pins toolchain
+  go1.26.10). Prebuilt binaries, packages and images are unaffected.
+  / 从源码构建需要 Go 1.26（仓库固定 go1.26.10 工具链），预编译二进制、安装包和镜像不受影响。
+
 ### 🔧 Improvements / 改进
 
 - Chat-lifecycle benchmarks no longer report a spurious checkpoint failure when an

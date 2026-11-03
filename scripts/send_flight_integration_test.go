@@ -40,8 +40,8 @@ func Test500QPSSeamPreservesVerdictAndRetainsInterruptedFlight(t *testing.T) {
 				"timeout":   `shift; exec "$@"`,
 				"mktemp":    `exec "$WK_REAL_MKTEMP" -d "$WK_FAKE_SHM/wk-send-flight.XXXXXXXX"`,
 				"go": `case "$1 ${2:-}" in
- 'env GOVERSION') echo go1.25.11 ;;
- 'version '*) echo go1.25.11 ;;
+ 'env GOVERSION') echo go1.26.10 ;;
+ 'version '*) echo go1.26.10 ;;
  'test -c')
    cp "$WK_FAKE_BENCHMARK" "${@: -1}"
    chmod 700 "${@: -1}"

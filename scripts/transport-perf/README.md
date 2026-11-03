@@ -23,7 +23,7 @@ python3 scripts/transport-perf/build.py \
   --source "$PWD" --output /tmp/wkrpc-native/base
 ```
 
-The builder fixes Go 1.25.11, CGO off, `-trimpath -buildvcs=false`, and a stable
+The builder fixes Go 1.26.10, CGO off, `-trimpath -buildvcs=false`, and a stable
 temporary import path. It refuses a dirty checkout or an existing output, removes
 only its own temporary source directory, and writes a SHA256 build manifest.
 The same tool's three probe source files can build against another compatible, committed source
@@ -96,8 +96,8 @@ gate as a complete optimization acceptance test.
 ## Local validation
 
 ```sh
-GOWORK=off GOTOOLCHAIN=go1.25.11 go test ./scripts/transport-perf/probe -count=1
-GOWORK=off GOTOOLCHAIN=go1.25.11 go test -race -tags=integration ./scripts/transport-perf/probe -count=1 -timeout=1m
+GOWORK=off GOTOOLCHAIN=go1.26.10 go test ./scripts/transport-perf/probe -count=1
+GOWORK=off GOTOOLCHAIN=go1.26.10 go test -race -tags=integration ./scripts/transport-perf/probe -count=1 -timeout=1m
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/transport-perf -p 'test_*.py'
 ```
 
@@ -223,6 +223,6 @@ Linux sources: [procfs](https://docs.kernel.org/filesystems/proc.html),
 Linux process/lifecycle integration tests (no public ports or cloud resources):
 
 ```sh
-GOWORK=off GOTOOLCHAIN=go1.25.11 go test -tags=integration \
+GOWORK=off GOTOOLCHAIN=go1.26.10 go test -tags=integration \
   ./scripts/transport-perf/... -count=1 -timeout=1m
 ```

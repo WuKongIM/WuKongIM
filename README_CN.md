@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="https://github.com/WuKongIM/WuKongIM/releases"><img src="https://img.shields.io/badge/status-v3%20beta-F15A3A?style=flat-square" alt="v3 beta"></a>
-  <a href="./go.mod"><img src="https://img.shields.io/badge/Go-1.25%2B-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.25+"></a>
+  <a href="./go.mod"><img src="https://img.shields.io/badge/Go-1.26%2B-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.26+"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square" alt="Apache 2.0"></a>
 </p>
 
@@ -58,7 +58,7 @@ WuKongIM 为其提供长连接维护、消息投递与消息存储能力；唐�
 
 ### 1. 在自己的电脑上启动 Demo
 
-需要 **Go 1.25+**、**Node.js 22.12+ 或 20.19+** 和 **npm**。首次使用：
+需要 **Go 1.26+**、**Node.js 22.12+ 或 20.19+** 和 **npm**。首次使用：
 
 ```bash
 git clone https://github.com/WuKongIM/WuKongIM.git
@@ -239,7 +239,7 @@ flowchart TB
 
 ## 开发与贡献
 
-仓库固定使用 **Go 1.25.11**。源码开发参照[配置与启动指南](https://docs.githubim.com/zh/server/configuration/)。
+仓库固定使用 **Go 1.26.10**。源码开发参照[配置与启动指南](https://docs.githubim.com/zh/server/configuration/)。
 
 ```bash
 GOWORK=off go build ./cmd/wukongim ./cmd/wkcli

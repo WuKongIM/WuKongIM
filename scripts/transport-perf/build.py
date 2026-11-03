@@ -29,7 +29,7 @@ def main():
     digests = {name: hashlib.sha256(raw).hexdigest() for name, raw in sources.items()}
     revision = git("rev-parse", "HEAD")
     output.parent.mkdir(parents=True, exist_ok=True)
-    env = dict(os.environ, GOOS=args.os, GOARCH=args.arch, CGO_ENABLED="0", GOWORK="off", GOTOOLCHAIN="go1.25.11")
+    env = dict(os.environ, GOOS=args.os, GOARCH=args.arch, CGO_ENABLED="0", GOWORK="off", GOTOOLCHAIN="go1.26.10")
     # The same probe source is copied into each target, independent of its version.
     # Keep the import path identical across builds; a random package path would
     # add an unrelated binary-layout variable. Exclusive creation prevents reuse.
@@ -51,7 +51,7 @@ def main():
                 "probe_source_sha256": digests["main.go"], "probe_files_sha256": digests,
                 "binary_sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
                 "binary": str(output), "goos": args.os, "goarch": args.arch,
-                "toolchain": "go1.25.11", "command": command, "cgo_enabled": False}
+                "toolchain": "go1.26.10", "command": command, "cgo_enabled": False}
     output.with_suffix(output.suffix + ".json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps(manifest, indent=2))
 

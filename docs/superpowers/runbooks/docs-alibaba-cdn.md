@@ -174,7 +174,7 @@ Do not grant `cdn:AddCdnDomain`, `cdn:ModifyCdnDomain`,
 
 Run this once from a trusted Linux or macOS workstation after reviewing the
 checked-out scripts. `gh` must be authenticated as a repository administrator,
-Go must be able to use toolchain `1.25.11`, and
+Go must be able to use toolchain `1.26.10`, and
 `DOCS_ACME_EMAIL` must equal the repository Variable that the Workflow will
 use. The command creates a Let's Encrypt account but requests no certificate
 and touches no Alibaba Cloud resource. It sends the bundle directly to the
@@ -198,7 +198,7 @@ trap cleanup EXIT
 mkdir -p "$bootstrap_dir/helper-cache" "$bootstrap_dir/helper-tmp"
 (
   cd "$repo_root"
-  GOTOOLCHAIN=go1.25.11 GOWORK=off \
+  GOTOOLCHAIN=go1.26.10 GOWORK=off \
     GOCACHE="$bootstrap_dir/helper-cache" GOTMPDIR="$bootstrap_dir/helper-tmp" \
     GOENV=off GOTELEMETRY=off go build -trimpath \
     -o "$bootstrap_dir/certificate-helper" ./scripts/docs-cdn/certificate-helper

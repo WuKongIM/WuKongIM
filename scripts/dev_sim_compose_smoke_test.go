@@ -79,7 +79,7 @@ func TestDockerfilePinsSupportedBuildInputsAndAllowsReviewedMirrors(t *testing.T
 	dockerfile := readFile(t, filepath.Join(repoRoot(t), "Dockerfile"))
 
 	for _, want := range []string{
-		"ARG GO_IMAGE=golang:1.26.7-bookworm@sha256:e8c859f5632dcfde7b32d2012b4351728f6437930887c2f6a91ea242459e5514",
+		"ARG GO_IMAGE=golang:1.26.10-bookworm@sha256:23ce71337b726608afb1bc00986e630a05034a87a87ea1fc2cd1ae5cf33387eb",
 		"ARG RUNTIME_IMAGE=alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b",
 		"ARG GOPROXY=https://goproxy.cn,direct",
 		"ENV GOPROXY=${GOPROXY}",

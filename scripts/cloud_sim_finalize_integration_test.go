@@ -90,7 +90,7 @@ fi
 		want  string
 	}{
 		{name: "stale GitHub CLI", gh: staleGH, goBin: staleGo, want: "GitHub CLI 2.96.0 is required"},
-		{name: "stale Go toolchain", gh: exactGH, goBin: staleGo, want: "Go 1.25.11 is required"},
+		{name: "stale Go toolchain", gh: exactGH, goBin: staleGo, want: "Go 1.26.10 is required"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			command := exec.Command("bash", "-c", `set -euo pipefail; source "$1"; wk_resolve_local_cloud_tools`, "bash",
@@ -581,7 +581,7 @@ func runFinalizeHarness(t *testing.T, mode string) (output string, calls string,
 	writeExecutable(t, filepath.Join(binDir, "go"), `#!/usr/bin/env bash
 set -euo pipefail
 if [[ "$*" == "env GOVERSION" ]]; then
-  printf '%s\n' go1.25.11
+  printf '%s\n' go1.26.10
 elif [[ "$*" == "env GOROOT" ]]; then
   go_root="$WK_FINALIZE_STATE_DIR/goroot"
   mkdir -p "$go_root/bin"
