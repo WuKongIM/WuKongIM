@@ -350,7 +350,7 @@ func TestRuntimeInstallExternalStateSnapshotReplacesSameIndexWhenCompactionDisab
 	defer fsm.mu.Unlock()
 	if fsm.restoreCount == 0 ||
 		string(fsm.restores[len(fsm.restores)-1].Data) != "restored-state" {
-		t.Fatalf("Restore() calls/data = %d/%q", fsm.restoreCount, fsm.restores)
+		t.Fatalf("Restore() calls/data = %d/%+v", fsm.restoreCount, fsm.restores)
 	}
 }
 

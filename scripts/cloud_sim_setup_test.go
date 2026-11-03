@@ -37,7 +37,7 @@ func TestCloudSimulationSetupPinsDownloadedToolchain(t *testing.T) {
 		t.Fatalf("read cloud toolchain: %v", err)
 	}
 	want := []string{
-		"GO_VERSION=1.25.11",
+		"GO_VERSION=1.26.10",
 		"GO_LINUX_AMD64_SHA256=34f14304e856893f4ba30c2cacfe93906e9de7915c5f6aaaf3a81cdccd7ba30b",
 		"GO_LINUX_ARM64_SHA256=c30bf9e156a54ea4e31fbbbf31a712b32734b58cc9a22426fa5ee632d0885124",
 		"GH_CLI_VERSION=2.96.0",

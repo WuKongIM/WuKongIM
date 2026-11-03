@@ -63,7 +63,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: "1.25.11"
+          go-version: "1.26.10"
       - name: Run the fixed 500 QPS seam
         env:
           SEAM: ${{ matrix.seam }}
@@ -104,7 +104,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: "1.25.11"
+          go-version: "1.26.10"
       - name: Interleave base and head three times on this runner
         env:
           SEAM: ${{ matrix.seam }}
@@ -195,7 +195,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: "1.25.11"
+          go-version: "1.26.10"
       - run: bash scripts/diagnose-mixed-send-linux.sh "$RUNNER_TEMP/mixed-send-diagnosis"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()

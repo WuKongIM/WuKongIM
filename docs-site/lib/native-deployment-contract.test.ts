@@ -36,7 +36,7 @@ describe('native deployment publication contract', () => {
 
       for (const sourcePath of [
         'git clone',
-        'go1.25.11',
+        'go1.26.10',
         'GOWORK=off go run',
         'wukongim.toml.example',
         './data/wukongim-single-node-data',

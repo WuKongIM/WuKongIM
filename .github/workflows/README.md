@@ -225,7 +225,7 @@ for local reproduction, duplicate handling and the scope of the receipt.
 
 `conversation-qps-diagnose.yml` takes an exact product SHA on main history or a
 main-descended candidate branch, and optional
-previous binary digest. It builds that clean source with Go 1.25.11 before
+previous binary digest. It builds that clean source with Go 1.26.10 before
 checking out the diagnostic harness separately. A supplied digest mismatch
 aborts; it must not silently substitute a different binary. The read-only
 Ubuntu 24.04 job requires four visible AMD64 CPUs and records CPU model, kernel,

@@ -19,7 +19,7 @@ lscpu --json >"$evidence/host.json"
 go version >"$evidence/go-version.txt"
 # Pin concurrency and toolchain. CPU model remains recorded, not assumed fixed
 # across GitHub-hosted allocations; pressure during load never excuses failure.
-[[ "$(go env GOVERSION)" == go1.25.11 && "$(uname -m)" == x86_64 && "$(nproc)" == 4 ]] || {
+[[ "$(go env GOVERSION)" == go1.26.10 && "$(uname -m)" == x86_64 && "$(nproc)" == 4 ]] || {
   printf '{"status":"environment_invalid","reason":"toolchain_or_cpu_contract"}\n' >"$evidence/result.json"
   exit 2
 }
@@ -57,8 +57,9 @@ flight_stage=""
 footprint_sampler=""
 cleanup() {
   # Only this shell owns the staging and data directories; a forked subshell
-  # running an inherited EXIT trap must not delete them mid-run.
-  [[ "$BASHPID" == "$$" ]] || return 0
+  # running an inherited EXIT trap must not delete them mid-run. Forked
+  # subshells clear the trap; BASHPID (bash 4+) is a second guard.
+  [[ -z "${BASHPID:-}" || "$BASHPID" == "$$" ]] || return 0
   [[ -z "$footprint_sampler" ]] || kill "$footprint_sampler" 2>/dev/null || :
   [[ -z "$flight_stage" ]] || rm -rf -- "$flight_stage"
   [[ "$data_mode" != tmpfs ]] || rm -rf -- "$data_dir"
@@ -81,6 +82,7 @@ baseline_kib="$(used_kib)"
 # 0 means "measured, no growth"; a missing file means the sampler never ran.
 printf '0\n' >"$evidence/data-peak-kib.txt"
 (
+  trap - EXIT
   peak=0
   while :; do
     grown=$(( $(used_kib) - baseline_kib ))

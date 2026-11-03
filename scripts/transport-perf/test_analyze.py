@@ -9,7 +9,7 @@ def fixtures():
     host = {"OS": "linux", "Arch": "amd64", "KernelArch": "x86_64", "Container": False,
             "Ineligible": [], "CPUCount": 4, "Procs": 4, "CPUModel": "test-cpu",
             "HostID": "client", "AllowedCPUs": "0-3", "Source": "a" * 40,
-            "BinarySHA256": "b" * 64, "GoVersion": "go1.25.11",
+            "BinarySHA256": "b" * 64, "GoVersion": "go1.26.10",
             "MemoryLimit": 2**63-1, "RuntimeDebug": ""}
     server = dict(host, HostID="server")
     options = {"Mode": "client", "Duration": 20_000_000_000, "Warmup": 10_000_000_000,

@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="https://github.com/WuKongIM/WuKongIM/releases"><img src="https://img.shields.io/badge/status-v3%20beta-F15A3A?style=flat-square" alt="v3 beta"></a>
-  <a href="./go.mod"><img src="https://img.shields.io/badge/Go-1.25%2B-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.25+"></a>
+  <a href="./go.mod"><img src="https://img.shields.io/badge/Go-1.26%2B-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.26+"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square" alt="Apache 2.0"></a>
 </p>
 
@@ -58,7 +58,7 @@ Open the **[Demo home page](https://demo.githubim.com/)** to try all six demos i
 
 ### 1. Run the demos on your computer
 
-Requires **Go 1.25+**, **Node.js 22.12+ or 20.19+**, and **npm**. From a fresh checkout:
+Requires **Go 1.26+**, **Node.js 22.12+ or 20.19+**, and **npm**. From a fresh checkout:
 
 ```bash
 git clone https://github.com/WuKongIM/WuKongIM.git
@@ -239,7 +239,7 @@ For published measurements, see the [conversation and messaging performance repo
 
 ## Build and contribute
 
-The repository pins **Go 1.25.11**. Follow the [configuration and startup guide](https://docs.githubim.com/en/server/configuration/) for source development.
+The repository pins **Go 1.26.10**. Follow the [configuration and startup guide](https://docs.githubim.com/en/server/configuration/) for source development.
 
 ```bash
 GOWORK=off go build ./cmd/wukongim ./cmd/wkcli
