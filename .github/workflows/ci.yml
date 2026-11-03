@@ -173,14 +173,15 @@ jobs:
           WK_E2E_BINARY: ${{ runner.temp }}/wukongim-e2e
         run: go test -tags=e2e ./test/e2e/message/self_chat -count=1 -timeout=4m -p=1
       - name: Three-node 500 SEND/s correctness and drain smoke
-        # Data lives on tmpfs: this is a correctness check, and runner disk
-        # speed varies widely between hosted allocations.
+        # Runner disk, not tmpfs: the harness preflight requires more free
+        # space than /dev/shm offers. The 1000 ms SENDACK budget stays far
+        # above slow-disk runners (~164 ms channel-append p99 on EPYC 9V74).
         run: |
           api_token="$(openssl rand -hex 32)"
           worker_token="$(openssl rand -hex 32)"
           printf '::add-mask::%s\n' "$api_token" "$worker_token"
           export WK_BENCH_API_TOKEN="$api_token" WK_BENCH_WORKER_TOKEN="$worker_token"
-          run_dir="$(mktemp -d /dev/shm/wk-three-node.XXXXXXXX)"
+          run_dir="$(mktemp -d "$RUNNER_TEMP/wk-three-node.XXXXXXXX")"
           echo "THREE_NODE_RUN_DIR=$run_dir" >>"$GITHUB_ENV"
           scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh \
             --run-dir "$run_dir/artifacts" --base-port 15000 --ready-timeout 120 \
